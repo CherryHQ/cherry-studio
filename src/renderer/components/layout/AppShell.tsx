@@ -1,4 +1,3 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -10,17 +9,28 @@ import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
-import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
+import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
-    useTabs()
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    closeTab,
+    closeTabs,
+    updateTab,
+    reorderTabs,
+    pinTab,
+    unpinTab,
+    detachTab,
+    openTab
+  } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -55,20 +65,14 @@ export const AppShell = () => {
     }
   })
 
-  const recordRouteVisit = useCallback(
-    (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
-      if (!tab) return
+  const recordRouteVisit = useCallback((tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
+    if (!tab) return
 
-      const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
-      if (!entry) return
+    const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
+    if (!entry) return
 
-      // Functional update resolves against the latest persisted value; upsert
-      // returns the same reference when nothing changes, so the CacheService
-      // isEqual short-circuit drops the no-op write.
-      setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev, entry))
-    },
-    [setRecentItems]
-  )
+    recordGlobalSearchRecentEntry(entry)
+  }, [])
 
   useEffect(() => {
     recordRouteVisit(activeTab)
@@ -107,6 +111,7 @@ export const AppShell = () => {
       isFullscreen={isFullscreen}
       setActiveTab={setActiveTab}
       closeTab={closeTab}
+      closeTabs={closeTabs}
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}
@@ -117,18 +122,22 @@ export const AppShell = () => {
 
   const contentArea = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-      <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+      <main
+        data-ui="app.content"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
         {/* Route Tabs: Only render non-dormant tabs */}
-        {tabs
-          .filter((t) => t.type === 'route' && !t.isDormant)
-          .map((tab) => (
-            <TabRouter
-              key={tab.id}
-              tab={tab}
-              isActive={tab.id === activeTabId}
-              onUrlChange={(url) => handleUrlChange(tab.id, url)}
-            />
-          ))}
+        <ResourceViewSourceProvider>
+          {tabs
+            .filter((t) => t.type === 'route' && !t.isDormant)
+            .map((tab) => (
+              <TabRouter
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                onUrlChange={(url) => handleUrlChange(tab.id, url)}
+              />
+            ))}
+        </ResourceViewSourceProvider>
 
         {/* MiniApp keep-alive WebView pool — global, shared across modes */}
         <MiniAppTabsPool />

@@ -44,7 +44,12 @@ export {
 } from './composites/date-time-picker'
 export { default as Ellipsis } from './composites/ellipsis'
 export { default as EmojiAvatar } from './composites/emoji-avatar'
-export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/empty-state'
+export {
+  EmptyState,
+  type EmptyStateIllustration,
+  type EmptyStatePreset,
+  type EmptyStateProps
+} from './composites/empty-state'
 export {
   type EntityItemBase,
   EntitySelector,
@@ -133,7 +138,7 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
-export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
+export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
 // Sortable
 export {
   CompositeInput,

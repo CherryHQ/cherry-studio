@@ -1,12 +1,13 @@
+import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
 
-// The send path calls ipcApi.request('ai.stream_open', …); route it to the per-test
+// The send path calls ipcApi.request('ai.stream.open', …); route it to the per-test
 // `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
 // re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
 const { ipcMock } = vi.hoisted(() => ({
@@ -31,6 +32,11 @@ const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
 )
+type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
+type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
+const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
+  current: undefined as ToolApprovalOverridesOptions | undefined
+}))
 const mockInvalidateCache = vi.fn<(keys?: string | string[] | boolean) => Promise<void>>(async () => undefined)
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
@@ -64,6 +70,17 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
 
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', async (importOriginal) => {
+  const actual = await importOriginal<ToolApprovalOverridesModuleType>()
+
+  function useToolApprovalComposerOverrides(options: ToolApprovalOverridesOptions) {
+    mockToolApprovalOverridesOptions.current = options
+    return actual.useToolApprovalComposerOverrides(options)
+  }
+
+  return { ...actual, useToolApprovalComposerOverrides }
+})
+
 vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
 }))
@@ -77,7 +94,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     },
     model: undefined,
     setModel: vi.fn()
-  })
+  }),
+  useAssistantApiById: () => ({ assistant: { id: 'assistant-1', emoji: '😀' } })
 }))
 
 vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
@@ -119,12 +137,14 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     placement,
     onSend,
     sendDisabled,
-    onDraftAssistantChange
+    onDraftAssistantChange,
+    captureLocalSendScrollEligibility
   }: {
     placement: 'home' | 'docked'
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    captureLocalSendScrollEligibility?: () => void
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
@@ -140,7 +160,10 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
         type="button"
         data-use-mentioned-model-selector="true"
         disabled={sendDisabled}
-        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
+        onClick={() => {
+          captureLocalSendScrollEligibility?.()
+          return onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+        }}>
         send
       </button>
     )
@@ -148,22 +171,11 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
-  default: ({
-    placement,
-    main,
-    composer,
-    homeWelcomeText
-  }: {
-    placement: string
-    main: ReactNode
-    composer: ReactNode
-    homeWelcomeText?: string
-  }) => (
+  default: ({ placement, main, composer }: { placement: string; main: ReactNode; composer: ReactNode }) => (
     <div
       data-testid="composer-dock-frame"
       data-placement={placement}
       data-main-visible={String(placement === 'docked')}>
-      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       <div data-testid="composer-dock-main">{main}</div>
       <div data-testid="composer-dock-composer">{composer}</div>
     </div>
@@ -188,14 +200,22 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: {
     messages: CherryUIMessage[]
     partsByMessageId: Record<string, CherryMessagePart[]>
+    streamingLayers: {
+      historyPartsByMessageId: Record<string, CherryMessagePart[]>
+      liveMessageIds: readonly string[]
+    }
+    localSendGeneration: number
+    onBindRuntime?: (runtime: { captureLocalSendScrollEligibility: () => void }) => void | (() => void)
     isInitialLoading?: boolean
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
+      streamingLayers: params.streamingLayers,
+      localSendGeneration: params.localSendGeneration,
       isInitialLoading: params.isInitialLoading
     },
-    actions: {},
+    actions: { bindRuntime: params.onBindRuntime },
     meta: {}
   })
 }))
@@ -235,9 +255,9 @@ describe('ChatContent', () => {
 
   beforeEach(() => {
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
-    // Route ai.stream_open through the spy; other stream routes/events are inert here
+    // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
-    ipcMock.request = (route, input) => (route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined))
+    ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
     ipcMock.on = () => () => {}
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockUseMutation.mockImplementation((method: string) => ({
@@ -284,6 +304,7 @@ describe('ChatContent', () => {
       reset: vi.fn()
     }
     mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockToolApprovalOverridesOptions.current = undefined
 
     ;(window as any).api = { ...originalApi }
   })
@@ -300,6 +321,7 @@ describe('ChatContent', () => {
 
   it('opens a stream against the active branch node', async () => {
     const sendMessage = vi.fn()
+    const captureLocalSendScrollEligibility = vi.fn()
     mockUseChatWithHistory.mockReturnValue({
       sendMessage,
       regenerate: vi.fn(),
@@ -310,9 +332,11 @@ describe('ChatContent', () => {
     })
 
     render(<ChatContent topic={topic} />)
+    mockMessageListValue.current.actions.bindRuntime?.({ captureLocalSendScrollEligibility })
 
+    const sendButton = await screen.findByRole('button', { name: 'send' })
     await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      fireEvent.click(sendButton)
       await Promise.resolve()
     })
 
@@ -327,6 +351,8 @@ describe('ChatContent', () => {
       )
     })
     expect(sendMessage).not.toHaveBeenCalled()
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
   })
 
   it('uses a branch draft anchor for the next send and clears it after stream open', async () => {
@@ -498,6 +524,60 @@ describe('ChatContent', () => {
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
     expect(screen.getByTestId('composer-dock-composer')).toHaveTextContent('send')
+    // Loaded-and-empty is the greeting's show condition.
+    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
+  })
+
+  it('keeps the empty-conversation greeting hidden while topic history is loading', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: true,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
+  })
+
+  it('hides the empty-conversation greeting once the conversation has messages', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
   })
 
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
@@ -535,6 +615,85 @@ describe('ChatContent', () => {
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant,pending-placeholder')
     })
+  })
+
+  it('keeps Home history parts and live ids stable across execution overlay frames', async () => {
+    const historyMessage = createUiMessage('history-assistant', 'assistant')
+    const pendingMessage = {
+      ...createUiMessage('pending-placeholder', 'assistant'),
+      parts: [{ type: 'text', text: 'persisted seed' }],
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        modelId: 'provider::model',
+        status: 'pending'
+      }
+    } as CherryUIMessage
+    const messages = [historyMessage, pendingMessage]
+    const activeExecutions = [{ executionId: 'provider::model', anchorMessageId: pendingMessage.id }]
+    const firstLiveAssistant = {
+      ...pendingMessage,
+      parts: [{ type: 'text', text: 'stream frame 1' }]
+    } as CherryUIMessage
+
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: messages,
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: pendingMessage.id,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'streaming',
+      setMessages: vi.fn(),
+      activeExecutions
+    })
+    mockExecutionOverlay.current = {
+      overlay: { [pendingMessage.id]: firstLiveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [firstLiveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+
+    const view = render(<ChatContent topic={topic} />)
+
+    await waitFor(() => {
+      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+        text: 'stream frame 1'
+      })
+    })
+    const firstStreamingLayers = mockMessageListValue.current.state.streamingLayers
+    expect(firstStreamingLayers.historyPartsByMessageId[pendingMessage.id][0]).toMatchObject({
+      text: 'persisted seed'
+    })
+    expect(firstStreamingLayers.liveMessageIds).toEqual([pendingMessage.id])
+    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
+
+    const secondLiveAssistant = {
+      ...pendingMessage,
+      parts: [{ type: 'text', text: 'stream frame 2' }]
+    } as CherryUIMessage
+    mockExecutionOverlay.current = {
+      overlay: { [pendingMessage.id]: secondLiveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [secondLiveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+    view.rerender(<ChatContent topic={topic} />)
+
+    await waitFor(() => {
+      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+        text: 'stream frame 2'
+      })
+    })
+    expect(mockMessageListValue.current.state.streamingLayers).toBe(firstStreamingLayers)
+    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
   })
 
   it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {
@@ -696,7 +855,7 @@ describe('ChatContent', () => {
     })
   })
 
-  it('adds the forked user sibling to branch live state before refreshed tree data arrives', async () => {
+  it('adds the forked user sibling to branch live state and advances the local send generation', async () => {
     const onBranchLiveStateChange = vi.fn()
     const editedParts = [{ type: 'text', text: 'edited branch prompt' } as CherryMessagePart]
     const historyUser = {
@@ -800,6 +959,7 @@ describe('ChatContent', () => {
         parentAnchorId: 'forked-user'
       })
     )
+    expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
     expect(regenerate).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(

@@ -9,6 +9,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 
 import type { MessageListItem } from '../types'
@@ -22,12 +23,6 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
   if (!metadata) return undefined
   const stats: MessageStats = { ...metadata.stats }
   if (metadata.totalTokens !== undefined) stats.totalTokens = metadata.totalTokens
-  if (metadata.promptTokens !== undefined) stats.promptTokens = metadata.promptTokens
-  if (metadata.completionTokens !== undefined) stats.completionTokens = metadata.completionTokens
-  if (metadata.thoughtsTokens !== undefined) stats.thoughtsTokens = metadata.thoughtsTokens
-  if (metadata.noCacheTokens !== undefined) stats.noCacheTokens = metadata.noCacheTokens
-  if (metadata.cacheReadTokens !== undefined) stats.cacheReadTokens = metadata.cacheReadTokens
-  if (metadata.cacheWriteTokens !== undefined) stats.cacheWriteTokens = metadata.cacheWriteTokens
   return Object.keys(stats).length > 0 ? stats : undefined
 }
 
@@ -53,6 +48,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
+    isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
@@ -122,6 +118,37 @@ export function getDirectAssistantModelsByUserId(messages: MessageListItem[]): M
   }
 
   return modelsByUserId
+}
+
+function directAssistantModelEqual(previous: SharedModel, next: SharedModel): boolean {
+  return (
+    previous.id === next.id &&
+    previous.providerId === next.providerId &&
+    previous.apiModelId === next.apiModelId &&
+    previous.name === next.name &&
+    previous.group === next.group &&
+    previous.supportsStreaming === next.supportsStreaming &&
+    previous.isEnabled === next.isEnabled &&
+    previous.isHidden === next.isHidden
+  )
+}
+
+/** Reuse the previous derived map when streaming changed metadata but not its model topology. */
+export function shareDirectAssistantModelsByUserId(
+  previous: Map<string, SharedModel[]> | undefined,
+  next: Map<string, SharedModel[]>
+): Map<string, SharedModel[]> {
+  if (!previous || previous.size !== next.size) return next
+
+  for (const [userId, nextModels] of next) {
+    const previousModels = previous.get(userId)
+    if (!previousModels || previousModels.length !== nextModels.length) return next
+    for (let index = 0; index < nextModels.length; index++) {
+      if (!directAssistantModelEqual(previousModels[index], nextModels[index])) return next
+    }
+  }
+
+  return previous
 }
 
 export function getMessageListItemModelName(message: MessageListItem): string {

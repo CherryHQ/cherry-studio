@@ -1216,6 +1216,118 @@ export class JobManager extends BaseService {
   }
 
   /**
+   * Transactional variant of `registerJobSchedule`: the schedule INSERT goes
+   * through the caller's transaction so related business writes commit (or
+   * roll back) atomically with it. Pure DB write — the SchedulerService timer
+   * is NOT armed here; after the transaction returns successfully the caller
+   * MUST call `syncJobScheduleTimerById(id)` on its own deterministic code
+   * path. A rollback therefore has zero timer side effects. See
+   * "Transactional schedule mutation" in
+   * `docs/references/job-and-scheduler/overview.md`.
+   *
+   * Handler, name, and trigger-semantics validation run up front (outside the
+   * write) as the primitive's own precondition — an invalid cron expression /
+   * timezone can never commit a row whose timer would then fail to arm.
+   *
+   * @param tx - The caller's open transaction (from `DbService.withWriteTx`)
+   * @param input - Same shape as `registerJobSchedule`
+   * @returns `{ id }` of the inserted (not yet armed) schedule row
+   * @throws Error with code `JOB_UNKNOWN_TYPE` / `JOB_SCHEDULE_NAME_INVALID` /
+   *   `JOB_SCHEDULE_TRIGGER_INVALID` before any write; unique-constraint
+   *   conflicts surface as `JOB_SCHEDULE_NAME_CONFLICT` and abort the whole
+   *   caller transaction
+   */
+  registerJobScheduleTx<K extends JobType>(tx: DbOrTx, input: JobScheduleRegistrationInput<K>): { id: string } {
+    if (!this.handlers.has(input.type)) {
+      throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler for schedule type "${input.type}"`, {
+        type: input.type
+      })
+    }
+    if (input.name) jobScheduleService.assertValidName(input.name)
+    this.assertValidTrigger(input.trigger)
+    const snapshot = jobScheduleService.createTx(tx, {
+      type: input.type,
+      name: input.name ?? null,
+      trigger: input.trigger,
+      jobInputTemplate: input.jobInputTemplate,
+      catchUpPolicy: input.catchUpPolicy,
+      metadata: input.metadata,
+      enabled: input.enabled
+    })
+    logger.info('Schedule registered (tx) — timer sync deferred to caller', { id: snapshot.id, type: input.type })
+    return { id: snapshot.id }
+  }
+
+  /**
+   * Transactional variant of `updateJobSchedule`: pure DB update through the
+   * caller's transaction, never touches the timer. When the patch carries
+   * `trigger` or `enabled`, the caller MUST call `syncJobScheduleTimerById`
+   * after the transaction returns successfully — a rollback leaves the armed
+   * timer (and its interval phase) untouched by construction.
+   *
+   * @param tx - The caller's open transaction
+   * @param id - Schedule row id
+   * @param patch - Partial update (same shape as `updateJobSchedule`)
+   * @returns Updated snapshot, or `null` if no row matches `id`
+   * @throws Error with code `JOB_SCHEDULE_NAME_INVALID` /
+   *   `JOB_SCHEDULE_TRIGGER_INVALID` before any write
+   */
+  updateJobScheduleTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    if (patch.name) jobScheduleService.assertValidName(patch.name)
+    if (patch.trigger !== undefined) this.assertValidTrigger(patch.trigger)
+    return jobScheduleService.updateTx(tx, id, patch)
+  }
+
+  /**
+   * Explicit timer sync for a schedule row — the public extraction of
+   * `updateJobSchedule`'s re-arm branch, not a new semantic. Reads the current
+   * row: enabled → (re-)arm via `armSchedule` (which disposes any prior
+   * registration first); disabled or missing → dispose. Call after a `*Tx`
+   * schedule mutation commits, NEVER inside the transaction. An arm failure
+   * here is not rolled back (the row is already committed) — it logs and
+   * leaves re-arming to startup recovery, the same crash-window semantics as
+   * `enqueueTx`.
+   *
+   * @param id - Schedule row id
+   */
+  syncJobScheduleTimerById(id: string): void {
+    const snapshot = jobScheduleService.getById(id)
+    if (snapshot?.enabled) {
+      try {
+        this.armSchedule(snapshot)
+      } catch (err) {
+        logger.error('syncJobScheduleTimerById: arm failed — row stays committed, startup recovery re-arms', {
+          id,
+          err
+        })
+      }
+    } else {
+      const disp = this.scheduleDisposables.get(id)
+      if (disp) {
+        disp.dispose()
+        this.scheduleDisposables.delete(id)
+      }
+    }
+  }
+
+  /**
+   * Translate SchedulerService's raw trigger parse errors into the job
+   * domain's typed error. Runs BEFORE any schedule write so an invalid cron
+   * expression / timezone can never commit — `armSchedule` disposes the old
+   * timer before re-registering, so a post-commit arm failure would strand
+   * "config committed, no timer".
+   */
+  private assertValidTrigger(trigger: Trigger): void {
+    try {
+      application.get('SchedulerService').validateTrigger(trigger)
+    } catch (err) {
+      throw this.makeError(JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID, `Invalid trigger: ${(err as Error).message}`, {
+        kind: trigger.kind
+      })
+    }
+  }
+
+  /**
    * Pause a schedule by id. Stops its SchedulerService timer and sets
    * `enabled=false` in the DB. Pending jobs already enqueued by past fires
    * are unaffected.
@@ -1294,9 +1406,10 @@ export class JobManager extends BaseService {
 
   /**
    * Delete a schedule by id. Disposes its SchedulerService timer and removes
-   * the row. Jobs previously enqueued by this schedule keep `scheduleId`
-   * referencing the now-deleted row — that linkage is intentional (lets
-   * `listRecentTerminalByScheduleId` still find historical jobs).
+   * the row. Jobs previously enqueued by this schedule get `scheduleId` set
+   * to NULL via the FK's `ON DELETE SET NULL` — the rows survive but lose
+   * schedule attribution, so `listRecentTerminalByScheduleId` no longer finds
+   * them after deletion.
    *
    * @param id - Schedule row id
    * @returns `true` if the row existed and was deleted; `false` if not found
@@ -1400,10 +1513,13 @@ export class JobManager extends BaseService {
    * the value is unchanged — cheap and avoids JSON-key-order brittleness in a
    * deep-equal check.
    *
-   * Known limitation: the DB write and the in-process re-arm are two awaits
-   * apart. Between them an old cron entry can fire once with the old
-   * jobInputTemplate. Acceptable trade-off for single-process Electron main —
-   * see the design plan for a per-id mutex escalation path.
+   * The armed callback reloads the schedule row immediately before enqueue,
+   * so execution-config updates take effect without re-arming or disturbing
+   * the existing trigger cadence.
+   *
+   * Timer sync goes through `syncJobScheduleTimerById`: an arm failure is
+   * logged, not thrown — the row update is already committed and must not
+   * read back as a failed command.
    *
    * @param id Schedule row id
    * @param patch Partial update
@@ -1414,17 +1530,7 @@ export class JobManager extends BaseService {
     if (!updated) return null
 
     const needsRearm = patch.trigger !== undefined || patch.enabled !== undefined
-    if (needsRearm) {
-      if (updated.enabled) {
-        this.armSchedule(updated)
-      } else {
-        const disp = this.scheduleDisposables.get(id)
-        if (disp) {
-          disp.dispose()
-          this.scheduleDisposables.delete(id)
-        }
-      }
-    }
+    if (needsRearm) this.syncJobScheduleTimerById(id)
     return updated
   }
 
@@ -1974,16 +2080,22 @@ export class JobManager extends BaseService {
         if (trigger.kind === 'once') this.suppressedOnceScheduleIds.add(schedule.id)
         return
       }
+      // The registration owns timing only. Execution configuration remains
+      // DB-backed so prompt/workspace/timeout edits take effect on the next
+      // fire without re-arming (which would reset an interval's cadence).
+      const currentSchedule = jobScheduleService.getById(schedule.id)
+      if (!currentSchedule?.enabled) return
+
       const firedAt = Date.now()
       try {
-        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
-          scheduleId: schedule.id
+        this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
+          scheduleId: currentSchedule.id
         })
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
-          scheduleId: schedule.id,
-          type: schedule.type,
+          scheduleId: currentSchedule.id,
+          type: currentSchedule.type,
           code: e.code,
           message: e.message,
           stack: e.stack

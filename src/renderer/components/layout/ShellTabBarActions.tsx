@@ -13,7 +13,9 @@ export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
 
-  const rightPaddingClass = hasWindowControls ? 'pr-[184px]' : 'pr-[56px]'
+  // Extra ~16px over the action cluster's own width leaves a draggable gap between the
+  // last tab / "+" button and the right-side buttons, so the window stays easy to grab-move (Chrome-style).
+  const rightPaddingClass = hasWindowControls ? 'pr-[200px]' : 'pr-[72px]'
 
   return {
     hasWindowControls,

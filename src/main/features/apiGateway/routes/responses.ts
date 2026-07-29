@@ -17,7 +17,8 @@ export const responsesRoutes = new Elysia({ prefix: '/responses' }).post(
       params: body,
       inputFormat: 'openai-responses',
       outputFormat: 'openai-responses',
-      signal: request.signal
+      signal: request.signal,
+      requestHeaders: request.headers
     }),
   {
     body: ResponsesBodySchema,

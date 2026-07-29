@@ -8,10 +8,10 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../../streamManager'
+import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -36,19 +36,18 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   }
 
   persistAssistant(input: PersistAssistantInput): void {
-    const { finalMessage, status, stats } = input
-    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
+    const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
     agentSessionMessageService.saveMessage({
       sessionId: this.opts.sessionId,
       ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+      ...(runtimeStats ? { runtimeStats } : {}),
       message: {
         id: finalMessage?.id ?? this.opts.assistantMessageId,
         role: 'assistant',
         status,
-        data: { parts },
-        modelId: this.opts.modelId,
-        ...(stats ? { stats } : {})
+        data: { parts: finalMessage?.parts ?? [] },
+        modelId: this.opts.modelId
       }
     })
   }

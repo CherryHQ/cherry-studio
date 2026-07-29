@@ -1,4 +1,6 @@
-import { extractFtsTokens, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
+import { loggerService } from '@logger'
+
+import { extractFtsTokens, extractShortTerms, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
 import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {
@@ -17,6 +19,8 @@ import type {
   VectorIndex
 } from './types'
 import { encodeVectorBlob } from './vectorBlob'
+
+const logger = loggerService.withContext('KnowledgeIndexStore')
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
 const RRF_K = 60
@@ -506,15 +510,36 @@ export class KnowledgeIndexStore {
   }
 
   private bm25Search(queryText: string, topK: number): KnowledgeIndexSearchMatch[] {
-    // Short tokens (notably 1–2 char CJK words) produce no trigram, so MATCH would
-    // silently return nothing — route those queries to the LIKE fallback instead.
+    // A query whose every term is too short to trigram (notably a bare 1–2 char CJK
+    // word) can never MATCH, so scan with LIKE instead. A query with at least one
+    // indexable term takes the ranked MATCH path below.
     if (needsLikeFallback(queryText)) {
-      return this.bm25LikeSearch(extractFtsTokens(queryText), topK)
+      const tokens = extractFtsTokens(queryText)
+      logger.debug('BM25 LIKE fallback search', { tokens })
+      return this.bm25LikeSearch(tokens, topK)
     }
     const matchQuery = toFtsMatchQuery(queryText)
     if (!matchQuery) {
       return []
     }
+    // Short terms (2-char CJK words, "Go") produce no trigram, but they are often
+    // the query's content words — AND each as a LIKE substring filter so 「公司
+    // 年假 政策 PDF」 does not degrade to a bare MATCH "PDF". Preferred, not
+    // required: a filler short term absent from the target chunk ('to' against a
+    // chunk containing 'timeout' but no literal 'to') would zero out the whole
+    // query, so when the filters eliminate every candidate they are relaxed.
+    const shortTerms = extractShortTerms(queryText)
+    logger.debug('BM25 MATCH search', { matchQuery, shortTerms })
+    const matches = this.bm25MatchSearch(matchQuery, shortTerms, topK)
+    if (matches.length > 0 || shortTerms.length === 0) {
+      return matches
+    }
+    logger.debug('BM25 short-term filters eliminated every candidate; relaxing them', { shortTerms })
+    return this.bm25MatchSearch(matchQuery, [], topK)
+  }
+
+  private bm25MatchSearch(matchQuery: string, shortTerms: string[], topK: number): KnowledgeIndexSearchMatch[] {
+    const shortTermFilters = shortTerms.map(() => `AND st.text LIKE ? ESCAPE '\\'`).join(' ')
     const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
        FROM search_text_fts
@@ -522,9 +547,10 @@ export class KnowledgeIndexStore {
          ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE search_text_fts MATCH ?
+         ${shortTermFilters}
        ORDER BY score
        LIMIT ?`,
-      [matchQuery, topK]
+      [matchQuery, ...shortTerms.map(toFtsLikePattern), topK]
     )
     // bm25() is lower-is-better; negate so the returned score is higher-is-better.
     return result.rows.map((row) => toMatch(row, -Number(row.score)))

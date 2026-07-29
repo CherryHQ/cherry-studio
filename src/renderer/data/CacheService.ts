@@ -42,6 +42,42 @@ const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 const logger = loggerService.withContext('CacheService')
 
 /**
+ * Shallow-readonly view of a cache value, used for the `prev` argument of a
+ * functional updater. Containers (objects/arrays) become `Readonly<T>` so the
+ * most common footgun — mutating `prev` in place and returning it — fails to
+ * compile; primitives pass through unchanged so `prev => !prev` / `prev => prev + 1`
+ * still work.
+ *
+ * Shallow only: nested mutation (e.g. `prev.items[0].x = ...`) is NOT caught by
+ * the type — keep updaters pure (see {@link CacheSetStateAction}).
+ */
+export type ReadonlyValue<T> = T extends object ? Readonly<T> : T
+
+/**
+ * Setter input for cache writes, mirroring React's `SetStateAction<T>`: either a
+ * concrete value or an updater `(prev) => next`.
+ *
+ * The updater is resolved against the **latest stored value** at write time (not
+ * a render-time snapshot), which is what makes read-modify-write safe across an
+ * `await` — and what lets a write-only consumer skip subscribing entirely. It
+ * MUST be pure and return a new value: mutating `prev` in place and returning the
+ * same reference makes the `isEqual` short-circuit drop the write and silently
+ * skip the subscriber notification.
+ *
+ * "Pure" also means no side effects inside the updater: do not smuggle a derived
+ * result out (e.g. by writing to an enclosing-scope variable) to drive post-write
+ * work, and do not assume how many times or when it runs. To react to *what
+ * changed* — e.g. dispose resources for items that were removed — derive it from
+ * the value transition in a `useEffect` that watches the value, not from inside
+ * the updater.
+ *
+ * Caveat (same as React's `SetStateAction`): for keys whose value type is itself
+ * a function (only the `any`-typed keys in practice), a function argument is
+ * always treated as an updater, never stored verbatim.
+ */
+export type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
+
+/**
  * Renderer process cache service
  *
  * Three-layer caching architecture:
@@ -414,6 +450,35 @@ export class CacheService {
   }
 
   /**
+   * Pure physical read of a shared cache entry, for external-store snapshots.
+   *
+   * @internal Hook-layer primitive, not a consumer API. Its only legitimate
+   * caller is `useCache.ts` (the external-store snapshots behind
+   * `useSharedCacheValue` / `useSharedCacheSelector` / `useSharedCache`).
+   * Business code observing a shared value uses those hooks; an imperative
+   * one-shot read uses the TTL-aware `getShared` — calling this instead is a
+   * TTL-blind read and a smell.
+   *
+   * Unlike `getShared`, this reader never evaluates TTL and never mutates the
+   * store (no lazy deletion, no subscriber notification, no broadcast).
+   * `useSyncExternalStore` requires `getSnapshot` to return the same result
+   * until the store emits a change — a time-based flip to `undefined` with no
+   * notification would violate that contract (tearing / "getSnapshot should be
+   * cached" warnings), so the snapshot reflects the local physical Map only.
+   *
+   * Consequence: an expired-but-not-yet-collected entry still returns its old
+   * value; it disappears when Main's tombstone arrives (lazy cleanup / GC) or
+   * when this window's own imperative `getShared` evicts it. Eventual
+   * consistency, upper bound TTL + Main GC interval — see cache-overview.md.
+   *
+   * @param key - Schema-defined shared cache key
+   * @returns Physically stored value, or undefined if absent
+   */
+  getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+    return this.sharedCache.get(key)?.value as InferSharedCacheValue<K> | undefined
+  }
+
+  /**
    * Internal implementation for shared cache get
    */
   private getSharedInternal(key: string): any {
@@ -574,26 +639,38 @@ export class CacheService {
 
   /**
    * Set value in persist cache with cross-window sync and localStorage persistence
+   *
+   * Accepts a concrete value or a functional updater `(prev) => next`, resolved
+   * against the latest stored value (`getPersist` never returns undefined). The
+   * updater form is what lets write-only call sites write correctly without
+   * holding a render-time snapshot — and therefore without subscribing at all.
+   * Keep it pure and return a new value (see {@link CacheSetStateAction}).
+   *
    * @param key - Persist cache key to store
-   * @param value - Value to cache (must match schema type)
+   * @param value - New value, or an updater computing it from the latest value
    */
-  setPersist<K extends RendererPersistCacheKey>(key: K, value: RendererPersistCacheSchema[K]): void {
+  setPersist<K extends RendererPersistCacheKey>(
+    key: K,
+    value: CacheSetStateAction<RendererPersistCacheSchema[K]>
+  ): void {
+    const nextValue =
+      typeof value === 'function' ? value(this.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>) : value
     const existingValue = this.persistCache.get(key)
 
     // Use deep comparison for persist cache (usually objects)
-    if (isEqual(existingValue, value)) {
+    if (isEqual(existingValue, nextValue)) {
       logger.verbose(`Skipped persist cache update for key "${key}" - value unchanged`)
       return // Skip all updates
     }
 
-    this.persistCache.set(key, value)
+    this.persistCache.set(key, nextValue)
     this.notifySubscribers(key)
 
-    // Broadcast to other windows
+    // Broadcast to other windows — the resolved value, never the updater itself
     this.broadcastSync({
       type: 'persist',
       key,
-      value
+      value: nextValue
     })
 
     // Schedule persist save
@@ -1068,16 +1145,32 @@ export class CacheService {
     window.api.cache.onSync((message: CacheSyncMessage) => {
       if (message.type === 'shared') {
         if (message.value === undefined) {
-          // Handle deletion
+          // Deletion tombstone: physically remove and always notify so
+          // observers see the value disappear (unlike main's
+          // subscribeSharedChange, renderer hooks must re-render on it).
           this.sharedCache.delete(message.key)
-        } else {
-          // Handle set - use expireAt directly (absolute timestamp from sender)
-          const entry: CacheEntry = {
-            value: message.value,
-            expireAt: message.expireAt
-          }
-          this.sharedCache.set(message.key, entry)
+          this.notifySubscribers(message.key)
+          return
         }
+
+        const existingEntry = this.sharedCache.get(message.key)
+
+        // Equal-value update (e.g. Main's TTL-only refresh): renew expireAt in
+        // place, keep the old value reference, and skip notification. Compared
+        // against the raw local entry value (NOT TTL-aware) — snapshot readers
+        // reflect the physical Map, so their observable value never changed and
+        // notifying would only cause re-renders plus reference churn.
+        if (existingEntry && isEqual(existingEntry.value, message.value)) {
+          existingEntry.expireAt = message.expireAt
+          return
+        }
+
+        // Handle set - use expireAt directly (absolute timestamp from sender)
+        const entry: CacheEntry = {
+          value: message.value,
+          expireAt: message.expireAt
+        }
+        this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
         // Update persist cache (other windows only update memory, not localStorage)

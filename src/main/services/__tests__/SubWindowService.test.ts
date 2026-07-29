@@ -63,7 +63,7 @@ vi.mock('electron', () => ({
 
 // Tab_MoveWindow stays on native ipcMain and gates on validateSender; the test events are minimal
 // ({ sender: {} }) so force the gate open — the handler returns early otherwise.
-vi.mock('@main/ipc/validateSender', () => ({ validateSender: () => true }))
+vi.mock('@main/core/security/validateSender', () => ({ validateSender: () => true }))
 
 vi.mock('@main/core/lifecycle', async () => {
   const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>

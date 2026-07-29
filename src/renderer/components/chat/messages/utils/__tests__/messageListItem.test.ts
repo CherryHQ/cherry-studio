@@ -2,10 +2,14 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
 import type { MessageListItem } from '../../types'
-import { getDirectAssistantModelsByUserId, toMessageListItem } from '../messageListItem'
+import {
+  getDirectAssistantModelsByUserId,
+  shareDirectAssistantModelsByUserId,
+  toMessageListItem
+} from '../messageListItem'
 
 describe('toMessageListItem', () => {
-  it('projects live top-level token metadata into message stats', () => {
+  it('projects the top-level totalTokens mirror into message stats', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
@@ -13,34 +17,26 @@ describe('toMessageListItem', () => {
       metadata: {
         status: 'pending',
         createdAt: '2026-01-01T00:00:00.000Z',
-        totalTokens: 20,
-        promptTokens: 10,
-        completionTokens: 5,
-        thoughtsTokens: 5
+        totalTokens: 20
       }
     } as CherryUIMessage
 
-    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats).toEqual({
-      totalTokens: 20,
-      promptTokens: 10,
-      completionTokens: 5,
-      thoughtsTokens: 5
-    })
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats).toEqual({ totalTokens: 20 })
   })
 
-  it('lets live token metadata override persisted stats while streaming', () => {
+  it('lets the top-level totalTokens mirror override persisted stats while streaming', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
       parts: [],
       metadata: {
         status: 'pending',
-        stats: { thoughtsTokens: 100 },
-        thoughtsTokens: 150
+        stats: { totalTokens: 100 },
+        totalTokens: 150
       }
     } as CherryUIMessage
 
-    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats?.thoughtsTokens).toBe(150)
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats?.totalTokens).toBe(150)
   })
 
   it('resolves a snapshot-less row from its own frozen modelId', () => {
@@ -64,6 +60,17 @@ describe('toMessageListItem', () => {
 
     expect(item.model).toBeUndefined()
     expect(item.modelId).toBeUndefined()
+  })
+
+  it('projects a clear-context marker for the divider renderer', () => {
+    const message = {
+      id: 'clear-1',
+      role: 'user',
+      parts: [{ type: 'data-clear', data: {} }],
+      metadata: { status: 'success' }
+    } as CherryUIMessage
+
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).isContextBoundary).toBe(true)
   })
 })
 
@@ -135,5 +142,22 @@ describe('getDirectAssistantModelsByUserId', () => {
       expect.objectContaining({ id: 'provider-b::model-b', name: 'Model B', providerId: 'provider-b' })
     ])
     expect(modelsByUserId.get('user-1')).toHaveLength(2)
+  })
+
+  it('reuses the derived map when only live message metadata changes', () => {
+    const reply = {
+      id: 'assistant-a',
+      role: 'assistant',
+      topicId: 'topic-1',
+      parentId: 'user-1',
+      createdAt: '2026-01-01T00:00:01.000Z',
+      status: 'pending',
+      modelId: 'provider-a::model-a',
+      model: { id: 'model-a', name: 'Model A', provider: 'provider-a' }
+    } as MessageListItem
+    const previous = getDirectAssistantModelsByUserId([reply])
+    const next = getDirectAssistantModelsByUserId([{ ...reply, stats: { outputTokens: 1 } }])
+
+    expect(shareDirectAssistantModelsByUserId(previous, next)).toBe(previous)
   })
 })

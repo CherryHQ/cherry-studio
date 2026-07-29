@@ -8,6 +8,7 @@ import {
   type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../pathStorage'
@@ -1096,7 +1097,9 @@ describe('KnowledgeService', () => {
     knowledgeItemCreateActiveMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
@@ -1141,8 +1144,8 @@ describe('KnowledgeService', () => {
       .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
-      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' } }
+      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' as AbsoluteFilePath } }
     ])
 
     // Both imports land; the second's relativePath is deduped (`_N`) rather than refused.
@@ -1162,8 +1165,8 @@ describe('KnowledgeService', () => {
       .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
-      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' } }
+      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' as AbsoluteFilePath } }
     ])
 
     // brief.pdf reserves brief.pdf + its brief.md output; brief.docx would also emit
@@ -1191,7 +1194,7 @@ describe('KnowledgeService', () => {
         data: {
           source: 'https://example.com/new',
           url: 'https://example.com/new',
-          snapshotPath: '/captured/example-page.md'
+          snapshotPath: '/captured/example-page.md' as AbsoluteFilePath
         }
       }
     ])
@@ -1229,7 +1232,7 @@ describe('KnowledgeService', () => {
           data: {
             source: 'https://example.com/p',
             url: 'https://example.com/p',
-            snapshotPath: '/captured/example-page.md'
+            snapshotPath: '/captured/example-page.md' as AbsoluteFilePath
           }
         }
       ])
@@ -1264,7 +1267,10 @@ describe('KnowledgeService', () => {
     )
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' } }
+      {
+        type: 'file',
+        data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' as AbsoluteFilePath }
+      }
     ])
 
     // The new file's name collides with the existing note's reserved snapshot path, so it is
@@ -1323,7 +1329,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('file-existing', 'kb-1', '/old/notes.md')])
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' } }
+      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' as AbsoluteFilePath } }
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/notes.md', 'notes_1.md')
@@ -1338,7 +1344,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('file-existing', 'kb-1', '/old/brief.pdf')])
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' } }
+      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' as AbsoluteFilePath } }
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/brief.md', 'brief_1.md')
@@ -1349,7 +1355,9 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' } }])
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' as AbsoluteFilePath } }
+      ])
     ).rejects.toThrow('Unsupported knowledge file type: /Users/me/app.exe')
 
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
@@ -1529,7 +1537,9 @@ describe('KnowledgeService', () => {
     knowledgeItemCreateActiveMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1550,7 +1560,9 @@ describe('KnowledgeService', () => {
     knowledgeItemCreateActiveMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1613,7 +1625,9 @@ describe('KnowledgeService', () => {
     })
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' } }])
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' as AbsoluteFilePath } }
+      ])
     ).rejects.toThrow('create failed')
 
     // Copied-file cleanup is delegated to the best-effort variant, which swallows its
@@ -1794,6 +1808,84 @@ describe('KnowledgeService', () => {
       expectFailedBaseGuard(error, 'reindexItems')
     }
     expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('resolves a file preview to the knowledge-managed source copy', () => {
+    const service = new KnowledgeService()
+    const item = createFileItem('file-1', 'kb-1', '/external/report.pdf', 'completed')
+    knowledgeItemGetByIdMock.mockReturnValue({
+      ...item,
+      data: {
+        ...item.data,
+        relativePath: 'stored-report.pdf',
+        indexedRelativePath: 'stored-report.md'
+      }
+    })
+
+    expect(service.getFilePath('file-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/stored-report.pdf')
+  })
+
+  it('resolves a URL preview to the captured knowledge snapshot', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue({
+      id: 'url-1',
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'url',
+      data: {
+        source: 'https://example.com/product-docs',
+        url: 'https://example.com/product-docs',
+        relativePath: 'Product Docs.md'
+      },
+      status: 'completed',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    })
+
+    expect(service.getFilePath('url-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/Product Docs.md')
+  })
+
+  it('rejects URL preview path resolution before a snapshot is captured', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue({
+      id: 'url-1',
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'url',
+      data: {
+        source: 'https://example.com/product-docs',
+        url: 'https://example.com/product-docs'
+      },
+      status: 'processing',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    })
+
+    expect(() => service.getFilePath('url-1')).toThrow("Knowledge URL item 'url-1' has no captured snapshot to preview")
+  })
+
+  it('rejects preview path resolution for unsupported item types', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
+
+    expect(() => service.getFilePath('note-1')).toThrow(
+      "Knowledge item 'note-1' must be a file or URL to preview its source"
+    )
+  })
+
+  it('rejects preview path resolution for expanded directories with a relative path', () => {
+    const service = new KnowledgeService()
+    const directory = createDirectoryItem('directory-1', null, 'completed')
+    knowledgeItemGetByIdMock.mockReturnValue({
+      ...directory,
+      data: { ...directory.data, relativePath: 'stored-directory' }
+    })
+
+    expect(() => service.getFilePath('directory-1')).toThrow(
+      "Knowledge item 'directory-1' must be a file or URL to preview its source"
+    )
   })
 
   it('searches embedding-backed bases with hybrid retrieval and keeps ranking scores', async () => {

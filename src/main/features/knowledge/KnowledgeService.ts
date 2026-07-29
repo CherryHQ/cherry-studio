@@ -14,6 +14,7 @@ import type {
   RestoreKnowledgeBaseDto,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
@@ -114,6 +115,11 @@ export class KnowledgeService extends BaseService {
 
   listRootItems(baseId: string): KnowledgeItem[] {
     return this.queryService.listRootItems(baseId)
+  }
+
+  /** Absolute on-disk path of a file/url item's stored source bytes, for previewing (see KnowledgeQueryService.getFilePath). */
+  getFilePath(itemId: string): AbsoluteFilePath {
+    return this.queryService.getFilePath(itemId)
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {

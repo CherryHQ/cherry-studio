@@ -21,12 +21,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import { type SingleFileRefSourceType, singleFileRefTablesBySourceType } from '@data/db/schemas/fileRelations'
 import type { DbType } from '@data/db/types'
-import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/logoRef'
+import { insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('ImageMigration')
@@ -52,7 +53,7 @@ type InsertFileEntryRow = typeof fileEntryTable.$inferInsert
 
 export interface PreparedEntityImageFile<R extends EntityImageDescriptor = EntityImageDescriptor> {
   id: FileEntryId
-  physicalPath: FilePath
+  physicalPath: AbsoluteFilePath
   fileEntry: InsertFileEntryRow
   ref: R
 }
@@ -79,7 +80,7 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
   }
 
   const id = uuidv7()
-  const physicalPath = path.join(filesDataDir, `${id}.webp`) as FilePath
+  const physicalPath = AbsoluteFilePathSchema.parse(path.join(filesDataDir, `${id}.webp`))
   try {
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, webp)
@@ -133,7 +134,7 @@ export function insertPreparedImageRefTx(
   tx: Pick<DbType, 'insert'>,
   image: PreparedEntityImageFile<EntityImageRef>
 ): void {
-  insertSingleFileRefTx(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
+  insertSingleFileRefTx(tx, singleFileRefTablesBySourceType[image.ref.sourceType], image.ref.sourceId, image.id)
 }
 
 /**

@@ -1,3 +1,4 @@
+import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type {
   DataUIPart,
@@ -27,75 +28,98 @@ export const MessageIdSchema = z.uuid()
 export type MessageId = z.infer<typeof MessageIdSchema>
 
 /**
- * Message Statistics - combines token usage and performance metrics
- * Replaces the separate `usage` and `metrics` fields
+ * Materialized statistics for one assistant message.
  *
- * TODO(message-stats-redesign): This schema is flat, OpenAI-legacy-named, and
- * does not cover the actual modalities / billing dimensions we ship today.
- * Known gaps, to be addressed in a dedicated follow-up:
- *
- *  1. Naming drift vs AI SDK v5
- *     - `promptTokens` / `completionTokens` → should be `inputTokens` / `outputTokens`
- *     - `thoughtsTokens` is Gemini-only phrasing; AI SDK uses `reasoningTokens`
- *
- *  2. Cache accounting is only minimally modelled
- *     - Flat `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens` exist for prompt-cache visibility.
- *     - The full redesign should move them under a provider-agnostic input breakdown.
- *
- *  3. Output breakdown missing
- *     - AI SDK `outputTokenDetails` has `textTokens` / `reasoningTokens`;
- *       we only have a single `thoughtsTokens` patch
- *
- *  4. Non-text modalities not modelled
- *     - Embedding (single `tokens` field, no output concept)
- *     - Image generation (real billing is image count × size × quality, not tokens)
- *     - Audio (OpenAI audio tokens, Gemini per-second)
- *     - Video (Gemini, per-second or token-equivalent)
- *
- *  5. Cost auditability
- *     - Single `cost: number` loses per-bucket breakdown
- *     - No pricing snapshot — if provider pricing changes, historical
- *       stats drift. Need `{ costBreakdown, pricingSnapshot }` pair
- *
- * Target shape (draft):
- *   interface MessageStats {
- *     language?: LanguageUsage         // inputTokens, outputTokens, totalTokens,
- *                                      // inputBreakdown{noCache,cacheRead,cacheWrite},
- *                                      // outputBreakdown{text,reasoning}
- *     embedding?: EmbeddingUsage       // tokens, vectorCount
- *     image?: ImageUsage               // imageCount, size, quality, (tokens?)
- *     audio?: AudioUsage               // inputAmount/unit, outputAmount/unit
- *     video?: VideoUsage               // inputSeconds, (tokens?)
- *     timings?: { timeFirstTokenMs, timeCompletionMs, timeThinkingMs }
- *     cost?: number                    // aggregate
- *     costBreakdown?: Partial<Record<CostBucket, number>>
- *     pricingSnapshot?: { rates, capturedAt }
- *   }
- *
- * Redesign touches: renderer usage UI, DB column readers (old rows still
- * have promptTokens/completionTokens — need fallback), pricing subsystem,
- * V1/V2 migration. Tracked as a separate PR series so this layer isn't
- * rushed alongside stream-manager changes.
+ * Usage, request counts, costs, and provider performance are projections of
+ * immutable `ai_usage_record` rows. Runtime timing is message-owned and
+ * written by runtime persistence. Scalar timing fields are historical
+ * compatibility data read only when `runtimeTiming` is absent.
  */
+const MessageProviderPerformanceSchema = z.strictObject({
+  measuredOutputTokens: z.number().nonnegative(),
+  generationDurationMs: z.number().nonnegative()
+})
+export type MessageProviderPerformance = z.infer<typeof MessageProviderPerformanceSchema>
+
+const MessageRuntimeToolExecutionSpanSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.literal('tool-execution'),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1).optional(),
+  startedAt: z.number(),
+  completedAt: z.number().optional()
+})
+
+const MessageRuntimeApprovalWaitSpanSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.literal('approval-wait'),
+  approvalId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1).optional(),
+  startedAt: z.number(),
+  completedAt: z.number().optional()
+})
+
+export const MessageRuntimeTimingSchema = z.strictObject({
+  startedAt: z.number(),
+  completedAt: z.number().optional(),
+  spans: z.array(
+    z.discriminatedUnion('kind', [MessageRuntimeToolExecutionSpanSchema, MessageRuntimeApprovalWaitSpanSchema])
+  )
+})
+export type MessageRuntimeTiming = z.infer<typeof MessageRuntimeTimingSchema>
+export type MessageRuntimeSpan = MessageRuntimeTiming['spans'][number]
+
 export const MessageStatsSchema = z.strictObject({
-  // Token consumption (from API response)
-  promptTokens: z.number().optional(),
-  completionTokens: z.number().optional(),
+  // ── Token usage (AI SDK v6 `LanguageModelUsage` names, minus its
+  //    deprecated flat mirrors — the nested breakdowns are the only truth) ──
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  thoughtsTokens: z.number().optional(),
-  noCacheTokens: z.number().optional(),
-  cacheReadTokens: z.number().optional(),
-  cacheWriteTokens: z.number().optional(),
 
-  // Cost (calculated at message completion time)
-  cost: z.number().optional(),
+  /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
+  inputTokenDetails: z
+    .strictObject({
+      noCacheTokens: z.number().optional(),
+      cacheReadTokens: z.number().optional(),
+      cacheWriteTokens: z.number().optional()
+    })
+    .optional(),
+  /** Output token breakdown. Mirrors v6 `outputTokenDetails`. */
+  outputTokenDetails: z
+    .strictObject({
+      textTokens: z.number().optional(),
+      reasoningTokens: z.number().optional()
+    })
+    .optional(),
 
-  // Performance metrics (measured locally)
+  requestCount: z.number().int().nonnegative().optional(),
+  estimatedRequestCount: z.number().int().nonnegative().optional(),
+  unpricedRequestCount: z.number().int().nonnegative().optional(),
+  costs: z
+    .array(
+      z.strictObject({
+        currency: z.enum(objectValues(CURRENCY)),
+        amount: z.number().nonnegative(),
+        providerReportedRequestCount: z.number().int().nonnegative(),
+        computedRequestCount: z.number().int().nonnegative()
+      })
+    )
+    .optional(),
+
+  // ── Provider performance (projected from measured invocation records) ──
+  providerPerformance: MessageProviderPerformanceSchema.optional(),
+
+  // ── Message runtime timing (measured locally) ──
+  runtimeTiming: MessageRuntimeTimingSchema.optional(),
+
+  // ── Historical scalar timing compatibility (rows without runtimeTiming) ──
   timeFirstTokenMs: z.number().optional(),
   timeCompletionMs: z.number().optional(),
   timeThinkingMs: z.number().optional()
 })
 export type MessageStats = z.infer<typeof MessageStatsSchema>
+export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming'>>
 
 // ============================================================================
 // Message Data
@@ -121,13 +145,17 @@ export interface MessageData {
 /**
  * Metadata carried on a streamed `CherryUIMessage`.
  *
- * These fields mirror the token columns on `MessageStats` so that once the
- * accumulator writes a snapshot into `exec.finalMessage.metadata`, the
- * persistence backend can translate it 1:1 into the DB `stats` column
- * without inventing extra plumbing. Keep the names aligned with the
- * legacy `MessageStats` shape (promptTokens / completionTokens / ...)
- * until the redesign tracked in `MessageStats` lands — the same names on
- * both sides make `statsFromMetadata()` a trivial projection.
+ * Live cumulative token usage rides in the nested `stats` snapshot — there are
+ * deliberately no flat token mirrors. This stream metadata is not the
+ * persistent fact source: SQLite `MessageStats` usage/cost is rebuilt from
+ * per-invocation records, while message persistence owns only message timing.
+ *
+ * Deep-merge invariant: the AI SDK recursively merges each
+ * `message-metadata` chunk into the accumulating message. Usage writers still
+ * emit a FULL cumulative `stats` snapshot every step because the object
+ * represents message totals, not a per-step patch. A partial step snapshot
+ * would overwrite present counters with the latest step while retaining
+ * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
@@ -157,26 +185,13 @@ export interface CherryUIMessageMetadata {
   /** Last modification timestamp (ISO). Mirrors v1 Message.updatedAt during migration. */
   updatedAt?: string
 
-  // ── Token stats. First four duplicate fields on `stats` so call-sites
-  //    that only need a single counter can skip the nested object.
-  /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
-  totalTokens?: number
-  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
-  promptTokens?: number
-  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completionTokens`). */
-  completionTokens?: number
   /**
-   * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
-   * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
+   * Total-tokens convenience mirror of `MessageStats.totalTokens`, populated by
+   * the DB→UI projection so call-sites that only need the single counter can
+   * skip the nested `stats` object.
    */
-  thoughtsTokens?: number
-  /** Input tokens not served from prompt cache (AI SDK `inputTokenDetails.noCacheTokens`). */
-  noCacheTokens?: number
-  /** Input tokens read from prompt cache (AI SDK `inputTokenDetails.cacheReadTokens`). */
-  cacheReadTokens?: number
-  /** Input tokens written to prompt cache (AI SDK `inputTokenDetails.cacheWriteTokens`). */
-  cacheWriteTokens?: number
-  /** Full persisted stats (tokens + durations) when available. */
+  totalTokens?: number
+  /** Live token/timing view using the same shape as persisted `MessageStats`. */
   stats?: MessageStats
 }
 
@@ -519,6 +534,8 @@ export interface TreeNode {
   parentId: string
   /** Message role — a tree node is never the virtual root, so content roles only */
   role: ContentMessageRole
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

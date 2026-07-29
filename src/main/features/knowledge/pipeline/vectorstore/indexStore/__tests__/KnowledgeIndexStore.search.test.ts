@@ -104,14 +104,92 @@ describe('KnowledgeIndexStore.search', () => {
     expect(matches.map((m) => m.materialId)).toEqual(['m1'])
   })
 
-  it('LIKE fallback ANDs every token, so a mixed short+long query still filters correctly', async () => {
+  it('keeps a short CJK keyword as a LIKE filter on the ranked MATCH path', async () => {
     indexMaterial('m1', 'a.md', '系统 architecture overview', [1, 0, 0])
     indexMaterial('m2', 'b.md', '系统 design notes', [0, 1, 0])
+    // Decoy: matches the MATCH term but not the short keyword. If '系统' were
+    // simply dropped (instead of AND-ed as a LIKE filter), this unit would not
+    // only appear — it would outrank m1.
+    indexMaterial('m3', 'c.md', 'Java architecture guide', [0, 0, 1])
 
-    // The 2-char '系统' routes the whole query to LIKE; 'architecture' must still constrain it.
+    // The 2-char '系统' cannot be trigram-indexed, but it must not reroute the
+    // query to LIKE either: 'architecture' stays on the ranked MATCH path and
+    // '系统' constrains it as a substring filter.
+    expect(needsLikeFallback('系统 architecture')).toBe(false)
     const matches = store.search({ queryText: '系统 architecture', mode: 'bm25', topK: 10 })
 
     expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('keeps a short Latin keyword as a LIKE filter on a CJK trigram query', async () => {
+    // 'Go' is the query's only mention of its actual subject; '并发编程' rides the
+    // trigram MATCH path. Without the short-term filter the Java unit would tie.
+    indexMaterial('m1', 'a.md', 'Go 语言并发编程指南', [1, 0, 0])
+    indexMaterial('m2', 'b.md', 'Java 并发编程实战', [0, 1, 0])
+
+    const matches = store.search({ queryText: 'Go 并发编程', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode answers a CJK question phrased around the indexed wording', async () => {
+    // Regression: the whole CJK clause was sent as one quoted token, which the trigram
+    // tokenizer reads as an exact-substring demand — so a question that merely *contains*
+    // the indexed words ('报销流程') matched nothing, leaving a BM25-only base unusable.
+    indexMaterial('m1', 'a.md', '员工报销流程：先在系统中提交申请，财务审核后打款。', [1, 0, 0])
+    indexMaterial('m2', 'b.md', '年假政策：入职满一年的员工每年享有五天带薪年假。', [0, 1, 0])
+
+    const matches = store.search({ queryText: '公司的报销流程是什么', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode answers a multi-word question without requiring every word in one unit', async () => {
+    // Regression: the 2-char 'to' rerouted this query to the LIKE lane, which
+    // AND-ed every token as a substring — m1 contains no 'how', so nothing
+    // matched. Now the long terms are OR-ed on the MATCH path; and because m1
+    // contains no literal 'to' either, this also pins the store relaxing a
+    // short-term filter that would otherwise eliminate every candidate.
+    indexMaterial('m1', 'a.md', 'The proxy timeout is set in the network settings panel.', [1, 0, 0])
+    indexMaterial('m2', 'b.md', 'Keyboard shortcuts are listed under general preferences.', [0, 1, 0])
+
+    const matches = store.search({ queryText: 'how to configure proxy timeout', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode ranks a unit matching more query terms above one matching fewer', async () => {
+    // OR-ing terms only works if bm25() then sorts by how much of the query was hit.
+    indexMaterial('m1', 'a.md', 'proxy timeout configuration', [1, 0, 0])
+    indexMaterial('m2', 'b.md', 'timeout values in milliseconds', [0, 1, 0])
+    // The neutral units below matter: FTS5 clamps a term's IDF to 1e-6 once it
+    // appears in half the corpus or more, so at 2 units every score is epsilon
+    // arithmetic and the assertion would pass without measuring relevance.
+    indexMaterial('m3', 'c.md', 'keyboard shortcut list', [0, 0, 1])
+    indexMaterial('m4', 'd.md', 'window layout preferences', [1, 1, 0])
+    indexMaterial('m5', 'e.md', 'startup performance notes', [0, 1, 1])
+
+    const matches = store.search({ queryText: 'proxy timeout', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1', 'm2'])
+    expect(matches[0].score).toBeGreaterThan(matches[1].score)
+  })
+
+  it('bm25 mode ranks the unit carrying the query subject above ones sharing only filler trigrams', async () => {
+    indexMaterial('m1', 'a.md', '员工报销流程：先在系统中提交申请，财务审核后打款。', [1, 0, 0])
+    // 「公司的」 appears in most of this corpus, so its IDF collapses — matching it
+    // alone must not compete with matching the subject 「报销流程」.
+    indexMaterial('m2', 'b.md', '公司的发展历程回顾。', [0, 1, 0])
+    indexMaterial('m3', 'c.md', '公司的年假政策说明。', [0, 0, 1])
+    indexMaterial('m4', 'd.md', '公司的办公设备申领指南。', [1, 1, 0])
+    indexMaterial('m5', 'e.md', '会议室预订规则。', [0, 1, 1])
+
+    const matches = store.search({ queryText: '公司的报销流程是什么', mode: 'bm25', topK: 10 })
+
+    // OR recall admits the filler-only units (an accepted tradeoff — see
+    // ftsQuery.ts), but bm25 must put the real answer first.
+    expect(matches.length).toBeGreaterThan(1)
+    expect(matches[0].materialId).toBe('m1')
   })
 
   it('bm25 mode answers a 3+ character CJK query through the trigram MATCH path', async () => {
@@ -131,6 +209,33 @@ describe('KnowledgeIndexStore.search', () => {
     expect(store.search({ queryText: '量子计算', mode: 'bm25', topK: 10 })).toEqual([])
   })
 
+  it('bm25 mode answers a katakana query containing the prolonged sound mark via MATCH', async () => {
+    // Regression: ー is Script=Common, so matching runs on plain Script= split
+    // every katakana loanword at ー into fragments too short to index —
+    // 'サーバーエラー' produced no term at all and fell back to an exact-substring
+    // LIKE, which this phrasing does not satisfy.
+    expect(needsLikeFallback('サーバーエラー')).toBe(false)
+
+    indexMaterial('m1', 'a.md', 'サーバーのエラーログを確認する手順', [1, 0, 0])
+    indexMaterial('m2', 'b.md', 'キーボード配列の変更方法', [0, 1, 0])
+
+    const matches = store.search({ queryText: 'サーバーエラー', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('LIKE fallback ANDs every token when nothing in the query is indexable', async () => {
+    indexMaterial('m1', 'a.md', '今天天气很好，温度适宜', [1, 0, 0])
+    indexMaterial('m2', 'b.md', '今天天气很好', [0, 1, 0])
+
+    // Both words are below the trigram minimum, so the whole query scans via LIKE —
+    // and there every token is a required substring, which m2 fails on '温度'.
+    expect(needsLikeFallback('天气 温度')).toBe(true)
+    const matches = store.search({ queryText: '天气 温度', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
   it('hybrid mode lifts a short-CJK LIKE-only hit above a closer vector-only competitor', async () => {
     // m2 sits exactly on the query embedding but does NOT contain '天气'; m1 is
     // orthogonal in vector space but matches '天气' via the LIKE fallback. The BM25
@@ -141,6 +246,26 @@ describe('KnowledgeIndexStore.search', () => {
 
     const matches = store.search({
       queryText: '天气',
+      queryEmbedding: [1, 0, 0],
+      mode: 'hybrid',
+      topK: 10
+    })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1', 'm2'])
+  })
+
+  it('hybrid mode fuses a CJK trigram MATCH hit into the vector ranking', async () => {
+    // The BM25 lane's MATCH path (not just the LIKE fallback above) must
+    // contribute to RRF: m1 is orthogonal to the query embedding but lexically
+    // contains 报销流程; m2 sits exactly on the query embedding but shares
+    // nothing lexically. The BM25 contribution must lift m1 above m2.
+    expect(needsLikeFallback('报销流程')).toBe(false)
+
+    indexMaterial('m1', 'a.md', '员工报销流程说明', [0, 1, 0])
+    indexMaterial('m2', 'b.md', 'sunny day', [1, 0, 0])
+
+    const matches = store.search({
+      queryText: '报销流程',
       queryEmbedding: [1, 0, 0],
       mode: 'hybrid',
       topK: 10

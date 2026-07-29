@@ -10,7 +10,6 @@ import { app } from 'electron'
 // importing all 12 languages up front costs ~48 KB.
 import EnUs from './locales/en-us.json'
 import ZhCn from './locales/zh-cn.json'
-import ZhTw from './locales/zh-tw.json'
 // Machine translation
 import deDE from './translate/de-de.json'
 import elGR from './translate/el-gr.json'
@@ -21,6 +20,7 @@ import ptPT from './translate/pt-pt.json'
 import roRO from './translate/ro-ro.json'
 import RuRu from './translate/ru-ru.json'
 import viVN from './translate/vi-vn.json'
+import ZhTw from './translate/zh-tw.json'
 
 const locales = Object.fromEntries(
   [

@@ -91,6 +91,20 @@ describe('CodeToolbar', () => {
   })
 
   describe('basic rendering', () => {
+    it('should use a sticky, pointer-events-transparent wrapper', () => {
+      const { container } = render(<CodeToolbar tools={createCoreOnlyTools()} />)
+      const wrapper = container.firstElementChild
+
+      expect(wrapper).toHaveClass('pointer-events-none', 'sticky', 'top-7', 'z-10', 'h-0')
+      expect(wrapper?.firstElementChild).toHaveClass(
+        'code-toolbar',
+        'pointer-events-auto',
+        'absolute',
+        'right-2',
+        'bottom-1'
+      )
+    })
+
     it('should match snapshot with mixed tools', () => {
       const { container } = render(<CodeToolbar tools={createMixedTools()} />)
       expect(container).toMatchSnapshot()

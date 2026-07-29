@@ -80,7 +80,8 @@ const MessageGroup = ({
     [actions]
   )
 
-  const isGrouped = isMultiSelectMode ? false : isAssistantMultiModelGroup(messages)
+  const isMultiModelGroup = isAssistantMultiModelGroup(messages)
+  const isGrouped = isMultiSelectMode ? false : isMultiModelGroup
 
   // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
@@ -309,6 +310,7 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
+        showModelIdentity: isMultiModelGroup && multiModelMessageStyle !== 'fold',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
@@ -361,6 +363,7 @@ const MessageGroup = ({
     [
       isGrid,
       isGrouped,
+      isMultiModelGroup,
       topic,
       isLatestAssistantGroup,
       multiModelMessageStyle,
@@ -406,6 +409,7 @@ const MessageGroup = ({
 
 const GroupContainer = ({ className, ...props }: ComponentProps<'div'>) => (
   <div
+    data-ui="chat.message.group"
     className={classNames(
       '[&.grid]:py-1 [&.grid_.group-menu-bar]:mx-0 [&.horizontal]:py-1 [&.horizontal_.group-menu-bar]:mx-0 [&.multi-select-mode]:px-2.5 [&.multi-select-mode]:py-[5px]',
       className
@@ -456,6 +460,7 @@ const MessageWrapper = ({ className, $isInPopover, ...props }: ComponentProps<'d
   const isGridCard = className?.includes('grid') && !className?.includes('in-popover')
   return (
     <div
+      data-ui="chat.message"
       className={classNames([
         '[&.horizontal_.message-content-container]:overflow-y-auto! [&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
         { 'p-2.5': isGridCard },

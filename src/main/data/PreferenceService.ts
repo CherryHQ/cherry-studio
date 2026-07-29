@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
+import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -21,7 +22,7 @@ import {
 } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { isEqual } from 'es-toolkit/compat'
 
 import { preferenceTable } from './db/schemas/preference'
@@ -253,30 +254,36 @@ export class PreferenceService extends BaseService {
    * Provides communication interface between main and renderer processes
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Preference_Get, (_, key: UnifiedPreferenceKeyType) => {
+    this.ipcHandle(IpcChannel.Preference_Get, (event, key: UnifiedPreferenceKeyType) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_Get)
       return this.get(key)
     })
 
     this.ipcHandle(
       IpcChannel.Preference_Set,
-      async (_, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
+      async (event, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
+        this.assertTrustedSender(event, IpcChannel.Preference_Set)
         await this.set(key, value)
       }
     )
 
-    this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (_, keys: UnifiedPreferenceKeyType[]) => {
+    this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
       return this.getMultipleRaw(keys)
     })
 
-    this.ipcHandle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<UnifiedPreferenceType>) => {
+    this.ipcHandle(IpcChannel.Preference_SetMultiple, async (event, updates: Partial<UnifiedPreferenceType>) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_SetMultiple)
       await this.setMultiple(updates)
     })
 
-    this.ipcHandle(IpcChannel.Preference_GetAll, () => {
+    this.ipcHandle(IpcChannel.Preference_GetAll, (event) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_GetAll)
       return this.getAll()
     })
 
     this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_Subscribe)
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
       if (windowId === undefined) {
         // Push delivery requires a resolvable BrowserWindow — resolving here
@@ -288,6 +295,21 @@ export class PreferenceService extends BaseService {
       }
       this.subscribeForWindow(windowId, keys)
     })
+  }
+
+  /**
+   * Source-trust gate for the Preference IPC channels: only the app's own
+   * top-level renderer frames pass (see `core/security/validateSender`; the ipcHandle
+   * sugar itself does not validate senders). Rejections are logged, not
+   * throttled — same stance as `IpcApiService.handleRequest`.
+   */
+  private assertTrustedSender(event: IpcMainInvokeEvent, channel: string): void {
+    if (validateSender(event)) return
+    logger.warn(`Rejected preference request from untrusted sender: ${channel}`, {
+      senderType: event.sender?.getType(),
+      senderUrl: event.senderFrame?.url
+    })
+    throw new Error(`Rejected preference request from untrusted sender: ${channel}`)
   }
 
   /**

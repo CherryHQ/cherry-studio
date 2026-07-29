@@ -1,10 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 
 import { toast } from '@renderer/services/toast'
+import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ImageViewer, { getImageBlobFromSource, saveImageFromSource } from '../ImageViewer'
+import ImageViewer, { saveImageFromSource } from '../ImageViewer'
 
 const mocks = vi.hoisted(() => ({
   convertImageToPng: vi.fn(),
@@ -17,7 +18,10 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/utils/image', () => ({
+// Keep the real image utils (getImageBlobFromSource drives copy/save here) and
+// override only the PNG conversion the clipboard path depends on.
+vi.mock('@renderer/utils/image', async (importActual) => ({
+  ...(await importActual<typeof ImageUtils>()),
   convertImageToPng: mocks.convertImageToPng
 }))
 
@@ -147,27 +151,5 @@ describe('ImageViewer', () => {
     await saveImageFromSource('https://example.com/images/%2Ftmp%2Fevil%5Cname.png')
 
     expect(mocks.fileSave).toHaveBeenCalledWith('_tmp_evil_name.png', expect.any(Uint8Array))
-  })
-
-  it('reads image blobs from data URLs', async () => {
-    const blob = await getImageBlobFromSource('data:image/png;base64,aGVsbG8=')
-
-    expect(blob.type).toBe('image/png')
-    expect(mocks.fetch).not.toHaveBeenCalled()
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-  })
-
-  it('reads image blobs from file URLs', async () => {
-    const blob = await getImageBlobFromSource('file:///tmp/example.png')
-
-    expect(mocks.fsRead).toHaveBeenCalledWith('file:///tmp/example.png')
-    expect(blob.type).toBe('image/png')
-  })
-
-  it('reads image blobs from remote URLs', async () => {
-    const blob = await getImageBlobFromSource('https://example.com/image.webp')
-
-    expect(mocks.fetch).toHaveBeenCalledWith('https://example.com/image.webp')
-    expect(blob.type).toBe('image/webp')
   })
 })

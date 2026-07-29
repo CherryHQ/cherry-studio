@@ -85,8 +85,8 @@ const toSnakeCase = (value: string) => value.replace(/[A-Z]/g, (c) => `_${c.toLo
  * only the index NAME is snake_cased for consistency with DB naming.
  *
  * Example:
- *   scopedOrderKeyIndex('topic', 'groupId')(t)
- *   // index topic_group_id_order_key_idx ON topic(group_id, order_key)
+ *   scopedOrderKeyIndex('user_model', 'providerId')(t)
+ *   // index user_model_provider_id_order_key_idx ON user_model(provider_id, order_key)
  */
 export const scopedOrderKeyIndex =
   <T extends { orderKey: AnySQLiteColumn } & Record<string, AnySQLiteColumn>>(

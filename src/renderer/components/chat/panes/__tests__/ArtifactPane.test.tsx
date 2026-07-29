@@ -1,22 +1,28 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { toast } from '@renderer/services/toast'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
-import { type PropsWithChildren, useState } from 'react'
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ArtifactPane, { ArtifactPaneView, resolveArtifactPaneFileSelection } from '../ArtifactPane'
-import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import ArtifactPane, {
+  ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
+  ArtifactPaneView,
+  getArtifactPaneSelectionPath,
+  resolveArtifactPaneFileSelection
+} from '../ArtifactPane'
+import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
-/**
- * Mimics the agent right-pane: a parent that owns the lifted tree model and
- * renders `ArtifactPaneView` into one of two mutually-exclusive slots (the
- * docked `Shell.Host` vs the `Shell.MaximizedOverlay`). Toggling `maximized`
- * remounts the view across slots while the model-owning parent survives.
- */
-function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
+/** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
+function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
   const [maximized, setMaximized] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -32,6 +38,9 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
   })
   const view = (
     <ArtifactPaneView
+      headerVariant="pane"
+      paneTitle="Files"
+      paneActions={<button type="button">Panel action</button>}
       workspacePath={workspacePath}
       enableFileSearch
       model={model}
@@ -46,17 +55,68 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
       <button type="button" data-testid="toggle-max" onClick={() => setMaximized((value) => !value)}>
         toggle
       </button>
-      {!maximized && <div data-testid="host-slot">{view}</div>}
-      {maximized && <div data-testid="overlay-slot">{view}</div>}
+      <div data-testid={maximized ? 'maximized-layout' : 'docked-layout'}>{view}</div>
     </div>
   )
 }
+
+function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState<'preview' | 'edit'>('preview')
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const model = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: true,
+    expandedIds,
+    searchKeyword,
+    enableFileSearch: true,
+    selectedFile,
+    onExpandedIdsChange: setExpandedIds
+  })
+  const editPath =
+    editMode === 'edit' && selectedFile
+      ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
+      : undefined
+  const fileSession = useFileEditSession(editPath)
+
+  return (
+    <ArtifactPaneView
+      workspacePath={workspacePath}
+      enableFileSearch
+      model={model}
+      selectedFile={selectedFile}
+      onSelectedFileChange={(file) => {
+        setEditMode('preview')
+        setSelectedFile(file)
+      }}
+      searchKeyword={searchKeyword}
+      onSearchKeywordChange={setSearchKeyword}
+      fileSession={fileSession}
+      editMode={editMode}
+      onEditModeChange={setEditMode}
+    />
+  )
+}
+
+// A fresh SWR cache per render so file content never bleeds across tests.
+function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+  return (
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <EditablePaneInner workspacePath={workspacePath} />
+    </SWRConfig>
+  )
+}
+
+it('watches an allowed missing workspace without limiting discovery depth', () => {
+  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
+})
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
   treeDispose: vi.fn(),
   treeOnMutation: vi.fn(),
-  fsRead: vi.fn(),
+  ipcRequest: vi.fn(),
   fsReadText: vi.fn(),
   isTextFile: vi.fn(),
   isDirectory: vi.fn(),
@@ -90,7 +150,12 @@ const mocks = vi.hoisted(() => ({
   }>,
   officePreviewPanelModuleLoadCount: 0,
   pdfPreviewPanelModuleLoadCount: 0,
-  nextTreeId: 0
+  nextTreeId: 0,
+  useRealCodeEditor: false,
+  codeEditorRef: null as null | {
+    getContent?: () => string
+    insertText?: (text: string) => boolean
+  }
 }))
 
 /**
@@ -181,7 +246,22 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
 }
 
-vi.mock('@cherrystudio/ui', async () => {
+function binaryReadResult(content: Uint8Array) {
+  return {
+    content,
+    mime: 'text/plain',
+    version: { mtime: 1, size: content.byteLength }
+  }
+}
+
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
+vi.mock('@cherrystudio/ui', async (importActual) => {
+  const actual = await importActual<typeof CherryStudioUi>()
+  const RealCodeEditor = actual.CodeEditor
+
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
       <button type="button" {...props}>
@@ -196,6 +276,59 @@ vi.mock('@cherrystudio/ui', async () => {
       delete domProps.attached
       return <div {...domProps}>{children}</div>
     },
+    CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
+      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
+      useEffect(() => {
+        mocks.codeEditorRef = ref.current
+      })
+
+      if (mocks.useRealCodeEditor) return <RealCodeEditor {...props} ref={ref} />
+
+      return (
+        <textarea
+          data-testid="code-editor"
+          data-font-size={props.fontSize}
+          readOnly={props.editable === false}
+          value={props.value}
+          onChange={(event) => props.onChange?.(event.currentTarget.value)}
+        />
+      )
+    },
+    ConfirmDialog: ({
+      cancelText,
+      confirmText,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }: {
+      cancelText?: string
+      confirmText?: string
+      description?: React.ReactNode
+      onConfirm?: () => void | Promise<void>
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+      title: React.ReactNode
+    }) =>
+      open ? (
+        <div role="dialog">
+          <div>{title}</div>
+          <div>{description}</div>
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void Promise.resolve(onConfirm?.()).then(() => {
+                onOpenChange?.(false)
+              })
+            }>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
     MenuItem: ({
       label,
       icon,
@@ -464,6 +597,10 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: () => ({ data: mocks.externalApps })
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
+}))
+
 vi.mock('@renderer/utils/editor', () => ({
   buildEditorUrl: (app: { id: string }, path: string) => `editor://${app.id}${path}`,
   getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
@@ -488,9 +625,12 @@ vi.mock('react-i18next', () => ({
 describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.ipcRequest.mockReset()
     mocks.pdfPreviewPanelProps.length = 0
     mocks.officePreviewPanelProps.length = 0
     mocks.nextTreeId = 0
+    mocks.useRealCodeEditor = false
+    mocks.codeEditorRef = null
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
     mocks.treeCreate.mockResolvedValue({
@@ -527,7 +667,6 @@ describe('ArtifactPane', () => {
           getMetadata: mocks.getMetadata
         },
         fs: {
-          read: mocks.fsRead,
           readText: mocks.fsReadText
         },
         tree: {
@@ -621,30 +760,58 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('keeps a single workspace tree across a Host↔Overlay maximize swap', async () => {
+  it('keeps a single workspace tree across Viewport layout changes', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
-    render(<MaximizeSwapHarness workspacePath="/tmp/workspace" />)
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
 
     await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('host-slot')).toBeInTheDocument()
+    expect(screen.getByTestId('docked-layout')).toBeInTheDocument()
 
-    // Maximize: the view unmounts from the host slot and remounts in the
-    // overlay slot. The model lives in the surviving parent, so the tree is
-    // neither recreated nor disposed (this is the freeze the fix removes).
+    // Layout changes around the stable Viewport; the artifact subtree keeps
+    // its identity and its directory-tree subscription.
     await act(async () => {
       fireEvent.click(screen.getByTestId('toggle-max'))
     })
-    await waitFor(() => expect(screen.getByTestId('overlay-slot')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('maximized-layout')).toBeInTheDocument())
 
     // Minimize back to the docked slot.
     await act(async () => {
       fireEvent.click(screen.getByTestId('toggle-max'))
     })
-    await waitFor(() => expect(screen.getByTestId('host-slot')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('docked-layout')).toBeInTheDocument())
 
     expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
     expect(mocks.treeDispose).not.toHaveBeenCalled()
+  })
+
+  it('uses one pane header for the file tree and selected-file preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Header')
+
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header')).toHaveClass('bg-card')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).toBeNull()
+    expect(screen.queryByTestId('file-tree-search-toolbar')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).not.toHaveClass('h-10')
+    expect(
+      within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'Open in Finder' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
   })
 
   it('loads deeper directory children when folders are expanded', async () => {
@@ -694,7 +861,7 @@ describe('ArtifactPane', () => {
       })
     )
 
-    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    const { rerender } = render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -705,7 +872,7 @@ describe('ArtifactPane', () => {
       )
     )
 
-    rerender(<ArtifactPane workspacePath="/tmp/other-workspace" />)
+    rerender(<PersistentArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src/other.ts')).toBeInTheDocument())
 
     await act(async () => {
@@ -713,6 +880,33 @@ describe('ArtifactPane', () => {
     })
 
     expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
+  })
+
+  it('clears loaded lazy directory children after the workspace changes', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace/src', [])
+    mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
+    mockWorkspaceTree('/tmp/other-workspace/src', [])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValueOnce([{ path: '/tmp/other-workspace/src/fresh.md', isDirectory: false }])
+
+    const { rerender } = render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+
+    rerender(<PersistentArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
+
+    await waitFor(() =>
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
+        '/tmp/other-workspace/src',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/fresh.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
   it('reloads lazy directory children when the file tree is refreshed', async () => {
@@ -1242,7 +1436,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-__workspace_root__'))
     fireEvent.click(screen.getByTestId('tree-node-src'))
 
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
@@ -1257,7 +1451,7 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-src/index.ts')).toHaveAttribute('data-kind', 'file')
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
@@ -1303,7 +1497,7 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/paper.pdf')
     expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-name', 'paper.pdf')
     expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.pdfPreviewPanelProps.at(-1)).toEqual({
@@ -1376,7 +1570,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
     expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
   })
@@ -1507,6 +1701,224 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
+  it('autosaves an oversized in-memory draft — the size cap gates loading for edit, not writing', async () => {
+    const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
+    const oversizedDraftBytes = new Blob([oversizedDraft]).size
+    expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+    let diskSize = 1024
+    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number }) => void
+    mocks.getMetadata.mockImplementation(() =>
+      diskSize > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+        ? new Promise((resolve) => {
+            resolveOversizedMetadata = resolve
+          })
+        : Promise.resolve({ kind: 'file', size: diskSize })
+    )
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+      .mockImplementationOnce(async () => {
+        diskSize = oversizedDraftBytes
+        return { mtime: 2, size: oversizedDraftBytes }
+      })
+    mocks.useRealCodeEditor = true
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    act(() => {
+      expect(mocks.codeEditorRef?.insertText?.(oversizedDraft)).toBe(true)
+    })
+
+    // The debounced autosave persists the large draft; the size cap only blocks
+    // loading an already-oversized file into the editor.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+      timeout: 3000
+    })
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
+    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+
+    // The active session stays editable even though the saved file is now too
+    // large to reopen. Switching to Preview must use the exact saved byte size
+    // while the metadata refresh is still pending, before any text renderer
+    // reads the saved content.
+    await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
+    expect(mocks.codeEditorRef).not.toBeNull()
+    mocks.fsReadText.mockClear()
+    fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes })
+    })
+  })
+
+  it('keeps the editor writable and disables discard while a failed save retry is running', async () => {
+    let resolveRetry!: (value: { mtime: number; size: number }) => void
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveRetry = resolve)))
+      .mockResolvedValueOnce({ mtime: 3, size: 12 })
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    const editor = await within(overlay).findByTestId('code-editor')
+    fireEvent.change(editor, { target: { value: 'unsaved' } })
+
+    const alert = await within(overlay).findByRole('alert', undefined, { timeout: 3000 })
+    fireEvent.click(within(alert).getByRole('button', { name: 'common.retry' }))
+
+    await waitFor(() =>
+      expect(within(alert).getByRole('button', { name: 'agent.preview_pane.edit.discard' })).toBeDisabled()
+    )
+    expect(editor).not.toHaveAttribute('readonly')
+    fireEvent.change(editor, { target: { value: 'queued edit' } })
+    expect(editor).toHaveValue('queued edit')
+
+    await act(async () => {
+      resolveRetry({ mtime: 2, size: 7 })
+    })
+    await waitFor(() =>
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')).toHaveLength(3)
+    )
+  })
+
+  it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
+    const encoded = new TextEncoder().encode('first\r\nsecond\r\n')
+    const source = new Uint8Array(encoded.length + 3)
+    source.set([0xef, 0xbb, 0xbf])
+    source.set(encoded, 3)
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\r\nsecond\r\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(source))
+      .mockResolvedValueOnce({ mtime: 2, size: source.byteLength })
+    mocks.useRealCodeEditor = true
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+
+    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    expect(document.querySelector('.code-editor')).toHaveStyle({ fontSize: '14px' })
+    expect(mocks.codeEditorRef?.getContent?.()).toBe('first\nsecond\n')
+
+    act(() => {
+      expect(mocks.codeEditorRef?.insertText?.('changed\ncontent\n')).toBe(true)
+    })
+
+    // Autosave (debounced) writes without a manual save button.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+      timeout: 3000
+    })
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
+    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeInput = writeCall[1] as {
+      data: Uint8Array
+      expectedVersion: { mtime: number; size: number }
+      path: string
+    }
+    expect(writeInput.path).toBe('/tmp/workspace/notes.txt')
+    expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
+    const written = writeInput.data
+    expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+    const writtenText = new TextDecoder().decode(written.slice(3))
+    expect(writtenText).toContain('changed\r\ncontent\r\n')
+    expect(writtenText).toContain('first\r\nsecond\r\n')
+    expect(writtenText.replace(/\r\n/g, '')).not.toContain('\n')
+  })
+
+  it('keeps a failed agent draft visible and supports quick discard', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new Error('disk full'))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'unsaved draft\n' } })
+
+    const saveFailure = await screen.findByRole('alert', {}, { timeout: 3000 })
+    expect(saveFailure).toHaveTextContent('agent.preview_pane.edit.save_failed')
+    expect(screen.getByTestId('code-editor')).toHaveValue('unsaved draft\n')
+
+    fireEvent.click(within(saveFailure).getByRole('button', { name: 'agent.preview_pane.edit.discard' }))
+
+    await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('first\n'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('offers to reload the latest file after a stale write is rejected', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      // First read verifies the stale write really diverged; second serves the reload.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    // Autosave hits the stale-version guard and opens the reload dialog.
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(conflictDialog).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
+
+    await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('external\n'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps invalid UTF-8 files preview-only and explains why editing is unavailable', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['legacy.txt'])
+    mocks.fsReadText.mockResolvedValue('legacy preview')
+    // GBK bytes for "你好" are accepted by text sniffing but must not enter the UTF-8 editor.
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3])))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-legacy.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-legacy.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('agent.preview_pane.edit.unsupported'))
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('legacy preview'))
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.write_if_unchanged', expect.anything())
+  })
+
   it('still renders PDFs above the 2 MB size cap', async () => {
     mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 })
     mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
@@ -1553,7 +1965,7 @@ describe('ArtifactPane', () => {
       expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
       expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
       expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
-      expect(mocks.fsRead).not.toHaveBeenCalled()
+      expect(mocks.ipcRequest).not.toHaveBeenCalled()
       expect(mocks.fsReadText).not.toHaveBeenCalled()
       expect(mocks.isTextFile).not.toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
     }
@@ -1641,7 +2053,7 @@ describe('ArtifactPane', () => {
       })
     )
 
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.revokeObjectURL).not.toHaveBeenCalled()

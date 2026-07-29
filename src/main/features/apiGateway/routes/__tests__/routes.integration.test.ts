@@ -214,6 +214,23 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.message).toBe('bad key')
     })
 
+    it('messages: a non-retryable provider 400 → Anthropic 400 invalid-request envelope', async () => {
+      mockProcessMessage.mockRejectedValueOnce({
+        name: 'AI_APICallError',
+        message: 'Maximum context length exceeded',
+        stack: null,
+        statusCode: 400,
+        isRetryable: false
+      })
+      const { status, body } = await read(
+        await post(app, '/v1/messages', { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] })
+      )
+      expect(status).toBe(400)
+      expect(body.type).toBe('error')
+      expect(body.error.type).toBe('invalid_request_error')
+      expect(body.error.message).toBe('Maximum context length exceeded')
+    })
+
     it('responses: an internal error with no status → 500 with the message gated out', async () => {
       mockProcessMessage.mockRejectedValueOnce(new Error('internal detail leak'))
       const { status, body } = await read(await post(app, '/v1/responses', { model: 'openai:gpt-4', input: 'hi' }))

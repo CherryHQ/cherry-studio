@@ -22,7 +22,7 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { CircleHelp, Dices, OctagonX } from 'lucide-react'
+import { CircleHelp, Dices, ExternalLink, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type React from 'react'
 import type { FC } from 'react'
@@ -145,8 +145,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     href="https://lucide.dev/icons/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary text-xs">
+                    className="inline-flex items-center gap-1 text-primary text-xs">
                     {t('selection.settings.user_modal.icon.view_all')}
+                    <ExternalLink size={12} />
                   </a>
                   <Tooltip content={t('selection.settings.user_modal.icon.random')}>
                     <DiceButton
@@ -171,7 +172,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                       (iconNames.includes(formData.icon as any) ? (
                         <DynamicIcon name={formData.icon as any} size={18} />
                       ) : (
-                        <OctagonX size={18} color="var(--color-error-base)" />
+                        <OctagonX size={18} color="var(--error)" />
                       ))}
                   </IconPreview>
                 </div>
@@ -283,11 +284,11 @@ const ModalSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'d
 )
 
 const ModalSectionTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-2 flex items-center gap-1 font-medium', className)} {...props} />
+  <div className={cn('mb-2 flex items-center gap-1', className)} {...props} />
 )
 
 const ModalSectionTitleLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-medium text-foreground text-sm', className)} {...props} />
+  <div className={cn('text-foreground text-sm', className)} {...props} />
 )
 
 const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof CircleHelp>) => (
@@ -320,7 +321,7 @@ const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 )
 
 const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 flex-1 truncate', className)} {...props} />
+  <span className={cn('min-w-0 flex-1 truncate text-left', className)} {...props} />
 )
 
 const CurrentTag = ({

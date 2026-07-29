@@ -50,11 +50,12 @@ being a first migration target. This may be relaxed in a future release.
 
 ### Relationship with the auto-updater
 
-The auto-updater (`AppUpdaterService`) controls which versions are
-offered via OTA using `minCompatibleVersion` in the remote config. The
-migration gate is a **separate safety net** for users who manually
-download and install a version. Both systems enforce compatible upgrade
-paths but operate independently.
+The auto-updater (`AppUpdaterService`) sends the installed version and
+other client metadata to the [managed release service](../app-upgrade.md),
+which selects the OTA target and enforces upgrade gateways. The migration
+gate is a **separate safety net** for users who manually download and
+install a version. Both systems enforce compatible upgrade paths but
+operate independently.
 
 ## Directory Layout
 
@@ -69,7 +70,7 @@ src/main/data/migration/v2/
 
 ## Core Contracts
 
-- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
+- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation or global foreign-key failure.
 - `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
@@ -90,6 +91,7 @@ src/main/data/migration/v2/
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
   - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
+  - `AiUsageRecordMigrator` (implemented): projects usage-bearing migrated chat and agent-session messages into the best-effort AI usage read model. See [`README-AiUsageRecordMigrator.md`](../../../src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md).
   - `BootConfigMigrator` (implemented, file-target): migrates early-boot settings into the file-based `bootConfigService` (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. Reads from Redux (`disableHardwareAcceleration`) and from the v1 home config file (`~/.cherrystudio/config/config.json`'s `appDataPath` → `app.user_data_path`) via a `'configfile'` source kind. See [`README-BootConfigMigrator.md`](../../../src/main/data/migration/v2/migrators/README-BootConfigMigrator.md).
   - `AssistantMigrator`, `KnowledgeMigrator` (placeholders): scaffolding and TODO notes for future tables.
 - Conventions:
@@ -101,6 +103,7 @@ src/main/data/migration/v2/
     - **Self-check scope**: pass only tables whose FKs are fully resolved when *your* migrator finishes. **Exclude** refs a later migrator resolves — e.g. `assistant_knowledge_base.knowledgeBaseId` is written by `AssistantMigrator` but only becomes valid after `KnowledgeMigrator` remaps/prunes it, so `KnowledgeMigrator` self-checks that table, not `AssistantMigrator`. Dedicated file association tables (for example `chat_message_file_ref`) may be self-checked by the migrator that owns both the source rows and ref rows.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
+  - Preserve v1 sources required for downgrade compatibility. `AgentsMigrator` copies legacy Agent files into the v2 layout but never deletes `agents.db` or legacy short-ID workspaces.
   - **Path safety**: All filesystem paths MUST come from `ctx.paths` (the `MigrationPaths` object). NEVER call `app.getPath('userData')` or construct paths with `path.join` from scratch. Doing so bypasses the v1 legacy userData detection and may cause data loss for users with custom `appDataPath` configurations. If you need a path not yet in `MigrationPaths`, add it to the interface — do not inline it.
 
 ## Utilities
@@ -140,7 +143,7 @@ Legacy Redux/Dexie → SQLite migrators for sortable resources must produce `ord
 | Helper | Shape | Use for |
 |---|---|---|
 | `assignOrderKeysInSequence(rows)` | Returns `rows` with one monotonically increasing `orderKey` per row. | Whole-table ordering (e.g. `mcp_server`, `user_provider`, `miniapp`). |
-| `assignOrderKeysByScope(rows, getScope)` | Groups rows by the scope key, stamps each bucket independently (independent key spaces per bucket). | Partitioned tables (e.g. `topic.groupId`, `user_model.providerId`, `group.entityType`). |
+| `assignOrderKeysByScope(rows, getScope)` | Groups rows by the scope key, stamps each bucket independently (independent key spaces per bucket). | Partitioned tables (e.g. `user_model.providerId`, `group.entityType`). |
 
 **Pattern — flatten first, stamp last:** keep `transform*` functions pure (no `index` parameter, no `sortOrder` argument); flatten the legacy source into an array, then stamp keys onto the whole array:
 

@@ -12,7 +12,7 @@ import * as z from 'zod'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
-import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
+import { TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -23,6 +23,7 @@ export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+export const AgentKnowledgeBaseIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 export const AgentSkillUpdateSchema = z.strictObject({
   skillId: z.string().min(1),
   isEnabled: z.boolean()
@@ -109,6 +110,8 @@ export const AgentBaseSchema = z.strictObject({
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
+  /** Knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
+  knowledgeBaseIds: AgentKnowledgeBaseIdSetSchema.optional(),
   /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
@@ -124,6 +127,7 @@ export const AGENT_MUTABLE_FIELDS = {
   planModel: true,
   smallModel: true,
   mcps: true,
+  knowledgeBaseIds: true,
   disabledTools: true,
   configuration: true
 } as const
@@ -137,8 +141,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
   /**
-   * Human-readable primary model name resolved from `user_model.name` at read
-   * time. Edits still go through the `model` UniqueModelId field.
+   * Human-readable primary model name resolved from the current runtime Model
+   * at read time. Edits still go through the `model` UniqueModelId field.
    */
   modelName: z.string().nullable()
 })
@@ -180,23 +184,8 @@ export const TaskRunLogEntitySchema = z.strictObject({
 export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 // ============================================================================
-// Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
+// Agent update DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
-
-export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  /**
-   * Create-only: ids of pre-existing global skills to enable for the new agent.
-   * Writes `agent_skill` join rows in the same create transaction. Builtin
-   * skills need no id here — they read as enabled by default for every agent
-   * (see `AgentGlobalSkillService.list()`) until a row explicitly disables one.
-   * Editing an existing agent's skills goes through the skill toggle IPC (which
-   * also manages workspace symlinks), NOT PATCH /agents — so this is
-   * intentionally absent from AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid
-   * a dual-write path.
-   */
-  skillIds: AgentSkillIdSetSchema.optional()
-})
-export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
   /**
@@ -208,25 +197,8 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).pa
 })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
-// ============================================================================
-// Task DTOs
-// ============================================================================
-
-export const CreateTaskSchema = z.strictObject({
-  name: JobScheduleNameAtomSchema,
-  prompt: z.string().min(1),
-  trigger: TriggerSchema,
-  workspace: AgentSessionWorkspaceSourceSchema,
-  timeoutMinutes: TimeoutMinutesAtomSchema,
-  channelIds: z.array(z.string()).optional()
-})
-export type CreateTaskDto = z.infer<typeof CreateTaskSchema>
-
-export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
-  /** Pause = false, resume = true. Replaces v1 status field. */
-  enabled: z.boolean().optional()
-})
-export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
+// Agent creation and task command schemas live on IpcApi (`ai.agent.*` in
+// `@shared/ipc/schemas/ai`) because those mutations have non-database effects.
 
 // ============================================================================
 // Common query types
@@ -278,15 +250,11 @@ export interface DeleteAgentResult {
 // ============================================================================
 
 export type AgentSchemas = {
-  /** List all agents, create a new agent */
+  /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
   '/agents': {
     GET: {
       query?: ListAgentsQueryParams
       response: OffsetPaginationResponse<AgentEntity>
-    }
-    POST: {
-      body: CreateAgentDto
-      response: AgentEntity
     }
   }
 
@@ -308,34 +276,36 @@ export type AgentSchemas = {
     }
   }
 
-  /** List tasks for an agent, create a new task */
+  /** List scheduled tasks across every agent (settings overview, paginated) */
+  '/agent-tasks': {
+    GET: {
+      query?: ListQuery
+      response: OffsetPaginationResponse<ScheduledTaskEntity>
+    }
+  }
+
+  /** Get a scheduled task without requiring its owning Agent in the route */
+  '/agent-tasks/:taskId': {
+    GET: {
+      params: { taskId: string }
+      response: ScheduledTaskEntity
+    }
+  }
+
+  /** List tasks for an agent (mutations live on IpcApi `ai.agent.task.*`) */
   '/agents/:agentId/tasks': {
     GET: {
       params: { agentId: string }
       query?: ListQuery
       response: OffsetPaginationResponse<ScheduledTaskEntity>
     }
-    POST: {
-      params: { agentId: string }
-      body: CreateTaskDto
-      response: ScheduledTaskEntity
-    }
   }
 
-  /** Get, update, or delete a specific task */
+  /** Get a specific task */
   '/agents/:agentId/tasks/:taskId': {
     GET: {
       params: { agentId: string; taskId: string }
       response: ScheduledTaskEntity
-    }
-    PATCH: {
-      params: { agentId: string; taskId: string }
-      body: UpdateTaskDto
-      response: ScheduledTaskEntity
-    }
-    DELETE: {
-      params: { agentId: string; taskId: string }
-      response: void
     }
   }
 

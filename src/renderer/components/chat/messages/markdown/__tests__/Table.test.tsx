@@ -180,7 +180,7 @@ describe('Table', () => {
       expect(table.className).toContain('[&&_tr:last-child_td]:border-b-0')
       expect(table.className).not.toContain('[&_td]:rounded-md')
       expect(table.className).not.toContain('[&&_td]:bg-muted')
-      expect(table.style.border).toBe('0.5px solid var(--color-border)')
+      expect(table.style.border).toBe('0.5px solid var(--border)')
       expect(table.style.borderRadius).toBe('var(--radius-md)')
       expect(table.style.borderSpacing).toBe('0px')
       expect(table.style.margin).toBe('0px')
@@ -362,13 +362,20 @@ Line 4`
     })
 
     it('should export table to Excel on button click', async () => {
+      mocks.markdownContext.content = `| Header 1 | Header 2 |
+|----------|----------|
+Cell 1 | Cell 2`
+
       render(<Table {...defaultProps} />)
 
       const excelButton = getExcelButton()
       await user.click(excelButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.exportTableAsExcel).toHaveBeenCalledWith(defaultTableContent)
+        expect(mocks.messageListActions.exportTableAsExcel).toHaveBeenCalledWith([
+          ['Header 1', 'Header 2'],
+          ['Cell 1', 'Cell 2']
+        ])
       })
     })
 
@@ -398,10 +405,8 @@ Line 4`
       })
     })
 
-    it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.markdownContext.content = ''
-
-      render(<Table {...defaultProps} />)
+    it('should show error toast when the rendered table has no data', async () => {
+      render(<Table {...defaultProps} children={null} />)
 
       const excelButton = getExcelButton()
       await user.click(excelButton)

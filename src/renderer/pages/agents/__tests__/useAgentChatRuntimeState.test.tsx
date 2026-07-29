@@ -1,4 +1,4 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,14 +17,15 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
 
-// respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
+// respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -43,6 +44,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: () => ({
+    localSendGeneration: 7,
     send: mocks.sendTurn
   })
 }))
@@ -56,13 +58,16 @@ vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => 
   useToolApprovalComposerOverrides: () => []
 }))
 
+vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: mocks.invalidateMessages
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
-const session = { id: 'session-1' } as AgentSessionEntity
 const assistantMessage = {
   id: 'assistant-1',
   role: 'assistant',
@@ -166,23 +171,69 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {
-    renderHook(() =>
+    const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
     )
 
     expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    expect(result.current.localSendGeneration).toBe(7)
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
+  })
+
+  it('forwards pre-send scroll sampling only while the current message list runtime is bound', () => {
+    const captureLocalSendScrollEligibility = vi.fn()
+    const runtime: MessageListRuntime = {
+      captureLocalSendScrollEligibility,
+      scrollToBottom: vi.fn(),
+      locateMessage: vi.fn(),
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn()
+    }
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    const unbind = result.current.bindMessageListRuntime(runtime)
+    result.current.captureLocalSendScrollEligibility()
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+
+    unbind?.()
+    result.current.captureLocalSendScrollEligibility()
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+  })
+
+  it('invalidates disclosure state after deleting a session message', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.deleteMessage('assistant-1')
+    })
+
+    expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
+    expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
   })
 
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -210,7 +261,7 @@ describe('useAgentChatRuntimeState', () => {
           ...assistantMessage,
           metadata: {
             ...assistantMessage.metadata,
-            thoughtsTokens: 256
+            totalTokens: 256
           }
         } as CherryUIMessage
       ],
@@ -220,20 +271,50 @@ describe('useAgentChatRuntimeState', () => {
 
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
     )
 
-    expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
+    expect(result.current.uiMessages[0]?.metadata?.totalTokens).toBe(256)
+  })
+
+  it('keeps the history contract and composer callback stable across stream snapshots', () => {
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const streamingLayers = result.current.streamingLayers
+    const sendMessage = result.current.sendMessage
+
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    rerender()
+
+    expect(result.current.streamingLayers).toBe(streamingLayers)
+    expect(result.current.streamingLayers.liveMessageIds).toEqual(['assistant-1'])
+    expect(result.current.sendMessage).toBe(sendMessage)
   })
 
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -253,7 +334,7 @@ describe('useAgentChatRuntimeState', () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })

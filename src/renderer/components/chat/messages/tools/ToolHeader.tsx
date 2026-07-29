@@ -11,11 +11,11 @@ import {
   Globe,
   ListTodo,
   NotebookPen,
-  PencilRuler,
   Search,
   Send,
   ShieldCheck,
   Terminal,
+  ToolCase,
   Wrench
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
@@ -81,7 +81,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.Skill]: { icon: <PencilRuler size={14} />, labelKey: 'message.tools.labels.skill' }
+  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
 const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
@@ -551,7 +551,7 @@ function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
     'items-center gap-1.5',
     variant === 'collapse-label' &&
       'font-normal text-foreground-secondary group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-muted',
-    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-(--color-primary)'
+    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-primary'
   ]
     .filter(Boolean)
     .join(' ')
@@ -608,7 +608,7 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
         )}
         {autoApproved && (
           <Tooltip content={t('message.tools.autoApproveEnabled')}>
-            <ShieldCheck size={14} color="var(--color-primary)" />
+            <ShieldCheck size={14} color="var(--primary)" />
           </Tooltip>
         )}
       </ToolName>

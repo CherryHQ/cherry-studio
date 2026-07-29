@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
-const uninstallSkillMock = vi.hoisted(() => vi.fn())
+const refetchMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
+const discoverSystemSkillsMock = vi.hoisted(() => vi.fn())
+const importSystemSkillMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -20,8 +22,6 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
 function stubSkillRoutes() {
   skillMocks.request.mockImplementation((route: string, input: unknown) => {
     switch (route) {
-      case 'skill.uninstall':
-        return uninstallSkillMock(input)
       case 'skill.list_local':
         return listLocalSkillsMock(input)
       case 'skill.install':
@@ -30,6 +30,13 @@ function stubSkillRoutes() {
         return installSkillFromZipMock(input)
       case 'skill.install_from_directory':
         return installSkillFromDirectoryMock(input)
+      case 'skill.discover_system':
+        return discoverSystemSkillsMock(input)
+      case 'skill.import_system':
+        return importSystemSkillMock(input)
+      case 'skill.reconcile':
+        // Fired by useReconcileSkillsOnOpen when a skill view mounts; irrelevant to these assertions.
+        return Promise.resolve(undefined)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -37,10 +44,10 @@ function stubSkillRoutes() {
 }
 
 import { toast } from '@renderer/services/toast'
-import type { InstalledSkill } from '@shared/types/skill'
+import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
-import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch, useSystemSkills } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -52,6 +59,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
+    version: null,
     sourceTags: [],
     contentHash: 'hash-1',
     isEnabled: false,
@@ -75,12 +83,12 @@ describe('useInstalledSkills', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: refetchMock,
       mutate: vi.fn()
     })
 
     invalidateMock.mockResolvedValue(undefined)
-    uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
+    refetchMock.mockResolvedValue(undefined)
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     stubSkillRoutes()
@@ -93,41 +101,63 @@ describe('useInstalledSkills', () => {
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
-  it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
-    const { result } = renderHook(() => useInstalledSkills())
+  it('reconciles the on-disk library when the agent Skills view opens, then refreshes', async () => {
+    renderHook(() => useInstalledSkills('agent-1'))
 
-    let uninstallSuccess = false
-    await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
-    })
-
-    expect(uninstallSuccess).toBe(true)
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
   })
 
-  it('does not fail uninstall when DataApi cache invalidation fails after IPC success', async () => {
-    invalidateMock.mockRejectedValueOnce(new Error('refresh failed'))
-    const { result } = renderHook(() => useInstalledSkills())
+  it('reconciles before an explicit Composer skills refresh', async () => {
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    skillMocks.request.mockClear()
+    refetchMock.mockClear()
 
-    let uninstallSuccess = false
     await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
+      await result.current.refresh()
     })
 
-    expect(uninstallSuccess).toBe(true)
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {})
+    expect(refetchMock).toHaveBeenCalledOnce()
+    expect(skillMocks.request.mock.invocationCallOrder[0]).toBeLessThan(refetchMock.mock.invocationCallOrder[0])
   })
 
-  it('logs, toasts, and rethrows uninstall failures', async () => {
+  it('keeps cached skills visible during background refresh', () => {
+    useQueryMock.mockReturnValue({
+      data: [createSkill()],
+      isLoading: false,
+      isRefreshing: true,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    })
+
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
-    uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
-    await act(async () => {
-      await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
+    expect(result.current.loading).toBe(false)
+    expect(result.current.refreshing).toBe(true)
+    expect(result.current.skills).toHaveLength(1)
+  })
+
+  it('returns a stable empty array identity while the query is in flight', () => {
+    useQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
     })
-    expect(toast.error).toHaveBeenCalledWith('uninstall failed')
+
+    const { result, rerender } = renderHook(() => useInstalledSkills('agent-1'))
+    const firstSkills = result.current.skills
+    rerender()
+
+    // A fresh `data ?? []` per render would re-register AgentComposer's skills
+    // launcher every render — an infinite render loop while /skills loads.
+    expect(result.current.skills).toBe(firstSkills)
+    expect(firstSkills).toEqual([])
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {
@@ -304,6 +334,79 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toast.error).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('useSystemSkills', () => {
+  const candidate: SystemSkillCandidate = {
+    id: 'candidate-1',
+    name: 'System Skill',
+    description: 'Installed by Codex',
+    filename: 'system-skill',
+    directoryPath: '/home/test/.codex/skills/system-skill',
+    placements: [
+      {
+        sourceId: 'codex',
+        sourceName: 'Codex',
+        directoryPath: '/home/test/.codex/skills/system-skill'
+      }
+    ],
+    status: 'available'
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+    discoverSystemSkillsMock.mockResolvedValue([candidate])
+    importSystemSkillMock.mockResolvedValue(
+      createSkill({
+        id: 'system-skill-id',
+        name: candidate.name,
+        folderName: candidate.filename,
+        source: 'system',
+        sourceUrl: 'file:///home/test/.codex/skills/system-skill',
+        namespace: 'codex',
+        isEnabled: true
+      })
+    )
+    stubSkillRoutes()
+  })
+
+  it('discovers system skills without an agent scope', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills).toEqual([candidate])
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', {})
+  })
+
+  it('imports a system skill without enabling it for an agent', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
+
+    await act(async () => {
+      const installed = await result.current.importSkill(candidate)
+      expect(installed?.id).toBe('system-skill-id')
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.import_system', {
+      directoryPath: candidate.directoryPath
+    })
+    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+  })
+
+  it('does not re-import an already imported system skill', async () => {
+    const registered = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
+    discoverSystemSkillsMock.mockResolvedValue([registered])
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([registered]))
+
+    await act(async () => {
+      await expect(result.current.importSkill(registered)).resolves.toBeNull()
+    })
+
+    expect(importSystemSkillMock).not.toHaveBeenCalled()
   })
 })
 

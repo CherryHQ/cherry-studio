@@ -115,8 +115,8 @@ describe('MessageHeader', () => {
     expect(container.querySelector('.message-body-column')).toBeNull()
   })
 
-  it('shows the snapshot assistant name as primary and the model as secondary', () => {
-    const { getByText } = render(
+  it('shows the snapshot assistant name without repeating the model beside it', () => {
+    const { getByText, queryByText } = render(
       <MessageHeader
         message={createMessage('assistant', {
           model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
@@ -130,6 +130,27 @@ describe('MessageHeader', () => {
       />
     )
     expect(getByText('My Assistant')).toBeTruthy()
+    expect(queryByText('GPT-4')).toBeNull()
+  })
+
+  it('shows the model avatar and name beside the assistant when model identity is requested', () => {
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('My Assistant')).toBeTruthy()
+    expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
     expect(getByText('GPT-4')).toBeTruthy()
   })
 

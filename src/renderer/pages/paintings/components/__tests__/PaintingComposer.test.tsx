@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
 
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
+const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
 
 const imageGenerationSupportWithFields = {
   modes: {
@@ -97,7 +98,12 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
+vi.mock('@shared/utils/model', () => ({ isEditImageModel: mockIsEditImageModel }))
+
+vi.mock('../PaintingImageGallery', () => ({
+  PaintingImageGallery: () => <div data-testid="painting-image-gallery" />,
+  PaintingImageAddButton: () => <button type="button" data-testid="painting-image-add" />
+}))
 
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
 
@@ -133,6 +139,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   const handlers = {
     painting: makePainting(),
     generating: false,
+    submitting: false,
     onPromptChange,
     onInputFilesChange: vi.fn(),
     onGenerate,
@@ -142,8 +149,15 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
     onGenerateRandomSeed: vi.fn(),
     ...props
   }
-  render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
-  return { onPromptChange, onGenerate }
+  const view = render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
+  return {
+    onPromptChange,
+    onGenerate,
+    rerenderPainting: (painting: PaintingData) =>
+      view.rerender(
+        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
+      )
+  }
 }
 
 describe('PaintingComposer', () => {
@@ -151,6 +165,71 @@ describe('PaintingComposer', () => {
     captured.surfaceProps = undefined
     mockUseImageGenerationSupport.mockReset()
     mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
+    mockIsEditImageModel.mockReset()
+    mockIsEditImageModel.mockReturnValue(false)
+  })
+
+  it('renders the top image strip + add button and drops file pills for edit-image models', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    renderComposer()
+    expect(captured.surfaceProps?.topContent).toBeTruthy()
+    expect(captured.surfaceProps?.leadingContent).toBeTruthy()
+    expect(captured.surfaceProps?.tokens).toEqual([])
+    expect(captured.surfaceProps?.managedTokenKinds).toEqual([])
+  })
+
+  it('keeps file pills and no image tray for non-edit models', () => {
+    renderComposer()
+    expect(captured.surfaceProps?.topContent).toBeUndefined()
+    expect(captured.surfaceProps?.leadingContent).toBeUndefined()
+    expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
+  })
+
+  it('gates send and shows a reason for edit-only models missing an image', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    // edit mode but no `generate` mode ⇒ image required.
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
+    // Blocked even with prompt text, because no image is attached (files mock is empty).
+    expect(captured.surfaceProps?.sendDisabled).toBe(true)
+    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
+    expect(captured.surfaceProps?.placeholder).toBe('paintings.prompt_placeholder_upload_required')
+  })
+
+  it('does not gate on image for edit models that can also generate from text', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      modes: { generate: { supports: {} }, edit: { supports: {} } }
+    })
+    renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
+    expect(captured.surfaceProps?.sendDisabled).toBe(false)
+    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('lifts the gate once a transferred image is in painting.inputFiles', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    renderComposer({
+      painting: makePainting({
+        prompt: 'make the sky purple',
+        inputFiles: [{ id: 'f1', ext: 'png' }] as unknown as PaintingData['inputFiles']
+      })
+    })
+    expect(captured.surfaceProps?.sendDisabled).toBe(false)
+    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('keeps gating when the only transferred input is a non-image file', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    renderComposer({
+      painting: makePainting({
+        prompt: 'make the sky purple',
+        inputFiles: [{ id: 'note', ext: 'txt' }] as unknown as PaintingData['inputFiles']
+      })
+    })
+    expect(captured.surfaceProps?.sendDisabled).toBe(true)
+    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
   })
 
   it('renders the model selector control in the toolbar', () => {
@@ -169,6 +248,14 @@ describe('PaintingComposer', () => {
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
   })
 
+  it('syncs an externally selected prompt into the composer', () => {
+    const { rerenderPainting } = renderComposer()
+
+    rerenderPainting(makePainting({ prompt: 'a cinematic coastal house' }))
+
+    expect(screen.getByLabelText('prompt')).toHaveValue('a cinematic coastal house')
+  })
+
   it('triggers generation on send', () => {
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
@@ -178,6 +265,16 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('disables and guards send while validation is pending without showing generation loading', () => {
+    const { onGenerate } = renderComposer({ submitting: true, painting: makePainting({ prompt: 'a cat' }) })
+
+    expect(screen.getByLabelText('send')).toBeDisabled()
+    expect(captured.surfaceProps?.isLoading).toBe(false)
+
+    void captured.surfaceProps?.onSendDraft({ text: 'a cat', tokens: [] })
+    expect(onGenerate).not.toHaveBeenCalled()
   })
 
   it('does not render the image params button when imageGeneration support is missing', () => {
@@ -216,6 +313,14 @@ describe('PaintingComposer', () => {
   it('previews registry defaults when nothing is stored', () => {
     renderComposer({ painting: makePainting({ params: {} }) })
     expect(paramsButton()).toHaveTextContent('1024×1024')
+  })
+
+  it('localizes the selected size through the shared option label instead of the raw enum', () => {
+    renderComposer({ painting: makePainting({ params: { size: 'auto' } }) })
+    // The summary must route `auto` through resolveOptions/sizeOptionLabel (its
+    // localized labelKey) like the chips and prompt bar — not surface the bare
+    // `auto` enum that deriveChipLabel(value, value) previously leaked here.
+    expect(paramsButton()).toHaveTextContent('paintings.image_size_options.auto')
   })
 
   it('previews custom dimensions when size is custom', () => {

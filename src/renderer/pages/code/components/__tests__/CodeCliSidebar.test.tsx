@@ -35,8 +35,8 @@ function renderSidebar(
       onSelectTool={vi.fn()}
       toMeta={(tool) => ({ id: tool.value, label: tool.label, icon: tool.icon })}
       statuses={{
-        [CodeCli.CLAUDE_CODE]: { installed: false, canUpgrade: false },
-        [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', canUpgrade: false },
+        [CodeCli.CLAUDE_CODE]: { installed: false, source: 'none', canUpgrade: false },
+        [CodeCli.OPENAI_CODEX]: { installed: true, source: 'mise', current: '1.2.3', canUpgrade: false },
         ...statuses
       }}
       installingTools={new Set()}
@@ -63,7 +63,13 @@ describe('CodeCliSidebar', () => {
 
   it('renders no version or upgrade indicator for installed tools', () => {
     renderSidebar({
-      [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', latest: '1.3.0', canUpgrade: true }
+      [CodeCli.OPENAI_CODEX]: {
+        installed: true,
+        source: 'mise',
+        current: '1.2.3',
+        latest: '1.3.0',
+        canUpgrade: true
+      }
     })
 
     expect(screen.queryByText('v1.2.3')).not.toBeInTheDocument()

@@ -6,7 +6,8 @@ import { operationResultSchema } from './common'
 
 /**
  * OpenClaw gateway runtime schemas.
- * Install/update goes renderer → binary.install_tool → BinaryManager.
+ * Install/update goes renderer → binary.install_tool (name-only) → BinaryManager,
+ * which resolves the fixed recipe itself.
  */
 
 // ── Request schemas ──

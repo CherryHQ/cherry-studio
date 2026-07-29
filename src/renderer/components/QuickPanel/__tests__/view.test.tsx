@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PANEL_SAFE_MARGIN } from '../heights'
+import { getQuickPanelHeights, QUICK_PANEL_SAFE_MARGIN } from '../heights'
 import { QuickPanelProvider } from '../QuickPanelProvider'
 import { QuickPanelView } from '../QuickPanelView'
 import type {
@@ -690,7 +690,8 @@ describe('QuickPanelView', () => {
     const dockTop = 40
     const availableHeight = panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN
     const footerHeight = 30
-    const chromeHeight = footerHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE
+    const bodyVerticalSpace = 11
+    const chromeHeight = footerHeight + bodyVerticalSpace
     const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
       this: HTMLElement
     ) {
@@ -704,6 +705,17 @@ describe('QuickPanelView', () => {
         if (this.dataset.testid === 'quick-panel-footer') return footerHeight
         return 0
       })
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
+      const style = originalGetComputedStyle(element, pseudoElement)
+      if ((element as HTMLElement).dataset.testid === 'quick-panel-body') {
+        style.paddingTop = '5px'
+        style.paddingBottom = '5px'
+        style.borderTopWidth = '0.5px'
+        style.borderBottomWidth = '0.5px'
+      }
+      return style
+    })
 
     try {
       render(
@@ -736,6 +748,7 @@ describe('QuickPanelView', () => {
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
+      getComputedStyleSpy.mockRestore()
     }
   })
 
@@ -744,7 +757,8 @@ describe('QuickPanelView', () => {
     const dockTop = 40
     const availableHeight = panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN
     const footerHeight = 30
-    const chromeHeight = footerHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE
+    const bodyVerticalSpace = 11
+    const chromeHeight = footerHeight + bodyVerticalSpace
     const captureDispatch = vi.fn()
     const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
       this: HTMLElement
@@ -759,6 +773,17 @@ describe('QuickPanelView', () => {
         if (this.dataset.testid === 'quick-panel-footer') return footerHeight
         return 0
       })
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
+      const style = originalGetComputedStyle(element, pseudoElement)
+      if ((element as HTMLElement).dataset.testid === 'quick-panel-body') {
+        style.paddingTop = '5px'
+        style.paddingBottom = '5px'
+        style.borderTopWidth = '0.5px'
+        style.borderBottomWidth = '0.5px'
+      }
+      return style
+    })
 
     const renderPanel = (fill: boolean) => (
       <div data-composer-dock-layer="" data-testid="quick-panel-dock" style={{ overflow: 'hidden' }}>
@@ -809,6 +834,7 @@ describe('QuickPanelView', () => {
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
+      getComputedStyleSpy.mockRestore()
     }
   })
 
@@ -871,6 +897,10 @@ describe('QuickPanelView', () => {
     const row = screen.getByText('filesystem').closest('[data-id="server"]')
     expect(row?.getAttribute('data-active')).toBe('false')
     expect(row).not.toHaveAttribute('data-selected')
+    expect(row).toHaveAttribute('role', 'button')
+    expect(row).toHaveAttribute('aria-disabled', 'true')
+    expect(row).not.toHaveAttribute('aria-pressed')
+    expect(row).toHaveAttribute('tabindex', '-1')
 
     fireEvent.click(row!)
     expect(action).not.toHaveBeenCalled()
@@ -899,6 +929,50 @@ describe('QuickPanelView', () => {
     await waitFor(() => {
       expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
     })
+  })
+
+  it('exposes selectable rows as accessible toggle buttons', async () => {
+    const selectedAction = vi.fn()
+    const unselectedAction = vi.fn()
+    const disabledAction = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'selected', label: 'Selected server', icon: 'mcp', isSelected: true, action: selectedAction },
+      { id: 'unselected', label: 'Unselected server', icon: 'mcp', isSelected: false, action: unselectedAction },
+      {
+        id: 'disabled',
+        label: 'Disabled server',
+        icon: 'mcp',
+        isSelected: false,
+        disabled: true,
+        action: disabledAction
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} items={items} />
+      </QuickPanelProvider>
+    )
+
+    const selectedRow = await screen.findByRole('button', { name: /Selected server/ })
+    const unselectedRow = screen.getByRole('button', { name: /Unselected server/ })
+    const disabledRow = screen.getByRole('button', { name: /Disabled server/ })
+
+    expect(selectedRow).toHaveAttribute('aria-current', 'true')
+    expect(selectedRow).toHaveAttribute('aria-pressed', 'true')
+    expect(selectedRow).not.toHaveAttribute('aria-disabled')
+    expect(selectedRow).toHaveAttribute('tabindex', '0')
+    expect(unselectedRow).toHaveAttribute('aria-pressed', 'false')
+    expect(disabledRow).toHaveAttribute('aria-disabled', 'true')
+    expect(disabledRow).toHaveAttribute('tabindex', '-1')
+
+    fireEvent.keyDown(unselectedRow, { key: 'Enter' })
+    fireEvent.keyDown(selectedRow, { key: ' ' })
+    fireEvent.click(disabledRow)
+
+    expect(unselectedAction).toHaveBeenCalledTimes(1)
+    expect(selectedAction).toHaveBeenCalledTimes(1)
+    expect(disabledAction).not.toHaveBeenCalled()
   })
 
   it('selects the active item with Tab', async () => {
@@ -935,6 +1009,82 @@ describe('QuickPanelView', () => {
       expect.objectContaining({
         action: 'enter',
         item: expect.objectContaining({ id: 'first' })
+      })
+    )
+  })
+
+  it('keeps the panel open when an item action requests it', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'toggle', label: 'Toggle binding', icon: 'mcp', keepOpenOnAction: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Toggle binding')
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
+    })
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+  })
+
+  it('anchors bottom-fixed items outside the virtual list and keeps them last in keyboard navigation', async () => {
+    const customizeAction = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
+      { id: 'second', label: 'Second action', icon: '2', action: vi.fn() },
+      {
+        id: 'customize',
+        label: 'Customize toolbar',
+        icon: 'settings',
+        fixedToBottom: true,
+        action: customizeAction
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    const fixedBottom = await screen.findByTestId('quick-panel-fixed-bottom')
+    const virtualList = screen.getByTestId('quick-panel-virtual-list')
+    expect(fixedBottom).toHaveClass('absolute', 'bottom-0')
+    expect(within(fixedBottom).getByText('Customize toolbar')).toBeInTheDocument()
+    expect(within(virtualList).queryByText('Customize toolbar')).not.toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    virtualListMocks.scrollToIndex.mockClear()
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowUp').event)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Customize toolbar').closest('[data-id="customize"]')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    })
+    expect(virtualListMocks.scrollToIndex).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Tab').event)
+    })
+    expect(customizeAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        item: expect.objectContaining({ id: 'customize' })
       })
     )
   })
@@ -1032,6 +1182,34 @@ describe('QuickPanelView', () => {
     expect(action).not.toHaveBeenCalled()
   })
 
+  it('keeps a bottom-fixed action visible when filtering has no results', async () => {
+    const action = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [
+      { id: 'regular', label: 'Regular action', icon: 'r' },
+      { id: 'customize', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('No results')
+    expect(screen.queryByTestId('quick-panel-virtual-list')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('quick-panel-fixed-bottom')).getByText('Customize toolbar')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Customize toolbar'))
+    expect(action).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the exit layout stable when closing', async () => {
     const inputAdapter: QuickPanelInputAdapter = {
       deleteTriggerRange: vi.fn(),
@@ -1073,7 +1251,6 @@ describe('QuickPanelView', () => {
     expect(panel).not.toHaveClass('visible')
     expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
     expect(panel).toHaveClass('transition-none')
-    expect(screen.getByTestId('quick-panel-body')).toHaveClass('transition-[translate,scale,opacity,box-shadow]')
     expect(screen.getByText('No results')).toBeInTheDocument()
     expect(screen.queryByText('Clear query')).not.toBeInTheDocument()
   })

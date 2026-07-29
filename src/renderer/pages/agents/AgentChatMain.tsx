@@ -1,4 +1,8 @@
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageStreamingLayers,
+  MessageToolApprovalInput
+} from '@renderer/components/chat/messages/types'
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
@@ -16,6 +20,9 @@ interface AgentChatMainProps {
   messages: CherryUIMessage[]
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers: MessageStreamingLayers
+  localSendGeneration: number
+  onBindRuntime: NonNullable<MessageListActions['bindRuntime']>
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
@@ -33,6 +40,9 @@ export default function AgentChatMain({
   messages,
   activeAgent,
   partsByMessageId,
+  streamingLayers,
+  localSendGeneration,
+  onBindRuntime,
   optimisticAskUserQuestionInputsByToolCallId,
   isLoading,
   hasOlder,
@@ -54,6 +64,9 @@ export default function AgentChatMain({
           messages={messages}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
+          streamingLayers={streamingLayers}
+          localSendGeneration={localSendGeneration}
+          onBindRuntime={onBindRuntime}
           optimisticAskUserQuestionInputsByToolCallId={optimisticAskUserQuestionInputsByToolCallId}
           isLoading={isLoading}
           hasOlder={hasOlder}
@@ -68,6 +81,12 @@ export default function AgentChatMain({
 }
 
 const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
-  const { openAgentToolFlow, openArtifactFile } = useAgentRightPaneActions()
-  return <AgentSessionMessages {...props} openAgentToolFlow={openAgentToolFlow} openArtifactFile={openArtifactFile} />
+  const { canOpenAgentToolFlow, canOpenArtifactFile, openAgentToolFlow, openArtifactFile } = useAgentRightPaneActions()
+  return (
+    <AgentSessionMessages
+      {...props}
+      openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
+      openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+    />
+  )
 }

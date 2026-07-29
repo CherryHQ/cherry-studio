@@ -13,19 +13,13 @@ interface ModelEndpointTypeSelectProps {
 
 export function ModelEndpointTypeSelect({ value, onChange }: ModelEndpointTypeSelectProps) {
   const { t } = useTranslation()
-  const selected = new Set(value)
   const options: ComboboxOption[] = MODEL_ENDPOINT_OPTIONS.map((option) => ({
     value: option.id,
-    label: t(option.label),
-    disabled: selected.size === 1 && selected.has(option.id)
+    label: t(option.label)
   }))
 
   const handleChange = (nextValue: string | string[]) => {
     const next = Array.isArray(nextValue) ? nextValue : [nextValue]
-    if (next.length === 0) {
-      return
-    }
-
     const nextSet = new Set(next)
     const ordered = MODEL_ENDPOINT_OPTIONS.map((option) => option.id).filter((optionId) => nextSet.has(optionId))
     onChange(ordered)

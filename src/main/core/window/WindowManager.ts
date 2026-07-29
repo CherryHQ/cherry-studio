@@ -645,12 +645,17 @@ export class WindowManager extends BaseService {
 
   /**
    * Broadcast an IPC message to all managed windows.
-   * Skips destroyed windows automatically.
+   * Skips destroyed windows automatically. Send failures are isolated per
+   * window — one window's `send()` throwing must not abort delivery to the
+   * remaining windows.
    */
   public broadcast(channel: string, ...args: unknown[]): void {
-    for (const managed of this.windows.values()) {
-      if (!managed.window.isDestroyed()) {
+    for (const [id, managed] of this.windows) {
+      if (managed.window.isDestroyed()) continue
+      try {
         managed.window.webContents.send(channel, ...args)
+      } catch (error) {
+        logger.warn(`broadcast to window '${id}' failed on channel '${channel}'`, error as Error)
       }
     }
   }

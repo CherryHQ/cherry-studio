@@ -1,7 +1,10 @@
+import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, ReasoningUIPart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
+import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 
 export interface PartEntry {
@@ -35,7 +38,9 @@ const HIDDEN_PART_TYPES = new Set([
   'source-url',
   'source-document',
   'data-citation',
-  'data-agent-task-event'
+  'data-agent-task-event',
+  'data-knowledge-scope',
+  'data-clear'
 ])
 
 const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
@@ -59,10 +64,23 @@ function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
   return reasoningPart.state !== 'streaming' && isEmptyContentPart(part)
 }
 
+function hasVisibleComposerToken(part: CherryMessagePart): boolean {
+  if (part.type !== 'text') return false
+  const text = part.text ?? ''
+  const composer = readCherryMeta(part)?.composer
+  if (!composer) return false
+
+  return getDisplayComposerTokens(composer).some((token) => {
+    if (!token.promptText) return true
+    const offset = Math.max(0, Math.min(text.length, token.textOffset))
+    return text.slice(offset, offset + token.promptText.length) === token.promptText
+  })
+}
+
 function isEmptyContentPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (partType !== 'text' && partType !== 'reasoning') return false
-  return !(part as { text?: string }).text?.trim()
+  return !(part as { text?: string }).text?.trim() && !hasVisibleComposerToken(part)
 }
 
 function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
@@ -127,13 +145,13 @@ function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   return reasoningPart.state === 'streaming' || isReasoningMessagePart(part)
 }
 
-function isFoldableToolPart(part: CherryMessagePart): boolean {
+export function isProcessToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  return !isAskUserQuestionPart(part)
+  return !isAskUserQuestionPart(part) && !isChannelAuthQrPart(part)
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
-  return isVisibleReasoningPart(part) || isFoldableToolPart(part)
+  return isVisibleReasoningPart(part) || isProcessToolPart(part)
 }
 
 /**
@@ -214,7 +232,7 @@ export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (!SUBSTANTIVE_ANSWER_PART_TYPES.has(partType)) return false
   if (partType === 'data-compaction-anchor') return true
-  if (partType === 'text') return !!(part as { text?: string }).text?.trim()
+  if (partType === 'text') return !!(part as { text?: string }).text?.trim() || hasVisibleComposerToken(part)
   return !!(part as { data?: { content?: string } }).data?.content?.trim()
 }
 
@@ -262,7 +280,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   if (lastAnswerPosition >= 0) {
     let lastRegularToolPosition = -1
     for (let position = lastAnswerPosition - 1; position >= 0; position--) {
-      if (isFoldableToolPart(contentEntries[position].part)) {
+      if (isProcessToolPart(contentEntries[position].part)) {
         lastRegularToolPosition = position
         break
       }
@@ -313,9 +331,10 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   }
 
   const isDirectResult = (entry: PartEntry, position: number) =>
-    position >= resultStart &&
-    position < resultEnd &&
-    (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part))
+    isChannelAuthQrPart(entry.part) ||
+    (position >= resultStart &&
+      position < resultEnd &&
+      (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),

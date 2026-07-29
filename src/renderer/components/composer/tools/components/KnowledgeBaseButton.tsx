@@ -1,5 +1,6 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -17,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   launcher: ToolLauncherApi
-  configuredKnowledgeBaseIds?: string[]
+  configuredKnowledgeBaseIds?: readonly string[]
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
@@ -26,7 +27,7 @@ interface Props {
 
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
-function getKnowledgeBaseIdsKey(ids: string[] | undefined) {
+function getKnowledgeBaseIdsKey(ids: readonly string[] | undefined) {
   return (ids ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
 }
 
@@ -184,18 +185,17 @@ const useKnowledgeBaseToolController = ({
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
-        id: 'knowledge-base',
-        kind: 'panel',
+        ...KNOWLEDGE_BASE_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover', 'root-panel'],
-        order: 40,
         label: t('chat.input.knowledge_base'),
         description: resolvedDisabledReason ?? '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.knowledge_base', ['knowledge base']),
         disabledReason: resolvedDisabledReason,
-        icon: <FileSearch />,
         active: isEnabled,
         showInActiveControls: false,
         disabled: isDisabled,
+        // action opens the '#' knowledge-base panel, whose symbol differs from the launcher id.
+        panelSymbol: ComposerPanelSymbol.KnowledgeBase,
         action: openKnowledgeBasePanel
       }
     ])

@@ -97,7 +97,10 @@ describe('useKnowledgeRagConfig', () => {
     })
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
-    expect(result.current.fileProcessorOptions).toEqual([{ value: 'paddleocr', label: 'PaddleOCR' }])
+    expect(result.current.fileProcessorOptions).toEqual([
+      { value: 'paddleocr', label: 'PaddleOCR' },
+      { value: 'open-mineru', label: 'Open MinerU' }
+    ])
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mineru')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('doc2x')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mistral')
@@ -133,6 +136,24 @@ describe('useKnowledgeRagConfig', () => {
         threshold: 0.4
       }
     })
+  })
+
+  it('includes Open MinerU without an API key because authentication is optional', () => {
+    mockUsePreference.mockReturnValue([
+      {
+        'open-mineru': {
+          capabilities: {
+            document_to_markdown: {
+              apiHost: 'http://127.0.0.1:8000'
+            }
+          }
+        }
+      }
+    ])
+
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    expect(result.current.fileProcessorOptions).toEqual([{ value: 'open-mineru', label: 'Open MinerU' }])
   })
 
   it('includes an explicit embedding model override in the patch body', async () => {

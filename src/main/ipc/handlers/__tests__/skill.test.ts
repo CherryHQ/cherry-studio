@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { installMock, uninstallMock, installFromZipMock, installFromDirectoryMock, listLocalMock } = vi.hoisted(() => ({
+const {
+  installMock,
+  uninstallMock,
+  installFromZipMock,
+  installFromDirectoryMock,
+  listLocalMock,
+  discoverSystemMock,
+  importSystemMock,
+  reconcileMock
+} = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
   installFromZipMock: vi.fn(),
   installFromDirectoryMock: vi.fn(),
-  listLocalMock: vi.fn()
+  listLocalMock: vi.fn(),
+  discoverSystemMock: vi.fn(),
+  importSystemMock: vi.fn(),
+  reconcileMock: vi.fn()
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -14,7 +26,10 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     uninstall: uninstallMock,
     installFromZip: installFromZipMock,
     installFromDirectory: installFromDirectoryMock,
-    listLocal: listLocalMock
+    listLocal: listLocalMock,
+    discoverSystem: discoverSystemMock,
+    importSystem: importSystemMock,
+    reconcileSkills: reconcileMock
   }
 }))
 
@@ -66,5 +81,38 @@ describe('skillHandlers', () => {
       data: [{ name: 'a', filename: 'a.md' }]
     })
     expect(listLocalMock).toHaveBeenCalledWith('/w')
+  })
+
+  it('discover_system returns native IpcApi data without a nested SkillResult envelope', async () => {
+    discoverSystemMock.mockResolvedValue([{ id: 'candidate-1' }])
+
+    await expect(skillHandlers['skill.discover_system']({}, ctx)).resolves.toEqual([{ id: 'candidate-1' }])
+    expect(discoverSystemMock).toHaveBeenCalledWith()
+  })
+
+  it('system skill routes keep discovery and import separate from agent association', async () => {
+    discoverSystemMock.mockResolvedValue([])
+    importSystemMock.mockResolvedValue({ id: 'system-skill' })
+
+    await skillHandlers['skill.discover_system']({}, ctx)
+    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
+
+    expect(discoverSystemMock).toHaveBeenCalledWith()
+    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
+  })
+
+  it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
+    reconcileMock.mockResolvedValue(undefined)
+
+    await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
+    expect(reconcileMock).toHaveBeenCalledWith()
+  })
+
+  it('import_system lets errors propagate to IpcApi', async () => {
+    importSystemMock.mockRejectedValue(new Error('import failed'))
+
+    await expect(skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)).rejects.toThrow(
+      'import failed'
+    )
   })
 })

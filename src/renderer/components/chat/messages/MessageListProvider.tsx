@@ -26,7 +26,7 @@ import type {
  *   user flips a setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
- *   getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
+ *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
  *   changes when the underlying selectors are rebuilt (rare in practice).
  *
  * Existing consumers continue to use the merged `useMessageListUi()` /
@@ -39,6 +39,7 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'activeTurnStatus'
   | 'isInitialLoading'
   | 'isMessagesStale'
   | 'hasOlder'
@@ -48,6 +49,8 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'localSendGeneration'
+  | 'streamingLayers'
 >
 
 type MessageListMessagesValue = MessageListItem[]
@@ -62,6 +65,7 @@ type MessageListUiSelectorsValue = Pick<
   | 'getMessageUiState'
   | 'getMessageSiblings'
   | 'getMessageActivityState'
+  | 'isMessageTranslating'
   | 'getFileView'
   | 'isToolAutoApproved'
   | 'getTranslationLanguageLabel'
@@ -87,6 +91,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
       isMessagesStale: state.isMessagesStale,
       hasOlder: state.hasOlder,
@@ -95,11 +100,14 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       overscan: state.overscan,
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
-      listKey: state.listKey
+      listKey: state.listKey,
+      localSendGeneration: state.localSendGeneration,
+      streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
       state.beforeList,
+      state.activeTurnStatus,
       state.isInitialLoading,
       state.isMessagesStale,
       state.hasOlder,
@@ -108,7 +116,9 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.overscan,
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
-      state.listKey
+      state.listKey,
+      state.localSendGeneration,
+      state.streamingLayers
     ]
   )
 
@@ -127,6 +137,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       getMessageUiState: state.getMessageUiState,
       getMessageSiblings: state.getMessageSiblings,
       getMessageActivityState: state.getMessageActivityState,
+      isMessageTranslating: state.isMessageTranslating,
       getFileView: state.getFileView,
       isToolAutoApproved: state.isToolAutoApproved,
       getTranslationLanguageLabel: state.getTranslationLanguageLabel
@@ -135,6 +146,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.getMessageUiState,
       state.getMessageSiblings,
       state.getMessageActivityState,
+      state.isMessageTranslating,
       state.getFileView,
       state.isToolAutoApproved,
       state.getTranslationLanguageLabel
@@ -216,6 +228,15 @@ export const useMessageListData = (): MessageListDataLegacyValue => {
 
 export const useMessageListMessages = (): MessageListItem[] => {
   return useRequiredContext(MessageListMessagesContext, 'useMessageListMessages')
+}
+
+/**
+ * Optional renderer for the active turn's processing status (e.g. agent api-retry). Reads the Data
+ * context narrowly, so it only re-renders when list metadata changes — not on every stream chunk.
+ * Returns null when unset (regular chat) or when used outside a provider.
+ */
+export const useMessageListActiveTurnStatus = (): ((placeholder: ReactNode) => ReactNode) | null => {
+  return use(MessageListDataContext)?.activeTurnStatus ?? null
 }
 
 export const useMessageListActions = (): MessageListActions => {

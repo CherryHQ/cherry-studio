@@ -7,12 +7,14 @@
  * Load-bearing Invariants:
  * 1. Must run before pipeStreamLoop's tee() so both broadcast chunks and the AI SDK accumulator
  *    receive the same performance.now() delta (preventing post-refresh value mismatch).
- * 2. The transform preserves provider metadata from reasoning-start when writing metadata onto
- *    reasoning-end. The AI SDK accumulator overwrites (not merges) the reasoning part's metadata
- *    on end:
+ * 2. The transform preserves provider metadata from reasoning-start AND reasoning-delta chunks
+ *    when writing metadata onto reasoning-end. The AI SDK accumulator overwrites (not merges)
+ *    the reasoning part's metadata on end:
  *      reasoningPart.providerMetadata = chunk.providerMetadata ?? reasoningPart.providerMetadata
- *    Without this re-merge, start-only metadata (e.g. claude-code.parentToolCallId) is dropped
- *    from the final persisted message.
+ *    Without this re-merge, start-only metadata (e.g. claude-code.parentToolCallId) and
+ *    delta-only metadata (e.g. anthropic.signature, which arrives on an empty-delta
+ *    reasoning-delta) are dropped from the final persisted message — a lost signature then makes
+ *    convertToAnthropicMessages silently drop the whole thinking block from follow-up requests.
  */
 
 import { loggerService } from '@logger'
@@ -43,6 +45,18 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
             providerMetadata: toProviderMetadata(chunk.providerMetadata)
           })
           controller.enqueue(withChunkCherryMeta(chunk, { startedAt: epochNow }))
+          return
+        }
+
+        if (chunk.type === 'reasoning-delta') {
+          const deltaMetadata = toProviderMetadata(chunk.providerMetadata)
+          if (deltaMetadata) {
+            const reasoning = reasoningById.get(chunk.id)
+            if (reasoning) {
+              reasoning.providerMetadata = { ...reasoning.providerMetadata, ...deltaMetadata }
+            }
+          }
+          controller.enqueue(chunk)
           return
         }
 

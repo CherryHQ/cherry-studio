@@ -1,5 +1,5 @@
 /**
- * FileManager — sole public entry point for all file operations.
+ * FileManager — public facade for entry-aware file operations.
  *
  * Registered as a lifecycle service (`@Injectable('FileManager')`,
  * `@ServicePhase(Phase.WhenReady)`); resolved at runtime via
@@ -11,12 +11,11 @@
  *
  * ## Facade pattern
  *
- * FileManager is a **thin facade** — it exposes the public IPC-backed API and
+ * FileManager is a **thin facade** — it exposes the public entry-native API and
  * delegates every method to pure-function modules under `./internal/*`. The
  * class only owns:
- * - lifecycle (`onInit` / `onStop`; IPC handler registration via `BaseService`)
+ * - lifecycle (`onInit` / `onStop`; remaining legacy IPC handlers via `BaseService`)
  * - per-instance `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
- * - `FileHandle.kind` dispatch at the IPC boundary
  *
  * External Main callers go through the lifecycle-managed singleton via
  * `application.get('FileManager')`. The `internal/*` tree is a private
@@ -33,34 +32,30 @@
  *
  * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union whose
  * variants select the *reference form* — `FileEntryHandle` routes through the
- * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). The
- * design plan is for the IPC adapter to dispatch on `handle.kind` via a
+ * entry system, `FilePathHandle` routes through path-arm helpers under
+ * `utils/*`). The IPC adapter dispatches on `handle.kind` via a
  * `dispatchHandle` helper, with the dispatch logic treated as the adapter's
  * legitimate responsibility (translating request shape), not business
  * orchestration.
  *
- * **Current status (through Batch 0)**: `dispatchHandle` lives in
- * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
- * `File_PermanentDelete`, which accepts a `FileHandle` and routes
- * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
- * to `@main/utils/file/fs.remove`. Phase 2 entry-shaped channels
- * (`File_CreateInternalEntry`, `File_EnsureExternalEntry`, `File_GetPhysicalPath`)
- * take typed params directly and bypass the dispatcher because their semantics
- * are entry-only by design. When `FileHandle`-accepting
- * read/write/metadata channels land in later batches, they will follow the
- * same pattern as `File_PermanentDelete`:
+ * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
+ * dispatches read, metadata, open, and show-in-folder routes. Entry arms call
+ * FileManager; path arms call helpers under `utils/*`. ArtifactPane's
+ * `file.write_if_unchanged` route remains path-only. The legacy
+ * `File_PermanentDelete` handler still uses the same dispatcher here until its
+ * remaining preload consumers migrate:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
- *   method (e.g. `this.read(entryId, opts)`)
- * - `{ kind: 'path', path }`     → the `*ByPath` variant exported from
- *   `internal/*` (e.g. `contentRead.readByPath(deps, path, opts)`)
+ *   method (e.g. `this.open(entryId)`)
+ * - `{ kind: 'path', path }`     → the `*ByPath` variant in `utils/*`
+ *   (e.g. `getMetadataByPath(path)`) or a narrow path helper such as `safeOpen`
  *
  * `*ByPath` variants are not exposed on the FileManager class — Main-side
- * callers have no use for them (they hold FileEntry, not arbitrary paths).
+ * callers use the documented `utils/*` path API directly when needed.
  *
  * New handle kinds (e.g. `virtual` for zip members) extend `dispatchHandle`
- * and each IPC handler within this file; the public API surface and
- * `internal/*` pure-function structure both stay stable.
+ * and each handler in `src/main/ipc/handlers/file.ts`; the public API surface
+ * and `internal/*` pure-function structure both stay stable.
  *
  * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
@@ -134,18 +129,19 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
+import { FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
+  AbsoluteFilePath,
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  FilePath,
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
-import { SafeExtSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -186,7 +182,7 @@ import { showInFolder as internalShellShowInFolder } from './internal/system/she
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
 import { getMetadataByPath } from './utils/metadata'
-import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
+import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
@@ -231,7 +227,7 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
   z.strictObject({ source: z.literal('url'), url: z.url() }),
   z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
@@ -242,7 +238,7 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
   })
 ])
 
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsoluteFilePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -353,7 +349,7 @@ export class StaleVersionError extends Error {
 
 /**
  * Public surface of `FileManager` for Main-side business services and the
- * future Phase 2 IPC layer. The class below declares `implements IFileManager`
+ * entry arms of the File IPC adapter. The class below declares `implements IFileManager`
  * so a method declared here but missing on the class (or mis-typed) is a
  * compile error.
  *
@@ -573,7 +569,7 @@ export interface IFileManager {
   getUrl(id: FileEntryId): FileUrlString
 
   /** Resolve an entry to its absolute filesystem path. */
-  getPhysicalPath(id: FileEntryId): FilePath
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath
 
   // ─── Dangling state ───
 
@@ -684,7 +680,7 @@ export class FileManager extends BaseService implements IFileManager {
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
     // path: string }`, etc.). The TS-side param types use template literal
-    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // brands (`AbsoluteFilePath`, `FileHandle`) that Zod can't reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
     // brand-as-doc convention intact while letting runtime validation (Zod)
     // remain the actual gate — same pattern used by every other IPC handler
@@ -828,8 +824,8 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findById(id)
   }
 
-  async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+  async findByExternalPath(path: AbsoluteFilePath): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
@@ -897,7 +893,7 @@ export class FileManager extends BaseService implements IFileManager {
     return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
-  getPhysicalPath(id: FileEntryId): FilePath {
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath {
     const entry = this.deps.fileEntryService.getById(id)
     return resolvePhysicalPath(entry)
   }
@@ -919,19 +915,22 @@ export class FileManager extends BaseService implements IFileManager {
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
     // Within-batch path duplicates resolve to the same entry per the public
     // contract; the second occurrence reuses the just-inserted row. The
-    // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens — and each carries
-    // its own `sourceRef`, so the caller can still correlate every input.
+    // in-memory memo keys on the branded `externalPath` directly — no re-parse,
+    // trusting the already-validated `AbsoluteFilePath` param. Byte-identical inputs
+    // dedup here; any canonically-equal-but-byte-different pair still coalesces
+    // one level down (`ensureExternalEntry` canonicalizes and hits the DB
+    // upsert). Both items end up in `succeeded` even though only one DB insert
+    // happens — and each carries its own `sourceRef`, so the caller can still
+    // correlate every input.
     const seen = new Map<string, FileEntry>()
     const succeeded: BatchCreateResult['succeeded'] = []
     const failed: BatchCreateResult['failed'] = []
     for (const params of items) {
       const sourceRef = params.externalPath
       try {
-        const canonical = canonicalizeExternalPath(params.externalPath)
-        const cached = seen.get(canonical)
+        const cached = seen.get(params.externalPath)
         const entry = cached ?? (await this.ensureExternalEntry(params))
-        if (!cached) seen.set(canonical, entry)
+        if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
         // Wire format only carries `.message`; preserve the stack via the

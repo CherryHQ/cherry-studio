@@ -57,42 +57,40 @@ export const kbListInputSchema = z.object({
     .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
 })
 
-// AI-SDK path (KnowledgeListTool) runs with `strict: true`. A strict OpenAI-compatible provider (e.g.
-// glm) rejects the all-optional shape above because its `required` serializes away to nothing ("None
-// is not of type 'array'"), killing every tool call. Express the same optionality with `.nullable()`
-// so each field stays in `required` with a null option; listKnowledgeBases treats null (like
-// undefined) as "no filter".
+// AI-SDK path (KnowledgeListTool) runs with `strict: true`. Strict OpenAI-compatible providers require
+// every property in `required`, while Gemini also requires every property to expose a top-level
+// primitive `type` and rejects the `anyOf` emitted by `.nullable()`. As with `readFileInputSchema`,
+// required primitives plus sentinel values satisfy both providers; the adapter maps the sentinels
+// back to optional core inputs. The MCP schema above remains optional because it has no strict-mode
+// constraint.
 export const kbListStrictInputSchema = z.object({
   query: z
     .string()
     .trim()
-    .min(1)
     .max(200)
-    .nullable()
     .describe(
-      'List mode only: case-insensitive substring filter against base name and sample sources. Pass null to list all.'
+      'List mode only: case-insensitive substring filter against base name and sample sources. Pass an empty string to list all.'
     ),
   groupId: z
     .string()
     .trim()
-    .min(1)
-    .nullable()
-    .describe('List mode only: restrict the result to a single knowledge base group. Pass null to span all groups.'),
+    .describe(
+      'List mode only: restrict the result to a single knowledge base group. Pass an empty string to span all groups.'
+    ),
   baseId: z
     .string()
     .trim()
-    .min(1)
-    .nullable()
     .describe(
       'Pass a base id (from a prior list-mode call) to switch to outline mode: return that base’s ' +
-        'folder/document tree instead of the list of bases. Pass null to list the bases.'
+        'folder/document tree instead of the list of bases. Pass an empty string to list the bases.'
     ),
   maxDepth: z
     .number()
     .int()
-    .nonnegative()
-    .nullable()
-    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
+    .min(-1)
+    .describe(
+      'Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level). Pass -1 for unlimited depth.'
+    )
 })
 
 export const kbListOutputItemSchema = z.object({
@@ -209,6 +207,55 @@ export const kbReadInputSchema = z.object({
     )
 })
 
+// AI-SDK strict schemas use required primitives and sentinels for cross-provider compatibility; see
+// `kbListStrictInputSchema`. The adapter normalizes these sentinels before calling the shared core.
+export const kbReadStrictInputSchema = z.object({
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('ID of the knowledge base to read from — a base id from kb_list or a kb_search hit.'),
+  conceptId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Concept ID of the document to read — the `conceptId` field of a kb_search hit (its relative path).'),
+  charStart: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe('Read mode only: 0-based start offset of the slice to read. Pass 0 to start at the beginning.'),
+  charEnd: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'Read mode only: end offset (exclusive) of the slice. Pass 0 to read to the end. Long reads are capped; ' +
+        'when `totalChars` exceeds the returned `charEnd`, page on by calling again with `charStart` set to that `charEnd`.'
+    ),
+  pattern: z
+    .string()
+    .max(200)
+    .describe(
+      'Pass a JavaScript regular expression to switch to grep mode: instead of the document text, return each ' +
+        'matching line with its character offsets and a snippet (anchors `^`/`$` bind to each line; a match ' +
+        'cannot span lines). Use this for an exact lookup — a number, code symbol, term, quote. Pass an empty ' +
+        'string to read the document text; use kb_search for semantic/meaning-based lookup across documents.'
+    ),
+  ignoreCase: z
+    .boolean()
+    .describe('Grep mode only: case-insensitive matching. Pass true for the default; ignored in read mode.'),
+  maxMatches: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(200)
+    .describe(
+      'Grep mode only: maximum matches to return (default 50, hard cap 200). Pass 0 to use the default. ' +
+        '`totalMatches` always reports the full count.'
+    )
+})
+
 export const kbReadOutputSchema = z.object({
   conceptId: z.string(),
   title: z.string(),
@@ -275,6 +322,7 @@ export const KB_MANAGE_TOOL_NAME = 'kb_manage'
 
 export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh'] as const
 export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
+export const KB_MANAGE_UNUSED_TYPE = 'none' as const
 
 // One flat object, not a discriminated union: which fields apply depends on `action`
 // (and, for add, on `type`). The core validates the combination and returns a steer
@@ -324,10 +372,8 @@ export const kbManageInputSchema = z.object({
     )
 })
 
-// AI-SDK path (KnowledgeManageTool) runs with `strict: true` — same `.nullable()` treatment as
-// `kbListStrictInputSchema` and for the same reason (an all-optional shape serializes `required`
-// away to nothing, which a strict OpenAI-compatible provider rejects). `manageKnowledge` treats
-// null (like undefined) as "field not set for this action/type".
+// AI-SDK strict schemas use required primitives and sentinels for cross-provider compatibility; see
+// `kbListStrictInputSchema`. The adapter normalizes these sentinels before calling the shared core.
 export const kbManageStrictInputSchema = z.object({
   baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
   action: z
@@ -337,43 +383,35 @@ export const kbManageStrictInputSchema = z.object({
         'refresh: re-index documents by `conceptIds`. All actions modify the base and require user approval.'
     ),
   type: z
-    .enum(KB_MANAGE_ADD_TYPES)
-    .nullable()
+    .enum([...KB_MANAGE_ADD_TYPES, KB_MANAGE_UNUSED_TYPE])
     .describe(
       'For action="add" only: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`). ' +
-        'Pass null otherwise.'
+        'Pass "none" for delete or refresh.'
     ),
   path: z
     .string()
     .trim()
-    .min(1)
-    .nullable()
-    .describe('For action="add", type="file": absolute local filesystem path of the file to import. Else null.'),
+    .describe(
+      'For action="add", type="file": absolute local filesystem path of the file to import. Pass an empty string otherwise.'
+    ),
   url: z
     .string()
     .trim()
-    .min(1)
-    .nullable()
-    .describe('For action="add", type="url": the URL to fetch and index. Else null.'),
+    .describe('For action="add", type="url": the URL to fetch and index. Pass an empty string otherwise.'),
   content: z
     .string()
-    .min(1)
-    .nullable()
-    .describe('For action="add", type="note": the plain-text note content to index. Else null.'),
+    .describe('For action="add", type="note": the plain-text note content to index. Pass an empty string otherwise.'),
   title: z
     .string()
     .trim()
-    .min(1)
-    .nullable()
     .describe(
-      'For action="add", type="note": optional display title (defaults to the note\'s first line). Pass null to omit.'
+      'For action="add", type="note": optional display title (defaults to the note\'s first line). Pass an empty string to omit.'
     ),
   conceptIds: z
     .array(z.string().trim().min(1))
-    .nullable()
     .describe(
       'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search hit or a kb_list result) ' +
-        'to operate on. Else null.'
+        'to operate on. Pass an empty array for add.'
     )
 })
 
@@ -461,6 +499,15 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
+// ── generate_image ───────────────────────────────────────────────
+
+export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
+export {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageOutputItemSchema,
+  generateImageOutputSchema
+} from './generateImageTool'
+
 // ── agent autonomy tools (cron / notify / config) ────────────────
 // Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
 // are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;
@@ -488,25 +535,24 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
-  // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
-  // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`
-  // drops `.optional()` fields from `required`), failing every call with "Missing 'offset'".
-  // `readFile` coerces null back to the paging defaults.
+  // Required plain numbers with a 0 sentinel, not `.optional()` / `.nullable()`: ReadFileTool runs
+  // with `strict: true`, so a strict OpenAI-compatible provider rejects a schema whose `required`
+  // omits a property (`z.toJSONSchema` drops `.optional()` fields from `required`) — while Gemini
+  // rejects the `anyOf: [number, null]` that `.nullable()` emits ("didn't specify the schema type
+  // field"). A bare `number` is the only shape both accept; `readFile` maps 0 back to the defaults.
   offset: z
     .number()
     .int()
     .nonnegative()
-    .nullable()
     .describe(
-      '0-based character offset to start from. Page through long documents with offset + limit. Pass null to start at the beginning.'
+      '0-based character offset to start from. Page through long documents with offset + limit. Use 0 to start at the beginning.'
     ),
   limit: z
     .number()
     .int()
-    .positive()
+    .nonnegative()
     .max(200_000)
-    .nullable()
-    .describe(`Max characters to return. Pass null to default to ${READ_FILE_PAGE_SIZE}.`)
+    .describe(`Max characters to return. Use 0 to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({

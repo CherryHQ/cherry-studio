@@ -127,20 +127,22 @@ vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
     getContextMenuActions,
-    groupByTag,
+    groupByGroup,
     headerActions,
     items,
     onContextMenuAction,
     onReorder,
+    reorderEnabled = true,
     resourceMenuItems,
     selectedId
   }: {
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
-    groupByTag?: boolean
+    groupByGroup?: boolean
     headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onReorder?: unknown
+    reorderEnabled?: boolean
     resourceMenuItems?: readonly { active?: boolean; id: string }[]
     selectedId?: string | null
   }) => {
@@ -152,8 +154,9 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
       <div
         data-testid="resource-entity-rail"
         data-active-resource-menu={String(hasActiveResourceMenuItem)}
-        data-group-by-tag={String(!!groupByTag)}
-        data-reorder={onReorder ? 'enabled' : 'disabled'}
+        data-group-by-group={String(!!groupByGroup)}
+        data-reorder={onReorder && reorderEnabled ? 'enabled' : 'disabled'}
+        data-sortable-container={onReorder ? 'enabled' : 'disabled'}
         data-selected-id={selectedId ?? ''}>
         {headerActions}
         {items.map((item) => {
@@ -161,7 +164,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
           const renderedActions = flattenActions(actions)
 
           return (
-            <section key={item.id} aria-label={item.name}>
+            <section key={item.id} aria-label={item.name} title={item.tooltip}>
               {item.icon}
               <div data-testid={`${item.id}-context-menu`}>
                 {renderedActions.map((action) => (
@@ -218,6 +221,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       }
     ],
     error: null,
+    hasLoaded: true,
     isLoading: false,
     refetch: assistantDataMocks.refetchAssistants
   })
@@ -252,7 +256,11 @@ vi.mock('@renderer/hooks/usePins', () => ({
   })
 }))
 
-function createAgentSessionsSource(): AgentSessionsSource {
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({ groups: [], isLoading: false, error: undefined })
+}))
+
+function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {}): AgentSessionsSource {
   return {
     createSession: vi.fn(),
     deleteSession: vi.fn(),
@@ -272,11 +280,12 @@ function createAgentSessionsSource(): AgentSessionsSource {
     reorderSessions: vi.fn(),
     sessions: [{ id: 'session-1', agentId: 'agent-1', name: 'Session 1' }],
     togglePin: vi.fn(),
-    total: 1
+    total: 1,
+    ...overrides
   } as unknown as AgentSessionsSource
 }
 
-function createAssistantTopicsSource(): AssistantTopicsSource {
+function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> = {}): AssistantTopicsSource {
   return {
     error: null,
     hasNext: false,
@@ -288,7 +297,8 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
     mutate: vi.fn(),
     pages: [],
     refetch: vi.fn(),
-    topics: assistantDataMocks.topics
+    topics: assistantDataMocks.topics,
+    ...overrides
   } as unknown as AssistantTopicsSource
 }
 
@@ -480,7 +490,7 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps the default assistant visible in the classic assistant rail without a create action', () => {
+  it('keeps assistant-less topics under a non-actionable unlinked assistant entry in the classic rail', () => {
     assistantDataMocks.topics = [
       { id: 'topic-default', name: 'Default topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
@@ -489,23 +499,35 @@ describe('classic layout entity resource list actions', () => {
 
     render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={onCreateTopic} />)
 
-    const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
+    const unlinkedAssistantRegion = screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
 
-    expect(defaultAssistantRegion).toBeInTheDocument()
+    expect(unlinkedAssistantRegion).toBeInTheDocument()
+    expect(unlinkedAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
     expect(assistantRegion).toBeInTheDocument()
     expect(
-      assistantRegion.compareDocumentPosition(defaultAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
+      assistantRegion.compareDocumentPosition(unlinkedAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.edit.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent(
-      'assistants.clear.menu_title'
+    expect(screen.getByTestId('assistant-entity:unlinked-context-menu')).toBeEmptyDOMElement()
+
+    expect(within(unlinkedAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+  })
+
+  it('groups dangling assistant topics under the unlinked assistant entry in the classic rail', () => {
+    assistantDataMocks.topics = [
+      { id: 'topic-unlinked', assistantId: 'missing-assistant', name: 'Unlinked topic' },
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
+    ]
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="missing-assistant"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
     )
 
-    // The default group is a display-only bucket for legacy assistant-less topics: no "new topic"
-    // action, since a null-assistant create can't reuse an empty placeholder and would stack blanks.
-    expect(within(defaultAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).toBeInTheDocument()
   })
 
   it('creates a fresh topic after clearing the only classic assistant topics', async () => {
@@ -541,7 +563,7 @@ describe('classic layout entity resource list actions', () => {
     preferenceMocks.sortType = 'list'
     const { rerender } = render(<TestAssistantResourceList {...props} />)
     const railInList = screen.getByTestId('resource-entity-rail')
-    expect(railInList).toHaveAttribute('data-group-by-tag', 'false')
+    expect(railInList).toHaveAttribute('data-group-by-group', 'false')
     expect(railInList).toHaveAttribute('data-reorder', 'enabled')
 
     // Reorder persists the global assistant orderKey, so it must be disabled under tag
@@ -549,8 +571,35 @@ describe('classic layout entity resource list actions', () => {
     preferenceMocks.sortType = 'tags'
     rerender(<TestAssistantResourceList {...props} />)
     const railInTags = screen.getByTestId('resource-entity-rail')
-    expect(railInTags).toHaveAttribute('data-group-by-tag', 'true')
+    expect(railInTags).toHaveAttribute('data-group-by-group', 'true')
     expect(railInTags).toHaveAttribute('data-reorder', 'disabled')
+  })
+
+  it('keeps sortable rail containers mounted while refresh temporarily blocks reorder', () => {
+    const { rerender } = render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        assistantTopicsSource={createAssistantTopicsSource({ isRefreshing: true })}
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-sortable-container', 'enabled')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-reorder', 'disabled')
+
+    rerender(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ isValidating: true })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-sortable-container', 'enabled')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-reorder', 'disabled')
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {
@@ -560,10 +609,10 @@ describe('classic layout entity resource list actions', () => {
 
     // sort_type === 'list' → the menu offers "group by tag".
     const menu = screen.getByTestId('assistant-1-context-menu')
-    expect(menu).toHaveTextContent('assistants.tags.group_by')
-    expect(menu).not.toHaveTextContent('assistants.tags.ungroup')
+    expect(menu).toHaveTextContent('assistants.groups.group_by')
+    expect(menu).not.toHaveTextContent('assistants.groups.ungroup')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.tags.group_by' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.groups.group_by' })[0])
     expect(preferenceMocks.setSortType).toHaveBeenCalledWith('tags')
   })
 
@@ -586,9 +635,9 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.tags.ungroup')
+    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.groups.ungroup')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.tags.ungroup' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.groups.ungroup' })[0])
     expect(preferenceMocks.setSortType).toHaveBeenCalledWith('list')
   })
 
@@ -737,7 +786,7 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('passes skill management entries into the classic agent rail display menu', () => {
+  it('keeps Skill management out of the classic agent rail display menu', () => {
     const onManageSkills = vi.fn()
 
     render(
@@ -762,9 +811,8 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.skill.manage.title' }))
-
-    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'agent.skill.manage.title' })).not.toBeInTheDocument()
+    expect(onManageSkills).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
   })
 

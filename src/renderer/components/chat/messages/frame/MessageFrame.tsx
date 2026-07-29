@@ -3,6 +3,7 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
@@ -11,11 +12,6 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  getMessageEnterMotionAttributes,
-  getMessageEnterMotionVariant,
-  useMessageEnterMotionActive
-} from '../../motion/messageEnterMotion'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -51,6 +47,7 @@ interface Props {
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
+  showModelIdentity?: boolean
   lockedMentionedModels?: Model[]
 }
 
@@ -65,6 +62,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
+  showModelIdentity = false,
   lockedMentionedModels
 }) => {
   const { t } = useTranslation()
@@ -88,21 +86,24 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
+  const isAssistantMessage = message.role === 'assistant'
+  const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
+  const canStartEditing =
+    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
-      if (canEditMessage && messageId === message.id) {
+      if (canStartEditing && messageId === message.id) {
         actions.startEditing?.(message, messageParts, {
           lockedMentionedModels:
             lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
         })
       }
     },
-    [actions, canEditMessage, lockedMentionedModels, message, messageParts]
+    [actions, canStartEditing, lockedMentionedModels, message, messageParts]
   )
 
   const isLastMessage = index === 0 || !!isGrouped
-  const isAssistantMessage = message.role === 'assistant'
 
   const activityState = messageUi.getMessageActivityState?.(message)
   const isProcessing = activityState?.isProcessing ?? false
@@ -110,14 +111,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const enterMotionActive = useMessageEnterMotionActive(message.id)
-  const enterMotionVariant = getMessageEnterMotionVariant({
-    active: enterMotionActive,
-    role: message.role,
-    messageStyle,
-    isMultiSelectMode
-  })
-  const enterMotionAttributes = getMessageEnterMotionAttributes(enterMotionVariant)
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
@@ -161,9 +154,18 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   }, [actions, handleStartEditing, message.id, messageHighlightHandler])
 
   const handleStartNewContext = useCallback(() => {
-    if (isMultiSelectMode) return
+    if (isMultiSelectMode || !actions.startNewContext) return
     actions.startNewContext?.()
   }, [actions, isMultiSelectMode])
+  const canStartNewContext = !isMultiSelectMode && Boolean(actions.startNewContext)
+  const handleStartNewContextKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      handleStartNewContext()
+    },
+    [handleStartNewContext]
+  )
 
   const handleMessageSelectClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -177,12 +179,16 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     [actions, isMultiSelectMode, isSelected, message.id]
   )
 
-  if (message.type === 'clear') {
+  if (message.isContextBoundary) {
     return (
       <div
-        className={cn('clear-context-divider flex-1 cursor-pointer', isMultiSelectMode && 'cursor-default')}
-        onClick={handleStartNewContext}>
-        <div className="mx-5 my-0 flex items-center gap-2 text-foreground-muted text-sm">
+        aria-disabled={!canStartNewContext}
+        className={cn('clear-context-divider flex-1', canStartNewContext ? 'cursor-pointer' : 'cursor-default')}
+        onClick={handleStartNewContext}
+        onKeyDown={handleStartNewContextKeyDown}
+        role="button"
+        tabIndex={canStartNewContext ? 0 : -1}>
+        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-muted text-sm">
           <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-border border-dashed" />
@@ -193,6 +199,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const plainMessageContent = (
     <Scrollbar
+      data-ui="part:message-content"
       className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
       style={{
         fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
@@ -256,16 +263,14 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   return (
     <div
       key={message.id}
-      data-message-enter-motion={enterMotionAttributes?.motion}
       className={cn(
         classNames({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
-          'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--color-border)]': isEditing,
+          'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
-        }),
-        enterMotionAttributes?.className
+        })
       )}
       aria-disabled={isEditing ? true : undefined}
       ref={messageContainerRef}
@@ -290,6 +295,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           model={model}
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           isGroupContextMessage={isGroupContextMessage}
+          showModelIdentity={showModelIdentity}
           contentSlot={plainMessageContent}
           footerSlot={userFooter ?? assistantFooter}
         />
@@ -349,6 +355,7 @@ const UserBubbleMessage = ({
       <div className="flex max-w-full items-start justify-end gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           <Scrollbar
+            data-ui="part:message-content"
             className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',

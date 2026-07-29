@@ -18,7 +18,8 @@ const {
   mockGetPath,
   mockApplicationGet,
   mockLoadBuiltinAgentDefinition,
-  mockGetAppLanguage
+  mockGetAppLanguage,
+  mockBuildPrompt
 } = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
   mockMkdir: vi.fn(),
@@ -26,7 +27,8 @@ const {
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockApplicationGet: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
-  mockGetAppLanguage: vi.fn(() => 'en-US')
+  mockGetAppLanguage: vi.fn(() => 'en-US'),
+  mockBuildPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT')
 }))
 
 vi.mock('@logger', () => ({
@@ -76,19 +78,21 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
+  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: mockBuildPrompt }))
 }))
 
 const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
+const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
   vi.unstubAllGlobals()
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
+  mockBuildPrompt.mockClear()
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -99,6 +103,59 @@ function makeSession(): AgentSessionEntity {
 function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
   return { id: 'agent-1', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
 }
+
+describe('buildSystemPrompt — current workspace', () => {
+  it('loads prompt identity and memory from agent data while keeping workspace context on cwd', async () => {
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent(),
+      '/workspace/project-a',
+      false,
+      '/data/Agents/agent-1'
+    )
+
+    expect(mockBuildPrompt).toHaveBeenCalledWith(
+      '/workspace/project-a',
+      expect.anything(),
+      false,
+      '/data/Agents/agent-1'
+    )
+    expect(result as string).toContain('"/workspace/project-a"')
+  })
+
+  it('injects the current workspace and default path resolution for regular agents', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a')
+
+    expect(result as string).toContain(WORKSPACE_MARKER)
+    expect(result as string).toContain('"/workspace/project-a"')
+    expect(result as string).toContain('resolve unspecified or relative paths against it')
+    expect(result as string).not.toContain('Work outside it only when the user explicitly asks')
+  })
+
+  it('injects the current workspace for the built-in assistant path', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
+
+    expect(result as string).toContain(WORKSPACE_MARKER)
+    expect(result as string).toContain('"/workspace/assistant"')
+  })
+
+  it('resolves the workspace dynamically on every prompt build', async () => {
+    const agent = makeAgent()
+
+    const first = await buildSystemPrompt(makeSession(), agent, '/workspace/project-a')
+    const second = await buildSystemPrompt(makeSession(), agent, '/workspace/project-b')
+
+    expect(first as string).toContain('"/workspace/project-a"')
+    expect(first as string).not.toContain('"/workspace/project-b"')
+    expect(second as string).toContain('"/workspace/project-b"')
+    expect(second as string).not.toContain('"/workspace/project-a"')
+  })
+})
 
 describe('buildSystemPrompt — report_artifacts prompt', () => {
   beforeEach(() => {
@@ -147,6 +204,17 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
   it('steers the agent to bun/uv without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
     expect(result as string).toContain(RUNTIME_MARKER)
+  })
+
+  it('routes reusable CLI installation through managed tools without blocking ordinary downloads', async () => {
+    const result = (await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')) as string
+
+    expect(result).toContain('Call `cli_list` before assuming a reusable CLI is unavailable')
+    expect(result).toContain('Install reusable CLIs only with `cli_install`')
+    expect(result).toContain('read trusted public documentation')
+    expect(result).toContain('Do not run remote `curl`/`wget` install scripts for reusable CLIs')
+    expect(result).toContain('remain available for APIs, data, documentation, and project files')
+    expect(mockApplicationGet).not.toHaveBeenCalledWith('BinaryManager')
   })
 
   it('does not inject the runtime block for the Cherry Assistant (it carries its own environment)', async () => {

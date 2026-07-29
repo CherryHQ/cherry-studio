@@ -56,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Alle Dateien",
+    "data_reset": {
+      "cancel": "Abbrechen",
+      "confirm": "Zurücksetzen und neu starten",
+      "message": "Chats, Assistenten, Wissensdatenbanken, Dateien und Einstellungen werden gelöscht. Anschließend wird die App neu gestartet. Diese Aktion kann nicht rückgängig gemacht werden. Möchten Sie fortfahren?",
+      "title": "App-Daten zurücksetzen"
+    },
     "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",
     "pdf_files": "PDF-Dateien",

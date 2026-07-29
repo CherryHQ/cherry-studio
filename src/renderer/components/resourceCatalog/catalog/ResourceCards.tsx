@@ -1,6 +1,7 @@
 import { Badge, Button } from '@cherrystudio/ui'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import type { Group } from '@shared/data/types/group'
 import { Trash2 } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +22,7 @@ function activateCardOnKeyDown(event: KeyboardEvent<HTMLDivElement>, activate: (
 
 interface ResourceCardProps {
   resource: ResourceItem
-  allTagNames: string[]
+  allGroups: Group[]
   onDelete: (resource: ResourceItem) => void
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
@@ -32,18 +33,21 @@ function hasOverflowActions(resource: ResourceItem) {
   return resource.type === 'assistant'
 }
 
-export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, onEdit, onExport }: ResourceCardProps) {
+export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, onEdit, onExport }: ResourceCardProps) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
-  // Skills get the type-specific tinted background to match the menu icon;
-  // other resources keep their own avatar on the neutral accent block.
+  // Skills get the type-specific tinted background and lucide icon; other resources keep their own
+  // avatar (emoji/initials) on the neutral accent block.
   const useTypedAvatarBg = r.type === 'skill'
+  const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
-  const visibleTag = r.type === 'assistant' ? r.tag : undefined
+  const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
+  const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
   return (
     <div
       className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
+      style={r.type === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined}
       role="button"
       tabIndex={0}
       aria-label={r.name}
@@ -55,17 +59,26 @@ export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, 
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base ${
               useTypedAvatarBg ? cfg.color : 'bg-secondary'
             }`}>
-            {r.avatar}
+            {useTypedAvatarBg ? <TypeIcon size={20} aria-hidden /> : r.avatar}
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <h4 className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
+              {skillVersion && (
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 border-0 bg-secondary px-1.5 py-px font-normal text-foreground-secondary text-xs">
+                  {skillVersion}
+                </Badge>
+              )}
+            </div>
             <p className="mt-0.5 truncate text-foreground-secondary text-xs leading-4">{r.description}</p>
-            {visibleTag && (
+            {visibleGroup && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1">
                 <Badge
                   variant="secondary"
                   className="max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-foreground-secondary text-xs">
-                  {visibleTag}
+                  {visibleGroup}
                 </Badge>
               </div>
             )}
@@ -77,7 +90,7 @@ export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, 
                 onDuplicate={onDuplicate}
                 onDelete={onDelete}
                 onExport={onExport}
-                allTagNames={allTagNames}
+                allGroups={allGroups}
                 triggerClassName="text-foreground-muted opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
               />
             ) : (

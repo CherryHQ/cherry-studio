@@ -16,6 +16,14 @@ import { GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT } from '../globalSearchGroups'
 
 type ReactModule = typeof React
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   onClose: vi.fn(),
@@ -52,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
   eventEmit: vi.fn(),
+  emitResourceListReveal: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
   loggerError: vi.fn(),
   activeTab: {
@@ -415,6 +424,10 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
+  emitResourceListReveal: mocks.emitResourceListReveal
+}))
+
 vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
@@ -664,6 +677,21 @@ describe('GlobalSearchPanel', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')).toHaveFocus()
     })
+  })
+
+  it('keeps the search input focused after clearing the query', async () => {
+    const user = userEvent.setup()
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const searchInput = screen.getByRole('combobox', {
+      name: 'Search conversations, tasks, assistants, agents, and knowledge...'
+    })
+    await user.type(searchInput, 'needle')
+    await user.click(screen.getByRole('button', { name: 'Clear search' }))
+
+    expect(searchInput).toHaveFocus()
+    await user.keyboard('second query')
+    expect(searchInput).toHaveValue('second query')
   })
 
   it('links the search input to the visible recent listbox', async () => {
@@ -971,8 +999,82 @@ describe('GlobalSearchPanel', () => {
       forceNew: true,
       metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
     })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.eventEmit).not.toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_TOPIC', expect.anything())
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('reveals the assistant resource list when opening a topic result', async () => {
+    const user = userEvent.setup()
+    mocks.recentItems = []
+    mocks.dataApiGet.mockResolvedValueOnce({
+      id: 'topic-1',
+      name: 'Topic A',
+      assistantId: 'assistant-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as never)
+    mocks.queryResult = {
+      query: 'topic',
+      groups: [
+        {
+          type: 'topic',
+          items: [
+            {
+              type: 'topic',
+              id: 'topic-1',
+              title: 'Topic A',
+              target: { topicId: 'topic-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'topic')
+    await user.click(await screen.findByRole('option', { name: /Topic A/ }))
+
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({
+      source: 'assistants',
+      tabId: 'opened-chat-tab'
+    })
+  })
+
+  it('reveals the agent resource list when opening a session result', async () => {
+    const user = userEvent.setup()
+    mocks.recentItems = []
+    mocks.queryResult = {
+      query: 'session',
+      groups: [
+        {
+          type: 'session',
+          items: [
+            {
+              type: 'session',
+              id: 'session-1',
+              title: 'Session A',
+              target: { sessionId: 'session-1', agentId: 'agent-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'session'
+    )
+    await user.click(await screen.findByRole('option', { name: /Session A/ }))
+
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({
+      source: 'agents',
+      tabId: 'opened-agent-tab'
+    })
   })
 
   it('caps topic and work groups in all search and expands them on demand', async () => {
@@ -1459,8 +1561,9 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('option', { name: /needle message one/ })).toBeInTheDocument()
   })
 
-  it('opens a topic message preview before locating the selected message', async () => {
+  it('starts both topic message reads before locating the selected message', async () => {
     const user = userEvent.setup()
+    mocks.recentItems = []
     const topic = {
       id: 'topic-1',
       name: 'Topic A',
@@ -1469,11 +1572,13 @@ describe('GlobalSearchPanel', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
     }
+    const topicRequest = createDeferred<typeof topic>()
+    const messagePathRequest = createDeferred<Array<{ id: string }>>()
     mocks.dataApiGet.mockImplementation((path: string) => {
       if (path === '/topics/topic-1/path') {
-        return Promise.resolve([{ id: 'message-1' }, { id: 'message-leaf' }])
+        return messagePathRequest.promise
       }
-      return Promise.resolve(topic)
+      return topicRequest.promise
     })
     mocks.messageQueryResult = {
       items: [
@@ -1507,7 +1612,17 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open preview target' }))
 
     await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledWith('/topics/topic-1/path', { query: { nodeId: 'message-1' } })
+      expect(mocks.dataApiGet).toHaveBeenNthCalledWith(1, '/topics/topic-1')
+      expect(mocks.dataApiGet).toHaveBeenNthCalledWith(2, '/topics/topic-1/path', {
+        query: { nodeId: 'message-1' }
+      })
+    })
+    expect(mocks.dataApiGet).toHaveBeenCalledTimes(2)
+
+    topicRequest.resolve(topic)
+    messagePathRequest.resolve([{ id: 'message-1' }, { id: 'message-leaf' }])
+
+    await waitFor(() => {
       expect(mocks.dataApiPut).toHaveBeenCalledWith('/topics/topic-1/active-node', {
         body: { nodeId: 'message-leaf' }
       })
@@ -1651,6 +1766,7 @@ describe('GlobalSearchPanel', () => {
 
   it('opens a session message preview before routing to the agent message', async () => {
     const user = userEvent.setup()
+    mocks.recentItems = []
     mocks.sessionMessageQueryResult = {
       items: [
         {
@@ -1684,7 +1800,6 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open preview target' }))
 
     await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/session-1')
       expect(mocks.invalidateCache).toHaveBeenCalledWith([
         '/agent-sessions',
         '/agent-sessions/session-1',
@@ -1700,15 +1815,17 @@ describe('GlobalSearchPanel', () => {
         targetTabId: 'opened-agent-tab'
       })
     })
-    expect(mocks.dataApiGet.mock.invocationCallOrder[0]).toBeLessThan(mocks.invalidateCache.mock.invocationCallOrder[0])
+    expect(mocks.dataApiGet).not.toHaveBeenCalled()
+    expect(mocks.invalidateCache).toHaveBeenCalledTimes(1)
     expect(mocks.invalidateCache.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.eventEmit.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER
+      mocks.openTab.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER
     )
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('jumps directly from a session message search row action', async () => {
     const user = userEvent.setup()
+    mocks.recentItems = []
     mocks.sessionMessageQueryResult = {
       items: [
         {
@@ -1737,7 +1854,6 @@ describe('GlobalSearchPanel', () => {
 
     expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/session-1')
       expect(mocks.invalidateCache).toHaveBeenCalledWith([
         '/agent-sessions',
         '/agent-sessions/session-1',
@@ -1753,16 +1869,16 @@ describe('GlobalSearchPanel', () => {
         targetTabId: 'opened-agent-tab'
       })
     })
+    expect(mocks.dataApiGet).not.toHaveBeenCalled()
+    expect(mocks.invalidateCache).toHaveBeenCalledTimes(1)
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('logs and toasts when opening a message result fails', async () => {
     const user = userEvent.setup()
     const openError = new Error('missing session')
-    // The mount-time recent-title refresh fires once before the click action.
-    // Drain its expected stub first so the click rejection lands on the right call.
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Topic recent' } as never)
-    mocks.dataApiGet.mockRejectedValueOnce(openError)
+    mocks.recentItems = []
+    mocks.invalidateCache.mockRejectedValueOnce(openError)
     mocks.sessionMessageQueryResult = {
       items: [
         {

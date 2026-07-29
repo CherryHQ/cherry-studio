@@ -6,6 +6,8 @@
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbType } from '@data/db/types'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type {
@@ -28,12 +30,29 @@ import {
 } from '@shared/data/types/knowledge'
 import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
+import { groupService } from './GroupService'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
+
+function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+  if (groupId == null) return
+
+  const group = groupService.findByIdTx(tx, groupId)
+  if (!group) {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group not found: ${groupId}`]
+    })
+  }
+  if (group.entityType !== 'knowledge') {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group must have entityType 'knowledge': ${groupId}`]
+    })
+  }
+}
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   const clean = nullsToUndefined(row)
@@ -193,8 +212,11 @@ export class KnowledgeBaseService {
       throw toDataApiError(createValidation.error, 'create knowledge base')
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.insert(knowledgeBaseTable).values(createValues).returning().all()
+    const row = application.get('DbService').withWriteTx((tx) => {
+      validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      const [inserted] = tx.insert(knowledgeBaseTable).values(createValues).returning().all()
+      return inserted
+    })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
@@ -318,8 +340,21 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+    const row = application.get('DbService').withWriteTx((tx) => {
+      if (dto.groupId !== undefined) {
+        validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      }
+      const [updated] = tx
+        .update(knowledgeBaseTable)
+        .set(updates)
+        .where(eq(knowledgeBaseTable.id, id))
+        .returning()
+        .all()
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+      }
+      return updated
+    })
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
@@ -329,8 +364,21 @@ export class KnowledgeBaseService {
     // Verify knowledge base exists
     this.getById(id)
 
-    const db = application.get('DbService').getDb()
-    db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    let affectedAgentIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      affectedAgentIds = agentService.removeKnowledgeBaseFromAllAgentsTx(tx, id)
+      tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    })
+
+    try {
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'knowledgeBaseIds')
+    } catch (error) {
+      logger.error('Knowledge base deleted but agent refresh failed; affected agents may retain stale tool scope', {
+        knowledgeBaseId: id,
+        affectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Deleted knowledge base', { id })
   }

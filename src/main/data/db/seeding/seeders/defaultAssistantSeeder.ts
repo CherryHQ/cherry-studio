@@ -45,8 +45,8 @@ export class DefaultAssistantSeeder implements ISeeder {
       const topic = insertWithOrderKey(
         tx,
         topicTable,
-        { name: '', assistantId: assistant.id as string, groupId: null, activeNodeId: null },
-        { pkColumn: topicTable.id, scope: isNull(topicTable.groupId) }
+        { name: '', assistantId: assistant.id as string, activeNodeId: null },
+        { pkColumn: topicTable.id, scope: isNull(topicTable.deletedAt) }
       )
 
       messageService.createRootMessageTx(tx, topic.id as string)

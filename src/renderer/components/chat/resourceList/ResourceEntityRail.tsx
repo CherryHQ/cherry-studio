@@ -11,6 +11,7 @@ import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  compareResourceOrderKey,
   ConversationResourceMenu,
   type ConversationResourceMenuItem,
   ResourceList,
@@ -24,6 +25,7 @@ export type ResourceEntityRailItem = {
   id: string
   name: string
   icon?: ReactNode
+  tooltip?: string
   orderKey?: string
   reorderable?: boolean
   /**
@@ -31,8 +33,10 @@ export type ResourceEntityRailItem = {
    * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
    */
   pinned?: boolean
-  /** Single user tag name. Only consulted when the rail runs with `groupByTag`; undefined → "未分组". */
-  tag?: string
+  /** Canonical assistant group. Only consulted when `groupByGroup` is enabled. */
+  groupId?: string
+  groupName?: string
+  groupOrderKey?: string
   trailingAction?: ReactNode
 }
 
@@ -44,25 +48,31 @@ const ENTITY_RAIL_PINNED_SECTION_ID = 'resource-entity-rail:section:pinned'
 const ENTITY_RAIL_DEFAULT_SECTION_ID = 'resource-entity-rail:section:default'
 const ENTITY_RAIL_PINNED_GROUP_ID = 'resource-entity-rail:group:pinned'
 const ENTITY_RAIL_DEFAULT_GROUP_ID = 'resource-entity-rail:group:default'
-// When `groupByTag` is on, each tag name becomes its own collapsible section below the pinned one;
-// untagged entities collapse together under a distinct internal bucket.
-const ENTITY_RAIL_TAG_SECTION_PREFIX = 'resource-entity-rail:section:'
-const ENTITY_RAIL_TAG_GROUP_PREFIX = 'resource-entity-rail:group:'
-const ENTITY_RAIL_UNTAGGED_KEY = JSON.stringify(['untagged'])
+// When `groupByGroup` is on, each group id becomes its own collapsible section below the pinned one;
+// ungrouped entities collapse together under a distinct internal bucket.
+const ENTITY_RAIL_GROUP_SECTION_PREFIX = 'resource-entity-rail:section:'
+const ENTITY_RAIL_GROUP_GROUP_PREFIX = 'resource-entity-rail:group:'
+const ENTITY_RAIL_UNGROUPED_KEY = JSON.stringify(['ungrouped'])
 
-function getEntityRailTagBucketKey(tag: string | undefined) {
-  return tag ? JSON.stringify(['tag', tag]) : ENTITY_RAIL_UNTAGGED_KEY
+function getEntityRailGroupBucketKey(groupId: string | undefined) {
+  return groupId ? JSON.stringify(['group', groupId]) : ENTITY_RAIL_UNGROUPED_KEY
 }
 
-function getEntityRailTagGroupingRank(item: ResourceEntityRailItem) {
+function getEntityRailGroupRank(item: ResourceEntityRailItem) {
   if (item.pinned) return 0
-  return item.tag ? 2 : 1
+  return item.groupId ? 2 : 1
 }
 
-function sortEntityRailItemsForTagGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
+function sortEntityRailItemsForGroupGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
   return items
-    .map((item, index) => ({ item, index, rank: getEntityRailTagGroupingRank(item) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item, index) => ({ item, index, rank: getEntityRailGroupRank(item) }))
+    .sort((a, b) => {
+      const rankDifference = a.rank - b.rank
+      if (rankDifference !== 0) return rankDifference
+      if (a.rank !== 2) return a.index - b.index
+
+      return compareResourceOrderKey(a.item.groupOrderKey, b.item.groupOrderKey) || a.index - b.index
+    })
     .map(({ item }) => item)
 }
 
@@ -73,11 +83,11 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   /** Header for the non-pinned group ("助手" for assistants, "智能体" for agents). */
   defaultGroupLabel?: string
   /**
-   * Group the non-pinned entities by their `tag` into collapsible sections (the pinned section stays
-   * on top). Drag-reorder still updates the flat orderKey; it does not change the entity tag.
+   * Group the non-pinned entities by `groupId` into collapsible sections (the pinned section stays
+   * on top). Drag-reorder still updates the flat orderKey; it does not change the entity group.
    * Off → the flat "助手"/"智能体" section.
    */
-  groupByTag?: boolean
+  groupByGroup?: boolean
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   headerActions?: ReactNode
@@ -89,6 +99,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
+  /** Keeps the sortable container mounted while temporarily blocking reorder interactions. */
+  reorderEnabled?: boolean
   onSelect: (item: T) => void | Promise<void>
   onSelectedClick?: (item: T) => void | Promise<void>
   selectedClickId?: string | null
@@ -122,7 +134,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   addLabel,
   ariaLabel,
   defaultGroupLabel,
-  groupByTag = false,
+  groupByGroup = false,
   emptyFallback,
   getContextMenuActions,
   headerActions,
@@ -133,6 +145,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   resourceMenuItems,
   onContextMenuAction,
   onReorder,
+  reorderEnabled: reorderEnabledProp = true,
   onSelect,
   onSelectedClick,
   selectedClickId,
@@ -142,7 +155,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  const reorderEnabled = !!onReorder
+  const hasReorderHandler = !!onReorder
+  const reorderEnabled = hasReorderHandler && reorderEnabledProp
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
@@ -206,7 +220,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
       // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" tooltip={item.tooltip}>
           {item.icon && (
             <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
               {item.icon}
@@ -214,7 +228,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
           <ResourceList.ItemTitle
             className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.name}>
+            title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (
@@ -255,8 +269,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
   const providerItems = useMemo(
-    () => (groupByTag ? sortEntityRailItemsForTagGrouping(items) : items),
-    [groupByTag, items]
+    () => (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
+    [groupByGroup, items]
   )
   // Collapsible sections matching the modern layout's left assistant/agent layout (minus the nested
   // topics/sessions): pinned entities float into "已固定" at the top, the rest sit under the
@@ -266,27 +280,27 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const sectionBy = useMemo<(item: T) => ResourceListSection>(
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
-      if (groupByTag) {
-        const tagBucketKey = getEntityRailTagBucketKey(item.tag)
-        return item.tag
-          ? { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${tagBucketKey}`, label: item.tag }
-          : { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${tagBucketKey}`, label: t('assistants.tags.untagged') }
+      if (groupByGroup) {
+        const groupBucketKey = getEntityRailGroupBucketKey(item.groupId)
+        return item.groupId && item.groupName
+          ? { id: `${ENTITY_RAIL_GROUP_SECTION_PREFIX}${groupBucketKey}`, label: item.groupName }
+          : { id: `${ENTITY_RAIL_GROUP_SECTION_PREFIX}${groupBucketKey}`, label: t('assistants.groups.ungrouped') }
       }
       return { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' }
     },
-    [defaultGroupLabel, groupByTag, t]
+    [defaultGroupLabel, groupByGroup, t]
   )
   // Header-less groups (one per section, distinct ids) keep entity avatars visible and stop
-  // drag-reorder from crossing the pinned/non-pinned (or per-tag) boundary.
+  // drag-reorder from crossing the pinned/non-pinned (or per-group) boundary.
   const groupBy = useMemo<(item: T) => ResourceListGroup>(
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_GROUP_ID, label: '' }
-      if (groupByTag) {
-        return { id: `${ENTITY_RAIL_TAG_GROUP_PREFIX}${getEntityRailTagBucketKey(item.tag)}`, label: '' }
+      if (groupByGroup) {
+        return { id: `${ENTITY_RAIL_GROUP_GROUP_PREFIX}${getEntityRailGroupBucketKey(item.groupId)}`, label: '' }
       }
       return { id: ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }
     },
-    [groupByTag]
+    [groupByGroup]
   )
 
   // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
@@ -351,7 +365,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}
-          draggable={reorderEnabled}
+          draggable={hasReorderHandler}
           ariaLabel={ariaLabel}
           virtualClassName="pt-1 pb-3"
           errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}

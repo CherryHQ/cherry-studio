@@ -21,8 +21,8 @@ export type MessageMenuBarScopeConfig = {
 export const DEFAULT_MESSAGE_MENUBAR_SCOPE: MessageMenuBarScope = TopicType.Chat
 
 export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
-  'user-edit',
   'copy',
+  'user-edit',
   'assistant-regenerate',
   'assistant-mention-model',
   'translate',

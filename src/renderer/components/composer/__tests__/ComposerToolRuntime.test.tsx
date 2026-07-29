@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,6 +58,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import {
   ComposerActiveToolControls,
+  ComposerPinnedToolsProvider,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -141,6 +142,27 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
   useEffect(() => {
     setFiles(nextFiles)
   }, [nextFiles, setFiles])
+
+  return null
+}
+
+const LauncherRegistrationProbe = ({
+  onReady
+}: {
+  onReady: (value: { disposeFirst: () => void; readIds: () => string[] }) => void
+}) => {
+  const { toolsRegistry, triggers } = useComposerToolDispatch()
+
+  useEffect(() => {
+    const disposeFirst = toolsRegistry.registerLaunchers('agent-skills', [
+      { id: 'stale-skills', kind: 'panel', label: 'Stale skills', icon: 'stale' }
+    ])
+    const disposeLatest = toolsRegistry.registerLaunchers('agent-skills', [
+      { id: 'agent-skills', kind: 'panel', label: 'Skills', icon: 'skills' }
+    ])
+    onReady({ disposeFirst, readIds: () => triggers.getLaunchers().map((launcher) => launcher.id) })
+    return disposeLatest
+  }, [onReady, toolsRegistry, triggers])
 
   return null
 }
@@ -294,6 +316,21 @@ describe('ComposerToolRuntimeHost', () => {
     expect(runtimeRegisterCount).toBe(1)
   })
 
+  it('keeps the latest launcher registration when a stale disposer runs', async () => {
+    let registration: { disposeFirst: () => void; readIds: () => string[] } | undefined
+    const onReady = vi.fn((value) => {
+      registration = value
+    })
+
+    renderRuntime([], <LauncherRegistrationProbe onReady={onReady} />)
+
+    await waitFor(() => expect(registration?.readIds()).toEqual(['agent-skills']))
+
+    act(() => registration?.disposeFirst())
+
+    expect(registration?.readIds()).toEqual(['agent-skills'])
+  })
+
   it('does not subscribe the runtime host to quick panel state', async () => {
     const runtimeRender = vi.fn()
 
@@ -405,6 +442,68 @@ describe('ComposerActiveToolControls', () => {
     )
 
     await waitFor(() => expect(screen.queryByLabelText('UnpinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('drops active launchers already rendered by the pinned toolbar (dedup)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'pinned-active-tool',
+                  kind: 'command',
+                  label: 'PinnedActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['pinned-active-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('PinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('shows an active launcher as a chip when it is not pinned (backfill)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'unpinned-active-tool',
+                  kind: 'command',
+                  label: 'BackfilledActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['some-other-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('BackfilledActive')).toBeInTheDocument())
   })
 })
 

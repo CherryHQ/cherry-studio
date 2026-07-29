@@ -127,7 +127,8 @@ const ModelCard: FC<ModelCardProps> = ({
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start gap-3">
         <div
           className={cn(
@@ -138,7 +139,7 @@ const ModelCard: FC<ModelCardProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-foreground text-sm">{name}</span>
+            <span className="truncate text-foreground text-sm">{name}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
@@ -179,12 +180,12 @@ const ModelCard: FC<ModelCardProps> = ({
       {!ready && (
         <div className="mt-3 border-border border-t pt-3">
           {downloading ? (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onCancel}>
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onCancel}>
               <X className="size-3.5" />
               {t('settings.dependencies.localModels.cancel')}
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onDownload}>
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onDownload}>
               <Download className="size-3.5" />
               {t('settings.dependencies.localModels.download')}
             </Button>
@@ -196,9 +197,8 @@ const ModelCard: FC<ModelCardProps> = ({
 }
 
 /**
- * Local model download cards in the Environment Dependencies settings — embedding
- * (transformers.js) and OCR (PaddleOCR), each wired to its inference/download
- * backend over IpcApi.
+ * Local model download cards — embedding (transformers.js) and OCR
+ * (PaddleOCR), each wired to its inference/download backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
@@ -207,9 +207,8 @@ const LocalModelsSection: FC = () => {
   const ocr = useLocalModelCard('ocr')
 
   // Both models share the same inference runtime, so they're unsupported together
-  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding). Hide the
-  // whole section rather than offering a download that would fail.
-  if (embedding.status === 'unsupported' && ocr.status === 'unsupported') return null
+  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding).
+  const unsupported = embedding.status === 'unsupported' && ocr.status === 'unsupported'
 
   return (
     <div className="min-w-0">
@@ -219,30 +218,41 @@ const LocalModelsSection: FC = () => {
       <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
         {t('settings.dependencies.localModels.description')}
       </p>
-      <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <ModelCard
-          icon={<Boxes className="size-5" />}
-          name={t('settings.dependencies.localModels.embedding.name')}
-          subtitle={t('settings.dependencies.localModels.embedding.subtitle')}
-          status={embedding.status}
-          percent={embedding.percent}
-          notice={embedding.notice}
-          onDownload={embedding.download}
-          onCancel={embedding.cancel}
-          onRemove={embedding.remove}
-        />
-        <ModelCard
-          icon={<ScanText className="size-5" />}
-          name={t('settings.dependencies.localModels.ocr.name')}
-          subtitle={t('settings.dependencies.localModels.ocr.subtitle')}
-          status={ocr.status}
-          percent={ocr.percent}
-          notice={ocr.notice}
-          onDownload={ocr.download}
-          onCancel={ocr.cancel}
-          onRemove={ocr.remove}
-        />
-      </div>
+      {unsupported ? (
+        <div
+          role="status"
+          className="rounded-xl border border-border border-dashed px-4 py-6 text-center text-muted-foreground text-xs leading-5"
+          style={{
+            backgroundColor: 'var(--settings-group-background, color-mix(in srgb, var(--card) 50%, transparent))'
+          }}>
+          {t('settings.dependencies.localModels.unsupported')}
+        </div>
+      ) : (
+        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ModelCard
+            icon={<Boxes className="size-5" />}
+            name={t('settings.dependencies.localModels.embedding.name')}
+            subtitle={t('settings.dependencies.localModels.embedding.subtitle')}
+            status={embedding.status}
+            percent={embedding.percent}
+            notice={embedding.notice}
+            onDownload={embedding.download}
+            onCancel={embedding.cancel}
+            onRemove={embedding.remove}
+          />
+          <ModelCard
+            icon={<ScanText className="size-5" />}
+            name={t('settings.dependencies.localModels.ocr.name')}
+            subtitle={t('settings.dependencies.localModels.ocr.subtitle')}
+            status={ocr.status}
+            percent={ocr.percent}
+            notice={ocr.notice}
+            onDownload={ocr.download}
+            onCancel={ocr.cancel}
+            onRemove={ocr.remove}
+          />
+        </div>
+      )}
     </div>
   )
 }

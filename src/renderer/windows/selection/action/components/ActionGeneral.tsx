@@ -17,6 +17,7 @@ import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -80,6 +81,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [requestStartedAt, setRequestStartedAt] = useState('')
 
   const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
     // Once the temporary topic id arrives, the chat reinitializes with it.
@@ -89,7 +91,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     experimental_throttle: 50,
     onError: (err) => {
       setIsPreparing(false)
-      setCompletionError(err.message)
+      setCompletionError(getSelectionActionErrorMessage(err, t))
     }
   })
 
@@ -124,12 +126,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         ...latestAssistantUIMsg,
         metadata: {
           ...latestAssistantUIMsg.metadata,
+          createdAt: latestAssistantUIMsg.metadata?.createdAt ?? requestStartedAt,
           status: isPending ? 'pending' : 'success'
         }
       },
       { assistantId: chosenAssistantId, topicId: temporaryTopicId ?? '' }
     )
-  }, [chosenAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [chosenAssistantId, latestAssistantUIMsg, isPending, requestStartedAt, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -143,6 +146,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
     logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
+    setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
     // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
     // No body fields are read by IpcChatTransport for this codepath.
@@ -191,6 +195,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
+                successFeedback="icon"
               />
             </div>
           </div>
@@ -208,7 +213,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
             {error}
           </div>
         )}

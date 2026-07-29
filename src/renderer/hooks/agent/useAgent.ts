@@ -6,15 +6,17 @@
  * configuration) lives here, not on sessions.
  */
 
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,21 +69,21 @@ export const useAgents = () => {
   const { t } = useTranslation()
   const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
+  const invalidate = useInvalidateCache()
 
-  const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
-        const result = await createTrigger({ body: form as unknown as CreateAgentDto })
+        const result = await createAgentAndRefresh(form as unknown as CreateAgentCommand, () => invalidate('/agents'))
         toast.success(t('common.add_success'))
-        return { success: true, data: result as unknown as AgentEntity }
+        return { success: true, data: result }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
         toast.error(msg)
         return { success: false, error: error instanceof Error ? error : new Error(msg) }
       }
     },
-    [createTrigger, t]
+    [invalidate, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
@@ -135,7 +137,7 @@ export const useUpdateAgent = () => {
 
   const updateModel = useCallback(
     async (agentId: string, modelId: UniqueModelId, options?: UpdateAgentBaseOptions) => {
-      void updateAgent({ id: agentId, model: modelId }, options)
+      return updateAgent({ id: agentId, model: modelId }, options)
     },
     [updateAgent]
   )

@@ -21,25 +21,28 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { getMaxTokens, getTemperature, getTopP } from '../../../../utils/modelParameters'
+import type { ResolvedReasoningInvocation } from '../../../../utils/reasoningSerializers'
 
 export interface ModelParamsPluginConfig {
   assistant: Assistant
   model: Model
   provider: Provider
+  reasoning: ResolvedReasoningInvocation
 }
 
 const createModelParamsPlugin = ({
   assistant,
   model,
-  provider
+  provider,
+  reasoning
 }: ModelParamsPluginConfig): AiPlugin<StreamTextParams, StreamTextResult> =>
   definePlugin<StreamTextParams, StreamTextResult>({
     name: 'model-params',
     enforce: 'pre',
     transformParams: (params) => {
-      const temperature = getTemperature(assistant, model)
-      const topP = getTopP(assistant, model)
-      const maxOutputTokens = getMaxTokens(assistant, model, provider)
+      const temperature = getTemperature(assistant, model, reasoning)
+      const topP = getTopP(assistant, model, reasoning)
+      const maxOutputTokens = getMaxTokens(assistant, model, provider, reasoning)
 
       if (temperature !== undefined) params.temperature = temperature
       if (topP !== undefined) params.topP = topP
@@ -54,6 +57,11 @@ export const modelParamsFeature: RequestFeature = {
   name: 'model-params',
   applies: (scope) => Boolean(scope.assistant),
   contributeModelAdapters: (scope) => [
-    createModelParamsPlugin({ assistant: scope.assistant!, model: scope.model, provider: scope.provider })
+    createModelParamsPlugin({
+      assistant: scope.assistant!,
+      model: scope.model,
+      provider: scope.provider,
+      reasoning: scope.reasoning
+    })
   ]
 }

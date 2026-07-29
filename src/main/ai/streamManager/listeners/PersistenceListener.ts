@@ -1,27 +1,22 @@
 /**
  * Storage-agnostic terminal-event listener: filters by `modelId`, folds
- * errors into `finalMessage.parts`, tracks semantic timings (chunk-shape
- * knowledge stays out of the manager), composes `MessageStats`, delegates
- * the write to a `PersistenceBackend`.
+ * errors into `finalMessage.parts`, carries message-owned runtime timing,
+ * and delegates the write to a `PersistenceBackend`.
  */
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
-import { dropEmptyContentParts, type PersistenceBackend, statsFromTerminal } from '../persistence/PersistenceBackend'
-import type {
-  SemanticTimings,
-  StreamDoneResult,
-  StreamErrorResult,
-  StreamListener,
-  StreamPausedResult,
-  TransportTimings
-} from '../types'
+import {
+  dropEmptyContentParts,
+  finalizeInterruptedParts,
+  type PersistenceBackend
+} from '../persistence/PersistenceBackend'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
@@ -42,8 +37,6 @@ export interface PersistenceListenerOptions {
 export class PersistenceListener implements StreamListener {
   readonly id: string
 
-  private semanticTimings: SemanticTimings = {}
-
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
   }
@@ -53,40 +46,25 @@ export class PersistenceListener implements StreamListener {
     return this.opts.backend.kind
   }
 
-  /** Set-once timings. `reasoningEndedAt` = `firstTextAt` when reasoning preceded text; else undefined. */
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
-    if (!this.owns(sourceModelId)) return
-
-    if (chunk.type === 'text-delta') {
-      if (this.semanticTimings.firstTextAt == null) {
-        this.semanticTimings.firstTextAt = performance.now()
-      }
-      if (this.semanticTimings.reasoningStartedAt != null && this.semanticTimings.reasoningEndedAt == null) {
-        this.semanticTimings.reasoningEndedAt = this.semanticTimings.firstTextAt
-      }
-    } else if (
-      this.semanticTimings.reasoningStartedAt == null &&
-      (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta')
-    ) {
-      this.semanticTimings.reasoningStartedAt = performance.now()
-    }
+  onChunk(): void {
+    // Message timing is captured by the runtime collector, not inferred from chunks here.
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    this.persistAssistant(result.finalMessage, 'success', result.timings)
+    await this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    this.persistAssistant(result.finalMessage, 'paused', result.timings)
+    await this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    this.persistAssistant(withErrorPart, 'error', result.timings)
+    await this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
   }
 
   isAlive(): boolean {
@@ -97,11 +75,11 @@ export class PersistenceListener implements StreamListener {
     return !modelId || !this.opts.modelId || modelId === this.opts.modelId
   }
 
-  private persistAssistant(
+  private async persistAssistant(
     finalMessage: CherryUIMessage | undefined,
     status: 'success' | 'paused' | 'error',
-    transportTimings: TransportTimings | undefined
-  ): void {
+    runtimeTiming: MessageRuntimeTiming | undefined
+  ): Promise<void> {
     if (!finalMessage && (status === 'success' || !this.opts.backend.canPersistEmptyTerminal)) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
@@ -117,20 +95,18 @@ export class PersistenceListener implements StreamListener {
     // are never written to storage. Applied for all statuses. The `normalizedMessage`
     // guard is for the typed-undefined error path (no finalMessage).
     const finalMessageForPersistence = normalizedMessage
-      ? { ...normalizedMessage, parts: dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]) }
+      ? {
+          ...normalizedMessage,
+          parts: finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+        }
       : normalizedMessage
 
-    const stats = statsFromTerminal(
-      finalMessageForPersistence,
-      transportTimings ? { ...transportTimings, ...this.semanticTimings } : undefined
-    )
-
     try {
-      this.opts.backend.persistAssistant({
+      await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
-        stats
+        ...(runtimeTiming ? { runtimeStats: { runtimeTiming } } : {})
       })
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,

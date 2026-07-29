@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '../../../i18n/locales/en-us.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'
-import zhTW from '../../../i18n/locales/zh-tw.json'
 import deDE from '../../../i18n/translate/de-de.json'
 import elGR from '../../../i18n/translate/el-gr.json'
 import esES from '../../../i18n/translate/es-es.json'
@@ -16,6 +15,7 @@ import ptPT from '../../../i18n/translate/pt-pt.json'
 import roRO from '../../../i18n/translate/ro-ro.json'
 import ruRU from '../../../i18n/translate/ru-ru.json'
 import viVN from '../../../i18n/translate/vi-vn.json'
+import zhTW from '../../../i18n/translate/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn(),
@@ -129,6 +129,18 @@ vi.mock('@renderer/hooks/agent/useAgentSessionStreamStatuses', () => ({
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
+}))
+
+vi.mock('@renderer/hooks/resourceViewSources', () => ({
+  useAgentSessionsSource: () => hookMocks.useSessions(),
+  useAssistantTopicsSource: () => {
+    const source = hookMocks.useTopics()
+    return {
+      ...source,
+      isLoadingAll: source.isLoadingAll ?? source.isLoading,
+      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -289,6 +301,8 @@ vi.mock('react-i18next', () => ({
         'history.records.bulkMoveTopics.title': 'Move selected conversations',
         'history.records.empty.description': 'No conversations for the current filters.',
         'history.records.empty.title': 'No conversations',
+        'history.records.loading.description': 'Loading conversation list.',
+        'history.records.loading.title': 'Loading conversations',
         'history.records.searchTopic': 'Search conversations...',
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
@@ -356,9 +370,9 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     modelId: null,
     mcpServerIds: [],
     knowledgeBaseIds: [],
+    groupId: null,
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
-    tags: [],
     modelName: null,
     ...overrides
   } as Assistant
@@ -460,7 +474,24 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(hookMocks.useSessions).not.toHaveBeenCalled()
+    expect(hookMocks.useTopics).toHaveBeenCalledWith()
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
+  })
+
+  it('keeps the loading state until the shared full-topic source commits', () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [],
+      error: undefined,
+      isLoading: false,
+      isLoadingAll: true,
+      isFullyLoaded: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    expect(screen.getByText('Loading conversations')).toBeInTheDocument()
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
   })
 
   it('falls back to record selection when no conversation tab context exists', () => {

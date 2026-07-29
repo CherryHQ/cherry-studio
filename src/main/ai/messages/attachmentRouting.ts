@@ -93,6 +93,7 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
  *  is the model-facing name used in any note. */
 async function extractNonNativeText(
   entryId: string,
+  ext: string,
   fileType: FileType,
   handle: string,
   signal?: AbortSignal
@@ -104,8 +105,12 @@ async function extractNonNativeText(
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
     return `This model can't process the attached ${fileType} file "${handle}".`
   }
-  if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT) {
-    const text = (await extractDocumentText(entryId, { signal })).trim()
+  if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
+    const extracted = await extractDocumentText(entryId, { signal })
+    if (extracted === null) {
+      return `Cannot read the attached file "${handle}" as text (unsupported file type).`
+    }
+    const text = extracted.trim()
     return text || noExtractableTextNote(handle)
   }
   // OTHER — binary / unsupported. Don't auto-decode it into mojibake.
@@ -174,7 +179,7 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const body = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
+      const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
       const text = `Attached file "${handle}":\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
       kept.push({ type: 'text', text } as UIMessage['parts'][number])
     } catch (error) {

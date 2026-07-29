@@ -6,9 +6,11 @@ import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItem, KnowledgeItemChunk, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { estimateTokenCount } from 'tokenx'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
+import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { embedKnowledgeQuery } from '../pipeline/indexing/embed'
 import { rerankKnowledgeSearchResults } from '../pipeline/indexing/rerank'
 import { extractFtsTokens } from '../pipeline/vectorstore/indexStore/ftsQuery'
@@ -117,6 +119,31 @@ export class KnowledgeQueryService {
 
   listRootItems(baseId: string): KnowledgeItem[] {
     return knowledgeItemService.getRootItemsByBaseId(baseId)
+  }
+
+  /** Absolute on-disk path of a file/url item's stored source bytes, for previewing the original source. */
+  getFilePath(itemId: string): AbsoluteFilePath {
+    const item = knowledgeItemService.getById(itemId)
+
+    if (item.type === 'file') {
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    if (item.type === 'url') {
+      if (!item.data.relativePath) {
+        throw DataApiErrorFactory.invalidOperation(
+          'getFilePath',
+          `Knowledge URL item '${itemId}' has no captured snapshot to preview`
+        )
+      }
+
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    throw DataApiErrorFactory.invalidOperation(
+      'getFilePath',
+      `Knowledge item '${itemId}' must be a file or URL to preview its source`
+    )
   }
 
   /**

@@ -54,6 +54,7 @@ Returns `null` (not `{}`) when no data is present (missing file / parse error / 
 | `appDataPath` wrong type (e.g. number) | `typeof !== 'string' && !Array.isArray` | Reader returns `null` → migrator skips |
 | `appDataPath: []` or array with all invalid entries | Filtered record has 0 keys | Reader returns `null` → migrator skips (C1 correctness — must not write `{}`) |
 | Redux source missing a key | `reduxData` path lookup returns undefined | Falls back to `DefaultBootConfig[targetKey]` (e.g. `app.disable_hardware_acceleration` → `false`) |
+| Schema-invalid value from any source (wrong type) | `bootConfigSchema.shape[targetKey].safeParse` in `prepare()` | Item skipped with a warning; migration continues (`bootConfigService.set()` would otherwise throw and fail the whole run) |
 
 ## Writes and Validation
 
@@ -66,7 +67,7 @@ Returns `null` (not `{}`) when no data is present (missing file / parse error / 
 - `BootConfigMigrator.ts` — `prepare/execute/validate` phases; `loadMigrationItems()` merges classification-derived mappings (from `BootConfigMappings.ts`) with the inline `configFileMappings` local const.
 - `../utils/LegacyHomeConfigReader.ts` — sync reader for v1 home config file; read-only; does not validate path accessibility of the returned `dataPath` values.
 - `mappings/BootConfigMappings.ts` — auto-generated mappings for the 4 classification-driven sources. The `targetKey: BootConfigKey` type annotation (emitted by `generate-migration.js`) provides the regen safety net: if a key is removed from the schema, mapping references fail to compile.
-- `../../../../../shared/data/bootConfig/bootConfigSchemas.ts` — fully auto-generated schema (classification keys + `MANUAL_BOOT_CONFIG_ITEMS` from `generate-boot-config.js`). Single `BootConfigSchema` interface, single `DefaultBootConfig` const.
+- `../../../../../shared/data/bootConfig/bootConfigSchemas.ts` — fully auto-generated schema (classification keys + `MANUAL_BOOT_CONFIG_ITEMS` from `generate-boot-config.js`). Single `bootConfigSchema` zod object (source of truth, validated at runtime), inferred `BootConfigSchema` type, single `DefaultBootConfig` const.
 
 ## AppImage / Windows Portable Executable Path
 

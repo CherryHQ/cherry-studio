@@ -1,11 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
+import { getTopicMessages, useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -17,6 +17,54 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
   EventEmitter: { emit: vi.fn() }
 }))
+
+const apiMessage = (id: string, isContextBoundary = false) => ({
+  id,
+  topicId: 'topic-a',
+  parentId: 'root',
+  role: 'user' as const,
+  data: {
+    parts: isContextBoundary ? [{ type: 'data-clear' as const, data: {} }] : [{ type: 'text' as const, text: id }]
+  },
+  searchableText: '',
+  status: 'success' as const,
+  siblingsGroupId: 0,
+  modelId: null,
+  messageSnapshot: null,
+  stats: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
+describe('getTopicMessages', () => {
+  beforeEach(() => {
+    MockDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('filters clear markers and does not count them toward maxMessages', async () => {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('clear-1', true) }, { message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'newer',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'newer',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+})
 
 describe('useTopicMutations', () => {
   beforeEach(() => {
@@ -92,6 +140,75 @@ describe('useTopicMutations', () => {
     })
     expect(settled[0]?.status).toBe('fulfilled')
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
+  })
+
+  it('re-homes a dragged topic into `/topics/:id` before ordering, then revalidates once', async () => {
+    const movedTopic = { id: 'topic-a', assistantId: 'assistant-2' }
+    const patch = vi
+      .mocked(dataApiService.patch)
+      .mockResolvedValueOnce(movedTopic as never)
+      .mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () =>
+      result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+    )
+
+    expect(patch).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
+    expect(patch).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
+    // The PATCH response lands in `/topics/:id` before the order write, so an open conversation
+    // on the moved topic re-resolves its assistant immediately instead of waiting out the order
+    // PATCH bound to the old one.
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', movedTopic)
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeLessThan(patch.mock.invocationCallOrder[1])
+    // A single combined revalidation after both writes — not mid-flight, which would flash the
+    // optimistic reorder overlay back to the old position.
+    expect(invalidateSpy).toHaveBeenCalledTimes(1)
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(patch.mock.invocationCallOrder[1])
+  })
+
+  it('reorders without an assistant change using only the order write and a list refresh', async () => {
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () => result.current.moveTopic('topic-a', { anchor: { before: 'topic-b' } }))
+
+    expect(patch).toHaveBeenCalledTimes(1)
+    expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
+    expect(writeCacheSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith('/topics')
+  })
+
+  it('reconciles caches and rethrows when ordering fails after the assistant change committed', async () => {
+    vi.mocked(dataApiService.patch)
+      .mockResolvedValueOnce({ id: 'topic-a', assistantId: 'assistant-2' } as never)
+      .mockRejectedValueOnce(new Error('order failed'))
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    // `expect(act(...)).rejects` observes the rejection before moveTopic's catch block finishes,
+    // so catch the rethrow manually inside act and assert afterwards.
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+      } catch (err) {
+        caught = err
+      }
+    })
+
+    // Rethrown so the caller can roll its optimistic UI back.
+    expect(caught).toEqual(new Error('order failed'))
+    // The assistant PATCH committed before the failure — server truth must be pulled back in.
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
   })
 })
 

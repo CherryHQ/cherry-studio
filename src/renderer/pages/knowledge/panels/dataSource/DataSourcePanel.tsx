@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
+import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
@@ -25,6 +26,7 @@ export interface DataSourcePanelProps {
   onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
+  onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
   /** View a non-directory item's chunks in-app (note left-click + the row's context menu). */
   onItemClick?: (itemId: string) => void
   /** Drill into a directory item to list its children. */
@@ -34,7 +36,9 @@ export interface DataSourcePanelProps {
   /** Navigate one level up out of {@link currentDirectory}. */
   onNavigateUp?: () => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
+  onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
+  onReindexItems: (itemIds: string[]) => void | Promise<unknown>
 }
 
 const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: KnowledgeItemType) => void }) => {
@@ -79,15 +83,21 @@ const DataSourcePanel = ({
   onLoadMore = () => undefined,
   updatedAt,
   onAdd,
+  onPreviewFile,
   onItemClick,
   onDrillIntoDirectory,
   currentDirectory,
   onNavigateUp,
   onDelete,
-  onReindex
+  onDeleteItems,
+  onReindex,
+  onReindexItems
 }: DataSourcePanelProps) => {
   const { t } = useTranslation()
-  const { previewSource } = usePreviewKnowledgeSource()
+  const { invalidatePreviewRequests, previewSource } = usePreviewKnowledgeSource(
+    onPreviewFile,
+    currentDirectory?.id ?? null
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -103,11 +113,12 @@ const DataSourcePanel = ({
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
-  // Left-click dispatch by item type: a directory drills in, a file/url opens with the system
-  // tool (`previewSource` toasts its own errors), and a note falls back to the in-app chunk view.
+  // A directory drills in; files and captured URLs preview inline; uncaptured valid HTTP URLs open
+  // in the system browser; notes show chunks. `previewSource` owns warnings and error toasts.
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {
+        invalidatePreviewRequests()
         onDrillIntoDirectory?.(item)
         return
       }
@@ -117,8 +128,13 @@ const DataSourcePanel = ({
       }
       onItemClick?.(item.id)
     },
-    [onDrillIntoDirectory, onItemClick, previewSource]
+    [invalidatePreviewRequests, onDrillIntoDirectory, onItemClick, previewSource]
   )
+
+  const handleNavigateUp = useCallback(() => {
+    invalidatePreviewRequests()
+    onNavigateUp?.()
+  }, [invalidatePreviewRequests, onNavigateUp])
 
   const handleToggleOne = useCallback((itemId: string, next: boolean) => {
     setSelectedIds((prev) => {
@@ -140,27 +156,27 @@ const DataSourcePanel = ({
   )
 
   const handleBulkReindex = useCallback(async () => {
-    const targets = items.filter((item) => selectedIds.has(item.id))
+    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
     try {
-      await Promise.all(targets.map((item) => onReindex(item)))
+      await onReindexItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
     }
     setSelectedIds(new Set())
-  }, [items, onReindex, selectedIds, t])
+  }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const targets = items.filter((item) => selectedIds.has(item.id))
+    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
     try {
-      await Promise.all(targets.map((item) => onDelete(item)))
+      await onDeleteItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
       return
     }
     setSelectedIds(new Set())
     setIsBulkDeleteOpen(false)
-  }, [items, onDelete, selectedIds, t])
+  }, [items, onDeleteItems, selectedIds, t])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) {
@@ -181,9 +197,9 @@ const DataSourcePanel = ({
 
   return (
     <KnowledgePanelShell
-      headerClassName="shrink-0 px-3 pt-1"
+      headerClassName="shrink-0 px-3"
       header={
-        <div className="border-border-muted border-b pb-3">
+        <div className="flex h-11 items-center border-border border-b">
           <DataSourcePanelHeader
             total={total}
             loadedCount={items.length}
@@ -205,7 +221,7 @@ const DataSourcePanel = ({
             <Button
               type="button"
               variant="ghost"
-              onClick={onNavigateUp}
+              onClick={handleNavigateUp}
               className="h-auto min-h-0 gap-1 px-2.5 py-0 text-foreground text-sm opacity-70 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}

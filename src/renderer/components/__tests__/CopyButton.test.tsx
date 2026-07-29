@@ -94,6 +94,34 @@ describe('CopyButton', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('should show a check icon without a success toast in icon feedback mode', async () => {
+    mockWriteText.mockResolvedValue(undefined)
+
+    render(<CopyButton textToCopy="test text" successFeedback="icon" />)
+
+    await userEvent.click(screen.getByRole('button'))
+
+    expect(document.querySelector('.lucide-check')).toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('should forward native button props for composition', () => {
+    render(
+      <CopyButton
+        textToCopy="test text"
+        className="size-6"
+        aria-label="Copy test text"
+        successFeedback="icon"
+        disabled
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Copy test text' })
+    expect(button.tagName).toBe('BUTTON')
+    expect(button).toBeDisabled()
+    expect(button).toHaveClass('size-6')
+  })
+
   it('should show error message when copy fails', async () => {
     mockWriteText.mockRejectedValue(new Error('Clipboard access denied'))
 

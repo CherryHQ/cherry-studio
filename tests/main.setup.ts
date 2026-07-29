@@ -1,5 +1,14 @@
 import { vi } from 'vitest'
 
+// Electron Vite turns `?nodeWorker` imports into Worker factories in production.
+// Vitest otherwise evaluates the worker entry as a regular Node module, where
+// `parentPort` is unavailable. Tests that invoke the factory must mock it locally.
+vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Readable content worker factory must be mocked by tests that invoke it')
+  })
+}))
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')

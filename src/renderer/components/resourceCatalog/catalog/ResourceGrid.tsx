@@ -11,18 +11,37 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
   Input,
+  SearchInput,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
+import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
-import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
-import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
-import type { Tag as BackendTag } from '@shared/data/types/tag'
+import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
+import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import { cn } from '@renderer/utils/style'
+import type { Group } from '@shared/data/types/group'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FolderSearch,
+  Import,
+  Library,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2
+} from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,15 +69,18 @@ interface Props {
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
   onOpenSkillMarketplace: () => void
-  tags: TagItem[]
-  activeTag: string | null
-  onTagFilter: (tagName: string | null) => void
-  /** Create a new tag (POST /tags). Does not bind the tag to any resource. */
-  onAddTag: (tagName: string) => Promise<void> | void
-  allTagNames: string[]
-  /** Full backend tag records (id + name + color). Distinct from `allTagNames` (names only). */
-  allTags: BackendTag[]
+  onOpenSystemSkills?: () => void
+  groups: GroupItem[]
+  activeGroupId: string | null
+  onGroupFilter: (groupId: string | null) => void
+  /** Create a new assistant group. Does not assign it to an assistant. */
+  onAddGroup: (groupName: string) => Promise<void> | void
+  allGroups: Group[]
   toolbarLeading?: ReactNode
+  variant?: 'library' | 'settings'
+  /** Settings variant only: page heading rendered above the search row. */
+  title?: ReactNode
+  description?: ReactNode
 }
 
 function getGridColumnCount(width: number) {
@@ -121,7 +143,7 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
         </Button>
       ) : null}
       <Button variant="outline" size="sm" onClick={onImport} className="shrink-0">
-        <Upload size={12} />
+        <Import size={12} />
         <span>{t('assistants.presets.import.action')}</span>
       </Button>
     </>
@@ -130,23 +152,40 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
 
 interface SkillAddActionsProps {
   onSearchMarketplace: () => void
+  onSearchSystem?: () => void
   onImportLocal: () => void
+  size?: 'sm' | 'default'
 }
 
-function SkillAddActions({ onSearchMarketplace, onImportLocal }: SkillAddActionsProps) {
+function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal, size = 'sm' }: SkillAddActionsProps) {
   const { t } = useTranslation()
 
   return (
-    <>
-      <Button variant="default" size="sm" onClick={onSearchMarketplace} className="shrink-0">
-        <Search size={12} className="lucide-custom" />
-        <span>{t('library.skill_add.online_search')}</span>
-      </Button>
-      <Button variant="outline" size="sm" onClick={onImportLocal} className="shrink-0">
-        <Upload size={12} />
-        <span>{t('library.skill_add.local_import')}</span>
-      </Button>
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="default" size={size} className="shrink-0">
+          <Plus size={size === 'sm' ? 12 : 16} className="lucide-custom" />
+          <span>{t('library.skill_add.add')}</span>
+          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground/70" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40">
+        <DropdownMenuItem onSelect={onSearchMarketplace} className="gap-2">
+          <Search size={13} />
+          <span>{t('library.skill_add.online_search')}</span>
+        </DropdownMenuItem>
+        {onSearchSystem ? (
+          <DropdownMenuItem onSelect={onSearchSystem} className="gap-2">
+            <FolderSearch size={13} />
+            <span>{t('library.skill_add.system_search')}</span>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onSelect={onImportLocal} className="gap-2">
+          <Import size={13} />
+          <span>{t('library.skill_add.local_import')}</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -164,155 +203,199 @@ export const ResourceGrid: FC<Props> = ({
   onImportAssistant,
   onOpenAssistantLibrary,
   onOpenSkillMarketplace,
-  tags,
-  activeTag,
-  onTagFilter,
-  onAddTag,
-  allTagNames,
-  allTags,
-  toolbarLeading
+  onOpenSystemSkills,
+  groups,
+  activeGroupId,
+  onGroupFilter,
+  onAddGroup,
+  allGroups,
+  toolbarLeading,
+  variant = 'library',
+  title,
+  description
 }) => {
   const { t } = useTranslation()
-  const { renameTag } = useRenameTag()
-  const { deleteTag } = useDeleteTag()
+  const isSettings = variant === 'settings'
+  const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
+    refreshOnDelete: ['/assistants', '/assistants/*']
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)
-  const [showAddTag, setShowAddTag] = useState(false)
-  const [showAllTags, setShowAllTags] = useState(false)
-  const [newTagName, setNewTagName] = useState('')
-  const [addingTag, setAddingTag] = useState(false)
-  const [renamingTag, setRenamingTag] = useState<TagItem | null>(null)
+  const [showAddGroup, setShowAddGroup] = useState(false)
+  const [showAllGroups, setShowAllGroups] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [addingGroup, setAddingGroup] = useState(false)
+  const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
-  const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
+  const [deletingGroup, setDeletingGroup] = useState<GroupItem | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const showTagToolbar = activeResourceType === 'assistant'
-  // This "unused" set is scoped to the assistant library: today user-managed
-  // resource tags are only bound to assistants. If other entity types start
-  // sharing `/tags`, replace this client-side difference with server-provided
-  // global usage/unused data before exposing destructive actions.
-  const unusedTags = useMemo(() => {
-    const usedNames = new Set(tags.map((tag) => tag.name))
-    return allTags
-      .filter((tag) => !usedNames.has(tag.name))
-      .map((tag) => ({
-        id: tag.id,
-        name: tag.name,
-        color: tag.color ?? DEFAULT_TAG_COLOR,
-        count: 0
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
-  }, [allTags, tags])
-  const visibleTags = showAllTags ? [...tags, ...unusedTags] : tags
+  const showGroupToolbar = activeResourceType === 'assistant'
+  const unusedGroups = useMemo(() => {
+    const usedIds = new Set(groups.map((group) => group.id))
+    return allGroups
+      .filter((group) => !usedIds.has(group.id))
+      .map((group) => ({ id: group.id, name: group.name, count: 0 }))
+  }, [allGroups, groups])
+  const visibleGroups = useMemo(() => {
+    if (!showAllGroups) return groups
 
-  const handleAddTag = async () => {
-    const trimmed = newTagName.trim()
-    if (!trimmed || addingTag) return
-    setAddingTag(true)
+    const countById = new Map(groups.map((group) => [group.id, group.count] as const))
+    return allGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      count: countById.get(group.id) ?? 0
+    }))
+  }, [allGroups, groups, showAllGroups])
+
+  const handleAddGroup = async () => {
+    const trimmed = newGroupName.trim()
+    if (!trimmed || addingGroup) return
+    setAddingGroup(true)
     try {
-      await onAddTag(trimmed)
-      setNewTagName('')
-      setShowAddTag(false)
+      await onAddGroup(trimmed)
+      setNewGroupName('')
+      setShowAddGroup(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
       toast.error(message)
-      logger.error('Failed to create tag', error instanceof Error ? error : new Error(String(error)), {
+      logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
         name: trimmed
       })
     } finally {
-      setAddingTag(false)
+      setAddingGroup(false)
     }
   }
 
-  const handleOpenRenameTag = useCallback((tag: TagItem) => {
-    setRenamingTag(tag)
-    setRenameValue(tag.name)
+  const handleOpenRenameGroup = useCallback((group: GroupItem) => {
+    setRenamingGroup(group)
+    setRenameValue(group.name)
   }, [])
 
-  const handleRenameTag = useCallback(async () => {
-    const tag = renamingTag
+  const handleRenameGroup = useCallback(async () => {
+    const group = renamingGroup
     const nextName = renameValue.trim()
-    if (!tag || renaming || !nextName) return
+    if (!group || renaming || !nextName) return
 
-    if (nextName === tag.name) {
-      setRenamingTag(null)
+    if (nextName === group.name) {
+      setRenamingGroup(null)
       return
     }
 
     setRenaming(true)
     try {
-      const updated = await renameTag(tag.id, nextName)
-      if (activeTag === tag.name) onTagFilter(updated.name)
-      setRenamingTag(null)
+      await updateGroup(group.id, { name: nextName })
+      setRenamingGroup(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
       toast.error(message)
-      logger.error('Failed to rename tag', error instanceof Error ? error : new Error(String(error)), {
-        id: tag.id,
-        name: tag.name,
+      logger.error('Failed to rename assistant group', error instanceof Error ? error : new Error(String(error)), {
+        id: group.id,
+        name: group.name,
         nextName
       })
     } finally {
       setRenaming(false)
     }
-  }, [activeTag, onTagFilter, renameTag, renameValue, renaming, renamingTag, t])
+  }, [renameValue, renaming, renamingGroup, t, updateGroup])
 
-  const handleConfirmDeleteTag = useCallback(async () => {
-    const tag = deletingTag
-    if (!tag || deleting) return
+  const handleConfirmDeleteGroup = useCallback(async () => {
+    const group = deletingGroup
+    if (!group || deleting) return
 
     setDeleting(true)
     try {
-      await deleteTag(tag.id)
-      if (activeTag === tag.name) onTagFilter(null)
-      setDeletingTag(null)
+      await deleteGroup(group.id)
+      if (activeGroupId === group.id) onGroupFilter(null)
+      setDeletingGroup(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
       toast.error(message)
-      logger.error('Failed to delete tag', error instanceof Error ? error : new Error(String(error)), {
-        id: tag.id,
-        name: tag.name
+      logger.error('Failed to delete assistant group', error instanceof Error ? error : new Error(String(error)), {
+        id: group.id,
+        name: group.name
       })
     } finally {
       setDeleting(false)
     }
-  }, [activeTag, deleteTag, deleting, deletingTag, onTagFilter, t])
+  }, [activeGroupId, deleteGroup, deleting, deletingGroup, onGroupFilter, t])
+
+  const addActions =
+    activeResourceType === 'assistant' ? (
+      <AssistantAddActions
+        onNew={() => onCreate('assistant')}
+        onImport={onImportAssistant}
+        onOpenLibrary={onOpenAssistantLibrary}
+      />
+    ) : activeResourceType === 'skill' ? (
+      <SkillAddActions
+        onSearchMarketplace={onOpenSkillMarketplace}
+        onSearchSystem={onOpenSystemSkills}
+        onImportLocal={() => onCreate('skill')}
+        size={isSettings ? 'default' : 'sm'}
+      />
+    ) : (
+      <Button
+        variant="default"
+        size={isSettings ? 'default' : 'sm'}
+        onClick={() => onCreate(activeResourceType)}
+        className="shrink-0">
+        <Plus size={isSettings ? 16 : 12} className="lucide-custom" />
+        <span>{t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}</span>
+      </Button>
+    )
+
+  const searchInput = isSettings ? (
+    <SearchInput
+      aria-label={t('library.toolbar.search_placeholder')}
+      placeholder={t('library.toolbar.search_placeholder')}
+      value={search}
+      onChange={(event) => onSearchChange(event.currentTarget.value)}
+      onClear={() => onSearchChange('')}
+      clearLabel={t('common.clear')}
+    />
+  ) : (
+    <ResourceCatalogSearchInput
+      value={search}
+      onValueChange={onSearchChange}
+      placeholder={t('library.toolbar.search_placeholder')}
+      className="max-w-64 flex-1"
+    />
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col border-border-muted border-b">
-        <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 px-2">
-          {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
-          <ResourceCatalogSearchInput
-            value={search}
-            onValueChange={onSearchChange}
-            placeholder={t('library.toolbar.search_placeholder')}
-            className="max-w-64 flex-1"
-          />
+      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-muted border-b')}>
+        {isSettings ? (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <SettingTitle>
+                  <span>{title}</span>
+                </SettingTitle>
+                {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
+              </div>
+              {addActions}
+            </div>
+            <SettingDivider />
+            <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
+              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
+                {searchInput}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-12 shrink-0 items-center gap-2 px-5">
+            {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
+            {searchInput}
 
-          <div className="flex-1" />
+            <div className="flex-1" />
 
-          <div className="flex shrink-0 items-center gap-2">
-            {activeResourceType === 'assistant' ? (
-              <AssistantAddActions
-                onNew={() => onCreate('assistant')}
-                onImport={onImportAssistant}
-                onOpenLibrary={onOpenAssistantLibrary}
-              />
-            ) : activeResourceType === 'skill' ? (
-              <SkillAddActions onSearchMarketplace={onOpenSkillMarketplace} onImportLocal={() => onCreate('skill')} />
-            ) : (
-              <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
-                <Plus size={12} className="lucide-custom" />
-                <span>
-                  {t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}
-                </span>
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">{addActions}</div>
           </div>
-        </div>
+        )}
 
-        {showTagToolbar && (
+        {showGroupToolbar && (
           <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
             <div
               className={
@@ -323,73 +406,72 @@ export const ResourceGrid: FC<Props> = ({
               <Tag size={14} className="text-foreground-muted" />
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-1.5">
-              {visibleTags.map((tag) => (
-                <ContextMenu key={tag.id}>
+              {visibleGroups.map((group) => (
+                <ContextMenu key={group.id}>
                   <ContextMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
+                      onClick={() => onGroupFilter(activeGroupId === group.id ? null : group.id)}
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
-                        activeTag === tag.name
+                        activeGroupId === group.id
                           ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
                           : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
                       }`}>
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                      <span>{tag.name}</span>
-                      <span className="text-foreground-muted text-xs tabular-nums">{tag.count}</span>
+                      <span>{group.name}</span>
+                      <span className="text-foreground-muted text-xs tabular-nums">{group.count}</span>
                     </Button>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="min-w-32">
-                    <ContextMenuItem onSelect={() => handleOpenRenameTag(tag)}>
+                    <ContextMenuItem onSelect={() => handleOpenRenameGroup(group)}>
                       <ContextMenuItemContent icon={<Pencil size={12} />}>{t('common.rename')}</ContextMenuItemContent>
                     </ContextMenuItem>
-                    <ContextMenuItem variant="destructive" onSelect={() => setDeletingTag(tag)}>
+                    <ContextMenuItem variant="destructive" onSelect={() => setDeletingGroup(group)}>
                       <ContextMenuItemContent icon={<Trash2 size={12} />}>
-                        {t('assistants.tags.delete')}
+                        {t('assistants.groups.delete')}
                       </ContextMenuItemContent>
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
               ))}
 
-              {unusedTags.length > 0 && (
+              {unusedGroups.length > 0 && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={t('library.toolbar.all_tags')}
-                  title={t('library.toolbar.all_tags')}
-                  onClick={() => setShowAllTags((value) => !value)}
+                  aria-label={t('library.toolbar.all_groups')}
+                  title={t('library.toolbar.all_groups')}
+                  onClick={() => setShowAllGroups((value) => !value)}
                   className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
-                  {showAllTags ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
+                  {showAllGroups ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
 
-              {showAddTag ? (
+              {showAddGroup ? (
                 <div className="flex shrink-0 items-center gap-1">
                   <Input
                     autoFocus
                     maxLength={64}
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleAddTag()
+                      if (e.key === 'Enter') void handleAddGroup()
                       if (e.key === 'Escape') {
-                        setShowAddTag(false)
-                        setNewTagName('')
+                        setShowAddGroup(false)
+                        setNewGroupName('')
                       }
                     }}
                     onBlur={() => {
-                      if (!newTagName.trim() && !addingTag) setShowAddTag(false)
+                      if (!newGroupName.trim() && !addingGroup) setShowAddGroup(false)
                     }}
-                    disabled={addingTag}
-                    placeholder={t('library.toolbar.add_tag_placeholder')}
+                    disabled={addingGroup}
+                    placeholder={t('library.toolbar.add_group_placeholder')}
                     className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
                   />
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => void handleAddTag()}
-                    disabled={addingTag || !newTagName.trim()}
+                    onClick={() => void handleAddGroup()}
+                    disabled={addingGroup || !newGroupName.trim()}
                     className="size-6 text-foreground-muted hover:text-foreground">
                     <Plus size={12} />
                   </Button>
@@ -397,18 +479,18 @@ export const ResourceGrid: FC<Props> = ({
               ) : (
                 <Button
                   variant="ghost"
-                  onClick={() => setShowAddTag(true)}
+                  onClick={() => setShowAddGroup(true)}
                   className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
-                  <Plus size={11} /> {t('library.toolbar.tag_button')}
+                  <Plus size={11} /> {t('library.toolbar.group_button')}
                 </Button>
               )}
             </div>
           </div>
         )}
         <Dialog
-          open={Boolean(renamingTag)}
+          open={Boolean(renamingGroup)}
           onOpenChange={(open) => {
-            if (!open && !renaming) setRenamingTag(null)
+            if (!open && !renaming) setRenamingGroup(null)
           }}>
           <DialogContent closeOnOverlayClick={false} size="sm">
             <DialogHeader>
@@ -421,21 +503,21 @@ export const ResourceGrid: FC<Props> = ({
               value={renameValue}
               onChange={(event) => setRenameValue(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') void handleRenameTag()
-                if (event.key === 'Escape' && !renaming) setRenamingTag(null)
+                if (event.key === 'Enter') void handleRenameGroup()
+                if (event.key === 'Escape' && !renaming) setRenamingGroup(null)
               }}
               disabled={renaming}
               className="h-9 rounded-md border-input bg-background"
             />
             <DialogFooter>
-              <Button variant="outline" size="sm" disabled={renaming} onClick={() => setRenamingTag(null)}>
+              <Button variant="outline" size="sm" disabled={renaming} onClick={() => setRenamingGroup(null)}>
                 {t('common.cancel')}
               </Button>
               <Button
                 size="sm"
                 loading={renaming}
                 disabled={!renameValue.trim()}
-                onClick={() => void handleRenameTag()}>
+                onClick={() => void handleRenameGroup()}>
                 {t('common.save')}
               </Button>
             </DialogFooter>
@@ -443,25 +525,28 @@ export const ResourceGrid: FC<Props> = ({
         </Dialog>
 
         <ConfirmDialog
-          open={Boolean(deletingTag)}
+          open={Boolean(deletingGroup)}
           onOpenChange={(open) => {
-            if (!open && !deleting) setDeletingTag(null)
+            if (!open && !deleting) setDeletingGroup(null)
           }}
-          title={t('assistants.tags.delete')}
-          description={t('assistants.tags.deleteConfirm')}
+          title={t('assistants.groups.delete')}
+          description={t('assistants.groups.deleteConfirm')}
           confirmText={t('common.delete')}
           cancelText={t('common.cancel')}
           destructive
           confirmLoading={deleting}
-          onConfirm={handleConfirmDeleteTag}
+          onConfirm={handleConfirmDeleteGroup}
         />
       </div>
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        className={cn(
+          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1',
+          isSettings ? 'py-3' : 'px-5 py-4'
+        )}>
         {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} />
+          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
         ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
@@ -474,7 +559,7 @@ export const ResourceGrid: FC<Props> = ({
             scrollRef={scrollRef}
             columnCount={columnCount}
             resources={resources}
-            allTagNames={allTagNames}
+            allGroups={allGroups}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             onEdit={onEdit}
@@ -486,7 +571,7 @@ export const ResourceGrid: FC<Props> = ({
   )
 }
 
-function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
+function ResourceGridLoadingState({ columnCount, resourceType }: { columnCount: number; resourceType: ResourceType }) {
   const count = Math.max(columnCount, 1) * 4
 
   return (
@@ -495,7 +580,12 @@ function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
       data-testid="resource-grid-loading"
       style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}>
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
+        <div
+          key={index}
+          className="rounded-lg border border-border-subtle bg-card p-3.5"
+          style={
+            resourceType === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined
+          }>
           <div className="flex items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
             <div className="min-w-0 flex-1 space-y-2">
@@ -513,7 +603,7 @@ interface VirtualizedResourceGridProps {
   scrollRef: RefObject<HTMLDivElement | null>
   columnCount: number
   resources: ResourceItem[]
-  allTagNames: string[]
+  allGroups: Group[]
   onDelete: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
   onEdit: (r: ResourceItem) => void
@@ -524,7 +614,7 @@ function VirtualizedResourceGrid({
   scrollRef,
   columnCount,
   resources,
-  allTagNames,
+  allGroups,
   onDelete,
   onDuplicate,
   onEdit,
@@ -567,7 +657,7 @@ function VirtualizedResourceGrid({
               <ResourceCard
                 key={resource.id}
                 resource={resource}
-                allTagNames={allTagNames}
+                allGroups={allGroups}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
                 onEdit={onEdit}

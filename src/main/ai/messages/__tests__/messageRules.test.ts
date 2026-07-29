@@ -9,6 +9,17 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('keeps knowledge scope out of provider messages', async () => {
+    const model = await toModelMessages([
+      ui('user', [
+        { type: 'text', text: 'search this' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+      ])
+    ])
+
+    expect(model).toEqual([{ role: 'user', content: [{ type: 'text', text: 'search this' }] }])
+  })
+
   it('rescues a data-error-only assistant turn (#16195)', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),

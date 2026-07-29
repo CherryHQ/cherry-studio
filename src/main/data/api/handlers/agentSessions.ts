@@ -7,12 +7,10 @@
  * session relation.
  */
 
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
-  AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
@@ -76,21 +74,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
-    }
-  },
-
-  '/agent-sessions/:sessionId/messages': {
-    GET: async ({ params, query }) => {
-      const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
-    }
-  },
-
-  '/agent-sessions/:sessionId/messages/:messageId': {
-    DELETE: async ({ params }) => {
-      agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
-      return undefined
     }
   },
 

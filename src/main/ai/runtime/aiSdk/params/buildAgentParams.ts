@@ -1,34 +1,46 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
-import { providerToAiSdkConfig } from '../../../provider/config'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { resolveProviderAiSdkConfig } from '../../../provider/config'
+import type { ServingCredentialReceipt } from '../../../provider/credential'
+import {
+  resolveAiSdkProviderId,
+  type ResolvedEndpoint,
+  resolveEffectiveEndpoint,
+  resolveProviderOptionsKey
+} from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
-import { registry } from '../../../tools/adapters/aiSdk/registry'
+import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
+import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
+  buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
@@ -53,10 +65,14 @@ export interface BuildAgentParamsInput {
   assistant?: Assistant
   /** Caller-supplied features merged after `INTERNAL_FEATURES`. */
   extraFeatures?: readonly RequestFeature[]
+  /** Late-bound request usage middleware for nested tool-repair calls. */
+  getRepairUsagePlugins?: () => AiPlugin[]
 }
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  /** Non-secret receipt for the credential path selected for this request. */
+  credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
   plugins: AiPlugin<any, any>[]
   system: string | undefined
@@ -71,18 +87,38 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model, request.apiKeyOverride)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+    provider,
+    model,
+    resolvedEndpoint,
+    request.apiKeyOverride
+  )
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
-  const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
+  const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const runtimeProviderId = sdkConfig.providerId
+  const reasoningEndpointType =
+    runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
+  const reasoning = resolveReasoningInvocation({
+    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    model: invocationModel,
+    profile: reasoningProfile.wire,
+    maxTokens: resolveReasoningMaxTokens(request.callOverrides?.maxOutputTokens, assistant, model),
+    assistantSummary: provider.settings.summaryText
+  })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
   const requestContext: RequestContext = {
@@ -105,6 +141,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     sdkConfig,
     endpointType,
     aiSdkProviderId,
+    reasoningProfile,
+    reasoning,
     requestContext,
     mcpToolIds,
     hasFileAttachments,
@@ -115,10 +153,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
-  const options = buildAgentOptions(scope, contributions.stopConditions)
+  const options = buildAgentOptions(scope, contributions.stopConditions, input.getRepairUsagePlugins)
 
   return {
     sdkConfig,
+    credentialReceipt,
     tools,
     plugins: contributions.modelAdapters,
     system,
@@ -129,10 +168,40 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
+export function resolveReasoningMaxTokens(
+  requestMaxOutputTokens: number | undefined,
+  assistant: Assistant | undefined,
+  model: Model
+): number | undefined {
+  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+
+  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+
+  return model.maxOutputTokens
+}
+
+async function resolveSdkConfig(
+  provider: Provider,
+  model: Model,
+  resolvedEndpoint: ResolvedEndpoint,
+  apiKeyOverride?: string
+): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
+  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+    apiKeyOverride,
+    resolvedEndpoint
+  })
   return {
-    ...(await providerToAiSdkConfig(provider, model, { apiKeyOverride })),
-    modelId: model.apiModelId ?? model.id
+    sdkConfig: {
+      ...config,
+      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
+        actualProviderId: provider.id,
+        endpointType: resolvedEndpoint.endpointType,
+        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+      }),
+      modelId: model.apiModelId ?? model.id
+    },
+    credentialReceipt
   }
 }
 
@@ -188,8 +257,10 @@ export async function resolveTools(
   }
 
   const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
+  const paintingModel = resolveConfiguredPaintingModel()
   const activeEntries = registry.selectActive({
     assistant,
+    paintingModel: paintingModel ?? undefined,
     mcpToolIds,
     hasFileAttachments,
     hasAnyKnowledgeBase,
@@ -210,7 +281,10 @@ export async function resolveTools(
       ...clientTools
     }
   }
-  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
+  // Meta-tools must see request-materialized entries rather than the process-wide static entries.
+  const requestRegistry = new ToolRegistry()
+  for (const entry of activeEntries) requestRegistry.register(entry)
+  const exposed = applyDeferExposition(tools, requestRegistry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
 
@@ -229,37 +303,61 @@ function resolveHasAnyKnowledgeBase(): boolean {
 }
 
 /**
- * Effective knowledge base scope for this request. When the assistant has its own static binding,
- * that binding IS the scope — the composer's per-turn selection can never expand it, since main
- * cannot trust a renderer/IPC-supplied id list to stay within the assistant's configured bases (the
- * composer UI happens to restrict picks to that set today, but that's a UI nicety, not a security
- * boundary). Only an assistant with no static binding lets the per-turn selection define the scope —
- * which is the actual gap this resolves: composer-only, ad-hoc knowledge base use.
- */
-export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
-  const assistantIds = assistant?.knowledgeBaseIds ?? []
-  if (assistantIds.length > 0) return assistantIds
-  return Array.from(new Set(requestIds ?? []))
-}
-
-/**
  * Assemble `AgentOptions`: capability-driven providerOptions overlaid with
  * the user's customParameters (split into AI-SDK standard params vs
  * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
  * and the tool-call repair function.
  */
-function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
-  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
+function buildAgentOptions(
+  scope: RequestScope,
+  featureStopConditions: StopCondition<ToolSet>[],
+  getRepairUsagePlugins?: () => AiPlugin[]
+): AgentOptions {
+  const {
+    assistant,
+    capabilities,
+    model,
+    provider,
+    sdkConfig,
+    requestContext,
+    request,
+    aiSdkProviderId,
+    endpointType,
+    reasoning
+  } = scope
 
   let providerOptions =
-    assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
+    assistant && capabilities
+      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
+          aiSdkProviderId,
+          runtimeProviderId: sdkConfig.providerId,
+          providerOptionsKey: sdkConfig.providerOptionsKey,
+          endpointType,
+          reasoning
+        })
+      : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
+        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
+        // gateway/topic-naming requests are unchanged.
+        request.reasoningEffort !== undefined
+        ? (buildResolvedReasoningProviderOptions({
+            aiSdkProviderId: sdkConfig.providerId,
+            providerOptionsKey: sdkConfig.providerOptionsKey,
+            endpointType,
+            reasoning
+          }) as Record<string, Record<string, JSONValue>>)
+        : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = filterStandardParams(split.standardParams, model)
-      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
+      providerOptions = mergeCustomProviderParameters(
+        providerOptions,
+        split.providerParams,
+        provider.id,
+        sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
+      )
     }
   }
 
@@ -270,7 +368,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
   providerOptions = overridden.providerOptions as typeof providerOptions
 
   const { headers, maxRetries } = request.requestOptions ?? {}
-  const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const toolCallLimit = resolveToolCallLimit(assistant)
+  const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
@@ -286,7 +385,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
-      modelId: sdkConfig.modelId
+      modelId: sdkConfig.modelId,
+      getUsagePlugins: getRepairUsagePlugins
     })
   }
 }
@@ -343,13 +443,14 @@ export function composeStopWhen(
   return [base, ...featureStopConditions]
 }
 
-function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {
+export function resolveToolCallLimit(assistant: Assistant | undefined): number {
+  if (!assistant) return SDK_DEFAULT_STEP_COUNT
+
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
   if (!enableMaxToolCalls) {
-    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   }
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
-  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-  return stepCountIs(count)
+  return valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
 }
