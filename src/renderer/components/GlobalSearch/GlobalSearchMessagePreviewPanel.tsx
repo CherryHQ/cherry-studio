@@ -119,7 +119,8 @@ function highlightTextNode(textNode: Text, regex: RegExp) {
 
     const mark = document.createElement('mark')
     mark.dataset.globalSearchPreviewHighlight = 'true'
-    mark.className = 'rounded-[3px] bg-yellow-200/80 px-0.5 text-inherit dark:bg-yellow-500/35'
+    mark.className =
+      'rounded-[3px] [background-color:var(--highlight-accent)] px-0.5 [color:var(--highlight-foreground)]'
     mark.textContent = match[0]
     fragment.append(mark)
     cursor = match.index + match[0].length
