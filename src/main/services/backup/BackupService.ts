@@ -34,7 +34,7 @@ interface InFlightOperation {
 export type RestoreStatus =
   | { readonly kind: 'none' }
   /** The journal exists but no version can parse it; preboot preserves it and refuses unsafe startup. */
-  | { readonly kind: 'unreadable'; readonly error: string }
+  | { readonly kind: 'unreadable' }
   | {
       readonly kind: 'journal'
       readonly state: RestoreJournalV2State
@@ -111,9 +111,9 @@ export class BackupService extends BaseService {
       case 'none':
         return
       case 'unreadable':
-        logger.error('Restore journal is unreadable — preboot will preserve it and refuse unsafe startup', {
-          error: status.error
-        })
+        // The reason was already logged where it was still detailed; this line
+        // exists to mark WHEN the app noticed.
+        logger.error('Restore journal is unreadable — preboot will preserve it and refuse unsafe startup')
         return
       case 'journal':
         logger.info('Restore journal present at startup', {
@@ -313,7 +313,7 @@ export class BackupService extends BaseService {
       return { kind: 'none' }
     }
     if (read.kind === 'corrupt') {
-      return { kind: 'unreadable', error: read.error }
+      return { kind: 'unreadable' }
     }
     const journal = read.journal
     return {

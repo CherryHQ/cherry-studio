@@ -62,7 +62,9 @@ const RestorePreviewSchema = z.strictObject({
 /** The durable restore journal's state machine (§6.1), as the UI sees it. */
 const RestoreStatusSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('none') }),
-  z.strictObject({ kind: z.literal('unreadable'), error: z.string() }),
+  // No detail: the renderer branches on `kind` and says its own sentence, and
+  // the underlying report names the journal's path and quotes its contents.
+  z.strictObject({ kind: z.literal('unreadable') }),
   z.strictObject({
     kind: z.literal('journal'),
     state: z.enum([
