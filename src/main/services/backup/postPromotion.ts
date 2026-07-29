@@ -17,6 +17,8 @@ import { application } from '@application'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
+import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
+
 const logger = loggerService.withContext('backupPostPromotion')
 
 export interface PostPromotionOutcome {
@@ -40,7 +42,11 @@ export async function runPostPromotionWork(shouldContinue: () => boolean): Promi
   }
 
   const { restoreId } = read.journal
-  const requiredBaseIds = read.journal.summary.knowledgeBaseIds
+  const readiness = readRestoreKnowledgeReadiness(read.journal)
+  if (readiness.kind !== 'ok') {
+    throw new Error(`Restore Knowledge readiness summary is ${readiness.kind}`)
+  }
+  const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
   if (read.journal.knowledgeRebuild?.abandoned) {
     return { ran: true, enqueuedBaseIds: [], pending: false }
   }
@@ -84,7 +90,12 @@ function persistKnowledgeCompletion(restoreId: string, completedBaseIds: readonl
   const current = readRestoreJournalV2()
   if (current.kind !== 'ok' || current.journal.state !== 'completed' || current.journal.restoreId !== restoreId) return
 
-  const allowed = new Set(current.journal.summary.knowledgeBaseIds)
+  const readiness = readRestoreKnowledgeReadiness(current.journal)
+  if (readiness.kind !== 'ok') {
+    throw new Error(`Restore Knowledge readiness summary is ${readiness.kind}`)
+  }
+  const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
+  const allowed = new Set(requiredBaseIds)
   const merged = new Set(current.journal.knowledgeRebuild?.completedBaseIds ?? [])
   for (const id of completedBaseIds) {
     if (allowed.has(id)) merged.add(id)
@@ -93,7 +104,7 @@ function persistKnowledgeCompletion(restoreId: string, completedBaseIds: readonl
     ...current.journal,
     knowledgeRebuild: {
       ...current.journal.knowledgeRebuild,
-      completedBaseIds: current.journal.summary.knowledgeBaseIds.filter((id) => merged.has(id))
+      completedBaseIds: requiredBaseIds.filter((id) => merged.has(id))
     }
   })
 }

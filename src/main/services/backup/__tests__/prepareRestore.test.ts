@@ -433,6 +433,12 @@ describe('restore preparation', () => {
         'Data/Notes',
         'Data/Workspace'
       ])
+      expect(read.journal.ownerSummary).toEqual({
+        knowledge: {
+          baseIds: ['kb-1'],
+          requiresRebuild: true
+        }
+      })
       for (const entry of read.journal.resourceInstalls) {
         expect(entry.staging).toBe(`restore-staging/${preview.restoreId}/resources/${entry.live}`)
         // Relocation-safe: everything the gate will rename is userData-relative.
@@ -521,7 +527,7 @@ describe('restore preparation', () => {
         async () => {
           const read = readRestoreJournalV2()
           if (read.kind !== 'ok') throw new Error('expected a journal')
-          writeRestoreJournalV2({ ...read.journal, state: 'completed', summary: { knowledgeBaseIds: [] } })
+          writeRestoreJournalV2({ ...read.journal, state: 'completed' })
         }
       ]
     ])('refuses to prepare over a %s restore', async (_label, advance) => {
@@ -681,6 +687,19 @@ describe('restore preparation', () => {
       // An armed journal nothing is about to consume would promote on the next
       // unrelated restart — a failed button press must not replace a database.
       expect(read.journal.state).toBe('prepared')
+    })
+
+    it('refuses to arm an older preparation that has no sealed owner readiness', async () => {
+      const preview = await prepareRestore({ archivePath })
+      const read = readRestoreJournalV2()
+      if (read.kind !== 'ok') throw new Error('expected a prepared restore')
+      const { ownerSummary: _ownerSummary, ...legacyPrepared } = read.journal
+      writeRestoreJournalV2(legacyPrepared)
+
+      await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/predates owner readiness sealing/)
+
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
 
     it('refuses to arm when nothing is prepared', async () => {

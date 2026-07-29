@@ -12,6 +12,7 @@ import { MAX_JOURNAL_DEGRADATIONS, MAX_RESOURCE_INSTALL_ENTRIES } from '../resto
 const chain = [{ folderMillis: 1_700_000_000_000, hash: 'h1' }]
 const UUID = '11111111-2222-4333-8444-555555555555'
 const summary = { knowledgeBaseIds: [] as string[] }
+const ownerSummary = { knowledge: { baseIds: [] as string[], requiresRebuild: false } }
 
 /** A valid journal with no resource installs. */
 function baseJournal(overrides: Record<string, unknown> = {}) {
@@ -115,6 +116,7 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
     expect(
       RestoreJournalV2Schema.safeParse(baseJournal({ state, summary: { knowledgeBaseIds: ['kb-1'] } })).success
     ).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state, ownerSummary })).success).toBe(true)
   })
 
   it('rejects duplicate knowledge-base IDs in the durable summary', () => {
@@ -154,8 +156,21 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
     ).toBe(false)
   })
 
-  it('rejects a summary on states that never crossed the commit (strict)', () => {
+  it('accepts owner readiness before commit but rejects the pre-release completion field there', () => {
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'prepared', ownerSummary })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'prepared', summary })).success).toBe(false)
+  })
+
+  it('treats owner readiness as opaque JSON rather than interpreting business keys', () => {
+    expect(
+      RestoreJournalV2Schema.safeParse(
+        baseJournal({ state: 'prepared', ownerSummary: { futureOwner: { version: 1, pending: true } } })
+      ).success
+    ).toBe(true)
+    expect(
+      RestoreJournalV2Schema.safeParse(baseJournal({ state: 'prepared', ownerSummary: { invalidJson: undefined } }))
+        .success
+    ).toBe(false)
   })
 
   it('allows an optional terminal reason on failed/expired', () => {

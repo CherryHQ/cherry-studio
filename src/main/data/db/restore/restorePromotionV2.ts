@@ -9,8 +9,8 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
-import { installedKnowledgeBaseIds, installResourceUnits, recoverResourceUnits } from './resourceInstallV2'
-import type { PromotionStepV2, RestoreJournalV2 } from './restoreJournalV2'
+import { installResourceUnits, recoverResourceUnits } from './resourceInstallV2'
+import type { PromotionStepV2, RestoreJournalV2, RestoreOwnerSummary } from './restoreJournalV2'
 import {
   DB_COMMIT_STEP,
   findDbAside,
@@ -78,7 +78,12 @@ interface UnitFacts {
   readonly aside: boolean
 }
 
-export async function runRestorePromotionV2(): Promise<void> {
+export interface RestorePromotionV2Options {
+  /** Compatibility projection supplied only by the preboot shell for an older active v2 journal. */
+  readonly legacyOwnerSummary?: RestoreOwnerSummary
+}
+
+export async function runRestorePromotionV2(options: RestorePromotionV2Options = {}): Promise<void> {
   const read = readRestoreJournalV2()
   if (read.kind === 'none') {
     return
@@ -90,7 +95,13 @@ export async function runRestorePromotionV2(): Promise<void> {
     // preserve every artifact and fail closed for manual/compatible recovery.
     throw new Error(`Restore journal is unreadable (${read.reason}) — refusing to discard recovery evidence`)
   }
-  const journal = read.journal
+  const journal =
+    read.journal.ownerSummary === undefined && options.legacyOwnerSummary !== undefined
+      ? { ...read.journal, ownerSummary: options.legacyOwnerSummary }
+      : read.journal
+  if ((journal.state === 'armed' || journal.state === 'promoting') && journal.ownerSummary === undefined) {
+    throw new Error('Restore owner readiness summary is missing — refusing to promote')
+  }
   switch (journal.state) {
     case 'prepared':
       return expirePrepared(journal)
@@ -885,19 +896,13 @@ function finalize(
 
 /** The database and every resource are live; record success, then clean staging. */
 function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
+  if (ctx.journal.ownerSummary === undefined) {
+    throw new Error('Restore owner readiness summary is missing at completion')
+  }
   writeRestoreJournalV2({
     ...ctx.journal,
     state: 'completed',
-    step,
-    // Exactly the transported Knowledge bases eligible for restore-only rebuild
-    // (§6.7). An archive that installed no material schedules nothing.
-    summary: {
-      knowledgeBaseIds: installedKnowledgeBaseIds(
-        ctx.journal.resourceInstalls,
-        ctx.userData,
-        application.getPath('feature.knowledgebase.data')
-      )
-    }
+    step
   })
   removeStagingTree(ctx.journal.restoreId)
 }

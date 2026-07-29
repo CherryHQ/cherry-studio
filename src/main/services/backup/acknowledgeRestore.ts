@@ -33,6 +33,7 @@ import {
 import { loggerService } from '@logger'
 
 import { RestoreStateError } from './errors'
+import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
 
 const logger = loggerService.withContext('backupAcknowledgeRestore')
 
@@ -57,12 +58,17 @@ export function abandonKnowledgeRebuild(): AbandonedKnowledgeRebuild {
   }
 
   const journal = read.journal
+  const readiness = readRestoreKnowledgeReadiness(journal)
+  if (readiness.kind !== 'ok') {
+    throw new RestoreStateError('unreadable', `the restore Knowledge readiness summary is ${readiness.kind}`)
+  }
+  const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
   const completed = new Set(journal.knowledgeRebuild?.completedBaseIds ?? [])
-  const pendingBaseIds = journal.summary.knowledgeBaseIds.filter((id) => !completed.has(id))
+  const pendingBaseIds = requiredBaseIds.filter((id) => !completed.has(id))
   writeRestoreJournalV2({
     ...journal,
     knowledgeRebuild: {
-      completedBaseIds: journal.summary.knowledgeBaseIds.filter((id) => completed.has(id)),
+      completedBaseIds: requiredBaseIds.filter((id) => completed.has(id)),
       abandoned: true
     }
   })
@@ -172,18 +178,21 @@ export function acknowledgeRestore(): AcknowledgeResult {
     )
   }
 
-  if (
-    journal.state === 'completed' &&
-    !journal.knowledgeRebuild?.abandoned &&
-    journal.summary.knowledgeBaseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))
-  ) {
-    // The journal is also the durable retry marker for derived Knowledge work.
-    // Clearing it while a base is pending would turn the next shutdown into a
-    // permanent empty/partial index.
-    throw new RestoreStateError(
-      'wrong-state',
-      'the restored knowledge index is still rebuilding; wait for it to finish before releasing recovery data'
-    )
+  if (journal.state === 'completed' && !journal.knowledgeRebuild?.abandoned) {
+    const readiness = readRestoreKnowledgeReadiness(journal)
+    const rebuildPending =
+      readiness.kind !== 'ok' ||
+      (readiness.summary.requiresRebuild &&
+        readiness.summary.baseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id)))
+    if (rebuildPending) {
+      // The journal is also the durable retry marker for derived Knowledge work.
+      // Clearing it while a base is pending would turn the next shutdown into a
+      // permanent empty/partial index.
+      throw new RestoreStateError(
+        'wrong-state',
+        'the restored knowledge index is still rebuilding; wait for it to finish before releasing recovery data'
+      )
+    }
   }
 
   if (journal.state === 'failed' && journal.recoveryIncomplete) {

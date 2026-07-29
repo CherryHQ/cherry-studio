@@ -412,25 +412,3 @@ export function findRollbackBlocker(entries: readonly ResourceInstallEntry[], us
   }
   return null
 }
-
-/**
- * Knowledge base IDs among the installed units, for the durable restore summary
- * the post-promotion reindex scheduler consumes (§6.7). Derived from the live
- * paths rather than from a journal field: the entry describes a rename, and
- * which registered root a path sits under is the only thing that makes it a
- * Knowledge base.
- */
-export function installedKnowledgeBaseIds(
-  entries: readonly ResourceInstallEntry[],
-  userData: string,
-  knowledgeRoot: string
-): string[] {
-  const ids: string[] = []
-  for (const entry of entries) {
-    if (entry.resourceType !== 'directory') continue
-    const absolute = path.resolve(userData, ...entry.live.split('/'))
-    if (path.dirname(absolute) !== path.resolve(knowledgeRoot)) continue
-    ids.push(path.basename(absolute))
-  }
-  return ids
-}
