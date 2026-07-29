@@ -25,6 +25,11 @@ vi.mock('react-i18next', () => ({
           'assistants.groups.delete': '删除分组',
           'assistants.groups.deleteConfirm': '确定要删除这个分组吗？',
           'common.delete': '删除',
+          'common.group.create': '新建分组',
+          'common.group.create_failed': '创建分组失败',
+          'common.group.name_placeholder': '请输入分组名称...',
+          'common.group.name_required': '请输入分组名称',
+          'common.name': '名称',
           'common.rename': '重命名',
           'common.save': '保存',
           'chat.add.assistant.title': '添加助手',
@@ -173,6 +178,7 @@ vi.mock('@cherrystudio/ui', async () => {
         {description && <div>{description}</div>}
       </div>
     ),
+    FieldError: ({ children }: { children?: ReactNode }) => <div role="alert">{children}</div>,
     Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
     DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
     DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -274,6 +280,7 @@ vi.mock('@cherrystudio/ui', async () => {
       )
     },
     Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
+    Label: ({ children, ...props }: ComponentProps<'label'>) => <label {...props}>{children}</label>,
     MenuDivider: () => <div data-testid="menu-divider" />,
     MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     MenuItem: ({
@@ -685,17 +692,18 @@ describe('ResourceGrid group toolbar management', () => {
     expect(onGroupFilter).toHaveBeenCalledWith(null)
   })
 
-  it('keeps the add-group editor open and clears pending state when creation fails', async () => {
+  it('keeps the shared create-group dialog open when creation fails', async () => {
     const user = userEvent.setup()
     const onAddGroup = vi.fn().mockRejectedValueOnce(new Error('create failed'))
 
     renderResourceGrid({ onAddGroup })
 
     await user.click(screen.getByRole('button', { name: '分组' }))
-    const input = screen.getByPlaceholderText('library.toolbar.add_group_placeholder')
-    await user.type(input, 'work{Enter}')
+    const input = screen.getByPlaceholderText('请输入分组名称...')
+    await user.type(input, 'work')
+    await user.click(screen.getByRole('button', { name: 'common.add' }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('create failed'))
+    expect(await screen.findByText('创建分组失败: create failed')).toBeInTheDocument()
     expect(input).toBeInTheDocument()
     expect(input).toHaveValue('work')
     await waitFor(() => expect(input).not.toBeDisabled())
