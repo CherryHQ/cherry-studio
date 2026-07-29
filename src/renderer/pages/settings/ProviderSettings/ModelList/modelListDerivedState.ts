@@ -2,6 +2,7 @@ import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import {
+  deriveModelGroupName,
   isEmbeddingModel,
   isGenerateAudioModel,
   isGenerateImageModel,
@@ -59,13 +60,7 @@ type CalculateModelListDerivedStateInput = {
 
 function getModelIdGroupName(model: Model): string | undefined {
   const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-  const pathParts = modelId.split('/')
-  if (pathParts.length > 1) {
-    return pathParts[0]
-  }
-
-  const familyName = modelId.split('-')[0]?.trim()
-  return familyName !== modelId ? familyName : undefined
+  return deriveModelGroupName(modelId)
 }
 
 export const groupModels = (
@@ -74,8 +69,11 @@ export const groupModels = (
   options: GroupModelsOptions = {}
 ): ModelGroups => {
   const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const preferredGroup = options.preferModelGroup ? model.group : getModelIdGroupName(model)
-    const fallbackGroup = options.preferModelGroup ? getModelIdGroupName(model) : model.group
+    const inferredGroup = getModelIdGroupName(model)
+    const hasLegacyProviderGroup = inferredGroup !== undefined && model.group?.trim() === model.providerId
+    const shouldPreferStoredGroup = options.preferModelGroup && !hasLegacyProviderGroup
+    const preferredGroup = shouldPreferStoredGroup ? model.group : inferredGroup
+    const fallbackGroup = shouldPreferStoredGroup ? inferredGroup : model.group
     const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
     if (!acc[groupName]) {
       acc[groupName] = []
