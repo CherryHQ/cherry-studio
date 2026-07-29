@@ -47,7 +47,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.default.title',
     titleFallback: 'Ask Before Acting',
     descriptionKey: 'agent.settings.tooling.permissionMode.default.description',
-    descriptionFallback: 'Reads files freely. Asks before editing files or running commands.'
+    descriptionFallback: 'Asks before editing files or running commands.'
   },
   {
     mode: 'plan',
@@ -55,7 +55,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.plan.title',
     titleFallback: 'Plan Only',
     descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
-    descriptionFallback: 'Reads and plans only. Cannot edit files or run commands.'
+    descriptionFallback: 'Reads and plans only. No edits or commands.'
   },
   {
     mode: 'acceptEdits',
@@ -63,7 +63,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.acceptEdits.title',
     titleFallback: 'Auto-accept Edits',
     descriptionKey: 'agent.settings.tooling.permissionMode.acceptEdits.description',
-    descriptionFallback: 'Reads and edits files freely. Asks before running commands.'
+    descriptionFallback: 'Edits files freely. Asks before commands.'
   },
   {
     mode: 'auto',
@@ -71,7 +71,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.auto.title',
     titleFallback: 'Approve for Me',
     descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
-    descriptionFallback: 'Only asks about actions a model judges risky.'
+    descriptionFallback: 'Only asks about actions judged risky.'
   },
   {
     mode: 'bypassPermissions',
@@ -79,7 +79,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
     titleFallback: 'Full Access',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
-    descriptionFallback: 'Runs everything without asking, including deleting files and network access.',
+    descriptionFallback: 'Never asks. Can delete files and use the network.',
     caution: true
   }
 ]

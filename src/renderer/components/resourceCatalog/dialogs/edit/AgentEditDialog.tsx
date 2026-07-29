@@ -562,7 +562,7 @@ function PermissionModeField({
                   {/* Own children so the trigger stays one line: the items below are two. */}
                   <SelectValue>
                     {selectedPermissionModeCard && (
-                      <span className={selectedPermissionModeCard.caution ? 'text-warning' : undefined}>
+                      <span className={selectedPermissionModeCard.caution ? 'text-destructive' : undefined}>
                         {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
                       </span>
                     )}

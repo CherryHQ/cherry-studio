@@ -618,7 +618,7 @@
             "title": "自動接受檔案編輯"
           },
           "auto": {
-            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "description": "[to be translated]:Only asks about actions judged risky.",
             "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {

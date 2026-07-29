@@ -618,7 +618,7 @@
             "title": "Автоматически принимать изменения файлов"
           },
           "auto": {
-            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "description": "[to be translated]:Only asks about actions judged risky.",
             "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {

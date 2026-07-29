@@ -614,15 +614,15 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "可自由读取和编辑文件。执行命令前询问。",
+            "description": "可自由编辑文件，执行命令前询问。",
             "title": "自动接受编辑"
           },
           "auto": {
-            "description": "仅在模型判定操作有风险时才询问。",
+            "description": "仅在操作被判定有风险时询问。",
             "title": "智能批准"
           },
           "bypassPermissions": {
-            "description": "不经询问执行任何操作，包括删除文件和访问网络。",
+            "description": "从不询问，可删除文件、访问网络。",
             "title": "完全访问",
             "warning": "危险：所有工具都会在无审批情况下执行。"
           },
@@ -631,13 +631,13 @@
             "title": "确认切换权限模式？"
           },
           "default": {
-            "description": "可自由读取文件。编辑文件或执行命令前询问。",
+            "description": "编辑文件或执行命令前询问。",
             "title": "逐次确认"
           },
           "helper": "指定智能体如何处理工具使用授权",
           "placeholder": "选择权限模式",
           "plan": {
-            "description": "只能读取文件和制定计划，不能编辑文件或执行命令。",
+            "description": "只读取和规划，不编辑文件、不执行命令。",
             "title": "仅规划"
           },
           "title": "权限模式"

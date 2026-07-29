@@ -614,15 +614,15 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Reads and edits files freely. Asks before running commands.",
+            "description": "Edits files freely. Asks before commands.",
             "title": "Auto-accept Edits"
           },
           "auto": {
-            "description": "Only asks about actions a model judges risky.",
+            "description": "Only asks about actions judged risky.",
             "title": "Approve for Me"
           },
           "bypassPermissions": {
-            "description": "Runs everything without asking, including deleting files and network access.",
+            "description": "Never asks. Can delete files and use the network.",
             "title": "Full Access",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
@@ -631,13 +631,13 @@
             "title": "Change permission mode?"
           },
           "default": {
-            "description": "Reads files freely. Asks before editing files or running commands.",
+            "description": "Asks before editing files or running commands.",
             "title": "Ask Before Acting"
           },
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "description": "Reads and plans only. Cannot edit files or run commands.",
+            "description": "Reads and plans only. No edits or commands.",
             "title": "Plan Only"
           },
           "title": "Permission mode"

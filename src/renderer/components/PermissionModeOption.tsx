@@ -23,14 +23,14 @@ const PERMISSION_MODE_ICONS: Record<PermissionMode, typeof Hand> = {
 export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; size?: number }): ReactNode {
   const Icon = PERMISSION_MODE_ICONS[mode] ?? Hand
   // Icons stay neutral except for the one mode that runs without asking, which
-  // carries the same warning tone as its label.
-  return <Icon size={size} className={mode === 'bypassPermissions' ? 'text-warning' : 'text-muted-foreground'} />
+  // carries the same destructive tone as its label.
+  return <Icon size={size} className={mode === 'bypassPermissions' ? 'text-destructive' : 'text-muted-foreground'} />
 }
 
 /**
- * Title + optional description for one mode. `caution` modes are rendered in the
- * warning tone: this is a standing risk label on a state, not a destructive action
- * trigger, so it uses `--warning` rather than `--destructive` (DESIGN.md).
+ * Title + optional description for one mode. `caution` modes render in `--destructive`:
+ * picking one hands the agent unattended file deletion and network access, so it needs
+ * to read as dangerous at a glance rather than merely noteworthy.
  */
 export function PermissionModeOptionLabel({
   card,
@@ -43,9 +43,9 @@ export function PermissionModeOptionLabel({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={cn('text-sm', card.caution && 'text-warning')}>{t(card.titleKey, card.titleFallback)}</span>
+      <span className={cn('text-sm', card.caution && 'text-destructive')}>{t(card.titleKey, card.titleFallback)}</span>
       {withDescription && (
-        <span className={cn('text-xs', card.caution ? 'text-warning/80' : 'text-muted-foreground')}>
+        <span className={cn('text-xs', card.caution ? 'text-destructive/80' : 'text-muted-foreground')}>
           {t(card.descriptionKey, card.descriptionFallback)}
         </span>
       )}
