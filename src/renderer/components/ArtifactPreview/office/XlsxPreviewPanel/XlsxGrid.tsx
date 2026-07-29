@@ -140,7 +140,7 @@ interface CellViewProps {
 const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): React.CSSProperties | undefined => {
   if (!cell.hyperlink && !clampLines) return undefined
   return {
-    ...(cell.hyperlink ? { color: 'var(--color-primary)', textDecoration: 'underline' } : undefined),
+    ...(cell.hyperlink ? { color: 'var(--primary)', textDecoration: 'underline' } : undefined),
     ...(clampLines
       ? {
           display: '-webkit-box',
@@ -230,7 +230,7 @@ const SelectedCellOverlay = ({ cell, style, rect }: SelectedCellOverlayProps) =>
     wordBreak: 'break-word',
     lineHeight: WRAP_LINE_HEIGHT,
     boxSizing: 'border-box',
-    backgroundColor: css.backgroundColor ?? 'var(--color-background)'
+    backgroundColor: css.backgroundColor ?? 'var(--background)'
   }
 
   return (
