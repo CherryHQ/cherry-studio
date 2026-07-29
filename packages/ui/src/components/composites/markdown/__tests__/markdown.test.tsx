@@ -13,12 +13,18 @@ import { Markdown } from '../markdown'
 import { withChatPlugins } from '../presets'
 
 describe('Markdown (static)', () => {
-  it('lets the rendered content determine its own direction', () => {
-    const { container } = render(<Markdown id="direction">{'مرحبا Cherry Studio'}</Markdown>)
+  // The wrapper opts into `dir="auto"`; Streamdown then resolves that to the
+  // direction the content actually reads in, so an Arabic reply stays RTL even
+  // inside an LTR app chrome (and vice versa).
+  it.each([
+    ['مرحبا Cherry Studio', 'rtl'],
+    ['Hello Cherry Studio', 'ltr']
+  ])('lets the rendered content determine its own direction (%s)', (content, expectedDirection) => {
+    const { container } = render(<Markdown id="direction">{content}</Markdown>)
     const markdown = container.querySelector('.markdown')
 
-    expect(markdown).toHaveAttribute('dir', 'auto')
-    expect(markdown?.firstElementChild).toHaveAttribute('dir', 'auto')
+    expect(markdown?.getAttribute('dir')).toBe('auto')
+    expect(markdown?.querySelector(`[dir="${expectedDirection}"]`)).not.toBeNull()
   })
 
   it('renders a heading with the prefixed id', () => {
