@@ -1,9 +1,11 @@
+import type * as NodeFs from 'node:fs'
 import {
   copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -27,6 +29,7 @@ import {
   runRestorePromotionV2
 } from '@data/db/restore/restorePromotionV2'
 import { appStateTable } from '@data/db/schemas/appState'
+import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -84,6 +87,27 @@ const failResourceRollback = { on: false }
 
 /** The same fault in the committed direction: a unit that cannot be put in place. */
 const failResourceInstall = { on: false }
+
+/**
+ * Every rename that happens under this module graph. Rename is the ONLY way
+ * this machinery moves a database or a resource unit in or out of its live
+ * slot, so an empty window here is proof no live mutation occurred — a fact no
+ * comparison of end states can establish, since a pair of moves can restore the
+ * state it started from. Recorded through the module boundary because an ESM
+ * namespace export cannot be spied on.
+ */
+const renames: string[] = []
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFs>()
+  const renameSync: typeof actual.renameSync = (source, target) => {
+    renames.push(`${String(source)} → ${String(target)}`)
+    actual.renameSync(source, target)
+  }
+  // `node:fs` is CJS: the default export carries the same members as the
+  // namespace, and the code under test imports it that way.
+  return { ...actual, renameSync, default: { ...actual, renameSync } }
+})
 
 vi.mock('@data/db/restore/resourceInstallV2', async (importOriginal) => {
   const actual = await importOriginal<typeof ResourceInstallModule>()
@@ -219,6 +243,28 @@ function journalState(): string {
   return read.kind === 'ok' ? read.journal.state : read.kind
 }
 
+/** Every file under `dir` as relative path → bytes, for byte-for-byte comparison. */
+function treeSnapshot(dir: string): Record<string, string> {
+  const files: Record<string, string> = {}
+  const walk = (current: string, prefix: string): void => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory()) walk(join(current, entry.name), relative)
+      else files[relative] = readFileSync(join(current, entry.name)).toString('base64')
+    }
+  }
+  if (existsSync(dir)) walk(dir, '')
+  return files
+}
+
+/**
+ * Everything the next boot decides from: the journal bytes and the staging
+ * tree. A terminal write that failed may leave every one of them untouched.
+ */
+function recoveryEvidence(): { journal: string; staging: Record<string, string> } {
+  return { journal: readFileSync(journalPath()).toString('base64'), staging: treeSnapshot(stagingDir()) }
+}
+
 /**
  * Park the crash arrangement's live database exactly as the `live-aside` step
  * would have.
@@ -238,6 +284,7 @@ describe('restore promotion v2', () => {
     failJournalWrite.when = null
     failResourceRollback.on = false
     failResourceInstall.on = false
+    renames.length = 0
     vi.clearAllMocks()
   })
 
@@ -323,22 +370,147 @@ describe('restore promotion v2', () => {
     })
   })
 
+  /**
+   * A terminal outcome that will not persist is not an outcome. The gate must
+   * refuse the boot rather than start the app under a journal still describing
+   * a restore in flight, keep every artifact the next boot decides from, and —
+   * on that next boot — reach the SAME terminal conclusion without moving
+   * anything in or out of the live slot.
+   */
   describe('a terminal state that never reached the disk', () => {
-    it('keeps the staging tree when the expired journal cannot be written', async () => {
+    /**
+     * The disk stopped taking journal writes — a condition of the disk, not of
+     * the state being written, so every write fails, including the crash net's
+     * own attempt to record a different outcome.
+     */
+    function noJournalWritesLand(): void {
+      failJournalWrite.when = () => true
+    }
+
+    async function expectGateRefusesBoot(): Promise<void> {
+      await expect(runBackupRestoreGate()).rejects.toThrow(/mixed restore state|empty database/)
+    }
+
+    /** Re-run the gate with the fault cleared, proving the retry needs no live rename. */
+    async function retryWithoutFault(): Promise<void> {
+      failJournalWrite.when = null
+      renames.length = 0
+
+      await runBackupRestoreGate()
+
+      // The first boot already did every move this outcome needed; all the
+      // retry owes is the marker — whose own write is an atomic tmp rename, and
+      // the only rename allowed here.
+      expect(renames.filter((move) => !move.includes('restore-journal.json'))).toEqual([])
+    }
+
+    it('refuses the boot and retries the same expiry when the expired journal cannot be written', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
       writeRestoreJournalV2(buildJournal({ chain: [{ folderMillis: 1, hash: 'forked' }] }))
-      failJournalWrite.when = (journal) => journal.state === 'expired'
+      const before = recoveryEvidence()
+      noJournalWritesLand()
+
+      await expectGateRefusesBoot()
+
+      expect(journalState()).toBe('armed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(recoveryEvidence()).toEqual(before)
+
+      await retryWithoutFault()
+
+      expect(journalState()).toBe('expired')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('refuses the boot and retries the same completion when the completed journal cannot be written', async () => {
+      // Past the commit: the new database is already live, so the retry has
+      // only the marker left to write.
+      makeDb(asidePath(), 'old')
+      makeDb(livePath(), 'new')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()) }))
+      const before = recoveryEvidence()
+      noJournalWritesLand()
+
+      await expectGateRefusesBoot()
+
+      expect(journalState()).toBe('promoting')
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+      expect(recoveryEvidence()).toEqual(before)
+
+      await retryWithoutFault()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+    })
+
+    it('refuses the boot and retries the same failure when a pre-commit rollback cannot be written', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed' }))
+      const journalBefore = readFileSync(journalPath()).toString('base64')
+      noJournalWritesLand()
+
+      await expectGateRefusesBoot()
+
+      // The staged database is discarded by the rollback itself, not by the
+      // terminal write — the journal and the protected tree are what must stay.
+      expect(journalState()).toBe('promoting')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readFileSync(journalPath()).toString('base64')).toBe(journalBefore)
+      expect(existsSync(stagingDir())).toBe(true)
+
+      await retryWithoutFault()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('refuses the boot and retries the same rollback when the rolled-back journal cannot be written', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(join(userData, `restore-failed-${RID}.sqlite`), 'new')
+      makeStagedDb()
+      writeRestoreJournalV2(
+        buildJournal({ state: 'rollback-armed', chain: chainOf(join(userData, `restore-failed-${RID}.sqlite`)) })
+      )
+      const before = recoveryEvidence()
+      noJournalWritesLand()
+
+      await expectGateRefusesBoot()
+
+      expect(journalState()).toBe('rollback-armed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(recoveryEvidence()).toEqual(before)
+
+      await retryWithoutFault()
+
+      expect(journalState()).toBe('rolled-back')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(join(userData, `restore-failed-${RID}.sqlite`))).toBe('new')
+    })
+
+    it('writes the expiry of an unarmed preparation before dropping its staging tree', async () => {
+      // Reverse order would delete a tree the on-disk journal still describes
+      // as preparable — and a write that then failed would leave it pointing at
+      // nothing.
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'prepared' }))
+      const stagingAtWrite: boolean[] = []
+      failJournalWrite.when = (journal) => {
+        if (journal.state === 'expired') stagingAtWrite.push(existsSync(stagedPath()))
+        return false
+      }
 
       await runRestorePromotionV2()
 
-      // Nothing may be deleted on the strength of a state that was never
-      // recorded: the journal on disk still describes a restore in flight, so
-      // the tree stays and the terminal write stays retryable.
-      expect(journalState()).toBe('armed')
-      expect(readMarker(livePath())).toBe('old')
-      expect(existsSync(stagedPath())).toBe(true)
-      expect(existsSync(stagingDir())).toBe(true)
+      expect(stagingAtWrite).toEqual([true])
+      expect(journalState()).toBe('expired')
+      expect(existsSync(stagingDir())).toBe(false)
     })
   })
 
@@ -461,7 +633,7 @@ describe('restore promotion v2', () => {
       writeRestoreJournalV2(buildJournal({ chain: stagedChain }))
       failJournalWrite.when = (candidate) => candidate.state === 'failed'
 
-      await expect(runRestorePromotionV2()).rejects.toThrow(/terminal journal is not durable/)
+      await expect(runRestorePromotionV2()).rejects.toThrow(/terminal 'failed' journal is not durable/)
 
       expect(journalState()).toBe('reverting')
       expect(readMarker(livePath())).toBe('old')
@@ -929,7 +1101,7 @@ describe('restore promotion v2', () => {
       )
       failJournalWrite.when = (journal) => journal.state === 'failed'
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/terminal 'failed' journal is not durable/)
 
       // The rollback itself completed — the original is back in place and the
       // archive copy is parked in staging.
