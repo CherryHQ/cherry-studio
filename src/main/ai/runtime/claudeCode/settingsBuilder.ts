@@ -41,13 +41,7 @@ import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
-import {
-  buildCitationsGuidance,
-  CHERRY_KB_READ_RUNTIME_NAME,
-  CHERRY_KB_SEARCH_RUNTIME_NAME,
-  CHERRY_WEB_FETCH_RUNTIME_NAME,
-  CHERRY_WEB_SEARCH_RUNTIME_NAME
-} from '@main/ai/runtime/claudeCode/citationsGuidance'
+import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -70,7 +64,13 @@ import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  CONFIG_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
@@ -1236,11 +1236,12 @@ export async function buildSystemPrompt(
   const isChannelLinked = channelLinked ?? Boolean(channelService.findBySessionId(session.id))
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const disabledTools = new Set(agent.disabledTools ?? [])
+  const isLookupEnabled = (toolName: string) => !disabledTools.has(toCherryBuiltinRuntimeName(toolName))
   const citationsGuidance = buildCitationsGuidance({
-    web: !disabledTools.has(CHERRY_WEB_SEARCH_RUNTIME_NAME) || !disabledTools.has(CHERRY_WEB_FETCH_RUNTIME_NAME),
+    web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
     kb:
       (agent.knowledgeBaseIds?.length ?? 0) > 0 &&
-      (!disabledTools.has(CHERRY_KB_SEARCH_RUNTIME_NAME) || !disabledTools.has(CHERRY_KB_READ_RUNTIME_NAME))
+      (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
   })
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
