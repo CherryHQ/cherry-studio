@@ -21,7 +21,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { findUnsafeAncestor } from '@data/db/restore/pathSafety'
 import {
   clearRestoreJournalV2,
   dbAsideRelPathV2,
@@ -31,6 +30,7 @@ import {
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
+import { findUnsafeAncestor } from '@main/utils/file'
 
 import { RestoreStateError } from './errors'
 import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
