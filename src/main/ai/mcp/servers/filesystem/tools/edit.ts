@@ -1,7 +1,9 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
 
 // Schema definition
@@ -26,11 +28,11 @@ export const editToolDefinition = {
 - The edit will FAIL if old_string appears multiple times (provide more context or use replace_all)
 - The edit will FAIL if old_string equals new_string
 - Use replace_all to rename variables or replace all occurrences`,
-  inputSchema: z.toJSONSchema(EditToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(EditToolSchema))
 }
 
 // Handler implementation
-export async function handleEditTool(args: unknown, baseDir: string) {
+export async function handleEditTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = EditToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for edit: ${parsed.error}`)

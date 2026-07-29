@@ -1,3 +1,4 @@
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import type { McpResource } from '@shared/types/mcp'
 
 /**
@@ -6,24 +7,7 @@ import type { McpResource } from '@shared/types/mcp'
  * these raw protocol shapes. Verified renderer-unused on both `main` and the
  * feat/chat-page (v2) branch.
  */
-export interface McpToolResultContent {
-  type: 'text' | 'image' | 'audio' | 'resource'
-  text?: string
-  data?: string
-  mimeType?: string
-  resource?: {
-    uri?: string
-    text?: string
-    mimeType?: string
-    blob?: string
-  }
-}
-
-export interface McpCallToolResponse {
-  content: McpToolResultContent[]
-  structuredContent?: unknown
-  isError?: boolean
-}
+export type McpCallToolResponse = CallToolResult
 
 export interface GetResourceResponse {
   contents: McpResource[]

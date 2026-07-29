@@ -9,6 +9,7 @@ import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
@@ -63,6 +64,8 @@ export type MainDispatchRequest = (
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
   /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
+  /** Trusted main-process sender identity for targeted MCP interaction requests. */
+  interactionWindowId?: WindowId
 }
 
 const logger = loggerService.withContext('chatContextDispatch')
@@ -121,6 +124,9 @@ export async function dispatchStreamRequest(
   })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
+  }
+  for (const model of prepared.models) {
+    model.request.interactionWindowId = req.interactionWindowId
   }
 
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an

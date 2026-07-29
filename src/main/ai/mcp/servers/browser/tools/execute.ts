@@ -1,3 +1,4 @@
+import type { Tool } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
@@ -38,7 +39,7 @@ export const executeToolDefinition = {
     },
     required: ['code']
   }
-}
+} satisfies Tool
 
 export async function handleExecute(controller: CdpBrowserController, args: unknown) {
   const { code, timeout, privateMode, tabId } = ExecuteSchema.parse(args)

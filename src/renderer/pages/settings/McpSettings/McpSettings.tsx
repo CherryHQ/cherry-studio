@@ -1,7 +1,6 @@
 import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
-import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -335,7 +334,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         } catch (error: any) {
           void popup.error({
             title: t('settings.mcp.startError'),
-            content: formatMcpError(error as McpError),
+            content: formatMcpError(error as { message: string }),
             centered: true
           })
         }
@@ -351,7 +350,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     } catch (error: any) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-        content: formatMcpError(error as McpError),
+        content: formatMcpError(error as { message: string }),
         centered: true
       })
     } finally {

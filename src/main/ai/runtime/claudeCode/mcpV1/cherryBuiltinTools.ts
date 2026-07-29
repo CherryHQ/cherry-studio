@@ -1,3 +1,4 @@
+// v1 compatibility island: this server is consumed only by the Claude Agent SDK.
 /**
  * In-process MCP server exposing Cherry Studio's builtin tools to Claude Code.
  *
@@ -28,6 +29,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { type CherryDocumentContext, CherryDocumentTools } from '@main/ai/mcp/servers/cherryDocumentTools'
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
 import {
   type ConfiguredPaintingModel,
@@ -66,7 +68,6 @@ import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
 import { CherryCliTools } from './cherryCliTools'
-import { type CherryDocumentContext, CherryDocumentTools } from './cherryDocumentTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
 
 export type { CherryAgentContext }

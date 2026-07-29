@@ -46,6 +46,8 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   // In-flight tool-call control.
   'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope),
+  'mcp.interaction.respond': async (response, { senderId }) =>
+    application.get('McpRuntimeService').respondInteraction(response, senderId),
   // Package upload.
   'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
     application.get('McpPackageService').uploadDxt(buffer, fileName),

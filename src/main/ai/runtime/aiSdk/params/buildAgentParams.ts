@@ -21,7 +21,7 @@ import {
   MAX_TOOL_CALLS,
   MIN_TOOL_CALLS
 } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
@@ -161,7 +161,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const canOffloadToolOutputs =
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request, assistant) : undefined
+  const toolSignals =
+    !request.disableTools && canModelConsumeTools(model)
+      ? await resolveRequestToolSignals(request, assistant)
+      : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
@@ -245,6 +248,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
+    windowId: request.interactionWindowId,
+    model: request.uniqueModelId ?? createUniqueModelId(provider.id, model.id),
     assistant,
     abortSignal: signal,
     fileAttachments,

@@ -1,7 +1,9 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import type { FileInfo } from '../types'
 import { logger, MAX_FILES_LIMIT, runRipgrep, validatePath } from '../types'
 
@@ -29,11 +31,11 @@ export const globToolDefinition = {
 - The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory
 - IMPORTANT: Omit the path field for the default directory (don't use "undefined" or "null")`,
-  inputSchema: z.toJSONSchema(GlobToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(GlobToolSchema))
 }
 
 // Handler implementation
-export async function handleGlobTool(args: unknown, baseDir: string) {
+export async function handleGlobTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = GlobToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for glob: ${parsed.error}`)

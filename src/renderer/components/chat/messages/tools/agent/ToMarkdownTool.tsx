@@ -1,4 +1,4 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 import { useTranslation } from 'react-i18next'
 

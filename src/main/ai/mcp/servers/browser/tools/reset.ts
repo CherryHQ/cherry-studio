@@ -1,3 +1,4 @@
+import type { Tool } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
@@ -26,7 +27,7 @@ export const resetToolDefinition = {
       }
     }
   }
-}
+} satisfies Tool
 
 export async function handleReset(controller: CdpBrowserController, args: unknown) {
   try {

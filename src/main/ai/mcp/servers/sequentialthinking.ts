@@ -2,9 +2,7 @@
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/sequentialthinking/index.ts
 
 import { loggerService } from '@logger'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { type CallToolResult, Server, type Tool } from '@modelcontextprotocol/server'
 // Fixed chalk import for ESM
 import chalk from 'chalk'
 
@@ -84,7 +82,7 @@ class SequentialThinkingServer {
 └${border}┘`
   }
 
-  public processThought(input: unknown): { content: Array<{ type: string; text: string }>; isError?: boolean } {
+  public processThought(input: unknown): CallToolResult {
     try {
       const validatedInput = this.validateThoughtData(input)
 
@@ -249,12 +247,10 @@ You should:
 }
 
 class ThinkingServer {
-  public server: Server
-  private thinkingServer: SequentialThinkingServer
+  private readonly thinkingServer = new SequentialThinkingServer()
 
-  constructor() {
-    this.thinkingServer = new SequentialThinkingServer()
-    this.server = new Server(
+  public createServer(): Server {
+    const server = new Server(
       {
         name: 'sequential-thinking-server',
         version: '0.2.0'
@@ -265,15 +261,16 @@ class ThinkingServer {
         }
       }
     )
-    this.initialize()
+    this.initialize(server)
+    return server
   }
 
-  initialize() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  private initialize(server: Server) {
+    server.setRequestHandler('tools/list', async () => ({
       tools: [SEQUENTIAL_THINKING_TOOL]
     }))
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler('tools/call', async (request) => {
       if (request.params.name === 'sequentialthinking') {
         return this.thinkingServer.processThought(request.params.arguments)
       }
