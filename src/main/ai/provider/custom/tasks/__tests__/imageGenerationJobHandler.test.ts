@@ -208,74 +208,10 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
-  it('legacy submit: falls back to providerParams.modelDescriptor when the typed field is absent', async () => {
-    // Jobs enqueued before modelDescriptor became a typed payload field carried it
-    // inside the vendor bag instead. A job still queued across that upgrade must
-    // still route correctly.
-    const legacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false }
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/legacy.png'] })
-
-    const ctx = createCtx({
-      input: {
-        uniqueModelId: 'ppio::qwen-image',
-        prompt: 'a cat',
-        n: 1,
-        cleanupPolicy: 'delete_when_unreferenced',
-        providerParams: { modelDescriptor: legacyDescriptor }
-      }
-    })
-    await imageGenerationJobHandler.execute(ctx)
-
-    const submitArg = submitMock.mock.calls[0][0]
-    expect(submitArg.modelDescriptor).toEqual(legacyDescriptor)
-  })
-
-  it('legacy poll: falls back to providerParams.modelDescriptor when the typed field is absent', async () => {
-    // Same fallback as the submit case, on the poll leg — a stateful transport
-    // (DashScope) needs the descriptor to rebuild its response-family routing.
-    const legacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false }
-    submitMock.mockResolvedValue({ taskId: 'task-legacy' })
-    pollMock.mockResolvedValue(['https://cdn.example.com/legacy-poll.png'])
-
-    const ctx = createCtx({
-      input: {
-        uniqueModelId: 'ppio::qwen-image',
-        cleanupPolicy: 'delete_when_unreferenced',
-        prompt: 'a cat',
-        n: 1,
-        providerParams: { modelDescriptor: legacyDescriptor }
-      }
-    })
-    await imageGenerationJobHandler.execute(ctx)
-
-    expect(pollMock).toHaveBeenCalledWith(
-      'task-legacy',
-      expect.objectContaining({ signal: ctx.signal, modelDescriptor: legacyDescriptor })
-    )
-  })
-
-  it('prefers the typed modelDescriptor field over a stale providerParams copy', async () => {
-    const typedDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image-typed', isSync: false }
-    const staleLegacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image-stale', isSync: false }
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/typed.png'] })
-
-    const ctx = createCtx({
-      input: {
-        uniqueModelId: 'ppio::qwen-image',
-        prompt: 'a cat',
-        n: 1,
-        cleanupPolicy: 'delete_when_unreferenced',
-        modelDescriptor: typedDescriptor,
-        providerParams: { modelDescriptor: staleLegacyDescriptor }
-      }
-    })
-    await imageGenerationJobHandler.execute(ctx)
-
-    const submitArg = submitMock.mock.calls[0][0]
-    expect(submitArg.modelDescriptor).toEqual(typedDescriptor)
-  })
-
-  it('resolves to undefined (not a crash) when neither modelDescriptor location is present', async () => {
+  it('passes modelDescriptor through as undefined when the payload carries none', async () => {
+    // `AiService` only sets the field when the registry resolved a vendorTransport
+    // endpoint, so an absent descriptor is a normal payload — the transport must
+    // receive `undefined` rather than the handler throwing on the way there.
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/none.png'] })
 
     const ctx = createCtx({

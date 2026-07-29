@@ -11,11 +11,7 @@ import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { resolveProviderAiSdkConfig } from '../../config'
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
-} from '../imageGenerationModel'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
@@ -138,17 +134,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
-/**
- * Jobs enqueued before `modelDescriptor` became a typed payload field carried
- * it inside the vendor bag instead (`providerParams.modelDescriptor`). A job
- * still queued (or mid-poll) across that upgrade resumes with the new field
- * absent — fall back to the legacy bag location so PPIO/DashScope submit/poll
- * still route correctly.
- */
-function resolveModelDescriptor(input: ImageGenerationJobPayload): ImageTransportDescriptor | undefined {
-  return input.modelDescriptor ?? (input.providerParams?.modelDescriptor as ImageTransportDescriptor | undefined)
-}
-
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
   modelId: string,
@@ -164,7 +149,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
-    modelDescriptor: resolveModelDescriptor(input),
+    modelDescriptor: input.modelDescriptor,
     providerParams: input.providerParams,
     signal
   }
@@ -201,7 +186,7 @@ async function pollUntilDone(
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
       // Carry the descriptor so the poll rebuilds per-task state on a transport
       // instance that did not run the submit (DashScope's response family).
-      modelDescriptor: resolveModelDescriptor(ctx.input)
+      modelDescriptor: ctx.input.modelDescriptor
     })
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
