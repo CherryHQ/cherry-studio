@@ -156,6 +156,32 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
+
+    it('should keep the newest rolling reasoning visible while streaming without expanding', () => {
+      const block = createThinkingBlock({
+        status: 'streaming',
+        content: 'First thought\n\nsecond thought\tthird thought'
+      })
+      const { rerender } = renderThinkingBlock(block)
+      const preview = screen.getByText('First thought second thought third thought')
+      Object.defineProperty(preview, 'scrollWidth', {
+        configurable: true,
+        value: 240
+      })
+
+      rerender(
+        <ThinkingBlock
+          id={block.id}
+          content={`${block.content} fourth thought`}
+          isStreaming={block.status === 'streaming'}
+        />
+      )
+
+      expect(screen.getByText('First thought second thought third thought fourth thought')).toBe(preview)
+      expect(preview.scrollLeft).toBe(240)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
   })
 
   describe('thinking status display', () => {
@@ -270,8 +296,9 @@ describe('ThinkingBlock', () => {
         const styledDiv = screen.getByTestId('mock-markdown').parentElement
 
         expect(styledDiv).toHaveClass('[&_.markdown>p:only-child]:mb-0!')
-        expect(styledDiv).toHaveStyle('--color-text: var(--color-foreground-muted)')
-        expect(styledDiv).toHaveStyle('--color-text-light: var(--color-foreground-muted)')
+        expect(styledDiv).toHaveStyle(
+          '--markdown-foreground: color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+        )
         expect(styledDiv).toHaveStyle({
           fontFamily: expectedFont,
           fontSize: expectedSize

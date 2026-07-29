@@ -4,11 +4,12 @@
  * Single source of truth shared by the AI-SDK builtin tools (`kb_search` /
  * `kb_list`) and the Claude Code in-process MCP bridge. `allowedIds` scopes
  * which bases are reachable: in the AI-SDK path it is the scope resolved by
- * `resolveKnowledgeBaseIds` (the assistant's own bound bases take precedence
- * when non-empty; only when the assistant has none does the composer's
- * per-turn selection define the scope); an empty array means "no scope"
- * (all user bases), which is what the Claude Code agent path passes since
- * agents have no per-assistant knowledge scope.
+ * `resolveKnowledgeBaseScope` (the assistant's own bound bases are a ceiling the
+ * composer's per-turn selection may narrow but never widen; with no binding that
+ * selection defines the scope alone). The Claude Code path applies the same rule
+ * to Agent bindings and per-turn selection, and hides/rejects the kb_* tools when
+ * the effective scope is empty.
+ * At this shared core boundary, an empty array still means "no scope" (all user bases).
  *
  * `searchKnowledge` never throws: an infrastructure failure (every targeted
  * base errored) returns `{ error }` so it is distinguishable from "ran fine,
@@ -407,14 +408,14 @@ function readTree(
 /**
  * kb_list dispatch: list the user's bases, or — when a `baseId` is supplied — outline that one
  * base's structure. One tool with two modes (see KNOWLEDGE_LIST_DESCRIPTION); both cores share the
- * `{ error }` contract, so this only routes by the presence of `baseId`. (`!= null` also covers
- * undefined; strict callers pass null for "no baseId", MCP callers omit it.)
+ * `{ error }` contract, so this only routes by the presence of `baseId`. AI-SDK adapters normalize
+ * their strict-schema sentinels before calling this core; MCP callers omit unused fields directly.
  */
 export async function listOrOutlineKnowledge(
-  input: { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null },
+  input: { query?: string; groupId?: string; baseId?: string; maxDepth?: number },
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
-  if (input.baseId != null) {
+  if (input.baseId) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
   return listKnowledgeBases(input.query, input.groupId, allowedIds)
@@ -423,16 +424,16 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
-/** kb_manage input shape shared by both callers: MCP omits an unused field, AI-SDK strict passes null. */
+/** kb_manage input shape shared after AI-SDK strict sentinels have been normalized. */
 type ManageKnowledgeInput = {
   baseId: string
   action: 'add' | 'delete' | 'refresh'
-  type?: 'file' | 'url' | 'note' | null
-  path?: string | null
-  url?: string | null
-  content?: string | null
-  title?: string | null
-  conceptIds?: string[] | null
+  type?: 'file' | 'url' | 'note'
+  path?: string
+  url?: string
+  content?: string
+  title?: string
+  conceptIds?: string[]
 }
 
 /**

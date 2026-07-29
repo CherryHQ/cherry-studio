@@ -169,11 +169,6 @@ export class AgentChannelService {
     logger.info('Channel unsubscribed from task', { channelId, taskId })
   }
 
-  replaceTaskSubscriptions(taskId: string, channelIds: readonly string[]): void {
-    application.get('DbService').withWriteTx((tx) => this.replaceTaskSubscriptionsTx(tx, taskId, channelIds))
-    logger.info('Channel task subscriptions replaced', { taskId, channelCount: channelIds.length })
-  }
-
   replaceTaskSubscriptionsTx(tx: DbOrTx, taskId: string, channelIds: readonly string[]): void {
     tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId)).run()
     if (channelIds.length > 0) {

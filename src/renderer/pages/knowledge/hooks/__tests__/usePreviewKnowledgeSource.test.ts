@@ -5,6 +5,8 @@ import {
   createUrlItem
 } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
 import { toast } from '@renderer/services/toast'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +15,25 @@ import { usePreviewKnowledgeSource } from '../usePreviewKnowledgeSource'
 
 const mockOpenPath = vi.fn()
 const mockOpenExternal = vi.fn()
+const mockIpcRequest = vi.hoisted(() => vi.fn())
+const previewFileMock = vi.fn()
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
+}
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: mockIpcRequest
+  }
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,6 +51,7 @@ describe('usePreviewKnowledgeSource', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockIpcRequest.mockResolvedValue('/knowledge/base-1/raw/report.pdf')
     mockOpenPath.mockResolvedValue(undefined)
     mockOpenExternal.mockResolvedValue(undefined)
     ;(window as any).api = {
@@ -43,20 +64,93 @@ describe('usePreviewKnowledgeSource', () => {
     }
   })
 
-  it('opens file sources through the file path API', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+  it('resolves knowledge-managed file sources into embedded preview targets', async () => {
+    mockIpcRequest.mockResolvedValue('/knowledge/base-1/raw/drafts/../report.pdf')
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
     const item = createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' })
 
     await act(async () => {
       await result.current.previewSource(item)
     })
 
-    expect(mockOpenPath).toHaveBeenCalledWith('/Users/me/report.pdf')
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.get_file_path', { itemId: 'file-1' })
+    expect(previewFileMock).toHaveBeenCalledWith({
+      fileName: 'report.pdf',
+      filePath: '/knowledge/base-1/raw/report.pdf'
+    })
+    expect(mockOpenPath).not.toHaveBeenCalled()
     expect(mockOpenExternal).not.toHaveBeenCalled()
   })
 
+  it('discards an older file preview request when a newer one is started', async () => {
+    const firstRequest = createDeferred<string>()
+    const secondRequest = createDeferred<string>()
+    mockIpcRequest.mockReturnValueOnce(firstRequest.promise).mockReturnValueOnce(secondRequest.promise)
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
+
+    let firstPreview!: Promise<void>
+    let secondPreview!: Promise<void>
+    act(() => {
+      firstPreview = result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/first.pdf' }))
+      secondPreview = result.current.previewSource(createFileItem({ id: 'file-2', source: '/Users/me/second.pdf' }))
+    })
+
+    secondRequest.resolve('/knowledge/base-1/raw/second.pdf')
+    await act(async () => secondPreview)
+    firstRequest.resolve('/knowledge/base-1/raw/first.pdf')
+    await act(async () => firstPreview)
+
+    expect(previewFileMock).toHaveBeenCalledTimes(1)
+    expect(previewFileMock).toHaveBeenCalledWith({
+      fileName: 'second.pdf',
+      filePath: '/knowledge/base-1/raw/second.pdf'
+    })
+  })
+
+  it('discards a deferred preview result after directory navigation', async () => {
+    const request = createDeferred<string>()
+    mockIpcRequest.mockReturnValueOnce(request.promise)
+    const { result, rerender } = renderHook(
+      ({ directoryId }: { directoryId: string | null }) => usePreviewKnowledgeSource(previewFileMock, directoryId),
+      { initialProps: { directoryId: null as string | null } }
+    )
+
+    let preview!: Promise<void>
+    act(() => {
+      preview = result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
+    })
+
+    rerender({ directoryId: 'directory-1' })
+    request.resolve('/knowledge/base-1/raw/report.pdf')
+    await act(async () => preview)
+
+    expect(previewFileMock).not.toHaveBeenCalled()
+  })
+
+  it('discards a deferred preview error after directory navigation', async () => {
+    const request = createDeferred<string>()
+    mockIpcRequest.mockReturnValueOnce(request.promise)
+    const { result, rerender } = renderHook(
+      ({ directoryId }: { directoryId: string | null }) => usePreviewKnowledgeSource(previewFileMock, directoryId),
+      { initialProps: { directoryId: null as string | null } }
+    )
+
+    let preview!: Promise<void>
+    act(() => {
+      preview = result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
+    })
+
+    rerender({ directoryId: 'directory-1' })
+    request.reject(new Error('stale failure'))
+    await act(async () => preview)
+
+    expect(loggerErrorSpy).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
   it('opens directory sources through the file path API', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
     const item = createDirectoryItem({ id: 'directory-1', source: '/Users/me/docs' })
 
     await act(async () => {
@@ -67,8 +161,30 @@ describe('usePreviewKnowledgeSource', () => {
     expect(mockOpenExternal).not.toHaveBeenCalled()
   })
 
-  it('opens url sources in the external browser', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+  it('resolves captured URL snapshots into embedded preview targets', async () => {
+    mockIpcRequest.mockResolvedValue('/knowledge/base-1/raw/drafts/../Product Docs.md')
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
+    const item = createUrlItem({
+      id: 'url-1',
+      source: 'https://example.com/product-docs',
+      relativePath: 'Product Docs.md'
+    })
+
+    await act(async () => {
+      await result.current.previewSource(item)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.get_file_path', { itemId: 'url-1' })
+    expect(previewFileMock).toHaveBeenCalledWith({
+      fileName: 'Product Docs',
+      filePath: '/knowledge/base-1/raw/Product Docs.md'
+    })
+    expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+  })
+
+  it('opens URL sources in the external browser before a snapshot is captured', async () => {
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createUrlItem({ id: 'url-1', source: 'https://example.com/article' }))
@@ -76,10 +192,12 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/article')
     expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+    expect(previewFileMock).not.toHaveBeenCalled()
   })
 
   it('sanitizes url sources before opening them', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createUrlItem({ id: 'url-1', source: ' HTTPS://Example.COM/a/../b?x=1#h ' }))
@@ -90,7 +208,7 @@ describe('usePreviewKnowledgeSource', () => {
   })
 
   it('shows an unavailable toast for non-http url sources', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createUrlItem({ id: 'url-1', source: 'mailto:test@example.com' }))
@@ -102,7 +220,7 @@ describe('usePreviewKnowledgeSource', () => {
   })
 
   it('shows an unavailable toast for invalid url sources', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createUrlItem({ id: 'url-1', source: 'not a url' }))
@@ -114,7 +232,7 @@ describe('usePreviewKnowledgeSource', () => {
   })
 
   it('opens note sources only when the source is an http url', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createNoteItem({ id: 'note-1', source: 'https://example.com/note' }))
@@ -125,7 +243,7 @@ describe('usePreviewKnowledgeSource', () => {
   })
 
   it('shows an unavailable toast for non-http note sources', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createNoteItem({ id: 'note-1', source: 'obsidian://open?vault=notes' }))
@@ -137,7 +255,7 @@ describe('usePreviewKnowledgeSource', () => {
   })
 
   it('shows an unavailable toast for notes without a previewable source', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createNoteItem({ id: 'note-1' }))
@@ -150,18 +268,48 @@ describe('usePreviewKnowledgeSource', () => {
 
   it('logs and shows a failure toast when previewing rejects', async () => {
     const previewError = new Error('open failed')
-    mockOpenPath.mockRejectedValueOnce(previewError)
-    const { result } = renderHook(() => usePreviewKnowledgeSource())
+    mockIpcRequest.mockRejectedValueOnce(previewError)
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
     await act(async () => {
       await result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
     })
 
     expect(toast.error).toHaveBeenCalledWith('预览原文失败: open failed')
+    expect(previewFileMock).not.toHaveBeenCalled()
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', previewError, {
       itemId: 'file-1',
       itemType: 'file',
       source: '/Users/me/report.pdf'
+    })
+  })
+
+  it('shows a localized warning without falling back when a captured snapshot path is unavailable', async () => {
+    const previewError = new IpcError(
+      knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE,
+      'Knowledge source path is unavailable'
+    )
+    mockIpcRequest.mockRejectedValueOnce(previewError)
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
+
+    await act(async () => {
+      await result.current.previewSource(
+        createUrlItem({
+          id: 'url-1',
+          source: 'https://example.com/product-docs',
+          relativePath: 'Product Docs.md'
+        })
+      )
+    })
+
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+    expect(previewFileMock).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', previewError, {
+      itemId: 'url-1',
+      itemType: 'url',
+      source: 'https://example.com/product-docs'
     })
   })
 })

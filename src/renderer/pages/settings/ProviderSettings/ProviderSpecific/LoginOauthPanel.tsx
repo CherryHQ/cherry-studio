@@ -105,12 +105,12 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   }
 
   return (
-    <div className="flex flex-col gap-3 pt-3.75">
+    <div className="flex flex-col gap-3">
       {loggedIn ? (
         <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground text-sm">{t(`${ns}.logged_in`)}</div>
+            <div className="text-foreground text-sm">{t(`${ns}.logged_in`)}</div>
             {showAccountId && accountId ? (
               <div className="mt-1 truncate text-foreground-muted text-xs">{t(`${ns}.account`, { accountId })}</div>
             ) : null}
@@ -124,7 +124,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground text-sm">{t(`${ns}.description`)}</div>
+              <div className="text-foreground text-sm">{t(`${ns}.description`)}</div>
               <div className="mt-1 text-foreground-muted text-xs">{t(`${ns}.description_detail`)}</div>
             </div>
           </div>

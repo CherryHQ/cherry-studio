@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
-const uninstallSkillMock = vi.hoisted(() => vi.fn())
+const refetchMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
@@ -22,8 +22,6 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
 function stubSkillRoutes() {
   skillMocks.request.mockImplementation((route: string, input: unknown) => {
     switch (route) {
-      case 'skill.uninstall':
-        return uninstallSkillMock(input)
       case 'skill.list_local':
         return listLocalSkillsMock(input)
       case 'skill.install':
@@ -36,6 +34,9 @@ function stubSkillRoutes() {
         return discoverSystemSkillsMock(input)
       case 'skill.import_system':
         return importSystemSkillMock(input)
+      case 'skill.reconcile':
+        // Fired by useReconcileSkillsOnOpen when a skill view mounts; irrelevant to these assertions.
+        return Promise.resolve(undefined)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -58,6 +59,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
+    version: null,
     sourceTags: [],
     contentHash: 'hash-1',
     isEnabled: false,
@@ -81,12 +83,12 @@ describe('useInstalledSkills', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: refetchMock,
       mutate: vi.fn()
     })
 
     invalidateMock.mockResolvedValue(undefined)
-    uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
+    refetchMock.mockResolvedValue(undefined)
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     stubSkillRoutes()
@@ -99,41 +101,63 @@ describe('useInstalledSkills', () => {
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
-  it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
-    const { result } = renderHook(() => useInstalledSkills())
+  it('reconciles the on-disk library when the agent Skills view opens, then refreshes', async () => {
+    renderHook(() => useInstalledSkills('agent-1'))
 
-    let uninstallSuccess = false
-    await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
-    })
-
-    expect(uninstallSuccess).toBe(true)
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
   })
 
-  it('does not fail uninstall when DataApi cache invalidation fails after IPC success', async () => {
-    invalidateMock.mockRejectedValueOnce(new Error('refresh failed'))
-    const { result } = renderHook(() => useInstalledSkills())
+  it('reconciles before an explicit Composer skills refresh', async () => {
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    skillMocks.request.mockClear()
+    refetchMock.mockClear()
 
-    let uninstallSuccess = false
     await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
+      await result.current.refresh()
     })
 
-    expect(uninstallSuccess).toBe(true)
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {})
+    expect(refetchMock).toHaveBeenCalledOnce()
+    expect(skillMocks.request.mock.invocationCallOrder[0]).toBeLessThan(refetchMock.mock.invocationCallOrder[0])
   })
 
-  it('logs, toasts, and rethrows uninstall failures', async () => {
+  it('keeps cached skills visible during background refresh', () => {
+    useQueryMock.mockReturnValue({
+      data: [createSkill()],
+      isLoading: false,
+      isRefreshing: true,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    })
+
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
-    uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
-    await act(async () => {
-      await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
+    expect(result.current.loading).toBe(false)
+    expect(result.current.refreshing).toBe(true)
+    expect(result.current.skills).toHaveLength(1)
+  })
+
+  it('returns a stable empty array identity while the query is in flight', () => {
+    useQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
     })
-    expect(toast.error).toHaveBeenCalledWith('uninstall failed')
+
+    const { result, rerender } = renderHook(() => useInstalledSkills('agent-1'))
+    const firstSkills = result.current.skills
+    rerender()
+
+    // A fresh `data ?? []` per render would re-register AgentComposer's skills
+    // launcher every render — an infinite render loop while /skills loads.
+    expect(result.current.skills).toBe(firstSkills)
+    expect(firstSkills).toEqual([])
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {

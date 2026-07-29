@@ -7,7 +7,7 @@ import { runPainting } from '../runPainting'
 
 /**
  * runPainting's error path is the renderer end of the "看不到报错" fix: a
- * provider/SDK failure crosses `ai.generate_image` as an `AI_REQUEST_FAILED`
+ * provider/SDK failure crosses `ai.image.generate` as an `AI_REQUEST_FAILED`
  * IpcError whose rich serialized detail (statusCode / responseBody) rides in
  * `data`. runPainting must recover that detail into the user-facing message
  * instead of collapsing it to an empty `REMOTE_ERROR`.

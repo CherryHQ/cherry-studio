@@ -50,6 +50,15 @@ describe('LocalModelsSection', () => {
     progressHandlers.length = 0
   })
 
+  it('uses the settings group surface for local model cards', async () => {
+    render(<LocalModelsSection />)
+
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2))
+    expect(embeddingCard()).toHaveStyle({
+      backgroundColor: 'var(--settings-group-background, var(--card))'
+    })
+  })
+
   it('renders live percent, and cancelling neither fails nor shows a failure notice', async () => {
     let rejectDownload: ((e: Error) => void) | undefined
     mockRequest.mockImplementation((route: string, input?: { model: string }) => {
@@ -103,7 +112,7 @@ describe('LocalModelsSection', () => {
     )
   })
 
-  it('hides the whole section once both cards report unsupported (e.g. Intel Mac)', async () => {
+  it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {
     mockRequest.mockImplementation((route: string) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'unsupported' })
       return Promise.resolve()
@@ -111,7 +120,10 @@ describe('LocalModelsSection', () => {
 
     render(<LocalModelsSection />)
 
-    // Offering a download that can only fail is worse than a brief blank section.
     await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
+    expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveStyle({
+      backgroundColor: 'var(--settings-group-background, color-mix(in srgb, var(--card) 50%, transparent))'
+    })
   })
 })

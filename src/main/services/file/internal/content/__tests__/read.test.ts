@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,7 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { read, readByPath, readChunk } = await import('../read')
+const { read, readChunk } = await import('../read')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -35,7 +35,7 @@ describe('internal/content/read', () => {
       fileRefService,
       danglingCache: {
         check: vi.fn(),
-        onFsEvent: vi.fn((p: FilePath, state: 'present' | 'missing') => {
+        onFsEvent: vi.fn((p: AbsoluteFilePath, state: 'present' | 'missing') => {
           onFsEventCalls.push({ path: p, state })
         }),
         addEntry: vi.fn(),
@@ -191,20 +191,5 @@ describe('internal/content/read', () => {
 
     await expect(readChunk(deps, id, 0, 4)).rejects.toThrow(/ENOENT/)
     expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
-  })
-
-  it('readByPath bypasses entry resolution', async () => {
-    const file = path.join(tmp, 'direct.txt') as FilePath
-    await writeFile(file, 'direct content', 'utf-8')
-    const result = await readByPath(deps, file)
-    expect(result.content).toBe('direct content')
-  })
-
-  it('proves CanonicalExternalPath brand is unused (read uses raw FilePath)', () => {
-    // Sanity: external-path lookup goes through fileEntryService.findByExternalPath,
-    // not through internal/content/read. This test exists to prevent accidental
-    // signature drift between modules.
-    const _brand: CanonicalExternalPath = '/tmp/x' as CanonicalExternalPath
-    expect(typeof _brand).toBe('string')
   })
 })

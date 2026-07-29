@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { decodeTextBufferIfText } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -14,14 +15,12 @@ import { FILE_TYPE } from '@shared/types/file'
 import { KB, MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import chardet from 'chardet'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
@@ -1027,25 +1026,22 @@ class FileStorage {
 
   private _isTextFile = async (filePath: string): Promise<boolean> => {
     try {
-      const isBinary = await isBinaryFile(filePath)
-      if (isBinary) {
-        return false
-      }
-
       const length = 8 * KB
+      const maxCharacterBytes = 4
       const fileHandle = await fs.promises.open(filePath, 'r')
-      const buffer = Buffer.alloc(length)
-      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
+      const buffer = Buffer.alloc(length + maxCharacterBytes)
+      const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
       await fileHandle.close()
 
-      const sampleBuffer = buffer.subarray(0, bytesRead)
-      const matches = chardet.analyse(sampleBuffer)
+      const firstEnd = Math.min(bytesRead, length)
+      const lastEnd = Math.min(bytesRead, length + maxCharacterBytes)
 
-      // 如果检测到的编码置信度较高，认为是文本文件
-      if (matches.length > 0 && matches[0].confidence > 0.8) {
-        return true
+      // A fixed byte window can end midway through a UTF-8, GB18030, or other
+      // multibyte character. Try the next few byte boundaries so valid text is
+      // not rejected solely because the sample ended inside that character.
+      for (let end = firstEnd; end <= lastEnd; end++) {
+        if (decodeTextBufferIfText(buffer.subarray(0, end)) !== null) return true
       }
-
       return false
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)

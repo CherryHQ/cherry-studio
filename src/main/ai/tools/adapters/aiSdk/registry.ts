@@ -66,14 +66,11 @@ export class ToolRegistry {
   selectActive(scope: ToolApplyScope): ToolEntry[] {
     const out: ToolEntry[] = []
     for (const entry of this.getAll()) {
-      if (!entry.applies) {
-        out.push(entry)
-        continue
-      }
       try {
-        if (entry.applies(scope)) out.push(entry)
+        if (entry.applies && !entry.applies(scope)) continue
+        out.push(entry.buildTool ? { ...entry, tool: entry.buildTool(scope) } : entry)
       } catch (err) {
-        logger.warn(`tool ${entry.name}.applies threw; treating as inactive`, err as Error)
+        logger.warn(`tool ${entry.name} request materialization threw; treating as inactive`, err as Error)
       }
     }
     return out

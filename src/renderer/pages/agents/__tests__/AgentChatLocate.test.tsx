@@ -122,6 +122,11 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
     <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
       {open ? children : null}
     </section>
+  ),
+  PersistentRightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
+      {children}
+    </section>
   )
 }))
 
@@ -200,7 +205,19 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: [{ id: 'agent-1', model: 'provider:model-1' }],
     isLoading: false
+  }),
+  useUpdateAgent: () => ({ updateModel: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    isLoading: false
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceWarning: () => undefined
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -235,7 +252,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
-  useActiveSession: () => activeSessionMocks.result
+  useActiveSession: () => activeSessionMocks.result,
+  useUpdateSession: () => ({ updateSession: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -266,6 +284,8 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))
 
@@ -279,7 +299,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
+  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -357,6 +377,20 @@ describe('AgentChat locate pending message', () => {
     expect(agentSessionPartsMocks.loadOlder).not.toHaveBeenCalled()
     expect(agentSessionPartsMocks.locateAgentMessageInList).not.toHaveBeenCalled()
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
+  })
+
+  it('renders the navbar and loading center while the active session is resolving', () => {
+    render(
+      <AgentChat
+        activeSession={undefined}
+        activeSessionLoading={true}
+        activeSessionSource="pending"
+        showResourceListControls
+      />
+    )
+
+    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
+    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
   })
 
   it('loads older session history for pending locate and clears it only after the target appears', async () => {
@@ -456,8 +490,7 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    // No reveal request: the persistent branch must seed `open` directly from sessionPaneOpen
-    // (AgentChatSessionFrame's defaultOpen). Dropping that defaultOpen would render this closed.
+    // No reveal request: the stable AgentChat shell seeds `open` directly from sessionPaneOpen.
     expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
@@ -479,11 +512,11 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    // The missing-agent selection branch seeds the pane open from the persisted sessionPaneOpen.
-    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+    // The stable shell is seeded once and survives the capability readiness handoff.
+    const rightPane = screen.getByTestId('agent-right-pane')
+    expect(rightPane).toHaveAttribute('data-open', 'true')
 
-    // Hand off to the persisted session: the AgentRightPane/Shell remounts under a different
-    // branch, so it must re-seed `open` from sessionPaneOpen rather than slamming shut.
+    // Hand off to the persisted session without replacing the Shell/Viewport owner.
     rerender(
       <AgentChat
         {...activeSessionProps()}
@@ -497,5 +530,6 @@ describe('AgentChat locate pending message', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(screen.getByTestId('agent-right-pane')).toBe(rightPane)
   })
 })

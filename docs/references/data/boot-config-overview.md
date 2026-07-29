@@ -70,10 +70,13 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 
 ### Error Handling
 
-- Tracks load errors: `parse_error` (invalid JSON) or `read_error` (file inaccessible)
+- Tracks load errors: `parse_error` (invalid JSON), `read_error` (file inaccessible), or `validation_error` (valid JSON with values failing the zod schema)
 - **Missing file** (first launch): falls back to `DefaultBootConfig` — this is normal
-- **Corrupt file**: records the error via `loadError`. The app should check `hasLoadError()` and **abort startup** rather than continue with potentially incorrect configuration
+- **Corrupt file** (`parse_error` / `read_error`): records the error via `loadError`; all values fall back to defaults
+- **Invalid values** (`validation_error`): every present key is validated against `bootConfigSchema` on load; invalid keys fall back to defaults (listed in `loadError.invalidKeys`) while valid keys are kept. A non-object file root is also a `validation_error`
+- `Application.bootstrap()` checks `hasLoadError()` before any services start and shows a recovery dialog. Validation errors offer "Repair and Restart" (`repair()` — rewrite the file keeping the valid keys); parse errors offer "Reset and Restart" (`reset()` — delete the file); read errors offer plain "Restart"
 - Errors can be inspected via `hasLoadError()` / `getLoadError()` / `clearLoadError()`
+- `set()` throws on values failing the schema before any state change — the single runtime enforcement point covering typed callers, the Preference IPC route, and `BootConfigMigrator` (which skips invalid v1 values at prepare time)
 
 ## Architecture
 
@@ -108,7 +111,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`. Long-term, BootConfig will fully replace the legacy `config/config.json` — the follow-up PR will rewire `initAppDataDir()` to read `app.user_data_path` from BootConfig instead of parsing the legacy file directly.
+BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; preboot reads it before the path registry is frozen. User-initiated directory changes are first written to `temp.user_data_relocation`, then the next launch executes them during preboot (`src/main/services/userDataRelocation/`), copying or switching the Electron `userData` directory and committing `app.user_data_path`.
 
 ## Access Convention
 
@@ -120,6 +123,8 @@ BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.j
 | Internal `temp.*` keys (any phase) | `bootConfigService.get/set` / `.onChange()`       | Never exposed via PreferenceService — see below  |
 
 **Rule:** Once the lifecycle is running, **always** access **public** boot config values through PreferenceService. Direct `bootConfigService` usage is reserved for two cases: early boot code, and the internal `temp.*` namespace (below).
+
+The userData relocation request writes the internal `temp.user_data_relocation` key directly through `bootConfigService`, then calls `persist()` before relaunch so a failed write rejects the request.
 
 For detailed usage of `usePreference` and `preferenceService`, see [Preference Usage Guide](./preference-usage.md).
 
@@ -185,7 +190,7 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 | ------------------------------------------------------ | -------------------------------------------------------------- |
 | `src/main/data/bootConfig/BootConfigService.ts`        | Core service — sync load, debounced save, change notifications |
 | `src/main/data/bootConfig/types.ts`                    | `BootConfigLoadError` type definition                          |
-| `src/shared/data/bootConfig/bootConfigSchemas.ts` | `BootConfigSchema` interface and `DefaultBootConfig`           |
+| `src/shared/data/bootConfig/bootConfigSchemas.ts` | `bootConfigSchema` (zod, single source), inferred `BootConfigSchema` type, `DefaultBootConfig` |
 | `src/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `Public`/`InternalBootConfigKey`, `BootConfigPreferenceKeys` mapped type |
 | `src/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing + `isPublicBootConfigKey` whitelist guard |
 | `src/main/data/PreferenceService.ts`                   | Routes `BootConfig.*` keys to `bootConfigService`              |

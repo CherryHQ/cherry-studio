@@ -10,9 +10,14 @@ import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
+const mockUseSharedCacheValue = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
+}))
+
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  useSharedCacheValue: (...args: unknown[]) => mockUseSharedCacheValue(...args)
 }))
 
 vi.mock('@renderer/utils/time', () => ({
@@ -211,6 +216,7 @@ describe('KnowledgeItemRow', () => {
       isLoading: false,
       error: undefined
     })
+    mockUseSharedCacheValue.mockReturnValue(undefined)
   })
 
   it('renders the file title from the knowledge item path', () => {
@@ -270,6 +276,38 @@ describe('KnowledgeItemRow', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'reading' })} {...defaultHandlers} />)
 
     expect(screen.getByText('文件处理')).toBeInTheDocument()
+  })
+
+  it('shows the embedding percentage next to the status label while embedding', () => {
+    mockUseSharedCacheValue.mockReturnValue(42)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'embedding' })} {...defaultHandlers} />)
+
+    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.embedding_progress.file-1')
+    expect(screen.getByText('向量化中 42%')).toBeInTheDocument()
+  })
+
+  it('shows the bare embedding label while the job has not published a percentage yet', () => {
+    // Read-only subscription: an absent key reads as undefined (e.g. before the
+    // first batch lands, or for a run that reuses every stored vector).
+    mockUseSharedCacheValue.mockReturnValue(undefined)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'embedding' })} {...defaultHandlers} />)
+
+    expect(screen.getByText('向量化中')).toBeInTheDocument()
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+  })
+
+  it('does not subscribe to the progress key at all for non-embedding rows', () => {
+    // The subscription lives in a child only mounted while embedding, so ordinary
+    // completed/failed rows never touch (or create) the shared-cache key.
+    mockUseSharedCacheValue.mockReturnValue(42)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'completed' })} {...defaultHandlers} />)
+
+    expect(screen.getByText('就绪')).toBeInTheDocument()
+    expect(screen.queryByText(/42%/)).not.toBeInTheDocument()
+    expect(mockUseSharedCacheValue).not.toHaveBeenCalled()
   })
 
   it('calls onClick when the row is clicked', () => {

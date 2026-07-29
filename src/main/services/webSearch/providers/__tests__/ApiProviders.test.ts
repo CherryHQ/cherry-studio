@@ -902,7 +902,7 @@ describe('main web search API providers', () => {
     await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow('HTTP error: 500')
   })
 
-  it('matches Bocha request and normalized response snapshots from fixtures', async () => {
+  it('accepts nullable Bocha fields and normalizes content fallbacks from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 
     const provider = createProviderDriver(
@@ -951,6 +951,24 @@ describe('main web search API providers', () => {
               "sourceInput": "hello",
               "title": "Bocha Title",
               "url": "https://bocha.example/result",
+            },
+            {
+              "content": "Bocha Summary Content",
+              "sourceInput": "hello",
+              "title": "Bocha Summary Title",
+              "url": "https://bocha.example/summary-result",
+            },
+            {
+              "content": "Bocha Preferred Summary Content",
+              "sourceInput": "hello",
+              "title": "Bocha Preferred Summary Title",
+              "url": "https://bocha.example/preferred-summary-result",
+            },
+            {
+              "content": "",
+              "sourceInput": "hello",
+              "title": "Bocha Empty Content Title",
+              "url": "https://bocha.example/empty-content-result",
             },
           ],
         },
@@ -1137,7 +1155,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1192,6 +1210,27 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it.each([
+    { apiHost: '', code: 'api_host_missing' },
+    { apiHost: 'not-a-url', code: 'api_host_invalid' }
+  ])('rejects Exa MCP API Host configuration before fetching: $code', async ({ apiHost, code }) => {
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('skips malformed Exa MCP SSE frames and keeps parsing later frames', async () => {
     fetchMock.mockResolvedValue(
       createTextResponse(
@@ -1210,7 +1249,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1241,7 +1280,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1272,7 +1311,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1347,7 +1386,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 

@@ -65,8 +65,7 @@ export function generateIconIndex(opts: {
   const cnImport = hasDark || usesCurrentColor ? `import { cn } from '../../../../lib/utils'\n` : ''
 
   const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
-${avatarImport}${darkImport}
-import { ${lightName} } from './light'
+${avatarImport}${darkImport}import { ${lightName} } from './light'
 
 const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <${lightName} {...props} className={${lightClassName}} />
@@ -89,7 +88,7 @@ export default ${colorName}Icon
 export function generateAvatar(opts: {
   outPath: string
   colorName: string
-  variant: 'full-bleed' | 'padded'
+  variant: 'full-bleed' | 'neutral-background'
   hasDark: boolean
 }): void {
   const { outPath, colorName, variant, hasDark } = opts
@@ -98,16 +97,17 @@ export function generateAvatar(opts: {
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
 
   sf.addImportDeclaration({
-    moduleSpecifier: '@cherrystudio/ui/lib/utils',
-    namedImports: ['cn']
-  })
-
-  sf.addImportDeclaration({
     moduleSpecifier: '@cherrystudio/ui/components/primitives/avatar',
     namedImports: ['Avatar', 'AvatarFallback']
   })
 
   sf.addImportDeclaration({
+    moduleSpecifier: '@cherrystudio/ui/lib/utils',
+    namedImports: ['cn']
+  })
+
+  sf.addImportDeclaration({
+    leadingTrivia: '\n',
     moduleSpecifier: '../../types',
     namedImports: [{ name: 'IconAvatarProps', isTypeOnly: true }]
   })
@@ -124,18 +124,19 @@ export function generateAvatar(opts: {
     namedImports: [`${colorName}Light`]
   })
 
-  const iconSize = variant === 'full-bleed' ? 'size * 0.82' : 'size * 0.7'
-  const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
+  const fallbackClasses = ['text-foreground', variant === 'neutral-background' ? 'bg-background' : '']
+    .filter(Boolean)
+    .join(' ')
   const iconRender = hasDark
     ? `<${colorName}Light
           className="dark:hidden"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />
         <${colorName}Dark
           className="hidden dark:block"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />`
-    : `<${colorName}Light style={{ width: ${iconSize}, height: ${iconSize} }} />`
+    : `<${colorName}Light style={{ width: size, height: size }} />`
 
   sf.addFunction({
     isExported: true,

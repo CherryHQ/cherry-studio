@@ -1,26 +1,31 @@
-import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { Badge, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
+  getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
+  createResourcePaneCapability,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
-  ResourcePanePanel,
-  ResourcePaneProvider,
-  ResourcePaneTab,
-  Shell,
-  useResourcePane,
-  useShellActions,
-  useShellState
+  type RightPanelCapability,
+  type RightPanelComponentProps,
+  type RightPanelComposition,
+  RightPanelHeaderControls,
+  RightPanelProvider,
+  type RightPanelReadiness,
+  RightPanelShortcut,
+  RightPanelViewport,
+  useRightPanelActions,
+  useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import {
-  type ArtifactFileTreeModel,
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS,
   isSelectableFileNode,
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
@@ -31,13 +36,17 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
-import { useCommandHandler } from '@renderer/hooks/command'
-import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { useToolResult } from '@renderer/hooks/useToolResult'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
+import { isDeferredToolOutput } from '@shared/ai/transport'
+import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
@@ -51,7 +60,7 @@ import {
   Waypoints
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
@@ -64,25 +73,51 @@ import {
   buildAgentToolFlowProjection
 } from './agentRightPaneProjection'
 
-// ── Agent-specific composition over the generic RightPane shell ─────────────
-// Owns the agent business logic — subagent tool-flow tabs, task/status
-// projections, agent session metadata — and feeds it into Shell.* slots.
+// ── Agent-specific composition over the generic right panel ─────────────────
 
 const FLOW_TAB_PREFIX = 'flow:'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
-function getFlowTabValue(toolCallId: string): string {
-  return `${FLOW_TAB_PREFIX}${toolCallId}`
+function containsFile(root: TreeDirRoot | null): boolean {
+  let found = false
+  root?.walk((node) => {
+    if (!node.isTreeFile()) return
+    found = true
+    return false
+  })
+  return found
 }
 
-function getFlowToolCallId(tab: string): string | undefined {
-  return tab.startsWith(FLOW_TAB_PREFIX) ? tab.slice(FLOW_TAB_PREFIX.length) : undefined
+function getFlowTabValue(toolCallId: string): string {
+  return `${FLOW_TAB_PREFIX}${toolCallId}`
 }
 
 function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
   const title = input.title?.trim() || input.toolName?.trim() || input.toolCallId
   return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
+}
+
+function findDeferredToolResult(partsByMessageId: Record<string, CherryMessagePart[]>, toolCallId: string | undefined) {
+  if (!toolCallId) return undefined
+
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const source = part as unknown as { toolCallId?: unknown; output?: unknown }
+      if (source.toolCallId !== toolCallId) continue
+      return isDeferredToolOutput(source.output) ? source.output.$deferredToolResult : undefined
+    }
+  }
+
+  return undefined
+}
+
+function isSameFileSelection(
+  current: ArtifactPaneFileSelection | null,
+  next: ArtifactPaneFileSelection | null
+): boolean {
+  if (!current || !next) return current === next
+  return current.workspacePath === next.workspacePath && current.filePath === next.filePath
 }
 
 interface AgentFlowTab {
@@ -99,115 +134,187 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
-  filesEnabled?: boolean
-  statusEnabled?: boolean
+  conversationState: AgentConversationState
+  workspaceId?: string
+  workspacePath?: string
+  workspaceType?: AgentWorkspaceType
 }
 
-interface AgentRightPaneState {
-  flowTabs: AgentFlowTab[]
+interface AgentRightPaneRuntime {
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
+}
+
+interface AgentRightPaneFileState {
+  editMode: AgentFileEditorMode
+  fileSession: FileEditSession
   previewFileSelection: ArtifactPaneFileSelection | null
   selectedFile: string | null
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
-  workspaceId?: string
   workspacePath?: string
 }
 
+type AgentFileEditorMode = 'preview' | 'edit'
+export type AgentFileNavigationRequest = (transition: () => void) => void
+
 interface AgentRightPaneActions {
+  canOpenAgentToolFlow: boolean
+  canOpenArtifactFile: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
   openArtifactFile: (path: string) => void
   closeFilePreview: () => void
-  closeFlowTab: (toolCallId: string) => void
+  setFileEditMode: (mode: AgentFileEditorMode) => void
   setSelectedFile: (file: string | null) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
 }
 
-interface AgentRightPaneContextValue {
-  state: AgentRightPaneState
-  actions: AgentRightPaneActions
+interface AgentRightPanelScope {
+  developerMode: boolean
+  hasSystemWorkspaceFiles: boolean
+  filesTitle: string
+  flowTab: AgentFlowTab | null
   meta: AgentRightPaneMeta
+  resourcePane: ResourcePaneConfig | null
+  statusTitle: string
+  traceTitle: string
 }
 
-interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
+type AgentConversationState = 'pending' | 'ready' | 'unavailable'
+
+interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversationState'> {
   children: ReactNode
-  /** In classic layout the session list mounts as the first right-pane tab; null leaves files/status/flow. */
+  conversationState?: AgentConversationState
+  /** Controls effective presentation without clearing panel intent. */
+  present?: boolean
   resourcePane?: ResourcePaneConfig | null
-  revealRequest?: ResourceListRevealRequest
   defaultOpen?: boolean
-  /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
   onOpenChange?: (open: boolean) => void
-  workspaceId?: string
-  workspacePath?: string
+  onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
+  userOpenIntentSeq?: number
+  revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
-const AgentRightPaneContext = createContext<AgentRightPaneContextValue | null>(null)
-const AgentRightPaneProjectionSourceContext = createContext<{
-  messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
-} | null>(null)
-const AgentRightPaneStatusContext = createContext<AgentRightPaneStatus | null>(null)
-const EMPTY_AGENT_RIGHT_PANE_STATUS: AgentRightPaneStatus = {
-  tasks: [],
-  completedTaskCount: 0,
-  totalTaskCount: 0,
-  subagents: [],
-  artifacts: []
-}
+const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
+const AgentRightPaneRuntimeContext = createContext<AgentRightPaneRuntime | null>(null)
+const AgentRightPaneFileStateContext = createContext<AgentRightPaneFileState | null>(null)
+const AgentRightPaneActionsContext = createContext<AgentRightPaneActions | null>(null)
+const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | null>(null)
 
-function useAgentRightPane(): AgentRightPaneContextValue {
-  const value = use(AgentRightPaneContext)
-  if (!value) throw new Error('useAgentRightPane must be used within <AgentRightPane>')
+function useAgentRightPaneMeta(): AgentRightPaneMeta {
+  const value = use(AgentRightPaneMetaContext)
+  if (!value) throw new Error('useAgentRightPaneMeta must be used within <AgentRightPane.Scope>')
   return value
 }
 
-function useAgentRightPaneProjectionSource() {
-  const value = use(AgentRightPaneProjectionSourceContext)
-  if (!value) throw new Error('useAgentRightPaneProjectionSource must be used within <AgentRightPane>')
+function useAgentRightPaneRuntime(): AgentRightPaneRuntime {
+  const value = use(AgentRightPaneRuntimeContext)
+  if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane.Scope>')
   return value
 }
 
-function useAgentRightPaneStatus(): AgentRightPaneStatus {
-  const value = use(AgentRightPaneStatusContext)
-  if (!value) throw new Error('useAgentRightPaneStatus must be used within <AgentRightPaneStatusProjectionProvider>')
-  return value
-}
-
-function AgentRightPaneStatusProjectionProvider({ children }: { children: ReactNode }) {
-  const { messages, partsByMessageId } = useAgentRightPaneProjectionSource()
-  const { meta } = useAgentRightPane()
-  const status = useMemo(
-    () =>
-      meta.statusEnabled === false
-        ? EMPTY_AGENT_RIGHT_PANE_STATUS
-        : buildAgentRightPaneStatus(messages, partsByMessageId),
-    [messages, meta.statusEnabled, partsByMessageId]
-  )
-
-  return <AgentRightPaneStatusContext value={status}>{children}</AgentRightPaneStatusContext>
-}
-
-// The workspace file-tree model lives in its own context so its frequent
-// updates (every lazy-load tick produces a fresh `filteredTree`) only re-render
-// the files panel, not the status/flow/info panels reading the main context.
-const AgentFileTreeModelContext = createContext<ArtifactFileTreeModel | null>(null)
-
-function useAgentFileTreeModel(): ArtifactFileTreeModel {
-  const value = use(AgentFileTreeModelContext)
-  if (!value) throw new Error('useAgentFileTreeModel must be used within <AgentRightPane>')
+function useAgentRightPaneFileState(): AgentRightPaneFileState {
+  const value = use(AgentRightPaneFileStateContext)
+  if (!value) throw new Error('useAgentRightPaneFileState must be used within <AgentRightPane.Scope>')
   return value
 }
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
-  return useAgentRightPane().actions
+  const value = use(AgentRightPaneActionsContext)
+  if (!value) throw new Error('useAgentRightPaneActions must be used within <AgentRightPane.Scope>')
+  return value
+}
+
+export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | null {
+  return use(AgentFileNavigationContext)
+}
+
+interface AgentRightPaneActionsProviderProps {
+  children: ReactNode
+  conversationState: AgentConversationState
+  sessionId?: string
+  workspacePath?: string
+  replaceFlowTab: (input: AgentToolFlowOpenInput) => void
+  closeFilePreview: () => void
+  requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
+  selectFile: (file: string | null) => void
+  setFileEditMode: (mode: AgentFileEditorMode) => void
+  setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
+  setFileTreeSearchKeyword: (keyword: string) => void
+  workspaceCurrent: boolean
+}
+
+function AgentRightPaneActionsProvider({
+  children,
+  conversationState,
+  sessionId,
+  workspacePath,
+  replaceFlowTab,
+  closeFilePreview,
+  requestFileSelection,
+  selectFile,
+  setFileEditMode,
+  setFileTreeExpandedIds,
+  setFileTreeSearchKeyword,
+  workspaceCurrent
+}: AgentRightPaneActionsProviderProps) {
+  const panelActions = useRightPanelActions()
+  const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
+  const openAgentToolFlow = useCallback(
+    (input: AgentToolFlowOpenInput) => {
+      if (!canOpenAgentToolFlow) return
+      replaceFlowTab(input)
+      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
+    },
+    [canOpenAgentToolFlow, panelActions, replaceFlowTab]
+  )
+  const openArtifactFile = useCallback(
+    (path: string) => {
+      if (!canOpenArtifactFile) return
+      const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      if (!selection) return
+      requestFileSelection(selection)
+      panelActions.tryOpen('files', { userInitiated: true })
+    },
+    [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
+  )
+  const actions = useMemo<AgentRightPaneActions>(
+    () => ({
+      canOpenAgentToolFlow,
+      canOpenArtifactFile,
+      openAgentToolFlow,
+      openArtifactFile,
+      closeFilePreview,
+      setFileEditMode,
+      setSelectedFile: selectFile,
+      setFileTreeExpandedIds,
+      setFileTreeSearchKeyword
+    }),
+    [
+      canOpenAgentToolFlow,
+      canOpenArtifactFile,
+      closeFilePreview,
+      openAgentToolFlow,
+      openArtifactFile,
+      selectFile,
+      setFileEditMode,
+      setFileTreeExpandedIds,
+      setFileTreeSearchKeyword
+    ]
+  )
+
+  return <AgentRightPaneActionsContext value={actions}>{children}</AgentRightPaneActionsContext>
 }
 
 function AgentRightPaneStateProvider({
   children,
   workspaceId,
   workspacePath,
+  workspaceType,
   messages,
   partsByMessageId,
   sessionId,
@@ -216,217 +323,310 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
-  filesEnabled = true,
-  statusEnabled = true
-}: AgentRightPaneProviderProps) {
-  const shellState = useShellState()
-  const { activeTab } = shellState
-  const { openTab } = useShellActions()
-  const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
+  conversationState = 'ready',
+  present = true,
+  resourcePane = null,
+  defaultOpen = false,
+  onOpenChange,
+  onFileNavigationRequestChange,
+  userOpenIntentSeq,
+  revealRequest
+}: AgentRightPaneScopeProps) {
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tab: AgentFlowTab | null }>(() => ({
+    sessionId,
+    tab: null
+  }))
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
-  const previousWorkspaceKeyRef = useRef(workspaceKey)
-  const lastSelectableFileRef = useRef<string | null>(null)
-  const fileTreeModelOpen = filesEnabled !== false && shellState.open && activeTab === 'files'
+  const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const pendingFileTransitionRef = useRef<(() => void) | null>(null)
+  const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
+  // External route/session changes can update props before this subtree gets a
+  // chance to confirm. Keep the file tree and editor on one committed workspace
+  // until the transition is accepted so a new tree can never write an old path.
+  const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
+  const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
+  const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+  const editPath =
+    editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
+  const fileSession = useFileEditSession(editPath)
+  const discardFileDraft = fileSession.discard
+  const systemWorkspacePath = workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM ? workspacePath : undefined
+  const { root: systemWorkspaceRoot, version: systemWorkspaceTreeVersion } = useDirectoryTree(
+    systemWorkspacePath,
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS
+  )
+  const hasSystemWorkspaceFiles = useMemo(() => {
+    void systemWorkspaceTreeVersion
+    return containsFile(systemWorkspaceRoot)
+  }, [systemWorkspaceRoot, systemWorkspaceTreeVersion])
 
-  // Built once here (the provider survives the Host↔Overlay maximize swap), so
-  // maximize/minimize no longer remounts + rematerializes the workspace tree.
-  const fileTreeModel = useArtifactFileTreeModel({
-    workspacePath,
-    treeOpen: fileTreeModelOpen,
-    expandedIds: fileTreeExpandedIds,
-    searchKeyword: fileTreeSearchKeyword,
-    enableFileSearch: true,
-    selectedFile,
-    onExpandedIdsChange: setFileTreeExpandedIds
-  })
-  // Stable callback for effect deps (the model object itself is new each render).
-  const { resetLazyChildren: resetFileTreeLazyChildren } = fileTreeModel
+  useEffect(() => {
+    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
+  }, [sessionId])
 
-  const openAgentToolFlow = useCallback(
+  const requestFileTransition = useCallback(
+    (transition: () => void) => {
+      if (!fileSession.isDirty) {
+        transition()
+        return
+      }
+      pendingFileTransitionRef.current = transition
+      setShowDirtyLeaveConfirmation(true)
+    },
+    [fileSession.isDirty]
+  )
+
+  useLayoutEffect(() => {
+    onFileNavigationRequestChange?.(requestFileTransition)
+    return () => onFileNavigationRequestChange?.(null)
+  }, [onFileNavigationRequestChange, requestFileTransition])
+
+  const handleDirtyLeaveConfirmationChange = useCallback((open: boolean) => {
+    setShowDirtyLeaveConfirmation(open)
+    if (!open) pendingFileTransitionRef.current = null
+  }, [])
+
+  const handleDiscardAndContinue = useCallback(() => {
+    const transition = pendingFileTransitionRef.current
+    pendingFileTransitionRef.current = null
+    discardFileDraft()
+    transition?.()
+    setShowDirtyLeaveConfirmation(false)
+  }, [discardFileDraft])
+
+  // Every selection entry point (tree, artifact link, close, watcher cleanup)
+  // lands here, so leaving a dirty edit path always requires confirmation.
+  const requestFileSelection = useCallback(
+    (selection: ArtifactPaneFileSelection | null) => {
+      if (isSameFileSelection(previewFileSelection, selection)) return
+      requestFileTransition(() => {
+        setEditMode('preview')
+        setPreviewFileSelection(selection)
+        setSelectedFile(selection && selection.workspacePath === fileWorkspace.path ? selection.filePath : null)
+      })
+    },
+    [fileWorkspace.path, previewFileSelection, requestFileTransition]
+  )
+
+  const requestFileEditMode = useCallback(
+    (mode: AgentFileEditorMode) => {
+      if (mode === editMode) return
+      if (mode === 'preview') {
+        requestFileTransition(() => setEditMode(mode))
+        return
+      }
+      setEditMode(mode)
+    },
+    [editMode, requestFileTransition]
+  )
+
+  const replaceFlowTab = useCallback(
     (input: AgentToolFlowOpenInput) => {
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
         title: getFlowTabTitle(input)
       }
-      setFlowTabs((currentTabs) => {
-        if (!currentTabs.some((tab) => tab.toolCallId === input.toolCallId)) return [...currentTabs, nextTab]
-        return currentTabs.map((tab) => (tab.toolCallId === input.toolCallId ? { ...tab, ...nextTab } : tab))
-      })
-      openTab(getFlowTabValue(input.toolCallId))
+      setFlowTabState({ sessionId, tab: nextTab })
     },
-    [openTab]
-  )
-  const openArtifactFile = useCallback(
-    (path: string) => {
-      const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      if (!selection) return
-      setPreviewFileSelection(selection)
-      if (selection.workspacePath === workspacePath) {
-        setSelectedFile(selection.filePath)
-      } else {
-        setSelectedFile(null)
-      }
-      openTab('files')
-    },
-    [openTab, workspacePath]
+    [sessionId]
   )
 
   const selectFile = useCallback(
     (file: string | null) => {
-      setPreviewFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
-      setSelectedFile(file)
+      requestFileSelection(file && fileWorkspace.path ? { workspacePath: fileWorkspace.path, filePath: file } : null)
     },
-    [workspacePath]
+    [fileWorkspace.path, requestFileSelection]
   )
 
-  useEffect(() => {
-    if (previousWorkspaceKeyRef.current === workspaceKey) return
-    previousWorkspaceKeyRef.current = workspaceKey
-    setSelectedFile(null)
-    setPreviewFileSelection(null)
-    setFileTreeExpandedIds(new Set())
-    setFileTreeSearchKeyword('')
-    lastSelectableFileRef.current = null
-    // The lazy-children map now lives in the surviving provider, so its reset on
-    // workspace change must be explicit (previously it rode the pane remount).
-    resetFileTreeLazyChildren()
-  }, [resetFileTreeLazyChildren, workspaceKey])
-
-  // Drop a selection that no longer resolves to a file in the loaded tree
-  // (e.g. the watcher reported it removed).
-  useEffect(() => {
-    if (!selectedFile || !fileTreeModel.hasLoaded) {
-      if (!selectedFile) lastSelectableFileRef.current = null
-      return
-    }
-    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) {
-      lastSelectableFileRef.current = selectedFile
-      return
-    }
-    if (lastSelectableFileRef.current !== selectedFile) return
-    if (
-      previewFileSelection &&
-      previewFileSelection.workspacePath === workspacePath &&
-      previewFileSelection.filePath === selectedFile
-    ) {
+  useLayoutEffect(() => {
+    if (fileWorkspace.key === workspaceKey) return
+    const commitWorkspace = () => {
+      setFileWorkspace({ key: workspaceKey, path: workspacePath })
+      setEditMode('preview')
+      setSelectedFile(null)
       setPreviewFileSelection(null)
+      setFileTreeExpandedIds(new Set())
+      setFileTreeSearchKeyword('')
     }
-    lastSelectableFileRef.current = null
-    setSelectedFile(null)
-  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, previewFileSelection, selectedFile, workspacePath])
-  const closeFilePreview = useCallback(() => {
-    setPreviewFileSelection(null)
-    setSelectedFile(null)
-  }, [])
-  const closeFlowTab = useCallback(
-    (toolCallId: string) => {
-      setFlowTabs((currentTabs) => currentTabs.filter((tab) => tab.toolCallId !== toolCallId))
-      if (getFlowToolCallId(activeTab) === toolCallId) openTab('files')
-    },
-    [activeTab, openTab]
-  )
+    if (!fileSession.isDirty) {
+      pendingFileTransitionRef.current = null
+      setShowDirtyLeaveConfirmation(false)
+      commitWorkspace()
+      return
+    }
+    requestFileTransition(commitWorkspace)
+  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
 
-  const value = useMemo<AgentRightPaneContextValue>(
+  const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
+
+  const fileState = useMemo<AgentRightPaneFileState>(
     () => ({
-      state: {
-        flowTabs,
-        previewFileSelection,
-        selectedFile,
-        fileTreeExpandedIds,
-        fileTreeSearchKeyword,
-        workspaceId,
-        workspacePath
-      },
-      actions: {
-        openAgentToolFlow,
-        openArtifactFile,
-        closeFilePreview,
-        closeFlowTab,
-        setSelectedFile: selectFile,
-        setFileTreeExpandedIds,
-        setFileTreeSearchKeyword
-      },
-      meta: {
-        sessionId,
-        sessionName,
-        traceId,
-        agentId,
-        agentName,
-        agentAvatar,
-        filesEnabled,
-        statusEnabled
-      }
+      editMode,
+      fileSession,
+      previewFileSelection,
+      selectedFile,
+      fileTreeExpandedIds,
+      fileTreeSearchKeyword,
+      workspacePath: fileWorkspace.path
+    }),
+    [
+      editMode,
+      fileSession,
+      fileTreeExpandedIds,
+      fileTreeSearchKeyword,
+      fileWorkspace.path,
+      previewFileSelection,
+      selectedFile
+    ]
+  )
+  const meta = useMemo<AgentRightPaneMeta>(
+    () => ({
+      sessionId,
+      sessionName,
+      traceId,
+      agentId,
+      agentName,
+      agentAvatar,
+      conversationState,
+      workspaceId,
+      workspacePath,
+      workspaceType
     }),
     [
       agentAvatar,
       agentId,
       agentName,
-      closeFilePreview,
-      closeFlowTab,
-      fileTreeExpandedIds,
-      fileTreeSearchKeyword,
-      filesEnabled,
-      flowTabs,
-      openArtifactFile,
-      openAgentToolFlow,
-      previewFileSelection,
-      selectFile,
-      selectedFile,
+      conversationState,
       sessionId,
       sessionName,
-      statusEnabled,
       traceId,
       workspaceId,
-      workspacePath
+      workspacePath,
+      workspaceType
     ]
   )
-
-  const projectionSource = useMemo(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+  const scope = useMemo<AgentRightPanelScope>(
+    () => ({
+      developerMode: enableDeveloperMode,
+      hasSystemWorkspaceFiles,
+      filesTitle: t('agent.right_pane.tabs.files'),
+      flowTab,
+      meta,
+      resourcePane,
+      statusTitle: t('agent.right_pane.tabs.status'),
+      traceTitle: t('trace.label')
+    }),
+    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
+  )
 
   return (
-    <AgentRightPaneProjectionSourceContext value={projectionSource}>
-      <AgentRightPaneContext value={value}>
-        <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
-      </AgentRightPaneContext>
-    </AgentRightPaneProjectionSourceContext>
+    <AgentFileNavigationContext value={requestFileTransition}>
+      <AgentRightPaneMetaContext value={meta}>
+        <AgentRightPaneFileStateContext value={fileState}>
+          <AgentRightPaneRuntimeContext value={runtime}>
+            <RightPanelProvider
+              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+              scope={scope}
+              defaultPanelId={RESOURCE_PANE_TAB}
+              defaultOpen={defaultOpen}
+              onOpenChange={onOpenChange}
+              userOpenIntentSeq={userOpenIntentSeq}
+              present={present}>
+              <ResourcePaneLocateOpener revealRequest={revealRequest} />
+              <AgentRightPaneActionsProvider
+                conversationState={conversationState}
+                sessionId={sessionId}
+                workspacePath={workspacePath}
+                replaceFlowTab={replaceFlowTab}
+                closeFilePreview={closeFilePreview}
+                requestFileSelection={requestFileSelection}
+                selectFile={selectFile}
+                setFileEditMode={requestFileEditMode}
+                setFileTreeExpandedIds={setFileTreeExpandedIds}
+                setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                workspaceCurrent={fileWorkspace.key === workspaceKey}>
+                {children}
+              </AgentRightPaneActionsProvider>
+              <ConfirmDialog
+                open={showDirtyLeaveConfirmation}
+                onOpenChange={handleDirtyLeaveConfirmationChange}
+                title={t('agent.preview_pane.edit.leave.title')}
+                description={t('agent.preview_pane.edit.leave.description')}
+                confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
+                cancelText={t('common.cancel')}
+                destructive
+                confirmLoading={fileSession.isSaving}
+                onConfirm={handleDiscardAndContinue}
+              />
+            </RightPanelProvider>
+          </AgentRightPaneRuntimeContext>
+        </AgentRightPaneFileStateContext>
+      </AgentRightPaneMetaContext>
+    </AgentFileNavigationContext>
   )
 }
 
-function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
-  const { children, resourcePane, revealRequest, defaultOpen = false, onOpenChange, ...rest } = props
-  const shellModeKey = resourcePane ? 'resource-pane' : 'files-pane'
+function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const state = useAgentRightPaneFileState()
+  const actions = useAgentRightPaneActions()
+  const meta = useAgentRightPaneMeta()
+  const panelState = useRightPanelState()
+  const lastSelectableFileRef = useRef<string | null>(null)
+  const model = useArtifactFileTreeModel({
+    workspacePath: state.workspacePath,
+    watchMissingRoot: meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM,
+    treeOpen: meta.conversationState === 'ready' && active,
+    expandedIds: state.fileTreeExpandedIds,
+    searchKeyword: state.fileTreeSearchKeyword,
+    enableFileSearch: true,
+    selectedFile: state.selectedFile,
+    onExpandedIdsChange: actions.setFileTreeExpandedIds
+  })
 
-  return (
-    <Shell
-      key={shellModeKey}
-      defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}>
-      <ResourcePaneProvider value={resourcePane ?? null}>
-        <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
-      </ResourcePaneProvider>
-    </Shell>
-  )
-}
-
-function AgentRightPaneFilesPanel() {
-  const { state, actions } = useAgentRightPane()
-  const model = useAgentFileTreeModel()
-  const shellState = useShellState()
+  // This subscription belongs to the files capability: message/status updates
+  // cannot reach it, and filesystem updates cannot reach the other panels.
+  useEffect(() => {
+    if (!state.selectedFile || !model.hasLoaded) {
+      if (!state.selectedFile) lastSelectableFileRef.current = null
+      return
+    }
+    if (isSelectableFileNode(model.nodeById, state.selectedFile)) {
+      lastSelectableFileRef.current = state.selectedFile
+      return
+    }
+    if (lastSelectableFileRef.current !== state.selectedFile) return
+    if (
+      state.previewFileSelection &&
+      state.previewFileSelection.workspacePath === state.workspacePath &&
+      state.previewFileSelection.filePath === state.selectedFile
+    ) {
+      actions.closeFilePreview()
+      return
+    }
+    lastSelectableFileRef.current = null
+    actions.setSelectedFile(null)
+  }, [actions, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile, state.workspacePath])
   return (
     <ArtifactPaneView
+      headerVariant="pane"
+      paneTitle={scope.filesTitle}
+      paneActions={<RightPanelHeaderControls canMaximize />}
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={shellState.pdfLayoutPending}
-      pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
+      pdfLayoutPending={panelState.pdfLayoutPending}
+      pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
       enableFileSearch
+      fileSession={state.fileSession}
+      editMode={state.editMode}
+      onEditModeChange={actions.setFileEditMode}
       model={model}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
@@ -436,14 +636,15 @@ function AgentRightPaneFilesPanel() {
   )
 }
 
-function AgentToolFlowMessageList({
+const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   messages,
   partsByMessageId
 }: {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }) {
-  const { actions, meta } = useAgentRightPane()
+  const actions = useAgentRightPaneActions()
+  const meta = useAgentRightPaneMeta()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const topic = useMemo<Topic>(
     () => ({
@@ -491,20 +692,35 @@ function AgentToolFlowMessageList({
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden">
+      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
     </MessageListProvider>
   )
-}
+})
 
-function ActiveAgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
-  const { messages, partsByMessageId } = useAgentRightPaneProjectionSource()
+function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const runtime = useAgentRightPaneRuntime()
   const { t } = useTranslation()
-  const flow = useMemo(
-    () => buildAgentToolFlowProjection(messages, partsByMessageId, tab.toolCallId),
-    [messages, partsByMessageId, tab.toolCallId]
+  const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
+  const deferredToolResult = useMemo(
+    () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
+    [runtime.partsByMessageId, tab?.toolCallId]
   )
+  const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined)
+  const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
+  const flow = useMemo(
+    () =>
+      !active && retainedFlowRef.current
+        ? retainedFlowRef.current
+        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
+    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
+  )
+  useLayoutEffect(() => {
+    if (active) retainedFlowRef.current = flow
+  }, [active, flow])
+
+  if (!tab) return null
 
   if (!flow.messages.length) {
     return (
@@ -523,40 +739,54 @@ function ActiveAgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
   )
 }
 
-function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
-  const { activeTab } = useShellState()
-
-  // Only the active flow tab drives the projection, so skip stale siblings.
-  if (activeTab !== getFlowTabValue(tab.toolCallId)) return null
-
-  return <ActiveAgentRightPaneFlowPanel tab={tab} />
-}
-
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
+  let icon: ReactNode
+
   switch (status) {
     case 'completed':
-      return <CheckCircle size={14} className="text-success" />
+      icon = <CheckCircle size={14} className="text-success" />
+      break
     case 'in_progress':
-      return <Loader2 size={14} className="animate-spin text-info" />
+      icon = <Loader2 size={14} className="animate-spin text-info" />
+      break
     case 'error':
-      return <Circle size={14} className="text-destructive" />
+      icon = <Circle size={14} className="text-destructive" />
+      break
     case 'pending':
     default:
-      return <Circle size={14} className="text-muted-foreground" />
+      icon = <Circle size={14} className="text-muted-foreground" />
   }
+
+  return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-function AgentAgentRightPaneStatusPanel() {
-  const { meta } = useAgentRightPane()
+function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
+  const runtime = useAgentRightPaneRuntime()
+  const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
+  const status = useMemo(
+    () =>
+      !active && retainedStatusRef.current
+        ? retainedStatusRef.current
+        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId),
+    [active, runtime.messages, runtime.partsByMessageId]
+  )
+  useLayoutEffect(() => {
+    if (active) retainedStatusRef.current = status
+  }, [active, status])
+  return status
+}
+
+function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const meta = useAgentRightPaneMeta()
   const { t } = useTranslation()
-  const status = useAgentRightPaneStatus()
+  const status = useAgentRightPaneStatus(active)
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
-    <div className="space-y-4 p-3 text-sm">
+    <div className="h-full space-y-4 overflow-auto p-3 text-sm">
       {status.tasks.length > 0 && (
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -596,142 +826,85 @@ function AgentAgentRightPaneStatusPanel() {
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
-      <AgentRightPaneHighlights includeTasks={false} />
+      <AgentRightPaneHighlights status={status} includeTasks={false} />
     </div>
   )
 }
 
-function AgentRightPaneSurface() {
-  const { state, actions, meta } = useAgentRightPane()
-  const status = useAgentRightPaneStatus()
-  const { t } = useTranslation()
-  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const shellState = useShellState()
-  const incompleteTasks = Math.max(0, status.totalTaskCount - status.completedTaskCount)
-  const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
-  const hasFiles = meta.filesEnabled !== false
-  const resourcePane = useResourcePane()
-  const hasStatus = meta.statusEnabled !== false
-  const hasTrace = enableDeveloperMode && !!traceTopicId
-  const activeFlowTab = state.flowTabs.find((tab) => getFlowTabValue(tab.toolCallId) === shellState.activeTab)
-  const activeTitle =
-    shellState.activeTab === RESOURCE_PANE_TAB && resourcePane
-      ? resourcePane.label
-      : shellState.activeTab === 'files'
-        ? t('agent.right_pane.tabs.files')
-        : shellState.activeTab === 'status'
-          ? t('agent.right_pane.tabs.status')
-          : shellState.activeTab === 'trace'
-            ? t('trace.label')
-            : (activeFlowTab?.title ?? t('agent.right_pane.tabs.files'))
-
-  return (
-    <Shell.Tabs>
-      <Shell.TabList title={activeTitle} showTabs={false} canMaximize={hasFiles && shellState.activeTab === 'files'}>
-        <ResourcePaneTab />
-        {hasFiles && (
-          <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
-            {t('agent.right_pane.tabs.files')}
-          </Shell.Tab>
-        )}
-        {state.flowTabs.map((flowTab) => (
-          <Shell.Tab
-            key={flowTab.toolCallId}
-            value={getFlowTabValue(flowTab.toolCallId)}
-            icon={<GitBranch className="size-3.5" />}
-            onClose={() => actions.closeFlowTab(flowTab.toolCallId)}>
-            {flowTab.title}
-          </Shell.Tab>
-        ))}
-        {hasStatus && (
-          <Shell.Tab
-            value="status"
-            icon={<Activity className="size-3.5" />}
-            badge={
-              incompleteTasks > 0 ? (
-                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-3">
-                  {incompleteTasks}
-                </Badge>
-              ) : undefined
-            }>
-            {t('agent.right_pane.tabs.status')}
-          </Shell.Tab>
-        )}
-        {hasTrace && (
-          <Shell.Tab value="trace" icon={<Waypoints className="size-3.5" />}>
-            {t('trace.label')}
-          </Shell.Tab>
-        )}
-      </Shell.TabList>
-      <ResourcePanePanel />
-      {hasFiles && (
-        <Shell.Panel value="files" forceMount>
-          <AgentRightPaneFilesPanel />
-        </Shell.Panel>
-      )}
-      {state.flowTabs.map((flowTab) => (
-        <Shell.Panel key={flowTab.toolCallId} value={getFlowTabValue(flowTab.toolCallId)}>
-          <AgentRightPaneFlowPanel tab={flowTab} />
-        </Shell.Panel>
-      ))}
-      {hasStatus && (
-        <Shell.Panel value="status" className="overflow-auto">
-          <AgentAgentRightPaneStatusPanel />
-        </Shell.Panel>
-      )}
-      {hasTrace && (
-        <Shell.Panel value="trace">
-          <TracePane payload={{ topicId: traceTopicId, traceId: meta.traceId ?? '' }} />
-        </Shell.Panel>
-      )}
-    </Shell.Tabs>
-  )
+function AgentTraceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
+  return <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
 }
 
-function AgentRightPaneKeyboardShortcut() {
-  const { meta } = useAgentRightPane()
-  const resourcePane = useResourcePane()
-  const { open } = useShellState()
-  const actions = useShellActions()
-  const isActiveTab = useIsActiveTab()
-  const hasFiles = meta.filesEnabled !== false
-  const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'files'
-  const enabled = isActiveTab && Boolean(resourcePane || hasFiles)
-  const handleToggle = useCallback(() => {
-    if (open) {
-      actions.close()
-      return
+function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
+  if (scope.meta.conversationState !== 'ready') return scope.meta.conversationState
+  if (scope.meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && !scope.hasSystemWorkspaceFiles) {
+    return 'unavailable'
+  }
+  return scope.meta.workspacePath ? 'ready' : 'unavailable'
+}
+
+function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
+  if (!scope.developerMode || scope.meta.conversationState === 'unavailable') return 'unavailable'
+  if (scope.meta.conversationState === 'pending') return 'pending'
+  return scope.meta.sessionId ? 'ready' : 'unavailable'
+}
+
+/** Stable capability registry; runtime messages are intentionally absent. */
+const TRACE_PANE_ID = 'trace'
+const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
+  instanceKey: 'agent-resources'
+})
+const AGENT_TRACE_PANE_CAPABILITY = {
+  component: AgentTraceRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: TRACE_PANE_ID,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
+    title: scope.traceTitle,
+    readiness: resolveAgentTraceReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
+const AGENT_RIGHT_PANEL_CAPABILITIES = [
+  AGENT_RESOURCE_PANE_CAPABILITY,
+  {
+    component: AgentRightPaneFilesPanel,
+    resolve: (scope) => ({
+      id: 'files',
+      instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
+      title: scope.filesTitle,
+      readiness: resolveAgentFilesReadiness(scope),
+      headerMode: 'content',
+      canMaximize: true
+    })
+  },
+  {
+    component: AgentStatusRightPanel,
+    resolve: (scope) => ({
+      id: 'status',
+      instanceKey: `session:${scope.meta.sessionId ?? ''}`,
+      title: scope.statusTitle,
+      readiness: scope.meta.conversationState
+    })
+  },
+  AGENT_TRACE_PANE_CAPABILITY,
+  {
+    component: AgentFlowRightPanel,
+    resolve: (scope) => {
+      const tab = scope.flowTab
+      if (!tab) return null
+      return {
+        id: getFlowTabValue(tab.toolCallId),
+        instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
+        title: tab.title,
+        readiness: scope.meta.conversationState
+      }
     }
-    actions.openTab(targetTab)
-  }, [actions, open, targetTab])
+  }
+] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
-  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
-
-  return null
-}
-
-function AgentRightPaneHost() {
-  return (
-    <>
-      <AgentRightPaneKeyboardShortcut />
-      <Shell.Host>
-        <AgentRightPaneStatusProjectionProvider>
-          <AgentRightPaneSurface />
-        </AgentRightPaneStatusProjectionProvider>
-      </Shell.Host>
-    </>
-  )
-}
-
-function AgentRightPaneMaximizedOverlay() {
-  return (
-    <Shell.MaximizedOverlay>
-      <AgentRightPaneStatusProjectionProvider>
-        <AgentRightPaneSurface />
-      </AgentRightPaneStatusProjectionProvider>
-    </Shell.MaximizedOverlay>
-  )
-}
+const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
+  return <RightPanelViewport />
+})
 
 function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
   switch (status) {
@@ -774,17 +947,19 @@ function AgentRightPaneHighlightSection({
 }
 
 function AgentRightPaneHighlights({
+  status,
   compact = false,
   includeTasks = true
 }: {
+  status: AgentRightPaneStatus
   compact?: boolean
   includeTasks?: boolean
 }) {
-  const { actions } = useAgentRightPane()
-  const status = useAgentRightPaneStatus()
+  const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const tasks = includeTasks ? status.tasks : []
-  const hasHighlights = tasks.length > 0 || status.subagents.length > 0 || status.artifacts.length > 0
+  const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
+  const hasHighlights = tasks.length > 0 || status.subagents.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
 
@@ -830,13 +1005,13 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {status.artifacts.length > 0 && (
+      {artifacts.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.artifacts')}
           icon={<Package size={14} className="text-muted-foreground" />}
           compact={compact}>
           <ul className="space-y-0.5">
-            {status.artifacts.map((artifact) => (
+            {artifacts.map((artifact) => (
               <li key={`${artifact.toolCallId}-${artifact.path}`}>
                 <button
                   type="button"
@@ -858,7 +1033,8 @@ function AgentRightPaneHighlights({
 // Hover-card preview body. Lives inside HoverCardContent so it mounts only when the card opens.
 // Reads the same persisted usage data the Status tab renders.
 function AgentRightPaneStatusPreview() {
-  const { meta } = useAgentRightPane()
+  const meta = useAgentRightPaneMeta()
+  const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
@@ -872,78 +1048,58 @@ function AgentRightPaneStatusPreview() {
         color={contextUsageColor}
         isCompacting={isCompacting}
       />
-      <AgentRightPaneHighlights compact />
+      <AgentRightPaneHighlights status={status} compact />
     </Scrollbar>
   )
 }
 
 function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
-  const shellState = useShellState()
+  const panelState = useRightPanelState()
+  const panelActions = useRightPanelActions()
   const { t } = useTranslation()
-  if (disabled || shellState.maximized) return null
+  if (disabled || panelState.presentationMaximized || !panelActions.canOpen('status')) return null
 
   const shortcut = (
-    <Shell.TabShortcut
+    <RightPanelShortcut
       tab="status"
       label={t('agent.right_pane.tabs.status')}
       icon={<Activity className="size-3.5" />}
       tooltip={false}
-      openBehavior="toggle-active"
     />
   )
 
-  if (shellState.open) return shortcut
+  if (panelState.presentationOpen) return shortcut
 
   return (
     <HoverCard openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>{shortcut}</HoverCardTrigger>
       <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
-        <AgentRightPaneStatusProjectionProvider>
-          <AgentRightPaneStatusPreview />
-        </AgentRightPaneStatusProjectionProvider>
+        <AgentRightPaneStatusPreview />
       </HoverCardContent>
     </HoverCard>
   )
 }
 
-function AgentRightPaneShortcuts() {
-  const { meta } = useAgentRightPane()
+const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
   const { t } = useTranslation()
-  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const hasFiles = meta.filesEnabled !== false
-  const hasStatus = meta.statusEnabled !== false
-  const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
-  const hasTrace = enableDeveloperMode && !!traceTopicId
 
   return (
     <>
-      {hasFiles && (
-        <Shell.TabShortcut
-          tab="files"
-          label={t('agent.right_pane.tabs.files')}
-          icon={<FolderOpen className="size-3.5" />}
-          openBehavior="toggle-active"
-        />
-      )}
-      {hasStatus && <AgentRightPaneStatusShortcut />}
-      {hasTrace && (
-        <Shell.TabShortcut
-          tab="trace"
-          label={t('trace.label')}
-          icon={<Waypoints className="size-3.5" />}
-          openBehavior="toggle-active"
-        />
-      )}
+      <RightPanelShortcut
+        tab="files"
+        label={t('agent.right_pane.tabs.files')}
+        icon={<FolderOpen className="size-3.5" />}
+      />
+      <AgentRightPaneStatusShortcut />
+      <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>
   )
-}
-
-// `AgentRightPane` is the provider itself, with the other parts attached as
-// statics — used as `<AgentRightPane>` / `<AgentRightPane.Host>`.
-export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
-  Host: AgentRightPaneHost,
-  MaximizedOverlay: AgentRightPaneMaximizedOverlay,
-  Shortcuts: AgentRightPaneShortcuts
 })
+
+export const AgentRightPane = {
+  Scope: AgentRightPaneStateProvider,
+  Viewport: AgentRightPaneViewport,
+  Shortcuts: AgentRightPaneShortcuts
+} satisfies RightPanelComposition
 
 export type { AgentToolFlowOpenInput }

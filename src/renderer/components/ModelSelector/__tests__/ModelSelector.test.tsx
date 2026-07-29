@@ -74,7 +74,11 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 
 vi.mock('@cherrystudio/ui', () => {
   return {
-    Avatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Avatar: ({ children, className }: { children: ReactNode; className?: string }) => (
+      <div data-testid="avatar" className={className}>
+        {children}
+      </div>
+    ),
     AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
       const { variant, size, type = 'button', ...buttonProps } = props
@@ -1046,6 +1050,15 @@ describe('ModelSelector', () => {
     expect(screen.queryByText(longIdentifier)).toBeNull()
     expect(providerName).toHaveClass('min-w-0', 'flex-[1_999_0%]', 'truncate')
     expect(providerName).toHaveAttribute('title', 'OpenAI')
+  })
+
+  it('renders fallback model avatars with a border', () => {
+    const item = makeModelItem('openai::gpt-4' as UniqueModelId)
+    mockUseModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('avatar')).toHaveClass('border', 'border-border')
   })
 
   it('passes the selector portal container to model detail hover cards', () => {

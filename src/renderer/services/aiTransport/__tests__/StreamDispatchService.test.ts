@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,13 +8,13 @@ import { streamDispatchService } from '../StreamDispatchService'
 const TOPIC = 'topic-1'
 const req: AiStreamOpenRequest = { trigger: 'submit-message', topicId: TOPIC, userMessageParts: [] }
 
-// `streamOpen` backs the `ai.stream_open` route on the mocked ipcApi (hoisted so the
+// `streamOpen` backs the `ai.stream.open` route on the mocked ipcApi (hoisted so the
 // vi.mock factory can reference it).
 const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined),
+      route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -107,6 +108,18 @@ describe('StreamDispatchService', () => {
     await flush()
 
     expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+  })
+
+  it('localizes paused dispatch failures from their reason', async () => {
+    streamOpen.mockResolvedValue({
+      mode: 'blocked',
+      reason: 'paused'
+    } satisfies AiStreamOpenResponse)
+
+    streamDispatchService.dispatch(TOPIC, req)
+    await flush()
+
+    expect(toast.error).toHaveBeenCalledWith(i18n.t('restore.messages_paused'))
   })
 
   it('unsubscribe stops further delivery', async () => {

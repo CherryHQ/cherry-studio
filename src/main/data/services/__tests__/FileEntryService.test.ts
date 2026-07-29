@@ -11,7 +11,9 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import type { CanonicalFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -124,13 +126,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const entry = fileEntryService.findByExternalPath('/Users/me/doc.pdf' as CanonicalExternalPath)
+      const entry = fileEntryService.findByExternalPath('/Users/me/doc.pdf' as CanonicalFilePath)
       expect(entry?.id).toBe(id)
       expect(entry?.origin).toBe('external')
     })
 
     it('returns null when no row matches', async () => {
-      const result = fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as CanonicalExternalPath)
+      const result = fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as CanonicalFilePath)
       expect(result).toBeNull()
     })
 
@@ -149,7 +151,7 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const result = fileEntryService.findByExternalPath('/Users/me/A.TXT' as CanonicalExternalPath)
+      const result = fileEntryService.findByExternalPath('/Users/me/A.TXT' as CanonicalFilePath)
       expect(result).toBeNull()
     })
   })
@@ -174,13 +176,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const peers = fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
+      const peers = fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalFilePath)
       expect(peers).toHaveLength(1)
       expect(peers[0]?.id).toBe('019606a0-0000-7000-8000-000000000020')
     })
 
     it('returns empty array when no rows match', async () => {
-      const peers = fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
+      const peers = fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalFilePath)
       expect(peers).toEqual([])
     })
 
@@ -1185,7 +1187,7 @@ describe('FileEntryService', () => {
 
       const updated = fileEntryService.setExternalPathAndName(
         id,
-        '/Users/me/new-doc.pdf' as CanonicalExternalPath,
+        '/Users/me/new-doc.pdf' as CanonicalFilePath,
         'new-doc'
       )
 
@@ -1206,7 +1208,7 @@ describe('FileEntryService', () => {
       const missing = '019606a0-0000-7000-8000-000000000dff' as FileEntryId
       let err: unknown
       try {
-        fileEntryService.setExternalPathAndName(missing, '/Users/me/ghost.pdf' as CanonicalExternalPath, 'ghost')
+        fileEntryService.setExternalPathAndName(missing, '/Users/me/ghost.pdf' as CanonicalFilePath, 'ghost')
       } catch (e) {
         err = e
       }
@@ -1229,7 +1231,7 @@ describe('FileEntryService', () => {
       })
 
       expect(() =>
-        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as CanonicalFilePath, '../evil')
       ).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
@@ -1238,10 +1240,11 @@ describe('FileEntryService', () => {
     })
 
     it('rejects unsafe externalPath BEFORE the SQL UPDATE commits', async () => {
-      // The `CanonicalExternalPath` brand is TS-only and offers no runtime
-      // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
-      // catches null bytes / non-absolute paths regardless of whether the
-      // caller went through `canonicalizeExternalPath` or `as`-cast.
+      // Defense-in-depth guard: the `CanonicalFilePath` brand normally
+      // guarantees canonical-ness, but a forged `as CanonicalFilePath` cast
+      // (e.g. from the lint-exempt watcher/tree regimes) could smuggle a null
+      // byte past the type system. The null-byte check must reject it before
+      // the SQL UPDATE commits — raw SELECT proves the row stayed unchanged.
       const entry = fileEntryService.create({
         origin: 'external',
         name: 'safe',
@@ -1250,7 +1253,7 @@ describe('FileEntryService', () => {
       })
 
       expect(() =>
-        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit\0.txt' as CanonicalFilePath, 'legit')
       ).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
@@ -1283,7 +1286,7 @@ describe('FileEntryService', () => {
       // unexpected and bubble it up.
       let err: Error | null = null
       try {
-        fileEntryService.setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
+        fileEntryService.setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalFilePath, 'a')
       } catch (e) {
         err = e as Error
       }
@@ -1314,7 +1317,7 @@ describe('FileEntryService', () => {
       })
       fileEntryService.setExternalPathAndName(
         external.id,
-        '/Users/me/ext-tx-renamed.txt' as CanonicalExternalPath,
+        '/Users/me/ext-tx-renamed.txt' as CanonicalFilePath,
         'ext-tx-renamed'
       )
 
@@ -1537,7 +1540,7 @@ describe('FileEntryService', () => {
         origin: 'external',
         name: 'e',
         ext: 'txt',
-        externalPath: '/abs/orphan.txt' as CanonicalExternalPath
+        externalPath: '/abs/orphan.txt' as AbsoluteFilePath
       })
 
       const externalsOnly = fileEntryService.findUnreferenced({ origin: 'external' })
@@ -1666,7 +1669,7 @@ describe('FileEntryService', () => {
       mockMainLoggerService.warn.mockClear()
 
       // Corrupt match → excluded with one warning, not a throw.
-      const badPeers = fileEntryService.findCaseInsensitivePeers('/users/me/bad-peer.txt' as CanonicalExternalPath)
+      const badPeers = fileEntryService.findCaseInsensitivePeers('/users/me/bad-peer.txt' as CanonicalFilePath)
       expect(badPeers).toEqual([])
       expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
@@ -1675,8 +1678,76 @@ describe('FileEntryService', () => {
       )
 
       // Good rows still surface through the same method.
-      const goodPeers = fileEntryService.findCaseInsensitivePeers('/users/me/good-peer.txt' as CanonicalExternalPath)
+      const goodPeers = fileEntryService.findCaseInsensitivePeers('/users/me/good-peer.txt' as CanonicalFilePath)
       expect(goodPeers.map((e) => e.id)).toEqual([goodExternalId])
+    })
+  })
+
+  describe('externalPath byte-faithful acceptance + lexical rejection (read-time contract)', () => {
+    it('accepts an external row whose stored externalPath carries NFD Unicode (byte-faithful)', async () => {
+      // externalPath is stored byte-faithful — canonicalizeAbsolutePath does NOT
+      // Unicode-normalize, so an NFD path IS already in canonical form and reads
+      // back cleanly. (NFC-folding here would break reachability on
+      // normalization-sensitive filesystems like Linux ext4.) ASCII \u escapes
+      // keep the literal stable — raw combining marks get re-normalized by tooling.
+      const id = '019606a0-0000-7000-8000-00000000ab01' as FileEntryId
+      const now = Date.now()
+      // "café.pdf" written in NFD: base 'e' + combining acute accent (U+0301).
+      const nfdPath = '/Users/me/cafe\u0301.pdf'
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'external',
+        name: 'cafe',
+        ext: 'pdf',
+        size: null,
+        externalPath: nfdPath,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      mockMainLoggerService.warn.mockClear()
+
+      // Bulk read returns the row unchanged — no warn, no silent rewrite.
+      const entries = fileEntryService.findMany({ origin: 'external' })
+      expect(entries.map((e) => e.id)).toEqual([id])
+      expect(entries[0].origin).toBe('external')
+      if (entries[0].origin === 'external') {
+        expect(entries[0].externalPath).toBe(nfdPath) // byte-faithful, still NFD
+      }
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    })
+
+    it('warn-skips an external row whose stored externalPath is not in lexical canonical form (unresolved `..`)', async () => {
+      // The byte-faithful refine still rejects a stored value that is not in the
+      // lexically-resolved form `canonicalizeFilePath` produces — no silent
+      // repair; lookup-by-path requires a re-canonicalization migration. A row
+      // carrying an unresolved `/../` segment (canonicalizeAbsolutePath collapses
+      // it) fails the schema's canonical-equivalence refine and is warn-skipped
+      // by rowToFileEntrySafe rather than returned or silently rewritten.
+      const id = '019606a0-0000-7000-8000-00000000ab02' as FileEntryId
+      const now = Date.now()
+      const nonCanonicalPath = '/Users/me/../me/DOC.pdf' // canonicalizes to /Users/me/DOC.pdf
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'external',
+        name: 'DOC',
+        ext: 'pdf',
+        size: null,
+        externalPath: nonCanonicalPath,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      mockMainLoggerService.warn.mockClear()
+
+      // Bulk read drops the row (fault isolation) and warns once with its id.
+      const entries = fileEntryService.findMany({ origin: 'external' })
+      expect(entries).toEqual([])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('un-parseable'),
+        expect.objectContaining({ id })
+      )
     })
   })
 })

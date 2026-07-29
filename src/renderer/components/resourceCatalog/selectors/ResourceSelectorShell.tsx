@@ -1,4 +1,4 @@
-import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
@@ -30,13 +30,14 @@ export type ResourceSelectorShellItem = {
   name: string
   emoji?: string
   description?: string
-  tag?: string
+  groupId?: string
+  groupName?: string
   disabled?: boolean
   editDisabled?: boolean
   pinDisabled?: boolean
 }
 
-export type ResourceSelectorShellTag = string | { name: string; color?: string }
+export type ResourceSelectorShellGroup = { id: string; name: string }
 
 export type ResourceSelectorShellLabels = {
   searchPlaceholder: string
@@ -47,7 +48,7 @@ export type ResourceSelectorShellLabels = {
   emptyText: string
   /** Heading rendered above the pinned group in the list. */
   pinnedTitle: string
-  tagFilter?: string
+  groupFilter?: string
 }
 
 type ResourceSelectorShellEmptyState = {
@@ -75,7 +76,7 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   items: T[]
   fallbackIcon?: ReactNode
 
-  tags?: ResourceSelectorShellTag[]
+  groups?: ResourceSelectorShellGroup[]
 
   pinnedIds: readonly string[]
   onTogglePin: (id: string) => void | Promise<void>
@@ -172,42 +173,24 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): s
   return []
 }
 
-// Neutral fallback for tags that carry no color of their own. The library layer
-// owns the real tag palette and passes per-tag colors in; this generic shell only
-// needs a token-neutral default. CustomTag concatenates an alpha suffix onto the
-// value, so it must be a hex string rather than a CSS variable.
-const DEFAULT_RESOURCE_TAG_COLOR = '#6b7280'
 const DEFAULT_MIN_LIST_HEIGHT = 144
 
-function normalizeTag(tag: ResourceSelectorShellTag) {
-  return typeof tag === 'string' ? { name: tag, color: undefined } : tag
-}
-
-function ResourceTagChip({
-  tag,
-  color,
-  active = true,
-  onClick
-}: {
-  tag: string
-  color?: string
-  active?: boolean
-  onClick?: () => void
-}) {
+function ResourceGroupChip({ name, active = true, onClick }: { name: string; active?: boolean; onClick?: () => void }) {
   const chip = (
-    <CustomTag
-      size={10}
-      color={color ?? DEFAULT_RESOURCE_TAG_COLOR}
-      inactive={!active}
-      className={cn('h-full max-w-24 items-center overflow-hidden transition-colors', onClick && 'cursor-pointer')}>
-      <span className="min-w-0 truncate">{tag}</span>
-    </CustomTag>
+    <span
+      className={cn(
+        'inline-flex h-4 max-w-24 items-center overflow-hidden rounded-sm bg-secondary px-1.5 text-[10px] text-foreground-secondary transition-opacity',
+        !active && 'opacity-50',
+        onClick && 'cursor-pointer'
+      )}>
+      <span className="min-w-0 truncate">{name}</span>
+    </span>
   )
 
   if (!onClick) return chip
 
   return (
-    <button type="button" aria-pressed={active} aria-label={tag} className="inline-flex h-4 p-0" onClick={onClick}>
+    <button type="button" aria-pressed={active} aria-label={name} className="inline-flex h-4 p-0" onClick={onClick}>
       {chip}
     </button>
   )
@@ -220,7 +203,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     onOpenChange: onOpenChangeProp,
     items,
     fallbackIcon,
-    tags,
+    groups,
     pinnedIds,
     onTogglePin,
     isPinActionDisabled = false,
@@ -275,7 +258,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   )
 
   const [searchValue, setSearchValue] = useState('')
-  const [selectedTagName, setSelectedTagName] = useState<string | null>(null)
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -317,13 +300,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const selectedSet = useMemo(() => new Set(valueIds), [valueIds])
-  const tagOptions = useMemo(() => (tags ?? []).map(normalizeTag), [tags])
-  const tagColorByName = useMemo(() => new Map(tagOptions.map((tag) => [tag.name, tag.color])), [tagOptions])
+  const groupOptions = groups ?? []
+  const activeGroupId = groupOptions.some((group) => group.id === selectedGroupId) ? selectedGroupId : null
 
   const { pinnedItems, unpinnedItems } = useMemo(() => {
     let filtered = items
-    if (selectedTagName) {
-      filtered = filtered.filter((item) => item.tag === selectedTagName)
+    if (activeGroupId) {
+      filtered = filtered.filter((item) => item.groupId === activeGroupId)
     }
 
     const query = searchValue.trim().toLowerCase()
@@ -339,7 +322,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
-  }, [items, pinnedIds, pinnedSet, searchValue, selectedTagName])
+  }, [activeGroupId, items, pinnedIds, pinnedSet, searchValue])
 
   const sections = useMemo<ResourceSelectorSection<T>[]>(() => {
     const nextSections: ResourceSelectorSection<T>[] = []
@@ -574,18 +557,19 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   )
 
   const filterContent =
-    tagOptions.length > 0 ? (
+    groupOptions.length > 0 ? (
       <>
-        {labels.tagFilter ? <span className="mr-1 text-[10px] text-muted-foreground">{labels.tagFilter}</span> : null}
-        {tagOptions.map((tag) => {
-          const active = selectedTagName === tag.name
+        {groupOptions.length > 0 && labels.groupFilter ? (
+          <span className="mr-1 text-[10px] text-muted-foreground">{labels.groupFilter}</span>
+        ) : null}
+        {groupOptions.map((group) => {
+          const active = activeGroupId === group.id
           return (
-            <ResourceTagChip
-              key={tag.name}
-              tag={tag.name}
-              color={tag.color}
+            <ResourceGroupChip
+              key={group.id}
+              name={group.name}
               active={active}
-              onClick={() => setSelectedTagName((prev) => (prev === tag.name ? null : tag.name))}
+              onClick={() => setSelectedGroupId((previousId) => (previousId === group.id ? null : group.id))}
             />
           )
         })}
@@ -612,11 +596,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
     ) : null
 
-    const trailing = item.tag ? (
+    const trailing = item.groupName ? (
       <div
         className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
-        data-resource-selector-tags={item.id}>
-        <ResourceTagChip tag={item.tag} color={tagColorByName.get(item.tag)} />
+        data-resource-selector-group={item.id}>
+        <ResourceGroupChip name={item.groupName} />
       </div>
     ) : null
 

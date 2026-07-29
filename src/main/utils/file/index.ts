@@ -60,6 +60,7 @@ export {
   exists,
   hash,
   isSameFile,
+  lstat,
   mkdir,
   move,
   type PathReadability,
@@ -68,13 +69,14 @@ export {
   probeReadable,
   read,
   readChunk,
+  realpath,
   remove,
   removeDir,
   shouldSilenceFsyncDirError,
   stat,
   write
 } from './fs'
-export { getFileType, isTextFile, mimeToExt } from './metadata'
+export { decodeTextBufferIfText, getFileType, isTextFile, mimeToExt } from './metadata'
 export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

@@ -40,7 +40,6 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const [searchDebouncing, setSearchDebouncing] = useState(false)
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasQuery = query.trim() !== ''
 
   const clearPendingSearch = useCallback(() => {
     if (!searchDebounceRef.current) return
@@ -69,26 +68,10 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     return counts
   }, [results])
 
-  const firstSourceWithResults = useMemo(
-    () => SEARCH_SOURCES.find((source) => (tabCounts.get(source) ?? 0) > 0) ?? null,
-    [tabCounts]
-  )
-
-  const selectedSource =
-    hasQuery && results.length > 0 && (tabCounts.get(activeSource) ?? 0) === 0 && firstSourceWithResults
-      ? firstSourceWithResults
-      : activeSource
-
   const visibleResults = useMemo(
-    () => results.filter((result) => result.sourceRegistry === selectedSource),
-    [selectedSource, results]
+    () => results.filter((result) => result.sourceRegistry === activeSource),
+    [activeSource, results]
   )
-
-  useEffect(() => {
-    if (activeSource !== selectedSource) {
-      setActiveSource(selectedSource)
-    }
-  }, [activeSource, selectedSource])
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -160,14 +143,13 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
           <div className="mt-3 flex items-center gap-3">
             <SegmentedControl<SkillSearchSource>
               size="sm"
-              value={selectedSource}
+              value={activeSource}
               onValueChange={setActiveSource}
               className="shrink-0"
               options={SEARCH_SOURCES.map((source) => {
                 const count = tabCounts.get(source) ?? 0
                 return {
                   value: source,
-                  disabled: hasQuery && results.length > 0 && count === 0,
                   label: (
                     <>
                       {source}

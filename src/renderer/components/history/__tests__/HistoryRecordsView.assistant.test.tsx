@@ -131,6 +131,18 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
+vi.mock('@renderer/hooks/resourceViewSources', () => ({
+  useAgentSessionsSource: () => hookMocks.useSessions(),
+  useAssistantTopicsSource: () => {
+    const source = hookMocks.useTopics()
+    return {
+      ...source,
+      isLoadingAll: source.isLoadingAll ?? source.isLoading,
+      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+    }
+  }
+}))
+
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
 }))
@@ -289,6 +301,8 @@ vi.mock('react-i18next', () => ({
         'history.records.bulkMoveTopics.title': 'Move selected conversations',
         'history.records.empty.description': 'No conversations for the current filters.',
         'history.records.empty.title': 'No conversations',
+        'history.records.loading.description': 'Loading conversation list.',
+        'history.records.loading.title': 'Loading conversations',
         'history.records.searchTopic': 'Search conversations...',
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
@@ -356,9 +370,9 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     modelId: null,
     mcpServerIds: [],
     knowledgeBaseIds: [],
+    groupId: null,
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
-    tags: [],
     modelName: null,
     ...overrides
   } as Assistant
@@ -460,7 +474,24 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(hookMocks.useSessions).not.toHaveBeenCalled()
+    expect(hookMocks.useTopics).toHaveBeenCalledWith()
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
+  })
+
+  it('keeps the loading state until the shared full-topic source commits', () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [],
+      error: undefined,
+      isLoading: false,
+      isLoadingAll: true,
+      isFullyLoaded: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    expect(screen.getByText('Loading conversations')).toBeInTheDocument()
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
   })
 
   it('falls back to record selection when no conversation tab context exists', () => {

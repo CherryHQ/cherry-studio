@@ -186,8 +186,10 @@ type ExtractedContent = {
 const extractPreviewContent = (response: unknown): ExtractedContent => {
   if (!response) return { text: '', images: [] }
 
-  const result = CallToolResultSchema.safeParse(response)
-  if (result.success) {
+  const hasMcpContent =
+    typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
+  const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
+  if (result?.success) {
     const contents = result.data.content
     if (contents.length === 0) return { text: '', images: [] }
 
@@ -432,7 +434,7 @@ const ExpandedToolResponseContent: FC<{
 const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
     className={[
-      'border-none [--status-color-error:var(--color-foreground-secondary)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-warning,#faad14)]',
+      'border-none [--status-color-error:color-mix(in_oklch,var(--foreground)_66.6667%,transparent)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -490,7 +492,7 @@ const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWi
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2',
       className
     ]
       .filter(Boolean)

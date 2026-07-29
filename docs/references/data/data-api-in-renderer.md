@@ -242,6 +242,37 @@ Use when the set of keys is only known at call time (ids from args/result).
 4. **Don't mix template paths and helper functions for the same resource in one module.** Cache keys end up identical but code review becomes harder. Pick one form per module.
 5. **`refresh` is for DataApi keys only.** Non-SQLite data (Cache, Preference) has its own invalidation mechanisms.
 
+## Data Change Notifications
+
+`refresh` only covers this window's own mutations. For writes from **other windows or main-process background paths**, main broadcasts a `DataApiDataChangeEffect[]` after each committed write; consumers opt in per endpoint and decide their own convergence (revalidate / rebuild / ignore).
+
+```typescript
+import { useDataChange } from '@data/hooks/useDataApi'
+
+// Conservative list convergence: any signal → refetch
+const { refetch } = useQuery('/topics')
+useDataChange('/topics', () => refetch())
+
+// Multiple endpoints, one merged callback per notification
+useDataChange(['/topics', '/topics/latest'], () => refreshAll())
+
+// By-ID surface: filter with entityIds (absent = no claim → act)
+useDataChange('/topics/:id', (effects) => {
+  if (effects.some((e) => !e.entityIds || e.entityIds.includes(myId))) mutate()
+})
+
+// Non-React code: same facility on the service (returns unsubscribe)
+const unsubscribe = dataApiService.onDataChanged('/topics', (effects) => { ... })
+```
+
+Semantics (frozen by the Phase A contract, see issue 17144):
+
+- **Exact endpoint match** — no prefix/wildcard subscription; effects are `endpoint` + optional `kind` (`projection` / `membership` / `order`) + `dimension` + `entityIds`.
+- **One business operation = one callback**: all matching entries of one notification arrive merged in a single call; no aggregation across notifications.
+- **Everything below the endpoint is consumer policy**: dimension/entityIds filtering, convergence choice, and idempotency towards echoes of this window's own writes (the originating window receives its own signals).
+- **Hints only narrow**: an omitted `dimension`/`entityIds` means "no claim — assume relevant", never "no impact".
+- **Best-effort delivery** to live, continuously subscribed renderers (FIFO per window). Changes committed before a consumer's subscription registered (including main-process bootstrap) are not signaled; recovery is the endpoint's next change, a remount, or any fresh query.
+
 ## DataApiService Direct Usage
 
 For non-React code or more control.

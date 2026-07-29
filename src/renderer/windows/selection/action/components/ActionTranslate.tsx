@@ -17,6 +17,7 @@ import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -34,7 +35,6 @@ interface Props {
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
-
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const selectedText = action.selectedText
@@ -208,8 +208,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       await runTranslate(selectedText, translateLang)
     } catch (err) {
       setContent('')
-      const message = err instanceof Error ? err.message : String(err)
-      setCompletionError(t(message, message))
+      setCompletionError(getSelectionActionErrorMessage(err, t))
     } finally {
       setIsPreparing(false)
     }
@@ -270,7 +269,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <span className="text-foreground-secondary text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
-            className="w-full"
+            className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
@@ -285,7 +284,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <span className="text-foreground-secondary text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
-            className="w-full"
+            className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
@@ -396,6 +395,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
+                successFeedback="icon"
               />
             </div>
           </div>

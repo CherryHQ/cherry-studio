@@ -96,4 +96,20 @@ describe('useTopicOverlayHandoffOnTerminal', () => {
     })
     expect(order).toEqual(['refresh', 'dispose'])
   })
+
+  it('does not carry a live edge across topic identities', async () => {
+    const handoff = vi.fn(async () => {})
+    setStatus('streaming')
+    const { rerender } = renderHook(
+      ({ topicId }: { topicId: string }) => useTopicOverlayHandoffOnTerminal(topicId, handoff),
+      { initialProps: { topicId: 'topic-1' } }
+    )
+
+    setStatus('done')
+    await act(async () => {
+      rerender({ topicId: 'topic-2' })
+    })
+
+    expect(handoff).not.toHaveBeenCalled()
+  })
 })

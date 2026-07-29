@@ -1,4 +1,13 @@
 import { defineProvider } from './types'
+import { modeWire } from './wires'
+
+const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
+  off: 'disabled',
+  auto: 'enabled',
+  effort: 'enabled'
+})
+
+const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
 
 export default defineProvider({
   id: 'new-api',
@@ -10,7 +19,8 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'newapi',
-      baseUrl: 'http://localhost:3000'
+      baseUrl: 'http://localhost:3000',
+      reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       baseUrl: 'http://localhost:3000'
@@ -24,5 +34,11 @@ export default defineProvider({
       docs: 'https://docs.newapi.pro',
       official: 'https://docs.newapi.pro/'
     }
-  }
+  },
+  overrides: deepSeekModels.map((modelId) => ({
+    modelId,
+    reasoningContracts: {
+      'openai-chat-completions': { wire: deepSeekThinkingWire }
+    }
+  }))
 })
