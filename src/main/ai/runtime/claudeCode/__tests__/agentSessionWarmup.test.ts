@@ -22,7 +22,8 @@ const mocks = vi.hoisted(() => ({
   apiGatewayStart: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
-  resolveReasoningProfile: vi.fn()
+  resolveReasoningProfile: vi.fn(),
+  getAppLanguage: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -79,6 +80,10 @@ vi.mock('@application', () => ({
       throw new Error(`Unexpected application.get(${name})`)
     })
   }
+}))
+
+vi.mock('@main/i18n', () => ({
+  getAppLanguage: mocks.getAppLanguage
 }))
 
 vi.mock('../../../provider/endpoint', () => ({
@@ -139,6 +144,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-agent-session-id': 'session-1',
       'x-cherry-internal-usage-token': 'internal-token'
     })
+    mocks.getAppLanguage.mockReturnValue('en-US')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
@@ -742,6 +748,7 @@ describe('deriveConnectionConfig', () => {
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
+    mocks.getAppLanguage.mockReturnValue('en-US')
   })
 
   async function deriveSignature() {
@@ -787,6 +794,15 @@ describe('deriveConnectionConfig', () => {
     const second = await deriveSignature()
 
     expect(second.rebuildSignature).toBe(first.rebuildSignature)
+  })
+
+  it('changes the rebuild signature when the app language changes', async () => {
+    const english = await deriveSignature()
+
+    mocks.getAppLanguage.mockReturnValue('zh-CN')
+    const chinese = await deriveSignature()
+
+    expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {
