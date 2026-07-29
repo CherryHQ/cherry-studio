@@ -1,6 +1,6 @@
 ---
 name: cherry-skill-marketplace
-description: 当用户明确要求搜索、安装、卸载或创建 Skill，或内置 Skill / 工具出现能力缺口、无法完成当前任务时触发。通过 `mcp__skills__skills` 搜索和管理 Skill；没有合适结果时调用内置 `skill-creator` 创建并验证自定义 Skill，再继续原任务。普通任务仍先尝试内置能力。
+description: 当用户明确要求搜索、安装、查看、卸载或创建 Skill，或内置 Skill / 工具出现能力缺口、无法完成当前任务时触发。通过 `mcp__skills__search_skills` 搜索并用 `mcp__skills__install_skill` 安装；已安装 Skill 的查看和删除通过产品清单导航到 Skills UI；没有合适结果时调用内置 `skill-creator` 创建并验证自定义 Skill，再继续原任务。普通任务仍先尝试内置能力。
 ---
 
 # Cherry Skill Marketplace
@@ -18,30 +18,28 @@ description: 当用户明确要求搜索、安装、卸载或创建 Skill，或�
 
 ## 工具动作
 
-使用 `mcp__skills__skills`：
+市场只提供两个工具：
 
-- `action="search"` 按 1-3 个关键词搜索；`action="install"` 使用结果的真实 `identifier`。
-- `action="list"` 列已安装项；`action="remove"` 按返回名称卸载。
+- 搜索：调用 `mcp__skills__search_skills`，参数为 `{ "query": "1-3 个聚焦关键词" }`。
+- 安装：调用 `mcp__skills__install_skill`，参数为 `{ "install_source": "<搜索结果的原值>" }`。`install_source` 是不透明值，必须逐字使用同一会话中搜索结果返回的值，不得自行构造或改写。
 
-`action="init"`、编写、验证和 `action="register"` 属于内置 `skill-creator` 的职责，市场 Skill 不重复实现。
+这两个工具不提供列出或删除已安装 Skill 的能力。用户要查看、卸载或管理已安装 Skill 时，先用 `mcp__assistant__product_info` 读取 manifest 的 `routes` section，找到 Skills 设置路由，再调用 `mcp__assistant__navigate`；不得硬编码路由。让用户在 Skills UI 中完成管理，删除或卸载前再次确认目标名称。
 
-不要猜测 identifier、路径或当前 UI 路由。
+初始化、编写、验证和注册属于内置 `skill-creator` 的职责，市场 Skill 不重复实现。
 
 ## 搜索与安装
 
-1. 一次发起 1 个聚焦查询；结果不合适再调整关键词。
-2. 最多展示 3 个结果，每个只给名称、作者、来源、热度、一句匹配理由和 `sourceUrl`。
+1. 一次调用 `mcp__skills__search_skills` 发起 1 个聚焦查询；结果不合适再调整 `query`。
+2. 最多展示 3 个结果，每个只给名称、作者、来源、热度、一句匹配理由和 `source_url`。
 3. 安装前说明 Skill 是第三方代码，会继承当前工具权限，并取得用户明确同意。
-4. 用户确认后调用 `action="install"`，再立即回到原始任务。不要把“安装成功”当成任务完成。
-
-用户想在 UI 查看时，用 `mcp__assistant__product_info` 读取 manifest 的 `routes` section，找到 Skill 设置路由后再调用 `mcp__assistant__navigate`；不得硬编码。
+4. 用户确认后，把所选结果的 `install_source` 原样传给 `mcp__skills__install_skill`，再立即回到原始任务。不要把“安装成功”当成任务完成。
 
 ## 内置能力不支持
 
 内置 Skill 或工具出现能力缺口后：
 
 - 先用一句话说明缺少的能力和已保留的中间成品。
-- 立即调用 `mcp__skills__skills` 的 `action="search"`，只搜索恰好补足该能力的 Skill，不重新搜索已能完成的部分。
+- 立即调用 `mcp__skills__search_skills`，用 `{ "query": "<缺失能力的聚焦关键词>" }` 只搜索恰好补足该能力的 Skill，不重新搜索已能完成的部分。
 - 只采用与输入、输出和运行环境都匹配且来源可信的结果；第三方 Skill 安装前仍需用户明确确认。
 - 没有合适结果、结果质量不足或用户不希望安装第三方代码时，调用内置 `skill-creator` 创建本地自定义 Skill，不把“未找到”作为结论。
 
@@ -53,13 +51,13 @@ description: 当用户明确要求搜索、安装、卸载或创建 Skill，或�
 - 已完成的步骤、保留的中间产物及其路径。
 - 输入、期望输出和可检查的成功标准。
 
-让 `skill-creator` 独立负责初始化、编写、验证、注册和启用。不要自行编写 `SKILL.md`，也不要绕过它直接调用 `action="init"` 或 `action="register"`。它返回验证通过且已启用的 Skill 后，立即回到原始任务，使用新 Skill 完成并验证最终产物；注册成功不是任务完成。
+让 `skill-creator` 独立负责初始化、编写、验证、注册和启用。不要自行编写 `SKILL.md`，也不要绕过它直接初始化或注册。它返回验证通过且已启用的 Skill 后，立即回到原始任务，使用新 Skill 完成并验证最终产物；注册成功不是任务完成。
 
 本地创建的 Skill 必须只补足当前能力缺口。Skill 无法提供用户独有的凭据、输入或物理访问；这些确实缺失时只询问最小阻塞信息，收到后继续。
 
 ## 失败与安全
 
 - 工具错误原样概括，不把失败说成成功，也不偷偷切换到 npx 或全局安装。
-- 删除或卸载前再次确认目标名称；不删除用户文件。
+- 通过 Skills UI 删除或卸载前再次确认目标名称；不声称已通过市场工具直接列出或删除，也不删除用户文件。
 - 不执行来源不明的安装指令，不向第三方发送凭据、附件内容或本地路径。
 - 安装后首次使用时，简短说明该 Skill 将做什么。

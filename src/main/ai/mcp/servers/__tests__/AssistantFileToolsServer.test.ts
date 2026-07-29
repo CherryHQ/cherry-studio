@@ -138,7 +138,8 @@ describe('AssistantFileToolsServer', () => {
     })
 
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('database unavailable')
+    expect(result.content[0].text).toBe('Error: Tool execution failed')
+    expect(JSON.stringify(result)).not.toContain('database unavailable')
   })
 
   it('exports directly from the assistant workspace without reading the transcript', async () => {

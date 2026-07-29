@@ -15,6 +15,7 @@ import * as z from 'zod'
 
 import {
   assertWorkspacePathUnchanged,
+  hasWindowsInvalidFilenameSegment,
   isErrno,
   publishFileNoClobber,
   readBoundedRegularFile,
@@ -62,6 +63,10 @@ export const exportOfficeInputSchema = z.object({
     .trim()
     .min(1)
     .max(4096)
+    .refine(
+      (value) => !hasWindowsInvalidFilenameSegment(value),
+      'Output path contains characters invalid in Windows filenames'
+    )
     .describe(
       'New output file inside the session workspace. Its extension must match the operation, and it must not already exist.'
     )
@@ -93,6 +98,14 @@ function assertExtension(filePath: string, allowedExtensions: readonly string[],
 
   const expected = allowedExtensions.join(' or ')
   throw new Error(`Office export ${kind} must use ${expected}; received ${actual || 'no extension'}`)
+}
+
+function hasXml10IllegalControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code <= 0x08 || code === 0x0b || code === 0x0c || (code >= 0x0e && code <= 0x1f)) return true
+  }
+  return false
 }
 
 function firstMarkdownHeading(markdown: string, fallback: string): string {
@@ -254,11 +267,14 @@ function renderCsvToXlsx(csv: string): Uint8Array {
   if (!worksheet) throw new Error('CSV source does not contain a worksheet')
 
   const rows = XLSX.utils.sheet_to_json<Array<string | number | boolean>>(worksheet, { header: 1, raw: true })
-  const columnCount = Math.max(0, ...rows.map((row) => row.length))
-  worksheet['!cols'] = Array.from({ length: columnCount }, (_, columnIndex) => {
-    const width = Math.max(10, ...rows.map((row) => String(row[columnIndex] ?? '').length + 2))
-    return { wch: Math.min(width, 50) }
-  })
+  const columnWidths: number[] = []
+  for (const row of rows) {
+    for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+      const width = String(row[columnIndex] ?? '').length + 2
+      columnWidths[columnIndex] = Math.max(columnWidths[columnIndex] ?? 10, width)
+    }
+  }
+  worksheet['!cols'] = columnWidths.map((width) => ({ wch: Math.min(width, 50) }))
 
   return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }))
 }
@@ -303,8 +319,10 @@ export async function exportOfficeArtifact(
     }
     throw error
   }
-  if (source.includes('\0')) {
-    throw new Error(`Office export source must be UTF-8 text without NUL bytes: ${input.source_path}`)
+  if (hasXml10IllegalControlCharacter(source)) {
+    throw new Error(
+      `Office export source must be UTF-8 text without XML 1.0-illegal control characters: ${input.source_path}`
+    )
   }
   await assertWorkspacePathUnchanged(
     input.source_path,

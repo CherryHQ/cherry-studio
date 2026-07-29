@@ -34,6 +34,17 @@ describe('saveAttachmentToWorkspace', () => {
     )
   })
 
+  it('rejects Windows-invalid characters in every output path segment', () => {
+    for (const outputPath of ['inputs/sales.csv:private', 'inputs/quarter?/sales.csv', 'inputs/sales\u0001.csv']) {
+      const result = saveAttachmentInputSchema.safeParse({ filename: 'file_abcd', output_path: outputPath })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues.some(({ message }) => /invalid in Windows filenames/i.test(message))).toBe(true)
+      }
+    }
+  })
+
   beforeEach(async () => {
     vi.clearAllMocks()
     workspacePath = await mkdtemp(path.join(tmpdir(), 'save-attachment-workspace-'))

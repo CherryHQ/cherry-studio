@@ -124,9 +124,8 @@ export class AssistantFileToolsServer {
         }
       } catch (error) {
         if (extra.signal.aborted || isAbortError(error)) throw error
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error(`Tool error: ${request.params.name}`, { error: message })
-        return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
+        logger.error(`Tool error: ${request.params.name}`, error instanceof Error ? error : { error: String(error) })
+        return { content: [{ type: 'text', text: 'Error: Tool execution failed' }], isError: true }
       }
     })
   }
