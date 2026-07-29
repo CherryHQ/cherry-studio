@@ -35,6 +35,7 @@ import {
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
+import { renameOnlySync } from '@main/utils/file'
 
 import { admitArchive } from './admission/admitArchive'
 import { compactDegradationsForJournal } from './degradationReport'
@@ -187,10 +188,10 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     // each entry's staging path is relative to.
     const promotePath = path.resolve(userDataPath, stagedDbRelPath(restoreId))
     fs.mkdirSync(path.dirname(promotePath), { recursive: true, mode: 0o700 })
-    fs.renameSync(admitted.db.path, promotePath)
+    renameOnlySync(admitted.db.path, promotePath)
     promoted = true
     if (plan.entries.length > 0) {
-      fs.renameSync(
+      renameOnlySync(
         path.join(admitted.stagingDir, RESOURCES_DIR_NAME),
         path.resolve(userDataPath, stagedResourcesRelDir(restoreId))
       )

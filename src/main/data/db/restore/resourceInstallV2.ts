@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { fsyncDirectorySync, renameOnlySync } from '@main/utils/file'
 
 import { findCrossDeviceEndpoint, findUnsafeAncestor } from './pathSafety'
 import type { ResourceInstallEntry } from './restoreJournalV2'
@@ -158,13 +159,7 @@ function assertRenameSlotsSafe(entries: readonly ResourceInstallEntry[], userDat
 /** Test seam for the platform-specific directory durability tail. */
 export const resourceInstallDurability = {
   syncDirectory(dir: string): void {
-    if (process.platform === 'win32') return
-    const fd = fs.openSync(dir, 'r')
-    try {
-      fs.fsyncSync(fd)
-    } finally {
-      fs.closeSync(fd)
-    }
+    fsyncDirectorySync(dir)
   }
 }
 
@@ -201,7 +196,7 @@ class DirBatch {
   rename(source: string, target: string): void {
     this.ensureDirectory(path.dirname(target))
     try {
-      fs.renameSync(source, target)
+      renameOnlySync(source, target)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'EXDEV') {
         throw new ResourceInstallError('cross-filesystem', `${source} → ${target}`)
