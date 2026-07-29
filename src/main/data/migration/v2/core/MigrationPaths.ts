@@ -51,6 +51,8 @@ export interface MigrationPaths {
   readonly knowledgeBaseDir: string
   /** {userData}/Data/Files */
   readonly filesDataDir: string
+  /** {userData}/Data/Skills */
+  readonly skillsDataDir: string
   /** {userData}/version.log — v1 VersionService version history log. */
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
@@ -220,6 +222,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     databaseFile: path.join(currentUserData, 'Data', DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
+    skillsDataDir: path.join(currentUserData, 'Data', 'Skills'),
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
     legacyClaudeConfigDir: path.join(currentUserData, '.claude'),

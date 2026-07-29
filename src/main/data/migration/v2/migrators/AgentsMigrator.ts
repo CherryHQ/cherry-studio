@@ -227,6 +227,7 @@ export class AgentsMigrator extends BaseMigrator {
       const fileSessionPlans = toAgentFileSessionPlans(finalSessionWorkspaces, preparedSessionMessages)
       await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
+        skillsDataRoot: ctx.paths.skillsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
           finalAgentId: idRemap.agentIds.get(sourceAgentId) ?? sourceAgentId

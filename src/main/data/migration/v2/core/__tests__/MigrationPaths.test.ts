@@ -365,6 +365,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     const result = resolveMigrationPaths()
 
     expect(result.paths.databaseFile).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite'))
+    expect(result.paths.skillsDataDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Skills'))
     expect(result.paths.legacyClaudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, '.claude'))
     expect(result.paths.legacyClaudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, '.claude', 'projects'))
     expect(result.paths.claudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude'))

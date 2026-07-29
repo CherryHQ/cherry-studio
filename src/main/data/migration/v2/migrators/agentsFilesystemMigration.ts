@@ -123,10 +123,13 @@ async function findCaseInsensitiveEntry(dir: string, name: string): Promise<stri
   return match ? path.join(dir, match) : undefined
 }
 
-async function materializeIdentityEntry(
+type MaterializedEntryKind = 'identity' | 'skill'
+
+async function materializeContainedEntry(
   sourcePath: string,
   destinationPath: string,
   sourceWorkspaceRoot: string,
+  entryKind: MaterializedEntryKind,
   visitedRealPaths = new Set<string>()
 ): Promise<boolean> {
   const sourceStat = await lstat(sourcePath)
@@ -135,23 +138,29 @@ async function materializeIdentityEntry(
     try {
       resolved = await realpath(sourcePath)
     } catch (error) {
-      logger.warn('Skipping unresolved identity symlink during agent migration', { sourcePath, error })
+      logger.warn(`Skipping unresolved ${entryKind} symlink during Agent migration`, { sourcePath, error })
       return false
     }
     const realWorkspaceRoot = await realpath(sourceWorkspaceRoot)
     if (!isPathInsideOrEqual(resolved, realWorkspaceRoot) || resolved === realWorkspaceRoot) {
-      logger.warn('Skipping identity symlink that points outside the legacy workspace', {
+      logger.warn(`Skipping ${entryKind} symlink that points outside its allowed root`, {
         sourcePath,
         resolved
       })
       return false
     }
     if (visitedRealPaths.has(resolved)) {
-      logger.warn('Skipping cyclic identity symlink during agent migration', { sourcePath, resolved })
+      logger.warn(`Skipping cyclic ${entryKind} symlink during Agent migration`, { sourcePath, resolved })
       return false
     }
     visitedRealPaths.add(resolved)
-    const copied = await materializeIdentityEntry(resolved, destinationPath, sourceWorkspaceRoot, visitedRealPaths)
+    const copied = await materializeContainedEntry(
+      resolved,
+      destinationPath,
+      sourceWorkspaceRoot,
+      entryKind,
+      visitedRealPaths
+    )
     visitedRealPaths.delete(resolved)
     return copied
   }
@@ -161,10 +170,11 @@ async function materializeIdentityEntry(
 
     let complete = true
     for (const entry of await readdir(sourcePath)) {
-      const copied = await materializeIdentityEntry(
+      const copied = await materializeContainedEntry(
         path.join(sourcePath, entry),
         path.join(destinationPath, entry),
         sourceWorkspaceRoot,
+        entryKind,
         visitedRealPaths
       )
       complete = copied && complete
@@ -173,7 +183,7 @@ async function materializeIdentityEntry(
   }
 
   if (!sourceStat.isFile()) {
-    logger.warn('Skipping unsupported identity filesystem entry', { sourcePath })
+    logger.warn(`Skipping unsupported ${entryKind} filesystem entry`, { sourcePath })
     return false
   }
 
@@ -181,38 +191,39 @@ async function materializeIdentityEntry(
   return true
 }
 
-async function copyIdentityEntry(
+async function copyMaterializedEntry(
   sourcePath: string,
   destinationPath: string,
-  sourceWorkspaceRoot: string
+  sourceWorkspaceRoot: string,
+  entryKind: MaterializedEntryKind
 ): Promise<boolean> {
-  const sourceSnapshot = await identityCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
+  const sourceSnapshot = await materializedCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
   if (!sourceSnapshot) return false
 
   const stagingPrefix = `.${path.basename(destinationPath)}.migration-`
   const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
 
   try {
-    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) {
-      throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
+    if (!(await materializeContainedEntry(sourcePath, stagingPath, sourceWorkspaceRoot, entryKind))) {
+      throw new Error(`Legacy Agent ${entryKind} changed while being copied: ${sourcePath}`)
     }
 
-    const sourceMetadataFingerprint = await identitySourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)
+    const sourceMetadataFingerprint = await materializedSourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)
     if (sourceMetadataFingerprint !== sourceSnapshot.metadataFingerprint) {
-      throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
+      throw new Error(`Legacy Agent ${entryKind} changed while being copied: ${sourcePath}`)
     }
 
     const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
     if (stagingSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
-      throw new Error(`Legacy Agent identity copy verification failed: ${sourcePath}`)
+      throw new Error(`Legacy Agent ${entryKind} copy verification failed: ${sourcePath}`)
     }
 
     let destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
     if (destinationSnapshot) {
       if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
-        throw new Error(`Legacy Agent identity destination conflict: ${destinationPath}`)
+        throw new Error(`Legacy Agent ${entryKind} destination conflict: ${destinationPath}`)
       }
-      logger.info('Reusing identical identity entry from an earlier migration attempt', {
+      logger.info(`Reusing identical ${entryKind} entry from an earlier migration attempt`, {
         sourcePath,
         destinationPath
       })
@@ -229,7 +240,7 @@ async function copyIdentityEntry(
     }
 
     if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
-      throw new Error(`Legacy Agent identity changed while being published: ${destinationPath}`)
+      throw new Error(`Legacy Agent ${entryKind} changed while being published: ${destinationPath}`)
     }
     return true
   } finally {
@@ -272,7 +283,7 @@ async function copyIdentityFromWorkspace(
     const sourcePath = await findCaseInsensitiveEntry(effectiveWorkspacePath, name)
     if (!sourcePath) continue
     const destinationPath = path.join(agentDataPath, name)
-    if (await copyIdentityEntry(sourcePath, destinationPath, effectiveWorkspacePath)) {
+    if (await copyMaterializedEntry(sourcePath, destinationPath, effectiveWorkspacePath, 'identity')) {
       claimedIdentityEntries.add(name)
     }
   }
@@ -945,7 +956,7 @@ async function filesystemEntryMetadataFingerprint(targetPath: string): Promise<s
   return hash.digest('hex')
 }
 
-async function identityCopySourceSnapshot(
+async function materializedCopySourceSnapshot(
   targetPath: string,
   sourceWorkspaceRoot: string,
   visitedRealPaths = new Set<string>(),
@@ -970,7 +981,7 @@ async function identityCopySourceSnapshot(
       return undefined
     }
     visitedRealPaths.add(resolved)
-    const resolvedSnapshot = await identityCopySourceSnapshot(
+    const resolvedSnapshot = await materializedCopySourceSnapshot(
       resolved,
       sourceWorkspaceRoot,
       visitedRealPaths,
@@ -995,7 +1006,7 @@ async function identityCopySourceSnapshot(
     const entries = await readdir(targetPath)
     entries.sort()
     for (const entry of entries) {
-      const childSnapshot = await identityCopySourceSnapshot(
+      const childSnapshot = await materializedCopySourceSnapshot(
         path.join(targetPath, entry),
         sourceWorkspaceRoot,
         visitedRealPaths,
@@ -1016,7 +1027,7 @@ async function identityCopySourceSnapshot(
   }
 }
 
-async function identitySourceMetadataFingerprint(
+async function materializedSourceMetadataFingerprint(
   targetPath: string,
   sourceWorkspaceRoot: string,
   visitedRealPaths = new Set<string>(),
@@ -1039,7 +1050,7 @@ async function identitySourceMetadataFingerprint(
       return undefined
     }
     visitedRealPaths.add(resolved)
-    const resolvedFingerprint = await identitySourceMetadataFingerprint(
+    const resolvedFingerprint = await materializedSourceMetadataFingerprint(
       resolved,
       sourceWorkspaceRoot,
       visitedRealPaths,
@@ -1052,7 +1063,7 @@ async function identitySourceMetadataFingerprint(
     const entries = await readdir(targetPath)
     entries.sort()
     for (const entry of entries) {
-      const childFingerprint = await identitySourceMetadataFingerprint(
+      const childFingerprint = await materializedSourceMetadataFingerprint(
         path.join(targetPath, entry),
         sourceWorkspaceRoot,
         visitedRealPaths,
@@ -1247,62 +1258,83 @@ async function copyWorkspaceEntry(
   }
 }
 
-async function resolveWindowsSkillCopySource(sourcePath: string): Promise<string | undefined> {
-  try {
-    return await realpath(sourcePath)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    logger.warn('Skipping missing Windows skill during Agent workspace migration', { sourcePath })
-    return undefined
-  }
-}
-
 /** Materialize v1 workspace skill entries on Windows instead of linking them into the destination. */
 async function copyWindowsSkillWorkspaceContent(
   agentsDataRoot: string,
+  skillsDataRoot: string,
   sourceSkillsPath: string,
-  destinationSkillsPath: string,
-  agentDataPath: string
+  destinationSkillsPath: string
 ): Promise<boolean> {
   if (!isWin) return false
 
   const sourceStat = await lstatIfExists(sourceSkillsPath)
   if (!sourceStat) return true
-  if (sourceStat.isSymbolicLink()) {
-    const resolvedSource = await resolveWindowsSkillCopySource(sourceSkillsPath)
-    if (!resolvedSource) return true
-    await copyWorkspaceEntry(
-      resolvedSource,
-      destinationSkillsPath,
-      resolvedSource,
-      destinationSkillsPath,
-      agentDataPath
+
+  const skillsDataRootStat = await lstatIfExists(skillsDataRoot)
+  if (!skillsDataRootStat?.isDirectory() || skillsDataRootStat.isSymbolicLink()) {
+    logger.warn(
+      'Skipping Windows skills during Agent workspace migration because the skills data directory is missing or invalid',
+      {
+        skillsDataRoot
+      }
     )
     return true
   }
-  if (!sourceStat.isDirectory()) return false
+  const canonicalSkillsDataRoot = await realpath(skillsDataRoot)
+
+  let skillEntries: string[]
+  if (sourceStat.isSymbolicLink()) {
+    let resolvedSource: string
+    try {
+      resolvedSource = await realpath(sourceSkillsPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      logger.warn('Skipping missing Windows skills link during Agent workspace migration', { sourceSkillsPath })
+      return true
+    }
+    if (path.resolve(resolvedSource) !== path.resolve(canonicalSkillsDataRoot)) {
+      logger.warn('Skipping Windows skills link outside the skills data directory during Agent workspace migration', {
+        sourceSkillsPath,
+        resolvedSource,
+        skillsDataRoot: canonicalSkillsDataRoot
+      })
+      return true
+    }
+    skillEntries = await readdir(canonicalSkillsDataRoot)
+  } else if (sourceStat.isDirectory()) {
+    skillEntries = await readdir(sourceSkillsPath)
+  } else {
+    logger.warn('Skipping invalid Windows skills entry during Agent workspace migration', { sourceSkillsPath })
+    return true
+  }
 
   await ensureAgentStorageDirectory(agentsDataRoot, destinationSkillsPath)
-  for (const entry of await readdir(sourceSkillsPath)) {
-    const sourcePath = path.join(sourceSkillsPath, entry)
+  for (const entry of skillEntries) {
+    const sourcePath = path.join(canonicalSkillsDataRoot, entry)
     const destinationPath = path.join(destinationSkillsPath, entry)
     const entryStat = await lstatIfExists(sourcePath)
-    if (!entryStat) continue
-
-    if (entryStat.isSymbolicLink()) {
-      const resolvedSource = await resolveWindowsSkillCopySource(sourcePath)
-      if (!resolvedSource) continue
-      await copyWorkspaceEntry(resolvedSource, destinationPath, resolvedSource, destinationPath, agentDataPath)
+    if (!entryStat) {
+      logger.warn('Skipping missing Windows skill during Agent workspace migration', { sourcePath })
       continue
     }
-
-    await copyWorkspaceEntry(sourcePath, destinationPath, sourceSkillsPath, destinationSkillsPath, agentDataPath)
+    if (entryStat.isSymbolicLink() || (!entryStat.isDirectory() && !entryStat.isFile())) {
+      logger.warn('Skipping invalid Windows skill in the skills data directory during Agent workspace migration', {
+        sourcePath
+      })
+      continue
+    }
+    if (!(await copyMaterializedEntry(sourcePath, destinationPath, canonicalSkillsDataRoot, 'skill'))) {
+      logger.warn('Skipping Windows skill with a missing or unsafe linked entry during Agent workspace migration', {
+        sourcePath
+      })
+    }
   }
   return true
 }
 
 async function copyOrdinaryWorkspaceContent(
   agentsDataRoot: string,
+  skillsDataRoot: string,
   sourceWorkspacePath: string,
   destinationWorkspacePath: string,
   agentDataPath: string
@@ -1317,9 +1349,9 @@ async function copyOrdinaryWorkspaceContent(
       entry.toLowerCase() === 'skills' &&
       (await copyWindowsSkillWorkspaceContent(
         agentsDataRoot,
+        skillsDataRoot,
         path.join(sourceWorkspacePath, entry),
-        path.join(destinationWorkspacePath, entry),
-        agentDataPath
+        path.join(destinationWorkspacePath, entry)
       ))
     ) {
       continue
@@ -1337,6 +1369,7 @@ async function copyOrdinaryWorkspaceContent(
 
 export async function stageLegacyAgentFiles(input: {
   agentsDataRoot: string
+  skillsDataRoot: string
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
   sessions: AgentFileSessionPlan[]
 }): Promise<void> {
@@ -1387,6 +1420,7 @@ export async function stageLegacyAgentFiles(input: {
       if (!session.systemWorkspacePath) continue
       await copyOrdinaryWorkspaceContent(
         input.agentsDataRoot,
+        input.skillsDataRoot,
         session.sourceWorkspacePath,
         session.systemWorkspacePath,
         agentDataPath

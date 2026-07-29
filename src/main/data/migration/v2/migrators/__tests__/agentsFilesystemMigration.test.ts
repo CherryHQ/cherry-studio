@@ -27,7 +27,7 @@ import {
   copyLegacyClaudeSessionData,
   isManagedLegacyAgentWorkspace,
   legacyAgentWorkspacePath,
-  stageLegacyAgentFiles
+  stageLegacyAgentFiles as stageLegacyAgentFilesImplementation
 } from '../agentsFilesystemMigration'
 
 const { copyMutation, platformState } = vi.hoisted(() => ({
@@ -88,6 +88,15 @@ const FINAL_OLD_SESSION_ID = '9a075ce3-c42d-545b-a0b5-f39e43e4a917'
 const FINAL_LATEST_SESSION_ID = '01257168-34a7-5ff9-994d-bf78596c777c'
 const CLAUDE_SESSION_ID = '95b9a03b-6704-4a4b-bcf1-f65dabb67bf6'
 const MISSING_LATEST_CLAUDE_SESSION_ID = '3f5221a6-b39d-4cab-a82d-7a7ed7ccf5db'
+
+function stageLegacyAgentFiles(
+  input: Omit<Parameters<typeof stageLegacyAgentFilesImplementation>[0], 'skillsDataRoot'>
+) {
+  return stageLegacyAgentFilesImplementation({
+    ...input,
+    skillsDataRoot: path.join(path.dirname(input.agentsDataRoot), 'Skills')
+  })
+}
 
 function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
   return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
@@ -401,9 +410,12 @@ describe('agentsFilesystemMigration', () => {
       const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
       const skillSource = path.join(tempRoot, 'Data', 'Skills', 'find-skills')
       const skillFileSource = path.join(tempRoot, 'Data', 'Skills', 'skill-note.md')
+      const nestedSkillSource = path.join(skillSource, 'references', 'nested.md')
       const sourceSkillsDirectory = path.join(legacyWorkspace, 'skills')
-      await mkdir(skillSource, { recursive: true })
+      await mkdir(path.dirname(nestedSkillSource), { recursive: true })
       await writeFile(path.join(skillSource, 'SKILL.md'), '# Find Skills')
+      await writeFile(nestedSkillSource, 'nested content')
+      await symlink(nestedSkillSource, path.join(skillSource, 'nested.md'), 'file')
       await writeFile(skillFileSource, 'skill note')
       await mkdir(sourceSkillsDirectory, { recursive: true })
       await symlink(skillSource, path.join(sourceSkillsDirectory, 'find-skills'), 'dir')
@@ -429,6 +441,8 @@ describe('agentsFilesystemMigration', () => {
       expect((await lstat(destinationSkill)).isSymbolicLink()).toBe(false)
       expect((await lstat(destinationSkill)).isDirectory()).toBe(true)
       expect(await readFile(path.join(destinationSkill, 'SKILL.md'), 'utf8')).toBe('# Find Skills')
+      expect((await lstat(path.join(destinationSkill, 'nested.md'))).isSymbolicLink()).toBe(false)
+      expect(await readFile(path.join(destinationSkill, 'nested.md'), 'utf8')).toBe('nested content')
       expect((await lstat(destinationSkillFile)).isSymbolicLink()).toBe(false)
       expect(await readFile(destinationSkillFile, 'utf8')).toBe('skill note')
       expect(copyMutation.symlinkCalls).toEqual([])
@@ -472,6 +486,72 @@ describe('agentsFilesystemMigration', () => {
       ).resolves.toBeUndefined()
 
       await expect(lstat(path.join(latestSession.systemWorkspacePath!, 'skills', 'missing-skill'))).rejects.toThrow()
+    }
+  )
+
+  it.runIf(process.platform !== 'win32')('skips a Windows skill link outside the skills data directory', async () => {
+    const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+    const skillsDataRoot = path.join(tempRoot, 'Data', 'Skills')
+    const externalSkillSource = path.join(tempRoot, 'private-skill')
+    const sourceSkillsDirectory = path.join(legacyWorkspace, 'skills')
+    await mkdir(skillsDataRoot, { recursive: true })
+    await mkdir(externalSkillSource, { recursive: true })
+    await writeFile(path.join(externalSkillSource, 'secret.txt'), 'private content')
+    await mkdir(sourceSkillsDirectory, { recursive: true })
+    await symlink(externalSkillSource, path.join(sourceSkillsDirectory, 'private-skill'), 'dir')
+    platformState.isWin = true
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).resolves.toBeUndefined()
+
+    await expect(lstat(path.join(latestSession.systemWorkspacePath!, 'skills', 'private-skill'))).rejects.toThrow()
+    expect(await readFile(path.join(externalSkillSource, 'secret.txt'), 'utf8')).toBe('private content')
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'skips a Windows skill containing a nested link outside the skills data directory',
+    async () => {
+      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+      const skillSource = path.join(tempRoot, 'Data', 'Skills', 'unsafe-skill')
+      const externalFile = path.join(tempRoot, 'private.txt')
+      const sourceSkillsDirectory = path.join(legacyWorkspace, 'skills')
+      await mkdir(skillSource, { recursive: true })
+      await writeFile(path.join(skillSource, 'SKILL.md'), '# Unsafe Skill')
+      await writeFile(externalFile, 'private content')
+      await symlink(externalFile, path.join(skillSource, 'private.txt'), 'file')
+      await mkdir(sourceSkillsDirectory, { recursive: true })
+      await symlink(skillSource, path.join(sourceSkillsDirectory, 'unsafe-skill'), 'dir')
+      platformState.isWin = true
+
+      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+
+      await expect(
+        stageLegacyAgentFiles({
+          agentsDataRoot,
+          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+          sessions: [latestSession]
+        })
+      ).resolves.toBeUndefined()
+
+      await expect(lstat(path.join(latestSession.systemWorkspacePath!, 'skills', 'unsafe-skill'))).rejects.toThrow()
+      expect(await readFile(externalFile, 'utf8')).toBe('private content')
     }
   )
 
