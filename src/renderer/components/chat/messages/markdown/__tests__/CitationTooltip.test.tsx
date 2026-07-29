@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CitationTooltip from '../CitationTooltip'
+import CitationTooltip, { CitationSchema } from '../CitationTooltip'
 
 vi.mock('@renderer/utils/fetch', () => ({
   fetchXOEmbed: vi.fn().mockResolvedValue(null),
@@ -31,6 +31,26 @@ const uiMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => uiMocks)
+
+// `url` is deliberately a plain string rather than `z.url()`: both consumers drop the entire
+// citation — and with it the hover card — when the parse fails, and migrated v1 knowledge
+// citations never hold a real URL. Asserted here because `CitationSup` and `Link` both stub
+// `safeParse`, so nothing else would catch a tightening of this field.
+describe('CitationSchema', () => {
+  it.each([
+    ['a bare absolute file path', '/Users/me/docs/notes.md'],
+    ['the literal v1 note marker', 'note'],
+    ['a Windows path', 'C:\\docs\\notes.md'],
+    ['an empty url', '']
+  ])('accepts %s', (_label, url) => {
+    expect(CitationSchema.safeParse({ type: 'knowledge', url, title: 'One' }).success).toBe(true)
+  })
+
+  it('keeps the display number so the badge can name itself after it', () => {
+    const parsed = CitationSchema.safeParse({ type: 'websearch', id: 3, url: 'https://a.com', title: 'A' })
+    expect(parsed.success && parsed.data.id).toBe(3)
+  })
+})
 
 describe('CitationTooltip', () => {
   beforeEach(() => {

@@ -85,7 +85,8 @@ vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
     return citations
       .map(
         (ref, index) =>
-          `[${index + 1}] [${ref.url || `https://example${index + 1}.com`}](${ref.title || `Example Citation ${index + 1}`})`
+          // Mirrors the real `getCitationContent`: `[N] [title](url)`, title first.
+          `[${index + 1}] [${ref.title || `Example Citation ${index + 1}`}](${ref.url || `https://example${index + 1}.com`})`
       )
       .join('\n\n')
   })
@@ -386,7 +387,7 @@ describe('ExportService', () => {
       const markdown = await messageToMarkdown(message)
 
       expect(markdown).toContain('Answer with citation')
-      expect(markdown).toContain('[^1]: [https://example.com](Example)')
+      expect(markdown).toContain('[^1]: [Example](https://example.com)')
     })
 
     it('should resolve tool-part [cite:id] markers and list their sources', async () => {
@@ -522,7 +523,7 @@ describe('ExportService', () => {
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
-      expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
+      expect(markdown).toContain('[^1]: [Example Citation 1](https://example1.com)')
     })
 
     it('should include reasoning from parts-only export view', async () => {
@@ -535,6 +536,23 @@ describe('ExportService', () => {
 
       expect(markdown).toContain('Parts answer')
       expect(markdown).toContain('Parts reasoning')
+    })
+
+    // The model cites while reasoning too. Those markers get stripped rather than resolved: the
+    // `[N]` sequence belongs to the answer body, so numbering them here would contradict it.
+    it('strips citation markers from reasoning instead of leaking them into the export', async () => {
+      const message = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'reasoning', text: 'The source says prices rose. [cite:3f2a1b9c-1] So the answer is 3%.' },
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('The source says prices rose. So the answer is 3%.')
+      // The answer body still resolves to a real number, so stripping is scoped to the trace.
+      expect(markdown).toContain('Prices rose 3%. [^1]')
     })
 
     it('should format citations as footnotes when standardize citations is enabled', () => {
@@ -886,6 +904,6 @@ describe('Citation formatting in Markdown export', () => {
     expect(markdown).toContain('Content with citations')
 
     // Should include citation content (mocked by getCitationContent)
-    expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
+    expect(markdown).toContain('[^1]: [Example Citation 1](https://example1.com)')
   })
 })

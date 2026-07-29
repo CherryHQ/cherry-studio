@@ -84,17 +84,62 @@ describe('getToolCitationExport', () => {
   it('defers to legacy reference metadata rather than renumbering it', () => {
     // Migrated v1 messages number their `[N]` markers from the stored references;
     // re-resolving would renumber by first appearance and drift from that list.
+    //
+    // The reference uses the real nested `WebCitationReference` shape the v1 migrator emits
+    // (`content.results`, no top-level `url`) — a flat `{ url }` reference would let the guard
+    // pass for the wrong reason, since `getCitationContent` only reads the flat form.
     const message = createExportView([
-      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://first.com' },
+      { type: 'source-url', sourceId: 'citation-2', url: 'https://second.com' },
+      { type: 'source-url', sourceId: 'citation-3', url: 'https://third.com' },
       {
         type: 'text',
-        text: 'Legacy answer [2]',
+        text: 'Legacy answer [3] and [1]',
         providerMetadata: {
-          cherry: { references: [{ category: 'citation', number: 2, url: 'https://second.com', title: 'Second' }] }
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: {
+                  results: [
+                    { url: 'https://first.com', title: 'First' },
+                    { url: 'https://second.com', title: 'Second' },
+                    { url: 'https://third.com', title: 'Third' }
+                  ]
+                }
+              }
+            ]
+          }
         }
       }
     ] as MessageExportView['parts'])
 
-    expect(getToolCitationExport(message, 'Legacy answer [2]')).toEqual({ content: 'Legacy answer [2]', citation: '' })
+    // Untouched: renumbering by first appearance would rewrite this to "[1] and [2]", which no
+    // longer matches the numbers the message renders on screen.
+    expect(getToolCitationExport(message, 'Legacy answer [3] and [1]')).toEqual({
+      content: 'Legacy answer [3] and [1]',
+      citation: ''
+    })
+  })
+
+  it('still resolves markers when reference metadata is present but yields no citations', () => {
+    // Mirrors MainTextBlock, which falls through to tool citations on `citations.length === 0` —
+    // an empty or non-citation reference list must not strand `[cite:id]` in the export.
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://a.com', title: 'A' },
+      { type: 'source-url', sourceId: 'citation-2', url: 'https://b.com', title: 'B' },
+      {
+        type: 'text',
+        // `citation-N` sourceIds are 0-indexed on the wire, so `citation-2` is marker [3].
+        text: 'Claim [3]',
+        providerMetadata: { cherry: { references: [{ category: 'metadata' }] } }
+      }
+    ] as MessageExportView['parts'])
+
+    expect(getToolCitationExport(message, 'Claim [3]')).toEqual({
+      content: 'Claim [1]',
+      citation: '[1] [B](https://b.com)'
+    })
   })
 })

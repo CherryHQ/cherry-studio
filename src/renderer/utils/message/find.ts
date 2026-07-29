@@ -7,7 +7,8 @@
  */
 import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
@@ -139,7 +140,17 @@ export const getToolCitationExport = (
   // Legacy reference metadata wins, mirroring MainTextBlock: those messages number
   // their `[N]` markers from the stored references, so resolving them here would
   // renumber the text by first appearance and drift from that sources list.
-  if (getCitationContent(message)) return { content, citation: '' }
+  //
+  // Gate on the same predicate the renderer uses (MainTextBlock: references present
+  // AND they yield citations). `getCitationContent` cannot stand in for it — it reads
+  // a flat `ref.url` that the real nested `WebCitationReference` shape never has, so
+  // it returns '' for migrated messages that do render legacy citations.
+  const rendersLegacyCitations = getParts(message).some((part) => {
+    if (part.type !== 'text') return false
+    const references = readCherryMeta(part)?.references as ContentReference[] | undefined
+    return !!references?.length && convertReferencesToCitations(references).length > 0
+  })
+  if (rendersLegacyCitations) return { content, citation: '' }
   const { content: exported, cited } = toExportableCitations(content, getParts(message))
   return { content: exported, citation: formatCitationLines(cited) }
 }

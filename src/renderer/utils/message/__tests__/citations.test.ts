@@ -1,7 +1,12 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { resolveMessageCitations, toExportableCitations, withToolCitationTags } from '../citations'
+import {
+  resolveMessageCitations,
+  stripCitationMarkers,
+  toExportableCitations,
+  withToolCitationTags
+} from '../citations'
 
 const webResults = (prefix: string) => [
   { id: `${prefix}-1`, title: 'First', url: 'https://a.com/x', content: 'alpha *bold*' },
@@ -349,13 +354,14 @@ describe('toExportableCitations', () => {
     // An internal id must never reach an exported document or the clipboard.
     const { content, cited } = toExportableCitations('Claim [cite:gone-9].', [webToolPart(webResults('abc'))])
 
-    expect(content).toBe('Claim .')
+    // The separating space goes with the marker, so the sentence does not end up as 'Claim .'
+    expect(content).toBe('Claim.')
     expect(cited).toEqual([])
   })
 
   it('strips markers even when the message carries no tool results', () => {
     const { content } = toExportableCitations('Claim [cite:abc-1].', [textPart('hi')])
-    expect(content).toBe('Claim .')
+    expect(content).toBe('Claim.')
   })
 
   it('collapses repeat markers the way the rendered badges do', () => {
@@ -375,5 +381,25 @@ describe('toExportableCitations', () => {
     const { content, cited } = toExportableCitations('Plain answer.', [webToolPart(webResults('abc'))])
     expect(content).toBe('Plain answer.')
     expect(cited).toEqual([])
+  })
+})
+
+describe('stripCitationMarkers', () => {
+  // Used for text outside the numbered answer — reasoning traces above all — where resolving
+  // would either restart at [1] or emit numbers that contradict the answer body.
+  it('removes every marker along with its separating space', () => {
+    expect(stripCitationMarkers('Prices rose. [cite:abc-1] Demand fell. [cite:abc-2]')).toBe(
+      'Prices rose. Demand fell.'
+    )
+  })
+
+  it('removes chained markers without leaving a gap', () => {
+    expect(stripCitationMarkers('Both agree. [cite:abc-1][cite:def-3]')).toBe('Both agree.')
+  })
+
+  it('leaves text without markers untouched, including plain bracket numbers', () => {
+    expect(stripCitationMarkers('Plain reasoning about [1] and [brackets].')).toBe(
+      'Plain reasoning about [1] and [brackets].'
+    )
   })
 })

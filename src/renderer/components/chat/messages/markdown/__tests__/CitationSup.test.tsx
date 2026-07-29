@@ -16,7 +16,8 @@ vi.mock('../CitationTooltip', () => ({
   }
 }))
 
-const citationJson = JSON.stringify({ type: 'knowledge', url: '', title: 'One.md', content: 'kb chunk' })
+const citation = { type: 'knowledge', url: '', title: 'One.md', content: 'kb chunk' }
+const citationJson = JSON.stringify(citation)
 
 describe('CitationSup', () => {
   it('mounts the tooltip for a sup carrying citation data', () => {
@@ -45,7 +46,7 @@ describe('CitationSup', () => {
 
   // The Tooltip trigger is a plain div, so the badge itself has to be focusable and named.
   it('makes the tooltip-bearing sup a focusable, named trigger', () => {
-    render(<CitationSup data-citation={citationJson}>3</CitationSup>)
+    render(<CitationSup data-citation={JSON.stringify({ ...citation, id: 3 })}>3</CitationSup>)
 
     const sup = screen.getByTestId('citation-tooltip').querySelector('sup')!
     expect(sup).toHaveAttribute('role', 'button')
@@ -54,6 +55,30 @@ describe('CitationSup', () => {
     // key would surface as the raw key path.
     expect(sup).toHaveAttribute('aria-label')
     expect(sup.getAttribute('aria-label')).not.toBe('message.citation_source')
+  })
+
+  // `role="button"` turns on name-from-content, so a constant label would override the badge's
+  // own number and make every citation on the page announce identically.
+  it('folds the citation number into the accessible name', () => {
+    render(
+      <>
+        <CitationSup data-citation={JSON.stringify({ ...citation, id: 3 })}>3</CitationSup>
+        <CitationSup data-citation={JSON.stringify({ ...citation, id: 4 })}>4</CitationSup>
+      </>
+    )
+
+    const [first, second] = screen.getAllByTestId('citation-tooltip').map((el) => el.querySelector('sup')!)
+    expect(first.getAttribute('aria-label')).toContain('3')
+    expect(second.getAttribute('aria-label')).toContain('4')
+    expect(first.getAttribute('aria-label')).not.toBe(second.getAttribute('aria-label'))
+  })
+
+  // Without a number there is nothing to interpolate; falling back to name-from-content still
+  // announces the badge's own text rather than a bare noun repeated across the page.
+  it('omits the label entirely when the citation carries no number', () => {
+    render(<CitationSup data-citation={citationJson}>3</CitationSup>)
+
+    expect(screen.getByTestId('citation-tooltip').querySelector('sup')).not.toHaveAttribute('aria-label')
   })
 
   // Web citations ship inside `[…](url)`, where Link mounts the tooltip on the anchor from this

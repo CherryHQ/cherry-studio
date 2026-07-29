@@ -394,6 +394,13 @@ export function resolveCitationMarkers(content: string, citations: MessageCitati
 }
 
 /**
+ * A `[cite:id]` marker together with the space that separates it from the
+ * preceding sentence, so a dropped marker takes that space with it instead of
+ * leaving `Claim .` behind.
+ */
+const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
+
+/**
  * Export / copy view: every resolved `[cite:id]` marker becomes a plain `[N]`,
  * and an id that resolves to nothing is dropped — an internal marker must never
  * escape into exported text or the clipboard. Also returns the cited sources in
@@ -408,12 +415,25 @@ export function toExportableCitations(
 ): { content: string; cited: Citation[] } {
   const { content: resolved, byMarker, cited } = resolveCitationMarkers(content, resolveMessageCitations(parts))
   return {
-    content: resolved.replace(/\[cite:([\w-]+)\]/g, (_match, id: string) => {
+    content: resolved.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
       const citation = byMarker.get(id)
-      return citation ? `[${citation.number}]` : ''
+      return citation ? `${space}[${citation.number}]` : ''
     }),
     cited
   }
+}
+
+/**
+ * Drop every `[cite:id]` marker without resolving it.
+ *
+ * For text that sits outside the numbered answer — reasoning traces above all.
+ * Those markers point at the same tool results, but the numbering belongs to the
+ * answer body; resolving them here would either restart at `[1]` or emit numbers
+ * that contradict it. Stripping keeps the internal marker out of the export
+ * without inventing a second, conflicting sequence.
+ */
+export function stripCitationMarkers(content: string): string {
+  return content.replace(CITATION_MARKER_PATTERN, '')
 }
 
 /**

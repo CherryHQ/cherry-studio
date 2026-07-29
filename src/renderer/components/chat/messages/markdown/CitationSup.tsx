@@ -50,13 +50,18 @@ const CitationSup: React.FC<CitationSupProps> = (props) => {
   // name-from is prohibited, so a bare `aria-label` would be dropped. The focus ring has to be a
   // ring (box-shadow) rather than an outline — the `app` layer resets `*:focus { outline-style:
   // none }` and, being last, beats any `utilities`-layer outline utility.
+  //
+  // The label must carry the number: `role="button"` also turns on name-from-content, so a
+  // constant string would override the badge's own text and make every citation on the page
+  // announce identically, cutting the link to the sources footer. Without a number, fall through
+  // to name-from-content rather than announcing a bare noun.
   return (
     <CitationTooltip citation={citation}>
       <sup
         {...supProps}
         role="button"
         tabIndex={0}
-        aria-label={t('message.citation_source')}
+        aria-label={citation.id === undefined ? undefined : t('message.citation_source', { number: citation.id })}
         className={cn(supProps.className, 'focus-visible:ring-2 focus-visible:ring-primary')}
       />
     </CitationTooltip>

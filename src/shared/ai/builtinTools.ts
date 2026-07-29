@@ -468,7 +468,7 @@ export const webSearchInputSchema = z.object({
 
 export const webSearchOutputItemSchema = z.object({
   // Citation id the model echoes back as `[cite:id]`. New results use a per-call
-  // random-prefixed string ("k3f-2") so ids stay unique across multiple lookup
+  // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
   // calls in one message; number is kept so older persisted results still parse.
   id: z.union([z.string(), z.number().int().positive()]),
   title: z.string(),
