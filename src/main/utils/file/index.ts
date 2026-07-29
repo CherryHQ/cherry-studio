@@ -115,6 +115,7 @@ export {
 export {
   findCrossDeviceEndpoint,
   findUnsafeAncestor,
+  OwnedPathIdentityError,
   type PathIdentity,
   type PathNodeType,
   type PathProbe,

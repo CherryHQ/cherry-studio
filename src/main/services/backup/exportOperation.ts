@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, lstat, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { chmod, lstat, mkdtemp, readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { atomicWriteFile } from '@main/utils/file'
+import { atomicWriteFile, type PathIdentity, probePath, removeOwnedDirectory } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('backup/exportOperation')
@@ -13,11 +13,6 @@ const STAGING_MARKER = '.backup-export-owner.json'
 const PUBLISH_MARKER = '.backup-export-publish-owner.json'
 const MARKER_VERSION = 1
 const MAX_MARKER_BYTES = 16 * 1024
-
-interface OwnedIdentity {
-  readonly dev: bigint
-  readonly ino: bigint
-}
 
 interface SerializedIdentity {
   readonly dev: string
@@ -59,7 +54,7 @@ export interface ExportOperationOwner {
   cleanup(): Promise<boolean>
 }
 
-function serializeIdentity(identity: OwnedIdentity): SerializedIdentity {
+function serializeIdentity(identity: PathIdentity): SerializedIdentity {
   return { dev: identity.dev.toString(), ino: identity.ino.toString() }
 }
 
@@ -71,16 +66,20 @@ function parseIdentity(value: unknown): SerializedIdentity | null {
   return { dev: candidate.dev, ino: candidate.ino }
 }
 
-function identitiesEqual(stats: Awaited<ReturnType<typeof lstat>>, identity: SerializedIdentity): boolean {
-  return stats.dev.toString() === identity.dev && stats.ino.toString() === identity.ino
+function identitiesEqual(identity: PathIdentity, serialized: SerializedIdentity): boolean {
+  return (
+    identity.nodeType === 'directory' &&
+    identity.dev.toString() === serialized.dev &&
+    identity.ino.toString() === serialized.ino
+  )
 }
 
-async function identityOf(directory: string): Promise<OwnedIdentity> {
-  const stats = await lstat(directory, { bigint: true })
-  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+async function identityOf(directory: string): Promise<PathIdentity> {
+  const probe = await probePath(directory)
+  if (probe.kind !== 'present' || probe.identity.nodeType !== 'directory') {
     throw new Error(`backup-owned path is not a real directory: ${directory}`)
   }
-  return { dev: stats.dev, ino: stats.ino }
+  return probe.identity
 }
 
 async function writeJsonAtomic(target: string, value: unknown): Promise<void> {
@@ -153,17 +152,11 @@ function parsePublishMarker(value: unknown): PublishMarker | null {
 }
 
 async function safeRemoveOwnedDirectory(directory: string, identity: SerializedIdentity): Promise<void> {
-  let stats: Awaited<ReturnType<typeof lstat>>
-  try {
-    stats = await lstat(directory, { bigint: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw error
-  }
-  if (stats.isSymbolicLink() || !stats.isDirectory() || !identitiesEqual(stats, identity)) {
-    throw new Error(`backup-owned directory identity changed: ${directory}`)
-  }
-  await rm(directory, { recursive: true, force: true })
+  await removeOwnedDirectory(directory, {
+    dev: BigInt(identity.dev),
+    ino: BigInt(identity.ino),
+    nodeType: 'directory'
+  })
 }
 
 function validPublishTempPath(marker: ExportMarker): boolean {
@@ -178,13 +171,9 @@ async function removeRecordedPublishTemp(marker: ExportMarker): Promise<boolean>
   if (!marker.publishTemp) return true
   if (!validPublishTempPath(marker)) return false
   const tempDir = marker.publishTemp.path
-  let stats: Awaited<ReturnType<typeof lstat>>
-  try {
-    stats = await lstat(tempDir, { bigint: true })
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT'
-  }
-  if (stats.isSymbolicLink() || !stats.isDirectory() || !identitiesEqual(stats, marker.publishTemp.identity)) {
+  const current = await probePath(tempDir)
+  if (current.kind === 'missing') return true
+  if (!identitiesEqual(current.identity, marker.publishTemp.identity)) {
     return false
   }
   let publishMarker: PublishMarker | null
@@ -197,11 +186,11 @@ async function removeRecordedPublishTemp(marker: ExportMarker): Promise<boolean>
     !publishMarker ||
     publishMarker.operationId !== marker.operationId ||
     publishMarker.stagingPath !== marker.stagingPath ||
-    !identitiesEqual(stats, publishMarker.identity)
+    !identitiesEqual(current.identity, publishMarker.identity)
   ) {
     return false
   }
-  await rm(tempDir, { recursive: true, force: true })
+  await removeOwnedDirectory(tempDir, current.identity)
   return true
 }
 
@@ -226,14 +215,8 @@ async function removeDiscoverablePublishTemps(marker: ExportMarker): Promise<boo
   for (const name of names) {
     if (!name.startsWith(PUBLISH_TEMP_PREFIX)) continue
     const candidatePath = path.join(destinationParent, name)
-    let stats: Awaited<ReturnType<typeof lstat>>
-    try {
-      stats = await lstat(candidatePath, { bigint: true })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
-      throw error
-    }
-    if (stats.isSymbolicLink() || !stats.isDirectory()) continue
+    const current = await probePath(candidatePath)
+    if (current.kind === 'missing' || current.identity.nodeType !== 'directory') continue
 
     let publishMarker: PublishMarker | null
     try {
@@ -248,8 +231,8 @@ async function removeDiscoverablePublishTemps(marker: ExportMarker): Promise<boo
     ) {
       continue
     }
-    if (!identitiesEqual(stats, publishMarker.identity)) return false
-    await rm(candidatePath, { recursive: true, force: true })
+    if (!identitiesEqual(current.identity, publishMarker.identity)) return false
+    await removeOwnedDirectory(candidatePath, current.identity)
   }
   return true
 }
@@ -257,9 +240,11 @@ async function removeDiscoverablePublishTemps(marker: ExportMarker): Promise<boo
 export async function createExportOperation(stagingParent: string, outPath: string): Promise<ExportOperationOwner> {
   const operationId = randomUUID()
   const stagingRoot = await mkdtemp(path.join(stagingParent, STAGING_PREFIX))
+  let initializationIdentity: PathIdentity | undefined
   let marker: ExportMarker
   try {
     const beforeChmod = await identityOf(stagingRoot)
+    initializationIdentity = beforeChmod
     await chmod(stagingRoot, 0o700)
     const stagingIdentity = await identityOf(stagingRoot)
     if (beforeChmod.dev !== stagingIdentity.dev || beforeChmod.ino !== stagingIdentity.ino) {
@@ -274,11 +259,13 @@ export async function createExportOperation(stagingParent: string, outPath: stri
     }
     await writeJsonAtomic(path.join(stagingRoot, STAGING_MARKER), marker)
   } catch (error) {
-    await rm(stagingRoot, { recursive: true, force: true }).catch((cleanupError) => {
-      logger.warn('Could not remove export staging after ownership-intent failure', cleanupError as Error, {
-        operationId
+    if (initializationIdentity) {
+      await removeOwnedDirectory(stagingRoot, initializationIdentity).catch((cleanupError) => {
+        logger.warn('Could not remove export staging after ownership-intent failure', cleanupError as Error, {
+          operationId
+        })
       })
-    })
+    }
     throw error
   }
 
@@ -360,12 +347,8 @@ export async function sweepStaleExportOperations(stagingParent: string): Promise
     }
     if (!marker || marker.stagingPath !== path.resolve(stagingPath) || !validPublishTempPath(marker)) continue
     try {
-      const stagingStats = await lstat(stagingPath, { bigint: true })
-      if (
-        stagingStats.isSymbolicLink() ||
-        !stagingStats.isDirectory() ||
-        !identitiesEqual(stagingStats, marker.stagingIdentity)
-      ) {
+      const current = await probePath(stagingPath)
+      if (current.kind !== 'present' || !identitiesEqual(current.identity, marker.stagingIdentity)) {
         continue
       }
       if (!(await removeDiscoverablePublishTemps(marker))) continue

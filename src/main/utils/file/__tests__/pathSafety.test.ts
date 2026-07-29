@@ -4,7 +4,13 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { findUnsafeAncestor, probePath, probePathSync, removeOwnedDirectory } from '../pathSafety'
+import {
+  findUnsafeAncestor,
+  OwnedPathIdentityError,
+  probePath,
+  probePathSync,
+  removeOwnedDirectory
+} from '../pathSafety'
 
 describe('path identity and owned cleanup', () => {
   let root = ''
@@ -52,7 +58,7 @@ describe('path identity and owned cleanup', () => {
     await mkdir(owned)
     await writeFile(path.join(owned, 'replacement'), 'keep')
 
-    await expect(removeOwnedDirectory(owned, captured.identity)).rejects.toThrow(/identity changed/)
+    await expect(removeOwnedDirectory(owned, captured.identity)).rejects.toBeInstanceOf(OwnedPathIdentityError)
     await expect(readFile(path.join(owned, 'replacement'), 'utf8')).resolves.toBe('keep')
   })
 

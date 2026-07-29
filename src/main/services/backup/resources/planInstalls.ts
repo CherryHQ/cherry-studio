@@ -17,8 +17,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { findCrossDeviceEndpoint, findUnsafeAncestor } from '@data/db/restore/pathSafety'
 import type { SealedResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
+import { findCrossDeviceEndpoint, findUnsafeAncestor } from '@main/utils/file'
 
 import type { AdmittedResource } from '../admission/verify'
 import { ResourceInstallPlanError } from '../errors'
