@@ -267,7 +267,7 @@ const AgentChat = ({
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agent: activeAgent, model: nextModel }, { showSuccessToast: false })
+      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
     },
     [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
   )
@@ -513,7 +513,7 @@ const AgentChat = ({
             return
           }
           const updatedAgent = await updateModel(
-            { agent: activeAgent, model: modelSwitchTarget.model },
+            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
             { showSuccessToast: false }
           )
           if (updatedAgent && skipModelSwitchConfirmation) {

@@ -86,6 +86,34 @@ function getBuiltinRole(configuration: unknown): unknown {
   return (configuration as { builtin_role?: unknown }).builtin_role
 }
 
+/**
+ * Apply the public first-level configuration PATCH to the persisted JSON.
+ *
+ * Object-valued keys (for example `env_vars`) remain whole-value replacements.
+ * `builtin_role` is deliberately skipped because it is owned by Main; callers
+ * are validated separately before this helper runs.
+ */
+function applyAgentConfigurationPatch(
+  persisted: unknown,
+  patch: AgentConfiguration | undefined
+): Record<string, unknown> {
+  const next =
+    persisted && typeof persisted === 'object' && !Array.isArray(persisted)
+      ? { ...(persisted as Record<string, unknown>) }
+      : {}
+
+  for (const [key, value] of Object.entries(patch ?? {})) {
+    if (key === 'builtin_role') continue
+    if (value === undefined) {
+      delete next[key]
+    } else {
+      next[key] = value
+    }
+  }
+
+  return next
+}
+
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
   if (invalidKeys.length > 0) {
@@ -427,44 +455,9 @@ export class AgentService {
   }
 
   updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
-    const existing = this.getAgent(id)
-    if (!existing) return null
-
-    if (updates.model && updates.model !== existing.model) {
-      const nextModel = modelService.findByIdTx(application.get('DbService').getDb(), updates.model)
-      if (nextModel) {
-        const configuration = updates.configuration ?? existing.configuration ?? {}
-        updates = {
-          ...updates,
-          configuration: {
-            ...configuration,
-            reasoning_effort:
-              resolveReasoningEffortForModel(nextModel, configuration.reasoning_effort ?? 'default') ?? 'default'
-          }
-        }
-      }
-    }
-
-    // A configuration write may only preserve the existing builtin_role — see getBuiltinRole.
-    // Forging or changing it is rejected; omitting it re-injects the stored value so a whole-blob
-    // configuration update cannot strip the identity either.
-    if (updates.configuration !== undefined) {
-      const existingRole = getBuiltinRole(existing.configuration)
-      const incomingRole = getBuiltinRole(updates.configuration)
-      if (incomingRole !== undefined && incomingRole !== existingRole) {
-        throw DataApiErrorFactory.invalidOperation(
-          'update agent',
-          'configuration.builtin_role is reserved for system agents'
-        )
-      }
-      if (existingRole !== undefined && incomingRole === undefined) {
-        updates = { ...updates, configuration: { ...updates.configuration, builtin_role: existingRole } }
-      }
-    }
-
-    const updateData: Partial<AgentRow> = {
-      updatedAt: Date.now()
-    }
+    // Preserve the existing not-found precedence before validating related IDs.
+    // The authoritative configuration read still happens inside the write tx.
+    if (!this.findAgentRow(id)) return null
 
     // Handle mcps + knowledgeBaseIds separately — they live in junction tables, not the agent row.
     const newMcps = updates.mcps
@@ -487,21 +480,58 @@ export class AgentService {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
-    // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, disabledTools, configuration). Writing
-    // literal NULL when the DTO omits a field would violate the constraint.
-    // Skip undefined values so Drizzle preserves the column's current value.
-    for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
-      if (field === 'mcps' || field === 'knowledgeBaseIds') continue // handled via junction tables
-      if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
-      const value = updates[field as keyof typeof updates]
-      if (value === undefined) continue
-      ;(updateData as Record<string, unknown>)[field] = value
-    }
-
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          const [current] = tx
+            .select()
+            .from(agentsTable)
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+
+          const updateData: Partial<AgentRow> = {
+            updatedAt: Date.now()
+          }
+
+          // Several mutable fields map to NOT NULL columns with DB defaults
+          // (description, instructions, disabledTools, configuration). Writing
+          // literal NULL when the DTO omits a field would violate the constraint.
+          // Configuration is handled separately as a first-level JSON PATCH.
+          for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
+            if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
+            if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
+            const value = updates[field as keyof typeof updates]
+            if (value === undefined) continue
+            ;(updateData as Record<string, unknown>)[field] = value
+          }
+
+          const configurationPatch = updates.configuration
+          const modelChanged = updates.model !== undefined && updates.model !== current.model
+
+          if (configurationPatch !== undefined || modelChanged) {
+            const existingRole = getBuiltinRole(current.configuration)
+            const incomingRole = getBuiltinRole(configurationPatch)
+            if (incomingRole !== undefined && incomingRole !== existingRole) {
+              throw DataApiErrorFactory.invalidOperation(
+                'update agent',
+                'configuration.builtin_role is reserved for system agents'
+              )
+            }
+
+            const nextConfiguration = applyAgentConfigurationPatch(current.configuration, configurationPatch)
+            if (modelChanged && updates.model) {
+              const nextModel = modelService.findByIdTx(tx, updates.model)
+              if (nextModel) {
+                const currentEffort = parseConfiguration(nextConfiguration)?.reasoning_effort ?? 'default'
+                nextConfiguration.reasoning_effort =
+                  resolveReasoningEffortForModel(nextModel, currentEffort) ?? 'default'
+              }
+            }
+            updateData.configuration = nextConfiguration
+          }
+
           if (newKnowledgeBaseIds !== undefined) {
             this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
           }

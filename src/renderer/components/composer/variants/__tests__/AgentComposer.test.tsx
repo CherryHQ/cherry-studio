@@ -760,7 +760,9 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockReset()
     mocks.updateModel.mockResolvedValue({})
     mocks.updateAgent.mockReset()
-    mocks.updateAgent.mockImplementation(async (form) => ({ configuration: form.configuration }))
+    mocks.updateAgent.mockImplementation(async (form) => ({
+      configuration: { ...mocks.agentConfiguration, ...form.configuration }
+    }))
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
@@ -1090,7 +1092,7 @@ describe('AgentComposer', () => {
     expect(mocks.updateAgent).toHaveBeenCalledWith(
       {
         id: 'agent-1',
-        configuration: { permission_mode: 'plan', reasoning_effort: 'low' }
+        configuration: { reasoning_effort: 'low' }
       },
       { showSuccessToast: false }
     )
@@ -1117,9 +1119,61 @@ describe('AgentComposer', () => {
 
     expect(mocks.updateModel).toHaveBeenCalledWith(
       {
-        agent: expect.objectContaining({ id: 'agent-1', configuration: {} }),
-        model: expect.objectContaining({ id: 'anthropic::claude-opus-4' }),
-        reasoningEffort: 'default'
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-opus-4'
+      },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('carries a local reasoning edit into a model update only while that edit is pending', () => {
+    mocks.updateAgent.mockImplementationOnce(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.updateModel).toHaveBeenCalledWith(
+      {
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-opus-4',
+        reasoningEffort: 'high'
+      },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('does not mistake an in-flight model update for a pending reasoning edit', () => {
+    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select model 2'))
+    fireEvent.click(screen.getByText('select reasoning model'))
+
+    expect(mocks.updateModel).toHaveBeenLastCalledWith(
+      {
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-reasoning'
       },
       { showSuccessToast: false }
     )

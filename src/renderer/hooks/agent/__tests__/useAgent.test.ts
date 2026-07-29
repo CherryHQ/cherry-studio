@@ -1,7 +1,6 @@
 import type * as UseCacheModule from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
-import type { Model } from '@shared/data/types/model'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -328,17 +327,7 @@ describe('useUpdateAgent', () => {
   })
 
   describe('updateModel', () => {
-    it('atomically updates the model and its normalized agent reasoning effort', async () => {
-      const nextModel = {
-        id: 'anthropic::new-model',
-        providerId: 'anthropic',
-        apiModelId: 'new-model',
-        name: 'New Model',
-        capabilities: [],
-        supportsStreaming: true,
-        isEnabled: true,
-        isHidden: false
-      } satisfies Model
+    it('sends the model and pending reasoning selection as a narrow patch', async () => {
       const mockTrigger = vi.fn().mockResolvedValue({
         id: 'agent-1',
         name: 'A',
@@ -353,11 +342,9 @@ describe('useUpdateAgent', () => {
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () =>
         result.current.updateModel({
-          agent: {
-            id: 'agent-1',
-            configuration: { avatar: '🤖', reasoning_effort: 'high' }
-          },
-          model: nextModel
+          agentId: 'agent-1',
+          modelId: 'anthropic::new-model',
+          reasoningEffort: 'high'
         })
       )
 
@@ -365,10 +352,36 @@ describe('useUpdateAgent', () => {
         params: { agentId: 'agent-1' },
         body: {
           model: 'anthropic::new-model',
-          configuration: { avatar: '🤖', reasoning_effort: 'default' }
+          configuration: { reasoning_effort: 'high' }
         }
       })
       expect(updated?.model).toBe('anthropic::new-model')
+    })
+
+    it('does not send configuration when only the model changed', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue({
+        id: 'agent-1',
+        name: 'A',
+        model: 'anthropic::new-model',
+        type: 'claude-code',
+        configuration: { avatar: '🤖', reasoning_effort: 'default' },
+        createdAt: '',
+        updatedAt: ''
+      })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+
+      const { result } = renderHook(() => useUpdateAgent())
+      await act(async () =>
+        result.current.updateModel({
+          agentId: 'agent-1',
+          modelId: 'anthropic::new-model'
+        })
+      )
+
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        body: { model: 'anthropic::new-model' }
+      })
     })
   })
 })

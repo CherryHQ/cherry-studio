@@ -42,7 +42,7 @@ import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { ToolCase, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -161,10 +161,10 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     planModel: values.planModelId || '',
     smallModel: values.smallModelId || '',
     instructions: values.instructions,
-    mcps: values.mcps,
-    knowledgeBaseIds: values.knowledgeBaseIds,
-    skillIds: values.skillIds,
-    disabledTools: values.disabledTools,
+    mcps: [...values.mcps],
+    knowledgeBaseIds: [...values.knowledgeBaseIds],
+    skillIds: [...values.skillIds],
+    disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
     heartbeatEnabled: values.heartbeatEnabled,
@@ -183,14 +183,6 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
-}
-
-function createAgentPatcher(form: UseFormReturn<AgentEditFormValues>, resource: AgentDetail) {
-  return (patch: Partial<AgentFormState>) => {
-    const baseline = buildInitialAgentFormState(resource)
-    const current = buildAgentFormState(baseline, form.getValues())
-    syncAgentFormState(form, applyAgentFormPatch(current, patch))
-  }
 }
 
 export function AgentEditDialog({
@@ -228,12 +220,23 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
-  const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
+  const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
+  const formBaselineRef = useRef(formBaseline)
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
-  const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
+  const replaceFormBaseline = useCallback((next: AgentFormState) => {
+    formBaselineRef.current = next
+    setFormBaseline(next)
+  }, [])
+  const patchAgentForm = useCallback(
+    (patch: Partial<AgentFormState>) => {
+      const current = buildAgentFormState(formBaselineRef.current, form.getValues())
+      syncAgentFormState(form, applyAgentFormPatch(current, patch))
+    },
+    [form]
+  )
   const { updateAgent } = useAgentMutationsById(resource.id)
   const { bases: knowledgeBases, isLoading: knowledgeBasesLoading } = useKnowledgeBases()
   const availableKnowledgeBaseIds = useMemo(() => new Set(knowledgeBases.map((base) => base.id)), [knowledgeBases])
@@ -256,10 +259,10 @@ function AgentEditDialogContent({
     () => (skillIdsFromQueryKey ? skillIdsFromQueryKey.split('\0') : []),
     [skillIdsFromQueryKey]
   )
+  const currentFormState = useMemo(() => buildAgentFormState(formBaseline, values), [formBaseline, values])
   const saveIntent = useMemo(() => {
-    const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
-    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [baselineSkillIds, resource, values])
+    return diffAgentSaveIntent(currentFormState, formBaseline)
+  }, [currentFormState, formBaseline])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -291,18 +294,28 @@ function AgentEditDialogContent({
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
-    setBaselineSkillIds([])
+    replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
-  }, [defaultValues, form, initialTab, open, resource])
+  }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
 
-  // Cached rows may render during revalidation, but the editable baseline must
-  // come from the authoritative projection so later toggles diff correctly.
+  // Cached skill rows may render during revalidation, but the editable skill
+  // baseline must come from the authoritative projection so later toggles diff
+  // correctly.
   useEffect(() => {
     if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId === resource.id) return
-    setBaselineSkillIds(skillIdsFromQuery)
+    replaceFormBaseline({ ...formBaselineRef.current, skillIds: [...skillIdsFromQuery] })
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
-  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading, skillsRefreshing])
+  }, [
+    baselineSkillAgentId,
+    form,
+    open,
+    replaceFormBaseline,
+    resource.id,
+    skillIdsFromQuery,
+    skillsLoading,
+    skillsRefreshing
+  ])
 
   useEffect(() => {
     if (!open || knowledgeBasesLoading) return
@@ -313,9 +326,13 @@ function AgentEditDialogContent({
     const currentIds = form.getValues('knowledgeBaseIds')
     const convergedIds = currentIds.filter((id) => availableKnowledgeBaseIds.has(id))
     if (convergedIds.length !== currentIds.length) {
+      replaceFormBaseline({
+        ...formBaselineRef.current,
+        knowledgeBaseIds: formBaselineRef.current.knowledgeBaseIds.filter((id) => availableKnowledgeBaseIds.has(id))
+      })
       form.setValue('knowledgeBaseIds', convergedIds, { shouldDirty: false })
     }
-  }, [availableKnowledgeBaseIds, form, knowledgeBasesLoading, open])
+  }, [availableKnowledgeBaseIds, form, knowledgeBasesLoading, open, replaceFormBaseline])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return
@@ -329,7 +346,11 @@ function AgentEditDialogContent({
   const saveFailedRef = useRef(false)
 
   const persist = async () => {
-    const pending = saveIntent
+    // Recompute from refs at execution time: the serialized autosave queue may
+    // start its follow-up pass before React has rendered the baseline state
+    // advanced by the previous pass.
+    const submittedFormState = buildAgentFormState(formBaselineRef.current, form.getValues())
+    const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
     if (!pending) return
 
     form.clearErrors('root')
@@ -345,6 +366,11 @@ function AgentEditDialogContent({
       return
     }
 
+    // Advance only to the snapshot this request actually submitted. A resource
+    // refresh from this or another window must not become the form's diff
+    // baseline and make untouched stale controls look user-edited.
+    replaceFormBaseline(submittedFormState)
+
     try {
       await onSaved(updated)
     } catch (error) {
@@ -352,10 +378,9 @@ function AgentEditDialogContent({
     }
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /agents/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
+  // Key the debounce on form values only. Advancing the dialog-local baseline
+  // after a successful save must not re-arm another save when values did not
+  // change (prevents a save→baseline→save loop).
   const flush = useDebouncedAutoSave({
     enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,

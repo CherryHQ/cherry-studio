@@ -12,11 +12,10 @@ import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import type { Model } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useMemo } from 'react'
@@ -28,8 +27,8 @@ type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
 export type AgentWithTools = AgentEntity & { tools: Tool[] }
 type UpdateAgentModelInput = {
-  agent: Pick<AgentEntity, 'configuration' | 'id'>
-  model: Model
+  agentId: string
+  modelId: UniqueModelId
   reasoningEffort?: ReasoningEffortOption
 }
 
@@ -125,7 +124,7 @@ export const useUpdateAgent = () => {
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
         const { id, ...patch } = form
-        const result = await updateTrigger({ params: { agentId: id }, body: patch as unknown as UpdateAgentDto })
+        const result = await updateTrigger({ params: { agentId: id }, body: patch })
         if (options?.showSuccessToast ?? true) {
           toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -143,19 +142,12 @@ export const useUpdateAgent = () => {
   )
 
   const updateModel = useCallback(
-    async ({ agent, model, reasoningEffort }: UpdateAgentModelInput, options?: UpdateAgentBaseOptions) => {
-      const nextReasoningEffort =
-        resolveReasoningEffortForModel(model, reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default') ??
-        'default'
-
+    async ({ agentId, modelId, reasoningEffort }: UpdateAgentModelInput, options?: UpdateAgentBaseOptions) => {
       return updateAgent(
         {
-          id: agent.id,
-          model: model.id,
-          configuration: {
-            ...agent.configuration,
-            reasoning_effort: nextReasoningEffort
-          }
+          id: agentId,
+          model: modelId,
+          ...(reasoningEffort === undefined ? {} : { configuration: { reasoning_effort: reasoningEffort } })
         },
         options
       )

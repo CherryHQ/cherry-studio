@@ -542,8 +542,8 @@ describe('AgentChat settings panel', () => {
     await waitFor(() =>
       expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
         {
-          agent: expect.objectContaining({ id: 'agent-1' }),
-          model: expect.objectContaining({ id: 'provider:model-2' })
+          agentId: 'agent-1',
+          modelId: 'provider:model-2'
         },
         { showSuccessToast: false }
       )
@@ -577,8 +577,8 @@ describe('AgentChat settings panel', () => {
     await waitFor(() =>
       expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
         {
-          agent: expect.objectContaining({ id: 'agent-1' }),
-          model: expect.objectContaining({ id: 'provider:model-2' })
+          agentId: 'agent-1',
+          modelId: 'provider:model-2'
         },
         { showSuccessToast: false }
       )

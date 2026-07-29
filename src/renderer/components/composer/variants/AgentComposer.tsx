@@ -700,6 +700,7 @@ const AgentComposerInner = ({
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>(canonicalReasoningEffort)
   const reasoningMutationVersionRef = useRef(0)
   const pendingReasoningMutationRef = useRef<number | null>(null)
+  const pendingReasoningEditRef = useRef<{ version: number; effort: ThinkingOption } | null>(null)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
@@ -967,14 +968,23 @@ const AgentComposerInner = ({
 
       const previousReasoningEffort = reasoningEffort
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, previousReasoningEffort) ?? 'default'
+      const pendingReasoningEdit = pendingReasoningEditRef.current
+      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
       const version = ++reasoningMutationVersionRef.current
       pendingReasoningMutationRef.current = version
       setReasoningEffort(nextReasoningEffort)
 
       const updatedAgent = await updateModel(
-        { agent, model: nextModel, reasoningEffort: previousReasoningEffort },
+        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
         { showSuccessToast: false }
       )
+      if (
+        updatedAgent &&
+        pendingReasoningEdit &&
+        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
+      ) {
+        pendingReasoningEditRef.current = null
+      }
       if (pendingReasoningMutationRef.current !== version) return
 
       pendingReasoningMutationRef.current = null
@@ -1016,18 +1026,19 @@ const AgentComposerInner = ({
 
       const version = ++reasoningMutationVersionRef.current
       pendingReasoningMutationRef.current = version
+      pendingReasoningEditRef.current = { version, effort: option }
       setReasoningEffort(option)
 
       void updateAgent(
         {
           id: agent.id,
-          configuration: {
-            ...agent.configuration,
-            reasoning_effort: option
-          }
+          configuration: { reasoning_effort: option }
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
+        if (updatedAgent && pendingReasoningEditRef.current?.version === version) {
+          pendingReasoningEditRef.current = null
+        }
         if (pendingReasoningMutationRef.current !== version) return
 
         pendingReasoningMutationRef.current = null

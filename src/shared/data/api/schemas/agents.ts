@@ -189,7 +189,17 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // Agent update DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
+/**
+ * DTO for updating an existing agent. All fields are optional.
+ *
+ * `configuration` is itself a partial: callers send only the first-level keys
+ * they intend to change, and AgentService shallow-merges them onto the latest
+ * persisted configuration inside the write transaction. Nested values such as
+ * `env_vars` still replace as a whole. An explicitly present `undefined` value
+ * removes that configuration key; omission preserves it.
+ */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  configuration: AgentConfigurationSchema.partial().optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
    * unchanged"; an empty array is a no-op. The server applies each update

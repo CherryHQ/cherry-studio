@@ -243,6 +243,73 @@ describe('AgentService', () => {
         configuration: { avatar: '🤖', reasoning_effort: 'default' }
       })
     })
+
+    it('merges a reasoning patch before normalizing it for the new model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', bootstrap_completed: true, reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🤖',
+          bootstrap_completed: true,
+          reasoning_effort: 'default'
+        }
+      })
+    })
+  })
+
+  describe('configuration patches', () => {
+    it('merges each patch into the latest persisted configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+      })
+
+      agentService.updateAgent(created.id, { configuration: { bootstrap_completed: true } })
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        plugin_state: 'keep-me',
+        bootstrap_completed: true,
+        reasoning_effort: 'high'
+      })
+    })
+
+    it('replaces nested configuration values instead of deep-merging them', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', env_vars: { A: '1', B: '2' } }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { env_vars: { A: '3' } }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        env_vars: { A: '3' }
+      })
+    })
+
+    it('removes an explicitly undefined key while preserving omitted siblings', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', max_turns: 10 }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { max_turns: undefined }
+      })
+
+      expect(updated?.configuration).toEqual({ avatar: '🤖' })
+    })
   })
 
   describe('builtin_role write protection', () => {
