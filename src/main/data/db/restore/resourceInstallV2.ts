@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { fsyncDirectorySync, renameOnlySync } from '@main/utils/file'
 
 import { findCrossDeviceEndpoint, findUnsafeAncestor } from './pathSafety'
-import type { ResourceInstallEntry } from './restoreJournalV2'
+import type { ResourceInstallEntry, SealedResourceInstallEntry } from './restoreJournalV2'
 import { decideRecoveryAction, type RecoveryPhase } from './restoreRecovery'
 
 /**
@@ -69,6 +69,14 @@ interface ResourceUnit {
   readonly liveRel: string
 }
 
+export interface PreflightedResourceInstallUnit {
+  readonly staged: string
+  readonly live: string
+  readonly aside: string
+  readonly liveRel: string
+  readonly livePresent: boolean
+}
+
 interface UnitFacts {
   readonly staged: boolean
   readonly live: boolean
@@ -102,32 +110,44 @@ function lstatOrNull(target: string): fs.Stats | null {
   }
 }
 
-/**
- * Re-prove — at execution time, not just at journal sealing — that the target is
- * something a rename may replace. The target can change between preparation and
- * boot, and the answer must be the same one both earlier gates gave: a symlink
- * or special node is never an install target, and a target whose type differs
- * from the unit would have to be destroyed to make room, taking target-only
- * descendants with it (§6.3).
- */
-function assertTargetInstallable(unit: ResourceUnit): void {
-  const stats = lstatOrNull(unit.live)
-  if (stats === null) return
-  if (stats.isSymbolicLink()) {
-    throw new ResourceInstallError('target-not-installable', `${unit.liveRel} is a symlink`)
-  }
-  const matches = unit.resourceType === 'file' ? stats.isFile() : stats.isDirectory()
-  if (!matches) {
-    throw new ResourceInstallError('target-type-mismatch', `${unit.liveRel} is not a ${unit.resourceType}`)
-  }
-}
-
 function assertRecoverySource(resourceType: ResourceUnit['resourceType'], source: string, label: string): void {
   const stats = fs.lstatSync(source)
   const matches = resourceType === 'file' ? stats.isFile() : stats.isDirectory()
   if (stats.isSymbolicLink() || !matches) {
     throw new ResourceInstallError('recovery-source-invalid', `${label} is not a regular ${resourceType}`)
   }
+}
+
+function inspectForwardUnit(entry: ResourceInstallEntry, userData: string): PreflightedResourceInstallUnit {
+  const unit = resolveUnit(userData, entry)
+  const staged = lstatOrNull(unit.staged)
+  if (staged === null) {
+    throw new ResourceInstallError('staged-missing', unit.liveRel)
+  }
+  const stagedMatches = unit.resourceType === 'file' ? staged.isFile() : staged.isDirectory()
+  if (staged.isSymbolicLink() || !stagedMatches) {
+    throw new ResourceInstallError(
+      'recovery-source-invalid',
+      `${unit.liveRel} staging is not a regular ${unit.resourceType}`
+    )
+  }
+
+  const live = lstatOrNull(unit.live)
+  if (live?.isSymbolicLink()) {
+    throw new ResourceInstallError('target-not-installable', `${unit.liveRel} is a symlink`)
+  }
+  if (live !== null) {
+    const liveMatches = unit.resourceType === 'file' ? live.isFile() : live.isDirectory()
+    if (!liveMatches) {
+      throw new ResourceInstallError('target-type-mismatch', `${unit.liveRel} is not a ${unit.resourceType}`)
+    }
+  }
+
+  if (lstatOrNull(unit.aside) !== null) {
+    throw new ResourceInstallError('aside-occupied', unit.liveRel)
+  }
+
+  return { ...unit, livePresent: live !== null }
 }
 
 /**
@@ -154,6 +174,50 @@ function assertRenameSlotsSafe(entries: readonly ResourceInstallEntry[], userDat
   if (crossed !== null) {
     throw new ResourceInstallError('cross-filesystem', `${crossed} is not on the userData filesystem`)
   }
+}
+
+/**
+ * Re-read every forward-install slot at the arm boundary and persist the live
+ * target existence fact the preboot recovery table will later depend on.
+ *
+ * The prepared journal may contain an older observation; no mutation has
+ * started yet, so a legitimate target creation/removal is resealed rather than
+ * treated as corruption. Unsafe types, occupied asides, missing staging, and
+ * unsafe/cross-device topology still refuse the arm.
+ */
+export function sealResourceInstallEntriesAtArm(
+  entries: readonly ResourceInstallEntry[],
+  userData: string
+): readonly SealedResourceInstallEntry[] {
+  assertRenameSlotsSafe(entries, userData)
+  return entries.map((entry) => {
+    const unit = inspectForwardUnit(entry, userData)
+    return { ...entry, hadLive: unit.livePresent }
+  })
+}
+
+/**
+ * Validate every install unit before the first rename.
+ *
+ * New journals must match the arm-sealed `hadLive` fact exactly. A pre-release
+ * journal without that optional read-compatibility field may still promote,
+ * but remains ineligible for rollback as documented by the journal schema.
+ */
+export function preflightResourceInstallUnits(
+  entries: readonly ResourceInstallEntry[],
+  userData: string
+): readonly PreflightedResourceInstallUnit[] {
+  assertRenameSlotsSafe(entries, userData)
+  return entries.map((entry) => {
+    const unit = inspectForwardUnit(entry, userData)
+    if (entry.hadLive !== undefined && entry.hadLive !== unit.livePresent) {
+      throw new ResourceInstallError(
+        'target-presence-changed',
+        `${unit.liveRel} existence no longer matches the armed restore`
+      )
+    }
+    return unit
+  })
 }
 
 /** Test seam for the platform-specific directory durability tail. */
@@ -229,27 +293,11 @@ class DirBatch {
  */
 export function installResourceUnits(entries: readonly ResourceInstallEntry[], userData: string): void {
   if (entries.length === 0) return
-  assertRenameSlotsSafe(entries, userData)
+  const units = preflightResourceInstallUnits(entries, userData)
   const batch = new DirBatch()
 
-  for (const entry of entries) {
-    const unit = resolveUnit(userData, entry)
-    const facts = probe(unit)
-
-    if (!facts.staged) {
-      // Forward installation is entered exactly once. Crash re-entry is resolved
-      // by recoverResourceUnits() before this path, so a live target cannot prove
-      // that the missing archive payload was ever installed.
-      throw new ResourceInstallError('staged-missing', unit.liveRel)
-    }
-
-    assertRecoverySource(unit.resourceType, unit.staged, `${unit.liveRel} staging`)
-    assertTargetInstallable(unit)
-
-    if (facts.live) {
-      if (facts.aside) {
-        throw new ResourceInstallError('aside-occupied', unit.liveRel)
-      }
+  for (const unit of units) {
+    if (unit.livePresent) {
       batch.rename(unit.live, unit.aside)
     }
     batch.rename(unit.staged, unit.live)
