@@ -495,6 +495,91 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).toBe(true)
   })
 
+  it('blocks permanent deletion and destructive Bash only for Cherry Assistant', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    const assistantSettings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const assistantHook = assistantSettings.hooks?.PreToolUse?.[0]?.hooks.find(
+      (hook) => hook.name === 'assistantDestructiveOperationHook'
+    )
+    expect(assistantHook).toBeDefined()
+
+    for (const [toolName, toolInput] of [
+      ['Bash', { command: 'rm -rf ./output' }],
+      ['mcp__filesystem__delete', { path: 'output' }]
+    ] as const) {
+      await expect(
+        assistantHook?.(
+          { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+          'tool-use-1',
+          {} as never
+        )
+      ).resolves.toEqual(
+        expect.objectContaining({
+          hookSpecificOutput: expect.objectContaining({
+            permissionDecision: 'deny',
+            permissionDecisionReason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+          })
+        })
+      )
+    }
+    await expect(
+      assistantHook?.(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: { command: 'pnpm test' }
+        } as never,
+        'tool-use-2',
+        {} as never
+      )
+    ).resolves.toEqual({})
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-2',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    const normalSettings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-normal',
+        agentId: 'agent-2',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const normalHook = normalSettings.hooks?.PreToolUse?.[0]?.hooks.find(
+      (hook) => hook.name === 'assistantDestructiveOperationHook'
+    )
+    await expect(
+      normalHook?.(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: { command: 'rm -rf ./output' }
+        } as never,
+        'tool-use-3',
+        {} as never
+      )
+    ).resolves.toEqual({})
+  })
+
   it('forces file-tool paths outside the session workspace through approval', async () => {
     const session = {
       id: 'session-1',
@@ -1280,6 +1365,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__export_office')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__move_to_trash')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__*')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
@@ -1396,9 +1482,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
     // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook +
-    // disabledToolHook + approvalRequiredToolHook + workspacePathHook +
+    // disabledToolHook + assistantDestructiveOperationHook + approvalRequiredToolHook + workspacePathHook +
     // dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(9)
+    expect(preToolUse).toHaveLength(10)
 
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
