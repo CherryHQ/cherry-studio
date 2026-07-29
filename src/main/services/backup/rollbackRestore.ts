@@ -6,6 +6,8 @@ import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/re
 import { loggerService } from '@logger'
 
 import { RestoreStateError } from './errors'
+import { acquireProfileQuiescence } from './exportQuiesce'
+import { exitForRestoreJournalRecovery } from './restoreTransitionFailure'
 
 const logger = loggerService.withContext('backupRollbackRestore')
 
@@ -19,61 +21,101 @@ const logger = loggerService.withContext('backupRollbackRestore')
  * rollback intent behind after telling the user the request failed would make an
  * unrelated later restart discard the restored state without fresh consent.
  */
-export function armRestoreRollback(): void {
-  const read = readRestoreJournalV2()
-  if (read.kind !== 'ok') {
-    throw new RestoreStateError(
-      read.kind === 'corrupt' ? 'unreadable' : 'wrong-state',
-      'no completed restore is available to roll back'
-    )
-  }
-
-  const journal = read.journal
-  if (journal.state !== 'completed') {
-    throw new RestoreStateError('wrong-state', `only a completed restore can be rolled back (state: ${journal.state})`)
-  }
-  if (journal.resourcesIncomplete) {
-    throw new RestoreStateError(
-      'recovery-incomplete',
-      'the restore must finish installing every file before it can be rolled back'
-    )
-  }
-  // Acknowledgement removes the DB aside first and the journal last. A power
-  // loss between those steps can therefore leave a completed journal whose
-  // rollback source is already gone; never arm that irrecoverable direction.
-  const asidePath = application.getPath('app.userdata', journal.db.aside)
-  const asideStats = fs.existsSync(asidePath) ? fs.lstatSync(asidePath) : null
-  if (!asideStats?.isFile() || asideStats.isSymbolicLink()) {
-    throw new RestoreStateError(
-      'rollback-unavailable',
-      'the data from before this restore has already been released or changed and cannot be rolled back'
-    )
-  }
-  // The database is one unit of the reversal; the resource units are the rest,
-  // and preboot will move them with no chance to reconsider. Prove all of them
-  // now, including that the journal is new enough to say what each one replaced.
-  const blocker = findRollbackBlocker(journal.resourceInstalls, application.getPath('app.userdata'))
-  if (blocker !== null) {
-    logger.warn('Refusing to arm a rollback whose resource units are not where completion left them', {
-      restoreId: journal.restoreId,
-      blocker
-    })
-    throw new RestoreStateError(
-      'rollback-unavailable',
-      'the data from before this restore has already been released or changed and cannot be rolled back'
-    )
-  }
-
-  const armed = { ...journal, state: 'rollback-armed' as const }
-  writeRestoreJournalV2(armed)
+export async function armRestoreRollback(setShutdownOwned: (owned: boolean) => void = () => {}): Promise<void> {
+  const hold = await acquireProfileQuiescence({ reason: 'backup restore: arm rollback' })
+  let releaseHold = true
   try {
-    application.relaunch()
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') {
+      throw new RestoreStateError(
+        read.kind === 'corrupt' ? 'unreadable' : 'wrong-state',
+        'no completed restore is available to roll back'
+      )
+    }
+
+    const journal = read.journal
+    if (journal.state !== 'completed') {
+      throw new RestoreStateError(
+        'wrong-state',
+        `only a completed restore can be rolled back (state: ${journal.state})`
+      )
+    }
+    if (journal.resourcesIncomplete) {
+      throw new RestoreStateError(
+        'recovery-incomplete',
+        'the restore must finish installing every file before it can be rolled back'
+      )
+    }
+    // Acknowledgement removes the DB aside first and the journal last. A power
+    // loss between those steps can therefore leave a completed journal whose
+    // rollback source is already gone; never arm that irrecoverable direction.
+    const asidePath = application.getPath('app.userdata', journal.db.aside)
+    const asideStats = fs.existsSync(asidePath) ? fs.lstatSync(asidePath) : null
+    if (!asideStats?.isFile() || asideStats.isSymbolicLink()) {
+      throw new RestoreStateError(
+        'rollback-unavailable',
+        'the data from before this restore has already been released or changed and cannot be rolled back'
+      )
+    }
+    // The database is one unit of the reversal; the resource units are the rest,
+    // and preboot will move them with no chance to reconsider. Prove all of them
+    // now, including that the journal is new enough to say what each one replaced.
+    const blocker = findRollbackBlocker(journal.resourceInstalls, application.getPath('app.userdata'))
+    if (blocker !== null) {
+      logger.warn('Refusing to arm a rollback whose resource units are not where completion left them', {
+        restoreId: journal.restoreId,
+        blocker
+      })
+      throw new RestoreStateError(
+        'rollback-unavailable',
+        'the data from before this restore has already been released or changed and cannot be rolled back'
+      )
+    }
+    hold.checkpoint('rollback-arm-seal')
+
+    const armed = { ...journal, state: 'rollback-armed' as const }
+    try {
+      writeRestoreJournalV2(armed)
+    } catch (error) {
+      const committed = readRestoreJournalV2()
+      if (
+        committed.kind === 'ok' &&
+        committed.journal.restoreId === journal.restoreId &&
+        committed.journal.state === 'rollback-armed'
+      ) {
+        releaseHold = false
+        setShutdownOwned(true)
+        await exitForRestoreJournalRecovery(error)
+      }
+      throw error
+    }
+
+    releaseHold = false
+    setShutdownOwned(true)
+    logger.info('Restore rollback armed; requesting lifecycle shutdown and relaunch', {
+      restoreId: journal.restoreId
+    })
+    try {
+      await application.relaunchAfterShutdown()
+    } catch (error) {
+      try {
+        writeRestoreJournalV2(journal)
+      } catch (rollbackError) {
+        await exitForRestoreJournalRecovery(rollbackError)
+      }
+      releaseHold = true
+      setShutdownOwned(false)
+      logger.error('Rollback relaunch failed; the completed restore was left unchanged', error as Error)
+      throw new RestoreStateError('relaunch-failed', 'failed to relaunch for restore rollback')
+    }
   } catch (error) {
-    writeRestoreJournalV2(journal)
-    logger.error('Rollback relaunch failed; the completed restore was left unchanged', error as Error)
-    throw new RestoreStateError('relaunch-failed', 'failed to relaunch for restore rollback')
+    if (releaseHold) {
+      try {
+        hold.dispose()
+      } catch (releaseError) {
+        logger.error('Restore rollback arm failed and not every writer hold released', releaseError as Error)
+      }
+    }
+    throw error
   }
-  logger.info('Restore rollback armed; relaunching', {
-    restoreId: journal.restoreId
-  })
 }

@@ -250,7 +250,7 @@ function markKnowledgeRebuildComplete(): void {
 async function restoreOnTarget(archivePath: string): Promise<void> {
   activeUserData = targetUserData
   const preview = await prepareRestore({ archivePath })
-  armPreparedRestore(preview.restoreId)
+  await armPreparedRestore(preview.restoreId)
   await runRestorePromotionV2()
 }
 
@@ -336,7 +336,7 @@ describe('Full restore, empty target device', () => {
     const preview = await prepareRestore({ archivePath: archive })
     // Nothing to park on a device that has none of them.
     expect(preview.resources).toEqual({ install: 10, replace: 0 })
-    armPreparedRestore(preview.restoreId)
+    await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
@@ -421,7 +421,7 @@ describe('Full restore, empty target device', () => {
         }
       ])
     )
-    armPreparedRestore(preview.restoreId)
+    await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     const restoredAlias = join(targetUserData, 'Data', 'Notes', 'alias.md')
@@ -476,7 +476,7 @@ describe('Full restore, same device with content already there', () => {
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
     expect(preview.resources).toEqual({ install: 0, replace: 10 })
-    armPreparedRestore(preview.restoreId)
+    await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
@@ -485,40 +485,19 @@ describe('Full restore, same device with content already there', () => {
     expect(readFileSync(join(targetUserData, 'Data', 'Files', 'not-in-the-backup.bin'), 'utf8')).toBe('TARGET-ONLY')
   })
 
-  it('leaves a newer live resource in place beside the older database it restored', async () => {
+  it('aborts instead of pairing an older database snapshot with a newer live file', async () => {
     seedSourceResources()
     const blob = join(sourceUserData, 'Data', 'Files', `${FILE_ID}.pdf`)
-    // The blob is rewritten after the snapshot boundary, so the export cannot
-    // prove which version it holds and omits the unit (§5.4).
+    const archive = join(workDir, 'out', 'full-newer-resource.cherrybackup')
     driftHooks.afterStagePreVerify = async (sourcePath) => {
       if (sourcePath === blob) writeFileSync(blob, 'NEWER-BLOB')
     }
-    const archive = await exportFrom('full-newer-resource')
-    driftHooks.afterStagePreVerify = async () => {}
+    activeUserData = sourceUserData
 
-    activeUserData = targetUserData
-    const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.degradations).toEqual(
-      expect.arrayContaining([
-        { kind: 'resource:file-blob', livePath: `Data/Files/${FILE_ID}.pdf`, reason: 'changed-after-snapshot' }
-      ])
-    )
-    armPreparedRestore(preview.restoreId)
-    await runRestorePromotionV2()
+    await expect(exportArchive({ outPath: archive })).rejects.toBeInstanceOf(SourceDriftError)
 
-    // The contract's honest end state: the promoted database is the archive's,
-    // the file it points at is the newer one this device already had, and the
-    // disclosure — not a reconciliation — is what tells the user.
-    expect(query(liveDbPath(), 'SELECT id FROM file_entry WHERE id = ?', FILE_ID)).toBeDefined()
+    expect(existsSync(archive)).toBe(false)
     expect(readFileSync(blob, 'utf8')).toBe('NEWER-BLOB')
-
-    const read = readRestoreJournalV2()
-    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
-    expect(presentJournalDegradations(read.journal.degradations ?? [])).toContainEqual({
-      code: 'resource-changed',
-      count: 1,
-      paths: [`Data/Files/${FILE_ID}.pdf`]
-    })
   })
 
   it('replaces a declared directory as a whole, and holds the old one until acknowledgement', async () => {
@@ -530,7 +509,7 @@ describe('Full restore, same device with content already there', () => {
 
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
-    armPreparedRestore(preview.restoreId)
+    await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     const read = readRestoreJournalV2()
@@ -639,7 +618,7 @@ describe('a crash before the commit boundary', () => {
     mkdirSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
     writeFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'TARGET-KB')
     const preview = await prepareRestore({ archivePath: archive })
-    armPreparedRestore(preview.restoreId)
+    await armPreparedRestore(preview.restoreId)
 
     // The crash: the marker claims the installs completed while the filesystem
     // still shows them pending. Pre-commit, the filesystem wins and the whole

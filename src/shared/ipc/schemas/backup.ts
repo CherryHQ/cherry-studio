@@ -211,7 +211,7 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
 
 const BackupStatusSchema = z.strictObject({
   /** An operation running in main right now; not durable. */
-  operation: z.enum(['export', 'prepare-restore']).nullable(),
+  operation: z.enum(['export', 'prepare-restore', 'arm-restore', 'rollback-restore']).nullable(),
   restore: RestoreStatusSchema
 })
 

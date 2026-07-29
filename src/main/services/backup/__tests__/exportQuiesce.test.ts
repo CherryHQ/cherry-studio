@@ -54,7 +54,7 @@ vi.mock('@logger', () => ({
 }))
 
 import { BackupCancelledError } from '../errors'
-import { captureSealedProfileView } from '../exportQuiesce'
+import { acquireProfileQuiescence, captureSealedProfileView } from '../exportQuiesce'
 
 describe('backup export quiesce transaction', () => {
   beforeEach(() => {
@@ -123,6 +123,26 @@ describe('backup export quiesce transaction', () => {
       'snapshot',
       'requirements',
       'baseline',
+      'release:mcp',
+      'release:profile-write',
+      'release:warm-query',
+      'release:job',
+      'release:agent',
+      'release:ai',
+      'release:channel-runtime',
+      'release:channel-intake'
+    ])
+  })
+
+  it('keeps the drained writer boundary closed until its owner disposes the shared hold', async () => {
+    const hold = await acquireProfileQuiescence({ reason: 'restore arm test' })
+
+    expect(events).not.toContain('release:mcp')
+    expect(events.slice(-2)).toEqual(['pause:mcp', 'drain:mcp'])
+
+    hold.dispose()
+
+    expect(events.slice(-8)).toEqual([
       'release:mcp',
       'release:profile-write',
       'release:warm-query',
