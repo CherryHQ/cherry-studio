@@ -27,6 +27,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { noteTable } from '@data/db/schemas/note'
+import { DISCONNECTED_AGENT_WORKSPACE_DIRECTORY } from '@main/ai/agents/portableProfilePolicy'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { ZipArchive } from 'archiver'
@@ -306,6 +307,27 @@ describe('restore, cross-device', () => {
     expect(readRestoreJournalV2().kind).toBe('none')
     // Acknowledgement releases GC protection only after the artifacts are gone.
     expect(existsSync(join(targetUserData, 'restore-staging', read.journal.restoreId))).toBe(false)
+  })
+
+  it('restores an archive whose producer kept a workspace outside every managed root', async () => {
+    // The producer cannot declare such a row: it is outside every root, so it
+    // is unverifiable and no requirement names it. The restoring device then
+    // rewrites it to a placeholder INSIDE its own workspaces root. Were that
+    // placeholder to count as a requirement, the materialized database would
+    // require one unit more than the manifest declares — and the authority
+    // check would refuse every backup this user ever makes.
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'w-user', name: 'mine', path: join(workDir, 'elsewhere', 'project'), type: 'user', orderKey: 'b' })
+      .run()
+    const archive = await exportFrom('workspace-outside-roots')
+
+    await restoreOnTarget(archive)
+
+    const workspace = query<{ path: string }>(liveDbPath(), 'SELECT path FROM agent_workspace WHERE id = ?', 'w-user')
+    expect(workspace?.path).toBe(
+      join(targetUserData, 'Data', 'Agents', 'system', DISCONNECTED_AGENT_WORKSPACE_DIRECTORY, 'ws-w-user')
+    )
   })
 
   it('rebases the producer’s managed roots onto this device', async () => {

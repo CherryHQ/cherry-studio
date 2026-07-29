@@ -319,6 +319,18 @@ function joinAbsolute(root: SplitAbsolutePath, suffixSegments: readonly string[]
 }
 
 /**
+ * Directory segment, directly under the target workspaces root, that holds the
+ * placeholder of every agent workspace whose stored binding did not survive a
+ * restore. Nothing under it is ever created on disk — the path exists only to
+ * give a disconnected row a value that is provably local and provably unique.
+ *
+ * Named here rather than beside the code that writes it because it is a
+ * contract between two modules that must not drift: materialization writes
+ * these paths, and the resource inventory has to recognize them so it does not
+ * demand a payload for a location that by definition holds nothing.
+ */
+
+/**
  * Build an absolute path under a paired TARGET managed root from segments the
  * CALLER owns — no archive string reaches it.
  *
