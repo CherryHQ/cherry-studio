@@ -80,6 +80,6 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleFallback: 'Full Access',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
     descriptionFallback: 'Never asks. Can delete files and use the network.',
-    caution: true
+    dangerous: true
   }
 ]

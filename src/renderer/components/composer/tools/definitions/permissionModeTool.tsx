@@ -44,7 +44,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         order: 80 + index / 100,
         label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} />,
         description: (
-          <span className={card.caution ? 'text-destructive/80' : undefined}>
+          <span className={card.dangerous ? 'text-destructive/80' : undefined}>
             {t(card.descriptionKey, card.descriptionFallback)}
           </span>
         ),
