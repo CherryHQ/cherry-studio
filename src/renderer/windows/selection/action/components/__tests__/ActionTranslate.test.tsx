@@ -20,6 +20,7 @@ const state = vi.hoisted(() => {
     getLabel: vi.fn((language: TranslateLanguage) => language.value),
     detectLanguage: vi.fn(),
     translate: vi.fn(),
+    addHistory: vi.fn(),
     cancel: vi.fn(),
     scrollToBottom: vi.fn()
   }
@@ -70,6 +71,9 @@ vi.mock('@renderer/hooks/translate', () => ({
     translate: state.translate,
     isTranslating: false,
     cancel: state.cancel
+  }),
+  useTranslateHistory: () => ({
+    add: state.addHistory
   }),
   useLanguages: () => ({
     languages: state.languages as TranslateLanguage[],
@@ -133,9 +137,11 @@ describe('ActionTranslate', () => {
     state.getLanguage.mockClear()
     state.getLabel.mockClear()
     state.translate.mockReset()
+    state.addHistory.mockReset()
     state.cancel.mockReset()
     state.scrollToBottom.mockReset()
     state.translate.mockResolvedValue('translated text')
+    state.addHistory.mockResolvedValue(undefined)
   })
 
   // MUST run first in this file: the later tests render translation results,
@@ -160,6 +166,14 @@ describe('ActionTranslate', () => {
     render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.addHistory).toHaveBeenCalledWith({
+        sourceText: 'There is no default export.',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'zh-cn'
+      })
+    )
     expect(screen.queryByText('detect exploded')).not.toBeInTheDocument()
   })
 

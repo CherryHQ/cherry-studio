@@ -31,7 +31,10 @@ const validResponse = JSON.stringify({
   ]
 })
 
-function createSource(sourceRecordId: string) {
+function createSource(
+  sourceRecordId: string,
+  overrides: Partial<Parameters<typeof learningSourceService.register>[0]> = {}
+) {
   return learningSourceService.register({
     kind: 'translation',
     sourceRecordId,
@@ -39,7 +42,8 @@ function createSource(sourceRecordId: string) {
     sourceLanguage: 'zh-CN',
     targetLanguage: 'en-US',
     sourceText: '请帮我一下。',
-    targetText: 'Could you lend me a hand?'
+    targetText: 'Could you lend me a hand?',
+    ...overrides
   })
 }
 
@@ -61,6 +65,37 @@ describe('LearningExtractionService', () => {
         targetSegments: ['Hello.', 'Goodbye.']
       }
     ])
+    const elevenSentences = Array.from({ length: 11 }, (_, index) => `Sentence ${index + 1}.`).join(' ')
+    expect(buildExtractionBatches({ sourceText: elevenSentences, targetText: elevenSentences })).toHaveLength(2)
+  })
+
+  it.each([
+    ['translation', '翻译结果', 'The translation contains a useful phrase.'],
+    ['selection_action', '请互译这句话', 'A natural translation with a useful phrase.'],
+    ['selection_refine', 'This sentence need polish.', 'This sentence needs polishing.']
+  ] as const)('uses the same two-layer extraction contract for %s history', async (kind, sourceText, targetText) => {
+    const service = new LearningExtractionService()
+    const source = createSource(`two-layer-${kind}`, {
+      kind,
+      sourceText,
+      targetText,
+      sourceLanguage: null,
+      targetLanguage: null
+    })
+    const generateText = vi.fn().mockResolvedValue({ text: validResponse })
+
+    await service.extract(source, { generateText })
+
+    const request = generateText.mock.calls[0][0]
+    expect(request.system).toContain('Use two layers consistently for every history kind.')
+    expect(request.system).toContain('always emit one sentence unit')
+    expect(request.system).toContain('emit at most two independently reusable')
+    expect(request.system).toContain('example to its original complete context sentence')
+    expect(JSON.parse(request.prompt)).toMatchObject({
+      historyKind: kind,
+      sourceSegments: [sourceText],
+      targetSegments: [targetText]
+    })
   })
 
   it('parses strict JSON and a fenced JSON response', () => {

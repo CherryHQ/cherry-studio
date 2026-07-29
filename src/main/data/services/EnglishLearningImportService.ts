@@ -48,16 +48,35 @@ export class EnglishLearningImportService {
     }
   }
 
-  registerSelectionRefine(input: { provenanceId: string; selectedText: string; refinedText: string }): void {
-    const source = this.toSelectionRefineInput(input)
+  registerSelectionAction(input: {
+    provenanceId: string
+    actionId: string
+    selectedText: string
+    outputText: string
+  }): void {
+    const source = this.toSelectionActionInput({ ...input, sourceRecordId: input.provenanceId })
     if (source) learningSourceService.register(source)
   }
 
-  registerSelectionRefineBestEffort(input: { provenanceId: string; selectedText: string; refinedText: string }): void {
+  registerSelectionActionResult(input: { actionId: string; selectedText: string; outputText: string }): void {
+    const sourceRevision = computeSourceRevision([input.actionId, input.selectedText.trim(), input.outputText.trim()])
+    const source = this.toSelectionActionInput({
+      ...input,
+      sourceRecordId: `selection-action:${input.actionId}:${sourceRevision}`
+    })
+    if (source) learningSourceService.register(source)
+  }
+
+  registerSelectionActionBestEffort(input: {
+    provenanceId: string
+    actionId: string
+    selectedText: string
+    outputText: string
+  }): void {
     try {
-      this.registerSelectionRefine(input)
+      this.registerSelectionAction(input)
     } catch (error) {
-      logger.warn('Deferred selection refine import until backfill', {
+      logger.warn('Deferred selection action import until backfill', {
         provenanceId: input.provenanceId,
         error
       })
@@ -84,7 +103,7 @@ export class EnglishLearningImportService {
     }
   }
 
-  importSelectionRefineBatch(
+  importSelectionActionBatch(
     cursor?: string,
     limit = ENGLISH_LEARNING_IMPORT_BATCH_SIZE
   ): EnglishLearningImportBatchResult {
@@ -100,11 +119,12 @@ export class EnglishLearningImportService {
       .limit(limit)
       .all()
     const inputs = rows.flatMap(({ provenance, messageData }) => {
-      if (provenance.data.kind !== 'selection-action' || provenance.data.actionId !== 'refine') return []
-      const input = this.toSelectionRefineInput({
-        provenanceId: provenance.id,
+      if (provenance.data.kind !== 'selection-action') return []
+      const input = this.toSelectionActionInput({
+        sourceRecordId: provenance.id,
+        actionId: provenance.data.actionId,
         selectedText: provenance.data.selectedText,
-        refinedText: extractEnglishLearningMessageText(messageData)
+        outputText: extractEnglishLearningMessageText(messageData)
       })
       return input ? [input] : []
     })
@@ -129,21 +149,23 @@ export class EnglishLearningImportService {
     }
   }
 
-  private toSelectionRefineInput(input: {
-    provenanceId: string
+  private toSelectionActionInput(input: {
+    sourceRecordId: string
+    actionId: string
     selectedText: string
-    refinedText: string
+    outputText: string
   }): RegisterLearningSourceInput | null {
     const selectedText = input.selectedText.trim()
-    const refinedText = input.refinedText.trim()
-    if (!selectedText || !refinedText) return null
+    const outputText = input.outputText.trim()
+    if (!selectedText || !outputText) return null
+    const kind = input.actionId === 'refine' ? 'selection_refine' : 'selection_action'
 
     return {
-      kind: 'selection_refine',
-      sourceRecordId: input.provenanceId,
-      sourceRevision: computeSourceRevision([selectedText, refinedText]),
+      kind,
+      sourceRecordId: input.sourceRecordId,
+      sourceRevision: computeSourceRevision([input.actionId, selectedText, outputText]),
       sourceText: selectedText,
-      targetText: refinedText
+      targetText: outputText
     }
   }
 }

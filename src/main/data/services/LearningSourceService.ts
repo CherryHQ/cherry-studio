@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { LearningSourceListQuery, LearningSourceListResponse } from '@shared/data/api/schemas/englishLearning'
 import type { LearningSource, LearningSourceKind, LearningSourceStatus } from '@shared/data/types/englishLearning'
-import { and, eq, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
@@ -197,6 +197,23 @@ export class LearningSourceService {
         { endpoint: '/english-learning/dashboard' }
       ])
       logger.info('Requeued interrupted learning sources', { count: rows.length })
+    }
+    return rows.length
+  }
+
+  requeueForExtractionPolicyUpgrade(): number {
+    const rows = this.db
+      .update(learningSourceTable)
+      .set({ status: 'pending', error: null, processedAt: null })
+      .where(inArray(learningSourceTable.status, ['ready', 'failed']))
+      .returning({ id: learningSourceTable.id })
+      .all()
+    if (rows.length > 0) {
+      notifyDataApiDataChange([
+        { endpoint: '/english-learning/sources', kind: 'membership', entityIds: rows.map((row) => row.id) },
+        { endpoint: '/english-learning/dashboard' }
+      ])
+      logger.info('Requeued learning sources for extraction policy upgrade', { count: rows.length })
     }
     return rows.length
   }

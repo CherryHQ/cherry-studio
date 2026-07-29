@@ -298,11 +298,12 @@ export class TemporaryChatService {
       },
       { endpoint: '/topics/:id', entityIds: [persistentTopicId] }
     ])
-    if (persistedProvenanceId && dto.provenance?.kind === 'selection-action' && dto.provenance.actionId === 'refine') {
-      englishLearningImportService.registerSelectionRefineBestEffort({
+    if (persistedProvenanceId && dto.provenance?.kind === 'selection-action') {
+      englishLearningImportService.registerSelectionActionBestEffort({
         provenanceId: persistedProvenanceId,
+        actionId: dto.provenance.actionId,
         selectedText: dto.provenance.selectedText,
-        refinedText: extractEnglishLearningMessageText(msgs[msgs.length - 1].data)
+        outputText: extractEnglishLearningMessageText(msgs[msgs.length - 1].data)
       })
     }
     logger.info('Persisted temporary topic', {

@@ -4,7 +4,13 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import {
+  detectLanguageOrUnknown,
+  useDetectLang,
+  useLanguages,
+  useTranslate,
+  useTranslateHistory
+} from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -43,6 +49,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [preferredLangCode, setPreferredLangCode] = usePreference('feature.translate.action.preferred_lang')
   const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
   const { languages, getLanguage } = useLanguages()
+  const { add: addHistory } = useTranslateHistory()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
 
@@ -205,14 +212,33 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     setIsPreparing(true)
 
     try {
-      await runTranslate(selectedText, translateLang)
+      const translated = await runTranslate(selectedText, translateLang)
+      if (translated) {
+        await addHistory({
+          sourceText: selectedText,
+          targetText: translated,
+          sourceLanguage: sourceLanguageCode,
+          targetLanguage: translateLang.langCode
+        })
+      }
     } catch (err) {
       setContent('')
       setCompletionError(getSelectionActionErrorMessage(err, t))
     } finally {
       setIsPreparing(false)
     }
-  }, [selectedText, initialized, clear, detectLanguage, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
+  }, [
+    selectedText,
+    initialized,
+    clear,
+    detectLanguage,
+    getLanguage,
+    alterLanguage,
+    targetLanguage,
+    runTranslate,
+    addHistory,
+    t
+  ])
 
   useEffect(() => {
     // Kick the result-renderer chunk off immediately — rendering waits for the

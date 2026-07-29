@@ -8,6 +8,8 @@ import { learningExtractionService } from './extraction/LearningExtractionServic
 
 const logger = loggerService.withContext('EnglishLearningService')
 const EXTRACTION_POLL_INTERVAL_MS = 30_000
+const EXTRACTION_POLICY_VERSION = 3
+const EXTRACTION_POLICY_VERSION_CACHE_KEY = 'feature.english_learning.extraction_policy_version'
 
 @Injectable('EnglishLearningService')
 @ServicePhase(Phase.WhenReady)
@@ -26,6 +28,7 @@ export class EnglishLearningService extends BaseService {
     const preferenceService = application.get('PreferenceService')
     this.enabled = preferenceService.get('feature.english_learning.enabled')
     learningSourceService.requeueInterrupted()
+    this.upgradeExtractionPolicy()
     this.registerInterval(
       () => (this.enabled ? this.drainPendingSources() : Promise.resolve()),
       EXTRACTION_POLL_INTERVAL_MS
@@ -46,6 +49,20 @@ export class EnglishLearningService extends BaseService {
         }
       })
     )
+  }
+
+  private upgradeExtractionPolicy(): void {
+    const cacheService = application.get('CacheService')
+    const appliedVersion = cacheService.getPersist(EXTRACTION_POLICY_VERSION_CACHE_KEY)
+    if (appliedVersion >= EXTRACTION_POLICY_VERSION) return
+
+    const requeued = learningSourceService.requeueForExtractionPolicyUpgrade()
+    cacheService.setPersist(EXTRACTION_POLICY_VERSION_CACHE_KEY, EXTRACTION_POLICY_VERSION)
+    logger.info('Upgraded English learning extraction policy', {
+      fromVersion: appliedVersion,
+      toVersion: EXTRACTION_POLICY_VERSION,
+      requeued
+    })
   }
 
   protected onAllReady(): void {
@@ -115,10 +132,10 @@ export class EnglishLearningService extends BaseService {
       const translations = await this.importAllBatches((cursor) =>
         englishLearningImportService.importTranslationBatch(cursor)
       )
-      const selectionRefines = await this.importAllBatches((cursor) =>
-        englishLearningImportService.importSelectionRefineBatch(cursor)
+      const selectionActions = await this.importAllBatches((cursor) =>
+        englishLearningImportService.importSelectionActionBatch(cursor)
       )
-      logger.info('Completed English learning history backfill', { translations, selectionRefines })
+      logger.info('Completed English learning history backfill', { translations, selectionActions })
     } catch (error) {
       logger.error('Failed English learning history backfill; it will retry on next launch', error as Error)
     }

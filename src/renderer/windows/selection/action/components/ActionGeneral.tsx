@@ -1,4 +1,5 @@
 import { useChat } from '@ai-sdk/react'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -48,6 +49,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const shouldSaveToAssistantHistory = Boolean(chosenAssistantId) && (action.saveToAssistantHistory ?? true)
   const persistedTopicRef = useRef<string | null>(null)
+  const importedLearningRef = useRef<string | null>(null)
   const historyTopicName = action.isBuiltIn ? t(action.name) : action.name
 
   // The topic starts in memory and is promoted only after a successful response.
@@ -188,6 +190,31 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
     [latestAssistantUIMsg]
   )
+
+  useEffect(() => {
+    if (status !== 'done' || shouldSaveToAssistantHistory || action.id !== 'refine') return
+
+    const selectedText = action.selectedText?.trim()
+    const outputText = content.trim()
+    if (!selectedText || !outputText) return
+
+    const importKey = `${selectedText}\n${outputText}`
+    if (importedLearningRef.current === importKey) return
+    importedLearningRef.current = importKey
+
+    void dataApiService
+      .post('/english-learning/selection-actions/import', {
+        body: {
+          actionId: action.id,
+          selectedText,
+          outputText
+        }
+      })
+      .catch((error) => {
+        importedLearningRef.current = null
+        logger.warn('Failed to import selection refine result into English learning', error as Error)
+      })
+  }, [action.id, action.selectedText, content, shouldSaveToAssistantHistory, status])
 
   const isStreaming = isPending
   const error = completionError

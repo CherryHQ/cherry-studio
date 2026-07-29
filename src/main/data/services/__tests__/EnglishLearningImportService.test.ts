@@ -42,7 +42,7 @@ describe('EnglishLearningImportService', () => {
     expect(dbh.db.select().from(learningSourceTable).all()).toHaveLength(2)
   })
 
-  it('backfills only refine provenance and reads the final assistant text', () => {
+  it('backfills selection actions and reads the final assistant text', () => {
     const temporaryChatService = new TemporaryChatService()
     const refineTopic = temporaryChatService.createTopic({ name: 'Refine' })
     temporaryChatService.appendMessage(refineTopic.id, { role: 'user', data: text('Improve this') })
@@ -58,15 +58,62 @@ describe('EnglishLearningImportService', () => {
       provenance: { kind: 'selection-action', actionId: 'translate', selectedText: 'Translate this' }
     })
 
-    expect(dbh.db.select().from(learningSourceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(learningSourceTable).all()).toHaveLength(2)
     dbh.db.delete(learningSourceTable).run()
-    const result = englishLearningImportService.importSelectionRefineBatch()
+    const result = englishLearningImportService.importSelectionActionBatch()
     const rows = dbh.db.select().from(learningSourceTable).all()
 
-    expect(result).toMatchObject({ scanned: 2, registered: 1 })
+    expect(result).toMatchObject({ scanned: 2, registered: 2 })
+    expect(rows).toHaveLength(2)
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'selection_refine',
+          sourceText: 'rough sentence',
+          targetText: 'A polished sentence.'
+        }),
+        expect.objectContaining({
+          kind: 'selection_action',
+          sourceText: 'Translate this',
+          targetText: '翻译结果'
+        })
+      ])
+    )
+  })
+
+  it('keeps refine as a separate source kind for correction extraction', () => {
+    englishLearningImportService.registerSelectionAction({
+      provenanceId: '00000000-0000-4000-8000-000000000003',
+      actionId: 'refine',
+      selectedText: 'rough sentence',
+      outputText: 'A polished sentence.'
+    })
+
+    const [row] = dbh.db.select().from(learningSourceTable).all()
+    expect(row).toMatchObject({
+      kind: 'selection_refine',
+      sourceText: 'rough sentence',
+      targetText: 'A polished sentence.'
+    })
+  })
+
+  it('registers direct refine results idempotently without topic provenance', () => {
+    englishLearningImportService.registerSelectionActionResult({
+      actionId: 'refine',
+      selectedText: 'rough sentence',
+      outputText: 'A polished sentence.'
+    })
+    englishLearningImportService.registerSelectionActionResult({
+      actionId: 'refine',
+      selectedText: 'rough sentence',
+      outputText: 'A polished sentence.'
+    })
+
+    const rows = dbh.db.select().from(learningSourceTable).all()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
       kind: 'selection_refine',
+      sourceRecordId: expect.stringMatching(/^selection-action:refine:/),
       sourceText: 'rough sentence',
       targetText: 'A polished sentence.'
     })

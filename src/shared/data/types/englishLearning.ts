@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-export const LearningSourceKindSchema = z.enum(['translation', 'selection_refine'])
+export const LearningSourceKindSchema = z.enum(['translation', 'selection_refine', 'selection_action'])
 export type LearningSourceKind = z.infer<typeof LearningSourceKindSchema>
 
 export const LearningSourceStatusSchema = z.enum(['pending', 'processing', 'ready', 'failed', 'excluded'])

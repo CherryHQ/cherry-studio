@@ -90,4 +90,35 @@ describe('LearningSourceService', () => {
     expect(repeated).toEqual(excluded)
     expect(notifyDataApiDataChange).not.toHaveBeenCalled()
   })
+
+  it('requeues ready and failed sources for an extraction policy upgrade', () => {
+    const ready = learningSourceService.register(input)
+    learningSourceService.setStatus(ready.id, 'ready')
+    const failed = learningSourceService.register({
+      ...input,
+      sourceRecordId: 'history-2'
+    })
+    learningSourceService.setStatus(failed.id, 'failed', 'old extraction failed')
+    const pending = learningSourceService.register({
+      ...input,
+      sourceRecordId: 'history-3'
+    })
+    const excluded = learningSourceService.register({
+      ...input,
+      sourceRecordId: 'history-4'
+    })
+    learningSourceService.exclude(excluded.id)
+    notifyDataApiDataChange.mockClear()
+
+    expect(learningSourceService.requeueForExtractionPolicyUpgrade()).toBe(2)
+    expect(learningSourceService.getById(ready.id)).toMatchObject({ status: 'pending', processedAt: null })
+    expect(learningSourceService.getById(failed.id)).toMatchObject({
+      status: 'pending',
+      error: null,
+      processedAt: null
+    })
+    expect(learningSourceService.getById(pending.id).status).toBe('pending')
+    expect(learningSourceService.getById(excluded.id).status).toBe('excluded')
+    expect(notifyDataApiDataChange).toHaveBeenCalledTimes(1)
+  })
 })

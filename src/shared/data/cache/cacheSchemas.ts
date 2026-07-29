@@ -376,6 +376,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  // Last English-learning extraction policy applied to completed sources.
+  // Regenerable: losing it only causes one safe, deduplicated re-extraction.
+  'feature.english_learning.extraction_policy_version': number
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -387,6 +390,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'feature.english_learning.extraction_policy_version': 0,
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

@@ -119,6 +119,13 @@ export const FinishPracticeSessionSchema = z.strictObject({
 })
 export type FinishPracticeSessionDto = z.infer<typeof FinishPracticeSessionSchema>
 
+export const ImportSelectionActionResultSchema = z.strictObject({
+  actionId: z.string().trim().min(1).max(128),
+  selectedText: z.string().trim().min(1).max(16_000),
+  outputText: z.string().trim().min(1).max(16_000)
+})
+export type ImportSelectionActionResultDto = z.infer<typeof ImportSelectionActionResultSchema>
+
 export interface EnglishLearningDashboard {
   sources: Record<z.infer<typeof LearningSourceStatusSchema>, number>
   unitTotal: number
@@ -156,6 +163,12 @@ export type EnglishLearningSchemas = {
     POST: {
       params: { id: string }
       response: LearningSource
+    }
+  }
+  '/english-learning/selection-actions/import': {
+    POST: {
+      body: ImportSelectionActionResultDto
+      response: void
     }
   }
   '/english-learning/units': {

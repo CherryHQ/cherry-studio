@@ -11,7 +11,9 @@ const state = vi.hoisted(() => ({
   stopChat: vi.fn(),
   resetTopic: vi.fn(),
   persist: vi.fn(),
+  dataApiPost: vi.fn(),
   streamStatus: undefined as 'done' | 'error' | 'aborted' | 'streaming' | undefined,
+  liveAssistants: [] as Array<{ id: string; parts: Array<{ type: 'text'; text: string }>; metadata?: object }>,
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string; initialName?: string }>,
   useChatIds: [] as string[],
   onError: undefined as ((error: Error) => void) | undefined,
@@ -42,6 +44,12 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => ['en-US']
 }))
 
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    post: state.dataApiPost
+  }
+}))
+
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: state.assistant })
 }))
@@ -68,7 +76,7 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ liveAssistants: [] })
+  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
@@ -133,7 +141,9 @@ describe('ActionGeneral', () => {
     state.persist
       .mockReset()
       .mockResolvedValue({ topicId: 'aggregate-topic', messageCount: 2, messageIds: ['message-1', 'message-2'] })
+    state.dataApiPost.mockReset().mockResolvedValue(undefined)
     state.streamStatus = undefined
+    state.liveAssistants = []
     state.temporaryTopicOptions = []
     state.useChatIds = []
     state.onError = undefined
@@ -232,6 +242,39 @@ describe('ActionGeneral', () => {
     rerender(<ActionGeneral action={{ ...action }} />)
 
     expect(state.persist).not.toHaveBeenCalled()
+  })
+
+  it('imports built-in refine results into English learning when no assistant history is saved', async () => {
+    const action = createAction({
+      id: 'refine',
+      name: 'selection.action.builtin.refine',
+      selectedText: 'rough sentence'
+    })
+    const { rerender } = render(<ActionGeneral action={action} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    state.liveAssistants = [
+      {
+        id: 'assistant-message',
+        parts: [{ type: 'text', text: 'A polished sentence.' }]
+      }
+    ]
+    state.streamStatus = 'done'
+    rerender(<ActionGeneral action={{ ...action }} />)
+
+    await waitFor(() =>
+      expect(state.dataApiPost).toHaveBeenCalledWith('/english-learning/selection-actions/import', {
+        body: {
+          actionId: 'refine',
+          selectedText: 'rough sentence',
+          outputText: 'A polished sentence.'
+        }
+      })
+    )
+    expect(state.persist).not.toHaveBeenCalled()
+
+    rerender(<ActionGeneral action={{ ...action }} />)
+    expect(state.dataApiPost).toHaveBeenCalledTimes(1)
   })
 
   it.each(['error', 'aborted'] as const)('does not persist when the stream ends as %s', async (terminalStatus) => {

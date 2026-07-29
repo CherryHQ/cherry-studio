@@ -1,4 +1,5 @@
 import { englishLearningDashboardService } from '@data/services/EnglishLearningDashboardService'
+import { englishLearningImportService } from '@data/services/EnglishLearningImportService'
 import { learningSourceService } from '@data/services/LearningSourceService'
 import { learningUnitService } from '@data/services/LearningUnitService'
 import { practiceService } from '@data/services/PracticeService'
@@ -9,6 +10,7 @@ import {
   DailyReviewQueueQuerySchema,
   type EnglishLearningSchemas,
   FinishPracticeSessionSchema,
+  ImportSelectionActionResultSchema,
   LearningSourceListQuerySchema,
   LearningUnitListQuerySchema,
   SubmitReviewSchema,
@@ -31,6 +33,11 @@ export const englishLearningHandlers: HandlersFor<EnglishLearningSchemas> = {
   },
   '/english-learning/sources/:id/exclude': {
     POST: async ({ params }) => learningSourceService.exclude(params.id)
+  },
+  '/english-learning/selection-actions/import': {
+    POST: async ({ body }) => {
+      englishLearningImportService.registerSelectionActionResult(ImportSelectionActionResultSchema.parse(body))
+    }
   },
   '/english-learning/units': {
     GET: async ({ query }) => learningUnitService.list(LearningUnitListQuerySchema.parse(query ?? {}))
