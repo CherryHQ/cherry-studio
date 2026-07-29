@@ -198,7 +198,7 @@ describe('RightPaneHost', () => {
     expect(spacer).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
   })
 
-  it('renders a left-edge resize handle when resizable', () => {
+  it('renders an inline-start-edge resize handle when resizable', () => {
     const { container } = render(
       <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
@@ -208,7 +208,8 @@ describe('RightPaneHost', () => {
     const handle = container.querySelector('[data-right-pane-resize-handle]')
 
     expect(handle).toBeInTheDocument()
-    expect(handle).toHaveClass('left-0', 'cursor-col-resize')
+    // Logical inset, so the handle follows the pane's leading edge when the app flips to RTL.
+    expect(handle).toHaveClass('start-0', 'cursor-col-resize')
   })
 
   it('reports a fixed reachable splitter range when both panes shrink proportionally', () => {
