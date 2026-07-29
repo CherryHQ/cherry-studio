@@ -27,6 +27,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { sealResourceInstallEntriesAtArm } from '@data/db/restore/resourceInstallV2'
 import {
   clearRestoreJournalV2,
   dbAsideRelPathV2,
@@ -332,7 +333,11 @@ export function armPreparedRestore(expectedRestoreId: string): void {
     throw new RestoreStateError('wrong-state', 'the prepared restore no longer matches the preview being confirmed')
   }
 
-  writeRestoreJournalV2({ ...journal, state: 'armed' })
+  const resourceInstalls = sealResourceInstallEntriesAtArm(
+    journal.resourceInstalls,
+    application.getPath('app.userdata')
+  )
+  writeRestoreJournalV2({ ...journal, resourceInstalls: [...resourceInstalls], state: 'armed' })
   try {
     application.relaunch()
   } catch (error) {

@@ -227,7 +227,10 @@ describe('resourceInstallV2', () => {
      */
     describe('proving every slot before the first rename', () => {
       function twoUnits(): ResourceInstallEntry[] {
-        const units = [entry('Data/KnowledgeBase/base-1'), entry('Data/KnowledgeBase/base-2')]
+        const units = [
+          { ...entry('Data/KnowledgeBase/base-1'), hadLive: true },
+          { ...entry('Data/KnowledgeBase/base-2'), hadLive: false }
+        ]
         makeDirUnit(units[0].staging, 'A1')
         makeDirUnit(units[0].live, 'T1')
         makeDirUnit(units[1].staging, 'A2')
@@ -265,6 +268,55 @@ describe('resourceInstallV2', () => {
         foreign.segment = 'restore-aside'
 
         expect(() => installResourceUnits(units, userData)).toThrow(/cross-filesystem/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when a later staged source is missing', () => {
+        const units = twoUnits()
+        rmSync(abs(units[1].staging), { recursive: true })
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/staged-missing/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when a later staged source changed type', () => {
+        const units = twoUnits()
+        rmSync(abs(units[1].staging), { recursive: true })
+        makeFileUnit(units[1].staging, 'NOT-A-DIRECTORY')
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/recovery-source-invalid/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when a later live target changed type', () => {
+        const units = twoUnits()
+        makeFileUnit(units[1].live, 'NOT-A-DIRECTORY')
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/target-type-mismatch/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when a later aside is occupied', () => {
+        const units = twoUnits()
+        makeDirUnit(units[1].aside, 'OLDER-ASIDE')
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/aside-occupied/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when a later target appeared after arm sealed it absent', () => {
+        const units = twoUnits()
+        makeDirUnit(units[1].live, 'LATE-TARGET')
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/target-presence-changed/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when a later target disappeared after arm sealed it present', () => {
+        const units = twoUnits()
+        units[1] = { ...units[1], hadLive: true }
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/target-presence-changed/)
         expectNothingMoved(units)
       })
 
