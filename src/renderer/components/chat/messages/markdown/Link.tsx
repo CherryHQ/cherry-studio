@@ -42,13 +42,16 @@ const Link: React.FC<LinkProps> = (props) => {
     return <span className="link">{props.children}</span>
   }
 
-  // 包含<sup>标签表示是一个引用链接
-  const isCitation = React.Children.toArray(props.children).some((child) => {
-    if (typeof child === 'object' && 'type' in child) {
-      return child.type === 'sup'
-    }
-    return false
-  })
+  // 包含<sup>标签表示是一个引用链接。
+  // Matched on the hast node, not the rendered children: `components.sup` maps the tag to
+  // CitationSup, so the child's `type` is that component rather than the string 'sup', and an
+  // element-type check would read every citation link as an ordinary link — favicon injected
+  // next to the badge, and the hyperlink preview shown instead of the citation card.
+  const isCitation = Boolean(
+    (props.node as { children?: Array<{ tagName?: string }> } | undefined)?.children?.some(
+      (child) => child.tagName === 'sup'
+    )
+  )
   const showFavicon = !!hostname && !isCitation && !containsFaviconChild
   const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
   const linkContent = showFavicon ? (

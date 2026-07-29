@@ -45,6 +45,11 @@ vi.mock('../Hyperlink', () => ({
   default: mocks.Hyperlink
 }))
 
+// Streamdown maps `sup` to CitationSup, so the rendered child is a component, not the `sup` tag —
+// only the hast node still says `sup`. Tests pass it the way production does.
+const supNode = { children: [{ tagName: 'sup' }] } as never
+const CitationSup = ({ children }: { children?: React.ReactNode }) => <sup>{children}</sup>
+
 describe('Link', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -64,14 +69,16 @@ describe('Link', () => {
     const onParentClick = vi.fn()
     const { container } = render(
       <div onClick={onParentClick}>
-        <Link href="https://example.com">
+        <Link href="https://example.com" node={supNode}>
           <span>ref</span>
-          <sup>1</sup>
+          <CitationSup>1</CitationSup>
         </Link>
       </div>
     )
 
     expect(screen.getByTestId('citation-tooltip')).toBeInTheDocument()
+    // A citation badge stands on its own — no favicon injected beside it.
+    expect(screen.queryByTestId('favicon')).toBeNull()
 
     const anchor = container.querySelector('a') as HTMLAnchorElement
     expect(anchor).not.toBeNull()
@@ -87,9 +94,9 @@ describe('Link', () => {
     mocks.parseJSON.mockReturnValue(null)
 
     render(
-      <Link href="https://example.com">
+      <Link href="https://example.com" node={supNode}>
         <span>text</span>
-        <sup>1</sup>
+        <CitationSup>1</CitationSup>
       </Link>
     )
 
@@ -131,8 +138,8 @@ describe('Link', () => {
     mocks.parseJSON.mockReturnValue({ title: 'ref' })
 
     const { container } = render(
-      <Link href="">
-        text<sup>2</sup>
+      <Link href="" node={supNode}>
+        text<CitationSup>2</CitationSup>
       </Link>
     )
 
