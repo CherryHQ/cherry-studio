@@ -118,7 +118,9 @@ ORDER BY created_at
 LIMIT :batch   -- default 100 per pass
 ```
 
-The `job_file_ref` clause is what keeps async image-generation job inputs alive: those input images / mask are `delete_when_unreferenced` entries whose ids live only in `job.input` JSON (invisible to the anti-join), so a live job holds them through a real ref row instead. Without it, a non-terminal job whose inputs aged past the grace window could have them reclaimed by a startup / interval pass before recovery resumes it, breaking `read(inputFileIds)`. Deleting the job row (terminal-row pruning) cascades the ref, releasing the inputs for reclaim.
+The `job_file_ref` clause is what keeps async image-generation job inputs alive: those input images / mask are `delete_when_unreferenced` entries whose ids live only in `job.input` JSON (invisible to the anti-join), so a live job holds them through a real ref row instead. Without it, a job still queued or mid-poll when an interval pass fires could have its inputs reclaimed out from under it once they aged past the grace window, breaking `read(inputFileIds)` mid-run. Deleting the job row (terminal-row pruning) cascades the ref, releasing the inputs for reclaim.
+
+The window this protects is **within one process run**, not across a restart: image-generation jobs are `recovery: 'abandon'` (see `imageGenerationJobHandler`), so a non-terminal job is cancelled at startup rather than resumed. The ref still matters — a long poll easily outlives the 1h grace window and can overlap several interval passes — but nothing depends on it surviving to a later session.
 
 - `deleted_at` is **not** filtered: a trashed zero-ref auto entry is reclaimed too (the user already discarded it, and trash auto-expiry is deferred).
 - All **five** tables registered in `persistentFileRefTablesBySourceType` must appear — the two logo slots included, since §4.1 claims logo entries are protected by exactly these refs. Auditing coverage against a shortened example is how a reader concludes, wrongly, that logo entries are unprotected.

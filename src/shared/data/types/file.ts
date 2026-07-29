@@ -493,11 +493,17 @@ export const paintingFileRefSchema = createRefSchema(paintingRefFields)
 //
 // Why a persistent ref (not just the payload id): the payload id lives in
 // `job.input` JSON, which the cleanup anti-join cannot see. Without a real ref
-// row, a non-terminal job whose inputs age past the grace window could have
-// those inputs reclaimed before startup recovery resumes it, breaking
-// `read(inputFileIds)`. An FK-constrained association table makes the job a
-// first-class holder: the anti-join sees it, and deleting the job row cascades
-// the ref so the inputs become reclaimable exactly when the job record is gone.
+// row, a job still queued or mid-poll when an interval pass fires could have
+// its inputs reclaimed out from under it once they age past the grace window,
+// breaking `read(inputFileIds)` mid-run. An FK-constrained association table
+// makes the job a first-class holder: the anti-join sees it, and deleting the
+// job row cascades the ref so the inputs become reclaimable exactly when the
+// job record is gone.
+//
+// The window is within one process run: image jobs are `recovery: 'abandon'`,
+// so a non-terminal job is cancelled at startup rather than resumed. A remote
+// poll still easily outlives the 1h grace window and several interval passes,
+// which is what the ref is for.
 //
 // `job.id` is `uuidPrimaryKeyOrdered()` — UUID v7. `z.uuid()` accepts it
 // (version-agnostic), matching the chat_message variant's forgiving stance.

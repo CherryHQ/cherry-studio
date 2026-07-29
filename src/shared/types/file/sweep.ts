@@ -35,23 +35,27 @@ export interface OrphanReportCounts {
  *     - the FS sweep returned a non-`'completed'` outcome (partial unlink
  *       failures / aborted by safety threshold / collapsed early) →
  *       `fsSweepIssue` carries a short description
- *   Either way, counts cover the parts that did report; UI should surface
- *   the partial state so users don't read zero-orphans as a healthy signal.
+ *   Either way, counts cover the parts that did report, so a zero-orphan
+ *   count on a `'partial'` run must not be read as a clean bill of health.
  * - `'aborted'` — the sweep deliberately stood aside because a staged
  *   backup restore is pending promotion (`abortReason: 'pending-restore'`).
  *   Nothing was scanned or deleted; counts are all zero. Distinct from
  *   `'partial'` on purpose: standing aside is expected behavior, not a
- *   degraded run the user should worry about.
+ *   degraded run worth reporting as one.
  * - `'failed'` — the **DB** sweep collapsed before per-type aggregation.
  *   Counts are all zero (and meaningless); `errorMessage` carries the
  *   cause. (FS-sweep collapse alone degrades to `'partial'`, not
  *   `'failed'`, because DB counts may still be authoritative.)
  *
- * Without the `outcome` discriminator, a `failed` run reaches the renderer
- * as `{ orphanEntriesTotal: 0, …, lastRunAt }` — indistinguishable from a
- * happy zero, and the cleanup dashboard would render "all clear" while
- * sweep branches were silently crashing. The discriminator forces
- * the caller to acknowledge the state.
+ * Without the `outcome` discriminator, a `failed` run is
+ * `{ orphanEntriesTotal: 0, …, lastRunAt }` — indistinguishable from a happy
+ * zero, so any consumer reading counts alone would treat a crashed sweep as
+ * "all clear". The discriminator forces the caller to acknowledge the state.
+ *
+ * That consumer is the log line today, not a screen: cleanup is a silent
+ * mechanism with no UI (file-entry-cleanup.md §4.3) and `File_RunSweep` has no
+ * renderer caller. These shapes are typed for whoever reads them next; nothing
+ * here promises a dashboard.
  */
 export type OrphanReport =
   | (OrphanReportCounts & {
