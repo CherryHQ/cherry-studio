@@ -34,7 +34,10 @@ const CitationSup: React.FC<CitationSupProps> = (props) => {
 
   const supProps = omit(props, ['node'])
 
-  if (!citation) return <sup {...supProps} />
+  // A citation with a URL is emitted wrapped in `[…](url)`, and `Link` reads the same
+  // `data-citation` off this sup to mount the tooltip on the anchor. Mounting a second one here
+  // would nest two tooltips around the same badge.
+  if (!citation || citation.url) return <sup {...supProps} />
 
   return (
     <CitationTooltip citation={citation}>

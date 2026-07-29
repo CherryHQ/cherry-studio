@@ -209,7 +209,10 @@ export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): Ma
         'data-composer-token-block',
         'dataComposerTokenBlock'
       ]),
-      sup: mergeUnique(schema.attributes?.sup, ['data-citation']),
+      // hast-util-sanitize matches hast property names, not HTML attribute names, so a data
+      // attribute must be listed camelCased — `data-citation` alone silently strips it, which
+      // costs the chat layer every inline citation tooltip.
+      sup: mergeUnique(schema.attributes?.sup, ['dataCitation']),
       ...svgAttributes
     },
     protocols: {

@@ -222,6 +222,29 @@ describe('withToolCitationTags', () => {
     expect(cited.map((c) => c.url)).toEqual(['https://b.com/y', 'https://a.com/x'])
   })
 
+  it('collapses adjacent markers that resolve to the same source', () => {
+    // Two chunks of one document dedupe to a single citation, so the chained markers the model
+    // wrote would otherwise render as the same badge twice.
+    const mc = resolveMessageCitations([
+      kbToolPart([
+        { id: 'sss-1', conceptId: 'doc/one.md', title: 'One.md', type: 'file', content: 'first', score: 0.9 },
+        { id: 'sss-2', conceptId: 'doc/one.md', title: 'One.md', type: 'file', content: 'second', score: 0.8 }
+      ])
+    ])
+    const { content, cited } = withToolCitationTags('KB fact. [cite:sss-1][cite:sss-2]', mc)
+
+    expect(content.match(/>1<\/sup>/g)).toHaveLength(1)
+    expect(cited).toHaveLength(1)
+  })
+
+  it('keeps distinct sources in a chained run', () => {
+    const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
+    const { content } = withToolCitationTags('Fact. [cite:abc-1] [cite:abc-2]', mc)
+
+    expect(content).toContain('1</sup>](https://a.com/x)')
+    expect(content).toContain('2</sup>](https://b.com/y)')
+  })
+
   it('leaves unknown ids literal', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
     const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9]', mc)

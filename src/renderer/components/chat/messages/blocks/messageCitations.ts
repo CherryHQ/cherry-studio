@@ -336,5 +336,21 @@ export function withToolCitationTags(
     renumbered.set(match[1], display)
   }
 
-  return { content: mapCitationMarksToTags(normalized, renumbered), cited }
+  // The model chains one marker per supporting result, but several results can resolve to one
+  // source — two chunks of the same document, or a kb_search hit it then re-read. Those would
+  // render as the same badge twice in a row, so keep only the first of each within a run of
+  // adjacent markers. Unresolved ids stay put, and a lone marker is never touched.
+  const collapsed = normalized.replace(/\[cite:[\w-]+\](?:[ \t]*\[cite:[\w-]+\])+/g, (run) => {
+    const seen = new Set<Citation>()
+    const kept: string[] = []
+    for (const match of run.matchAll(/\[cite:([\w-]+)\]/g)) {
+      const citation = renumbered.get(match[1])
+      if (citation && seen.has(citation)) continue
+      if (citation) seen.add(citation)
+      kept.push(match[0])
+    }
+    return kept.join('')
+  })
+
+  return { content: mapCitationMarksToTags(collapsed, renumbered), cited }
 }

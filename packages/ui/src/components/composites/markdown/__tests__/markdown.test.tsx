@@ -60,6 +60,26 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('attacker.example')
   })
 
+  it('passes data-citation through to the sup component', () => {
+    // The chat layer reads this attribute to mount citation tooltips, and hast-util-sanitize
+    // drops any data attribute not listed under its camelCased property name.
+    let received: string | undefined
+    render(
+      <Markdown
+        id="m5"
+        plugins={withChatPlugins()}
+        components={{
+          sup: (props) => {
+            received = (props as { 'data-citation'?: string })['data-citation']
+            return <sup />
+          }
+        }}>
+        {`Fact. <sup data-citation='{&quot;title&quot;:&quot;One.md&quot;}'>1</sup>`}
+      </Markdown>
+    )
+    expect(received).toBe('{"title":"One.md"}')
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {
