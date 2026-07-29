@@ -105,13 +105,13 @@ export const providerListClasses = {
   groupChevronHiddenUntilHover:
     'absolute opacity-0 transition-[opacity,transform] group-hover/row:opacity-100 group-focus-within/row:opacity-100',
   groupEnabledDot:
-    'pointer-events-none absolute size-1.5 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute size-1.5 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupBody: 'mt-1 flex flex-col gap-2 pl-3.5',
   itemMoreActions:
     'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-subtle bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
