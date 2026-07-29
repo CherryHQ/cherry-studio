@@ -790,7 +790,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
     const { content, mime } = await ipcApi.request('file.read', {
       handle: createFilePathHandle(path),
-      options: { encoding: 'binary' }
+      options: { mode: 'full', encoding: 'binary' }
     })
     return new Blob([content.slice() as unknown as BlobPart], { type: mime })
   }

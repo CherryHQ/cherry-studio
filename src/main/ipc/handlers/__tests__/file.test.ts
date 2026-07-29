@@ -86,7 +86,10 @@ describe('fileHandlers', () => {
 
     await expect(
       fileHandlers['file.read'](
-        { handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, options: { encoding: 'binary' } },
+        {
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+          options: { mode: 'full', encoding: 'binary' }
+        },
         ctx
       )
     ).resolves.toBe(result)
@@ -99,7 +102,10 @@ describe('fileHandlers', () => {
     fileManager.read.mockResolvedValueOnce(result)
 
     await expect(
-      fileHandlers['file.read']({ handle: { kind: 'entry', entryId: ids[0] }, options: { encoding: 'binary' } }, ctx)
+      fileHandlers['file.read'](
+        { handle: { kind: 'entry', entryId: ids[0] }, options: { mode: 'full', encoding: 'binary' } },
+        ctx
+      )
     ).resolves.toBe(result)
 
     expect(fileManager.read).toHaveBeenCalledWith(ids[0], { encoding: 'binary' })
@@ -220,21 +226,27 @@ describe('fileHandlers', () => {
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
   })
 
-  it('dispatches chunk reads for entry and path handles', async () => {
-    const entryChunk = new Uint8Array([1, 2, 3])
-    const pathChunk = new Uint8Array([4, 5])
-    fileManager.readChunk.mockResolvedValueOnce(entryChunk)
-    readChunkByPathMock.mockResolvedValueOnce(pathChunk)
+  it('dispatches range reads for entry and path handles through file.read', async () => {
+    const entryResult = { content: new Uint8Array([1, 2, 3]), mime: 'application/pdf', version }
+    const pathResult = { content: new Uint8Array([4, 5]), mime: 'application/pdf', version }
+    fileManager.readChunk.mockResolvedValueOnce(entryResult)
+    readChunkByPathMock.mockResolvedValueOnce(pathResult)
 
     await expect(
-      fileHandlers['file.read_chunk']({ handle: { kind: 'entry', entryId: ids[0] }, offset: 10, length: 3 }, ctx)
-    ).resolves.toBe(entryChunk)
-    await expect(
-      fileHandlers['file.read_chunk'](
-        { handle: { kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath }, offset: 20, length: 2 },
+      fileHandlers['file.read'](
+        { handle: { kind: 'entry', entryId: ids[0] }, options: { mode: 'range', offset: 10, length: 3 } },
         ctx
       )
-    ).resolves.toBe(pathChunk)
+    ).resolves.toBe(entryResult)
+    await expect(
+      fileHandlers['file.read'](
+        {
+          handle: { kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath },
+          options: { mode: 'range', offset: 20, length: 2 }
+        },
+        ctx
+      )
+    ).resolves.toBe(pathResult)
 
     expect(fileManager.readChunk).toHaveBeenCalledWith(ids[0], 10, 3)
     expect(readChunkByPathMock).toHaveBeenCalledWith('/tmp/report.pdf', 20, 2)

@@ -6,11 +6,16 @@
  * wrapper.
  */
 
-import { readChunk as fsReadChunk } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 
 import type { ReadResult } from '../../FileManager'
-import { type Base64ReadOptions, type BinaryReadOptions, readByPath, type TextReadOptions } from '../../utils/content'
+import {
+  type Base64ReadOptions,
+  type BinaryReadOptions,
+  readByPath,
+  readChunkByPath,
+  type TextReadOptions
+} from '../../utils/content'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
@@ -45,8 +50,8 @@ export async function readChunk(
   id: FileEntryId,
   offset: number,
   length: number
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<ReadResult<Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
-  return observeExternalAccess(deps, entry, physicalPath, () => fsReadChunk(physicalPath, offset, length))
+  return observeExternalAccess(deps, entry, physicalPath, () => readChunkByPath(physicalPath, offset, length))
 }

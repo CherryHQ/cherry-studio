@@ -234,7 +234,7 @@ describe('utils/image', () => {
       expect(ipcMocks.request).toHaveBeenCalledTimes(1)
       expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
         handle: { kind: 'path', path: '/tmp/avatar.webp' },
-        options: { encoding: 'binary' }
+        options: { mode: 'full', encoding: 'binary' }
       })
       expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
       expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
@@ -521,7 +521,7 @@ describe('utils/image', () => {
 
       expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
         handle: { kind: 'path', path: '/tmp/example.png' },
-        options: { encoding: 'binary' }
+        options: { mode: 'full', encoding: 'binary' }
       })
       expect(blob.type).toBe('image/png')
     })

@@ -46,7 +46,9 @@ describe('file/utils/content', () => {
 
     const chunk = await readChunkByPath(target, 1, 3)
 
-    expect(Array.from(chunk)).toEqual([1, 2, 3])
+    expect(Array.from(chunk.content)).toEqual([1, 2, 3])
+    expect(chunk.mime).toBe('application/octet-stream')
+    expect(chunk.version.size).toBe(5)
   })
 
   it('returns the saved file version after a conditional write', async () => {

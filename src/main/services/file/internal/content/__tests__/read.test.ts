@@ -146,7 +146,9 @@ describe('internal/content/read', () => {
 
     const chunk = await readChunk(deps, id, 2, 3)
 
-    expect(Array.from(chunk)).toEqual([2, 3, 4])
+    expect(Array.from(chunk.content)).toEqual([2, 3, 4])
+    expect(chunk.mime).toBe('application/pdf')
+    expect(chunk.version.size).toBe(6)
   })
 
   it('throws when entry id does not exist', async () => {

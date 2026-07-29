@@ -442,7 +442,7 @@ export interface IFileManager {
   read(id: FileEntryId, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
   /** Read a byte range without loading the complete file. */
-  readChunk(id: FileEntryId, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>>
+  readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>>
 
   /** Create a readable stream. */
   createReadStream(id: FileEntryId): Promise<Readable>
@@ -849,7 +849,7 @@ export class FileManager extends BaseService implements IFileManager {
     return internalRead(this.deps, id, options as { encoding?: 'text' })
   }
 
-  async readChunk(id: FileEntryId, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>> {
+  async readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>> {
     return internalReadChunk(this.deps, id, offset, length)
   }
 

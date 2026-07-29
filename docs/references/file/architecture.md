@@ -272,15 +272,18 @@ Other services in the main process can call FileManager, `src/main/services/file
 > `file.batch_get_physical_paths`,
 > `file.batch_get_dangling_states`, `file.batch_create_internal_entries`,
 > `file.batch_trash`, `file.batch_restore`, `file.batch_permanent_delete`,
-> `file.empty_trash`, `file.rename`, `file.read_chunk`, `file.open`, and
-> `file.show_in_folder`. Legacy
+> `file.empty_trash`, `file.rename`, `file.open`, and `file.show_in_folder`. Legacy
 > `IpcChannel.File_*` routes are compatibility-only for remaining preload
 > consumers (notably singular metadata / path helpers) and MUST NOT be used by
 > new renderer code. The tables below describe the logical File IPC surface;
 > the IpcApi schema registry is the source of truth for routes wired today.
 
-`file.read` accepts a generic `FileHandle`; its currently wired binary option
-returns the standard `{ content, mime, version }` `ReadResult<Uint8Array>`.
+`file.read` accepts a generic `FileHandle` plus a strict binary cost-mode union:
+`{ mode: 'full', encoding: 'binary' }` reads the complete file, while
+`{ mode: 'range', offset, length }` performs a positioned read capped at 4 MiB.
+Both modes return the standard `{ content, mime, version }`
+`ReadResult<Uint8Array>`, so a range consumer can reject chunks from different
+file versions.
 `file.write_if_unchanged` is the path-only conditional-write route used by the
 artifact editor. It accepts only `path`, `data`, and `expectedVersion`, returns
 the new `FileVersion`, and maps `PathStaleVersionError` to the renderer-visible
@@ -298,7 +301,7 @@ describe that logical surface, including routes that are not wired yet.
 
 | Method | Description | entry, internal-origin | entry, external-origin | path |
 |---|---|---|---|---|
-| `read` / `readChunk` | Read complete content or a positioned byte range (`readChunk` permits short reads at EOF) | read(userDataPath) | read(externalPath) (live) | read(path) |
+| `read` (full / range) | Read complete content or a positioned byte range (range permits short reads at EOF) | read(userDataPath) | read(externalPath) (live) | read(path) |
 | `getMetadata` | Live physical metadata (`fs.stat`) — batch variant `batchGetMetadata` accepts caller-keyed `FileHandle` items | resolve + stat | stat(externalPath) — **sole live-size source for external** | path metadata projection via `services/file/utils/metadata` |
 | `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | statVersion |
 | `getContentHash` | xxhash-h64 | read userData + hash | read externalPath + hash | contentHash |

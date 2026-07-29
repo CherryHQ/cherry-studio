@@ -64,8 +64,20 @@ export async function readChunkByPath(
   target: AbsoluteFilePath,
   offset: number,
   length: number
-): Promise<Uint8Array<ArrayBuffer>> {
-  return fsReadChunk(target, offset, length)
+): Promise<ReadResult<Uint8Array>> {
+  for (let attempt = 0; attempt < CONSISTENT_READ_MAX_ATTEMPTS; attempt += 1) {
+    const beforeStat = await fsStat(target)
+    const before: FileVersion = { mtime: beforeStat.modifiedAt, size: beforeStat.size }
+    const content = await fsReadChunk(target, offset, length)
+    const afterStat = await fsStat(target)
+    const after: FileVersion = { mtime: afterStat.modifiedAt, size: afterStat.size }
+
+    if (isSameVersion(before, after)) {
+      return { content, mime: mime.getType(target) ?? 'application/octet-stream', version: after }
+    }
+  }
+
+  throw new Error(`File changed while reading: ${target}`)
 }
 
 /** Atomically write bytes only when the current on-disk version still matches. */
