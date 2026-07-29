@@ -275,17 +275,16 @@
   vertical-align: baseline;
 }
 
-/*
- * Citation badge. `inline-flex` + `min-width: 1.5em` keeps a single digit a
- * true circle; multi-digit numbers grow into a pill instead of the squashed
- * ellipse a bare `border-radius: 50%` produced.
- */
 .markdown sup {
   top: -0.5em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5em;
+  /*
+   * 999px, not 50%: the browser clamps it to half the shorter side, so a
+   * single digit stays circular while a two-digit number becomes a pill.
+   * `50%` resolves per-axis and turns any wider-than-tall badge into a
+   * squashed ellipse. Keep `display` inline — the shared rule above sets
+   * `line-height: 0`, which collapses the box to its padding the moment
+   * this becomes a flex or block container.
+   */
   border-radius: 999px;
   background-color: var(--reference);
   color: var(--reference-foreground);
