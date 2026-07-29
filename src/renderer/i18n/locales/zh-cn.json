@@ -7358,6 +7358,10 @@
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "开启后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区，并将该结果与您的姓名、应用语言、本地日期和时间及时区发送给内置 CherryAI 模型以生成问候语。此功能默认关闭。",
+        "title": "AI 生成的情境问候语"
+      },
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
     },

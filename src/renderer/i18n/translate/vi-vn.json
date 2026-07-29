@@ -7350,6 +7350,10 @@
       "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Khi bật, Cherry Studio liên hệ với IPInfo để xác định gần đúng quốc gia hoặc khu vực, sau đó gửi kết quả đó cùng với tên của bạn, ngôn ngữ ứng dụng, ngày giờ địa phương và múi giờ đến mô hình CherryAI tích hợp để tạo lời chào. Tính năng này mặc định bị tắt.",
+        "title": "Lời chào theo ngữ cảnh do AI tạo"
+      },
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"
     },

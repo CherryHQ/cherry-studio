@@ -24,6 +24,11 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genText.safeParse({ prompt: 'hi' }).success).toBe(true)
   })
 
+  it('accepts a cancellable text request id and rejects an empty one', () => {
+    expect(genText.safeParse({ requestId: 'greeting-1', prompt: 'hi' }).success).toBe(true)
+    expect(genText.safeParse({ requestId: '', prompt: 'hi' }).success).toBe(false)
+  })
+
   it('validates the nested payload uniqueModelId for ai.image.generate', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',

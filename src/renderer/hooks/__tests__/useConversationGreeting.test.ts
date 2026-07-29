@@ -16,15 +16,26 @@ describe('useConversationGreeting', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'app.language': 'zh-cn',
-      'app.user.name': 'Siin'
+      'app.user.name': 'Siin',
+      'feature.conversation_greeting.enabled': true
     })
     mocks.request.mockReset()
     sessionStorage.clear()
   })
 
+  it('keeps the localized fallback without contacting remote services until the user opts in', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', false)
+
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'disabled-conversation'))
+    await act(async () => Promise.resolve())
+
+    expect(result.current).toBe('今天想聊点什么？')
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
   it('shows the localized fallback while CherryAI generates a contextual greeting', async () => {
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
+      if (route === 'system.ip_country.detect') {
         return Promise.resolve('US')
       }
       if (route === 'ai.text.generate') {
@@ -33,15 +44,16 @@ describe('useConversationGreeting', () => {
       return Promise.reject(new Error(`Unexpected route: ${route}`))
     })
 
-    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？'))
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'chat-conversation'))
 
     expect(result.current).toBe('今天想聊点什么？')
     await waitFor(() => expect(result.current).toBe('晚上好，Siin！想聊点什么？'))
 
-    expect(mocks.request).toHaveBeenCalledWith('system.get_ip_country')
+    expect(mocks.request).toHaveBeenCalledWith('system.ip_country.detect')
     expect(mocks.request).toHaveBeenCalledWith(
       'ai.text.generate',
       expect.objectContaining({
+        requestId: expect.any(String),
         prompt: 'Generate the greeting now.',
         uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
@@ -51,13 +63,14 @@ describe('useConversationGreeting', () => {
     expect(generateRequest.system).toContain('"userName": "Siin"')
     expect(generateRequest.system).toContain('"language": "zh-cn"')
     expect(generateRequest.system).toContain('"countryOrRegion": "US"')
+    expect(generateRequest.system).toContain('"countryOrRegionSource": "ip"')
     expect(generateRequest.system).toContain('"fallbackGreeting": "今天想聊点什么？"')
   })
 
   it('uses casual guidance for Chat and task-oriented guidance for Agent', async () => {
     let generationCount = 0
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
+      if (route === 'system.ip_country.detect') {
         return Promise.resolve('CN')
       }
       if (route === 'ai.text.generate') {
@@ -89,22 +102,22 @@ describe('useConversationGreeting', () => {
 
   it('keeps the localized fallback when generation fails', async () => {
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
+      if (route === 'system.ip_country.detect') {
         return Promise.resolve('CN')
       }
       return Promise.reject(new Error('CherryAI unavailable'))
     })
 
-    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？'))
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'failed-conversation'))
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
     expect(result.current).toBe('今天想聊点什么？')
   })
 
-  it('still generates when IP-region detection fails', async () => {
+  it('marks the language region as low-confidence when IP-region detection is unavailable', async () => {
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
-        return Promise.reject(new Error('region unavailable'))
+      if (route === 'system.ip_country.detect') {
+        return Promise.resolve(null)
       }
       if (route === 'ai.text.generate') {
         return Promise.resolve({ text: '周末愉快，要来玩个游戏吗？' })
@@ -112,20 +125,23 @@ describe('useConversationGreeting', () => {
       return Promise.reject(new Error(`Unexpected route: ${route}`))
     })
 
-    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？'))
+    const { result } = renderHook(() =>
+      useConversationGreeting('chat', '今天想聊点什么？', 'region-fallback-conversation')
+    )
 
     await waitFor(() => expect(result.current).toBe('周末愉快，要来玩个游戏吗？'))
     const generateRequest = mocks.request.mock.calls.find(([route]) => route === 'ai.text.generate')?.[1]
     expect(generateRequest.system).toContain('"countryOrRegion": "CN"')
+    expect(generateRequest.system).toContain('"countryOrRegionSource": "language"')
   })
 
   it('does not generate after unmounting while region detection is pending', async () => {
     let resolveCountry: (country: string) => void = () => undefined
-    const pendingCountry = new Promise<string>((resolve) => {
+    const pendingCountry = new Promise<string | null>((resolve) => {
       resolveCountry = resolve
     })
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
+      if (route === 'system.ip_country.detect') {
         return pendingCountry
       }
       if (route === 'ai.text.generate') {
@@ -135,7 +151,7 @@ describe('useConversationGreeting', () => {
     })
 
     const { unmount } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'cancelled-conversation'))
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('system.get_ip_country'))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('system.ip_country.detect'))
 
     unmount()
     await act(async () => {
@@ -147,6 +163,53 @@ describe('useConversationGreeting', () => {
     expect(mocks.request).not.toHaveBeenCalledWith('ai.text.generate', expect.any(Object))
   })
 
+  it('aborts an in-flight model request when the empty view unmounts', async () => {
+    let resolveGreeting: (result: { text: string }) => void = () => undefined
+    const pendingGreeting = new Promise<{ text: string }>((resolve) => {
+      resolveGreeting = resolve
+    })
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'system.ip_country.detect') return Promise.resolve('US')
+      if (route === 'ai.text.generate') return pendingGreeting
+      if (route === 'ai.text.abort') return Promise.resolve()
+      return Promise.reject(new Error(`Unexpected route: ${route}`))
+    })
+
+    const { unmount } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'aborted-conversation'))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
+    const requestId = mocks.request.mock.calls.find(([route]) => route === 'ai.text.generate')?.[1].requestId
+
+    unmount()
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.abort', { requestId }))
+
+    await act(async () => {
+      resolveGreeting({ text: '迟到的问候' })
+      await pendingGreeting
+    })
+  })
+
+  it.each([
+    ['overlong text', 'x'.repeat(121)],
+    ['Markdown', '**Hello there**'],
+    ['quotation marks', '"Hello there"'],
+    ['emoji', 'Hello there 👋'],
+    ['multiple lines', 'Hello there\nHow are you?'],
+    ['more than two sentences', 'One. Two. Three.']
+  ])('keeps the fallback for invalid model output: %s', async (_caseName, generatedText) => {
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'system.ip_country.detect') return Promise.resolve('US')
+      if (route === 'ai.text.generate') return Promise.resolve({ text: generatedText })
+      return Promise.reject(new Error(`Unexpected route: ${route}`))
+    })
+
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', `invalid-${_caseName}`))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
+    await act(async () => Promise.resolve())
+
+    expect(result.current).toBe('今天想聊点什么？')
+    expect(sessionStorage.length).toBe(0)
+  })
+
   it('regenerates for a new conversation and ignores the previous result', async () => {
     let resolveFirstGreeting: (result: { text: string }) => void = () => undefined
     const firstGreeting = new Promise<{ text: string }>((resolve) => {
@@ -154,13 +217,14 @@ describe('useConversationGreeting', () => {
     })
     let generationCount = 0
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
+      if (route === 'system.ip_country.detect') {
         return Promise.resolve('CN')
       }
       if (route === 'ai.text.generate') {
         generationCount += 1
         return generationCount === 1 ? firstGreeting : Promise.resolve({ text: '第二个会话的问候' })
       }
+      if (route === 'ai.text.abort') return Promise.resolve()
       return Promise.reject(new Error(`Unexpected route: ${route}`))
     })
 
@@ -185,7 +249,7 @@ describe('useConversationGreeting', () => {
     const generatedGreetings = ['晚上好，想聊点什么？', '晚上好，想聊点什么？', '周末愉快，要来玩个游戏吗？']
     let generationCount = 0
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'system.get_ip_country') {
+      if (route === 'system.ip_country.detect') {
         return Promise.resolve('CN')
       }
       if (route === 'ai.text.generate') {

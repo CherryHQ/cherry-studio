@@ -8,7 +8,7 @@ import { useLayoutEffect } from 'react'
 export interface ConversationGreetingProps {
   /** Assistant / agent avatar — an emoji glyph or an image URL. */
   avatar?: string
-  conversationId?: string
+  conversationId: string
   mode: ConversationGreetingMode
   /** Reports the exact currently displayed text for first-turn model context. */
   onGreetingChange?: (greeting: string | null) => void
