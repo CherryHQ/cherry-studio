@@ -38,6 +38,7 @@ export const BACKUP_DEGRADATION_CODES = [
   'external-file-dropped',
   'path-unportable',
   'path-collision',
+  'workspace-disconnected',
   'resource-unavailable',
   'resource-changed',
   'resource-nonportable',

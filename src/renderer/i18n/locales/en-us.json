@@ -3737,6 +3737,7 @@
   "settings.data.backup_v2.outcome.degradation.resource_nonportable": "{{count}} managed resource unit(s) contain links, special files, or unsafe paths.",
   "settings.data.backup_v2.outcome.degradation.resource_unavailable": "{{count}} managed files or folders were unavailable when the backup was created.",
   "settings.data.backup_v2.outcome.degradation.unknown": "{{count}} entries were reduced for a reason this app version cannot describe.",
+  "settings.data.backup_v2.outcome.degradation.workspace_disconnected": "{{count}} agent workspace(s) pointed at folders from the source device and were disconnected. Choose a folder again to use them here.",
   "settings.data.backup_v2.outcome.degradations": "{{count}} item(s) were restored in a reduced form.",
   "settings.data.backup_v2.outcome.keep_previous_button": "Keep previous data",
   "settings.data.backup_v2.outcome.knowledge_rebuild_pending": "Restored Knowledge content is rebuilding its search index. You can wait, roll back, or stop rebuilding and keep the restored data with an incomplete index.",

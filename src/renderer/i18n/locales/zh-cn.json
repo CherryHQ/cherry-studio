@@ -3737,6 +3737,7 @@
   "settings.data.backup_v2.outcome.degradation.resource_nonportable": "有 {{count}} 个受管资源单元包含链接、特殊文件或不安全路径。",
   "settings.data.backup_v2.outcome.degradation.resource_unavailable": "创建备份时有 {{count}} 个受管文件或文件夹不可用。",
   "settings.data.backup_v2.outcome.degradation.unknown": "有 {{count}} 项因当前版本无法说明的原因被降级。",
+  "settings.data.backup_v2.outcome.degradation.workspace_disconnected": "有 {{count}} 个智能体工作区指向源设备上的文件夹，已断开绑定。在本机重新选择文件夹后即可使用。",
   "settings.data.backup_v2.outcome.degradations": "有 {{count}} 项以降级的形式恢复。",
   "settings.data.backup_v2.outcome.keep_previous_button": "保留先前数据",
   "settings.data.backup_v2.outcome.knowledge_rebuild_pending": "正在为恢复的知识库内容重建搜索索引。你可以等待、回滚，或停止重建并保留索引尚未完成的恢复结果。",
