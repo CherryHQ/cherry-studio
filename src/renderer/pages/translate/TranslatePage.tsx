@@ -49,7 +49,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
-import { isEmpty } from 'es-toolkit/compat'
+import { isEmpty, throttle } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -74,7 +74,6 @@ const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -128,6 +127,8 @@ const useBabelDoc = (enabled: boolean) => {
 
   return { availability, installing, install, refresh }
 }
+
+const MARKDOWN_RENDER_THROTTLE_MS = 150
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getTitleFromTranslationResult = (translationResult: string) =>
@@ -617,23 +618,38 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
+  // Smooth-stream updates land per animation frame, and parsing the whole
+  // accumulated document on every frame grows quadratic. Pace renders and
+  // let the trailing edge catch the final snapshot.
+  const markdownRenderSeq = useRef(0)
+  const throttledMarkdownRender = useMemo(
+    () =>
+      throttle(
+        async (text: string) => {
+          const seq = ++markdownRenderSeq.current
+          const markdown = await shikiMarkdownIt(text)
+          if (seq === markdownRenderSeq.current) {
+            setRenderedMarkdown(markdown)
+          }
+        },
+        MARKDOWN_RENDER_THROTTLE_MS,
+        { edges: ['leading', 'trailing'] }
+      ),
+    [shikiMarkdownIt]
+  )
+
   useEffect(() => {
-    let cancelled = false
-    const render = async () => {
-      if (!enableMarkdown || !translateOutput) {
-        setRenderedMarkdown('')
-        return
-      }
-      const markdown = await shikiMarkdownIt(translateOutput)
-      if (!cancelled) {
-        setRenderedMarkdown(markdown)
-      }
+    return () => throttledMarkdownRender.cancel()
+  }, [throttledMarkdownRender])
+
+  useEffect(() => {
+    if (!enableMarkdown || !translateOutput) {
+      throttledMarkdownRender.cancel()
+      setRenderedMarkdown('')
+      return
     }
-    void render()
-    return () => {
-      cancelled = true
-    }
-  }, [enableMarkdown, shikiMarkdownIt, translateOutput])
+    void throttledMarkdownRender(translateOutput)
+  }, [enableMarkdown, translateOutput, throttledMarkdownRender])
 
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>
