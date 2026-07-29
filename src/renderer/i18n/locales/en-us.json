@@ -5902,7 +5902,8 @@
             "resource_limit": "{{count}} managed resource unit(s) exceeded a backup limit.",
             "resource_nonportable": "{{count}} managed resource unit(s) contain links, special files, or unsafe paths.",
             "resource_unavailable": "{{count}} managed files or folders were unavailable when the backup was created.",
-            "unknown": "{{count}} entries were reduced for a reason this app version cannot describe."
+            "unknown": "{{count}} entries were reduced for a reason this app version cannot describe.",
+            "workspace_disconnected": "{{count}} agent workspace(s) pointed at folders from the source device and were disconnected. Choose a folder again to use them here."
           },
           "degradations": "{{count}} item(s) were restored in a reduced form.",
           "keep_previous_button": "Keep previous data",

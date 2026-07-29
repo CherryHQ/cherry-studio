@@ -5902,7 +5902,8 @@
             "resource_limit": "有 {{count}} 个受管资源单元超过备份限制。",
             "resource_nonportable": "有 {{count}} 个受管资源单元包含链接、特殊文件或不安全路径。",
             "resource_unavailable": "创建备份时有 {{count}} 个受管文件或文件夹不可用。",
-            "unknown": "有 {{count}} 项因当前版本无法说明的原因被降级。"
+            "unknown": "有 {{count}} 项因当前版本无法说明的原因被降级。",
+            "workspace_disconnected": "有 {{count}} 个智能体工作区指向源设备上的文件夹，已断开绑定。在本机重新选择文件夹后即可使用。"
           },
           "degradations": "有 {{count}} 项以降级的形式恢复。",
           "keep_previous_button": "保留先前数据",
