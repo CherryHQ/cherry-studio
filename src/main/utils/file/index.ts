@@ -9,10 +9,13 @@
  *
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
  *   `move`, `remove`, `hash`, `download`, …).
+ * - `./durability` — fsync, full-write, durable unlink, and rename-only
+ *   primitives for transaction state machines.
  * - `./metadata` — content-derived classification (`getFileType(path)`,
  *   `isTextFile`, `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isUnderInternalStorage`,
  *   `canWrite`, …).
+ * - `./pathSafety` — link-aware path identity and ancestor/device proofs.
  * - `./pathStatus` — `getPathStatus` + its result types.
  * - `./shell` — OS open / reveal (`open`, `showInFolder`).
  *
@@ -49,6 +52,19 @@
  */
 
 export {
+  durableFileIo,
+  fsyncDirectory,
+  fsyncDirectorySync,
+  fsyncFile,
+  fsyncFileSync,
+  renameOnly,
+  renameOnlySync,
+  shouldSilenceFsyncDirError,
+  unlinkAndFsyncParentSync,
+  writeFileFullySync,
+  type WriteFileFullySyncOptions
+} from './durability'
+export {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   type AtomicWriteStream,
@@ -71,11 +87,20 @@ export {
   realpath,
   remove,
   removeDir,
-  shouldSilenceFsyncDirError,
   stat,
   write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextFile, mimeToExt } from './metadata'
 export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
+export {
+  findCrossDeviceEndpoint,
+  findUnsafeAncestor,
+  type PathIdentity,
+  type PathNodeType,
+  type PathProbe,
+  probePath,
+  probePathSync,
+  removeOwnedDirectory
+} from './pathSafety'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { fsyncDirectorySync, renameOnlySync } from '@main/utils/file'
 import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
@@ -997,22 +998,10 @@ function moveIdempotent(source: string, target: string): void {
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
-  fsyncDir(path.dirname(target))
+  renameOnlySync(source, target)
+  fsyncDirectorySync(path.dirname(target))
   const sourceDir = path.dirname(source)
   if (sourceDir !== path.dirname(target)) {
-    fsyncDir(sourceDir)
-  }
-}
-
-function fsyncDir(dir: string): void {
-  if (process.platform === 'win32') {
-    return
-  }
-  const fd = fs.openSync(dir, 'r')
-  try {
-    fs.fsyncSync(fd)
-  } finally {
-    fs.closeSync(fd)
+    fsyncDirectorySync(sourceDir)
   }
 }

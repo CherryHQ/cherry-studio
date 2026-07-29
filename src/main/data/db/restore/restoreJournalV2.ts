@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { fsyncDirectorySync, renameOnlySync, unlinkAndFsyncParentSync, writeFileFullySync } from '@main/utils/file'
 import { portableCollisionKey, RelativeSubpathSchema } from '@main/utils/relativePath'
 import * as z from 'zod'
 
@@ -464,22 +465,7 @@ function corrupt(reason: JournalReadFailure, detail: string): ReadJournalV2FileR
  * release that protection over asides that are still on disk.
  */
 export function clearRestoreJournalV2(): void {
-  const journalPath = journalFilePath()
-  try {
-    fs.unlinkSync(journalPath)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    return
-  }
-
-  if (process.platform !== 'win32') {
-    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
-    try {
-      fs.fsyncSync(dirFd)
-    } finally {
-      fs.closeSync(dirFd)
-    }
-  }
+  unlinkAndFsyncParentSync(journalFilePath())
 }
 
 /**
@@ -489,48 +475,26 @@ export function clearRestoreJournalV2(): void {
  * rename does not request `MOVEFILE_WRITE_THROUGH`, so Windows guarantees
  * process-crash recovery only; sudden power loss may roll metadata back.
  *
- * Deliberately mirrors the v1 writer rather than sharing it: v1 disappears at
- * the promotion cutover, and coupling two on-disk contracts that are about to
- * diverge would be the wrong dependency to create for one phase of overlap.
+ * The byte-write/fsync/rename primitives are shared filesystem mechanics; the
+ * tmp name, serialized shape, and ordering remain this journal's contract.
  */
-/** Narrow fault-injection seam for short-write recovery tests. */
-export const restoreJournalIo: {
-  writeSync(fd: number, bytes: Uint8Array, offset: number, length: number, position: number | null): number
-} = {
-  writeSync: (fd, bytes, offset, length, position) => fs.writeSync(fd, bytes, offset, length, position)
-}
-
-function writeBufferFully(fd: number, bytes: Buffer): void {
-  let offset = 0
-  while (offset < bytes.length) {
-    const written = restoreJournalIo.writeSync(fd, bytes, offset, bytes.length - offset, null)
-    if (written <= 0) {
-      throw new Error(`restore journal write made no progress at ${offset}/${bytes.length} bytes`)
-    }
-    offset += written
-  }
-}
-
 export function writeRestoreJournalV2(journal: RestoreJournalV2): void {
   const journalPath = journalFilePath()
   const tmpPath = `${journalPath}.tmp`
   const bytes = Buffer.from(JSON.stringify(journal, null, 2), 'utf8')
 
-  const fd = fs.openSync(tmpPath, 'w')
   try {
-    writeBufferFully(fd, bytes)
-    fs.fsyncSync(fd)
-  } finally {
-    fs.closeSync(fd)
-  }
-  fs.renameSync(tmpPath, journalPath)
-
-  if (process.platform !== 'win32') {
-    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+    writeFileFullySync(tmpPath, bytes)
+    renameOnlySync(tmpPath, journalPath)
+    fsyncDirectorySync(path.dirname(journalPath))
+  } catch (error) {
     try {
-      fs.fsyncSync(dirFd)
-    } finally {
-      fs.closeSync(dirFd)
+      fs.unlinkSync(tmpPath)
+    } catch (cleanupError) {
+      if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Could not remove failed restore journal temporary file', cleanupError as Error)
+      }
     }
+    throw error
   }
 }

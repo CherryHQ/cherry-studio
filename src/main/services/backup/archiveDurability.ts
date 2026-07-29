@@ -1,4 +1,4 @@
-import { open } from 'node:fs/promises'
+import { fsyncDirectory, fsyncFile } from '@main/utils/file'
 
 /**
  * Durability seams for atomic archive publication.
@@ -9,21 +9,10 @@ import { open } from 'node:fs/promises'
  */
 export const archiveDurability = {
   async fsyncFile(target: string): Promise<void> {
-    const handle = await open(target, 'r')
-    try {
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
+    await fsyncFile(target)
   },
 
   async fsyncDir(dir: string): Promise<void> {
-    if (process.platform === 'win32') return
-    const handle = await open(dir, 'r')
-    try {
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
+    await fsyncDirectory(dir)
   }
 }

@@ -1,7 +1,7 @@
 /* oxlint-disable no-unused-vars -- TODO(phase-2): compressImage is the last remaining stub; its parameters shape the public signature but are unused until the KnowledgeService consumer migrates. */
 
 /**
- * Core filesystem operations — the ONLY module that imports `node:fs`.
+ * Core filesystem operations.
  *
  * All functions are pure path-based, no entry/DB awareness.
  *
@@ -48,6 +48,10 @@ import { loggerService } from '@logger'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
+
+import { fsyncDirectory } from './durability'
+
+export { shouldSilenceFsyncDirError } from './durability'
 
 const logger = loggerService.withContext('utils/file/fs')
 
@@ -152,21 +156,6 @@ function tmpNameFor(target: string): string {
 }
 
 /**
- * Whether an errno from a directory-fsync attempt should be silently
- * swallowed instead of warn-logged. Only codes that mean "this FS semantically
- * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP all come from
- * Windows, FUSE, or network mounts that don't expose dir-handle sync. EPERM /
- * EACCES intentionally do NOT qualify: those usually mean the userData
- * directory's ACL drifted (sandbox containment shift, SELinux/AppArmor
- * tightening, manual chown), and silently skipping the dashboard signal would
- * mask the regression. Exported for direct unit coverage of the classification.
- * @internal
- */
-export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
-  return code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP'
-}
-
-/**
  * fsync(2) the directory containing `target` so the rename's directory-entry
  * update reaches stable storage. Best-effort: returns silently when the FS
  * doesn't support directory fsync (Windows, network mounts, some FUSE
@@ -177,15 +166,9 @@ export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
  */
 async function fsyncDirectoryOf(target: string): Promise<void> {
   try {
-    const dirHandle = await fsOpen(path.dirname(target), 'r')
-    try {
-      await dirHandle.sync()
-    } finally {
-      await dirHandle.close()
-    }
+    await fsyncDirectory(path.dirname(target))
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
-    if (shouldSilenceFsyncDirError(code)) return
     logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { target, code, err })
   }
 }
@@ -265,7 +248,7 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
 export async function atomicWriteFile(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number }
+  options?: { mode?: number; directorySync?: 'best-effort' | 'required' }
 ): Promise<void> {
   const tmp = tmpNameFor(target)
   const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
@@ -291,7 +274,11 @@ export async function atomicWriteFile(
     await bestEffortUnlinkTmp(tmp, target)
     throw err
   }
-  await fsyncDirectoryOf(target)
+  if (options?.directorySync === 'required') {
+    await fsyncDirectory(path.dirname(target))
+  } else {
+    await fsyncDirectoryOf(target)
+  }
 }
 
 /**
