@@ -5945,8 +5945,6 @@
           "unreadable": "The restore record on this device cannot be read. The next start will quarantine it."
         },
         "preview": {
-          "coverage": "Files this backup expects",
-          "coverage_counts": "{{available}} available, {{rebuildable}} rebuilt after restore, {{missing}} missing, {{unverifiable}} outside this app",
           "degradations": "{{count}} item(s) were not included when this backup was made.",
           "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
           "migrated_forward": "This backup was made by an older version and was upgraded during preparation.",
