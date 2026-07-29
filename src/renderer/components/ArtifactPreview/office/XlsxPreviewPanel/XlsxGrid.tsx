@@ -46,7 +46,7 @@ const OVERSCAN = 6
 const EXTRA_ROWS = 20
 const EXTRA_COLS = 5
 /** Default grid line when no cell border is set. Follows the DESIGN.md border token. */
-const DEFAULT_GRID_LINE = '0.5px solid var(--color-border)'
+const DEFAULT_GRID_LINE = '0.5px solid var(--border)'
 /** Maximum selected-cell overlay content width in px at zoom=1. Wider content wraps at this width. */
 const SELECTED_OVERLAY_MAX_WIDTH_PX = 480
 
