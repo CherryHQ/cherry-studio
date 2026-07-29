@@ -9,36 +9,43 @@ import {
 } from '@radix-ui/react-tooltip'
 import * as React from 'react'
 
+import { type Direction, type LogicalSide, type PhysicalInlineSide, resolveInlineSide, useDirection } from './direction'
 import { usePortalContainer } from './portal-container'
 
-type Side = 'top' | 'bottom' | 'left' | 'right'
+type PhysicalSide = 'top' | 'bottom' | PhysicalInlineSide
+type TooltipSide = 'top' | 'bottom' | LogicalSide
 type Align = 'start' | 'center' | 'end'
+type TooltipPlacement =
+  | TooltipSide
+  | 'top-start'
+  | 'top-end'
+  | 'bottom-start'
+  | 'bottom-end'
+  | 'start-start'
+  | 'start-end'
+  | 'end-start'
+  | 'end-end'
 
-function parsePlacement(placement?: string): { side: Side; align: Align } {
-  const mapping: Record<string, { side: Side; align: Align }> = {
-    top: { side: 'top', align: 'center' },
-    'top-start': { side: 'top', align: 'start' },
-    'top-end': { side: 'top', align: 'end' },
-    bottom: { side: 'bottom', align: 'center' },
-    'bottom-start': { side: 'bottom', align: 'start' },
-    'bottom-end': { side: 'bottom', align: 'end' },
-    bottomRight: { side: 'bottom', align: 'end' },
-    left: { side: 'left', align: 'center' },
-    'left-start': { side: 'left', align: 'start' },
-    'left-end': { side: 'left', align: 'end' },
-    right: { side: 'right', align: 'center' },
-    'right-start': { side: 'right', align: 'start' },
-    'right-end': { side: 'right', align: 'end' }
-  }
-  return mapping[placement ?? 'top'] ?? { side: 'top', align: 'center' }
+function resolveSide(side: TooltipSide, direction: Direction): PhysicalSide {
+  if (side === 'start' || side === 'end') return resolveInlineSide(side, direction)
+  return side
+}
+
+function parsePlacement(
+  placement: TooltipPlacement | undefined,
+  direction: Direction
+): { side: PhysicalSide; align: Align } {
+  const [side = 'top', align = 'center'] = (placement ?? 'top').split('-') as [TooltipSide, Align?]
+  return { side: resolveSide(side, direction), align }
 }
 
 export type TooltipProviderProps = React.ComponentProps<typeof RadixProvider>
 export type TooltipRootProps = React.ComponentProps<typeof RadixRoot>
 export type TooltipTriggerProps = React.ComponentProps<typeof RadixTrigger>
-export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
+export type TooltipContentProps = Omit<React.ComponentProps<typeof RadixContent>, 'side'> & {
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
   showArrow?: boolean
+  side?: TooltipSide
 }
 
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
@@ -82,13 +89,16 @@ function TooltipContent({
   children,
   portalContainer,
   showArrow = true,
+  side,
   ...props
 }: TooltipContentProps) {
   const defaultPortalContainer = usePortalContainer()
+  const direction = useDirection()
   return (
     <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <RadixContent
         data-slot="tooltip-content"
+        side={side === undefined ? undefined : resolveSide(side, direction)}
         sideOffset={sideOffset}
         className={cn(contentStyles, className)}
         {...props}>
@@ -103,7 +113,7 @@ export interface TooltipProps {
   children?: React.ReactNode
   content?: React.ReactNode
   title?: React.ReactNode
-  placement?: string
+  placement?: TooltipPlacement
   delay?: number
   sideOffset?: TooltipContentProps['sideOffset']
   showArrow?: boolean
@@ -139,6 +149,7 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
+  const direction = useDirection()
   const triggerWrapperClassName = cn(
     'relative z-10',
     fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',
@@ -153,7 +164,7 @@ export const Tooltip = ({
     )
   }
 
-  const { side, align } = parsePlacement(placement)
+  const { side, align } = parsePlacement(placement, direction)
 
   const controlledProps: Partial<TooltipRootProps> = {}
   if (isOpen != null) {
@@ -189,7 +200,7 @@ export const Tooltip = ({
 
 interface NormalTooltipProps extends TooltipRootProps {
   content: React.ReactNode
-  side?: TooltipContentProps['side']
+  side?: TooltipSide
   align?: TooltipContentProps['align']
   sideOffset?: TooltipContentProps['sideOffset']
   className?: string
@@ -224,3 +235,4 @@ const NormalTooltip = ({
 }
 
 export { NormalTooltip, TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger }
+export type { NormalTooltipProps, TooltipPlacement, TooltipSide }

@@ -45,7 +45,9 @@ const CustomTag: FC<CustomTagProps> = ({
           !disabled && onClick ? 'cursor-pointer hover:opacity-80' : disabled ? 'cursor-not-allowed' : 'cursor-auto'
         } ${className}`}
         style={{
-          padding: `${size / 3}px ${closable ? size * 1.8 : size * 0.8}px ${size / 3}px ${size * 0.8}px`,
+          paddingBlock: `${size / 3}px`,
+          paddingInlineStart: `${size * 0.8}px`,
+          paddingInlineEnd: `${closable ? size * 1.8 : size * 0.8}px`,
           color: actualColor,
           backgroundColor: actualColor + '20',
           fontSize: `${size}px`,
@@ -66,7 +68,7 @@ const CustomTag: FC<CustomTagProps> = ({
           <div
             className="absolute flex items-center justify-center cursor-pointer rounded-full transition-all duration-200 hover:bg-[#da8a8a] hover:text-white"
             style={{
-              right: `${size * 0.2}px`,
+              insetInlineEnd: `${size * 0.2}px`,
               top: `${size * 0.2}px`,
               bottom: `${size * 0.2}px`,
               fontSize: `${size * 0.8}px`,

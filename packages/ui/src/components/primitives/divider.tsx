@@ -20,7 +20,7 @@ const Divider: React.FC<DividerProps> = ({ className, orientation = 'horizontal'
         'shrink-0 border-0',
         orientation === 'horizontal'
           ? 'h-px w-full my-2.5 border-t-[0.5px] border-solid border-(--color-border)'
-          : 'w-px h-full mx-2.5 border-l-[0.5px] border-solid border-(--color-border)',
+          : 'w-px h-full mx-2.5 border-s-[0.5px] border-solid border-(--color-border)',
         className
       )}
       {...props}

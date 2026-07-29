@@ -1443,6 +1443,9 @@ importers:
       '@radix-ui/react-dialog':
         specifier: ^1.1.19
         version: 1.1.19(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-direction':
+        specifier: ^1.1.1
+        version: 1.1.2(@types/react@19.2.7)(react@19.2.3)
       '@radix-ui/react-dropdown-menu':
         specifier: ^2.1.20
         version: 2.1.20(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

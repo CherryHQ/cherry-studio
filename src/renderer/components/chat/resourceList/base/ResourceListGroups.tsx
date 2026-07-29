@@ -237,7 +237,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       onContextMenu={handleContextMenu}
       {...props}>
       {groupHeaderTooltip ? (
-        <Tooltip content={groupHeaderTooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+        <Tooltip content={groupHeaderTooltip} placement="end" sideOffset={4} delay={500} fullWidthTrigger>
           {headerContent}
         </Tooltip>
       ) : (

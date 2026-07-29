@@ -81,7 +81,7 @@ const NotionSettings: FC = () => {
         {t('settings.data.notion.title')}
         <InfoTooltip
           content={t('settings.data.notion.help')}
-          placement="right"
+          placement="end"
           iconProps={{ className: 'text-text-2 cursor-pointer' }}
           onClick={handleNotionTitleClick}
         />

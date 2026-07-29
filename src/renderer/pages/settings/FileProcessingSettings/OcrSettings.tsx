@@ -64,7 +64,7 @@ const OcrSettings: FC = () => {
                 <span className="truncate">{t('settings.tool.file_processing.features.image_to_text.title')}</span>
                 <InfoTooltip
                   content={t('settings.tool.file_processing.features.image_to_text.tooltip')}
-                  placement="right"
+                  placement="end"
                   iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
                 />
               </span>

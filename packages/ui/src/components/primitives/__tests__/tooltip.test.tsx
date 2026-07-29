@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { DirectionProvider } from '../direction'
 import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipTrigger } from '../tooltip'
 
 beforeAll(() => {
@@ -211,6 +212,32 @@ describe('Tooltip', () => {
         </Tooltip>
       )
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('logical placement', () => {
+    it('maps inline end to the physical right in LTR', () => {
+      render(
+        <DirectionProvider dir="ltr">
+          <Tooltip content="end in LTR" placement="end" isOpen>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        </DirectionProvider>
+      )
+
+      expect(getTooltipContentElement('end in LTR')).toHaveAttribute('data-side', 'right')
+    })
+
+    it('maps inline end to the physical left in RTL', () => {
+      render(
+        <DirectionProvider dir="rtl">
+          <Tooltip content="end in RTL" placement="end" isOpen>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        </DirectionProvider>
+      )
+
+      expect(getTooltipContentElement('end in RTL')).toHaveAttribute('data-side', 'left')
     })
   })
 

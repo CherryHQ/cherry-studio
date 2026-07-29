@@ -427,7 +427,7 @@ function Item<T extends ResourceListItemBase>({
   if (!tooltip) return content
 
   return (
-    <Tooltip content={tooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+    <Tooltip content={tooltip} placement="end" sideOffset={4} delay={500} fullWidthTrigger>
       {content}
     </Tooltip>
   )

@@ -66,7 +66,7 @@ const DocumentProcessingSettings: FC = () => {
                 </span>
                 <InfoTooltip
                   content={t('settings.tool.file_processing.features.document_to_markdown.tooltip')}
-                  placement="right"
+                  placement="end"
                   iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
                 />
               </span>

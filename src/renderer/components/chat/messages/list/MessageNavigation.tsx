@@ -262,7 +262,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
       onMouseEnter={handleNavigationMouseEnter}
       onMouseLeave={handleNavigationMouseLeave}>
       <ButtonGroup $isVisible={isVisible}>
-        <Tooltip placement="left" content={t('chat.navigation.close')} delay={500}>
+        <Tooltip placement="start" content={t('chat.navigation.close')} delay={500}>
           <NavigationButton
             variant="ghost"
             onClick={handleCloseMessageNavigation}
@@ -271,25 +271,25 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
           </NavigationButton>
         </Tooltip>
         <Divider />
-        <Tooltip placement="left" content={t('chat.navigation.top')} delay={500}>
+        <Tooltip placement="start" content={t('chat.navigation.top')} delay={500}>
           <NavigationButton variant="ghost" onClick={handleScrollToTop} aria-label={t('chat.navigation.top')}>
             <ChevronsUp />
           </NavigationButton>
         </Tooltip>
         <Divider />
-        <Tooltip placement="left" content={t('chat.navigation.prev')} delay={500}>
+        <Tooltip placement="start" content={t('chat.navigation.prev')} delay={500}>
           <NavigationButton variant="ghost" onClick={handlePrevMessage} aria-label={t('chat.navigation.prev')}>
             <ArrowUp />
           </NavigationButton>
         </Tooltip>
         <Divider />
-        <Tooltip placement="left" content={t('chat.navigation.next')} delay={500}>
+        <Tooltip placement="start" content={t('chat.navigation.next')} delay={500}>
           <NavigationButton variant="ghost" onClick={handleNextMessage} aria-label={t('chat.navigation.next')}>
             <ArrowDown />
           </NavigationButton>
         </Tooltip>
         <Divider />
-        <Tooltip placement="left" content={t('chat.navigation.bottom')} delay={500}>
+        <Tooltip placement="start" content={t('chat.navigation.bottom')} delay={500}>
           <NavigationButton variant="ghost" onClick={handleScrollToBottom} aria-label={t('chat.navigation.bottom')}>
             <ChevronsDown />
           </NavigationButton>

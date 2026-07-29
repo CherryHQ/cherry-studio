@@ -185,6 +185,29 @@ import { Button } from '@cherrystudio/ui/components'
 import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
+### Direction and bidirectional content
+
+Mount `DirectionProvider` with the same direction as the application root. Shared component placement APIs use
+logical `start` / `end`; adapters such as `Drawer` and `Tooltip` translate those values only when an underlying
+library requires physical `left` / `right` values.
+
+```tsx
+import { DirectionProvider, Drawer, DirectionalIcon } from '@cherrystudio/ui/components'
+import { ArrowRight } from 'lucide-react'
+
+<DirectionProvider dir={localeDirection}>
+  <Drawer side="end">...</Drawer>
+  <DirectionalIcon>
+    <ArrowRight />
+  </DirectionalIcon>
+</DirectionProvider>
+```
+
+Use `DirectionalIcon` only for arrows whose meaning follows reading direction; never wrap logos, check marks, or
+physical media controls. Text inputs default to `dir="auto"`, while technical input types such as email, number,
+password, telephone, and URL default to LTR. Callers may explicitly override `dir` when their content contract is
+more specific.
+
 ## Development
 
 ```bash
@@ -332,6 +355,7 @@ The Shadcn-compatible native input primitive.
 **Props:**
 
 - accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- natural-language text inputs default to `dir="auto"`; technical input types default to `dir="ltr"` and callers may override the native `dir`
 - use `aria-invalid` for invalid-state styling
 - use `className` for supported layout composition
 

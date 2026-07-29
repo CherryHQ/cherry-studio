@@ -290,7 +290,7 @@ const AppearanceSettings: FC = () => {
     const fontFamily = option.value || defaultFontPreviewFamily
 
     return (
-      <Tooltip title={option.label} placement="left" delay={500} fullWidthTrigger>
+      <Tooltip title={option.label} placement="start" delay={500} fullWidthTrigger>
         <div className="w-full min-w-0 truncate" style={{ fontFamily }}>
           {option.label}
         </div>

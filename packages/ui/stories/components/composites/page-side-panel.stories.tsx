@@ -20,7 +20,7 @@ const meta: Meta<typeof PageSidePanel> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-const Scene = ({ side }: { side: 'left' | 'right' }) => {
+const Scene = ({ side }: { side: 'start' | 'end' }) => {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative h-[520px] w-full overflow-hidden rounded-md border bg-card">
@@ -54,12 +54,12 @@ const Scene = ({ side }: { side: 'left' | 'right' }) => {
   )
 }
 
-export const Right: Story = {
-  render: () => <Scene side="right" />
+export const End: Story = {
+  render: () => <Scene side="end" />
 }
 
-export const Left: Story = {
-  render: () => <Scene side="left" />
+export const Start: Story = {
+  render: () => <Scene side="start" />
 }
 
 export const WithoutCloseButton: Story = {

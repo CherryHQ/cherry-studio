@@ -32,7 +32,7 @@ export const Default: Story = {
 export const Placements: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-4">
-      {(['top', 'bottom', 'left', 'right', 'top-start', 'top-end', 'bottom-start', 'bottom-end'] as const).map(
+      {(['top', 'bottom', 'start', 'end', 'top-start', 'top-end', 'bottom-start', 'bottom-end'] as const).map(
         (placement) => (
           <Tooltip key={placement} content={`Placement: ${placement}`} placement={placement}>
             <Button variant="outline" className="w-36">
@@ -78,7 +78,7 @@ export const RichContent: Story = {
 export const NormalTooltipExample: Story = {
   name: 'NormalTooltip',
   render: () => (
-    <NormalTooltip content="Open in new tab" side="right">
+    <NormalTooltip content="Open in new tab" side="end">
       <Button variant="ghost" size="icon" aria-label="Info">
         <Info className="size-4" />
       </Button>

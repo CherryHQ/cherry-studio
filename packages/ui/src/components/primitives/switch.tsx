@@ -40,10 +40,10 @@ const switchThumbVariants = cva(
   {
     variants: {
       size: {
-        xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
-        sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
-        md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
-        lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
+        xs: ['ms-[1px] size-4 data-[state=checked]:translate-x-3.5 rtl:data-[state=checked]:-translate-x-3.5'],
+        sm: ['size-4.5 ms-[1px] data-[state=checked]:translate-x-4 rtl:data-[state=checked]:-translate-x-4'],
+        md: ['size-[19px] ms-0.5 data-[state=checked]:translate-x-[21px] rtl:data-[state=checked]:-translate-x-[21px]'],
+        lg: ['size-5 ms-[3px] data-[state=checked]:translate-x-4.5 rtl:data-[state=checked]:-translate-x-4.5']
       },
       loading: {
         false: null,
@@ -54,22 +54,22 @@ const switchThumbVariants = cva(
       {
         size: 'xs',
         loading: true,
-        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
+        className: 'ms-0.5 size-3.5 data-[state=checked]:translate-x-3.5 rtl:data-[state=checked]:-translate-x-3.5'
       },
       {
         size: 'sm',
         loading: true,
-        className: 'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5'
+        className: 'size-3.5 ms-0.5 data-[state=checked]:translate-x-4.5 rtl:data-[state=checked]:-translate-x-4.5'
       },
       {
         size: 'md',
         loading: true,
-        className: 'size-4 ml-1 data-[state=checked]:translate-x-5'
+        className: 'size-4 ms-1 data-[state=checked]:translate-x-5 rtl:data-[state=checked]:-translate-x-5'
       },
       {
         size: 'lg',
         loading: true,
-        className: 'size-4.5 ml-1 data-[state=checked]:translate-x-4.5'
+        className: 'size-4.5 ms-1 data-[state=checked]:translate-x-4.5 rtl:data-[state=checked]:-translate-x-4.5'
       }
     ]
   }
@@ -128,34 +128,30 @@ interface DescriptionSwitchProps extends SwitchProps {
   label: string
   /** Optional helper text shown below the label. */
   description?: string
-  /** Switch position relative to label. Defaults to 'right'. */
-  position?: 'left' | 'right'
+  /** Switch position in the inline flow relative to the label. Defaults to 'end'. */
+  controlPosition?: 'start' | 'end'
 }
 
 // TODO: It's not finished. We need to use Typography components instead of native html element.
 const DescriptionSwitch = ({
   label,
   description,
-  position = 'right',
+  controlPosition = 'end',
   size = 'md',
   ...props
 }: DescriptionSwitchProps) => {
-  const isLeftSide = position === 'left'
+  const isControlAtStart = controlPosition === 'start'
   const id = useId()
   return (
-    <div className={cn('flex w-full gap-3 justify-between p-2', isLeftSide && 'flex-row-reverse')}>
+    <div className={cn('flex w-full gap-3 justify-between p-2', isControlAtStart && 'flex-row-reverse')}>
       <label className={cn('flex flex-col gap-1 cursor-pointer')} htmlFor={id}>
         {/* TODO: use standard typography component */}
         <p
-          className={cn(
-            'font-medium tracking-normal',
-            {
-              'text-sm leading-4': size === 'sm',
-              'text-md leading-4.5': size === 'md',
-              'text-lg leading-5.5': size === 'lg'
-            },
-            isLeftSide && 'text-right'
-          )}>
+          className={cn('font-medium tracking-normal', {
+            'text-sm leading-4': size === 'sm',
+            'text-md leading-4.5': size === 'md',
+            'text-lg leading-5.5': size === 'lg'
+          })}>
           {label}
         </p>
         {/* TODO: use standard typography component */}

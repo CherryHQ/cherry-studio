@@ -65,7 +65,7 @@ export function UsageEntriesTable({
   const integerFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }), [locale])
   const getAriaSort = (column: AiUsageRecordListSortBy) =>
     sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
-  const renderSortHeader = (column: AiUsageRecordListSortBy, label: string, align: 'left' | 'right' = 'left') => {
+  const renderSortHeader = (column: AiUsageRecordListSortBy, label: string, align: 'start' | 'end' = 'start') => {
     const isActive = sortBy === column
     const Icon = isActive ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
 
@@ -75,7 +75,7 @@ export function UsageEntriesTable({
         size="sm"
         className={cn(
           '-mx-2 h-7 gap-1.5 px-2 font-medium text-muted-foreground hover:text-foreground',
-          align === 'right' && 'ml-auto'
+          align === 'end' && 'ms-auto'
         )}
         onClick={() => onSort(column)}>
         <span>{label}</span>
@@ -127,17 +127,17 @@ export function UsageEntriesTable({
                   <TableHead aria-sort={getAriaSort('createdAt')}>
                     {renderSortHeader('createdAt', t('settings.usage.table.date'))}
                   </TableHead>
-                  <TableHead className="text-right" aria-sort={getAriaSort('totalTokens')}>
-                    {renderSortHeader('totalTokens', t('settings.usage.table.tokens'), 'right')}
+                  <TableHead className="text-end" aria-sort={getAriaSort('totalTokens')}>
+                    {renderSortHeader('totalTokens', t('settings.usage.table.tokens'), 'end')}
                   </TableHead>
-                  <TableHead className="text-right" aria-sort={getAriaSort('cost')}>
-                    {renderSortHeader('cost', t('settings.usage.table.cost'), 'right')}
+                  <TableHead className="text-end" aria-sort={getAriaSort('cost')}>
+                    {renderSortHeader('cost', t('settings.usage.table.cost'), 'end')}
                   </TableHead>
-                  <TableHead className="text-right" aria-sort={getAriaSort('timeFirstTokenMs')}>
-                    {renderSortHeader('timeFirstTokenMs', t('settings.usage.table.ttft'), 'right')}
+                  <TableHead className="text-end" aria-sort={getAriaSort('timeFirstTokenMs')}>
+                    {renderSortHeader('timeFirstTokenMs', t('settings.usage.table.ttft'), 'end')}
                   </TableHead>
-                  <TableHead className="text-right" aria-sort={getAriaSort('tokensPerSecond')}>
-                    {renderSortHeader('tokensPerSecond', t('settings.usage.table.tps'), 'right')}
+                  <TableHead className="text-end" aria-sort={getAriaSort('tokensPerSecond')}>
+                    {renderSortHeader('tokensPerSecond', t('settings.usage.table.tps'), 'end')}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -191,18 +191,18 @@ export function UsageEntriesTable({
                           {createdAtLabel}
                         </time>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
+                      <TableCell className="whitespace-nowrap text-end font-medium tabular-nums">
                         {totalTokens === null ? EMPTY_VALUE : formatCompactNumber(totalTokens)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      <TableCell className="whitespace-nowrap text-end tabular-nums">
                         {entry.cost !== null && entry.cost !== undefined
                           ? formatCost(entry.cost, entry.costCurrency)
                           : EMPTY_VALUE}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      <TableCell className="whitespace-nowrap text-end tabular-nums">
                         {formatMilliseconds(entry.timeFirstTokenMs)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatTps(tps)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-end tabular-nums">{formatTps(tps)}</TableCell>
                     </TableRow>
                   )
                 })}

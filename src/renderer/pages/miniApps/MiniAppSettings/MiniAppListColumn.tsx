@@ -51,7 +51,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
               const displayName = app.nameKey ? t(app.nameKey) : app.name
 
               return (
-                <Tooltip content={displayName} placement="left" fullWidthTrigger>
+                <Tooltip content={displayName} placement="start" fullWidthTrigger>
                   <div
                     className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     role="button"

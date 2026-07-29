@@ -109,7 +109,7 @@ const YuqueSettings: FC = () => {
           {t('settings.data.yuque.token')}
           <InfoTooltip
             content={t('settings.data.yuque.help')}
-            placement="left"
+            placement="start"
             iconProps={{
               className: 'text-text-2 cursor-pointer ml-1'
             }}

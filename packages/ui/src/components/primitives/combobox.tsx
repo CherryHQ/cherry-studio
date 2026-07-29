@@ -429,7 +429,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onKeyDown={handleTriggerInputKeyDown}
               style={triggerStyle}
               className={cn(
-                'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
+                'w-full rounded-md border-1 bg-muted/20 pe-8 shadow-none transition-colors',
                 'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20',
                 error && 'border-destructive! focus-visible:ring-destructive/20',
                 disabled && 'cursor-not-allowed opacity-50',
@@ -440,7 +440,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           </PopoverTrigger>
           <ChevronDown
             className={cn(
-              'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 shrink-0 opacity-50 transition-transform',
+              'pointer-events-none absolute top-1/2 end-3 size-4 -translate-y-1/2 shrink-0 opacity-50 transition-transform',
               open && 'rotate-180'
             )}
           />

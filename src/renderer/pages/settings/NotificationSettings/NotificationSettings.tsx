@@ -35,11 +35,7 @@ const NotificationSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
-            <InfoTooltip
-              content={t('notification.tip')}
-              placement="right"
-              iconProps={{ className: 'cursor-pointer' }}
-            />
+            <InfoTooltip content={t('notification.tip')} placement="end" iconProps={{ className: 'cursor-pointer' }} />
           </SettingRowTitle>
           <Switch
             checked={notificationSettings.assistant}

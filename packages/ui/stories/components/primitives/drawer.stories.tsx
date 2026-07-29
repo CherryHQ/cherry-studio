@@ -19,7 +19,7 @@ const meta: Meta<typeof Drawer> = {
     docs: {
       description: {
         component:
-          'A drawer component that slides in from the edge of the screen. Built on top of Vaul, supports multiple directions (top, bottom, left, right).'
+          'A drawer component that slides in from the edge of the screen. Built on top of Vaul, supports top, bottom, inline start, and inline end placement.'
       }
     }
   },
@@ -55,21 +55,21 @@ export const Default: Story = {
   )
 }
 
-// Right Direction
-export const Right: Story = {
+// Inline End
+export const End: Story = {
   render: () => (
-    <Drawer direction="right">
+    <Drawer side="end">
       <DrawerTrigger asChild>
-        <Button variant="outline">Open Right Drawer</Button>
+        <Button variant="outline">Open End Drawer</Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Right Drawer</DrawerTitle>
-          <DrawerDescription>This drawer slides in from the right side.</DrawerDescription>
+          <DrawerTitle>End Drawer</DrawerTitle>
+          <DrawerDescription>This drawer slides in from the inline end side.</DrawerDescription>
         </DrawerHeader>
         <div className="p-4">
           <p className="text-sm text-muted-foreground">
-            Right drawers are great for side panels, detail views, or navigation menus.
+            End drawers are great for side panels, detail views, or navigation menus.
           </p>
         </div>
         <DrawerFooter>
@@ -82,20 +82,20 @@ export const Right: Story = {
   )
 }
 
-// Left Direction
-export const Left: Story = {
+// Inline Start
+export const Start: Story = {
   render: () => (
-    <Drawer direction="left">
+    <Drawer side="start">
       <DrawerTrigger asChild>
-        <Button variant="outline">Open Left Drawer</Button>
+        <Button variant="outline">Open Start Drawer</Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Left Drawer</DrawerTitle>
-          <DrawerDescription>This drawer slides in from the left side.</DrawerDescription>
+          <DrawerTitle>Start Drawer</DrawerTitle>
+          <DrawerDescription>This drawer slides in from the inline start side.</DrawerDescription>
         </DrawerHeader>
         <div className="p-4">
-          <p className="text-sm text-muted-foreground">Left drawers work well for navigation or sidebar content.</p>
+          <p className="text-sm text-muted-foreground">Start drawers work well for navigation or sidebar content.</p>
         </div>
         <DrawerFooter>
           <DrawerClose asChild>
@@ -110,7 +110,7 @@ export const Left: Story = {
 // Top Direction
 export const Top: Story = {
   render: () => (
-    <Drawer direction="top">
+    <Drawer side="top">
       <DrawerTrigger asChild>
         <Button variant="outline">Open Top Drawer</Button>
       </DrawerTrigger>
@@ -209,10 +209,10 @@ export const ScrollableContent: Story = {
   )
 }
 
-// Right Drawer with Navigation
+// End Drawer with Navigation
 export const NavigationDrawer: Story = {
   render: () => (
-    <Drawer direction="right">
+    <Drawer side="end">
       <DrawerTrigger asChild>
         <Button variant="outline">Open Menu</Button>
       </DrawerTrigger>
@@ -226,7 +226,7 @@ export const NavigationDrawer: Story = {
             <button
               type="button"
               key={item}
-              className="rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+              className="rounded-md px-3 py-2 text-start text-sm hover:bg-accent hover:text-accent-foreground">
               {item}
             </button>
           ))}
@@ -247,20 +247,20 @@ export const NavigationDrawer: Story = {
 export const AllDirections: Story = {
   render: () => (
     <div className="flex flex-wrap gap-4">
-      {(['bottom', 'top', 'left', 'right'] as const).map((direction) => (
-        <Drawer key={direction} direction={direction}>
+      {(['bottom', 'top', 'start', 'end'] as const).map((side) => (
+        <Drawer key={side} side={side}>
           <DrawerTrigger asChild>
             <Button variant="outline" className="capitalize">
-              {direction}
+              {side}
             </Button>
           </DrawerTrigger>
           <DrawerContent>
             <DrawerHeader>
-              <DrawerTitle className="capitalize">{direction} Drawer</DrawerTitle>
-              <DrawerDescription>This drawer slides in from the {direction}.</DrawerDescription>
+              <DrawerTitle className="capitalize">{side} Drawer</DrawerTitle>
+              <DrawerDescription>This drawer slides in from the {side}.</DrawerDescription>
             </DrawerHeader>
             <div className="p-4">
-              <p className="text-sm text-muted-foreground">Content for the {direction} drawer.</p>
+              <p className="text-sm text-muted-foreground">Content for the {side} drawer.</p>
             </div>
             <DrawerFooter>
               <DrawerClose asChild>

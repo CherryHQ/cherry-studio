@@ -21,6 +21,7 @@ import {
 import { ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
+import { DirectionalIcon } from '../../primitives/directional-icon'
 export type DataTableKey = React.Key
 
 export type DataTableColumnMeta = {
@@ -28,7 +29,7 @@ export type DataTableColumnMeta = {
   headerClassName?: string
   width?: number | string
   maxWidth?: number | string
-  align?: 'left' | 'center' | 'right'
+  align?: 'start' | 'center' | 'end'
 }
 
 type DataTableSelectionBase<TData> = {
@@ -56,8 +57,8 @@ export type DataTableProps<TData> = {
   columns: ColumnDef<TData, unknown>[]
   rowKey: keyof TData | ((record: TData) => DataTableKey)
   selection?: DataTableSelection<TData>
-  headerLeft?: React.ReactNode
-  headerRight?: React.ReactNode
+  headerStart?: React.ReactNode
+  headerEnd?: React.ReactNode
   emptyText?: React.ReactNode
   maxHeight?: number | string
   maxWidth?: number | string
@@ -100,8 +101,9 @@ function getHeaderMeta<TData>(columnDef: ColumnDef<TData, unknown>): DataTableCo
 }
 
 function getAlignClass(align?: DataTableColumnMeta['align']) {
+  if (align === 'start') return 'text-start'
   if (align === 'center') return 'text-center'
-  if (align === 'right') return 'text-right'
+  if (align === 'end') return 'text-end'
   return undefined
 }
 
@@ -121,8 +123,8 @@ function DataTable<TData>({
   columns,
   rowKey,
   selection,
-  headerLeft,
-  headerRight,
+  headerStart,
+  headerEnd,
   emptyText = 'No results.',
   maxHeight,
   maxWidth,
@@ -326,7 +328,9 @@ function DataTable<TData>({
               event.stopPropagation()
               toggleExpandedRow(row.original)
             }}>
-            <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90')} />
+            <DirectionalIcon>
+              <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90')} />
+            </DirectionalIcon>
           </button>
         )
       },
@@ -355,7 +359,7 @@ function DataTable<TData>({
   })
 
   const visibleColumnCount = table.getVisibleFlatColumns().length
-  const hasToolbar = Boolean(headerLeft || headerRight)
+  const hasToolbar = Boolean(headerStart || headerEnd)
   const tableElement = (
     <div data-slot="data-table-shell" className={cn(tableShellClassName, className)}>
       <div
@@ -457,8 +461,8 @@ function DataTable<TData>({
       style={{ maxWidth: toCssSize(maxWidth) }}>
       {hasToolbar && (
         <div className="flex min-h-8 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">{headerLeft}</div>
-          <div className="flex min-w-0 items-center justify-end gap-2">{headerRight}</div>
+          <div className="flex min-w-0 items-center gap-2">{headerStart}</div>
+          <div className="flex min-w-0 items-center justify-end gap-2">{headerEnd}</div>
         </div>
       )}
       {selection?.type === 'single' ? (

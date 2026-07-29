@@ -408,7 +408,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                 style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
                 {t('settings.provider.basic_auth.label')}
                 <InfoTooltip
-                  placement="right"
+                  placement="end"
                   content={t('settings.provider.basic_auth.tip')}
                   iconProps={{
                     size: 16,
