@@ -1,10 +1,12 @@
 import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
 import PaintingStrip from './components/PaintingStrip'
+import PaintingTemplateShowcase from './components/PaintingTemplateShowcase'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
 import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
@@ -14,12 +16,15 @@ import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { usePaintingResultSync } from './hooks/usePaintingResultSync'
+import { usePaintingTemplateCatalog } from './hooks/usePaintingTemplateCatalog'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
 import { paintingClasses } from './paintingPrimitives'
 
 const PaintingPage: FC = () => {
+  const { t } = useTranslation()
+  const { templates: promptPresets } = usePaintingTemplateCatalog()
   const providerOptions = usePaintingProviderOptions()
   const { initialProviderId } = usePaintingInitialProvider(providerOptions)
 
@@ -31,7 +36,13 @@ const PaintingPage: FC = () => {
 
   const history = usePaintingHistory()
 
-  usePaintingInitialSelection({ currentPainting, historyItems: history.items, initialProviderId, setCurrentPainting })
+  const initialSelectionReady = usePaintingInitialSelection({
+    currentPainting,
+    historyItems: history.items,
+    historyIsLoading: history.isLoading,
+    initialProviderId,
+    setCurrentPainting
+  })
 
   // Backfill a background generation's output files when they only reached
   // refreshed history (its completion couldn't update the no-longer-visible
@@ -62,8 +73,8 @@ const PaintingPage: FC = () => {
 
   const {
     generating: liveGenerating,
-    submit,
     submitting,
+    submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
     painting: composerPainting,
@@ -76,6 +87,14 @@ const PaintingPage: FC = () => {
   // painting record is a frozen receipt with no status. The cache fills the
   // gap: if its `status === 'running'` for this painting, keep the spinner.
   const generating = liveGenerating || liveGenerationState.generationStatus === 'running'
+  const showTemplateShowcase =
+    !currentPainting.persistedAt &&
+    currentPainting.files.length === 0 &&
+    initialSelectionReady &&
+    !submitting &&
+    !generating &&
+    !currentPainting.generationStatus &&
+    !liveGenerationState.generationStatus
 
   const switchModel = usePaintingModelSwitch({
     painting: currentPainting,
@@ -121,29 +140,59 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
-                  <Artboard painting={composerPainting} isLoading={generating} />
+                  {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
                 </div>
+                {showTemplateShowcase && (
+                  <section
+                    data-testid="painting-template-stage"
+                    className="absolute inset-0 z-0 mx-auto flex min-h-0 w-full max-w-5xl items-center justify-center overflow-hidden px-3 pt-3 pb-36 [container-type:size]">
+                    <div className="flex h-full max-h-80 min-h-0 w-full flex-col items-center">
+                      <h1 className="max-w-xl shrink-0 text-center font-bold tracking-tight [font-size:clamp(var(--font-size-heading-sm),4cqw,var(--font-size-heading-md))] [line-height:1.1]">
+                        {t('paintings.showcase.title')}
+                      </h1>
+
+                      <div className="mt-[clamp(8px,5cqh,30px)] flex min-h-0 w-full flex-1 flex-col items-center">
+                        {promptPresets.length > 0 ? (
+                          <PaintingTemplateShowcase
+                            paintingId={composerPainting.id}
+                            prompt={composerPainting.prompt}
+                            templates={promptPresets}
+                            onSelect={(prompt) => patchPainting({ prompt })}
+                          />
+                        ) : (
+                          <Artboard painting={composerPainting} isLoading={false} />
+                        )}
+
+                        <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-muted-foreground text-xs leading-5">
+                          {t('paintings.showcase.caption')}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                )}
                 <div className={paintingClasses.promptDock}>
-                  <QuickPanelProvider>
-                    <PaintingComposer
-                      painting={composerPainting}
-                      generating={generating}
-                      onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                      submitting={submitting}
-                      onGenerate={submit}
-                      onCancel={onCancel}
-                      onModelSelect={switchModel}
-                      onConfigChange={patchPainting}
-                      onGenerateRandomSeed={(key) =>
-                        patchPainting({
-                          params: {
-                            ...currentPainting.params,
-                            [key]: String(Math.floor(Math.random() * 1_000_000))
-                          }
-                        })
-                      }
-                    />
-                  </QuickPanelProvider>
+                  <div className="mx-auto w-full max-w-5xl">
+                    <QuickPanelProvider>
+                      <PaintingComposer
+                        painting={composerPainting}
+                        generating={generating}
+                        submitting={submitting}
+                        onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                        onGenerate={submit}
+                        onCancel={onCancel}
+                        onModelSelect={switchModel}
+                        onConfigChange={patchPainting}
+                        onGenerateRandomSeed={(key) =>
+                          patchPainting({
+                            params: {
+                              ...currentPainting.params,
+                              [key]: String(Math.floor(Math.random() * 1_000_000))
+                            }
+                          })
+                        }
+                      />
+                    </QuickPanelProvider>
+                  </div>
                 </div>
               </div>
             </div>

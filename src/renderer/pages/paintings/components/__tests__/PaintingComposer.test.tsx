@@ -159,8 +159,15 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
     onGenerateRandomSeed: vi.fn(),
     ...props
   }
-  render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
-  return { onPromptChange, onGenerate }
+  const view = render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
+  return {
+    onPromptChange,
+    onGenerate,
+    rerenderPainting: (painting: PaintingData) =>
+      view.rerender(
+        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
+      )
+  }
 }
 
 const imageAttachment = (id: string): ComposerAttachment => ({
@@ -279,6 +286,14 @@ describe('PaintingComposer', () => {
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
   })
 
+  it('syncs an externally selected prompt into the composer', () => {
+    const { rerenderPainting } = renderComposer()
+
+    rerenderPainting(makePainting({ prompt: 'a cinematic coastal house' }))
+
+    expect(screen.getByLabelText('prompt')).toHaveValue('a cinematic coastal house')
+  })
+
   it('hands the request its input resolver rather than resolved inputs', async () => {
     // The composer no longer orchestrates the send: materialization is the first
     // step of the request, run by its owner only after the preconditions pass.
@@ -299,6 +314,21 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('disables send while a request is in flight without showing the generation spinner', () => {
+    // `submitting` and `generating` disable the button alike, but only `generating`
+    // means the model is actually working — the pre-request window (guard +
+    // materialize) must not render as generation in progress.
+    //
+    // Note this asserts the *disabled* affordance only. Refusing a re-entrant send
+    // is the request owner's job (`usePaintingGenerationSubmit` holds the ref that
+    // blocks a second call in the same tick, covered by its own test); the composer
+    // deliberately keeps no send state to guard with.
+    renderComposer({ submitting: true, painting: makePainting({ prompt: 'a cat' }) })
+
+    expect(screen.getByLabelText('send')).toBeDisabled()
+    expect(captured.surfaceProps?.isLoading).toBe(false)
   })
 
   it('does not render the image params button when imageGeneration support is missing', () => {

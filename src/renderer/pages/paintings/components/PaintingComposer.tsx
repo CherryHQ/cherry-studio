@@ -25,7 +25,7 @@ import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo, useState } from 'react'
+import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
@@ -193,7 +193,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
-  const [text, setText] = useState(() => painting.prompt ?? '')
+  const text = painting.prompt ?? ''
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
@@ -243,13 +243,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   )
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
-  const handleTextChange = useCallback(
-    (value: string) => {
-      setText(value)
-      onPromptChange(value)
-    },
-    [onPromptChange]
-  )
+  const handleTextChange = useCallback((value: string) => onPromptChange(value), [onPromptChange])
 
   // The request is orchestrated by its owner (usePaintingGenerationSubmit), which
   // holds the re-entrancy guard and runs materialization only after the preconditions

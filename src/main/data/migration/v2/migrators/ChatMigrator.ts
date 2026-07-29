@@ -957,8 +957,9 @@ export class ChatMigrator extends BaseMigrator {
       const treeInfo = messageTree.get(oldMsg.id)
       messageParentMap.set(oldMsg.id, treeInfo?.parentId ?? null)
 
-      // Mark for skipping if no blocks
-      if (blocks.length === 0) {
+      // Clear-context markers intentionally have no blocks and must remain in
+      // the migrated tree. Other empty messages keep the legacy skip rule.
+      if (blocks.length === 0 && oldMsg.type !== 'clear') {
         skippedMessageIds.add(oldMsg.id)
         this.skippedMessages++
       }
@@ -997,7 +998,7 @@ export class ChatMigrator extends BaseMigrator {
           continue
         }
 
-        // Resolve blocks for this message (we know it has blocks from first pass)
+        // Resolve blocks for this message (or none for a clear-context marker).
         const blockIds = oldMsg.blocks || []
         const blocks = this.resolveBlockIds(blockIds)
 

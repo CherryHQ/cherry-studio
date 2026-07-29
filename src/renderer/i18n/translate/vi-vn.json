@@ -4939,6 +4939,11 @@
     "seed_random": "Ngẫu nhiên",
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
+    "showcase": {
+      "caption": "Chọn một mẫu để bắt đầu, rồi tùy chỉnh lời nhắc bên dưới theo ý bạn.",
+      "styles_label": "Mẫu lời nhắc",
+      "title": "Không gian cho kiệt tác tiếp theo của bạn."
+    },
     "style_options": {
       "anime": "Phim hoạt hình Nhật Bản",
       "auto": "Tự động",
@@ -5800,8 +5805,7 @@
       },
       "backup": {
         "skip_file_data_help": "Bỏ qua việc sao lưu các tệp dữ liệu như hình ảnh và cơ sở tri thức, chỉ sao lưu lịch sử trò chuyện và cài đặt. Giảm chiếm dụng dung lượng và tăng tốc độ sao lưu.",
-        "skip_file_data_title": "Sao lưu mỏng",
-        "v2_unavailable": "Sao lưu & khôi phục V2 chưa khả dụng. Sắp ra mắt."
+        "skip_file_data_title": "Sao lưu mỏng"
       },
       "clear_cache": {
         "button": "Xóa bộ nhớ đệm",
