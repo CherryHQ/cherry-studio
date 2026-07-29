@@ -24,6 +24,7 @@ import { basename } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import type {
   KbGrepOutput,
   KbListOutput,
@@ -44,8 +45,6 @@ import type {
 import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
 import PQueue from 'p-queue'
 import * as z from 'zod'
-
-import { citeId, newCitePrefix } from './citationIds'
 
 const logger = loggerService.withContext('KnowledgeLookup')
 

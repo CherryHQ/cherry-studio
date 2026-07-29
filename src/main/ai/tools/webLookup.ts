@@ -15,13 +15,12 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import * as z from 'zod'
-
-import { citeId, newCitePrefix } from './citationIds'
 
 const logger = loggerService.withContext('WebLookup')
 
