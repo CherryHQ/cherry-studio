@@ -2,7 +2,7 @@
 
 exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 <div
-  class="rounded-[8px] border border-border bg-card p-3 text-foreground"
+  class="rounded-[8px] border border-border bg-card p-3 text-card-foreground"
   data-testid="tooltip-wrapper"
 >
   <span>
