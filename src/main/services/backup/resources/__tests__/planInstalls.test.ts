@@ -68,7 +68,8 @@ function resource(
     stagedPath: join(userData, 'admission', livePath),
     livePath,
     sizeBytes: 1,
-    hash: 'h'
+    hash: 'h',
+    contentPaths: []
   }
 }
 
