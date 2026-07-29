@@ -12,6 +12,7 @@ import type { NoteItem } from '../types'
 interface NoteSourceContentProps {
   selectedNotes: NoteItem[]
   onToggle: (note: NoteItem) => void
+  onSelectionChange: (notes: NoteItem[]) => void
 }
 
 /** Flatten the notes tree to its markdown files; folders only carry structure here. */
@@ -27,7 +28,7 @@ function collectNoteFiles(nodes: NotesTreeNode[]): NotesTreeNode[] {
   return files
 }
 
-const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) => {
+const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteSourceContentProps) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { root, isLoading, error } = useDirectoryTree(notesPath || undefined)
@@ -40,6 +41,8 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
   }, [root, notesPath])
 
   const selectedPaths = useMemo(() => new Set(selectedNotes.map((note) => note.externalPath)), [selectedNotes])
+  const allNotesSelected = noteFiles.every((note) => selectedPaths.has(note.externalPath))
+  const someNotesSelected = noteFiles.some((note) => selectedPaths.has(note.externalPath))
 
   const renderBody = () => {
     if (isLoading) {
@@ -109,9 +112,28 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <p className="text-foreground-muted text-xs leading-4">
-        {t('knowledge.data_source.add_dialog.note.description')}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-foreground-muted text-xs leading-4">
+          {t('knowledge.data_source.add_dialog.note.description')}
+        </p>
+        {noteFiles.length > 0 && (
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-foreground text-xs leading-4">
+            <Checkbox
+              size="sm"
+              checked={allNotesSelected ? true : someNotesSelected ? 'indeterminate' : false}
+              onCheckedChange={(checked) =>
+                onSelectionChange(
+                  checked === true
+                    ? noteFiles.map((note) => ({ name: note.name, externalPath: note.externalPath }))
+                    : []
+                )
+              }
+              aria-label={t('common.select_all')}
+            />
+            <span>{t('common.select_all')}</span>
+          </label>
+        )}
+      </div>
       {renderBody()}
     </div>
   )
