@@ -31,6 +31,7 @@ import {
   clearRestoreJournalV2,
   dbAsideRelPathV2,
   readRestoreJournalV2,
+  resourceAsideRootRelPathV2,
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
@@ -175,8 +176,8 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       resources,
       userDataPath,
       roots,
-      restoreId,
       stagingRelDir: stagedResourcesRelDir(restoreId),
+      asideRelDir: resourceAsideRootRelPathV2(restoreId),
       platform: currentBackupPlatform()
     })
 

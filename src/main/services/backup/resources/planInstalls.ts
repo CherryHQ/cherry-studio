@@ -32,9 +32,10 @@ export interface PlanInstallsInput {
   readonly userDataPath: string
   /** Target-side managed roots; a unit outside all of them is never installed (§4). */
   readonly roots: ResourceRoots
-  readonly restoreId: string
   /** userData-relative directory the staged payloads will occupy once preparation moves them. */
   readonly stagingRelDir: string
+  /** userData-relative tree this restore parks the targets it replaces in. */
+  readonly asideRelDir: string
   readonly platform: BackupPlatform
 }
 
@@ -77,21 +78,12 @@ function containedInKindRoot(roots: ResourceRoots, kind: string, absolute: strin
  * share a basename; the basename is kept so a user looking inside can tell what
  * a parked node was.
  */
-function asideRelPath(restoreId: string, index: number, livePath: string): string {
-  return `${resourceAsideRoot(restoreId)}/${index}-${livePath.split('/').pop()}`
-}
-
-/**
- * The one tree this restore's resource park slots live in. Exported because
- * acknowledgement releases those slots and must prove each one belongs to the
- * restore it is ending, rather than trusting the journal's own strings.
- */
-export function resourceAsideRoot(restoreId: string): string {
-  return `restore-aside/${restoreId}`
+function asideRelPath(asideRelDir: string, index: number, livePath: string): string {
+  return `${asideRelDir}/${index}-${livePath.split('/').pop()}`
 }
 
 export function planResourceInstalls(input: PlanInstallsInput): ResourceInstallPlan {
-  const { resources, userDataPath, roots, restoreId, stagingRelDir, platform } = input
+  const { resources, userDataPath, roots, stagingRelDir, asideRelDir, platform } = input
 
   // Every slot preboot will rename between, planned once and then proven — and
   // written into the journal — as one unit. Proving only the live target would
@@ -101,7 +93,7 @@ export function planResourceInstalls(input: PlanInstallsInput): ResourceInstallP
   const slots = resources.map((resource, index) => ({
     staging: `${stagingRelDir}/${resource.livePath}`,
     live: resource.livePath,
-    aside: asideRelPath(restoreId, index, resource.livePath)
+    aside: asideRelPath(asideRelDir, index, resource.livePath)
   }))
 
   const candidates: ResourcePathCandidate[] = resources.map((resource, index) => {

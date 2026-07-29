@@ -26,7 +26,8 @@ vi.mock('@application', () => ({
         'app.userdata': userData,
         'app.database.file': join(userData, 'cherrystudio.sqlite'),
         'feature.backup.restore.file': join(userData, 'restore-journal.json'),
-        'feature.backup.restore.staging': join(userData, 'restore-staging')
+        'feature.backup.restore.staging': join(userData, 'restore-staging'),
+        'feature.backup.restore.aside': join(userData, 'restore-aside')
       }
       const base = bases[key]
       if (!base) throw new Error(`Unexpected path key in acknowledgeRestore test: ${key}`)

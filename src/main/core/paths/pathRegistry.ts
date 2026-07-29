@@ -153,6 +153,10 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    // Park slots for the live nodes a restore replaces, one subtree per restore.
+    // Sibling of the staging tree on purpose: promotion renames between the two,
+    // and a rename is only atomic within one filesystem.
+    'feature.backup.restore.aside': path.join(appUserData, 'restore-aside'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),

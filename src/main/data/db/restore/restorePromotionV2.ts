@@ -13,6 +13,7 @@ import type { PromotionStepV2, RestoreJournalV2 } from './restoreJournalV2'
 import {
   DB_COMMIT_STEP,
   findDbAside,
+  parkedFailedDbRelPathV2,
   PROMOTION_STEP_ORDER_V2,
   readRestoreJournalV2,
   writeRestoreJournalV2
@@ -744,7 +745,7 @@ function rollbackCompletedRestore(journal: RollbackArmedJournal): void {
 }
 
 function rolledForwardDbPath(ctx: PromotionContext): string {
-  return path.join(ctx.userData, `restore-failed-${ctx.journal.restoreId}.sqlite`)
+  return path.join(ctx.userData, parkedFailedDbRelPathV2(ctx.journal.restoreId))
 }
 
 function assertRegularRollbackDb(dbPath: string, role: string): void {
@@ -766,7 +767,7 @@ function assertRegularRollbackDb(dbPath: string, role: string): void {
  */
 function revertToAside(ctx: PromotionContext, reason: string): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
-    const parked = path.join(ctx.userData, `restore-failed-${ctx.journal.restoreId}.sqlite`)
+    const parked = rolledForwardDbPath(ctx)
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
     logger.warn('Parked the rejected database for forensics', { parked })

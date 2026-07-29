@@ -57,6 +57,7 @@ vi.mock('@application', () => ({
         'app.database.migrations': resolveMigrationsPath(),
         'feature.backup.restore.file': join(userData, 'restore-journal.json'),
         'feature.backup.restore.staging': join(userData, 'restore-staging'),
+        'feature.backup.restore.aside': join(userData, 'restore-aside'),
         'feature.knowledgebase.data': join(userData, 'Data', 'KnowledgeBase')
       }
       const base = bases[key]
@@ -472,10 +473,13 @@ describe('restore promotion v2', () => {
 
     it('refuses the boot and retries the same rollback when the rolled-back journal cannot be written', async () => {
       makeDb(livePath(), 'old')
-      makeDb(join(userData, `restore-failed-${RID}.sqlite`), 'new')
+      makeDb(join(userData, 'Data', `restore-failed-${RID}.sqlite`), 'new')
       makeStagedDb()
       writeRestoreJournalV2(
-        buildJournal({ state: 'rollback-armed', chain: chainOf(join(userData, `restore-failed-${RID}.sqlite`)) })
+        buildJournal({
+          state: 'rollback-armed',
+          chain: chainOf(join(userData, 'Data', `restore-failed-${RID}.sqlite`))
+        })
       )
       const before = recoveryEvidence()
       noJournalWritesLand()
@@ -490,7 +494,7 @@ describe('restore promotion v2', () => {
 
       expect(journalState()).toBe('rolled-back')
       expect(readMarker(livePath())).toBe('old')
-      expect(readMarker(join(userData, `restore-failed-${RID}.sqlite`))).toBe('new')
+      expect(readMarker(join(userData, 'Data', `restore-failed-${RID}.sqlite`))).toBe('new')
     })
 
     it('writes the expiry of an unarmed preparation before dropping its staging tree', async () => {
@@ -607,7 +611,7 @@ describe('restore promotion v2', () => {
       expect(journalState()).toBe('failed')
       expect(readMarker(livePath())).toBe('old')
       expect(existsSync(asidePath())).toBe(false)
-      expect(existsSync(join(userData, `restore-failed-${RID}.sqlite`))).toBe(true)
+      expect(existsSync(join(userData, 'Data', `restore-failed-${RID}.sqlite`))).toBe(true)
     })
 
     it('does not reverse a committed database before the reverting marker is durable', async () => {
@@ -637,7 +641,7 @@ describe('restore promotion v2', () => {
 
       expect(journalState()).toBe('reverting')
       expect(readMarker(livePath())).toBe('old')
-      expect(readFileSync(join(userData, `restore-failed-${RID}.sqlite`), 'utf8')).toBe('not a database')
+      expect(readFileSync(join(userData, 'Data', `restore-failed-${RID}.sqlite`), 'utf8')).toBe('not a database')
       expect(hasPendingRestore()).toBe(true)
 
       failJournalWrite.when = null
@@ -649,7 +653,7 @@ describe('restore promotion v2', () => {
   })
 
   describe('explicit rollback of a completed restore', () => {
-    const parkedPath = () => join(userData, `restore-failed-${RID}.sqlite`)
+    const parkedPath = () => join(userData, 'Data', `restore-failed-${RID}.sqlite`)
 
     it('moves the previous database back and retains the displaced restored database', async () => {
       makeDb(livePath(), 'old')
@@ -979,7 +983,7 @@ describe('restore promotion v2', () => {
       expect(readUnitDir(unit.live)).toBe('TARGET')
       expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
       expect(unitExists(unit.aside)).toBe(false)
-      expect(readMarker(join(userData, `restore-failed-${RID}.sqlite`))).toBe('new')
+      expect(readMarker(join(userData, 'Data', `restore-failed-${RID}.sqlite`))).toBe('new')
     })
 
     it('rolls the resources back out when the promotion fails after the commit', async () => {
