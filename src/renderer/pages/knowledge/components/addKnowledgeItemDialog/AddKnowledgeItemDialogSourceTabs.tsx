@@ -9,6 +9,7 @@ interface AddKnowledgeItemDialogSourceTabsProps {
   selectedNotes: NoteItem[]
   urlValue: string
   onNoteToggle: (note: NoteItem) => void
+  onNoteSelectionChange: (notes: NoteItem[]) => void
   onUrlValueChange: (value: string) => void
 }
 
@@ -17,13 +18,20 @@ const AddKnowledgeItemDialogSourceTabs = ({
   selectedNotes,
   urlValue,
   onNoteToggle,
+  onNoteSelectionChange,
   onUrlValueChange
 }: AddKnowledgeItemDialogSourceTabsProps) => {
   // `file` / `directory` use the OS picker directly and never reach this panel.
   const renderSourceContent = (source: KnowledgeItemType) => {
     switch (source) {
       case 'note':
-        return <NoteSourceContent selectedNotes={selectedNotes} onToggle={onNoteToggle} />
+        return (
+          <NoteSourceContent
+            selectedNotes={selectedNotes}
+            onToggle={onNoteToggle}
+            onSelectionChange={onNoteSelectionChange}
+          />
+        )
       case 'url':
         return <UrlSourceContent value={urlValue} onValueChange={onUrlValueChange} />
       default:
