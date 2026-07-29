@@ -81,6 +81,13 @@ export function getTabReorderSiblingShift(
   return 0
 }
 
+export function resolveTabDragDirection(
+  tabBarDirection: string | null | undefined,
+  documentDirection: string | null | undefined
+): LanguageDirection {
+  return (tabBarDirection || documentDirection) === 'rtl' ? 'rtl' : 'ltr'
+}
+
 export function useTabDrag({
   pinnedTabs,
   normalTabs,
@@ -198,7 +205,10 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
-        direction: document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr',
+        direction: resolveTabDragDirection(
+          tabBarRef.current ? window.getComputedStyle(tabBarRef.current).direction : undefined,
+          document.documentElement.dir
+        ),
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
       }

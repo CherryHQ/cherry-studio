@@ -13,6 +13,14 @@ import { Markdown } from '../markdown'
 import { withChatPlugins } from '../presets'
 
 describe('Markdown (static)', () => {
+  it('lets the rendered content determine its own direction', () => {
+    const { container } = render(<Markdown id="direction">{'مرحبا Cherry Studio'}</Markdown>)
+    const markdown = container.querySelector('.markdown')
+
+    expect(markdown).toHaveAttribute('dir', 'auto')
+    expect(markdown?.firstElementChild).toHaveAttribute('dir', 'auto')
+  })
+
   it('renders a heading with the prefixed id', () => {
     const { container } = render(<Markdown id="m1">{'# Hello World'}</Markdown>)
     const h1 = container.querySelector('h1')

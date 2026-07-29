@@ -414,7 +414,11 @@ const ExpandedToolResponseContent: FC<{
         <ResponseSection>
           <ArgsSectionTitle>Response</ArgsSectionTitle>
           {highlightedResponse && (
-            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+            <MarkdownContainer
+              dir="auto"
+              className="markdown"
+              dangerouslySetInnerHTML={{ __html: highlightedResponse }}
+            />
           )}
           {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
           {responseImages.map((img, idx) => (

@@ -88,7 +88,7 @@
 
 .markdown ul,
 .markdown ol {
-  padding-left: 1.5em;
+  padding-inline-start: 1.5em;
   margin: 1em 0;
 }
 
@@ -179,8 +179,11 @@
   margin: 1.5em 0;
   padding: 1em 1.5em;
   background-color: var(--markdown-content-background);
-  border-left: 4px solid var(--primary);
-  border-radius: 0 8px 8px 0;
+  border-inline-start: 4px solid var(--primary);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
   font-style: italic;
   position: relative;
 }
@@ -199,14 +202,14 @@
 
 .markdown th,
 .markdown td {
-  border-right: 0.5px solid var(--border);
+  border-inline-end: 0.5px solid var(--border);
   border-bottom: 0.5px solid var(--border);
   padding: 0.5em;
 }
 
 .markdown th:last-child,
 .markdown td:last-child {
-  border-right: none;
+  border-inline-end: none;
 }
 
 .markdown tr:last-child td {
@@ -216,7 +219,7 @@
 .markdown th {
   background-color: var(--markdown-content-background);
   font-weight: 600;
-  text-align: left;
+  text-align: start;
 }
 
 .markdown tr:hover {
@@ -326,7 +329,7 @@
 }
 
 .footnotes ol {
-  padding-left: 1em;
+  padding-inline-start: 1em;
   margin: 0;
 }
 
@@ -349,7 +352,7 @@
   font-size: 0.8em;
   vertical-align: super;
   line-height: 0;
-  margin-left: 5px;
+  margin-inline-start: 5px;
   color: var(--primary);
   text-decoration: none;
 }

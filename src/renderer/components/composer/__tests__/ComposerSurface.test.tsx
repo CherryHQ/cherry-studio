@@ -592,6 +592,7 @@ describe('ComposerSurface', () => {
 
     expect(composer).toHaveAttribute('id', 'inputbar')
     expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
+    expect(composer?.querySelector('[contenteditable="true"]')).toHaveAttribute('dir', 'auto')
     expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
       'data-ui',

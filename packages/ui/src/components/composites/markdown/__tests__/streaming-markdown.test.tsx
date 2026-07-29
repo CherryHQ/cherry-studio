@@ -14,6 +14,14 @@ import { describe, expect, it } from 'vitest'
 import { StreamingMarkdown } from '../streaming-markdown'
 
 describe('StreamingMarkdown', () => {
+  it('keeps automatic direction enabled while content streams', () => {
+    const { container } = render(<StreamingMarkdown id="direction">{'مرحبا Cherry Studio'}</StreamingMarkdown>)
+    const markdown = container.querySelector('.markdown')
+
+    expect(markdown).toHaveAttribute('dir', 'auto')
+    expect(markdown?.firstElementChild).toHaveAttribute('dir', 'auto')
+  })
+
   it('renders streaming content with animate spans wrapping unrevealed text', () => {
     const { container } = render(<StreamingMarkdown id="s1">{'Hello world'}</StreamingMarkdown>)
     const animateSpans = container.querySelectorAll('[data-sd-animate]')

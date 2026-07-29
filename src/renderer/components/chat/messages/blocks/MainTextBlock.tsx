@@ -339,7 +339,7 @@ const MainTextBlock: React.FC<Props> = ({
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
             <span key={createUniqueModelId(m.provider, m.id)} className="text-primary">
-              {'@' + m.name}
+              <bdi>{'@' + m.name}</bdi>
             </span>
           ))}
         </Flex>
@@ -356,7 +356,7 @@ const MainTextBlock: React.FC<Props> = ({
               postProcess={processContent}
             />
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
-            <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+            <p dir="auto" className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
                 ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
                 : userDisplayContent}

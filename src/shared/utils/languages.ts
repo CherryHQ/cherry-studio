@@ -1,40 +1,75 @@
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
-export const languageEnglishNameMap: Record<LanguageVarious, string> = {
-  'ar-YE': 'Arabic',
-  'de-DE': 'German',
-  'el-GR': 'Greek',
-  'en-US': 'English',
-  'es-ES': 'Spanish',
-  'fr-FR': 'French',
-  'ja-JP': 'Japanese',
-  'pt-PT': 'Portuguese',
-  'ro-RO': 'Romanian',
-  'ru-RU': 'Russian',
-  'zh-CN': 'Chinese (Simplified)',
-  'vi-VN': 'Vietnamese',
-  'zh-TW': 'Chinese (Traditional)'
-}
-
-export const defaultLanguage = 'en-US'
-
 export type LanguageDirection = 'ltr' | 'rtl'
 
-const supportedLanguages = Object.keys(languageEnglishNameMap) as LanguageVarious[]
+export interface AppLocaleDefinition {
+  englishName: string
+  htmlLanguage: string
+  direction: LanguageDirection
+  aliases?: readonly string[]
+}
+
+export const appLocaleDefinitions = {
+  'ar-YE': { englishName: 'Arabic', htmlLanguage: 'ar', direction: 'rtl', aliases: ['ar'] },
+  'de-DE': { englishName: 'German', htmlLanguage: 'de-DE', direction: 'ltr', aliases: ['de'] },
+  'el-GR': { englishName: 'Greek', htmlLanguage: 'el-GR', direction: 'ltr', aliases: ['el'] },
+  'en-US': { englishName: 'English', htmlLanguage: 'en-US', direction: 'ltr', aliases: ['en'] },
+  'es-ES': { englishName: 'Spanish', htmlLanguage: 'es-ES', direction: 'ltr', aliases: ['es'] },
+  'fr-FR': { englishName: 'French', htmlLanguage: 'fr-FR', direction: 'ltr', aliases: ['fr'] },
+  'ja-JP': { englishName: 'Japanese', htmlLanguage: 'ja-JP', direction: 'ltr', aliases: ['ja'] },
+  'pt-PT': { englishName: 'Portuguese', htmlLanguage: 'pt-PT', direction: 'ltr', aliases: ['pt'] },
+  'ro-RO': { englishName: 'Romanian', htmlLanguage: 'ro-RO', direction: 'ltr', aliases: ['ro'] },
+  'ru-RU': { englishName: 'Russian', htmlLanguage: 'ru-RU', direction: 'ltr', aliases: ['ru'] },
+  'vi-VN': { englishName: 'Vietnamese', htmlLanguage: 'vi-VN', direction: 'ltr', aliases: ['vi'] },
+  'zh-CN': {
+    englishName: 'Chinese (Simplified)',
+    htmlLanguage: 'zh-CN',
+    direction: 'ltr',
+    aliases: ['zh', 'zh-hans', 'zh-sg']
+  },
+  'zh-TW': {
+    englishName: 'Chinese (Traditional)',
+    htmlLanguage: 'zh-TW',
+    direction: 'ltr',
+    aliases: ['zh-hant', 'zh-hk', 'zh-mo']
+  }
+} satisfies Record<LanguageVarious, AppLocaleDefinition>
+
+export const languageEnglishNameMap = Object.fromEntries(
+  Object.entries(appLocaleDefinitions).map(([language, definition]) => [language, definition.englishName])
+) as Record<LanguageVarious, string>
+
+export const defaultLanguage: LanguageVarious = 'en-US'
+
+const supportedLanguages = Object.keys(appLocaleDefinitions) as LanguageVarious[]
+
+function normalizeLocale(language: string): string {
+  return language.replaceAll('_', '-').toLowerCase()
+}
 
 export function resolveAppLanguage(language: string | null | undefined): LanguageVarious {
   if (!language) return defaultLanguage
 
-  const normalizedLanguage = language.replace('_', '-').toLowerCase()
+  const normalizedLanguage = normalizeLocale(language)
   const exactMatch = supportedLanguages.find((candidate) => candidate.toLowerCase() === normalizedLanguage)
   if (exactMatch) return exactMatch
 
-  const baseLanguage = normalizedLanguage.split('-')[0]
-  return (
-    supportedLanguages.find((candidate) => candidate.toLowerCase().split('-')[0] === baseLanguage) ?? defaultLanguage
+  const aliasMatch = supportedLanguages.find((candidate) =>
+    appLocaleDefinitions[candidate].aliases?.includes(normalizedLanguage)
   )
+  if (aliasMatch) return aliasMatch
+
+  const baseLanguage = normalizedLanguage.split('-')[0]
+  const baseMatches = supportedLanguages.filter((candidate) =>
+    appLocaleDefinitions[candidate].aliases?.includes(baseLanguage)
+  )
+  return baseMatches.length === 1 ? baseMatches[0] : defaultLanguage
+}
+
+export function getAppLocaleDefinition(language: LanguageVarious): AppLocaleDefinition {
+  return appLocaleDefinitions[language]
 }
 
 export function getLanguageDirection(language: LanguageVarious): LanguageDirection {
-  return language === 'ar-YE' ? 'rtl' : 'ltr'
+  return getAppLocaleDefinition(language).direction
 }

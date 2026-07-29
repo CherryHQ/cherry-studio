@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { calculateTabInsertIndex, getTabReorderSiblingShift } from '../useTabDrag'
+import { calculateTabInsertIndex, getTabReorderSiblingShift, resolveTabDragDirection } from '../useTabDrag'
 
 describe('RTL tab drag geometry', () => {
   const tabIds = ['a', 'b', 'c']
@@ -25,5 +25,11 @@ describe('RTL tab drag geometry', () => {
     expect(getTabReorderSiblingShift('rtl', 106, 0, 2, 1)).toBe(106)
     expect(getTabReorderSiblingShift('ltr', 106, 2, 0, 0)).toBe(106)
     expect(getTabReorderSiblingShift('rtl', 106, 2, 0, 0)).toBe(-106)
+  })
+
+  it('uses the tab bar computed direction before the document direction', () => {
+    expect(resolveTabDragDirection('ltr', 'rtl')).toBe('ltr')
+    expect(resolveTabDragDirection('rtl', 'ltr')).toBe('rtl')
+    expect(resolveTabDragDirection(undefined, 'rtl')).toBe('rtl')
   })
 })

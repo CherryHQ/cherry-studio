@@ -291,7 +291,7 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
-            <Streamdown mode="static">
+            <Streamdown dir="auto" mode="static">
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
                 : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}

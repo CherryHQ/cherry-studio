@@ -29,7 +29,9 @@ export function NotebookEditTool({
     ),
     children: (
       <div>
-        <Streamdown mode="static">{truncatedOutput}</Streamdown>
+        <Streamdown dir="auto" mode="static">
+          {truncatedOutput}
+        </Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

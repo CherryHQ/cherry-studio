@@ -6,6 +6,7 @@ import * as React from 'react'
 
 import { cn } from '../../lib/utils'
 import { Button } from './button'
+import { DirectionalIcon } from './directional-icon'
 import { Input } from './input'
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
@@ -302,7 +303,7 @@ export function TreeSelect({
 
       return (
         <React.Fragment key={rowKey}>
-          <div className="flex items-center gap-1" style={{ paddingLeft: depth * 14 }}>
+          <div className="flex items-center gap-1" style={{ paddingInlineStart: depth * 14 }}>
             {hasChildren ? (
               <button
                 type="button"
@@ -310,7 +311,9 @@ export function TreeSelect({
                 aria-expanded={expanded}
                 onClick={() => toggleExpanded(option.value)}
                 className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                <ChevronRight className={cn('size-4 transition-transform', expanded && 'rotate-90')} />
+                <DirectionalIcon>
+                  <ChevronRight className={cn('size-4 transition-transform', expanded && 'rotate-90')} />
+                </DirectionalIcon>
               </button>
             ) : (
               <span className="size-6 shrink-0" />

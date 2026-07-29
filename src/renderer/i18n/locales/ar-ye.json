@@ -6650,9 +6650,6 @@
           "dxtFile": "ملف حزمة DXT",
           "dxtHelp": "اختر ملف .dxt يحتوي على حزمة خادم MCP",
           "dxtProcessFailed": "فشلت معالجة ملف DXT",
-          "error": {
-            "multipleServers": "لا يمكن الاستيراد من خوادم متعددة"
-          },
           "invalid": "إدخال غير صالح، التحقق من تنسيق JSON",
           "json": "استيراد من JSON",
           "mcpb": "استيراد حزمة MCPB",
