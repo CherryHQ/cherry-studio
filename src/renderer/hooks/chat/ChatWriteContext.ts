@@ -32,6 +32,8 @@ export interface RegenerateOptions {
    * group becomes a side-by-side comparison of different models.
    */
   modelId?: UniqueModelId
+  /** Explicit request controls; when omitted, the source assistant turn is inherited. */
+  turnOptions?: AssistantTurnOptions
 }
 
 export interface ChatWriteActions {

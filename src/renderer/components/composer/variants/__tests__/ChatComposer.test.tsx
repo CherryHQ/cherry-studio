@@ -492,14 +492,14 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
-  useModels: () => ({ models: [model, modelB] })
+  useModels: () => ({ models: [mocks.model ?? model, modelB] })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: () => 'Provider',
   useProviders: (...args: unknown[]) => {
     mocks.providerHookArgs.push(args)
-    return { providers: [{ id: 'provider', name: 'Provider' }] }
+    return { providers: [{ id: 'provider', name: 'Provider', models: [mocks.model ?? model, modelB] }] }
   }
 }))
 
@@ -1868,6 +1868,44 @@ describe('ChatComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
   })
 
+  it('restores queued model, reasoning, and Fast controls when editing the item', async () => {
+    mocks.topicPending = true
+    mocks.model = {
+      ...model,
+      providerId: 'openai-codex',
+      supportsFastMode: true,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
+    mocks.mentionedModels = [mocks.model]
+    mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      mocks.speedControlProps?.onReasoningEffortChange('high')
+      mocks.speedControlProps?.onFastModeChange(true)
+    })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued controls', tokens: [] })
+    })
+
+    fireEvent.click(screen.getByText('select model 2'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    await act(async () => {
+      await queueContent.props.onEdit(queueContent.props.items[0].id)
+    })
+
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('high'))
+    expect(mocks.speedControlProps?.fastMode).toBe(true)
+    expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: model.id, supportsFastMode: true })
+    ])
+  })
+
   it('atomically restores a same-text queued draft with unmanaged tokens from a history preview', async () => {
     seedInputHistory(['queued draft'])
     mocks.topicPending = true
@@ -2943,6 +2981,9 @@ describe('ChatComposer', () => {
 
   it('shows locked mentioned models while editing a multi-model user message', async () => {
     mocks.mentionedModels = []
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    mocks.model = { ...model, providerId: 'openai-codex', supportsFastMode: true }
     const message = {
       id: 'message-1',
       role: 'user',
@@ -2975,6 +3016,11 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('trigger restore model'))
 
     expect(mocks.setMentionedModels).not.toHaveBeenCalled()
+    expect(mocks.speedControlProps).toBeUndefined()
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited prompt', tokens: [] })
+
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'edited prompt' }], undefined)
   })
 
   it('does not lock the model selector while editing without a multi-model cohort', async () => {
@@ -3353,7 +3399,10 @@ describe('ChatComposer', () => {
         }
       }
     })
-    expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array))
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array), {
+      reasoningEffort: 'default',
+      fastMode: false
+    })
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
   })
@@ -3725,7 +3774,10 @@ describe('ChatComposer', () => {
     })
 
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
-    expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array))
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array), {
+      reasoningEffort: 'default',
+      fastMode: false
+    })
     expect(editedParts[0]).toMatchObject({
       type: 'text',
       text: 'edited question with knowledge',
@@ -4109,7 +4161,10 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
     await expect(mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })).resolves.toBeUndefined()
 
-    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }])
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }], {
+      reasoningEffort: 'default',
+      fastMode: false
+    })
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')

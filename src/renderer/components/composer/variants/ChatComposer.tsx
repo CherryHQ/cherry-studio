@@ -29,6 +29,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -446,6 +447,7 @@ const ChatComposerInner = ({
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const { models: allModels } = useModels({ enabled: true })
   const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
   const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -654,13 +656,21 @@ const ChatComposerInner = ({
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
   const selectedModelForUnlinkedHome =
     !assistant && !assistantId && useMentionedModelSelector ? mentionedModelSelectorValue[0] : undefined
-  const effectiveSubmittedModels = useMentionedModelSelector
-    ? mentionedModelSelectorValue
-    : mentionedModels.length > 0
-      ? mentionedModels
-      : runtimeModel
-        ? [runtimeModel]
-        : EMPTY_MODELS
+  const lockedMentionedModels =
+    editingMessageForCurrentTopic?.lockedMentionedModels &&
+    editingMessageForCurrentTopic.lockedMentionedModels.length > 1
+      ? editingMessageForCurrentTopic.lockedMentionedModels
+      : EMPTY_MODELS
+  const effectiveSubmittedModels =
+    lockedMentionedModels.length > 1
+      ? lockedMentionedModels
+      : useMentionedModelSelector
+        ? mentionedModelSelectorValue
+        : mentionedModels.length > 0
+          ? mentionedModels
+          : runtimeModel
+            ? [runtimeModel]
+            : EMPTY_MODELS
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
   // Without an assistant, reasoning has no persistence owner. Keep Fast available for the selected
   // model while hiding a reasoning control that could not apply its selection.
@@ -706,11 +716,6 @@ const ChatComposerInner = ({
     },
     [assistant?.settings.enableWebSearch, effectiveSubmittedModel, selectedAssistantId, t, updateAssistantSettings]
   )
-  const lockedMentionedModels =
-    editingMessageForCurrentTopic?.lockedMentionedModels &&
-    editingMessageForCurrentTopic.lockedMentionedModels.length > 1
-      ? editingMessageForCurrentTopic.lockedMentionedModels
-      : EMPTY_MODELS
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({
       scopeKey,
@@ -1172,8 +1177,30 @@ const ChatComposerInner = ({
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      const queuedModels = (item.payload.mentionedModels ?? [])
+        .map((modelId) => allModels.find((candidate) => candidate.id === modelId))
+        .filter((candidate): candidate is Model => candidate !== undefined)
+      if (queuedModels.length > 0) {
+        changeMentionedModelMultiSelectMode(queuedModels.length > 1)
+        selectMentionedModels(queuedModels)
+      } else {
+        restoreMentionedModelSelector()
+      }
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [
+      actionsRef,
+      allModels,
+      changeMentionedModelMultiSelectMode,
+      handleReasoningEffortChange,
+      resetHistoryIndex,
+      restoreKnowledgeBaseSelection,
+      restoreMentionedModelSelector,
+      selectMentionedModels,
+      setFiles,
+      setText
+    ]
   )
 
   const buildEditedMessageParts = useCallback(
@@ -1249,20 +1276,18 @@ const ChatComposerInner = ({
           if (isAssistantReply) {
             await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
           } else {
-            const editedTurnOptions = {
-              reasoningEffort:
-                assistantId && speedControlModel
-                  ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
-                  : assistantId
-                    ? reasoningEffort
-                    : 'default',
-              fastMode: fastMode && speedControlModel?.supportsFastMode === true
-            }
-            if (editedTurnOptions.reasoningEffort === 'default' && !editedTurnOptions.fastMode) {
-              await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts)
-            } else {
-              await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
-            }
+            const editedTurnOptions = isMentionedModelSelectorLocked
+              ? undefined
+              : {
+                  reasoningEffort:
+                    assistantId && speedControlModel
+                      ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                      : assistantId
+                        ? reasoningEffort
+                        : 'default',
+                  fastMode: fastMode && speedControlModel?.supportsFastMode === true
+                }
+            await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
           }
           if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
             restoreSavedDraft()
@@ -1349,6 +1374,7 @@ const ChatComposerInner = ({
       fastMode,
       files,
       handleModelSelect,
+      isMentionedModelSelectorLocked,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,

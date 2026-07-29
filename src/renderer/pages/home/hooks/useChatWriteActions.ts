@@ -24,7 +24,12 @@ import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
+import type {
+  AssistantTurnOptions,
+  BranchMessagesResponse,
+  CherryUIMessage,
+  Message as DbMessage
+} from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ChatRequestOptions } from 'ai'
@@ -48,6 +53,27 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
   }
 
   return Array.from(modelIds)
+}
+
+function getInheritedTurnOptions(
+  messages: CherryUIMessage[],
+  target: CherryUIMessage | undefined
+): AssistantTurnOptions | undefined {
+  if (!target) return undefined
+  if (target.role === 'assistant') return target.metadata?.turnOptions
+
+  const directAssistants = messages.filter(
+    (message) => message.role === 'assistant' && message.metadata?.parentId === target.id
+  )
+  const source = directAssistants.find((message) => message.metadata?.isActiveBranch) ?? directAssistants.at(-1)
+  return source?.metadata?.turnOptions
+}
+
+function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
+  return {
+    ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
+    ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
+  }
 }
 
 interface Params {
@@ -294,7 +320,7 @@ export function useChatWriteActions(params: Params): Result {
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
+    async (messageId?: string, options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions }) => {
       captureLocalSendScrollEligibility()
 
       // Anchor semantics depend on the target role:
@@ -313,6 +339,7 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant'
           ? (options?.modelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : options?.modelId
+      const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
 
       // PR 3: hydrate `useChat.state.messages` with the current DB-fresh
       // snapshot synchronously, right before the AI SDK's regenerate uses it
@@ -327,7 +354,8 @@ export function useChatWriteActions(params: Params): Result {
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
-          ...(regenModelId && { mentionedModels: [regenModelId] })
+          ...(regenModelId && { mentionedModels: [regenModelId] }),
+          ...turnOptionsRequestFields(turnOptions)
         }
       })
       onLocalSendStarted()
@@ -340,6 +368,8 @@ export function useChatWriteActions(params: Params): Result {
     async (messageId, editedParts, turnOptions) => {
       captureLocalSendScrollEligibility()
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
+      const sourceMessage = uiMessages.find((message) => message.id === messageId)
+      const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }
@@ -375,8 +405,7 @@ export function useChatWriteActions(params: Params): Result {
         topicId: topic.id,
         parentAnchorId: newMessage.id,
         ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds }),
-        ...(turnOptions?.reasoningEffort ? { reasoningEffort: turnOptions.reasoningEffort } : {}),
-        ...(turnOptions?.fastMode ? { fastMode: true } : {})
+        ...turnOptionsRequestFields(effectiveTurnOptions)
       })
 
       if (ack.mode === 'blocked') {
@@ -414,11 +443,13 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
+      const turnOptions = getInheritedTurnOptions(uiMessages, target)
       const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId,
-        ...(modelId && { mentionedModelIds: [modelId] })
+        ...(modelId && { mentionedModelIds: [modelId] }),
+        ...turnOptionsRequestFields(turnOptions)
       })
 
       if (ack.mode === 'blocked') {

@@ -129,6 +129,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       modelId: message.modelId ?? undefined,
       messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
+      turnOptions: message.data.turnOptions,
       createdAt: message.createdAt,
       stats: message.stats ?? undefined,
       isActiveBranch: true,

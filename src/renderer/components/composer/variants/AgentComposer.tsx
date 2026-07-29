@@ -1159,6 +1159,8 @@ const AgentComposerInner = ({
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      setReasoningEffort(item.payload.reasoningEffort ?? 'default')
+      setFastMode(item.payload.fastMode === true)
     },
     [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )

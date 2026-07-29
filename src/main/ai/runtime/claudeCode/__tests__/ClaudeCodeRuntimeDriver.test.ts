@@ -277,6 +277,24 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const blockedMessage = userMessage()
+    blockedMessage.data.parts[0].text = '  /fast'
+
+    await expect(connection.send({ message: blockedMessage })).rejects.toThrow('use the host Fast control')
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+
+    void connection.close()
+  })
+
   it('sends supported image attachments as native Claude SDK image blocks', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -1558,7 +1576,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const queryQueue = createAsyncQueue<any>()
     const commands = [
       { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
-      { name: 'effort', description: 'Set reasoning effort', argumentHint: '' }
+      { name: 'effort', description: 'Set reasoning effort', argumentHint: '' },
+      { name: 'fast', description: 'Toggle fast mode', argumentHint: '' }
     ]
     const visibleCommands = [commands[0]]
     const query = {

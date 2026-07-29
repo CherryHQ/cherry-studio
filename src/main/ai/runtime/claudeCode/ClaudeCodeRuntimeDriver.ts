@@ -68,6 +68,21 @@ import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from 
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+
+function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
+  return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
+}
+
+function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
+  const text = (input.message.data.parts ?? [])
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+    .trimStart()
+
+  return /^\/fast(?:\s|$)/i.test(text)
+}
 
 type InvocationUsageBuckets = {
   outputTokens?: number
@@ -417,6 +432,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    if (isFastSlashCommand(input)) {
+      throw new Error('The /fast command is unavailable; use the host Fast control instead')
+    }
+
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
@@ -524,7 +543,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
-      return (await this.query.supportedCommands()).filter((command) => command.name !== 'effort')
+      return (await this.query.supportedCommands()).filter((command) => !isHostManagedSlashCommand(command))
     } catch (error) {
       logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
       return null
@@ -565,7 +584,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (message.type === 'system' && message.subtype === 'commands_changed') {
           this.eventQueue.push({
             type: 'supported-commands',
-            commands: message.commands.filter((command) => command.name !== 'effort')
+            commands: message.commands.filter((command) => !isHostManagedSlashCommand(command))
           })
           continue
         }

@@ -182,6 +182,8 @@ export interface CherryUIMessageMetadata {
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /** Main-authoritative request controls frozen with the persisted assistant row. */
+  turnOptions?: AssistantTurnOptions
   /**
    * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
    * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
