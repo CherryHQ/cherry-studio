@@ -115,8 +115,11 @@ const McpServersList: FC = () => {
   )
 
   const handleAddServerSuccess = useCallback(
-    async (dto: CreateMcpServerDto): Promise<McpServer> => {
-      const created = await addMcpServer(dto)
+    async (dtos: CreateMcpServerDto[]): Promise<McpServer[]> => {
+      const created: McpServer[] = []
+      for (const dto of dtos) {
+        created.push(await addMcpServer(dto))
+      }
       setIsAddModalVisible(false)
       toast.success(t('settings.mcp.addSuccess'))
       return created
