@@ -208,6 +208,35 @@ describe('McpCatalogService', () => {
     expect((cacheStore.get('mcp.tools.server-1') as { name: string }[]).map((tool) => tool.name)).toEqual(['search'])
   })
 
+  it('does not re-probe a confirmed empty server on every warm', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [] })
+    const service = new McpCatalogService()
+
+    await service.warmToolsCache('server-1')
+    await service.warmToolsCache('server-1')
+
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-probes a confirmed empty server after the retry window', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      getById.mockReturnValue(server())
+      listTools.mockResolvedValue({ tools: [] })
+      const service = new McpCatalogService()
+
+      await service.warmToolsCache('server-1')
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      await service.warmToolsCache('server-1')
+
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('warmToolsCache resolves immediately without refreshing when the cache is populated', async () => {
     cacheStore.set('mcp.tools.server-1', [{ name: 'search' }])
 
@@ -226,6 +255,26 @@ describe('McpCatalogService', () => {
     const service = new McpCatalogService()
     await expect(service.warmToolsCache('server-1')).resolves.toBeUndefined()
     expect(cacheStore.get('mcp.tools.server-1')).toEqual([])
+  })
+
+  it('backs off a failed warm before retrying', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      getById.mockReturnValue(server())
+      listTools.mockRejectedValue(new Error('connection failed'))
+      const service = new McpCatalogService()
+
+      await service.warmToolsCache('server-1')
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('warmToolsCache single-flights concurrent refreshes for the same server', async () => {

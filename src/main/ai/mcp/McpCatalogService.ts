@@ -14,6 +14,8 @@ import * as z from 'zod'
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
 const PREWARM_CONCURRENCY = 3
+const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000
+const FAILED_TOOLS_RETRY_MS = 30 * 1000
 
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type ListToolsOptions = { includeDisabled?: boolean }
@@ -73,6 +75,8 @@ export class McpCatalogService extends BaseService {
   /** Single-flights `warmToolsCache` refreshes per serverId so concurrent sessions warming
    *  the same server at once don't each open a connection to it. */
   private readonly warmRefreshInFlight = new Map<string, Promise<void>>()
+  /** Avoid re-probing a genuinely empty or recently failed server on every session build. */
+  private readonly emptyCacheRetryAt = new Map<string, number>()
 
   /**
    * Fires when a server's `mcp.tools.<serverId>` shared-cache **content** actually changes
@@ -96,6 +100,7 @@ export class McpCatalogService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.prewarmCancelled = false
+    this.emptyCacheRetryAt.clear()
     this.registerDisposable(
       application.get('McpRuntimeService').onToolListChanged(({ serverId }) => {
         void this.refreshTools(serverId).catch((error) => {
@@ -190,6 +195,7 @@ export class McpCatalogService extends BaseService {
 
   private async listToolsForServer(server: McpServer, options: ListToolsOptions = {}): Promise<McpTool[]> {
     if (!server.isActive) {
+      this.emptyCacheRetryAt.delete(server.id)
       this.writeToolsCache(server.id, [])
       this.runtimeService().setServerStatus(server.id, 'disabled')
       return []
@@ -212,10 +218,16 @@ export class McpCatalogService extends BaseService {
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
       this.writeToolsCache(server.id, tools)
+      if (tools.length === 0) {
+        this.emptyCacheRetryAt.set(server.id, Date.now() + EMPTY_TOOLS_RETRY_MS)
+      } else {
+        this.emptyCacheRetryAt.delete(server.id)
+      }
       this.runtimeService().setServerStatus(server.id, 'connected')
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
       this.writeToolsCache(server.id, [])
+      this.emptyCacheRetryAt.set(server.id, Date.now() + FAILED_TOOLS_RETRY_MS)
       this.runtimeService().setServerStatus(server.id, 'error', error)
       throw error
     }
@@ -257,7 +269,8 @@ export class McpCatalogService extends BaseService {
    *
    * Consumer: the bounded pre-warm in `buildClaudeCodeSessionSettings`, which needs the
    * cache-only session-build reads (approval descriptors, tool-card metadata) to see the
-   * agent's tools. This is also the only path that re-probes a warmed-but-empty cache —
+   * agent's tools. This is also the only path that re-probes a warmed-but-empty cache
+   * after its retry window —
    * `listTools` deliberately never re-kicks `[]` (dead servers must not be re-probed on
    * the hot path), so without this probe a server that died once would never be retried
    * and could never fire the `onToolsCacheUpdated` recovery notification. Do not demote
@@ -265,12 +278,13 @@ export class McpCatalogService extends BaseService {
    *
    * NOT used by the SDK bridge's ListTools: the bridge reads cache-only and relies on
    * `onToolsCacheUpdated` → `tools/list_changed` to converge, so it must never block on a
-   * connect (issue #16242). Re-probing a genuinely-empty server once per warm is an
-   * accepted cost.
+   * connect (issue #16242). Confirmed-empty servers wait five minutes before another
+   * probe; failures back off for 30 seconds.
    */
   public async warmToolsCache(serverId: string): Promise<void> {
     const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
     if (cached !== undefined && cached.length > 0) return
+    if (cached !== undefined && (this.emptyCacheRetryAt.get(serverId) ?? 0) > Date.now()) return
     let refresh = this.warmRefreshInFlight.get(serverId)
     if (!refresh) {
       refresh = this.refreshTools(serverId)
