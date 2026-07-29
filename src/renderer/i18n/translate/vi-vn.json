@@ -434,6 +434,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Hôm qua"
       },
       "label_one": "Phiên",
@@ -615,6 +616,10 @@
           "acceptEdits": {
             "description": "Có thể đọc và chỉnh sửa tập tin tự do. Hỏi trước khi chạy lệnh.",
             "title": "Chế độ tự động chỉnh sửa"
+          },
+          "auto": {
+            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
+            "title": "[to be translated]:Smart Auto Mode"
           },
           "bypassPermissions": {
             "description": "Có thể làm mọi thứ mà không cần hỏi. Dùng một cách thận trọng.",
@@ -1932,6 +1937,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Hôm qua"
       },
       "list": "Daftar Topik",

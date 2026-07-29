@@ -434,6 +434,7 @@
         "this_week": "本週",
         "today": "今天",
         "unknown_agent": "未知代理",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "昨天"
       },
       "label_one": "工作階段",
@@ -615,6 +616,10 @@
           "acceptEdits": {
             "description": "檔案編輯與檔案系統操作會自動核准。",
             "title": "自動接受檔案編輯"
+          },
+          "auto": {
+            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
+            "title": "[to be translated]:Smart Auto Mode"
           },
           "bypassPermissions": {
             "description": "所有權限提示都會被略過，請務必謹慎使用。",
@@ -1932,6 +1937,7 @@
         "this_week": "本週",
         "today": "今天",
         "unknown_assistant": "未連結的助理",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "昨天"
       },
       "list": "對話列表",

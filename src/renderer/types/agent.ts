@@ -13,7 +13,7 @@ import * as z from 'zod'
 
 // ------------------ Permission mode (renderer-side mirror of the
 //                    `claude-agent-sdk` enum, used by UI cards/forms) ------
-export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type PermissionMode = z.infer<typeof PermissionModeSchema>
 
 export type PermissionModeCard = {

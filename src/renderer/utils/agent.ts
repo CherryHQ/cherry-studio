@@ -66,6 +66,14 @@ export const permissionModeCards: PermissionModeCard[] = [
     descriptionFallback: 'Can read and edit files freely. Asks before running commands.'
   },
   {
+    mode: 'auto',
+    // t('agent.settings.tooling.permissionMode.auto.title')
+    titleKey: 'agent.settings.tooling.permissionMode.auto.title',
+    titleFallback: 'Smart Auto Mode',
+    descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
+    descriptionFallback: 'A model classifier approves routine actions and only asks you about risky ones.'
+  },
+  {
     mode: 'bypassPermissions',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.title')
     titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',

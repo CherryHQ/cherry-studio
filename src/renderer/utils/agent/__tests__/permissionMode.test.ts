@@ -7,6 +7,7 @@ describe('normalizePermissionMode', () => {
     expect(normalizePermissionMode('plan')).toBe('plan')
     expect(normalizePermissionMode('acceptEdits')).toBe('acceptEdits')
     expect(normalizePermissionMode('bypassPermissions')).toBe('bypassPermissions')
+    expect(normalizePermissionMode('auto')).toBe('auto')
   })
 
   it('falls back to default for unknown / empty values', () => {

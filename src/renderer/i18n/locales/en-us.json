@@ -617,6 +617,10 @@
             "description": "Can read and edit files freely. Asks before running commands.",
             "title": "Auto-edit Mode"
           },
+          "auto": {
+            "description": "A model classifier approves routine actions and only asks you about risky ones.",
+            "title": "Smart Auto Mode"
+          },
           "bypassPermissions": {
             "description": "Can do everything without asking. Use with caution.",
             "title": "Full Auto Mode",

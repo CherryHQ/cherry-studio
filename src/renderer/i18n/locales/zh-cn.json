@@ -617,6 +617,10 @@
             "description": "可自由读取和编辑文件，执行命令前会询问。",
             "title": "自动编辑模式"
           },
+          "auto": {
+            "description": "由模型分类器自动批准常规操作，仅在有风险时询问你。",
+            "title": "智能自动模式"
+          },
           "bypassPermissions": {
             "description": "可执行任何操作，无需询问。请谨慎使用。",
             "title": "全自动模式",

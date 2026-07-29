@@ -434,6 +434,7 @@
         "this_week": "今週",
         "today": "今日",
         "unknown_agent": "不明なエージェント",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "昨日"
       },
       "label_one": "セッション",
@@ -615,6 +616,10 @@
           "acceptEdits": {
             "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
             "title": "ファイル編集を自動承認"
+          },
+          "auto": {
+            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
+            "title": "[to be translated]:Smart Auto Mode"
           },
           "bypassPermissions": {
             "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
@@ -1932,6 +1937,7 @@
         "this_week": "今週",
         "today": "今日",
         "unknown_assistant": "リンクされていないアシスタント",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "昨日"
       },
       "list": "トピックリスト",

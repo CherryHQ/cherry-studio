@@ -6,7 +6,7 @@ export const DEFAULT_HEARTBEAT_ENABLED = true
 export const DEFAULT_HEARTBEAT_INTERVAL = 30
 
 export function normalizePermissionMode(mode: string | undefined | null): PermissionMode {
-  if (mode === 'plan' || mode === 'acceptEdits' || mode === 'bypassPermissions') {
+  if (mode === 'plan' || mode === 'acceptEdits' || mode === 'bypassPermissions' || mode === 'auto') {
     return mode
   }
   return DEFAULT_PERMISSION_MODE

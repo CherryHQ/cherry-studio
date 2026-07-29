@@ -116,6 +116,27 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.createdAt).toBe(snapshot.createdAt)
   })
 
+  // Guards the migrated `agent_channel_permission_mode_check` constraint: a mode the
+  // constraint does not list fails the INSERT at the SQLite level, not in validation.
+  it('persists the auto permission mode', async () => {
+    await insertAgent('agent-auto-1')
+    syncChannelMock.mockResolvedValue(undefined)
+
+    const created = await agentChannelWorkflowService.createChannel({
+      type: 'telegram',
+      name: 'Auto Mode Channel',
+      agentId: 'agent-auto-1',
+      workspace: { type: 'system' },
+      config: TELEGRAM_CONFIG,
+      isActive: true,
+      activeChatIds: [],
+      permissionMode: 'auto'
+    })
+
+    const [row] = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.id, created.id))
+    expect(row.permissionMode).toBe('auto')
+  })
+
   it('clears task subscriptions when agentId is rebound', async () => {
     await insertAgent('agent-old')
     await insertAgent('agent-new')

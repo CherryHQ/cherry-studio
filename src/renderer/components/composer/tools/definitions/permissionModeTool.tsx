@@ -6,7 +6,7 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
 import { defaultConfiguration } from '@renderer/utils/agent/agentConfiguration'
-import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
+import { FolderPen, Pointer, RefreshCcw, Route, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 
@@ -18,6 +18,8 @@ const getPermissionModeIcon = (mode: PermissionMode): ReactNode => {
       return <Route size={18} color="#faad14" />
     case 'acceptEdits':
       return <FolderPen size={18} color="#52c41a" />
+    case 'auto':
+      return <Sparkles size={18} color="#1677ff" />
     case 'bypassPermissions':
       return <RefreshCcw size={18} color="#722ed1" />
     default:

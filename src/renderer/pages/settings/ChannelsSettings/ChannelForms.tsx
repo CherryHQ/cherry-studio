@@ -26,6 +26,7 @@ const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode | ''; labelKey: str
   { value: '', labelKey: 'agent.channels.security.inheritFromAgent' },
   { value: 'default', labelKey: 'agent.settings.tooling.permissionMode.default.title' },
   { value: 'acceptEdits', labelKey: 'agent.settings.tooling.permissionMode.acceptEdits.title' },
+  { value: 'auto', labelKey: 'agent.settings.tooling.permissionMode.auto.title' },
   { value: 'bypassPermissions', labelKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title' },
   { value: 'plan', labelKey: 'agent.settings.tooling.permissionMode.plan.title' }
 ]
