@@ -81,7 +81,8 @@ export const GroupSelector: FC<Props> = ({
             onCreateGroup?.()
             return
           }
-          onChange(decodeGroupSelectValue(selectedValue))
+          const groupId = decodeGroupSelectValue(selectedValue)
+          if (groupId !== null) onChange(groupId)
         }}>
         <SelectTrigger
           size="sm"

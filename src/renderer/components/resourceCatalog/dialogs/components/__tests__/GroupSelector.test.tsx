@@ -53,6 +53,7 @@ vi.mock('@cherrystudio/ui', () => ({
     <SelectContext value={{ open, disabled, onOpenChange, onValueChange }}>
       <div data-testid="select-root" data-open={String(open)}>
         {children}
+        <button type="button" data-testid="select-unknown-value" onClick={() => onValueChange?.('')} />
       </div>
     </SelectContext>
   ),
@@ -136,8 +137,9 @@ describe('GroupSelector', () => {
 
   it('offers group creation even when no groups exist', () => {
     const onCreateGroup = vi.fn()
+    const onChange = vi.fn()
 
-    render(<GroupSelector value={null} onChange={vi.fn()} groups={[]} onCreateGroup={onCreateGroup} />)
+    render(<GroupSelector value={null} onChange={onChange} groups={[]} onCreateGroup={onCreateGroup} />)
 
     const trigger = screen.getByRole('button', { name: 'Group' })
     expect(trigger).toHaveTextContent('Select group')
@@ -146,6 +148,17 @@ describe('GroupSelector', () => {
     fireEvent.click(screen.getByRole('option', { name: 'New Group' }))
 
     expect(onCreateGroup).toHaveBeenCalledTimes(1)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('ignores values that are neither a group nor the create action', () => {
+    const onChange = vi.fn()
+
+    render(<GroupSelector value={groups[0].id} onChange={onChange} groups={groups} />)
+
+    fireEvent.click(screen.getByTestId('select-unknown-value'))
+
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('closes the open select when it loses all group options', () => {
