@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
@@ -157,6 +158,72 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const resolveHeaderContextMenuItems = useCallback(() => headerContextMenuItems ?? [], [headerContextMenuItems])
 
   if (!group.label) return null
+  const headerContent = (
+    <div
+      className={cn(
+        'flex w-full items-center gap-1.5 transition-colors duration-150',
+        hasLeadingSlot ? 'px-1.5' : 'px-2.5',
+        RESOURCE_LIST_VISUAL_ROW_CLASS,
+        RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
+        groupHeaderClassName
+      )}>
+      {groupHeaderLeadingAction && (
+        <div
+          className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}
+          onClick={stopEventPropagation}
+          onContextMenu={stopEventPropagation}
+          onPointerDown={stopEventPropagation}
+          onPointerUp={stopEventPropagation}>
+          {groupHeaderLeadingAction}
+        </div>
+      )}
+      {isCollapsible ? (
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-current={selected ? 'true' : undefined}
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
+          onClick={handleClick}>
+          {groupHeaderIcon && (
+            <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+              {groupHeaderIcon}
+            </ResourceListLeadingSlot>
+          )}
+          <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
+            {group.label}
+          </span>
+          <ChevronRight
+            aria-hidden="true"
+            size={11}
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+            style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+          />
+        </button>
+      ) : (
+        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
+          {groupHeaderIcon && (
+            <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+              {groupHeaderIcon}
+            </ResourceListLeadingSlot>
+          )}
+          <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
+            {group.label}
+          </span>
+        </div>
+      )}
+      {groupHeaderAction && (
+        <div
+          className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
+          onClick={stopEventPropagation}
+          onContextMenu={stopEventPropagation}
+          onPointerDown={stopEventPropagation}
+          onPointerUp={stopEventPropagation}>
+          {groupHeaderAction}
+        </div>
+      )}
+    </div>
+  )
   const header = (
     <div
       ref={ref}
@@ -169,71 +236,13 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       data-selected={selected || undefined}
       onContextMenu={handleContextMenu}
       {...props}>
-      <div
-        title={groupHeaderTooltip}
-        className={cn(
-          'flex w-full items-center gap-1.5 transition-colors duration-150',
-          hasLeadingSlot ? 'px-1.5' : 'px-2.5',
-          RESOURCE_LIST_VISUAL_ROW_CLASS,
-          RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-          selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
-          groupHeaderClassName
-        )}>
-        {groupHeaderLeadingAction && (
-          <div
-            className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}
-            onClick={stopEventPropagation}
-            onContextMenu={stopEventPropagation}
-            onPointerDown={stopEventPropagation}
-            onPointerUp={stopEventPropagation}>
-            {groupHeaderLeadingAction}
-          </div>
-        )}
-        {isCollapsible ? (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-current={selected ? 'true' : undefined}
-            className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
-            onClick={handleClick}>
-            {groupHeaderIcon && (
-              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-                {groupHeaderIcon}
-              </ResourceListLeadingSlot>
-            )}
-            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-              {group.label}
-            </span>
-            <ChevronRight
-              aria-hidden="true"
-              size={11}
-              className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
-              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
-            />
-          </button>
-        ) : (
-          <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
-            {groupHeaderIcon && (
-              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-                {groupHeaderIcon}
-              </ResourceListLeadingSlot>
-            )}
-            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-              {group.label}
-            </span>
-          </div>
-        )}
-        {groupHeaderAction && (
-          <div
-            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
-            onClick={stopEventPropagation}
-            onContextMenu={stopEventPropagation}
-            onPointerDown={stopEventPropagation}
-            onPointerUp={stopEventPropagation}>
-            {groupHeaderAction}
-          </div>
-        )}
-      </div>
+      {groupHeaderTooltip ? (
+        <Tooltip content={groupHeaderTooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+          {headerContent}
+        </Tooltip>
+      ) : (
+        headerContent
+      )}
     </div>
   )
 
