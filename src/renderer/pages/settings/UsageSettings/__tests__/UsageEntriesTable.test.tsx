@@ -146,12 +146,14 @@ describe('UsageEntriesTable', () => {
   })
 
   it('uses the request modality as the display source for unattributed entries', () => {
-    const entries = [
-      { modality: 'language', modelName: 'Language model', expectedSource: /Language|语言/ },
-      { modality: 'embedding', modelName: 'Embedding model', expectedSource: /Embedding|嵌入/ },
-      { modality: 'image', modelName: 'Image model', expectedSource: /Image|图片/ },
-      { modality: 'rerank', modelName: 'Rerank model', expectedSource: /Reranker|重排/ }
-    ].map(({ expectedSource: _, ...overrides }, index) => ({
+    const entries = (
+      [
+        { modality: 'language', modelName: 'Language model' },
+        { modality: 'embedding', modelName: 'Embedding model' },
+        { modality: 'image', modelName: 'Image model' },
+        { modality: 'rerank', modelName: 'Rerank model' }
+      ] as const
+    ).map((overrides, index) => ({
       ...entry,
       ...overrides,
       id: `019c0800-0000-7000-8000-${String(index + 2).padStart(12, '0')}`,
@@ -190,7 +192,7 @@ describe('UsageEntriesTable', () => {
     ]) {
       const row = screen.getByText(modelName).closest('tr')
       expect(row).not.toBeNull()
-      expect(within(row!).getByText(expectedSource)).toBeInTheDocument()
+      expect(within(row!.cells[1]).getByText(expectedSource)).toBeInTheDocument()
       expect(within(row!).queryByTestId('source-label')).not.toBeInTheDocument()
     }
 
