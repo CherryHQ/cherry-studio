@@ -4,8 +4,8 @@ import type { Citation } from '@renderer/types/message'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useCitationPreviewSession } from './citationPreview'
 import type { CitationPanelActions } from './common'
+import { useCitationPreviewSession } from './hooks/useCitationPreview'
 import { KnowledgeCitationCard } from './KnowledgeCitation'
 import { WebCitationCard } from './WebCitation'
 

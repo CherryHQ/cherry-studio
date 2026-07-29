@@ -14,8 +14,8 @@ import React, { useCallback, useMemo } from 'react'
 import useSWRImmutable from 'swr/immutable'
 
 import { useOptionalMessageListActions } from '../messages/MessageListProvider'
-import { type CitationPreviewSession, useCitationPreview } from './citationPreview'
 import { type CitationPanelActions, CopyButton, getCitationHostname, handleLinkClick, truncateText } from './common'
+import { type CitationPreviewSession, useCitationPreview } from './hooks/useCitationPreview'
 
 export const WebCitationCard: React.FC<{
   citation: Citation

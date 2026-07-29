@@ -56,7 +56,7 @@ vi.mock('../KnowledgeCitation', () => ({
   }
 }))
 
-vi.mock('../citationPreview', () => ({
+vi.mock('../hooks/useCitationPreview', () => ({
   useCitationPreviewSession: () => ({ load: vi.fn() })
 }))
 
