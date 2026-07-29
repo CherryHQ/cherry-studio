@@ -35,7 +35,7 @@ import { type FileStat } from 'webdav'
 
 import NutstorePathPopup from './NutstorePathPopup'
 
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()

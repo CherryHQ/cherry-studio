@@ -58,7 +58,7 @@ function getItemEffectiveStatus(
 // ============ Sub-Components ============
 
 const LIVE_HEADER_MIN_DURATION_MS = 1200
-const TOOL_GROUP_PROGRESS_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const TOOL_GROUP_PROGRESS_COLOR = 'var(--foreground-tertiary)'
 
 type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }

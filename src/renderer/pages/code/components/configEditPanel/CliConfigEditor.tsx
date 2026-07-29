@@ -99,7 +99,7 @@ const EditorBody: FC<{
   theme: React.ComponentProps<typeof CodeEditor>['theme']
   onChange: (target: string, content: string) => void
 }> = ({ file, fontSize, theme, onChange }) => (
-  <div className={cn('overflow-hidden rounded-lg border border-border/60 bg-background')}>
+  <div className={cn('overflow-hidden rounded-lg border border-border-subtle bg-background')}>
     <CodeEditor
       theme={theme}
       fontSize={fontSize - 1}

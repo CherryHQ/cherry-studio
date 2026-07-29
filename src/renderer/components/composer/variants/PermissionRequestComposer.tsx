@@ -181,7 +181,7 @@ function PermissionOption({
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+          'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
         )}>
         {index}
       </span>

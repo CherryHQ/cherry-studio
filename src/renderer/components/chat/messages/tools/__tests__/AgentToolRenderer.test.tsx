@@ -509,9 +509,7 @@ describe('AgentToolRenderer', () => {
 
       // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle(
-        'color: color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-      )
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
       expect(
         screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
       ).toBe(false)

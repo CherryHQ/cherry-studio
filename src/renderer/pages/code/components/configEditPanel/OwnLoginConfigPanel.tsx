@@ -138,7 +138,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
-            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border/30" />
+            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border-subtle" />
             <span className="min-w-0 truncate">{t('code.own_login.title', { toolName })}</span>
           </DialogTitle>
         </DialogHeader>

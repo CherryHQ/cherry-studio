@@ -85,7 +85,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
           <DialogTitle className="flex min-w-0 items-center gap-2">
             {isApiGatewayProviderId(provider.id) ? (
               // Match the gateway list card: a broadcast-tower glyph (relay/hub metaphor).
-              <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+              <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground">
                 <GatewayIcon width={14} height={14} />
               </span>
             ) : (
@@ -94,7 +94,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
                 providerName={providerName}
                 logo={providerIcon}
                 size={22}
-                className="shrink-0 rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+                className="shrink-0 rounded-md border border-border-subtle **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
               />
             )}
             <span className="min-w-0 truncate">{providerName}</span>

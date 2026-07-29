@@ -71,7 +71,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
     status.applicationStatus !== 'unknown'
 
   return (
-    <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
+    <div className="rounded-lg border border-border-subtle bg-background px-4 py-5">
       <div className="flex items-center gap-3">
         <CliIcon id={toolId} size={28} className="size-7 shrink-0" />
 

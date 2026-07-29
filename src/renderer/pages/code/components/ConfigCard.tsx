@@ -45,7 +45,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           ? 'border-primary/40 opacity-50'
           : isCurrent
             ? 'border-primary bg-primary/5'
-            : 'border-border/40 hover:border-border hover:bg-primary/5'
+            : 'border-border-subtle hover:border-border hover:bg-primary/5'
       }`}>
       <div className="pointer-events-none relative flex items-center gap-3">
         <GripVertical
@@ -56,7 +56,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         <span aria-hidden className="shrink-0">
           {isGateway ? (
             // The unified gateway wears a broadcast-tower glyph (relay/hub metaphor) instead of a brand logo.
-            <span className="flex size-6 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+            <span className="flex size-6 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground">
               <GatewayIcon width={15} height={15} />
             </span>
           ) : (
@@ -65,7 +65,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
               providerName={providerName}
               logo={providerIcon}
               size={24}
-              className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+              className="rounded-md border border-border-subtle **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
             />
           )}
         </span>
@@ -94,7 +94,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
                 size="icon-sm"
                 aria-label={t('code.move_provider_to_top')}
                 onClick={() => onMoveToTop(provider)}
-                className="size-6 border-border/50">
+                className="size-6 border-border-subtle">
                 <ArrowUpToLine size={13} />
               </Button>
             </NormalTooltip>
@@ -104,7 +104,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onConfigure(provider)}
-            className="min-h-0 border-border/50 px-2.5 py-1">
+            className="min-h-0 border-border-subtle px-2.5 py-1">
             <SquarePen size={11} />
             {t('code.configure')}
           </Button>

@@ -121,7 +121,7 @@ export const CatalogToggleGrid: FC<{
               key={item.id}
               className={cn(
                 'flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-                checked ? 'border-primary/40 bg-accent/30' : 'border-border/50 hover:bg-accent/20',
+                checked ? 'border-primary/40 bg-accent/30' : 'border-border-subtle hover:bg-accent/20',
                 toggleDisabled && 'opacity-50'
               )}>
               <label

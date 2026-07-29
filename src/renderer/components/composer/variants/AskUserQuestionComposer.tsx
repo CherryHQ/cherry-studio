@@ -266,8 +266,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                   className={cn(
                     'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
                     isSelected
-                      ? 'bg-neutral-950 text-white dark:bg-neutral-50 dark:text-neutral-950'
-                      : 'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
                   )}>
                   {optionIndex + 1}
                 </span>

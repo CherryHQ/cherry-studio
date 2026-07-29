@@ -153,9 +153,7 @@
 .tiptap .placeholder:before {
   content: attr(data-placeholder);
   position: absolute;
-  /* Resolve at the use site while preserving the previous 60% secondary ink. */
-  color: color-mix(in srgb, var(--foreground) 66.6667%, transparent);
-  opacity: 0.6;
+  color: var(--foreground-tertiary);
   pointer-events: none;
   font-style: var(--editor-placeholder-font-style, italic);
   left: 0;
@@ -366,7 +364,7 @@
 .tiptap .tableWrapper .add-row-button:hover,
 .tiptap .tableWrapper .add-column-button:hover {
   background: var(--primary);
-  color: white;
+  color: var(--primary-foreground);
   border-color: var(--primary);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
@@ -419,7 +417,7 @@
   height: 20px;
   border-radius: 8px;
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-foreground);
   border: 1px solid var(--primary);
   display: none;
   align-items: center;
@@ -497,8 +495,7 @@
 
 /* Checked task item appearance */
 .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
-  /* Resolve at the use site while preserving the previous 60% secondary ink. */
-  color: color-mix(in srgb, var(--foreground) 66.6667%, transparent);
+  color: var(--muted-foreground);
   text-decoration: line-through;
 }
 

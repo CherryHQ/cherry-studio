@@ -80,11 +80,11 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
       )}
       <RowFlex className="gap-2.5">
         <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerCharge(provider.id)}>
-          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
+          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.charge')}
         </Button>
         <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
-          <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
+          <ReceiptText aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.bills')}
         </Button>
       </RowFlex>

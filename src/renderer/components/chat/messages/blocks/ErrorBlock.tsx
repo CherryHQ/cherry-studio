@@ -17,8 +17,8 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 429, 500, 502, 503, 504]
-const ERROR_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const ERROR_DETAIL_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 interface Props {
   partId: string
@@ -51,7 +51,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--primary)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
           }}
         />
       )

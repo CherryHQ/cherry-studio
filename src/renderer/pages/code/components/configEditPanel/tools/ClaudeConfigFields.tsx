@@ -260,7 +260,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllToggles((expanded) => !expanded)}
-                className="h-auto min-h-0 rounded-full border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground hover:border-border hover:text-foreground">
+                className="h-auto min-h-0 rounded-full border-border-subtle px-2.5 py-1 text-[11px] text-muted-foreground hover:border-border hover:text-foreground">
                 {showAllToggles ? t('code.collapse') : t('code.more')}
               </Button>
             )}

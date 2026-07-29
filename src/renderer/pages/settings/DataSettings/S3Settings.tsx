@@ -21,7 +21,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const S3Settings: FC = () => {
   const [, setS3AutoSync] = usePreference('data.backup.s3.auto_sync')

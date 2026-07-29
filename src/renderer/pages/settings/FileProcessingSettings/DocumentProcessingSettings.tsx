@@ -84,7 +84,7 @@ const DocumentProcessingSettings: FC = () => {
                     <ProcessorAvatar
                       processorId={entry.processor.id}
                       size="md"
-                      className="shrink-0 rounded-lg border border-border/30"
+                      className="shrink-0 rounded-lg border border-border-subtle"
                     />
                   }
                   className={settingsSubmenuItemClassName}

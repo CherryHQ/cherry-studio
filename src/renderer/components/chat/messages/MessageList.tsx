@@ -619,7 +619,7 @@ const MessageList = () => {
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"
               style={{ background: 'var(--background)' }}>
-              <LoadingIcon color="color-mix(in oklch, var(--foreground) 66.6667%, transparent)" />
+              <LoadingIcon color="var(--muted-foreground)" />
             </div>
           )}
         </div>

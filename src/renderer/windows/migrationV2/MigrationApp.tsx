@@ -152,13 +152,13 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
                   isError && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
-                  !isError && (active || done) && 'bg-primary text-white',
+                  !isError && (active || done) && 'bg-primary text-primary-foreground',
                   !isError && !active && !done && 'border border-border bg-background text-foreground-disabled'
                 )}>
                 {isError ? (
                   <X size={13} strokeWidth={2.5} className="lucide-custom" />
                 ) : done ? (
-                  <Check size={12} strokeWidth={3} className="lucide-custom text-white" />
+                  <Check size={12} strokeWidth={3} className="lucide-custom" />
                 ) : (
                   step.n
                 )}

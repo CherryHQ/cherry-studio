@@ -931,7 +931,7 @@ function CustomParameterRow({
   })()
 
   return (
-    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
+    <div className="rounded-xs border border-border-subtle bg-accent/15 p-2">
       <div className="flex items-stretch gap-2">
         <Input
           placeholder={t('library.config.basic.custom_params_name')}

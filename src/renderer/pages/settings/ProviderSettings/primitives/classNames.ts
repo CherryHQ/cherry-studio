@@ -375,7 +375,7 @@ export const modelSyncClasses = {
   fetchWarning:
     'my-2 gap-2 rounded-lg border-warning-border bg-warning-subtle px-2.5 py-2 text-warning-subtle-foreground text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border-subtle hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border-subtle data-[checked=true]:bg-background',
   fetchRowRemoved:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-error-border hover:bg-error-subtle focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-error-border data-[checked=true]:bg-background',
   fetchAvatar:
@@ -474,7 +474,7 @@ export const oauthCardClasses = {
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
-    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white',
+    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',

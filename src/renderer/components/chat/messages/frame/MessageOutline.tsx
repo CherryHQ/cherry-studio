@@ -98,7 +98,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
 
   return (
     <div className="pointer-events-none absolute inset-y-0 right-0 left-2 z-999 flex items-center">
-      <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border/40 hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
+      <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}

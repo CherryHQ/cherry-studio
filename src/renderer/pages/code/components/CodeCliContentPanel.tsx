@@ -136,7 +136,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
         )}
 
         {providerState.providerless ? (
-          <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
+          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
             {t('code.providerless_hint')}
           </div>
         ) : (

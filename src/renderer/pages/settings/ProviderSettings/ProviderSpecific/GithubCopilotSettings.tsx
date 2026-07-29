@@ -272,7 +272,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
             <div className="flex min-w-0 flex-2 flex-col gap-4">
               {currentStep >= 1 && (
-                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
+                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
                     <span
                       className={cn(
@@ -299,7 +299,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               )}
 
               {currentStep >= 1 && (
-                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
+                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
                       3
@@ -321,7 +321,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               )}
 
               {currentStep >= 2 && (
-                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
+                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
                       4

@@ -19,7 +19,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')

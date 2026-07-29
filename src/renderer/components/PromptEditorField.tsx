@@ -14,8 +14,8 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-const PROMPT_EDITOR_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const PROMPT_EDITOR_SECONDARY_COLOR = 'var(--muted-foreground)'
+const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'var(--foreground-tertiary)'
 
 const promptEditorThemeSpec = {
   '&': {
@@ -55,7 +55,7 @@ const promptEditorHighlighting = syntaxHighlighting(
     { tag: tags.emphasis, color: 'var(--foreground)', fontStyle: 'italic' },
     {
       tag: [tags.link, tags.url],
-      color: 'var(--primary)',
+      color: 'var(--link)',
       textDecoration: 'underline'
     },
     { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },

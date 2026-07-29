@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import BackupPopup from './BackupPopup'
 import RestorePopup from './RestorePopup'
 
-const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()

@@ -100,8 +100,8 @@ describe('ProviderCard', () => {
     const { moveToTopButton, configureButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
 
     expect(moveToTopButton.querySelector('.lucide-arrow-up-to-line')).toBeInTheDocument()
-    expect(moveToTopButton).toHaveClass('border-border/50')
-    expect(configureButton).toHaveClass('border-border/50')
+    expect(moveToTopButton).toHaveClass('border-border-subtle')
+    expect(configureButton).toHaveClass('border-border-subtle')
     expect(moveToTopButton.compareDocumentPosition(configureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(moveToTopButton)

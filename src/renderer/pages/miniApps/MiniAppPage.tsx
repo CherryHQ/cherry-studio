@@ -19,7 +19,7 @@ import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
-const MINI_APP_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
 
 // currentTab.url is always the app-relative route written by openTab(`/app/mini-app/<id>`),
 // never an absolute or live webview URL, so a direct compare is enough.

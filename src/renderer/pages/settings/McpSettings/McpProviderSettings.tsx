@@ -218,7 +218,7 @@ const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    className={cn('flex items-center justify-between gap-3 border-border-subtle border-b pb-1.5', className)}
     {...props}
   />
 )
@@ -242,7 +242,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+      'flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
       className
     )}
     {...props}

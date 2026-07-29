@@ -7,8 +7,9 @@ import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
 
+// This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
 const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-const THINKING_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
 
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */

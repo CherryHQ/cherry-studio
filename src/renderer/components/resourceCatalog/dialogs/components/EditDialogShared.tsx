@@ -198,7 +198,7 @@ const HelpIconButton = ({
       size="icon-sm"
       aria-label={ariaLabel}
       className={cn(
-        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-full border border-border/20 p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
+        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-full border border-border-subtle p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
         className
       )}>
       <HelpCircle className="size-[11px]" />
@@ -342,7 +342,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             />
           </div>
           {linkedItems.length === 0 ? (
-            <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
+            <div className="mt-2 flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
               <Database size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
               <p className="mb-1 text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_title')}</p>
               <p className="text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_desc')}</p>
@@ -352,7 +352,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               {linkedItems.map((kb) => (
                 <div
                   key={kb.id}
-                  className="group flex items-center gap-3 rounded-md border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
+                  className="group flex items-center gap-3 rounded-md border border-border-subtle bg-accent/15 px-3 py-2.5 transition-colors hover:border-border-subtle hover:bg-accent/20">
                   <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-foreground text-sm">{kb.name}</div>

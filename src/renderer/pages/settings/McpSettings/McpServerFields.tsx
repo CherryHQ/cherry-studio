@@ -217,7 +217,7 @@ const McpFieldGroup = ({
   singleColumn ? <McpFormGrid className={singleColumnGridClassName}>{children}</McpFormGrid> : children
 
 const inlineSettingItemClassName =
-  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
+  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border px-3'
 
 const codeAreaClassName = 'max-h-40 min-h-21 px-3 py-2 font-mono text-sm leading-5'
 

@@ -43,7 +43,7 @@ export const MigrationWindowControls: React.FC = () => {
         type="button"
         variant="ghost"
         size="icon-sm"
-        className={cn(controlButtonClass, 'hover:bg-destructive hover:text-white')}
+        className={cn(controlButtonClass, 'hover:bg-destructive hover:text-destructive-foreground')}
         onClick={handleClose}
         aria-label={t('migration.window.close')}>
         <X size={16} />

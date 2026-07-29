@@ -631,7 +631,7 @@ const McpSettings: React.FC = () => {
             </div>
           </Scrollbar>
           {activeTabValue === 'settings' && (
-            <div className="flex min-h-14 shrink-0 items-center border-border/60 border-t px-6">
+            <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
                 <Button
                   size="sm"
@@ -715,7 +715,7 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
     case 'stdout':
       return 'border-info-border bg-info-subtle text-info-subtle-foreground'
     default:
-      return 'border-border/60 bg-muted text-muted-foreground'
+      return 'border-border-subtle bg-muted text-muted-foreground'
   }
 }
 

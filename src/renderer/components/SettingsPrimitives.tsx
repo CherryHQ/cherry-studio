@@ -121,7 +121,7 @@ export const SettingGroup = ({
     className={cn(
       variant === 'card'
         ? 'mt-4 rounded-xl border border-border bg-card p-4 first:mt-0'
-        : 'mt-2 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
+        : 'mt-2 border-border-subtle border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
       className
     )}
     {...props}

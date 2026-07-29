@@ -268,7 +268,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-0 py-1.5 text-sm transition-colors',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border-subtle border-b px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}
