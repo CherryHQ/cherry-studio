@@ -173,7 +173,29 @@ function exportSourceIpcError(error: unknown): IpcError | undefined {
   return ipcError(backupErrorCodes.EXPORT_SOURCE, validated)
 }
 
+/**
+ * Map the failure, and say in the main log what was refused and why.
+ *
+ * The renderer is deliberately told almost nothing — a code and a fixed
+ * sentence — because everything else the pipeline knows is either a path or an
+ * archive-controlled name. That leaves this process as the only place a refusal
+ * is explainable at all, so the mapped error alone is not enough: the original
+ * carries which rule fired and on what. Without this line a rejected archive
+ * produces no trace anywhere, which is how a whole class of failing restores
+ * can look like nothing happened.
+ *
+ * `warn`, not `error`: these are the system correctly declining, not faults.
+ */
 function toIpcError(error: unknown): unknown {
+  const mapped = mapBackupError(error)
+  // The unmapped case logs itself, with the raw fault attached.
+  if (mapped instanceof IpcError && mapped.code !== IpcErrorCode.INTERNAL) {
+    logger.warn('Backup request refused', { code: mapped.code }, error as Error)
+  }
+  return mapped
+}
+
+function mapBackupError(error: unknown): unknown {
   if (error instanceof BackupBusyError) {
     return ipcError(backupErrorCodes.BUSY, { running: error.running })
   }

@@ -1,5 +1,6 @@
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const service = vi.hoisted(() => ({
@@ -401,6 +402,23 @@ describe('backupHandlers', () => {
       })
       expect((error as IpcError).message).toBe('backup archive was rejected')
       expect(JSON.stringify((error as IpcError).data)).not.toContain('/Users/private')
+    })
+
+    it('records the refusal in the main log, where the detail is diagnostic rather than exposure', async () => {
+      // The renderer is told a code and a fixed sentence, so this line is the
+      // only surviving account of WHY an archive was turned away. Losing it
+      // makes a rejected restore indistinguishable from nothing happening.
+      showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
+      const cause = new ArchiveAdmissionError('manifest-invalid', 'requirement-set: declares 8, requires 10')
+      service.prepareRestore.mockRejectedValue(cause)
+
+      await backupHandlers['backup.prepare_restore'](undefined, ctx).catch(() => undefined)
+
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Backup request refused',
+        { code: backupErrorCodes.ARCHIVE_REJECTED },
+        cause
+      )
     })
 
     it.each([
