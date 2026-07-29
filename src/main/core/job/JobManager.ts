@@ -916,6 +916,13 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_PAYLOAD_TOO_LARGE` if input JSON exceeds 1MB
    */
   enqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+    if (opts.fileRefs?.length) {
+      // Refusing beats silently dropping them: unpinned inputs are reclaimed an
+      // hour later and the job fails mid-run on a missing file. Use `enqueueTx`.
+      throw new Error(
+        'enqueue: fileRefs require a transaction so the job row and its refs commit together — use enqueueTx'
+      )
+    }
     const { handler, queueName, insertRow } = this.prepareEnqueue(type, input, opts)
 
     if (opts.idempotencyKey) {
@@ -992,6 +999,14 @@ export class JobManager extends BaseService {
     this.ensureQueue(queueName, handler.defaultConcurrency ?? 1)
 
     const snapshot = jobService.createTx(tx, insertRow)
+    // Same transaction as the row it hangs off: a job row that committed without
+    // its refs would run with inputs the cleanup pass believes are unreferenced.
+    if (opts.fileRefs?.length) {
+      jobService.addFileRefsTx(
+        tx,
+        opts.fileRefs.map((ref) => ({ fileEntryId: ref.fileEntryId, sourceId: snapshot.id, role: ref.role }))
+      )
+    }
     const handle = this.handleFor(snapshot)
 
     // Post-commit side effects, deferred one microtask past the synchronous

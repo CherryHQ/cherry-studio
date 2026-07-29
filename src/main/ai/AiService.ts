@@ -8,7 +8,6 @@ import {
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { ParamValues } from '@cherrystudio/provider-registry'
-import type { InsertJobFileRefRow } from '@data/db/schemas/fileRelations'
 import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
@@ -16,7 +15,6 @@ import {
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
-import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
@@ -792,26 +790,19 @@ export class AiService extends BaseService {
       }
       // Enqueue the job AND register a job→file ref for every input it reads in a
       // single transaction. Why the refs are needed at all (the anti-join cannot see
-      // the ids in `job.input` JSON) lives with their owner, `jobService.addFileRefsTx`.
-      // Atomicity matters here: were the job row to commit without its refs (a crash or
-      // insert failure between two separate statements), a recoverable job would run
-      // with unprotected inputs — or the catch below would delete inputs out from
-      // under an already-committed, possibly-running job. `enqueueTx` puts the job
-      // INSERT on the same tx (dispatch deferred until after COMMIT), so the job row
-      // and its refs land or roll back together.
-      handle = application.get('DbService').withWriteTx((tx) => {
-        const jobHandle = jobManager.enqueueTx(tx, 'image-generation.generate', payload)
-        const jobFileRefRows: InsertJobFileRefRow[] = [
-          ...(inputFileIds ?? []).map((fileEntryId) => ({
-            fileEntryId,
-            sourceId: jobHandle.id,
-            role: 'input' as const
-          })),
-          ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
-        ]
-        jobService.addFileRefsTx(tx, jobFileRefRows)
-        return jobHandle
-      })
+      // the ids in `job.input` JSON) lives with `EnqueueOptions.fileRefs`. Declaring
+      // them on the enqueue rather than writing them afterwards is what makes the
+      // pairing structural: JobManager owns both ends of a ref's lifetime — the job
+      // row it hangs off, and the terminal-row prune that cascades it away — so it
+      // writes the middle too, inside the same transaction as the row.
+      handle = application.get('DbService').withWriteTx((tx) =>
+        jobManager.enqueueTx(tx, 'image-generation.generate', payload, {
+          fileRefs: [
+            ...(inputFileIds ?? []).map((fileEntryId) => ({ fileEntryId, role: 'input' as const })),
+            ...(maskFileId ? [{ fileEntryId: maskFileId, role: 'mask' as const }] : [])
+          ]
+        })
+      )
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
