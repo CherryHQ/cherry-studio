@@ -193,13 +193,12 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
 
   if (values.serverType === 'sse' || values.serverType === 'streamableHttp') {
     fields.baseUrl = values.baseUrl
+    fields.headers = parseKeyValueString(values.headers ?? '')
   } else {
     fields.command = values.command
     fields.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
+    fields.env = parseKeyValueString(values.env ?? '')
   }
-
-  if (values.env) fields.env = parseKeyValueString(values.env)
-  if (values.headers) fields.headers = parseKeyValueString(values.headers)
 
   return fields
 }
