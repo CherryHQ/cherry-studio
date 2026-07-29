@@ -63,3 +63,11 @@ export const BACKUP_CEILINGS = Object.freeze({
 } as const)
 
 export type BackupCeilings = typeof BACKUP_CEILINGS
+
+/**
+ * Entries every archive carries besides its resource payloads: `manifest.json`
+ * and `backup.sqlite`. Both the staging preflight and publication reserve them
+ * against {@link BACKUP_CEILINGS.maxArchiveEntries}, so the two cannot disagree
+ * about how much room the payloads actually have.
+ */
+export const FIXED_ARCHIVE_ENTRIES = 2

@@ -886,6 +886,13 @@ describe('restore promotion v2', () => {
   describe('resource installation', () => {
     const BASE_REL = 'Data/KnowledgeBase/base-1'
 
+    /** A journal unit as an older build wrote it: without the field it never recorded. */
+    function withoutHadLive<T extends object>(unit: T): Omit<T, 'hadLive'> {
+      const copy = { ...unit } as Record<string, unknown>
+      delete copy.hadLive
+      return copy as Omit<T, 'hadLive'>
+    }
+
     /** One Knowledge base unit, exactly as preparation seals it into the journal. */
     function baseUnit(hadLive = true): RestoreJournalV2['resourceInstalls'][number] {
       return {
@@ -1092,7 +1099,7 @@ describe('restore promotion v2', () => {
       it('keeps the old reading for a journal that predates the record, so forward crashes still resolve', async () => {
         makeDb(livePath(), 'old')
         makeStagedDb()
-        const { hadLive: _hadLive, ...unit } = baseUnit(false)
+        const unit = withoutHadLive(baseUnit(false))
         makeUnitDir(unit.live, 'ARCHIVE')
         writeRestoreJournalV2(
           buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] })
@@ -1108,7 +1115,7 @@ describe('restore promotion v2', () => {
     describe('a journal from a build that never recorded what it replaced', () => {
       /** The same two-unit arrangement, minus the field the older build never wrote. */
       function legacyUnits(): RestoreJournalV2['resourceInstalls'] {
-        const { hadLive: _hadLive, ...unit } = baseUnit()
+        const unit = withoutHadLive(baseUnit())
         return [unit]
       }
 

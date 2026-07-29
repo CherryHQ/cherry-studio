@@ -2,7 +2,7 @@ import { application } from '@application'
 import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError, BackupCancelledError } from './errors'
@@ -85,6 +85,11 @@ export interface BackupStatus {
  */
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
+// Post-promotion rebuild and abandonment call `KnowledgeService` directly
+// (§6.7), so it must be initialized before this service starts scheduling and —
+// because the container stops dependents first — must still be alive while
+// `onStop` joins the pass that is talking to it.
+@DependsOn(['KnowledgeService'])
 export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
   private inFlight: InFlightOperation | null = null
