@@ -959,6 +959,7 @@ function toAgentFileSessionPlans(
            FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
            WHERE source_sequence > ${afterSequence}
              AND runtime_resume_token IS NOT NULL
+             AND runtime_resume_token <> ''
            ORDER BY source_sequence
            LIMIT ${LEGACY_SESSION_MESSAGE_BATCH_SIZE}`
         )
