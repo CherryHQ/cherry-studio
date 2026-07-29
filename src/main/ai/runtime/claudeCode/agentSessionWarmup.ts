@@ -513,7 +513,7 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !ref.provider || !supportsAnthropicMessages(ref.provider)
+    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
@@ -669,13 +669,9 @@ function resolveRuntimeModelRef(
   }
 }
 
-function supportsAnthropicMessages(provider: Provider): boolean {
-  return (
-    provider.id === 'anthropic' ||
-    provider.presetProviderId === 'anthropic' ||
-    provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
-    Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-  )
+function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
+  if (!ref.provider || !ref.model) return false
+  return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
 }
 
 async function resolveApiGatewayRuntime(

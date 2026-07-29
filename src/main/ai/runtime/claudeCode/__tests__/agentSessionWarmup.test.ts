@@ -1,4 +1,6 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -79,7 +81,7 @@ vi.mock('@application', () => ({
   }
 }))
 
-vi.mock('../../provider/endpoint', () => ({
+vi.mock('../../../provider/endpoint', () => ({
   resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
 }))
 
@@ -89,6 +91,17 @@ vi.mock('../settingsBuilder', () => ({
 }))
 
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+
+function resolveTestEffectiveEndpoint(provider: Provider, model: Model) {
+  const endpointType =
+    model.endpointTypes?.[0] ??
+    provider.defaultChatEndpoint ??
+    (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
+  return {
+    endpointType,
+    baseUrl: (endpointType && provider.endpointConfigs?.[endpointType]?.baseUrl) || 'https://api.example.com'
+  }
+}
 
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
@@ -108,7 +121,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
     })
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
-    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
+    mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
     mocks.resolveApiKey.mockReturnValue({
       value: 'api-key',
       apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
@@ -278,7 +291,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getProviderByProviderId.mockReturnValue(materializedProvider)
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'old-model' })
     mocks.resolveEffectiveEndpoint.mockImplementation((provider) => ({
-      baseUrl: provider.endpointConfigs['anthropic-messages'].baseUrl
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: provider.endpointConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES].baseUrl
     }))
     mocks.buildSessionSettings.mockImplementationOnce(async () => {
       // Simulate provider/model edits while the async settings builder is still materializing.
@@ -425,6 +439,34 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('routes an OpenCode Go OpenAI-compatible model through the gateway despite its Anthropic endpoint', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'opencode::deepseek-v4-pro' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'opencode',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://opencode.ai/zen/go/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://opencode.ai/zen/go/v1' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-v4-pro',
+      apiModelId: 'deepseek-v4-pro',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('opencode:deepseek-v4-pro')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'opencode:deepseek-v4-pro'
+    })
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -528,7 +570,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com/v1' } }
     })
-    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://anthropic.example.com/v1' })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://anthropic.example.com/v1'
+    })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -690,7 +735,7 @@ describe('deriveConnectionConfig', () => {
       id: modelId,
       apiModelId: `${modelId}-api`
     }))
-    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
+    mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
