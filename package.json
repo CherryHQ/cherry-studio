@@ -51,6 +51,7 @@
     "i18n:sync": "dotenv -e .env -- tsx scripts/sync-i18n.ts",
     "i18n:translate": "dotenv -e .env -- tsx scripts/auto-translate-i18n.ts",
     "i18n:all": "pnpm i18n:sync && pnpm i18n:translate",
+    "english-learning:check": "pnpm rebuild:node && tsx scripts/check-english-learning-customization.ts && vitest run scripts/__tests__/check-english-learning-customization.test.ts src/main/data/services/__tests__/EnglishLearningImportService.test.ts src/main/data/services/__tests__/LearningSourceService.test.ts src/main/data/services/__tests__/LearningUnitService.test.ts src/main/data/services/__tests__/ReviewService.test.ts src/main/data/services/__tests__/PracticeService.test.ts src/main/features/englishLearning/extraction/__tests__/LearningExtractionService.test.ts src/main/features/englishLearning/__tests__/reminderTime.test.ts src/main/features/englishLearning/__tests__/obsidianMarkdown.test.ts src/renderer/pages/englishLearning/__tests__/ReviewPage.test.tsx src/renderer/pages/launchpad/__tests__/LaunchpadPage.test.tsx src/renderer/windows/selection/action/components/__tests__/ActionGeneral.test.tsx src/renderer/windows/selection/action/components/__tests__/ActionTranslate.test.tsx",
     "skills:sync": "tsx scripts/skills-sync.ts",
     "skills:check": "tsx scripts/skills-check.ts",
     "gen:system-provider-ids": "tsx scripts/generate-system-provider-ids.ts",
