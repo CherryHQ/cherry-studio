@@ -25,9 +25,11 @@ import {
 } from '@main/ai/agents/agentDataDirectory'
 import { isWin } from '@main/core/platform'
 import { isPathInside } from '@main/utils/file'
+import { validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('AgentsFilesystemMigration')
 const IDENTITY_ENTRY_NAMES = new Set(['soul.md', 'user.md', 'memory'])
+const CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH = 200
 
 function canonicalIdentityEntryName(name: string): string | undefined {
   switch (name.toLowerCase()) {
@@ -72,6 +74,8 @@ export interface AgentFileSessionPlan {
   sourceWorkspacePath: string
   isManagedDefault: boolean
   systemWorkspacePath?: string
+  latestRuntimeResumeToken?: string
+  runtimeResumeTokens: string[]
   createdAt: number
   updatedAt: number
 }
@@ -290,10 +294,19 @@ async function removeTreeWithoutFollowing(targetPath: string): Promise<void> {
 /**
  * Copy the v1 global Claude Agent SDK config into its v2 Agent-data location.
  * The source remains intact for downgrade compatibility. Publication is
- * atomic, retries accept an identical destination, conflicts fail closed, and
- * symlinks are skipped so the copy does not require Windows symlink privileges.
+ * atomic, an existing destination directory is left untouched, and symlinks
+ * are skipped so the copy does not require Windows symlink privileges.
  */
 export async function copyLegacyClaudeConfig(sourcePath: string, destinationPath: string): Promise<boolean> {
+  const destinationStat = await lstatIfExists(destinationPath)
+  if (destinationStat?.isDirectory() && !destinationStat.isSymbolicLink()) {
+    logger.info('Skipping legacy Claude config migration because the destination directory already exists', {
+      sourcePath,
+      destinationPath
+    })
+    return false
+  }
+
   const sourceStat = await lstatIfExists(sourcePath)
   if (!sourceStat) return false
   if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {
@@ -369,6 +382,333 @@ export async function copyLegacyClaudeConfig(sourcePath: string, destinationPath
   } finally {
     await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
   }
+}
+
+function claudeProjectDirectoryNameHash(workspacePath: string): string {
+  let hash = 0
+  for (let index = 0; index < workspacePath.length; index++) {
+    hash = ((hash << 5) - hash + workspacePath.charCodeAt(index)) | 0
+  }
+  return Math.abs(hash).toString(36)
+}
+
+/**
+ * Mirror Claude Agent SDK 0.3.218's private cwd-to-project-directory mapping.
+ * Session lookup is scoped to this directory when the runtime passes `cwd`, so
+ * a moved workspace needs its transcript copied under the new key.
+ */
+export function claudeProjectDirectoryName(workspacePath: string): string {
+  const sanitized = workspacePath.replace(/[^a-zA-Z0-9]/g, '-')
+  if (sanitized.length <= CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH) return sanitized
+  return `${sanitized.slice(0, CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH)}-${claudeProjectDirectoryNameHash(workspacePath)}`
+}
+
+async function claudeProjectDirectoryPath(projectsDirectory: string, workspacePath: string): Promise<string> {
+  let resolvedWorkspacePath: string
+  try {
+    resolvedWorkspacePath = path.normalize(await realpath(workspacePath))
+  } catch {
+    resolvedWorkspacePath = path.resolve(workspacePath)
+  }
+  return path.join(projectsDirectory, claudeProjectDirectoryName(resolvedWorkspacePath))
+}
+
+interface ClaudeSessionSource {
+  transcriptPath: string
+}
+
+async function existingClaudeProjectsDirectories(projectsDirectories: string[]): Promise<string[]> {
+  const existingDirectories: string[] = []
+  const seenDirectories = new Set<string>()
+
+  for (const projectsDirectory of projectsDirectories) {
+    const normalizedProjectsDirectory = path.resolve(projectsDirectory)
+    if (seenDirectories.has(normalizedProjectsDirectory)) continue
+    seenDirectories.add(normalizedProjectsDirectory)
+
+    const projectsStat = await lstatIfExists(normalizedProjectsDirectory)
+    if (projectsStat?.isDirectory() && !projectsStat.isSymbolicLink()) {
+      existingDirectories.push(normalizedProjectsDirectory)
+    }
+  }
+
+  return existingDirectories
+}
+
+async function expectedClaudeProjectDirectories(
+  projectsDirectories: string[],
+  workspacePath: string
+): Promise<string[]> {
+  let resolvedWorkspacePath: string
+  try {
+    resolvedWorkspacePath = path.normalize(await realpath(workspacePath))
+  } catch {
+    resolvedWorkspacePath = path.resolve(workspacePath)
+  }
+
+  const projectDirectoryName = claudeProjectDirectoryName(resolvedWorkspacePath)
+  const existingDirectories: string[] = []
+  for (const projectsDirectory of projectsDirectories) {
+    const projectDirectory = path.join(projectsDirectory, projectDirectoryName)
+    const projectStat = await lstatIfExists(projectDirectory)
+    if (projectStat?.isDirectory() && !projectStat.isSymbolicLink()) {
+      existingDirectories.push(projectDirectory)
+    }
+  }
+  return existingDirectories
+}
+
+async function findClaudeSessionSourceInProjectDirectory(
+  projectDirectory: string,
+  runtimeResumeToken: string
+): Promise<ClaudeSessionSource | undefined> {
+  const transcriptPath = path.join(projectDirectory, `${runtimeResumeToken}.jsonl`)
+  const transcriptStat = await lstatIfExists(transcriptPath)
+  if (!transcriptStat?.isFile() || transcriptStat.isSymbolicLink()) return undefined
+
+  return { transcriptPath }
+}
+
+async function findClaudeSessionSourceInExpectedProjects(
+  projectDirectories: string[],
+  runtimeResumeToken: string
+): Promise<ClaudeSessionSource | undefined> {
+  for (const projectDirectory of projectDirectories) {
+    const source = await findClaudeSessionSourceInProjectDirectory(projectDirectory, runtimeResumeToken)
+    if (source) return source
+  }
+
+  return undefined
+}
+
+async function findClaudeSessionSourcesGlobally(
+  projectsDirectories: string[],
+  runtimeResumeTokens: Set<string>
+): Promise<Map<string, ClaudeSessionSource>> {
+  const sources = new Map<string, ClaudeSessionSource>()
+
+  for (const projectsDirectory of projectsDirectories) {
+    const projectEntries = await readdir(projectsDirectory, { withFileTypes: true })
+    projectEntries.sort((left, right) => left.name.localeCompare(right.name))
+    for (const projectEntry of projectEntries) {
+      if (!projectEntry.isDirectory() || projectEntry.isSymbolicLink()) continue
+      const projectDirectory = path.join(projectsDirectory, projectEntry.name)
+      const sessionEntries = await readdir(projectDirectory, { withFileTypes: true })
+      sessionEntries.sort((left, right) => left.name.localeCompare(right.name))
+
+      for (const sessionEntry of sessionEntries) {
+        if (!sessionEntry.isFile() || !sessionEntry.name.endsWith('.jsonl')) continue
+        const runtimeResumeToken = sessionEntry.name.slice(0, -'.jsonl'.length)
+        if (!runtimeResumeTokens.has(runtimeResumeToken) || sources.has(runtimeResumeToken)) continue
+
+        sources.set(runtimeResumeToken, {
+          transcriptPath: path.join(projectDirectory, sessionEntry.name)
+        })
+      }
+
+      if (sources.size === runtimeResumeTokens.size) return sources
+    }
+  }
+
+  return sources
+}
+
+async function copyClaudeSessionEntry(sourcePath: string, destinationPath: string): Promise<boolean> {
+  const sourceStat = await lstatIfExists(sourcePath)
+  if (!sourceStat) {
+    throw new Error(`Legacy Claude session cache disappeared: ${sourcePath}`)
+  }
+  if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) {
+    throw new Error(`Legacy Claude session cache is not a regular file: ${sourcePath}`)
+  }
+
+  const sourceSnapshot = await requiredFilesystemEntrySnapshot(sourcePath, true)
+  if (path.resolve(sourcePath) === path.resolve(destinationPath)) return false
+  const sourceMetadataFingerprint = await filesystemEntryMetadataFingerprint(sourcePath)
+  if (!sourceMetadataFingerprint) {
+    throw new Error(`Legacy Claude session cache disappeared: ${sourcePath}`)
+  }
+
+  const stagingPath = path.join(
+    path.dirname(destinationPath),
+    `.${path.basename(destinationPath)}.migration-${randomUUID()}`
+  )
+  try {
+    await copyFile(sourcePath, stagingPath, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE)
+
+    if ((await filesystemEntryMetadataFingerprint(sourcePath)) !== sourceMetadataFingerprint) {
+      throw new Error(`Legacy Claude session cache changed while being copied: ${sourcePath}`)
+    }
+
+    const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
+    if (stagingSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+      throw new Error(`Legacy Claude session cache copy verification failed: ${sourcePath}`)
+    }
+
+    let destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+    if (destinationSnapshot) {
+      if (destinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+        throw new Error(`Legacy Claude session cache destination conflict: ${destinationPath}`)
+      }
+      logger.info('Reusing identical Claude session cache entry from an earlier migration attempt', {
+        sourcePath,
+        destinationPath
+      })
+    } else {
+      try {
+        await publishStagedWorkspaceEntry(stagingPath, destinationPath)
+      } catch (error) {
+        destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+        if (!destinationSnapshot || destinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+          throw error
+        }
+      }
+      destinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
+    }
+
+    if (destinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+      throw new Error(`Legacy Claude session cache changed while being published: ${destinationPath}`)
+    }
+    return true
+  } finally {
+    await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
+  }
+}
+
+/**
+ * Make validated Claude SDK session transcripts available under each v2
+ * workspace key. The old project cache remains intact for downgrade and GC;
+ * only the JSONL transcript is copied.
+ */
+export async function copyLegacyClaudeSessionData(input: {
+  agentsDataRoot: string
+  sourceProjectsDirectories: string[]
+  destinationProjectsDirectory: string
+  sessions: AgentFileSessionPlan[]
+}): Promise<void> {
+  const copyPlans: Array<{
+    sourceSessionId: string
+    runtimeResumeToken: string
+    sourceWorkspacePath: string
+    destinationWorkspacePath: string
+  }> = []
+  const requestedTokens = new Set<string>()
+
+  for (const session of input.sessions) {
+    const destinationWorkspacePath = session.isManagedDefault
+      ? session.systemWorkspacePath
+      : session.sourceWorkspacePath
+    if (!destinationWorkspacePath) continue
+
+    for (const runtimeResumeToken of session.runtimeResumeTokens) {
+      if (!isUuid(runtimeResumeToken)) {
+        logger.warn('Skipping invalid Claude runtime resume token during Agent migration', {
+          sourceSessionId: session.sourceSessionId,
+          runtimeResumeToken
+        })
+        continue
+      }
+      requestedTokens.add(runtimeResumeToken)
+      copyPlans.push({
+        sourceSessionId: session.sourceSessionId,
+        runtimeResumeToken,
+        sourceWorkspacePath: session.sourceWorkspacePath,
+        destinationWorkspacePath
+      })
+    }
+  }
+
+  if (requestedTokens.size === 0) return
+
+  const sourceProjectsDirectories = await existingClaudeProjectsDirectories(input.sourceProjectsDirectories)
+  const projectDirectoriesByWorkspace = new Map<string, string[]>()
+  const expectedSources = new Map<string, ClaudeSessionSource | undefined>()
+  const sourcesByCopyPlan: Array<ClaudeSessionSource | undefined> = []
+  const globallyUnresolvedTokens = new Set<string>()
+  for (const copyPlan of copyPlans) {
+    const sourceKey = `${copyPlan.sourceWorkspacePath}\0${copyPlan.runtimeResumeToken}`
+    let source = expectedSources.get(sourceKey)
+    if (!expectedSources.has(sourceKey)) {
+      const workspaceKey = path.resolve(copyPlan.sourceWorkspacePath)
+      let projectDirectories = projectDirectoriesByWorkspace.get(workspaceKey)
+      if (!projectDirectories) {
+        projectDirectories = await expectedClaudeProjectDirectories(
+          sourceProjectsDirectories,
+          copyPlan.sourceWorkspacePath
+        )
+        projectDirectoriesByWorkspace.set(workspaceKey, projectDirectories)
+      }
+      source = await findClaudeSessionSourceInExpectedProjects(projectDirectories, copyPlan.runtimeResumeToken)
+      expectedSources.set(sourceKey, source)
+    }
+    sourcesByCopyPlan.push(source)
+    if (!source) globallyUnresolvedTokens.add(copyPlan.runtimeResumeToken)
+  }
+
+  const globallyDiscoveredSources =
+    globallyUnresolvedTokens.size === 0
+      ? new Map<string, ClaudeSessionSource>()
+      : await findClaudeSessionSourcesGlobally(sourceProjectsDirectories, globallyUnresolvedTokens)
+  const latestTokensBySessionId = new Map(
+    input.sessions
+      .filter((session) => session.latestRuntimeResumeToken)
+      .map((session) => [session.sourceSessionId, session.latestRuntimeResumeToken!])
+  )
+  const resolvedSourcesByCopyPlan = copyPlans.map(
+    (copyPlan, index) => sourcesByCopyPlan[index] ?? globallyDiscoveredSources.get(copyPlan.runtimeResumeToken)
+  )
+  const resumableSessionIds = new Set<string>()
+  for (const [copyPlanIndex, copyPlan] of copyPlans.entries()) {
+    const source = resolvedSourcesByCopyPlan[copyPlanIndex]
+    if (!source) {
+      logger.warn('Claude session transcript not found during Agent migration', {
+        sourceSessionId: copyPlan.sourceSessionId,
+        runtimeResumeToken: copyPlan.runtimeResumeToken
+      })
+      continue
+    }
+    if (latestTokensBySessionId.get(copyPlan.sourceSessionId) === copyPlan.runtimeResumeToken) {
+      resumableSessionIds.add(copyPlan.sourceSessionId)
+    }
+  }
+
+  const destinationDirectoriesByWorkspace = new Map<string, string>()
+  const preparedDestinationDirectories = new Set<string>()
+  let preparedEntries = 0
+
+  for (const [copyPlanIndex, copyPlan] of copyPlans.entries()) {
+    if (!resumableSessionIds.has(copyPlan.sourceSessionId)) continue
+    const source = resolvedSourcesByCopyPlan[copyPlanIndex]
+    if (!source) continue
+
+    let destinationProjectDirectory = destinationDirectoriesByWorkspace.get(copyPlan.destinationWorkspacePath)
+    if (!destinationProjectDirectory) {
+      destinationProjectDirectory = await claudeProjectDirectoryPath(
+        input.destinationProjectsDirectory,
+        copyPlan.destinationWorkspacePath
+      )
+      destinationDirectoriesByWorkspace.set(copyPlan.destinationWorkspacePath, destinationProjectDirectory)
+    }
+
+    if (!preparedDestinationDirectories.has(destinationProjectDirectory)) {
+      await ensureAgentStorageDirectory(input.agentsDataRoot, destinationProjectDirectory)
+      preparedDestinationDirectories.add(destinationProjectDirectory)
+    }
+
+    if (
+      await copyClaudeSessionEntry(
+        source.transcriptPath,
+        path.join(destinationProjectDirectory, `${copyPlan.runtimeResumeToken}.jsonl`)
+      )
+    ) {
+      preparedEntries++
+    }
+  }
+
+  logger.info('Prepared Claude session cache for migrated Agent workspace paths', {
+    requestedSessions: copyPlans.length,
+    preparedEntries
+  })
 }
 
 function migratedLinkTarget(
@@ -976,20 +1316,14 @@ export async function stageLegacyAgentFiles(input: {
       }
     }
 
-    const latestSystemSession = systemSessions.sort(
-      (left, right) =>
-        right.updatedAt - left.updatedAt ||
-        right.createdAt - left.createdAt ||
-        left.sourceSessionId.localeCompare(right.sourceSessionId)
-    )[0]
-    if (
-      latestSystemSession?.systemWorkspacePath &&
-      path.resolve(defaultWorkspacePath) !== path.resolve(agentDataPath)
-    ) {
+    if (path.resolve(defaultWorkspacePath) === path.resolve(agentDataPath)) continue
+
+    for (const session of systemSessions) {
+      if (!session.systemWorkspacePath) continue
       await copyOrdinaryWorkspaceContent(
         input.agentsDataRoot,
-        defaultWorkspacePath,
-        latestSystemSession.systemWorkspacePath,
+        session.sourceWorkspacePath,
+        session.systemWorkspacePath,
         agentDataPath
       )
     }

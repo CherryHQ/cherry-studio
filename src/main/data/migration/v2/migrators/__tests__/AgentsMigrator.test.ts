@@ -63,7 +63,9 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
     paths: {
       legacyAgentDbFile: '/mock/Data/agents.db',
       legacyClaudeConfigDir: '/mock/.claude',
-      claudeConfigDir: '/mock/Data/Agents/.claude'
+      legacyClaudeProjectsDir: '/mock/.claude/projects',
+      claudeConfigDir: '/mock/Data/Agents/.claude',
+      claudeProjectsDir: '/mock/Data/Agents/.claude/projects'
     },
     sharedData: new Map(),
     ...overrides
@@ -72,6 +74,13 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
 
 function getExecutedSql(run: ReturnType<typeof vi.fn>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
+}
+
+function withSynchronousTransaction<T extends object>(members: T) {
+  const transaction = vi.fn()
+  const db = { ...members, transaction }
+  transaction.mockImplementation((callback: (tx: typeof db) => unknown) => callback(db))
+  return db
 }
 
 describe('AgentsMigrator', () => {
@@ -106,7 +115,9 @@ describe('AgentsMigrator', () => {
           paths: {
             legacyAgentDbFile: join(tempRoot, 'Data', 'agents.db'),
             legacyClaudeConfigDir: source,
-            claudeConfigDir: destination
+            legacyClaudeProjectsDir: join(source, 'projects'),
+            claudeConfigDir: destination,
+            claudeProjectsDir: join(destination, 'projects')
           }
         })
       )
@@ -166,9 +177,8 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(
-      createMigrationContext({ db: { run, select, update, all, delete: del, insert } })
-    )
+    const db = withSynchronousTransaction({ run, select, update, all, delete: del, insert })
+    const result = await migrator.execute(createMigrationContext({ db }))
 
     expect(result.success).toBe(true)
     // sourceCounts now sums only the 6 importStatement-driven specs (the 3
@@ -399,7 +409,7 @@ describe('AgentsMigrator', () => {
     })
     const all = vi.fn().mockReturnValue([])
     const migrationContext = createMigrationContext({
-      db: { run, select, update, all, delete: del, insert }
+      db: withSynchronousTransaction({ run, select, update, all, delete: del, insert })
     })
 
     await migrator.prepare(migrationContext)
