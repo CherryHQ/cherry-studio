@@ -509,6 +509,10 @@ export class AgentService {
 
           const configurationPatch = updates.configuration
           const modelChanged = updates.model !== undefined && updates.model !== current.model
+          const reasoningEffortPatched =
+            configurationPatch !== undefined &&
+            Object.prototype.hasOwnProperty.call(configurationPatch, 'reasoning_effort')
+          const reasoningEffortRemoved = reasoningEffortPatched && configurationPatch?.reasoning_effort === undefined
 
           if (configurationPatch !== undefined || modelChanged) {
             const existingRole = getBuiltinRole(current.configuration)
@@ -521,8 +525,9 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(current.configuration, configurationPatch)
-            if (modelChanged && updates.model) {
-              const nextModel = modelService.findByIdTx(tx, updates.model)
+            const effectiveModelId = updates.model !== undefined ? updates.model : current.model
+            if (!reasoningEffortRemoved && effectiveModelId && (modelChanged || reasoningEffortPatched)) {
+              const nextModel = modelService.findByIdTx(tx, effectiveModelId)
               if (nextModel) {
                 const currentEffort = parseConfiguration(nextConfiguration)?.reasoning_effort ?? 'default'
                 nextConfiguration.reasoning_effort =

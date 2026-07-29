@@ -39,6 +39,7 @@ import {
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { ToolCase, Wrench } from 'lucide-react'
@@ -170,6 +171,37 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
+}
+
+function advanceAgentFormBaseline(
+  latest: AgentFormState,
+  submitted: AgentFormState,
+  payload: UpdateAgentDto
+): AgentFormState {
+  const next = { ...latest }
+  const hasOwn = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key)
+
+  if (hasOwn(payload, 'name')) next.name = submitted.name
+  if (hasOwn(payload, 'description')) next.description = submitted.description
+  if (hasOwn(payload, 'model')) next.model = submitted.model
+  if (hasOwn(payload, 'planModel')) next.planModel = submitted.planModel
+  if (hasOwn(payload, 'smallModel')) next.smallModel = submitted.smallModel
+  if (hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
+  if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
+  if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
+  if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
+  if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
+
+  const configuration = payload.configuration
+  if (configuration) {
+    if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
+    if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
+    if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
+    if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+  }
+
+  return next
 }
 
 function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: AgentFormState) {
@@ -340,7 +372,9 @@ function AgentEditDialogContent({
   }, [activeTab, leafTabIds])
 
   const rootError = form.formState.errors.root?.message
-  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  const autoSaveChangeKey =
+    saveIntent && values.name.trim().length > 0 ? JSON.stringify({ values, payload: saveIntent.payload }) : null
+  const canPersist = autoSaveChangeKey !== null
   // Tracks whether the most recent save attempt failed, so the close path can
   // keep the dialog open (and the error visible) instead of closing over a loss.
   const saveFailedRef = useRef(false)
@@ -366,10 +400,10 @@ function AgentEditDialogContent({
       return
     }
 
-    // Advance only to the snapshot this request actually submitted. A resource
-    // refresh from this or another window must not become the form's diff
-    // baseline and make untouched stale controls look user-edited.
-    replaceFormBaseline(submittedFormState)
+    // Commit only fields this request actually submitted. Baseline updates that
+    // landed while it was in flight (such as authoritative skill initialization)
+    // must survive so queued edits still diff against the persisted state.
+    replaceFormBaseline(advanceAgentFormBaseline(formBaselineRef.current, submittedFormState, pending.payload))
 
     try {
       await onSaved(updated)
@@ -378,12 +412,13 @@ function AgentEditDialogContent({
     }
   }
 
-  // Key the debounce on form values only. Advancing the dialog-local baseline
-  // after a successful save must not re-arm another save when values did not
-  // change (prevents a save→baseline→save loop).
+  // Include the pending payload so a baseline update during an in-flight save
+  // can queue a newly meaningful diff even when form values return to the
+  // snapshot that save captured. Values remain in the key to distinguish DTO
+  // clears represented by explicit `undefined`.
   const flush = useDebouncedAutoSave({
     enabled: open,
-    changeKey: canPersist ? JSON.stringify(values) : null,
+    changeKey: autoSaveChangeKey,
     onSave: persist
   })
 

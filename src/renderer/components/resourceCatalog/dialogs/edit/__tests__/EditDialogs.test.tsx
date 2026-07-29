@@ -837,6 +837,46 @@ describe('edit dialogs', () => {
     })
   })
 
+  it('preserves skill baseline initialization while an unrelated save is pending', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn(), onSaved: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(<AgentEditDialog {...props} />)
+    selectTab('技能')
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: false }] }
+    })
+  })
+
   it('polishes agent instructions and auto-saves the polished value', async () => {
     fetchGenerateMock.mockResolvedValue('Polished agent instructions')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)

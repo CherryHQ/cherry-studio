@@ -93,7 +93,7 @@ describe('AgentService', () => {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
+      // Default to NULL; model-behavior tests override it with a seeded user_model FK.
       model: null,
       orderKey: 'a0',
       ...rest,
@@ -263,6 +263,23 @@ describe('AgentService', () => {
         }
       })
     })
+
+    it('preserves an explicit reasoning tombstone while changing the model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: undefined }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖' }
+      })
+      expect(updated?.configuration).not.toHaveProperty('reasoning_effort')
+    })
   })
 
   describe('configuration patches', () => {
@@ -281,6 +298,22 @@ describe('AgentService', () => {
         plugin_state: 'keep-me',
         bootstrap_completed: true,
         reasoning_effort: 'high'
+      })
+    })
+
+    it('normalizes an explicit reasoning patch against the current persisted model', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        reasoning_effort: 'default'
       })
     })
 

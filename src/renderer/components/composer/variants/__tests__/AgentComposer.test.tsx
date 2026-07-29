@@ -760,9 +760,10 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockReset()
     mocks.updateModel.mockResolvedValue({})
     mocks.updateAgent.mockReset()
-    mocks.updateAgent.mockImplementation(async (form) => ({
-      configuration: { ...mocks.agentConfiguration, ...form.configuration }
-    }))
+    mocks.updateAgent.mockImplementation(async (form) => {
+      mocks.agentConfiguration = { ...mocks.agentConfiguration, ...form.configuration }
+      return { configuration: mocks.agentConfiguration }
+    })
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
@@ -1200,6 +1201,13 @@ describe('AgentComposer', () => {
   })
 
   it('keeps the session reasoning selection when the model update fails', async () => {
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
     mocks.updateModel.mockResolvedValueOnce(undefined)
 
     render(
@@ -1224,6 +1232,13 @@ describe('AgentComposer', () => {
   })
 
   it('reconciles from the latest reasoning selection when it changes while the model update is pending', async () => {
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
     let finishModelUpdate!: (value: object) => void
     mocks.updateModel.mockImplementationOnce(
       () =>
@@ -1250,6 +1265,43 @@ describe('AgentComposer', () => {
     await act(async () => finishModelUpdate({}))
 
     expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
+  })
+
+  it('reveals an external canonical reasoning update after the pending mutation settles', async () => {
+    const reasoningUpdate = createDeferred<{ configuration: AgentConfiguration }>()
+    mocks.agentConfiguration = { reasoning_effort: 'low' }
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    }
+    mocks.updateAgent.mockReturnValueOnce(reasoningUpdate.promise)
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+
+    const { rerender } = render(<AgentComposer {...props} />)
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    mocks.agentConfiguration = { reasoning_effort: 'medium' }
+    rerender(<AgentComposer {...props} />)
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    await act(async () => {
+      reasoningUpdate.resolve({ configuration: { reasoning_effort: 'high' } })
+      await reasoningUpdate.promise
+    })
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('medium')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {
