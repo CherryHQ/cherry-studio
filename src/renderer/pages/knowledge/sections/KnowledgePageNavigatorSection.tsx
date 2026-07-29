@@ -1,4 +1,9 @@
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import {
+  getHorizontalResizeOrigin,
+  getHorizontalResizeWidth,
+  type HorizontalResizeOrigin
+} from '@renderer/utils/horizontalGeometry'
 import { type MouseEvent as ReactMouseEvent, useCallback, useRef, useState } from 'react'
 
 import { BaseNavigator } from '../components/navigator'
@@ -13,7 +18,6 @@ const KnowledgePageNavigatorSection = () => {
     bases,
     groups,
     isLoading,
-    contentRef,
     selectedBaseId,
     selectBase,
     openCreateGroupDialog,
@@ -25,10 +29,10 @@ const KnowledgePageNavigatorSection = () => {
     deleteBase
   } = useKnowledgePage()
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
-  const contentLeftRef = useRef(0)
+  const resizeOriginRef = useRef<HorizontalResizeOrigin>({ fixedX: 0, handleEdge: 'right' })
 
   const handleNavigatorResizeMove = useCallback((moveEvent: MouseEvent) => {
-    const nextWidth = moveEvent.clientX - contentLeftRef.current
+    const nextWidth = getHorizontalResizeWidth(resizeOriginRef.current, moveEvent.clientX)
     setNavigatorWidth(Math.min(NAVIGATOR_MAX_WIDTH, Math.max(NAVIGATOR_MIN_WIDTH, nextWidth)))
   }, [])
 
@@ -36,10 +40,14 @@ const KnowledgePageNavigatorSection = () => {
 
   const startNavigatorResize = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
-      contentLeftRef.current = contentRef.current?.getBoundingClientRect().left ?? 0
+      const rect = event.currentTarget.parentElement?.getBoundingClientRect()
+      resizeOriginRef.current = getHorizontalResizeOrigin(
+        rect ?? { left: event.clientX - NAVIGATOR_DEFAULT_WIDTH, right: event.clientX },
+        event.clientX
+      )
       startNavigatorResizeDrag(event)
     },
-    [contentRef, startNavigatorResizeDrag]
+    [startNavigatorResizeDrag]
   )
 
   return (

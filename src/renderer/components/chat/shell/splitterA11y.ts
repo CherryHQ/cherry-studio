@@ -1,3 +1,4 @@
+import type { PhysicalHorizontalEdge } from '@renderer/utils/horizontalGeometry'
 import type { KeyboardEvent } from 'react'
 
 const SPLITTER_KEYBOARD_STEP = 16
@@ -9,11 +10,8 @@ interface VerticalSplitterOptions {
   label: string
   /** Clamp + apply the next width (same clamp the pointer drag uses). */
   onResize: (nextWidth: number) => void
-  /**
-   * Left-edge handles grow the pane when dragged left, so invert the arrow keys
-   * (ArrowLeft grows, ArrowRight shrinks). Right-edge handles use the default.
-   */
-  invert?: boolean
+  /** Physical edge occupied by the handle; the matching Arrow key grows the pane. */
+  handleEdge?: PhysicalHorizontalEdge
 }
 
 /**
@@ -27,10 +25,10 @@ export function getVerticalSplitterProps({
   max,
   label,
   onResize,
-  invert = false
+  handleEdge = 'right'
 }: VerticalSplitterOptions) {
-  const grow = invert ? 'ArrowLeft' : 'ArrowRight'
-  const shrink = invert ? 'ArrowRight' : 'ArrowLeft'
+  const grow = handleEdge === 'left' ? 'ArrowLeft' : 'ArrowRight'
+  const shrink = handleEdge === 'left' ? 'ArrowRight' : 'ArrowLeft'
 
   return {
     role: 'separator' as const,

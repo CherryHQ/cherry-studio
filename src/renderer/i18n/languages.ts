@@ -1,10 +1,12 @@
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { getLanguageDirection } from '@shared/utils/languages'
 
 export const appLanguageOptions: ReadonlyArray<{
   value: LanguageVarious
   label: string
   flag: string
 }> = [
+  { value: 'ar-YE', label: 'العربية', flag: '🇾🇪' },
   { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
   { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
   { value: 'en-US', label: 'English', flag: '🇺🇸' },
@@ -21,4 +23,10 @@ export const appLanguageOptions: ReadonlyArray<{
 
 export function isAppLanguage(value: string | null | undefined): value is LanguageVarious {
   return appLanguageOptions.some((option) => option.value === value)
+}
+
+export function syncDocumentLanguage(language: LanguageVarious): void {
+  const root = document.documentElement
+  root.lang = language
+  root.dir = getLanguageDirection(language)
 }

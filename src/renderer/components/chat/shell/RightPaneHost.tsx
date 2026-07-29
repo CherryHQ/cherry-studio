@@ -1,6 +1,12 @@
+import { useDirection } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import {
+  getHorizontalResizeOrigin,
+  getHorizontalResizeWidth,
+  type HorizontalResizeOrigin
+} from '@renderer/utils/horizontalGeometry'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
@@ -110,7 +116,7 @@ function useRightPaneResize({
 }) {
   const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
-  const paneRightRef = useRef(0)
+  const resizeOriginRef = useRef<HorizontalResizeOrigin>({ fixedX: 0, handleEdge: 'left' })
   const pendingDragCloseRef = useRef(false)
   const onDragCloseRef = useRef(onDragClose)
   useEffect(() => {
@@ -149,7 +155,7 @@ function useRightPaneResize({
 
   const handleMouseMove = useCallback(
     (moveEvent: MouseEvent, stop: () => void) => {
-      const geometricWidth = paneRightRef.current - moveEvent.clientX
+      const geometricWidth = getHorizontalResizeWidth(resizeOriginRef.current, moveEvent.clientX)
       // Close once the handle overshoots the minimum-width line, regardless of
       // where the drag started — a delta-based threshold made narrow windows
       // (pane already at its minimum) require dragging across most of the pane.
@@ -219,7 +225,11 @@ function useRightPaneResize({
 
   const startResizing = useCallback(
     (event: ReactMouseEvent) => {
-      paneRightRef.current = paneRef.current?.getBoundingClientRect().right ?? event.clientX + paneWidth
+      const rect = paneRef.current?.getBoundingClientRect()
+      resizeOriginRef.current = getHorizontalResizeOrigin(
+        rect ?? { left: event.clientX, right: event.clientX + paneWidth },
+        event.clientX
+      )
       startResizeDrag(event)
     },
     [paneWidth, startResizeDrag]
@@ -256,6 +266,8 @@ function RightPaneContents({
   setPaneWidth: (nextWidth: number) => void
 }) {
   const { t } = useTranslation()
+  const direction = useDirection()
+  const handleEdge = direction === 'rtl' ? 'right' : 'left'
 
   return (
     <>
@@ -275,7 +287,7 @@ function RightPaneContents({
             max: maxWidth,
             label: t('common.resize_panel'),
             onResize: setPaneWidth,
-            invert: true
+            handleEdge
           })}
           className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
           <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-primary/35 group-data-[resizing=true]/right-pane:opacity-100" />

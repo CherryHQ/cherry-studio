@@ -1,3 +1,4 @@
+import 'dayjs/locale/ar'
 import 'dayjs/locale/de'
 import 'dayjs/locale/el'
 import 'dayjs/locale/es'
@@ -13,7 +14,7 @@ import 'dayjs/locale/zh-tw'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
+import { defaultLanguage, resolveAppLanguage } from '@shared/utils/languages'
 import dayjs from 'dayjs'
 import i18n from 'i18next'
 import resourcesToBackend from 'i18next-resources-to-backend'
@@ -25,6 +26,7 @@ const logger = loggerService.withContext('I18N')
 // chunk, so a window entry bundles zero translation JSON up front — i18next pulls
 // the current language (and the en-US fallback) on demand inside initI18n().
 const localeLoaders = {
+  'ar-YE': () => import('./locales/ar-ye.json'),
   'en-US': () => import('./locales/en-us.json'),
   'zh-CN': () => import('./locales/zh-cn.json'),
   'zh-TW': () => import('./translate/zh-tw.json'),
@@ -40,7 +42,7 @@ const localeLoaders = {
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
 
 export const getLanguage = async () => {
-  return (await preferenceService.get('app.language')) || navigator.language || defaultLanguage
+  return resolveAppLanguage((await preferenceService.get('app.language')) || navigator.language)
 }
 
 export const getLanguageCode = async () => {
@@ -49,6 +51,7 @@ export const getLanguageCode = async () => {
 
 // Map i18n language codes to dayjs locale codes
 const dayjsLocaleMap: Record<string, string> = {
+  'ar-YE': 'ar',
   'en-US': 'en',
   'ja-JP': 'ja',
   'ru-RU': 'ru',

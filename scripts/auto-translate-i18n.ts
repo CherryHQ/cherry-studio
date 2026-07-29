@@ -143,6 +143,7 @@ class ConcurrencyController {
 const concurrencyController = new ConcurrencyController(SCRIPT_CONFIG.MAX_CONCURRENT_TRANSLATIONS)
 
 const languageMap = {
+  'ar-ye': 'Arabic',
   'zh-cn': 'Simplified Chinese',
   'en-us': 'English',
   'ja-jp': 'Japanese',

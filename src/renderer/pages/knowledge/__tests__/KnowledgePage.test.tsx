@@ -909,14 +909,14 @@ describe('KnowledgePage', () => {
     })
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
-    const content = resizeButton.parentElement?.parentElement?.parentElement
+    const navigator = resizeButton.parentElement
 
-    if (!content) {
-      throw new Error('Expected knowledge page content container')
+    if (!navigator) {
+      throw new Error('Expected knowledge page navigator')
     }
 
-    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 500))
-    fireEvent.mouseDown(resizeButton)
+    vi.spyOn(navigator, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 250, 500))
+    fireEvent.mouseDown(resizeButton, { clientX: 250 })
     fireEvent.mouseMove(document, { clientX: 320 })
     fireEvent.mouseUp(document)
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')

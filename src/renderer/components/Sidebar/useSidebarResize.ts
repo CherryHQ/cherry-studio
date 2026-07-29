@@ -1,3 +1,4 @@
+import { getHorizontalResizeOrigin, getHorizontalResizeWidth } from '@renderer/utils/horizontalGeometry'
 import { useCallback, useEffect, useRef } from 'react'
 
 import {
@@ -29,7 +30,11 @@ export function useSidebarResize(
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
 
-      const containerLeft = sidebarRef.current?.parentElement?.getBoundingClientRect().left ?? 0
+      const sidebarRect = sidebarRef.current?.getBoundingClientRect()
+      const resizeOrigin = getHorizontalResizeOrigin(
+        sidebarRect ?? { left: 0, right: getSidebarDisplayWidth(width) },
+        event.clientX
+      )
       const startWidth = getSidebarDisplayWidth(width)
       let lastWidth: number | null = null
 
@@ -47,7 +52,7 @@ export function useSidebarResize(
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!isResizing.current) return
-        const nextWidth = moveEvent.clientX - containerLeft
+        const nextWidth = getHorizontalResizeWidth(resizeOrigin, moveEvent.clientX)
 
         if (nextWidth < SIDEBAR_HIDDEN_THRESHOLD) {
           commitDragWidth(0)
