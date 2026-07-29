@@ -544,7 +544,10 @@ reverse commit boundary, so a crash after it can never be interpreted as forward
 
 **The terminal state is durable before anything is deleted.** Every terminal outcome writes
 the journal **first** and drops the staging tree **second**, and a terminal write that fails
-keeps the tree (making the write retryable) instead of proceeding. The reverse order costs
+keeps the tree and **refuses the boot**: an outcome that never reached the disk is not an
+outcome, so the gate stops rather than start the app under a journal that still describes a
+restore in flight. Nothing else is touched, and the next boot re-decides from the same
+evidence and retries the same terminal write. The reverse order costs
 data: with the tree gone under a still-`promoting` journal, every rolled-back unit sits at
 pre-commit `-L-`, which the table above reads as an installed backup — so the next boot
 would move the user's own files back out.
