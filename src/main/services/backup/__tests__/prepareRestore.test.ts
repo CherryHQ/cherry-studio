@@ -11,6 +11,12 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import type { Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { snapshotTo } from '@data/db/restore/snapshot'
@@ -18,11 +24,6 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
-import { setupTestDatabase } from '@test-helpers/db'
-import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import type { Mock } from 'vitest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { presentDegradations } from '../degradationReport'
 import { exportArchive } from '../exportArchive'
@@ -105,6 +106,14 @@ describe('restore preparation', () => {
         return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
         return join(userData, 'Data', 'Skills')
+      case 'feature.mcp.workspace':
+        return join(userData, 'Data', 'Workspace')
+      case 'feature.mcp.memory_file':
+        return join(userData, 'Data', 'Mcp', 'memory.json')
+      case 'feature.agents.channels':
+        return join(userData, 'Data', 'Channels')
+      case 'feature.agents.claude.root':
+        return join(userData, 'Data', 'Agents', '.claude')
       default:
         throw new Error(`Unexpected path key in prepare test: ${key}`)
     }
@@ -142,6 +151,11 @@ describe('restore preparation', () => {
     mkdirSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
     mkdirSync(join(userData, 'Data', 'Notes'), { recursive: true })
     mkdirSync(join(userData, 'Data', 'Agents', 'system', 's-1'), { recursive: true })
+    mkdirSync(join(userData, 'Data', 'Workspace'), { recursive: true })
+    mkdirSync(join(userData, 'Data', 'Mcp'), { recursive: true })
+    writeFileSync(join(userData, 'Data', 'Mcp', 'memory.json'), '{"entities":[],"relations":[]}')
+    mkdirSync(join(userData, 'Data', 'Channels'), { recursive: true })
+    mkdirSync(join(userData, 'Data', 'Agents', '.claude'), { recursive: true })
   }
 
   describe('prepare', () => {
@@ -152,13 +166,13 @@ describe('restore preparation', () => {
 
       // The Knowledge base is present but ships without its index, so it is
       // reported as rebuildable — never as plain available, and never twice.
-      expect(preview.coverage).toEqual({ available: 3, rebuildable: 1, missing: 0, unverifiable: 0 })
+      expect(preview.coverage).toEqual({ available: 7, rebuildable: 1, missing: 0, unverifiable: 0 })
     })
 
     it('reports resources missing on an empty device without creating any of them', async () => {
       const preview = await prepareRestore({ archivePath })
 
-      expect(preview.coverage).toEqual({ available: 0, rebuildable: 0, missing: 4, unverifiable: 0 })
+      expect(preview.coverage).toEqual({ available: 0, rebuildable: 0, missing: 8, unverifiable: 0 })
       // Diagnostic only: a coverage probe must never conjure the managed
       // resource roots it failed to find. Data itself still owns the live DB.
       for (const resourceRoot of ['Files', 'KnowledgeBase', 'Notes', 'Agents', 'Skills']) {
@@ -174,7 +188,7 @@ describe('restore preparation', () => {
 
       const preview = await prepareRestore({ archivePath })
 
-      expect(preview.coverage).toEqual({ available: 3, rebuildable: 0, missing: 1, unverifiable: 0 })
+      expect(preview.coverage).toEqual({ available: 7, rebuildable: 0, missing: 1, unverifiable: 0 })
     })
 
     it('partitions every requirement into exactly one coverage bucket', async () => {
@@ -183,9 +197,9 @@ describe('restore preparation', () => {
       const preview = await prepareRestore({ archivePath })
       const { available, rebuildable, missing } = preview.coverage
 
-      // Four requirements, whatever this device happens to hold; `unverifiable`
+      // Eight requirements, whatever this device happens to hold; `unverifiable`
       // counts references that are not requirements and stays out of the sum.
-      expect(available + rebuildable + missing).toBe(4)
+      expect(available + rebuildable + missing).toBe(8)
       expect(rebuildable).toBeGreaterThan(0)
     })
 
@@ -370,11 +384,11 @@ describe('restore preparation', () => {
       const preview = await prepareRestore({ archivePath: out })
       const read = readRestoreJournalV2()
 
-      expect(preview.degradations).toHaveLength(4)
+      expect(preview.degradations).toHaveLength(8)
       expect(read.kind).toBe('ok')
       if (read.kind !== 'ok') return
       expect(read.journal.degradations).toEqual([
-        { kind: 'report:resource-unavailable', reason: 'count:4' },
+        { kind: 'report:resource-unavailable', reason: 'count:8' },
         {
           kind: 'report-sample:resource-unavailable',
           reason: 'sample',
@@ -391,18 +405,33 @@ describe('restore preparation', () => {
 
     it('seals an install entry per payload and stages the bytes the journal names', async () => {
       const full = await exportFull()
-      rmSync(join(userData, 'Data'), { recursive: true })
+      for (const resourceRoot of [
+        'Files',
+        'KnowledgeBase',
+        'Notes',
+        'Agents',
+        'Skills',
+        'Workspace',
+        'Mcp',
+        'Channels'
+      ]) {
+        rmSync(join(userData, 'Data', resourceRoot), { recursive: true, force: true })
+      }
 
       const preview = await prepareRestore({ archivePath: full })
 
-      expect(preview.resources).toEqual({ install: 4, replace: 0 })
+      expect(preview.resources).toEqual({ install: 8, replace: 0 })
       const read = readRestoreJournalV2()
       if (read.kind !== 'ok') throw new Error('expected a prepared journal')
       expect(read.journal.resourceInstalls.map((entry) => entry.live).sort()).toEqual([
+        'Data/Agents/.claude',
         'Data/Agents/system/s-1',
+        'Data/Channels',
         'Data/Files/11111111-1111-4111-8111-111111111111.pdf',
         'Data/KnowledgeBase/kb-1',
-        'Data/Notes'
+        'Data/Mcp/memory.json',
+        'Data/Notes',
+        'Data/Workspace'
       ])
       for (const entry of read.journal.resourceInstalls) {
         expect(entry.staging).toBe(`restore-staging/${preview.restoreId}/resources/${entry.live}`)
@@ -422,7 +451,7 @@ describe('restore preparation', () => {
 
       // Same-device restore: every declared target still exists, so every unit
       // replaces rather than installs.
-      expect(preview.resources).toEqual({ install: 0, replace: 4 })
+      expect(preview.resources).toEqual({ install: 0, replace: 8 })
     })
 
     it.each([

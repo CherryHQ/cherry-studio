@@ -158,7 +158,9 @@ export function buildPathRegistry() {
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
-    'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    'feature.mcp.memory_file': path.join(appUserDataData, 'Mcp', 'memory.json'),
+    // Read-only source for additive adoption into the active profile.
+    'feature.mcp.memory_legacy_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
     // `@cherry/mcp-auto-install` owns both: its Registry API cache, and the config file it
     // writes to instead of probing the user's other MCP clients
     'feature.mcp.registry_file': path.join(CHERRY_HOME, 'config', 'mcp-registry.json'),
@@ -382,6 +384,7 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.mcp.memory_legacy_file',
   'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

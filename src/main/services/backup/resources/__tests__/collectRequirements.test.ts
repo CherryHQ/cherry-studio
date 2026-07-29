@@ -2,6 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -9,8 +12,6 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
-import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceRoots } from '../adapters'
 import { collectResourceRequirements } from '../collectRequirements'
@@ -35,7 +36,11 @@ const ROOTS: ResourceRoots = {
   notes: `${USER_DATA}/Data/Notes`,
   agentData: `${USER_DATA}/Data/Agents`,
   systemWorkspaces: `${USER_DATA}/Data/Agents/system`,
-  skills: `${USER_DATA}/Data/Skills`
+  skills: `${USER_DATA}/Data/Skills`,
+  mcpWorkspace: `${USER_DATA}/Data/Workspace`,
+  mcpMemory: `${USER_DATA}/Data/Mcp/memory.json`,
+  agentChannels: `${USER_DATA}/Data/Channels`,
+  agentRuntimeConfig: `${USER_DATA}/Data/Agents/.claude`
 }
 
 describe('collectResourceRequirements', () => {
@@ -91,17 +96,27 @@ describe('collectResourceRequirements', () => {
       .run()
   }
 
-  it('declares the managed Notes library even when sparse note state has no rows', () => {
+  it('declares fixed profile roots even when their database tables have no rows', () => {
     const inventory = collect()
 
-    expect(inventory.requirements).toEqual([{ kind: 'note-root', resourceType: 'directory', livePath: 'Data/Notes' }])
+    expect(inventory.requirements).toEqual([
+      { kind: 'note-root', resourceType: 'directory', livePath: 'Data/Notes' },
+      { kind: 'mcp-workspace', resourceType: 'directory', livePath: 'Data/Workspace' },
+      { kind: 'mcp-memory', resourceType: 'file', livePath: 'Data/Mcp/memory.json' },
+      { kind: 'agent-channel-state', resourceType: 'directory', livePath: 'Data/Channels' },
+      { kind: 'agent-runtime-config', resourceType: 'directory', livePath: 'Data/Agents/.claude' }
+    ])
     expect(inventory.unverifiableByKind).toEqual({
       'file-blob': 0,
       'knowledge-base': 0,
       'note-root': 0,
       'agent-data': 0,
       'agent-workspace': 0,
-      skill: 0
+      skill: 0,
+      'mcp-workspace': 0,
+      'mcp-memory': 0,
+      'agent-channel-state': 0,
+      'agent-runtime-config': 0
     })
   })
 
@@ -410,7 +425,7 @@ describe('collectResourceRequirements', () => {
 
     const inventory = collectResourceRequirements({ dbPath, roots: ROOTS, userDataPath: USER_DATA })
 
-    expect(inventory.requirements.length).toBe(3)
+    expect(inventory.requirements.length).toBe(7)
     // `collect()` opens the snapshot through better-sqlite3 (native, not these
     // bindings), so any hit here is an adapter probing a target resource.
     for (const spy of spies) {

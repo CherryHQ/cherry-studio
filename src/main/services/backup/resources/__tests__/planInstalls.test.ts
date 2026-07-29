@@ -49,7 +49,11 @@ function roots(): ResourceRoots {
     notes: join(userData, 'Data', 'Notes'),
     agentData: join(userData, 'Data', 'Agents'),
     systemWorkspaces: join(userData, 'Data', 'Agents', 'system'),
-    skills: join(userData, 'Data', 'Skills')
+    skills: join(userData, 'Data', 'Skills'),
+    mcpWorkspace: join(userData, 'Data', 'Workspace'),
+    mcpMemory: join(userData, 'Data', 'Mcp', 'memory.json'),
+    agentChannels: join(userData, 'Data', 'Channels'),
+    agentRuntimeConfig: join(userData, 'Data', 'Agents', '.claude')
   }
 }
 

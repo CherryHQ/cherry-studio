@@ -47,6 +47,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 vi.mock('../ChannelMessageHandler', () => ({
   channelMessageHandler: {
     isWriteQuiesced: false,
+    runWhenResumed: vi.fn((work: () => unknown) => Promise.resolve().then(work)),
     handleIncoming: vi.fn().mockResolvedValue(undefined),
     handleCommand: vi.fn().mockResolvedValue(undefined),
     clearSessionTracker: vi.fn(),
@@ -189,6 +190,21 @@ describe('ChannelManager', () => {
     expect(manager.getAdapter('ch-1')).toBeUndefined()
     expect(manager.getChannelLogs('ch-1')).toEqual([])
     expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toBeUndefined()
+  })
+
+  it('routes inbound messages through the resumable intake gate before persisting chat state', async () => {
+    rows = [makeChannel()]
+    await manager.start()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
+
+    const message = { chatId: 'chat-1', userId: 'user-1', userName: 'User', text: 'hello' }
+    adapters[0].emit('message', message)
+
+    expect(channelMessageHandler.runWhenResumed).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => {
+      expect(channelService.addActiveChatId).toHaveBeenCalledWith('ch-1', 'chat-1')
+      expect(channelMessageHandler.handleIncoming).toHaveBeenCalledWith(adapters[0], message)
+    })
   })
 
   it('installs the QR waiter before starting reconciliation', async () => {

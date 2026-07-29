@@ -50,11 +50,13 @@ the document elaborates the mechanisms that enforce them.
 6. **No copy fallback this release.** Symlink/special-file managed roots and
    cross-filesystem (`EXDEV`) resource installs fail *before* mutation with an actionable
    error.
-7. **Snapshot-time vs staging-time failure differ.** A managed payload already missing at
-   snapshot time produces an explicitly *degraded* archive (export still allowed). A
-   payload that disappears, changes, becomes non-portable, or exceeds its per-unit
-   ceiling after the boundary is omitted atomically and disclosed; archive-wide,
-   database, staging-volume, aggregate-ceiling, and publication failures still fail closed.
+7. **Seal-time capture defects degrade; post-seal drift fails.** A missing, wrong-typed, or
+   uncapturable resource root is disclosed as a whole-unit degradation. Inside a capturable
+   directory, external, dangling, cyclic, unreadable, and otherwise unclassified reference
+   edges are omitted individually and disclosed; an internal link is materialized as ordinary
+   archive bytes. Any source addition, deletion, replacement, content/metadata/tree change,
+   portability violation, or ceiling violation observed after sealing aborts the entire
+   export; no archive is published.
 8. **Preparation is unarmed and identity-bound.** Restore preparation is cancellable and grants no
    permission to promote; explicit relaunch confirmation carries the preview's `restoreId`, and main
    arms only that exact still-prepared journal.
@@ -115,6 +117,9 @@ holds extra paths — target-only files are kept, by product decision.
 | Paintings and their internal file closure | Caches, logs, model/toolchain downloads, temp data |
 | Managed Notes bodies, including roots with zero sparse `note` state rows | Rebuildable FTS/Knowledge indexes |
 | Agent identity (`SOUL.md`, `USER.md`), memory, and system workspaces | User-selected external workspaces |
+| Built-in MCP workspace and profile-owned MCP memory graph | MCP OAuth, DXT/package state, and external MCP workspaces |
+| Agent channel credentials/context tokens (restored inactive) | Target-device channel activation |
+| Agent runtime `.claude` config, excluding its generated `skills/` mirror | Copilot safeStorage token |
 | Local/ZIP Skills when their directory is authoritative | Third-party package state that cannot relocate safely |
 | Other Cherry-owned managed roots explicitly registered by the owning feature | |
 
@@ -152,6 +157,14 @@ rows and never combines two identities.
 **Invariant:** managed-path rebasing and runtime-key sanitation are deterministic archive
 materialization, never a row merge. A byte-equivalent business DB payload MUST result for
 the same source snapshot.
+
+`PORTABLE_DB_POLICIES` also carries a reviewed reference ledger for every path, URL,
+workspace selector, and reference-bearing JSON surface the app may dereference. Each entry
+declares one target-safe disposition — preserve inert, rebase, reset, deactivate, or drop —
+and owner evidence for its unknown/malformed fallback. `schemaGuard.test.ts` binds that
+ledger to the production Drizzle columns and fails if a reviewed surface loses its policy;
+ordinary file bytes that no application reader interprets are not references and remain
+ordinary capture content.
 
 ---
 
@@ -207,11 +220,13 @@ A published archive is a single ZIP named `<name>.cherrybackup`, mode `0600`
 ```
 
 An archive whose profile owns no resources carries `manifest.json` + `backup.sqlite`
-only — `resources/` is absent, not empty. Publication is **atomic** and
-strictly **no-clobber**: the producer writes into an operation-owned `mkdtemp`
-directory beside the destination (same filesystem) and commits with a single
-`link()`. It never overwrites or deletes a pre-existing sibling or destination,
-and it only ever removes its own temp tree. When a volume cannot hard-link
+only — `resources/` is absent, not empty. Before publication, the producer
+`fsync`s the temporary ZIP, reopens it, and applies the same directory, duplicate-entry,
+size, and SHA-256 admission checks to the archive bytes that will be published. Publication
+is **atomic** and strictly **no-clobber**: the producer writes into an
+operation-owned `mkdtemp` directory beside the destination (same filesystem) and commits
+with a single `link()`. It never overwrites or deletes a pre-existing sibling or
+destination, and it only ever removes its own temp tree. When a volume cannot hard-link
 (exFAT / some network mounts) publication **fails closed** with a typed
 `HardLinkUnsupportedError` — there is deliberately **no** `copyFile` fallback
 (Node documents `copyFile` as non-atomic), so the frozen atomic contract holds
@@ -226,6 +241,14 @@ requirement set to size Full resources before their first copy, and preflights
 the destination before archive publication. A mid-write `ENOSPC` remains the
 producer's `DiskFullError` backstop for races after those checks.
 
+Each export owns a `0700` profile staging tree and a destination-side publish tree. Both
+carry an operation marker containing a random operation ID and their captured filesystem
+identity. Startup cleanup removes a stale path only after verifying the matching marker,
+nonce, expected parent containment, current `dev`/`ino`, and non-symlink ownership. It
+never removes the final archive. A failure before `link()` leaves no final path; cleanup
+failure after `link()` is cleanup debt and cannot turn a committed archive into a reported
+failure.
+
 ### 5.1.1 Manifest contents
 
 | Field group | Records |
@@ -237,7 +260,7 @@ producer's `DiskFullError` backstop for races after those checks.
 | Resource requirements | Existence-oriented requirement inventory |
 | Resource payloads | Included payload inventory + cryptographic hashes; file units authenticate one portable `executable` bit |
 | Directory-unit hash spec | See §5.1.2 |
-| Exclusions/degradations | Explicit product-allowed exclusions and degraded sections |
+| Exclusions/degradations | `resource:<kind>` for an omitted whole unit; `resource-entry:<kind>` for an omitted entry inside an otherwise valid payload |
 
 All cryptographic hashes are **SHA-256, 64 lowercase hex** (the `hashDbFile`
 representation). Archives contain **plaintext credentials**. Output mode `0600`
@@ -247,9 +270,9 @@ archives expose API keys.
 ### 5.1.2 Canonical directory-unit hash
 
 A directory payload (a Knowledge base, a Skill, a Notes tree) is content-addressed
-by one SHA-256 (`hashDirectoryUnit`). The producer (over the staged tree) and
-admission (over the extracted tree) compute the identical digest via one shared
-scanner (`dirScan.ts`), so they can never disagree on membership or order:
+by one SHA-256 (`hashDirectoryUnit`). The producer (over the already materialized
+staged tree) and admission (over the extracted tree) compute the identical digest
+through the scanner's strict mode, so they can never disagree on membership or order:
 
 - the unit's **directories and regular files** — symlink/special nodes and a
   symlinked root are rejected; **every** relative path passes the Phase-1a
@@ -268,12 +291,29 @@ scanner (`dirScan.ts`), so they can never disagree on membership or order:
 Node metadata identity uses **bigint** stat (`dev`/`ino`/`size`/`mtimeNs`/`ctimeNs`)
 so a same-size fast rewrite or a metadata-only change is observable to a re-scan.
 
-**Knowledge derived-index exclusion is opt-in and root-exact.** Only the Knowledge
-adapter's `excludeKnowledgeDerivedIndex` option drops artifacts, and it matches
-**only** the exact unit-root paths `.cherry/index.sqlite`, `.cherry/index.sqlite-wal`,
-`.cherry/index.sqlite-shm` (a Knowledge unit is one `{baseId}` directory, §6.7).
-It defaults to **off**; a nested `sub/.cherry/index.sqlite` or any `.cherry`
-content in a Skills/Notes unit is authoritative and never dropped.
+Live-source capture uses the scanner's separate capture mode to produce that strict
+ordinary-node tree:
+
+- a regular file/directory is included;
+- a link whose final target remains inside the same resource unit is expanded and
+  staged as an ordinary file/directory, while its link identity and text remain in
+  the in-memory drift proof;
+- an external or dangling link is not followed or hashed; only the link itself is
+  tracked, omitted, and disclosed;
+- only the link edge that would close a directory cycle is omitted;
+- an unreadable/special/unclassified leaf is omitted and disclosed, without losing
+  capturable siblings; if all children are omitted, the directory payload remains
+  a legal empty tree;
+- an uncapturable resource root omits only that unit.
+
+The four generic decisions are `include`, `materialize-internal`, `exclude-derived`,
+and `omit-with-degradation`. Owner policy is opt-in and contains the only semantic
+exclusions: Knowledge excludes the exact unit-root
+`.cherry/index.sqlite{,-wal,-shm}` artifacts; Agent runtime config excludes the
+generated `skills/` mirror; and an Agent workspace excludes only a direct
+`.claude/skills/<name>` link whose target is inside the canonical managed Skill
+library. A real same-name directory remains authoritative. The scanner contains no
+Knowledge, Agent, or Skill filename knowledge.
 
 ### 5.2 Admission — rejected before journal creation
 
@@ -292,7 +332,8 @@ write:
 - Corrupt SQLite or an invalid staged migration result.
 - A manifest requirement set that differs from the materialized DB's authoritative closure,
   a payload absent from that closure, a payload kind aimed at another kind's root, or a
-  missing Full payload without its exact disclosed resource degradation.
+  missing Full payload without its exact disclosed `resource:<kind>` degradation.
+  A `resource-entry:<kind>` degradation never authorizes the whole payload to be absent.
 
 The ZIP catalog preserves every central-directory record instead of using a name-keyed
 map, so duplicate entries cannot hide one another. Central-directory sizes and compression
@@ -387,49 +428,78 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
   `restore-aside/<restoreId>` tree — not once per entry. A ceiling fixture proves this bound;
   a recorded, non-gating benchmark documents expected preboot time.
 
-### 5.4 Source-drift detection (export staging)
+### 5.4 Application-level export transaction
 
-- **Snapshot boundary (sequential, not atomic):** Full export snapshots SQLite and then captures
-  every required resource identity. The two steps are ordered but not mutually exclusive with
-  concurrent profile writes, so a write can land between them. A unit deleted before its identity
-  is read is degraded out with `absent-at-snapshot`; anything that changes after the baseline is
-  caught by per-unit drift detection and omitted with `changed-after-snapshot`. What remains
-  uncovered is a byte-level DB↔filesystem tearing window — a resource captured in a state the
-  exported database does not describe. Closing it fully requires a cross-store mutation barrier
-  and is deferred to a follow-up change. Bulk byte copying still happens after the baseline and
-  is always checked against it.
-- **Files:** snapshot-boundary identity plus source-handle pre/post metadata are compared while
+Export uses an application-level snapshot transaction, not a SQLite transaction:
+
+```text
+PREPARING → QUIESCING → SEALED → COPYING → VERIFIED → COMMITTED
+                 └──── any pre-commit failure ────→ ABORTED
+```
+
+`ProfileWriteBarrierService` is the shared admission boundary for direct profile writers.
+`runWrite()` covers promise-scoped mutations; `acquireWriteLease()` covers streams and
+callbacks until `finish`/`abort`. Nested calls inherit their lease through
+`AsyncLocalStorage`, so an admitted DataApi owner that writes a file does not double-count
+or deadlock. Paused writers wait outside the in-flight count, and shutdown rejects queued
+writers without force-killing admitted work.
+
+`FileManager` is the v2 owner for file, stream, trash, delete, and sweep mutations.
+The deprecated `FileStorage` singleton is not a lifecycle participant and the export
+transaction never resolves or depends on it; its remaining legacy mutation entry points
+use the shared barrier only as a temporary compatibility guard until those IPC routes are
+removed.
+
+One 30-second monotonic deadline governs sealing:
+
+1. Channel intake enters defer mode and flushes, then drains already admitted work into
+   Agent/AI.
+2. Channel adapter runtime, AI, Agent, Job, and Claude warm-query pause and drain.
+3. The profile write barrier closes and drains DataApi, Preference, File, Knowledge,
+   Skill, credential/context-token, and other owner-scoped direct writes.
+4. MCP runtime pauses last and drains tool calls, client initialization, and managed
+   memory/workspace writes.
+5. With every verdict clean, synchronous `VACUUM INTO` creates the detached DB. It cannot
+   be interrupted; deadline and cancellation are checked immediately after it returns.
+6. Requirements are derived from the detached DB. Every required file records
+   `dev`/`ino`/`size`/`mtimeNs`/`ctimeNs`; directory trees and owner projections are
+   scanned and immediately rescanned while writes remain paused.
+
+The `finally` path releases every hold in strict reverse order — MCP, profile barrier,
+Job/Agent/AI/warm-query/Channel runtime, then Channel intake — without letting a release
+error hide the original export failure. Deferred requests then resume normally; they are
+not rejected as busy and messages are not discarded.
+
+Bulk work happens after writers resume. The detached DB is materialized, requirement
+closure is checked again, and resources are copied against the sealed baseline:
+
+- **Files:** sealed identity plus source-handle pre/post metadata are compared while
   streaming to the staged hash.
-- **Directories:** a deterministic initial tree manifest, per-file pre/post checks, and a
-  final tree rescan.
-- Cancellation is checked per chunk/file. Expected source-unit failures remove only
-  operation-owned unit staging and let later units continue; aggregate ceilings, staging-volume
-  errors, archive-owned corruption, and publication failures still fail closed.
+- **Directories:** the sealed deterministic tree manifest, per-file pre/post checks, and a
+  final tree rescan must all agree. Materialized internal-link targets are copied through
+  their physical source paths into virtual ordinary archive paths; omitted links are
+  rechecked by `lstat` + `readlink` without reading their external targets.
+- Cancellation is checked per chunk/file. Unit staging is removed on failure, but the
+  export itself always aborts.
 
 - **Rebuildability (units whose derived state is excluded):** because export drops a
   Knowledge base's `.cherry/index.sqlite`, the `raw/` material is the only thing the
   restoring device could rebuild that index from. The baseline therefore proves, from the
-  sealed database alone, that every completed indexable leaf has its material inside the
-  scan it just took — no second stat pass, so no window between proof and capture. A base
+  sealed database alone, that every completed indexable leaf has its material inside both
+  matching scans taken while writers are paused. A base
   that cannot supply it (notably a v1→v2 upgraded directory child that only ever had a
   virtual path) is degraded out WHOLE with `unrebuildable-content` rather than shipped as
   an index-less shell. The cost is disclosed, not silent: such a base is not protected by
   the backup, and carrying the index instead is a separate, negotiated change.
 
-A payload already missing or wrong-typed at snapshot time records `absent-at-snapshot` or
-`type-mismatch-at-snapshot`. A post-boundary unit that changes, disappears, contains a
-non-regular node, violates portability, or exceeds a per-unit ceiling is omitted atomically
-with `changed-after-snapshot`, `non-regular-source`, `unportable-source`, or
-`resource-ceiling-exceeded`. Omission is what keeps the ARCHIVE self-consistent: a unit
-whose bytes could not be captured against the snapshot is left out rather than shipped at a
-version the archive's database does not describe.
-
-That is a statement about the archive, not a promise about the target. Restoring onto a
-device that still holds the omitted unit installs nothing there, so its current — possibly
-newer — bytes stay in place beside the older database that was just promoted. Nothing
-deletes them, and nothing reconciles them; the coverage report and the degradation list are
-what disclose the pairing. A degraded Full archive is successful but is never presented as
-complete recovery.
+An uncapturable root records `resource:<kind>`; an omitted entry records
+`resource-entry:<kind>` with one of `external-reference`, `dangling-reference`,
+`cyclic-reference`, or `unclassified-reference`. Degradations persist only safe
+profile-relative sample paths, never an external absolute target. Any later addition,
+deletion, replacement, link retarget, content or tree change fails with
+`BACKUP_EXPORT_SOURCE`; an unportable path or ceiling violation also fails the whole
+export. No `changed-after-snapshot` degradation is produced, so the detached database is
+never published with an unproven filesystem view.
 
 ---
 
@@ -671,9 +741,10 @@ poll retries until completion without making shutdown wait for embedding work. W
 restore-scoped job for a base remains active, later polls skip that base's full file/material
 scan and enqueue pass; they reconcile again only after those jobs settle. A durable user
 abandonment marker stops polling across restarts and cancels active restore-scoped jobs before
-rollback material is released. Export and directory payload hashing exclude only
-`{baseId}/.cherry/index.sqlite{,-wal,-shm}`, and export ships a base only after proving it
-carries the material that rebuild needs (§5.4).
+rollback material is released. Owner capture policies exclude the Knowledge
+`{baseId}/.cherry/index.sqlite{,-wal,-shm}` artifacts and the generated
+agent-runtime `skills/` mirror; the generic scanner contains neither rule. Export ships a
+Knowledge base only after proving it carries the material that rebuild needs (§5.4).
 
 ---
 
@@ -685,8 +756,8 @@ known out-of-database content:
 ```ts
 interface BackupResourceAdapter {
   readonly kind: BackupResourceKind
+  readonly capturePolicy?: (roots: ResourceRoots) => CapturePolicy
   collectRequirements(ctx: SnapshotReadContext): readonly ResourceRequirement[]
-  stageResources(ctx: FullResourceStageContext): Promise<readonly StagedResource[]>
 }
 
 const RESOURCE_ADAPTERS: readonly BackupResourceAdapter[] = [/* known resource owners */]
@@ -711,6 +782,10 @@ invent a generic contributor framework. Feature modules must not depend upward o
 | Immutable/internal file blob | Individual file |
 | Knowledge Base | `{baseId}` directory as one unit; exclude/rebuild derived index |
 | Local/ZIP Skill | Skill directory as one unit |
+| Built-in MCP workspace | Managed workspace root as one unit |
+| Built-in MCP memory | Profile-owned `Data/Mcp/memory.json` file |
+| Agent channel state | Managed channel-state root as one unit; activation remains reset |
+| Agent runtime config | Managed `.claude` root as one unit; exclude generated `skills/` mirror |
 | Notes | Managed markdown file/tree entries; external Notes roots never automatic targets |
 | Agent/MCP managed directories | Only after their owner declares a registered safe root and archive contract |
 
@@ -790,7 +865,7 @@ evidence of *what* the system must do, never ancestry to inherit.
 |---|---|
 | `DbService.createSnapshot()` / `checkpointTruncate()` | `src/main/data/db/DbService.ts:256`, `:270` |
 | `snapshotTo` (`VACUUM INTO`), `checkpointTruncateAssert`, `hashDbFile`, `readAppliedChain` | `src/main/data/db/restore/{snapshot,checkpoint,hashDbFile,appliedChain}.ts` |
-| Restore journal fsync primitives, promotion step/commit probing, crash recovery, `markRestoreFailedAfterCrash`, `isLiveDbStranded`, `runRestorePromotion` | `src/main/data/db/restore/{restoreJournal,restorePromotion}.ts` |
+| Restore journal fsync primitives, promotion step/commit probing, crash recovery, `markRestoreFailedAfterCrash`, `isLiveDbStranded`, `runRestorePromotion` | `src/main/data/db/restore/{restoreJournalV2,restorePromotionV2}.ts` |
 | Preboot restore gate | `src/main/core/preboot/backupRestoreGate.ts` |
 | Path registry / containment rules (`feature.backup.*` keys) | `src/main/core/paths/pathRegistry.ts` |
 | Orphan sweep | `src/main/services/file/internal/orphanSweep.ts` |
@@ -808,7 +883,9 @@ scheduling (`enqueueRestoredKnowledgeReindex`).
 **Genuinely new — proved by focused tests before UI:** manifest v2 with
 complete-chain/payload integrity; portable DB sanitizer/materializer and active-capability
 reset; journal-v2 `prepared`/`armed` states and unified file/directory resource-install;
-source-drift detection, existence inventory, path-overlap/same-filesystem enforcement,
+the shared profile write barrier and fixed quiesce/drain sequence; sealed DB/resource
+baselines with fail-closed source drift; ZIP read-back verification and operation-owned
+crash cleanup; existence inventory, path-overlap/same-filesystem enforcement,
 completed-restore GC protection, and acknowledgement cleanup.
 
 **Explicitly excluded — do NOT port and do NOT reintroduce:**

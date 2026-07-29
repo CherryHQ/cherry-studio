@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp } from 'node:fs/promises'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
 
@@ -35,8 +35,10 @@ import type { ArchiveShape, NormalizedEntry } from './catalog'
 const STAGING_PREFIX = 'cs-admit-'
 
 /** Create the exclusively-owned staging directory under an already-resolved existing parent. */
-export function createStagingDir(stagingParent: string): Promise<string> {
-  return mkdtemp(path.join(stagingParent, STAGING_PREFIX))
+export async function createStagingDir(stagingParent: string): Promise<string> {
+  const stagingDir = await mkdtemp(path.join(stagingParent, STAGING_PREFIX))
+  await chmod(stagingDir, 0o700)
+  return stagingDir
 }
 
 /** Absolute on-disk destination of a validated POSIX relative archive path, under the staging root. */
@@ -94,7 +96,7 @@ interface PumpOptions {
 async function pumpBounded(stream: Readable, destPath: string, opts: PumpOptions): Promise<number> {
   const { declaredBytes, absoluteCap, budget, overflowReason, entryLabel, signal } = opts
   const perEntryCap = Math.min(declaredBytes, absoluteCap)
-  await mkdir(path.dirname(destPath), { recursive: true })
+  await mkdir(path.dirname(destPath), { recursive: true, mode: 0o700 })
   const out = createWriteStream(destPath, { flags: 'wx', mode: opts.executable ? 0o700 : 0o600 })
   let bytes = 0
   let settled = false
@@ -233,7 +235,7 @@ export async function extractPayload(
   // when it carries no files.
   for (const dir of shape.resourceDirs) {
     if (signal?.aborted) throw new BackupCancelledError()
-    await mkdir(stagedPathOf(stagingDir, dir.path), { recursive: true })
+    await mkdir(stagedPathOf(stagingDir, dir.path), { recursive: true, mode: 0o700 })
   }
 
   for (const file of shape.resourceFiles) {

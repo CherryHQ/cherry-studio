@@ -67,6 +67,10 @@ export class KnowledgeService extends BaseService {
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
 
+  private runProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
+    return application.get('ProfileWriteBarrierService').runWrite(`knowledge:${label}`, operation)
+  }
+
   protected onInit(): void {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler(
@@ -91,15 +95,17 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return await this.baseAdmin.createBase(dto)
+    return this.runProfileWrite('create-base', () => this.baseAdmin.createBase(dto))
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await this.baseAdmin.deleteBase(baseId)
+    await this.runProfileWrite(`delete-base:${baseId}`, () => this.baseAdmin.deleteBase(baseId))
   }
 
   async removeOrphanBaseArtifacts(baseId: string): Promise<boolean> {
-    return await this.baseAdmin.removeOrphanBaseArtifacts(baseId)
+    return this.runProfileWrite(`remove-orphan-base-artifacts:${baseId}`, () =>
+      this.baseAdmin.removeOrphanBaseArtifacts(baseId)
+    )
   }
 
   inspectOrphanBaseArtifacts(): Promise<OrphanBaseArtifactsInspection> {
@@ -107,7 +113,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    return await this.baseAdmin.restoreBase(dto)
+    return this.runProfileWrite(`restore-base:${dto.sourceBaseId}`, () => this.baseAdmin.restoreBase(dto))
   }
 
   listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
@@ -124,15 +130,17 @@ export class KnowledgeService extends BaseService {
     items: KnowledgeAddItemInput[],
     conflictStrategy?: KnowledgeAddConflictStrategy
   ): Promise<KnowledgeAddItemsResult> {
-    return await this.ingestionService.addItems(baseId, items, conflictStrategy)
+    return this.runProfileWrite(`add-items:${baseId}`, () =>
+      this.ingestionService.addItems(baseId, items, conflictStrategy)
+    )
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.ingestionService.deleteItems(baseId, itemIds)
+    await this.runProfileWrite(`delete-items:${baseId}`, () => this.ingestionService.deleteItems(baseId, itemIds))
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.ingestionService.reindexItems(baseId, itemIds)
+    await this.runProfileWrite(`reindex-items:${baseId}`, () => this.ingestionService.reindexItems(baseId, itemIds))
   }
 
   /**
@@ -144,6 +152,15 @@ export class KnowledgeService extends BaseService {
    * that `index.sqlite` exists.
    */
   async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
+    return this.runProfileWrite(`reconcile-restored-base:${baseId}`, () =>
+      this.reconcileRestoredBaseFromMaterialUnderBarrier(baseId, restoreId)
+    )
+  }
+
+  private async reconcileRestoredBaseFromMaterialUnderBarrier(
+    baseId: string,
+    restoreId: string
+  ): Promise<'completed' | 'pending'> {
     let base: KnowledgeBase
     try {
       base = knowledgeBaseService.getById(baseId)
@@ -197,6 +214,12 @@ export class KnowledgeService extends BaseService {
 
   /** Stop every still-active indexing job created by one restore-specific rebuild. */
   async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
+    await this.runProfileWrite(`cancel-restored-rebuild:${restoreId}`, () =>
+      this.cancelRestoredMaterialRebuildUnderBarrier(restoreId)
+    )
+  }
+
+  private async cancelRestoredMaterialRebuildUnderBarrier(restoreId: string): Promise<void> {
     const jobManager = application.get('JobManager')
     const jobs = await jobManager.list({
       type: 'knowledge.index-documents',
@@ -242,7 +265,9 @@ export class KnowledgeService extends BaseService {
    * to roll back to once it is committed.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return await this.ingestionService.enableEmbeddingModel(baseId, patch)
+    return this.runProfileWrite(`enable-embedding-model:${baseId}`, () =>
+      this.ingestionService.enableEmbeddingModel(baseId, patch)
+    )
   }
 
   listRootItems(baseId: string): KnowledgeItem[] {
@@ -279,11 +304,15 @@ export class KnowledgeService extends BaseService {
   }
 
   async deleteConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
-    return await this.conceptService.deleteConcepts(baseId, conceptIds)
+    return this.runProfileWrite(`delete-concepts:${baseId}`, () =>
+      this.conceptService.deleteConcepts(baseId, conceptIds)
+    )
   }
 
   async refreshConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
-    return await this.conceptService.refreshConcepts(baseId, conceptIds)
+    return this.runProfileWrite(`refresh-concepts:${baseId}`, () =>
+      this.conceptService.refreshConcepts(baseId, conceptIds)
+    )
   }
 
   getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): KnowledgeOrganizationTree {

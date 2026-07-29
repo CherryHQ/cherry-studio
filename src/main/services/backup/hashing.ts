@@ -5,7 +5,6 @@ import path from 'node:path'
 
 import { hashDbFile } from '@data/db/restore/hashDbFile'
 
-import { isKnowledgeDerivedIndexPath } from './archiveLayout'
 import { type DirScanLimits, scanDirectoryUnit } from './dirScan'
 import { BackupCancelledError } from './errors'
 
@@ -19,9 +18,6 @@ import { BackupCancelledError } from './errors'
  * file's bytes, not DB-specific.
  */
 export const sha256File = hashDbFile
-
-/** Re-export the (restricted, root-only) Knowledge exclusion predicate. */
-export { isKnowledgeDerivedIndexPath }
 
 /** Byte size of a regular file (follows the path; caller vets symlink/special separately). */
 export async function fileSizeBytes(filePath: string): Promise<number> {
@@ -66,7 +62,6 @@ export interface HashDirectoryUnitOptions {
   readonly signal?: AbortSignal
   /** Admission override from authenticated ZIP metadata on platforms that cannot materialize Unix execute bits. */
   readonly executableByRelPath?: ReadonlyMap<string, boolean>
-  readonly excludeKnowledgeDerivedIndex?: boolean
   readonly limits?: DirScanLimits
 }
 
@@ -113,7 +108,6 @@ export async function hashDirectoryUnit(
 ): Promise<DirectoryUnitHash> {
   const scan = await scanDirectoryUnit(rootDir, {
     signal: options.signal,
-    excludeKnowledgeDerivedIndex: options.excludeKnowledgeDerivedIndex,
     limits: options.limits
   })
 

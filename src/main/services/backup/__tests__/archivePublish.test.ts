@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -147,6 +147,40 @@ describe('publishArchive — valid publication', () => {
     expect(await readFile(path.join(dir, 'unrelated.txt'), 'utf8')).toBe('KEEP')
     expect(await readFile(path.join(dir, '.out.cherrybackup.deadbeef.tmp'), 'utf8')).toBe('FOREIGN-LOOKS-LIKE-TEMP')
   })
+
+  it('keeps the committed archive successful when post-commit directory fsync fails', async () => {
+    vi.spyOn(archiveDurability, 'fsyncDir').mockRejectedValue(new Error('directory sync unavailable'))
+
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).resolves.toBeUndefined()
+
+    expect((await readFile(outPath)).byteLength).toBeGreaterThan(0)
+  })
+
+  it('keeps the committed archive successful when destination temp cleanup becomes debt', async () => {
+    vi.spyOn(publishSeams, 'removeTemp').mockRejectedValue(new Error('cleanup denied'))
+
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).resolves.toBeUndefined()
+
+    expect((await readFile(outPath)).byteLength).toBeGreaterThan(0)
+    expect(await ownedTempRemains()).toBe(true)
+  })
+
+  it('does not reverse commit when clearing the destination marker fails after temp removal', async () => {
+    const observer = {
+      onTempCreated: vi.fn(async () => {}),
+      onTempRemoved: vi.fn(async () => {
+        throw new Error('marker cleanup denied')
+      })
+    }
+
+    await expect(
+      publishArchive({ outPath, manifest: baseManifest(), dbCopyPath, tempObserver: observer })
+    ).resolves.toBeUndefined()
+
+    expect(existsSync(outPath)).toBe(true)
+    expect(await ownedTempRemains()).toBe(false)
+    expect(observer.onTempRemoved).toHaveBeenCalledOnce()
+  })
 })
 
 describe('publishArchive — DB payload verification', () => {
@@ -278,6 +312,17 @@ describe('publishArchive — cancellation & failure cleanup', () => {
     await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).rejects.toBeInstanceOf(
       DiskFullError
     )
+    expect(existsSync(outPath)).toBe(false)
+    expect(await ownedTempRemains()).toBe(false)
+  })
+
+  it('reopens the packaged ZIP and refuses commit when those bytes are corrupt', async () => {
+    vi.spyOn(publishSeams, 'beforeReadback').mockImplementation(async (tmpPath) => {
+      await truncate(tmpPath, 8)
+    })
+
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).rejects.toThrow()
+
     expect(existsSync(outPath)).toBe(false)
     expect(await ownedTempRemains()).toBe(false)
   })

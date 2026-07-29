@@ -3,16 +3,17 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import type { Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
-import { setupTestDatabase } from '@test-helpers/db'
-import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
-import type { Mock } from 'vitest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { admitArchive } from '../admission/admitArchive'
 import { diskProbe } from '../diskPreflight'
@@ -84,6 +85,14 @@ describe('exportArchive', () => {
         return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
         return join(userData, 'Data', 'Skills')
+      case 'feature.mcp.workspace':
+        return join(userData, 'Data', 'Workspace')
+      case 'feature.mcp.memory_file':
+        return join(userData, 'Data', 'Mcp', 'memory.json')
+      case 'feature.agents.channels':
+        return join(userData, 'Data', 'Channels')
+      case 'feature.agents.claude.root':
+        return join(userData, 'Data', 'Agents', '.claude')
       default:
         throw new Error(`Unexpected path key in export test: ${key}`)
     }
@@ -128,6 +137,11 @@ describe('exportArchive', () => {
     writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
     writeFileSync(mkFile(join(userData, 'Data', 'Notes', 'a.md')), '# note')
     mkdirSync(join(userData, 'Data', 'Notes', 'empty', 'nested'), { recursive: true })
+    writeFileSync(mkFile(join(userData, 'Data', 'Workspace', 'draft.md')), 'MCP WORKSPACE')
+    writeFileSync(mkFile(join(userData, 'Data', 'Mcp', 'memory.json')), '{"entities":[],"relations":[]}')
+    writeFileSync(mkFile(join(userData, 'Data', 'Channels', 'wechat.json')), 'CHANNEL')
+    writeFileSync(mkFile(join(userData, 'Data', 'Agents', '.claude', 'settings.json')), 'RUNTIME')
+    writeFileSync(mkFile(join(userData, 'Data', 'Agents', '.claude', 'skills', 'pdf', 'SKILL.md')), 'DERIVED')
     // Declared by a row but not present here: a degraded archive, not a failure.
     expect(existsSync(join(userData, 'Data', 'Agents', 'system', 's-1'))).toBe(false)
 
@@ -137,9 +151,13 @@ describe('exportArchive', () => {
     expect(result.manifest.producer.buildType).toBe('development')
     const payloads = result.manifest.resourcePayloads
     expect(payloads.map((p) => p.livePath).sort()).toEqual([
+      'Data/Agents/.claude',
+      'Data/Channels',
       'Data/Files/11111111-1111-4111-8111-111111111111.pdf',
       'Data/KnowledgeBase/kb-1',
-      'Data/Notes'
+      'Data/Mcp/memory.json',
+      'Data/Notes',
+      'Data/Workspace'
     ])
     expect(result.manifest.degradations).toContainEqual({
       kind: 'resource:agent-workspace',
@@ -163,6 +181,9 @@ describe('exportArchive', () => {
       expect(readFileSync(join(kb!.stagedPath, 'raw', 'doc.txt'), 'utf8')).toBe('SOURCE')
       const notes = admitted.resources.find((resource) => resource.livePath === 'Data/Notes')
       expect(existsSync(join(notes!.stagedPath, 'empty', 'nested'))).toBe(true)
+      const runtime = admitted.resources.find((resource) => resource.livePath === 'Data/Agents/.claude')
+      expect(readFileSync(join(runtime!.stagedPath, 'settings.json'), 'utf8')).toBe('RUNTIME')
+      expect(existsSync(join(runtime!.stagedPath, 'skills'))).toBe(false)
     } finally {
       await admitted.cleanup()
       rmSync(stagingParent, { recursive: true, force: true })
@@ -246,8 +267,8 @@ describe('exportArchive', () => {
     expect(manifest.resourcePayloads).toEqual([])
     // Every requirement is still declared, so the restoring device can report
     // exactly what this archive could not carry.
-    expect(manifest.resourceRequirements).toHaveLength(4)
-    expect(manifest.degradations).toHaveLength(4)
+    expect(manifest.resourceRequirements).toHaveLength(8)
+    expect(manifest.degradations).toHaveLength(8)
   })
 
   it('carries the producer roots and requirement inventory a cross-device restore needs', async () => {
@@ -268,6 +289,10 @@ describe('exportArchive', () => {
     expect(byKind('knowledge-base')).toEqual(['Data/KnowledgeBase/kb-1'])
     expect(byKind('note-root')).toEqual(['Data/Notes'])
     expect(byKind('agent-workspace')).toEqual(['Data/Agents/system/s-1'])
+    expect(byKind('mcp-workspace')).toEqual(['Data/Workspace'])
+    expect(byKind('mcp-memory')).toEqual(['Data/Mcp/memory.json'])
+    expect(byKind('agent-channel-state')).toEqual(['Data/Channels'])
+    expect(byKind('agent-runtime-config')).toEqual(['Data/Agents/.claude'])
   })
 
   it('derives requirements without reading a single target resource byte', async () => {
@@ -279,7 +304,7 @@ describe('exportArchive', () => {
 
     const { manifest } = await exportArchive({ outPath })
 
-    expect(manifest.resourceRequirements).toHaveLength(4)
+    expect(manifest.resourceRequirements).toHaveLength(8)
   })
 
   it('leaves no staging tree behind on success', async () => {
@@ -316,6 +341,7 @@ describe('exportArchive', () => {
     writeFileSync(mkFile(join(userData, 'Data', 'Files', '22222222-2222-4222-8222-222222222222.bin')), 'DATA')
 
     const statfs = vi.spyOn(diskProbe, 'statfs')
+    statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
     statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
     statfs.mockResolvedValueOnce({ bavail: 0n, bsize: 4096n } as never)
     let copied = false

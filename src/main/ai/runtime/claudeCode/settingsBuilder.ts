@@ -97,6 +97,10 @@ const OUT_OF_TURN_APPROVAL_DENIAL =
 // Cherry owns transcript retention through Agent Session purge and orphan reconciliation.
 const CLAUDE_SESSION_RETENTION_DAYS = 365_000
 
+function runAgentProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
+  return application.get('ProfileWriteBarrierService').runWrite(`agent:${label}`, operation)
+}
+
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function disposeToolPolicySnapshot(sessionId: string): void {
   sessionState().disposeToolPolicySnapshot(sessionId)
@@ -182,10 +186,13 @@ export async function buildClaudeCodeSessionSettings(
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
-  await prepareClaudeCodeWorkspaceDirectory(session)
+  const agentDataPromise = runAgentProfileWrite(`session-materialize:${session.id}`, async () => {
+    await prepareClaudeCodeWorkspaceDirectory(session)
+    return ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
+  })
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
-    ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
+    agentDataPromise,
     buildEnvironment(provider, agent),
     discoverPlugins(cwd, agent.id)
   ])
@@ -368,7 +375,11 @@ export async function buildClaudeCodeSessionSettings(
 // ── Subsection builders ─────────────────────────────────────────────
 
 export { AgentSessionWorkspaceError, isAgentSessionWorkspaceError }
-export const prepareClaudeCodeWorkspaceDirectory = prepareAgentSessionWorkspaceDirectory
+export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
+  await runAgentProfileWrite(`workspace-materialize:${session.id}`, () =>
+    prepareAgentSessionWorkspaceDirectory(session)
+  )
+}
 export const assertClaudeCodeWorkspaceDirectory = assertAgentSessionWorkspaceDirectory
 // Historical import paths for consumers inside the claudeCode boundary; implementations moved to
 // their responsibility modules.

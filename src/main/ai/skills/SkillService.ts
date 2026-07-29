@@ -33,6 +33,7 @@ import {
   parseSkillSourceUrl
 } from '@shared/utils/skillMarketplace'
 
+import { isManagedSkillTarget } from './capturePolicy'
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
@@ -80,6 +81,10 @@ export class SkillService {
     this.installer = new SkillInstaller()
   }
 
+  private runProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
+    return application.get('ProfileWriteBarrierService').runWrite(`skill:${label}`, operation)
+  }
+
   // ===========================================================================
   // Public API
   // ===========================================================================
@@ -100,20 +105,24 @@ export class SkillService {
   }
 
   /** Enable or disable a skill for a specific agent. */
-  toggle(options: SkillToggleOptions): InstalledSkill | null {
-    const skill = agentGlobalSkillService.getById(options.skillId)
-    if (!skill) return null
+  async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
+    return this.runProfileWrite(`toggle:${options.skillId}`, () => {
+      const skill = agentGlobalSkillService.getById(options.skillId)
+      if (!skill) return null
 
-    agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
+      agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
 
-    return { ...skill, isEnabled: options.isEnabled }
+      return { ...skill, isEnabled: options.isEnabled }
+    })
   }
 
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
-  enableForAllAgents(skillId: string): void {
-    const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
+  async enableForAllAgents(skillId: string): Promise<void> {
+    await this.runProfileWrite(`enable-for-all-agents:${skillId}`, () => {
+      const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
-    logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
+      logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
+    })
   }
 
   async uninstallByFolderName(folderName: string): Promise<void> {
@@ -183,28 +192,32 @@ export class SkillService {
   }
 
   async uninstall(skillId: string): Promise<void> {
-    return this.mutationLock.runExclusive(async () => {
-      const skill = agentGlobalSkillService.getById(skillId)
-      if (!skill) {
-        throw new Error(`Skill not found: ${skillId}`)
-      }
-      await this.uninstallLocked(skill)
-    })
+    return this.runProfileWrite(`uninstall:${skillId}`, () =>
+      this.mutationLock.runExclusive(async () => {
+        const skill = agentGlobalSkillService.getById(skillId)
+        if (!skill) {
+          throw new Error(`Skill not found: ${skillId}`)
+        }
+        await this.uninstallLocked(skill)
+      })
+    )
   }
 
   /** Remove an app-owned conditional builtin without touching a colliding user skill. */
   async uninstallBuiltinSkill(folderName: string, namespace: string): Promise<boolean> {
-    return this.mutationLock.runExclusive(async () => {
-      const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
-      if (!skill) return false
-      if (skill.source !== 'builtin' || skill.namespace !== namespace) {
-        throw new Error(
-          `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
-        )
-      }
-      await this.uninstallLocked(skill)
-      return true
-    })
+    return this.runProfileWrite(`uninstall-builtin:${folderName}`, () =>
+      this.mutationLock.runExclusive(async () => {
+        const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
+        if (!skill) return false
+        if (skill.source !== 'builtin' || skill.namespace !== namespace) {
+          throw new Error(
+            `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
+          )
+        }
+        await this.uninstallLocked(skill)
+        return true
+      })
+    )
   }
 
   /**
@@ -465,7 +478,7 @@ export class SkillService {
         fs.promises.realpath(entryPath),
         fs.promises.realpath(application.getPath('feature.agents.skills'))
       ])
-      return entryRealPath === skillsRootRealPath || entryRealPath.startsWith(skillsRootRealPath + path.sep)
+      return isManagedSkillTarget(entryRealPath, skillsRootRealPath)
     } catch {
       return false
     }
@@ -487,7 +500,9 @@ export class SkillService {
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
-    return this.mutationLock.runExclusive(() => this.installSkillDirLocked(skillDir, source, sourceUrl, provenance))
+    return this.runProfileWrite(`install:${source}`, () =>
+      this.mutationLock.runExclusive(() => this.installSkillDirLocked(skillDir, source, sourceUrl, provenance))
+    )
   }
 
   private async installSkillDirLocked(
@@ -598,7 +613,7 @@ export class SkillService {
     }
 
     if (isBuiltin) {
-      this.enableForAllAgents(inserted.id)
+      await this.enableForAllAgents(inserted.id)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
@@ -757,8 +772,8 @@ export class SkillService {
     if (this.reconcileInFlight) return this.reconcileInFlight
     // Under the mutation lock so reconcile can't interleave with install / uninstall / builtin
     // sync (which would let it read a stale snapshot and prune a just-installed row).
-    this.reconcileInFlight = this.mutationLock
-      .runExclusive(async () => {
+    this.reconcileInFlight = this.runProfileWrite('reconcile', () =>
+      this.mutationLock.runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
         await this.installer.recoverInterruptedInstalls(storageRoot)
         try {
@@ -769,9 +784,9 @@ export class SkillService {
         await this.reconcileLibraryToDb()
         await this.reconcileMirror()
       })
-      .finally(() => {
-        this.reconcileInFlight = null
-      })
+    ).finally(() => {
+      this.reconcileInFlight = null
+    })
     return this.reconcileInFlight
   }
 
@@ -1387,87 +1402,95 @@ export class SkillService {
     appVersion: string,
     namespace: string | null = null
   ): Promise<boolean> {
-    return this.mutationLock.runExclusive(async () => {
-      const existing = this.findCatalogSkillCaseInsensitive(folderName)
-      if (existing && existing.source !== 'builtin') {
-        throw new Error(
-          `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
-        )
-      }
-      if (existing && existing.namespace !== namespace) {
-        throw new Error(
-          `Folder name "${folderName}" belongs to builtin namespace "${existing.namespace ?? 'default'}"; ` +
-            `refusing to overwrite it with "${namespace ?? 'default'}".`
-        )
-      }
-
-      const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
-      const destFolderName = existing?.folderName ?? storageEntry ?? folderName
-      const destPath = this.getSkillStoragePath(destFolderName)
-      const sourceHash = await this.computeBuiltinDirectoryHash(sourcePath)
-      if (!existing && storageEntry) {
-        try {
-          await fs.promises.access(path.join(destPath, BUILTIN_VERSION_FILE))
-          const installedHash = await this.computeBuiltinDirectoryHash(destPath)
-          if (installedHash !== sourceHash) {
-            throw new Error('content does not match the bundled builtin')
-          }
-        } catch {
+    return this.runProfileWrite(`sync-builtin:${folderName}`, () =>
+      this.mutationLock.runExclusive(async () => {
+        const existing = this.findCatalogSkillCaseInsensitive(folderName)
+        if (existing && existing.source !== 'builtin') {
           throw new Error(
-            `Folder name "${folderName}" conflicts with an existing user-authored library directory "${storageEntry}".`
+            `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
           )
         }
-      }
+        if (existing && existing.namespace !== namespace) {
+          throw new Error(
+            `Folder name "${folderName}" belongs to builtin namespace "${existing.namespace ?? 'default'}"; ` +
+              `refusing to overwrite it with "${namespace ?? 'default'}".`
+          )
+        }
 
-      let filesUpdated = true
-      try {
-        const installedVersion = (await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')).trim()
-        const installedHash = await this.computeBuiltinDirectoryHash(destPath)
-        filesUpdated = installedVersion !== appVersion || installedHash !== sourceHash
-      } catch {
-        filesUpdated = true
-      }
+        const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+        const destFolderName = existing?.folderName ?? storageEntry ?? folderName
+        const destPath = this.getSkillStoragePath(destFolderName)
+        const sourceHash = await this.computeBuiltinDirectoryHash(sourcePath)
+        if (!existing && storageEntry) {
+          try {
+            await fs.promises.access(path.join(destPath, BUILTIN_VERSION_FILE))
+            const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+            if (installedHash !== sourceHash) {
+              throw new Error('content does not match the bundled builtin')
+            }
+          } catch {
+            throw new Error(
+              `Folder name "${folderName}" conflicts with an existing user-authored library directory "${storageEntry}".`
+            )
+          }
+        }
 
-      if (filesUpdated) {
-        await this.installer.install(sourcePath, destPath)
-        await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
-      }
+        let filesUpdated = true
+        try {
+          const installedVersion = (
+            await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')
+          ).trim()
+          const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+          filesUpdated = installedVersion !== appVersion || installedHash !== sourceHash
+        } catch {
+          filesUpdated = true
+        }
 
-      // Builtin contentHash is the trusted install baseline excluding Cherry's version marker.
-      if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
+        if (filesUpdated) {
+          await this.installer.install(sourcePath, destPath)
+          await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
+        }
 
-      const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
-      const tags = metadata.tags ?? []
+        // Builtin contentHash is the trusted install baseline excluding Cherry's version marker.
+        if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
 
-      if (existing) {
-        agentGlobalSkillService.update(existing.id, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash: sourceHash,
-          namespace
-        })
-      } else {
-        agentGlobalSkillService.insert({
-          name: metadata.name,
-          description: metadata.description ?? null,
+        const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
+        const tags = metadata.tags ?? []
+
+        if (existing) {
+          agentGlobalSkillService.update(existing.id, {
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags,
+            contentHash: sourceHash,
+            namespace
+          })
+        } else {
+          agentGlobalSkillService.insert({
+            name: metadata.name,
+            description: metadata.description ?? null,
+            folderName: destFolderName,
+            source: 'builtin',
+            sourceUrl: null,
+            namespace,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags,
+            contentHash: sourceHash
+          })
+        }
+
+        await this.linkMirror(destFolderName)
+        logger.info('Built-in skill synced to DB', {
           folderName: destFolderName,
-          source: 'builtin',
-          sourceUrl: null,
-          namespace,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash: sourceHash
+          firstInstall: !existing,
+          filesUpdated
         })
-      }
-
-      await this.linkMirror(destFolderName)
-      logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
-      return filesUpdated
-    })
+        return filesUpdated
+      })
+    )
   }
 
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {

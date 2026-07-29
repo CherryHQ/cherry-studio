@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { portableCollisionKey, RelativeSubpathSchema } from '@main/utils/relativePath'
-import * as z from 'zod'
 
 import { MAX_JOURNAL_DEGRADATIONS, MAX_RESOURCE_INSTALL_ENTRIES } from './restoreLimits'
 
@@ -289,7 +290,12 @@ export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
  * no aside at all.
  */
 export function dbAsideRelPathV2(restoreId: string): string {
-  return `${dbAsidePrefix()}${restoreId}`
+  const userData = application.getPath('app.userdata')
+  const dbDir = path.dirname(application.getPath('app.database.file'))
+  return path
+    .relative(userData, path.join(dbDir, `${dbAsidePrefix()}${restoreId}`))
+    .split(path.sep)
+    .join('/')
 }
 
 /**

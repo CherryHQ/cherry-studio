@@ -2,9 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The service is driven directly here, exactly the way the Phase 4 IPC layer
@@ -39,10 +40,9 @@ vi.mock('@application', () => ({
       throw new Error(`Unexpected service in BackupService test: ${name}`)
     }),
     getPath: vi.fn((key: string) => {
-      if (key !== 'feature.backup.restore.file') {
-        throw new Error(`Unexpected path key in BackupService test: ${key}`)
-      }
-      return join(userDataDir, 'restore-journal.json')
+      if (key === 'feature.backup.restore.file') return join(userDataDir, 'restore-journal.json')
+      if (key === 'feature.backup.temp') return join(userDataDir, 'backup-temp')
+      throw new Error(`Unexpected path key in BackupService test: ${key}`)
     })
   }
 }))

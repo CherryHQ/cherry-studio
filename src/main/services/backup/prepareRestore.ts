@@ -186,7 +186,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     // the resource tree moves as ONE unit because its internal layout is what
     // each entry's staging path is relative to.
     const promotePath = path.resolve(userDataPath, stagedDbRelPath(restoreId))
-    fs.mkdirSync(path.dirname(promotePath), { recursive: true })
+    fs.mkdirSync(path.dirname(promotePath), { recursive: true, mode: 0o700 })
     fs.renameSync(admitted.db.path, promotePath)
     promoted = true
     if (plan.entries.length > 0) {
