@@ -363,6 +363,12 @@ Bounded ceilings are frozen in the format contract and shared by preflight and a
 per-entry and total uncompressed bytes, compression ratio, and staging disk headroom.
 
 - Large-file/directory staging checks cancellation incrementally.
+- **The archive entry count is aggregated before the first payload copy.** The staging
+  baseline sums every admitted unit's entries plus the two fixed archive entries
+  (`manifest.json`, `backup.sqlite`) and refuses over the ceiling there; publication
+  re-checks the same bound over the finished tree. Units the baseline excluded contribute
+  nothing — they never become payloads. Without the preflight the only check would come
+  after the whole tree had been copied.
 - **The manifest byte cap must cover the resource-install ceiling.** `manifest.json` carries
   the requirement inventory and (for Full) the payload inventory, so its size scales with the
   profile, and the pre-parse cap is the only bound on those arrays. The two ceilings are
@@ -414,9 +420,16 @@ A payload already missing or wrong-typed at snapshot time records `absent-at-sna
 `type-mismatch-at-snapshot`. A post-boundary unit that changes, disappears, contains a
 non-regular node, violates portability, or exceeds a per-unit ceiling is omitted atomically
 with `changed-after-snapshot`, `non-regular-source`, `unportable-source`, or
-`resource-ceiling-exceeded`. The complete database remains authoritative, so newer live bytes
-are never paired with its older snapshot. A degraded Full archive is successful but is never
-presented as complete recovery.
+`resource-ceiling-exceeded`. Omission is what keeps the ARCHIVE self-consistent: a unit
+whose bytes could not be captured against the snapshot is left out rather than shipped at a
+version the archive's database does not describe.
+
+That is a statement about the archive, not a promise about the target. Restoring onto a
+device that still holds the omitted unit installs nothing there, so its current — possibly
+newer — bytes stay in place beside the older database that was just promoted. Nothing
+deletes them, and nothing reconciles them; the coverage report and the degradation list are
+what disclose the pairing. A degraded Full archive is successful but is never presented as
+complete recovery.
 
 ---
 

@@ -37,7 +37,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 
 import { RESOURCES_PREFIX } from '../archiveLayout'
-import { BACKUP_CEILINGS } from '../ceilings'
+import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES } from '../ceilings'
 import { type DirScanResult, type FsIdentity, fsIdentityOf, scanDirectoryUnit } from '../dirScan'
 import {
   BackupCancelledError,
@@ -120,6 +120,12 @@ export type ResourceUnitBaseline =
 export interface ResourceStageBaseline {
   readonly units: ReadonlyMap<string, ResourceUnitBaseline>
   readonly totalBytes: number
+  /**
+   * Archive entries the payloads this baseline admits will occupy, including the
+   * two fixed ones. Excluded units contribute nothing — they never become
+   * payloads.
+   */
+  readonly entryCount: number
 }
 
 function inspectSource(sourcePath: string, requirement: ResourceRequirement): SourceInspection {
@@ -168,11 +174,15 @@ function assertRequirementSet(requirements: readonly ResourceRequirement[]): voi
 }
 
 /**
- * Size the exact resource requirement set before copying it into staging.
- * Missing/type-mismatched units contribute no bytes, matching stageResources'
- * degradation rule; directory scans also apply the normal portability and
- * ceiling checks. A later drift can still fail closed, but ordinary Full work is
- * preflighted before its first resource copy.
+ * Size the exact resource requirement set before copying it into staging, and
+ * refuse a profile that could not be published at all.
+ *
+ * Missing/type-mismatched units contribute no bytes and no entries, matching
+ * stageResources' degradation rule; directory scans also apply the normal
+ * portability and per-unit ceiling checks. The ARCHIVE-WIDE entry count is
+ * aggregated here too — publication enforces the same bound, but only once every
+ * payload has already been copied. A later drift can still fail closed, but
+ * ordinary Full work is preflighted before its first resource copy.
  */
 export async function captureResourceStageBaseline(
   input: Omit<StageResourcesInput, 'resourcesDir' | 'baseline'>
@@ -183,6 +193,16 @@ export async function captureResourceStageBaseline(
 
   const units = new Map<string, ResourceUnitBaseline>()
   let total = 0n
+  let entries = FIXED_ARCHIVE_ENTRIES
+  const countEntries = (count: number): void => {
+    entries += count
+    if (entries > BACKUP_CEILINGS.maxArchiveEntries) {
+      // Publication enforces the same bound, but only after every payload has
+      // been copied. Refusing here means an over-sized profile costs a scan
+      // rather than a full staging tree.
+      throw new CeilingExceededError('entry-count', `${entries} > ${BACKUP_CEILINGS.maxArchiveEntries}`)
+    }
+  }
   for (const requirement of requirements) {
     throwIfAborted(signal)
     const sourcePath = absoluteOf(userDataPath, requirement.livePath)
@@ -200,6 +220,7 @@ export async function captureResourceStageBaseline(
         continue
       }
       total += sizeBytes
+      countEntries(1)
       units.set(requirement.livePath, {
         kind: 'file',
         identity: fsIdentityOf(inspected.stats, 'file'),
@@ -239,13 +260,14 @@ export async function captureResourceStageBaseline(
         continue
       }
       total += scan.totalBytes
+      countEntries(scan.entryCount)
       units.set(requirement.livePath, { kind: 'directory', scan })
     }
     if (total > BigInt(BACKUP_CEILINGS.maxTotalUncompressedBytes)) {
       throw new CeilingExceededError('total-bytes', `${total} > ${BACKUP_CEILINGS.maxTotalUncompressedBytes}`)
     }
   }
-  return { units, totalBytes: Number(total) }
+  return { units, totalBytes: Number(total), entryCount: entries }
 }
 
 export async function measureResourceStageBytes(

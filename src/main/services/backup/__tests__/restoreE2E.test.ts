@@ -423,6 +423,42 @@ describe('Full restore, same device with content already there', () => {
     expect(readFileSync(join(targetUserData, 'Data', 'Files', 'not-in-the-backup.bin'), 'utf8')).toBe('TARGET-ONLY')
   })
 
+  it('leaves a newer live resource in place beside the older database it restored', async () => {
+    seedSourceResources()
+    const blob = join(sourceUserData, 'Data', 'Files', `${FILE_ID}.pdf`)
+    // The blob is rewritten after the snapshot boundary, so the export cannot
+    // prove which version it holds and omits the unit (§5.4).
+    driftHooks.afterStagePreVerify = async (sourcePath) => {
+      if (sourcePath === blob) writeFileSync(blob, 'NEWER-BLOB')
+    }
+    const archive = await exportFrom('full-newer-resource')
+    driftHooks.afterStagePreVerify = async () => {}
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.degradations).toEqual(
+      expect.arrayContaining([
+        { kind: 'resource:file-blob', livePath: `Data/Files/${FILE_ID}.pdf`, reason: 'changed-after-snapshot' }
+      ])
+    )
+    armPreparedRestore(preview.restoreId)
+    await runRestorePromotionV2()
+
+    // The contract's honest end state: the promoted database is the archive's,
+    // the file it points at is the newer one this device already had, and the
+    // disclosure — not a reconciliation — is what tells the user.
+    expect(query(liveDbPath(), 'SELECT id FROM file_entry WHERE id = ?', FILE_ID)).toBeDefined()
+    expect(readFileSync(blob, 'utf8')).toBe('NEWER-BLOB')
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+    expect(presentJournalDegradations(read.journal.degradations ?? [])).toContainEqual({
+      code: 'resource-changed',
+      count: 1,
+      paths: [`Data/Files/${FILE_ID}.pdf`]
+    })
+  })
+
   it('replaces a declared directory as a whole, and holds the old one until acknowledgement', async () => {
     seedSourceResources()
     const archive = await exportFrom('full-dir')
