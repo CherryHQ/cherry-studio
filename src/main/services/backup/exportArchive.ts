@@ -115,10 +115,12 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     // does not describe. Closing that fully needs a cross-store barrier and is
     // deliberately left to a follow-up PR.
     dbService.createSnapshot(stagedDbPath)
-    const snapshotRequirements = collectResourceRequirements({ dbPath: stagedDbPath }).requirements
+    const snapshotInventory = collectResourceRequirements({ dbPath: stagedDbPath })
+    const snapshotRequirements = snapshotInventory.requirements
     const resourceBaseline: ResourceStageBaseline = await captureResourceStageBaseline({
       requirements: snapshotRequirements,
       userDataPath,
+      requiredContent: snapshotInventory.requiredContent,
       signal
     })
     throwIfAborted(signal)

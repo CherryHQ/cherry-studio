@@ -19,11 +19,25 @@ import path from 'node:path'
 import { application } from '@application'
 
 import type { ResourceRequirement } from '../manifest'
+import { REBUILDABLE_RESOURCE_KINDS } from './adapters'
 import type { ResourceInventory } from './collectRequirements'
 
+/**
+ * Every requirement lands in EXACTLY ONE of `available`, `rebuildable`, and
+ * `missing` — the three partition the inventory, so `available + rebuildable +
+ * missing === requirements.length` always holds. `unverifiable` is not part of
+ * that partition: it counts database references that are not requirements at all
+ * (§4), which is why it can be non-zero with an empty inventory.
+ */
 export interface ResourceCoverage {
-  /** The declared path exists with the declared type. */
+  /** The declared path exists with the declared type, ready to use as-is. */
   readonly available: number
+  /**
+   * Present, but its usable state is derived and excluded from the archive, so
+   * its owner rebuilds it after restore (§2, §6.7) — today the Knowledge bases,
+   * which ship raw material without their index.
+   */
+  readonly rebuildable: number
   /** Absent, or present with the wrong type (a file where a directory belongs). */
   readonly missing: number
   /** External user paths the archive can never own, so no claim is possible (§4). */
@@ -53,6 +67,7 @@ export function measureResourceCoverage(input: MeasureCoverageInput): CoverageRe
   const { inventory } = input
   const present: ResourceRequirement[] = []
   let missing = 0
+  let rebuildable = 0
 
   for (const requirement of inventory.requirements) {
     let stats: fs.Stats
@@ -64,11 +79,17 @@ export function measureResourceCoverage(input: MeasureCoverageInput): CoverageRe
     }
     if (requirement.resourceType === 'file' ? stats.isFile() : stats.isDirectory()) {
       present.push(requirement)
+      // `present` stays the whole satisfied set — the install plan needs every
+      // one of them; only the REPORTED bucket splits.
+      if (REBUILDABLE_RESOURCE_KINDS.has(requirement.kind)) rebuildable++
     } else {
       missing++
     }
   }
 
   const unverifiable = Object.values(inventory.unverifiableByKind).reduce((sum, count) => sum + count, 0)
-  return { coverage: { available: present.length, missing, unverifiable }, present }
+  return {
+    coverage: { available: present.length - rebuildable, rebuildable, missing, unverifiable },
+    present
+  }
 }

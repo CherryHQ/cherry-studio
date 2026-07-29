@@ -7,7 +7,7 @@ import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
@@ -167,6 +167,75 @@ describe('exportArchive', () => {
       await admitted.cleanup()
       rmSync(stagingParent, { recursive: true, force: true })
     }
+  })
+
+  /** A completed leaf: the archive must be able to prove its `raw/` material exists. */
+  function seedIndexedItem(relativePath: string): void {
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: `i-${relativePath}`,
+        baseId: 'kb-1',
+        type: 'file',
+        data: { source: relativePath, relativePath } as never,
+        status: 'completed'
+      })
+      .run()
+  }
+
+  describe('Knowledge material the restoring device rebuilds from', () => {
+    it('carries a base whose indexed material is all on disk', async () => {
+      seedResources()
+      seedIndexedItem('doc.txt')
+      writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'raw', 'doc.txt')), 'SOURCE')
+      writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
+
+      const { manifest } = await exportArchive({ outPath })
+
+      const kb = manifest.resourcePayloads.find((payload) => payload.livePath === 'Data/KnowledgeBase/kb-1')
+      expect(kb).toBeDefined()
+      expect(kb!.sizeBytes).toBe('SOURCE'.length)
+      expect(manifest.degradations).not.toContainEqual(expect.objectContaining({ livePath: 'Data/KnowledgeBase/kb-1' }))
+    })
+
+    it('excludes a base whose indexed material was never copied under raw/', async () => {
+      seedResources()
+      // The v1→v2 upgrade shape: the item is indexed, but only the index proves
+      // it — and the index is exactly what this archive does not carry.
+      seedIndexedItem('virtual.pdf')
+      writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'raw', 'other.txt')), 'OTHER')
+      writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
+
+      const { manifest } = await exportArchive({ outPath })
+
+      // Still declared — the restoring device must be told what it will not get.
+      expect(manifest.resourceRequirements).toContainEqual({
+        kind: 'knowledge-base',
+        resourceType: 'directory',
+        livePath: 'Data/KnowledgeBase/kb-1'
+      })
+      expect(manifest.resourcePayloads.map((payload) => payload.livePath)).not.toContain('Data/KnowledgeBase/kb-1')
+      expect(manifest.degradations).toContainEqual({
+        kind: 'resource:knowledge-base',
+        livePath: 'Data/KnowledgeBase/kb-1',
+        reason: 'unrebuildable-content'
+      })
+
+      // Not one byte of the base is in the archive, including the material that
+      // WAS present: half a base is an index describing files it does not have.
+      const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))
+      const admitted = await admitArchive({
+        archivePath: outPath,
+        stagingParent,
+        migrationsFolder: resolveMigrationsPath()
+      })
+      try {
+        expect(admitted.resources.map((resource) => resource.livePath)).not.toContain('Data/KnowledgeBase/kb-1')
+      } finally {
+        await admitted.cleanup()
+        rmSync(stagingParent, { recursive: true, force: true })
+      }
+    })
   })
 
   it('publishes an archive with no payloads when this device holds none', async () => {

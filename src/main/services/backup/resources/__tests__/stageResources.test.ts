@@ -171,6 +171,80 @@ describe('stageResources', () => {
     expect(result.payloads[0].sizeBytes).toBe('SOURCE'.length)
   })
 
+  describe('material a restored device could rebuild from', () => {
+    const KB_1 = 'Data/KnowledgeBase/kb-1'
+
+    function stageWithMaterial(required: readonly string[] | null, extra: readonly ResourceRequirement[] = []) {
+      return stageResources({
+        requirements: [req('knowledge-base', 'directory', KB_1), ...extra],
+        userDataPath: userData,
+        resourcesDir,
+        requiredContent: new Map([[KB_1, required]])
+      })
+    }
+
+    it('ships a base whose declared material is all present', async () => {
+      writeSource(`${KB_1}/raw/doc.txt`, 'SOURCE')
+      writeSource(`${KB_1}/raw/sub/other.md`, 'MORE')
+      writeSource(`${KB_1}/.cherry/index.sqlite`, 'INDEX')
+
+      const result = await stageWithMaterial(['raw/doc.txt', 'raw/sub/other.md'])
+
+      const staged = await hashDirectoryUnit(join(resourcesDir, 'Data', 'KnowledgeBase', 'kb-1'))
+      expect(staged.files.map((file) => file.relPath)).toEqual(['raw/doc.txt', 'raw/sub/other.md'])
+      expect(result.degradations).toEqual([])
+    })
+
+    it('excludes the whole base when one declared material is missing', async () => {
+      writeSource(`${KB_1}/raw/doc.txt`, 'SOURCE')
+      writeSource(`${KB_1}/.cherry/index.sqlite`, 'INDEX')
+
+      // The index is excluded from the archive, so material the database says was
+      // indexed is the only thing the target could rebuild from. Half a base is
+      // an index that describes files it does not contain.
+      const result = await stageWithMaterial(['raw/doc.txt', 'raw/gone.pdf'])
+
+      expect(result.payloads).toEqual([])
+      expect(result.staged).toBe(false)
+      expect(result.degradations).toEqual([
+        { kind: 'resource:knowledge-base', livePath: KB_1, reason: 'unrebuildable-content' }
+      ])
+      expect(existsSync(join(resourcesDir, 'Data', 'KnowledgeBase', 'kb-1'))).toBe(false)
+    })
+
+    it('excludes a base whose material cannot be named at all', async () => {
+      writeSource(`${KB_1}/raw/doc.txt`, 'SOURCE')
+
+      const result = await stageWithMaterial(null)
+
+      expect(result.payloads).toEqual([])
+      expect(result.degradations[0].reason).toBe('unrebuildable-content')
+    })
+
+    it('keeps staging the units that are still whole', async () => {
+      writeSource(`${KB_1}/raw/doc.txt`, 'SOURCE')
+      writeSource('Data/Files/blob.pdf', 'FILE')
+
+      const result = await stageWithMaterial(['raw/gone.pdf'], [req('file-blob', 'file', 'Data/Files/blob.pdf')])
+
+      expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/Files/blob.pdf'])
+      // The excluded unit's bytes must not be charged to the archive either.
+      expect(result.payloads[0].sizeBytes).toBe('FILE'.length)
+    })
+
+    it('counts none of an unrebuildable unit toward the staging estimate', async () => {
+      writeSource(`${KB_1}/raw/doc.txt`, 'SOURCE')
+
+      const bytes = await measureResourceStageBytes({
+        requirements: [req('knowledge-base', 'directory', KB_1)],
+        userDataPath: userData,
+        requiredContent: new Map([[KB_1, ['raw/gone.pdf']]])
+      })
+
+      expect(bytes).toBe(0)
+    })
+  })
+
   it('discloses a resource that is already gone instead of failing the export', async () => {
     writeSource('Data/Files/here.pdf', 'HERE')
 
