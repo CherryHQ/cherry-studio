@@ -53,12 +53,7 @@ describe('PaintingTemplateShowcase', () => {
   describe('visibility boundary', () => {
     it('renders at most 5 template buttons for a 25-template catalog', () => {
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(25)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(25)} onSelect={vi.fn()} />
       )
 
       const buttons = screen.getAllByRole('button')
@@ -67,12 +62,7 @@ describe('PaintingTemplateShowcase', () => {
 
     it('renders at most 5 images for a 25-template catalog', () => {
       const { container } = render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(25)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(25)} onSelect={vi.fn()} />
       )
 
       const images = container.querySelectorAll('img')
@@ -81,12 +71,7 @@ describe('PaintingTemplateShowcase', () => {
 
     it('renders all templates when catalog has fewer than 5', () => {
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(3)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(3)} onSelect={vi.fn()} />
       )
 
       expect(screen.getAllByRole('button')).toHaveLength(3)
@@ -94,12 +79,7 @@ describe('PaintingTemplateShowcase', () => {
 
     it('renders exactly 5 templates when catalog has exactly 5', () => {
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(5)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(5)} onSelect={vi.fn()} />
       )
 
       expect(screen.getAllByRole('button')).toHaveLength(5)
@@ -107,12 +87,7 @@ describe('PaintingTemplateShowcase', () => {
 
     it('does not render any hidden buttons with aria-hidden or opacity-0', () => {
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(25)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(25)} onSelect={vi.fn()} />
       )
 
       const buttons = screen.getAllByRole('button')
@@ -125,12 +100,7 @@ describe('PaintingTemplateShowcase', () => {
 
     it('gives all mounted buttons a non-negative tabIndex', () => {
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(25)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(25)} onSelect={vi.fn()} />
       )
 
       const buttons = screen.getAllByRole('button')
@@ -143,9 +113,7 @@ describe('PaintingTemplateShowcase', () => {
   describe('cyclic ordering', () => {
     it('shows the correct cyclic window when activeIndex is 0 (default)', () => {
       const templates = makeTemplates(25)
-      render(
-        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={templates} onSelect={vi.fn()} />
-      )
+      render(<PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={templates} onSelect={vi.fn()} />)
 
       const buttons = screen.getAllByRole('button')
       const labels = buttons.map((b) => b.getAttribute('aria-label'))
@@ -156,12 +124,7 @@ describe('PaintingTemplateShowcase', () => {
     it('wraps forward: selecting template at index 24 shows correct window', () => {
       const templates = makeTemplates(25)
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt="Prompt 25"
-          templates={templates}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="Prompt 25" templates={templates} onSelect={vi.fn()} />
       )
 
       const buttons = screen.getAllByRole('button')
@@ -174,12 +137,7 @@ describe('PaintingTemplateShowcase', () => {
     it('wraps backward: selecting template at index 1 shows correct window', () => {
       const templates = makeTemplates(25)
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt="Prompt 2"
-          templates={templates}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="Prompt 2" templates={templates} onSelect={vi.fn()} />
       )
 
       const buttons = screen.getAllByRole('button')
@@ -231,12 +189,7 @@ describe('PaintingTemplateShowcase', () => {
 
     it('provides the group role with an accessible label', () => {
       render(
-        <PaintingTemplateShowcase
-          paintingId="painting-1"
-          prompt=""
-          templates={makeTemplates(25)}
-          onSelect={vi.fn()}
-        />
+        <PaintingTemplateShowcase paintingId="painting-1" prompt="" templates={makeTemplates(25)} onSelect={vi.fn()} />
       )
 
       expect(screen.getByRole('group', { name: 'paintings.showcase.styles_label' })).toBeInTheDocument()
