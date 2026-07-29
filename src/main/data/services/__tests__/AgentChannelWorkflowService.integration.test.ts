@@ -116,8 +116,9 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.createdAt).toBe(snapshot.createdAt)
   })
 
-  // Guards the migrated `agent_channel_permission_mode_check` constraint: a mode the
-  // constraint does not list fails the INSERT at the SQLite level, not in validation.
+  // The permission-mode enum is no longer duplicated as a SQL CHECK constraint, so this
+  // pins the replacement contract: any mode the shared schema accepts round-trips through
+  // SQLite untouched. `auto` is the case that used to fail the INSERT.
   it('persists the auto permission mode', async () => {
     await insertAgent('agent-auto-1')
     syncChannelMock.mockResolvedValue(undefined)
