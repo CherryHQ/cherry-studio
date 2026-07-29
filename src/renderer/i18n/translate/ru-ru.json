@@ -378,6 +378,11 @@
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
       },
+      "api_retry": {
+        "reason": "Запрос не удался ({{error}}, HTTP {{status}}) — повторная попытка",
+        "retrying": "Повторная попытка {{attempt}}/{{max}}…",
+        "retrying_in": "Повторная попытка {{attempt}}/{{max}} через {{seconds}}с"
+      },
       "auto_rename": "Сгенерировать название задачи",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Не удалось удалить задачу",
         "loadFailed": "Не удалось загрузить задачи",
         "runFailed": "Не удалось выполнить задачу",
+        "triggerInvalid": "Недопустимое расписание: проверьте выражение, часовой пояс или диапазон интервала",
         "updateFailed": "Не удалось обновить задачу"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Запустить",
       "runTriggered": "Задача запущена",
       "save": "Сохранить",
+      "schedule": {
+        "custom": "Пользовательское расписание",
+        "daily": "Ежедневно",
+        "hour": "Час",
+        "hourly": "Почасовой",
+        "interval": "Пользовательский интервал",
+        "intervalMinutes": "Интервал",
+        "invalid": "Введите допустимую частоту выполнения.",
+        "minute": "Минута",
+        "once": "Один раз",
+        "runAt": "Запустить в",
+        "summary": {
+          "daily": "Ежедневно в {{time}}",
+          "hourly": "В начале каждого часа",
+          "interval": "Каждые {{count}} минут",
+          "weekdays": "По будням в {{time}}",
+          "weekly": "Каждый {{weekday}} в {{time}}"
+        },
+        "time": "Время",
+        "weekday": "День недели",
+        "weekdays": {
+          "friday": "Пятница",
+          "monday": "Понедельник",
+          "saturday": "Суббота",
+          "sunday": "Воскресенье",
+          "thursday": "Четверг",
+          "tuesday": "Вторник",
+          "wednesday": "Среда"
+        },
+        "weekdaysOnly": "Будние дни",
+        "weekly": "Еженедельно"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Интервал",
@@ -869,7 +907,7 @@
       "expired": "Истёк",
       "inputPreview": "Предварительный просмотр ввода инструмента",
       "pending": "Ожидание ({{seconds}}с)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Ожидается",
       "permissionExpired": "Срок действия запроса на разрешение истёк. Ожидание новых инструкций...",
       "requiresElevatedPermissions": "Этому инструменту требуются повышенные разрешения.",
       "suggestion": {
@@ -997,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Копировать",
       "regenerate": "Перегенерировать",
       "restart": {
         "button": "Перезапустить",
@@ -1009,8 +1046,6 @@
     "authHeader": {
       "title": "Авторизация"
     },
-    "authHeaderText": "Использовать в заголовке авторизации:",
-    "configuration": "Конфигурация",
     "description": "Предоставляет возможности ИИ Cherry Studio через HTTP API, совместимые с OpenAI",
     "documentation": {
       "title": "Документация API"
@@ -1018,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Копировать API ключ",
-        "description": "Безопасный токен для доступа к API",
         "label": "API Ключ",
         "placeholder": "API ключ будет сгенерирован автоматически"
       },
       "port": {
-        "description": "TCP порт для HTTP сервера (1000-65535)",
-        "helpText": "Остановите сервер для изменения порта",
         "label": "Порт"
       },
       "url": {
@@ -1033,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API ключ скопирован в буфер обмена",
       "apiKeyRegenerated": "API ключ перегенерирован",
       "notEnabled": "API-сервер не включен.",
       "operationFailed": "Операция API сервера не удалась: ",
@@ -1043,8 +1074,7 @@
       "startError": "Не удалось запустить API сервер: ",
       "startSuccess": "API сервер успешно запущен",
       "stopError": "Не удалось остановить API сервер: ",
-      "stopSuccess": "API сервер успешно остановлен",
-      "urlCopied": "URL сервера скопирован в буфер обмена"
+      "stopSuccess": "API сервер успешно остановлен"
     },
     "status": {
       "running": "Работает",
@@ -1427,21 +1457,21 @@
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Не удалось загрузить указанный разговор",
+        "no_room": "Недостаточно места в сообщении, чтобы добавить этот разговор",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Нет сеансов, соответствующих вашему поиску",
+            "label": "Сеансы не найдены"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Сессии"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Нет тем, соответствующих вашему поиску",
+            "label": "Темы не найдены"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Темы"
         }
       },
       "resize_height": "Изменить высоту ввода",
@@ -1603,8 +1633,17 @@
       "token_details": {
         "cache_read": "Чтение из кэша",
         "cache_write": "Запись в кэш",
+        "cost": "[to be translated]:Cost",
+        "cost_billed": "[to be translated]:Billed by provider",
+        "cost_estimated": "[to be translated]:Estimated",
+        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
         "input": "Ввод",
         "input_breakdown": "Разбор ввода",
+        "lane_approval": "[to be translated]:Approval",
+        "lane_model": "[to be translated]:Model",
+        "lane_other": "[to be translated]:Other",
+        "lane_tool": "[to be translated]:Tool",
+        "model_throughput": "[to be translated]:Model generation TPS",
         "output": "Выход",
         "reasoning": "Рассуждение",
         "reasoning_time": "Рассуждение",
@@ -1613,6 +1652,7 @@
         "text_output": "Вывод текста",
         "tokens": "{{value}} Токенов",
         "tokens_per_second_value": "{{value}} токенов/с",
+        "total_duration": "[to be translated]:End-to-end duration",
         "uncached": "Не кэшированный",
         "usage": "Использование токенов",
         "waiting_first_token": "Ожидание"
@@ -2140,7 +2180,7 @@
     "terminal": "терминал",
     "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
     "terminal_placeholder": "Выбор приложения терминала",
-    "title": "Инструменты кода",
+    "title": "Code Mate",
     "tool_parameters": "Настройки параметров",
     "up_to_date": "Актуальный",
     "update_options": "Параметры обновления",
@@ -2280,6 +2320,7 @@
     "open_in": "Открыть в {{name}}",
     "open_in_new_tab": "Открыть в новой вкладке",
     "open_sidebar": "Открыть боковую панель",
+    "other": "[to be translated]:Other",
     "placeholders": {
       "select": {
         "model": "Выбор модели"
@@ -2293,7 +2334,7 @@
     "provider": "Провайдер",
     "reasoning_content": "Глубокий анализ",
     "refresh": "Обновить",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Не удалось обновить список. Отображается последняя загруженная версия.",
     "regenerate": "Пересоздать",
     "remove_image": "Удалить изображение",
     "rename": "Переименовать",
@@ -2609,7 +2650,7 @@
     "empty": {
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
       "no_match_title": "Совпадающие файлы не найдены",
-      "title": "[to be translated]:No files yet"
+      "title": "Пока нет файлов"
     },
     "empty_trash": "Очистить корзину",
     "error": {
@@ -3007,6 +3048,7 @@
     "embedding_model": "Модель встраивания",
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
+    "empty_action": "Создать базу знаний",
     "empty_description": "У вас пока нет баз знаний. Создайте одну, чтобы начать организовывать и искать ваши документы.",
     "error": {
       "directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
@@ -3781,6 +3823,8 @@
         "title": "Подтверждение удаления"
       },
       "failed": "Ошибка удаления",
+      "first_turn_not_supported": "Первое сообщение пользователя нельзя удалить.",
+      "root_unavailable": "Сообщения все еще загружаются и пока не могут быть удалены.",
       "success": "Удаление успешно"
     },
     "dialog": {
@@ -4279,6 +4323,7 @@
     },
     "pinned": "Закреплено",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Стоимость",
       "currency": "Валюта",
       "custom": "Пользовательский",
@@ -4894,6 +4939,11 @@
     "seed_random": "Случайно",
     "seed_tip": "Одинаковый ключ генерации и промпт могут производить похожие изображения",
     "select_model": "Выбрать модель",
+    "showcase": {
+      "caption": "Выберите шаблон для начала, а затем настройте промпт ниже под себя.",
+      "styles_label": "Шаблоны промптов",
+      "title": "Место для вашего следующего шедевра."
+    },
     "style_options": {
       "anime": "Аниме",
       "auto": "Авто",
@@ -5755,8 +5805,7 @@
       },
       "backup": {
         "skip_file_data_help": "Пропустить при резервном копировании такие данные, как изображения, базы знаний и другие файлы данных, и сделать резервную копию только переписки и настроек. Это уменьшает использование места на диске и ускоряет процесс резервного копирования.",
-        "skip_file_data_title": "Упрощенная резервная копия",
-        "v2_unavailable": "Резервное копирование и восстановление V2 пока недоступно. Скоро будет."
+        "skip_file_data_title": "Упрощенная резервная копия"
       },
       "clear_cache": {
         "approximately": "Примерно {{size}}",
@@ -6424,6 +6473,7 @@
       "viewErrorDetails": "Просмотреть детали"
     },
     "developer": {
+      "client_id": "ID клиента",
       "enable_developer_mode": "Включить разработчик",
       "help": "После включения режима разработчика можно использовать функцию трассировки вызовов для просмотра потока данных в процессе вызова модели.",
       "title": "Разработчик"
@@ -6606,7 +6656,9 @@
       "active": "Активен",
       "addError": "Ошибка добавления сервера",
       "addServer": {
+        "advanced": "Продвинутый",
         "create": "Быстрое создание",
+        "createDescription": "Заполните данные подключения, чтобы создать сервер; всё остальное можно настроить позже.",
         "importFrom": {
           "connectionFailed": "Сбой подключения",
           "dxt": "Импорт DXT-пакета",
@@ -6686,7 +6738,11 @@
         "success": "Успешно получены MCP-серверы"
       },
       "filter": {
-        "label": "Фильтр"
+        "allStatuses": "Все статусы",
+        "allTypes": "Все типы",
+        "builtinOnly": "Только встроенный",
+        "status": "Фильтр по статусу",
+        "type": "Фильтр по типу"
       },
       "findMore": "Найти больше MCP",
       "headers": "Заголовки",
@@ -6743,6 +6799,7 @@
         "usage": "Использование",
         "version": "Версия"
       },
+      "pageDescription": "Управление MCP-серверами. После включения агенты смогут вызывать предоставляемые ими инструменты и ресурсы.",
       "prompts": {
         "arguments": "Аргументы",
         "availablePrompts": "Доступные подсказки",
@@ -7706,12 +7763,39 @@
       "titlePlaceholder": "Пожалуйста, введите название фразы"
     },
     "scheduledTasks": {
+      "agentCreate": "Создать с помощью агента",
+      "allAgents": "Все агенты",
+      "allStatuses": "Все статусы",
+      "clearFilters": "Очистить фильтры",
+      "createDescription": "Настройте, что должен делать Агент и когда он должен запускаться.",
+      "createTitle": "Новое запланированное задание",
       "description": "Управляйте запланированными задачами на всех агентах. Задачи выполняются автоматически по заданному расписанию.",
+      "editDescription": "Обновите, что должен делать Агент и когда он должен запускаться.",
+      "editTitle": "Редактировать запланированное задание",
+      "filterAgent": "Фильтр по агенту",
+      "filterStatus": "Фильтровать по статусу",
+      "manualCreate": "Создать вручную",
+      "newTask": "Новый",
       "noAgents": "Агенты не найдены. Сначала создайте агента, чтобы добавить запланированные задачи.",
       "noAgentsTip": "Совет: вы также можете попросить своего агента создать запланированные задачи через чат.",
+      "noAgentsTitle": "Нет агентов",
+      "noMatches": "Попробуйте другой поиск или фильтр.",
+      "noMatchesTitle": "Нет совпадающих задач",
       "noTasks": "Нет запланированных задач. Нажмите «Добавить», чтобы создать задачу для агента.",
+      "noTasksTitle": "Нет запланированных задач",
+      "notFoundDescription": "Эта задача могла быть удалена, или ссылка недействительна.",
+      "notFoundTitle": "Задача не найдена",
+      "paginationLabel": "Пагинация запланированных задач",
+      "paginationStatus": "Страница {{page}} из {{pageCount}} · {{total}} задач",
+      "search": "Запланированные задачи поиска",
+      "searchPlaceholder": "Поиск задач или агентов",
       "selectTask": "Выберите задачу для просмотра подробностей",
-      "title": "Запланированные задачи"
+      "title": "Запланированные задачи",
+      "validation": {
+        "agent": "Выберите агента.",
+        "name": "Введите название задачи.",
+        "prompt": "Введите запрос для задачи."
+      }
     },
     "shortcuts": {
       "action": "Действие",
@@ -7800,6 +7884,7 @@
       "noInstalled": "Навыков не установлено",
       "noResults": "Навыки не найдены",
       "noSkillFile": "Файл SKILL.md не найден",
+      "pageDescription": "Управление установленными навыками. Навыки расширяют возможности ваших агентов и вызываются по требованию.",
       "searchPlaceholder": "Откройте больше навыков...",
       "searchRegistryTitle": "Ищите реестры навыков онлайн",
       "searchTitle": "Навыки поиска",
@@ -8055,6 +8140,108 @@
       "show": "Показать значок в трее",
       "title": "Трей"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "dailyAverage": "[to be translated]:Daily average",
+        "explicitApiKey": "[to be translated]:Selected key",
+        "lastPeriod": "[to be translated]:vs last period",
+        "matchedApiKey": "[to be translated]:Matched override",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "currency": "[to be translated]:Currency",
+      "empty": {
+        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "analysis": "[to be translated]:Analysis",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "rollup": "[to be translated]:Rollup",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "top": "[to be translated]:Top",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_other": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "[to be translated]:Daily",
+        "monthly": "[to be translated]:Monthly",
+        "total": "[to be translated]:Total",
+        "weekly": "[to be translated]:Weekly"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "model": "[to be translated]:Model",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
+        "requests_other": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Изменение стиля заголовка требует перезапуска приложения. Перезапустить сейчас?",
@@ -8085,7 +8272,7 @@
   "title": {
     "apps": "Приложения",
     "chat": "Чат",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "Файлы",
     "home": "Главная",
     "knowledge": "База знаний",

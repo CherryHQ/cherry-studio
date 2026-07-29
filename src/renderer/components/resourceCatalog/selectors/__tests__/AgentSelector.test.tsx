@@ -76,6 +76,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({ createAgent: createAgentMock, isCreatingAgent: false }),
+  useAgentMutationsById: () => ({ updateAgent: updateAgentMock })
+}))
+
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
@@ -487,20 +492,18 @@ describe('AgentSelector', () => {
 
     await waitFor(() =>
       expect(createAgentMock).toHaveBeenCalledWith({
-        body: {
-          type: 'claude-code',
-          name: 'Created Agent',
-          model: MODEL.id,
-          planModel: MODEL.id,
-          smallModel: MODEL.id,
-          description: 'Created from selector',
-          instructions: '',
-          knowledgeBaseIds: [],
-          skillIds: [],
-          configuration: {
-            avatar: '🤖',
-            permission_mode: 'bypassPermissions'
-          }
+        type: 'claude-code',
+        name: 'Created Agent',
+        model: MODEL.id,
+        planModel: MODEL.id,
+        smallModel: MODEL.id,
+        description: 'Created from selector',
+        instructions: '',
+        knowledgeBaseIds: [],
+        skillIds: [],
+        configuration: {
+          avatar: '🤖',
+          permission_mode: 'bypassPermissions'
         }
       })
     )

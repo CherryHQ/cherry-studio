@@ -33,6 +33,7 @@ import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
+import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
@@ -566,6 +567,14 @@ function renderPart(
       // Agent task events are hidden inline state consumed by the agent status panes.
       return null
 
+    case 'data-knowledge-scope':
+      // User-turn capability scope is consumed by Main and never rendered inline.
+      return null
+
+    case 'data-clear':
+      // Context boundaries render at the message-frame level as a divider.
+      return null
+
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
       if (filePart.mediaType?.startsWith('image/')) {
@@ -810,13 +819,9 @@ function renderGroupedEntry(
   )
 }
 
-function findLastLiveToolBoundaryIndex(items: readonly LiveMessagePartLayoutItem[]): number {
+function findLastLiveProcessBoundaryIndex(items: readonly LiveMessagePartLayoutItem[]): number {
   for (let index = items.length - 1; index >= 0; index--) {
-    const item = items[index]
-    const entries = item.kind === 'process' ? item.entries : [item.entry]
-    if (entries.some(({ part }) => isToolUIPart(part) && !isAskUserQuestionToolName(getToolName(part)))) {
-      return index
-    }
+    if (items[index].kind === 'process') return index
   }
   return -1
 }
@@ -847,6 +852,13 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
 
   for (const entry of entries) {
     if (isHiddenPart(entry.part)) continue
+
+    if (isToolUIPart(entry.part) && isAskUserQuestionToolName(getToolName(entry.part))) {
+      flushProcess()
+      flushContent()
+      result.push({ kind: 'content', key: entry.index, entry })
+      continue
+    }
 
     if ((entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
       flushContent()
@@ -954,6 +966,23 @@ function areGroupedEntriesEqual(previous: GroupedEntry, next: GroupedEntry): boo
   return arePartEntriesEqual(previous, next)
 }
 
+function areLiveLayoutItemsEqual(
+  previous: readonly LiveMessagePartLayoutItem[],
+  next: readonly LiveMessagePartLayoutItem[]
+): boolean {
+  return (
+    previous.length === next.length &&
+    previous.every((item, index) => {
+      const nextItem = next[index]
+      if (item.kind !== nextItem.kind || item.key !== nextItem.key) return false
+      if (item.kind === 'process') {
+        return nextItem.kind === 'process' && arePartEntriesEqual(item.entries, nextItem.entries)
+      }
+      return nextItem.kind === 'part' && arePartEntriesEqual([item.entry], [nextItem.entry])
+    })
+  )
+}
+
 const MessageContentEntryView = React.memo(
   function MessageContentEntryView({
     enableAnimation,
@@ -990,39 +1019,67 @@ const MessageContentEntryView = React.memo(
 
 const ActiveMessageProcess = React.memo(
   function ActiveMessageProcess({
-    entries,
+    items,
     hasResultContent,
     isStreamLive,
     isTranslationOverlayActive,
     message,
     renderOptions
   }: {
-    entries: readonly PartEntry[]
+    items: readonly LiveMessagePartLayoutItem[]
     hasResultContent: boolean
     isStreamLive: boolean
     isTranslationOverlayActive: boolean
     message: MessageListItem
     renderOptions: RenderGroupedEntryOptions
   }) {
-    const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
+    const toolItems = useMemo(
+      () =>
+        buildToolRenderItems(
+          items.flatMap((item) => (item.kind === 'process' ? item.entries : [])),
+          message.id
+        ),
+      [items, message.id]
+    )
     const renderHistory = React.useCallback(
       (isExpanded: boolean) => {
         if (!isExpanded) return null
 
-        return renderNestedHistory(
-          entries,
-          message,
-          isTranslationOverlayActive,
-          {
-            ...renderOptions,
-            enableAnimation: false,
-            settleStreamingReasoning: !isStreamLive,
-            toolDisplay: 'disclosure'
-          },
-          hasResultContent ? 'settled' : 'last'
-        )
+        return items.map((item, itemIndex) => {
+          if (item.kind === 'part') {
+            return (
+              <MessageContentEntryView
+                key={`message-content-${message.id}-${item.key}`}
+                enableAnimation={false}
+                entry={item.entry}
+                isStreaming={false}
+                isTranslationOverlayActive={isTranslationOverlayActive}
+                message={message}
+                renderOptions={renderOptions}
+              />
+            )
+          }
+
+          const isLastProcess = itemIndex === items.length - 1
+          return (
+            <React.Fragment key={`live-process-${message.id}-${item.key}`}>
+              {renderNestedHistory(
+                item.entries,
+                message,
+                isTranslationOverlayActive,
+                {
+                  ...renderOptions,
+                  enableAnimation: false,
+                  settleStreamingReasoning: !isStreamLive,
+                  toolDisplay: 'disclosure'
+                },
+                isLastProcess && !hasResultContent ? 'last' : 'settled'
+              )}
+            </React.Fragment>
+          )
+        })
       },
-      [entries, hasResultContent, isStreamLive, isTranslationOverlayActive, message, renderOptions]
+      [hasResultContent, isStreamLive, isTranslationOverlayActive, items, message, renderOptions]
     )
 
     return (
@@ -1041,7 +1098,7 @@ const ActiveMessageProcess = React.memo(
     previous.message.modelId === next.message.modelId &&
     previous.message.model === next.message.model &&
     previous.renderOptions === next.renderOptions &&
-    arePartEntriesEqual(previous.entries, next.entries)
+    areLiveLayoutItemsEqual(previous.items, next.items)
 )
 
 /**
@@ -1075,25 +1132,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         : [],
     [entries, isActive, message.id]
   )
-  const liveToolBoundary = useMemo(() => findLastLiveToolBoundaryIndex(projectedLiveItems), [projectedLiveItems])
-  const { liveHistoryItems, liveResultItems } = useMemo(() => {
-    const historyItems: LiveMessagePartLayoutItem[] = []
-    const resultItems: LiveMessagePartLayoutItem[] = []
-
-    projectedLiveItems.forEach((item, index) => {
-      if (index <= liveToolBoundary || item.kind === 'process') {
-        historyItems.push(item)
-      } else {
-        resultItems.push(item)
-      }
-    })
-
-    return { liveHistoryItems: historyItems, liveResultItems: resultItems }
-  }, [liveToolBoundary, projectedLiveItems])
-  const liveHistoryEntries = useMemo(
-    () => liveHistoryItems.flatMap((item) => (item.kind === 'process' ? item.entries : [item.entry])),
-    [liveHistoryItems]
-  )
+  const liveProcessBoundary = useMemo(() => findLastLiveProcessBoundaryIndex(projectedLiveItems), [projectedLiveItems])
+  // Preserve hard-boundary parts in the ordered process prefix; only the trailing result stays outside.
+  const liveProcessItems = projectedLiveItems.slice(0, liveProcessBoundary + 1)
+  const liveResultItems = projectedLiveItems.slice(liveProcessBoundary + 1)
   const openTextTailIndex = isActive && isStreamLive ? findOpenTextTailIndex(entries) : null
 
   const completedLayout = useMemo(() => (isActive ? null : projectCompletedMessageParts(entries)), [entries, isActive])
@@ -1119,12 +1161,12 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       )
     })
 
-    if (liveHistoryEntries.length === 0) return <>{resultContent}</>
+    if (liveProcessItems.length === 0) return <>{resultContent}</>
 
     return (
       <>
         <ActiveMessageProcess
-          entries={liveHistoryEntries}
+          items={liveProcessItems}
           hasResultContent={liveResultItems.length > 0}
           isStreamLive={isStreamLive}
           isTranslationOverlayActive={isTranslationOverlayActive}
@@ -1218,7 +1260,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   return (
     <>
       <MessageProcessGroup
-        key={`completed-process-${message.id}-${message.status}-${message.updatedAt ?? ''}`}
+        key={`completed-process-${message.id}`}
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
         message={message}
@@ -1322,6 +1364,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       return (
         <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
       )
+    }
+    if (message.role === 'assistant' && message.status === 'paused') {
+      return <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
     }
     return null
   }

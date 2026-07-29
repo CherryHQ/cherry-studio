@@ -10,7 +10,9 @@ import {
   generateImage as _generateImage,
   generateText as _generateText,
   rerank as _rerank,
-  streamText as _streamText
+  streamText as _streamText,
+  wrapEmbeddingModel,
+  wrapImageModel
 } from 'ai'
 
 import { isV3Model } from '../models/utils'
@@ -27,8 +29,18 @@ import type {
   RerankParams,
   RerankResult,
   RuntimeConfig,
+  RuntimeProviderCallEvent,
+  RuntimeProviderCallHandler,
   streamTextParams
 } from './types'
+
+function emitProviderCall(handler: RuntimeProviderCallHandler | undefined, event: RuntimeProviderCallEvent): void {
+  try {
+    handler?.(event)
+  } catch {
+    // Usage observation is best-effort and must never change a successful AI result.
+  }
+}
 
 export class RuntimeExecutor<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
@@ -146,7 +158,7 @@ export class RuntimeExecutor<
    */
   async generateImage(params: generateImageParams): Promise<generateImageResult> {
     try {
-      const { model } = params
+      const { model, onProviderCall, ...providerParams } = params
 
       // 根据 model 类型决定插件配置
       if (typeof model === 'string') {
@@ -155,8 +167,35 @@ export class RuntimeExecutor<
         this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
       }
 
-      return this.pluginEngine.executeImageWithPlugins('generateImage', params, (resolvedModel, transformedParams) =>
-        _generateImage({ ...transformedParams, model: resolvedModel })
+      return this.pluginEngine.executeImageWithPlugins(
+        'generateImage',
+        { ...providerParams, model },
+        (resolvedModel, transformedParams) => {
+          const observedModel = onProviderCall
+            ? wrapImageModel({
+                model: resolvedModel,
+                middleware: {
+                  specificationVersion: 'v3',
+                  wrapGenerate: async ({ doGenerate, model: activeModel }) => {
+                    const startedAt = performance.now()
+                    const result = await doGenerate()
+                    emitProviderCall(onProviderCall, {
+                      modality: 'image',
+                      requestId: `ai-core:image:${crypto.randomUUID()}`,
+                      providerId: this.config.providerId,
+                      modelId: activeModel.modelId,
+                      imageCount: result.images.length,
+                      ...(result.usage ? { usage: result.usage } : {}),
+                      metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                      completedAt: Date.now()
+                    })
+                    return result
+                  }
+                }
+              })
+            : resolvedModel
+          return _generateImage({ ...transformedParams, model: observedModel })
+        }
       )
     } catch (error) {
       if (error instanceof Error) {
@@ -176,7 +215,7 @@ export class RuntimeExecutor<
    * 批量嵌入文本
    */
   async embedMany(params: EmbedManyParams): Promise<EmbedManyResult> {
-    const { model: modelOrId, ...options } = params
+    const { model: modelOrId, onProviderCall, ...options } = params
 
     // 解析 embedding 模型
     const embeddingModel =
@@ -184,24 +223,57 @@ export class RuntimeExecutor<
         ? this.registry.embeddingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
+    const observedModel = onProviderCall
+      ? wrapEmbeddingModel({
+          model: embeddingModel,
+          middleware: {
+            specificationVersion: 'v3',
+            wrapEmbed: async ({ doEmbed, model }) => {
+              const startedAt = performance.now()
+              const result = await doEmbed()
+              emitProviderCall(onProviderCall, {
+                modality: 'embedding',
+                requestId: `ai-core:embedding:${crypto.randomUUID()}`,
+                providerId: this.config.providerId,
+                modelId: model.modelId,
+                ...(result.usage ? { usage: result.usage } : {}),
+                metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                completedAt: Date.now()
+              })
+              return result
+            }
+          }
+        })
+      : embeddingModel
+
     return _embedMany({
-      model: embeddingModel,
+      model: observedModel,
       ...options
     })
   }
 
   async rerank<VALUE extends JSONObject | string = string>(params: RerankParams<VALUE>): Promise<RerankResult<VALUE>> {
-    const { model: modelOrId, ...options } = params
+    const { model: modelOrId, onProviderCall, ...options } = params
 
     const rerankingModel =
       typeof modelOrId === 'string'
         ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
-    return _rerank<VALUE>({
+    const startedAt = performance.now()
+    const result = await _rerank<VALUE>({
       model: rerankingModel,
       ...options
     })
+    emitProviderCall(onProviderCall, {
+      modality: 'rerank',
+      requestId: `ai-core:rerank:${crypto.randomUUID()}`,
+      providerId: this.config.providerId,
+      modelId: rerankingModel.modelId,
+      metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+      completedAt: Date.now()
+    })
+    return result
   }
 
   // === 辅助方法 ===

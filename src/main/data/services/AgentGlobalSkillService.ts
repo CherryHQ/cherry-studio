@@ -248,6 +248,7 @@ export class AgentGlobalSkillService {
       sourceUrl: row.sourceUrl,
       namespace: row.namespace,
       author: row.author,
+      version: row.version,
       sourceTags: row.tags,
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,

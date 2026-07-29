@@ -29,6 +29,7 @@ export interface MessageUiState {
   foldSelected?: boolean
   multiModelMessageStyle?: string
   useful?: boolean
+  disclosures?: Record<string, boolean>
 }
 
 export interface MessageListSelectionState {
@@ -39,6 +40,7 @@ export interface MessageListSelectionState {
 
 export interface MessageListRuntime {
   scrollToBottom: () => void
+  captureLocalSendScrollEligibility: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
@@ -201,7 +203,8 @@ export interface MessageListItem {
     provider: string
     group?: string
   }>
-  type?: 'clear'
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
 }
 
 export interface MessageRenderConfig {
@@ -275,6 +278,8 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
+  /** Monotonic counter incremented only after this renderer opens a local user turn. */
+  localSendGeneration?: number
   readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig

@@ -263,7 +263,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                 <div key={idx} className="flex gap-2">
                   <span className={stepDotClass(step.status)} />
                   <div className="min-w-0">
-                    <div className="font-medium text-foreground text-sm leading-tight">{step.title}</div>
+                    <div className="text-foreground text-sm leading-tight">{step.title}</div>
                     <div className="mt-1 text-foreground-muted text-xs leading-snug">{step.description}</div>
                   </div>
                 </div>
@@ -282,9 +282,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       2
                     </span>
                     <div>
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.provider.copilot.step_copy_code')}
-                      </div>
+                      <div className="text-foreground text-sm">{t('settings.provider.copilot.step_copy_code')}</div>
                       <div className="mt-0.5 text-foreground-muted text-xs">
                         {t('settings.provider.copilot.step_copy_code_detail')}
                       </div>
@@ -307,9 +305,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       3
                     </span>
                     <div>
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.provider.copilot.step_authorize')}
-                      </div>
+                      <div className="text-foreground text-sm">{t('settings.provider.copilot.step_authorize')}</div>
                       <div className="mt-0.5 text-foreground-muted text-xs">
                         {t('settings.provider.copilot.step_authorize_detail')}
                       </div>
@@ -331,9 +327,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       4
                     </span>
                     <div>
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.provider.copilot.step_connect')}
-                      </div>
+                      <div className="text-foreground text-sm">{t('settings.provider.copilot.step_connect')}</div>
                       <div className="mt-0.5 text-foreground-muted text-xs">
                         {t('settings.provider.copilot.step_connect_detail')}
                       </div>
@@ -357,7 +351,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
             <div className="flex gap-3 rounded-lg border border-info/40 bg-info/10 p-3">
               <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-foreground text-sm">{t('settings.provider.copilot.description')}</div>
+                <div className="text-foreground text-sm">{t('settings.provider.copilot.description')}</div>
                 <div className="mt-1 text-foreground-muted text-xs">
                   {t('settings.provider.copilot.description_detail')}
                 </div>

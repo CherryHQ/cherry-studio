@@ -137,7 +137,8 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
         streaming: method === 'streamGenerateContent',
         inputFormat: 'gemini',
         outputFormat: 'gemini',
-        signal: request.signal
+        signal: request.signal,
+        requestHeaders: request.headers
       })
     },
     {
