@@ -6,15 +6,20 @@
  * intentionally does not re-export them.
  */
 import type { Tool } from '@shared/ai/tool'
-import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
+import {
+  AgentBaseSchema,
+  type AgentConfiguration,
+  AgentEntitySchema,
+  type AgentPermissionMode
+} from '@shared/data/api/schemas/agents'
 import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
 
-// ------------------ Permission mode (renderer-side mirror of the
-//                    `claude-agent-sdk` enum, used by UI cards/forms) ------
-export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
-export type PermissionMode = z.infer<typeof PermissionModeSchema>
+// ------------------ Permission mode ------------------
+// Alias, not a mirror: the renderer's UI cards/forms speak the exact same enum the
+// main process persists, so a second copy here could only ever drift out of date.
+export type PermissionMode = AgentPermissionMode
 
 export type PermissionModeCard = {
   mode: PermissionMode

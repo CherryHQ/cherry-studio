@@ -1,13 +1,13 @@
+import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 import { describe, expect, it } from 'vitest'
 
 import { normalizePermissionMode } from '../permissionMode'
 
 describe('normalizePermissionMode', () => {
-  it('passes through the valid non-default modes', () => {
-    expect(normalizePermissionMode('plan')).toBe('plan')
-    expect(normalizePermissionMode('acceptEdits')).toBe('acceptEdits')
-    expect(normalizePermissionMode('bypassPermissions')).toBe('bypassPermissions')
-    expect(normalizePermissionMode('auto')).toBe('auto')
+  // Enumerated from the schema, not hand-listed: a mode added there must round-trip
+  // without anyone remembering to touch this file.
+  it.each(AgentPermissionModeSchema.options)('passes %s through unchanged', (mode) => {
+    expect(normalizePermissionMode(mode)).toBe(mode)
   })
 
   it('falls back to default for unknown / empty values', () => {
