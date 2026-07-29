@@ -25,13 +25,14 @@ import { findUnsafeAncestor } from '@data/db/restore/pathSafety'
 import {
   clearRestoreJournalV2,
   dbAsideRelPathV2,
+  parkedFailedDbRelPathV2,
   readRestoreJournalV2,
+  resourceAsideRootRelPathV2,
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
 import { RestoreStateError } from './errors'
-import { resourceAsideRoot } from './resources/planInstalls'
 
 const logger = loggerService.withContext('backupAcknowledgeRestore')
 
@@ -95,7 +96,7 @@ function assertRestoreOwnsArtifacts(
   if (dbAside !== dbAsideRelPathV2(restoreId)) {
     throw new RestoreStateError('unsafe-artifact', 'the restore journal does not describe this device’s park slot')
   }
-  const owned = `${resourceAsideRoot(restoreId)}/`
+  const owned = `${resourceAsideRootRelPathV2(restoreId)}/`
   for (const entry of resourceInstalls) {
     if (!entry.aside.startsWith(owned)) {
       throw new RestoreStateError('unsafe-artifact', 'a recovery artifact does not belong to this restore')
@@ -202,7 +203,7 @@ export function acknowledgeRestore(): AcknowledgeResult {
     ...journal.resourceInstalls.map((entry) => entry.aside),
     // The database a post-commit revert parked for forensics. Nothing else
     // knows its restoreId, so nothing else could ever clean it up.
-    `restore-failed-${journal.restoreId}.sqlite`,
+    parkedFailedDbRelPathV2(journal.restoreId),
     // Normally already gone — the promotion drops it on its way to a terminal
     // state. It survives only when a crash landed between the terminal journal
     // write and that removal, and this is the last step that still knows which

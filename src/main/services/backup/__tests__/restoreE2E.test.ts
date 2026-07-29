@@ -75,6 +75,7 @@ function pathFor(key: string, filename?: string): string {
     'feature.backup.temp': join(activeUserData, 'backup-temp'),
     'feature.backup.restore.file': join(activeUserData, 'restore-journal.json'),
     'feature.backup.restore.staging': join(activeUserData, 'restore-staging'),
+    'feature.backup.restore.aside': join(activeUserData, 'restore-aside'),
     'feature.files.data': join(activeUserData, 'Data', 'Files'),
     'feature.knowledgebase.data': join(activeUserData, 'Data', 'KnowledgeBase'),
     'feature.notes.data': join(activeUserData, 'Data', 'Notes'),
