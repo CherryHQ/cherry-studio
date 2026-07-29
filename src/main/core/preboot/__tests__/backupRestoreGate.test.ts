@@ -25,7 +25,8 @@ vi.mock('@application', () => ({
       const bases: Record<string, string> = {
         'app.userdata': userData,
         'app.database.file': join(userData, 'Data', 'cherrystudio.sqlite'),
-        'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json')
+        'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json'),
+        'feature.knowledgebase.data': join(userData, 'Data', 'KnowledgeBase')
       }
       const base = bases[key]
       if (!base) throw new Error(`Unexpected path key in backupRestoreGate test: ${key}`)
@@ -34,13 +35,15 @@ vi.mock('@application', () => ({
   }
 }))
 
-const runRestorePromotionMock = vi.fn<() => Promise<void>>()
+const runRestorePromotionMock =
+  vi.fn<(options?: { legacyOwnerSummary?: Readonly<Record<string, unknown>> }) => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const isRestoreRollbackPendingMock = vi.fn<() => boolean>()
 
 vi.mock('@data/db/restore/restorePromotionV2', () => ({
-  runRestorePromotionV2: () => runRestorePromotionMock(),
+  runRestorePromotionV2: (options?: { legacyOwnerSummary?: Readonly<Record<string, unknown>> }) =>
+    runRestorePromotionMock(options),
   markRestoreFailedAfterCrashV2: () => markRestoreFailedAfterCrashMock(),
   isLiveDbStrandedV2: () => isLiveDbStrandedMock(),
   isRestoreRecoveryPendingV2: () => isRestoreRollbackPendingMock()
@@ -148,6 +151,49 @@ describe('runBackupRestoreGate', () => {
     expect(markRestoreFailedAfterCrashMock).not.toHaveBeenCalled()
     expect(isLiveDbStrandedMock).not.toHaveBeenCalled()
     expect(isRestoreRollbackPendingMock).not.toHaveBeenCalled()
+  })
+
+  it('derives Knowledge readiness only for an older active v2 journal', async () => {
+    writeFileSync(
+      journalPath(),
+      JSON.stringify({
+        version: 2,
+        restoreId: '11111111-2222-4333-8444-555555555555',
+        preset: 'full',
+        createdAt: '2026-07-27T00:00:00.000Z',
+        state: 'armed',
+        db: {
+          promote: 'restore-staging/restore/backup.sqlite',
+          aside: 'Data/cherrystudio.sqlite.aside',
+          chain: [{ folderMillis: 1_730_000_000_000, hash: 'hash' }]
+        },
+        resourceInstalls: [
+          {
+            resourceType: 'directory',
+            staging: 'restore-staging/restore/resources/Data/KnowledgeBase/kb-1',
+            live: 'Data/KnowledgeBase/kb-1',
+            aside: 'restore-aside/restore/kb-1',
+            hadLive: true
+          },
+          {
+            resourceType: 'directory',
+            staging: 'restore-staging/restore/resources/Data/Skills/skill-1',
+            live: 'Data/Skills/skill-1',
+            aside: 'restore-aside/restore/skill-1',
+            hadLive: false
+          }
+        ]
+      }),
+      'utf8'
+    )
+
+    await runBackupRestoreGate()
+
+    expect(runRestorePromotionMock).toHaveBeenCalledWith({
+      legacyOwnerSummary: {
+        knowledge: { baseIds: ['kb-1'], requiresRebuild: true }
+      }
+    })
   })
 
   it('swallows a substance crash and invokes the crash net', async () => {

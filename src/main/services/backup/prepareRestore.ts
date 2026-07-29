@@ -36,6 +36,7 @@ import {
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
+import { createKnowledgeRestoreOwnerSummary } from '@main/features/knowledge'
 import { renameOnlySync } from '@main/utils/file'
 
 import { admitArchive } from './admission/admitArchive'
@@ -172,6 +173,11 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     const roots = resolveResourceRoots()
     const inventory = collectResourceRequirements({ dbPath: admitted.db.path, roots, userDataPath })
     const resources = reconcileRestoreResources(admitted.manifest, inventory, admitted.resources)
+    const ownerSummary = createKnowledgeRestoreOwnerSummary({
+      userDataPath,
+      knowledgeRoot: roots.knowledge,
+      livePaths: resources.filter((resource) => resource.kind === 'knowledge-base').map((resource) => resource.livePath)
+    })
     const { coverage } = measureResourceCoverage({ inventory, userDataPath })
 
     // Decide the whole install plan BEFORE moving anything: a unit that cannot
@@ -226,6 +232,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
         chain: materialized.chain.map((entry) => ({ folderMillis: entry.folderMillis, hash: entry.hash }))
       },
       resourceInstalls: [...plan.entries],
+      ownerSummary,
       // Persist the bounded presentation, not one line per omitted resource:
       // post-relaunch totals stay exact even when thousands of units share one cause.
       ...(degradations.length > 0 ? { degradations: compactDegradationsForJournal(degradations) } : {})
@@ -336,6 +343,12 @@ export async function armPreparedRestore(expectedRestoreId: string): Promise<voi
     }
     if (journal.restoreId !== expectedRestoreId) {
       throw new RestoreStateError('wrong-state', 'the prepared restore no longer matches the preview being confirmed')
+    }
+    if (journal.ownerSummary === undefined) {
+      throw new RestoreStateError(
+        'wrong-state',
+        'this preparation predates owner readiness sealing and must be prepared again'
+      )
     }
 
     const resourceInstalls = sealResourceInstallEntriesAtArm(

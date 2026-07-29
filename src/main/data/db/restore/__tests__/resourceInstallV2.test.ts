@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
-  installedKnowledgeBaseIds,
   installResourceUnits,
   recoverResourceUnits,
   resourceInstallDurability
@@ -497,28 +496,6 @@ describe('resourceInstallV2', () => {
 
       expect(readUnit(rolledBack.live)).toBe('TARGET')
       expect(existsSync(abs(notStarted.live))).toBe(false)
-    })
-  })
-
-  describe('installedKnowledgeBaseIds', () => {
-    const knowledgeRoot = () => join(userData, 'Data', 'KnowledgeBase')
-
-    it('names the directory units that sit directly under the Knowledge root', () => {
-      const ids = installedKnowledgeBaseIds(
-        [entry('Data/KnowledgeBase/base-1'), entry('Data/KnowledgeBase/base-2')],
-        userData,
-        knowledgeRoot()
-      )
-      expect(ids).toEqual(['base-1', 'base-2'])
-    })
-
-    it('ignores units outside the Knowledge root, nested deeper, or not directories', () => {
-      const ids = installedKnowledgeBaseIds(
-        [entry('Data/Notes'), entry('Data/KnowledgeBase/base-1/nested'), entry('Data/KnowledgeBase/loose.txt', 'file')],
-        userData,
-        knowledgeRoot()
-      )
-      expect(ids).toEqual([])
     })
   })
 })

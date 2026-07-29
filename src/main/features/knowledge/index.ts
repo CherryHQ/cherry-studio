@@ -1,6 +1,12 @@
 // Runtime service API.
 export { isKnowledgeCaptureExcluded } from './capturePolicy'
 export { KnowledgeService } from './KnowledgeService'
+export {
+  createKnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreSummary,
+  type KnowledgeRestoreSummaryRead,
+  readKnowledgeRestoreSummary
+} from './restorePolicy'
 export { KnowledgeVectorStoreService } from './vectorstore/KnowledgeVectorStoreService'
 
 // Index & material rebuild surface — the knowledge-owned primitives the indexing runtime and the

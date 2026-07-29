@@ -10,6 +10,7 @@ import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import { sweepStaleExportOperations } from './exportOperation'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
+import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
 import { armRestoreRollback } from './rollbackRestore'
 
 const logger = loggerService.withContext('BackupService')
@@ -365,6 +366,7 @@ export class BackupService extends BaseService {
       return { kind: 'unreadable' }
     }
     const journal = read.journal
+    const knowledgeReadiness = journal.state === 'completed' ? readRestoreKnowledgeReadiness(journal) : null
     return {
       kind: 'journal',
       state: journal.state,
@@ -374,7 +376,9 @@ export class BackupService extends BaseService {
       ...(journal.state === 'completed' && journal.resourcesIncomplete ? { resourcesIncomplete: true as const } : {}),
       ...(journal.state === 'completed' &&
       !journal.knowledgeRebuild?.abandoned &&
-      journal.summary.knowledgeBaseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))
+      (knowledgeReadiness?.kind !== 'ok' ||
+        (knowledgeReadiness.summary.requiresRebuild &&
+          knowledgeReadiness.summary.baseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))))
         ? { knowledgeRebuildPending: true as const }
         : {}),
       ...(journal.degradations && journal.degradations.length > 0 ? { degradations: journal.degradations } : {})

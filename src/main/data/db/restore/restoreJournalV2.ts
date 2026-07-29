@@ -116,13 +116,7 @@ const DbPromotionSchema = z
     message: 'db promote and aside paths must be distinct'
   })
 
-/**
- * Durable restore summary written when a promotion completes. Kept minimal: the
- * only demand that already exists is the post-promotion Knowledge reindex
- * scheduler (§6.7 / plan Phase 3), which needs the base IDs of Knowledge bases
- * installed or already present in the restored DB. `strictObject` so later
- * phases add fields deliberately, never silently.
- */
+/** Pre-release completion summary retained only so already-written v2 journals remain readable. */
 const uniqueKnowledgeBaseIds = z
   .array(z.string().min(1))
   .max(MAX_RESOURCE_INSTALL_ENTRIES)
@@ -133,6 +127,14 @@ const uniqueKnowledgeBaseIds = z
 const RestoreSummarySchema = z.strictObject({
   knowledgeBaseIds: uniqueKnowledgeBaseIds
 })
+
+/**
+ * Feature-owned readiness data transported opaquely through preboot.
+ *
+ * The data layer validates only that it is JSON. Business keys and their
+ * schemas belong to the owners that produce and consume them.
+ */
+const RestoreOwnerSummarySchema = z.record(z.string().min(1), z.json())
 
 /** Durable completion or the user's explicit decision to stop derived rebuilding. */
 const KnowledgeRebuildSchema = z.strictObject({
@@ -166,6 +168,11 @@ const commonFields = {
   createdAt: z.iso.datetime(),
   db: DbPromotionSchema,
   resourceInstalls: z.array(ResourceInstallEntrySchema).max(MAX_RESOURCE_INSTALL_ENTRIES),
+  /**
+   * Sealed before staging is moved. Optional on the read side for v2 journals
+   * written by an earlier pre-release; every current producer supplies it.
+   */
+  ownerSummary: RestoreOwnerSummarySchema.optional(),
   /**
    * What materializing THIS archive against THIS device reduced (§4). Carried by
    * the journal because the restore report is rendered after a relaunch, by
@@ -206,7 +213,8 @@ const journalVariants = [
     ...commonFields,
     state: z.literal('completed'),
     step: PromotionStepSchema.optional(),
-    summary: RestoreSummarySchema,
+    /** Pre-release field; new journals use `ownerSummary`. */
+    summary: RestoreSummarySchema.optional(),
     /**
      * The database is live, but a resource unit did not reach its installed
      * state — so somewhere on disk a unit's only remaining copies are its
@@ -221,14 +229,14 @@ const journalVariants = [
     ...commonFields,
     state: z.literal('rollback-armed'),
     step: PromotionStepSchema.optional(),
-    summary: RestoreSummarySchema,
+    summary: RestoreSummarySchema.optional(),
     knowledgeRebuild: KnowledgeRebuildSchema.optional()
   }),
   z.strictObject({
     ...commonFields,
     state: z.literal('rolled-back'),
     step: PromotionStepSchema.optional(),
-    summary: RestoreSummarySchema,
+    summary: RestoreSummarySchema.optional(),
     knowledgeRebuild: KnowledgeRebuildSchema.optional()
   }),
   z.strictObject({
@@ -257,9 +265,23 @@ export const RestoreJournalV2Schema = z
   .discriminatedUnion('state', journalVariants)
   .refine(
     (journal) =>
-      !('knowledgeRebuild' in journal) ||
-      journal.knowledgeRebuild === undefined ||
-      journal.knowledgeRebuild.completedBaseIds.every((id) => journal.summary.knowledgeBaseIds.includes(id)),
+      (journal.state !== 'completed' && journal.state !== 'rollback-armed' && journal.state !== 'rolled-back') ||
+      journal.ownerSummary !== undefined ||
+      journal.summary !== undefined,
+    {
+      message: 'a committed restore must carry owner readiness state',
+      path: ['ownerSummary']
+    }
+  )
+  .refine(
+    (journal) => {
+      if (!('knowledgeRebuild' in journal) || journal.knowledgeRebuild === undefined) return true
+      const legacySummary = journal.summary
+      return (
+        legacySummary === undefined ||
+        journal.knowledgeRebuild.completedBaseIds.every((id) => legacySummary.knowledgeBaseIds.includes(id))
+      )
+    },
     {
       message: 'completed knowledge rebuild IDs must belong to the restore summary',
       path: ['knowledgeRebuild', 'completedBaseIds']
@@ -276,6 +298,8 @@ export type ResourceInstallEntry = z.infer<typeof ResourceInstallEntrySchema>
  */
 export type SealedResourceInstallEntry = ResourceInstallEntry & { readonly hadLive: boolean }
 export type JournalDegradation = z.infer<typeof JournalDegradationSchema>
+export type RestoreOwnerSummary = z.infer<typeof RestoreOwnerSummarySchema>
+/** @deprecated Pre-release compatibility only. New journals use {@link RestoreOwnerSummary}. */
 export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
 
 /**

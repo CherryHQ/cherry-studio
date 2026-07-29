@@ -41,6 +41,7 @@ import { presentJournalDegradations } from '../degradationReport'
 import { ArchiveAdmissionError, SourceDriftError } from '../errors'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
+import { readRestoreKnowledgeReadiness } from '../restoreOwnerReadiness'
 import { driftHooks } from '../sourceDrift'
 
 /**
@@ -240,9 +241,13 @@ async function retargetFirstPayload(
 function markKnowledgeRebuildComplete(): void {
   const read = readRestoreJournalV2()
   if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+  const readiness = readRestoreKnowledgeReadiness(read.journal)
+  if (readiness.kind !== 'ok') throw new Error('expected Knowledge owner readiness')
   writeRestoreJournalV2({
     ...read.journal,
-    knowledgeRebuild: { completedBaseIds: read.journal.summary.knowledgeBaseIds }
+    knowledgeRebuild: {
+      completedBaseIds: readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
+    }
   })
 }
 
@@ -385,7 +390,10 @@ describe('Full restore, empty target device', () => {
 
     const read = readRestoreJournalV2()
     if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
-    expect(read.journal.summary?.knowledgeBaseIds).toEqual(['kb-1'])
+    expect(readRestoreKnowledgeReadiness(read.journal)).toEqual({
+      kind: 'ok',
+      summary: { baseIds: ['kb-1'], requiresRebuild: true }
+    })
   })
 
   it('restores internal links as ordinary bytes and keeps every omitted reference disclosed', async () => {
