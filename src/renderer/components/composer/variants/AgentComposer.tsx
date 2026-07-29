@@ -81,8 +81,7 @@ import {
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
-  getCacheableDraftTokens,
-  getCachedKnowledgeBases,
+  getAgentManagedDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
@@ -341,19 +340,13 @@ const AgentComposerRoot = ({
   const initialState = useMemo(
     () => ({
       mentionedModels: [],
-      // Seeded synchronously, like files: the cached draft restores its knowledge chips, and the
-      // surface's managed-token sync strips any chip the selection does not already contain.
-      selectedKnowledgeBases: getCachedKnowledgeBases(readAgentDraftCache(getAgentDraftCacheKey(agentId))),
+      selectedKnowledgeBases: [],
       files: [] as ComposerAttachment[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    // `sessionId` is load-bearing despite not appearing above: the provider below is keyed by agent +
-    // session and seeds this object once per mount, so it must be re-read in the same render that
-    // changes the key — otherwise the remounted provider replays the previous session's selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentId, sessionId]
+    []
   )
 
   if (!session) return null
@@ -737,7 +730,7 @@ const AgentComposerInner = ({
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextDraftTokens = getCacheableDraftTokens(historyDraft.tokens)
+      const nextDraftTokens = getAgentManagedDraftTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
@@ -1001,7 +994,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getCacheableDraftTokens(draftTokens)
+      const nextDraftTokens = getAgentManagedDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
@@ -1133,7 +1126,7 @@ const AgentComposerInner = ({
   // skill subset and managed file/knowledge/skill state before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getCacheableDraftTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentManagedDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)
