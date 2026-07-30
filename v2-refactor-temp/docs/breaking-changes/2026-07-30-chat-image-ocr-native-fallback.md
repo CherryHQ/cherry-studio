@@ -2,7 +2,7 @@
 title: Chat images with no OCR text are now sent to the model as-is
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: 17637
 date: 2026-07-30
 ---
 
