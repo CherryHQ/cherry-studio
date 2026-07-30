@@ -4,6 +4,7 @@ import {
   createAgentSessionRuntimeState,
   getAgentSessionRuntimeConnection,
   getAgentSessionRuntimeCurrentTurn,
+  getAgentSessionRuntimeOccupancy,
   isAgentSessionRuntimeAutonomous,
   isAgentSessionRuntimeBusy,
   transitionAgentSessionRuntime,
@@ -17,8 +18,6 @@ type Reservation = { id: string }
 const turn = (id: string): Turn => ({ id })
 const pending = (id: string): PendingTurn => ({ id })
 const reservation = (id: string): Reservation => ({ id })
-const isTerminal = (value: Turn) => value.terminal === true
-
 describe('agentSessionRuntimeState', () => {
   it('models a normal turn and queued follow-up without parallel execution flags', () => {
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(turn('user-1'))
@@ -27,7 +26,7 @@ describe('agentSessionRuntimeState', () => {
 
     expect(state.execution).toMatchObject({ kind: 'turn', turn: { id: 'user-1' } })
     expect(state.queue).toEqual([{ id: 'user-2' }])
-    expect(isAgentSessionRuntimeBusy(state, isTerminal)).toBe(true)
+    expect(isAgentSessionRuntimeBusy(state)).toBe(true)
     expect(willAgentSessionRuntimeContinue(state)).toBe(true)
   })
 
@@ -58,7 +57,7 @@ describe('agentSessionRuntimeState', () => {
       stream: 'awaiting-persistence'
     })
     expect(runtimeCompleted.effects).toEqual([{ type: 'settle-turn', turn: current, outcome: { status: 'success' } }])
-    expect(isAgentSessionRuntimeBusy(runtimeCompleted.state, isTerminal)).toBe(true)
+    expect(isAgentSessionRuntimeBusy(runtimeCompleted.state)).toBe(true)
 
     const persisted = transitionAgentSessionRuntime(runtimeCompleted.state, {
       type: 'turn-terminal',
@@ -67,7 +66,8 @@ describe('agentSessionRuntimeState', () => {
     })
 
     expect(persisted.state.execution).toEqual({ kind: 'idle', lastTurn: current })
-    expect(persisted.effects).toEqual([{ type: 'mark-turn-terminal', turn: current, status: 'success' }])
+    expect(persisted.effects).toEqual([])
+    expect(persisted.state.lastTerminal).toBe('success')
   })
 
   it('latches a terminal event until an unopened normal stream has emitted its start chunk', () => {
@@ -320,45 +320,7 @@ describe('agentSessionRuntimeState', () => {
     expect(result.effects).toEqual([{ type: 'log-invalid-transition', event: 'buffer-chunk', state: 'turn' }])
   })
 
-  it('keeps duplicate autonomous and background level events idempotent', () => {
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
-    }).state
-    const duplicateAutonomous = transitionAgentSessionRuntime(state, {
-      type: 'autonomous-turn-state',
-      state: 'started'
-    })
-    state = transitionAgentSessionRuntime(state, {
-      type: 'background-work-state',
-      active: true,
-      responder: 'interactive'
-    }).state
-    const duplicateBackground = transitionAgentSessionRuntime(state, {
-      type: 'background-work-state',
-      active: true,
-      responder: 'headless'
-    })
-
-    expect(duplicateAutonomous).toEqual({ state: duplicateAutonomous.state, effects: [] })
-    expect(duplicateBackground.state.background).toEqual({ kind: 'active', responder: 'interactive' })
-    expect(duplicateBackground.effects).toEqual([])
-  })
-
-  it('captures the background responder until work releases', () => {
-    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
-    state = transitionAgentSessionRuntime(state, {
-      type: 'background-work-state',
-      active: true,
-      responder: 'interactive'
-    }).state
-    state = transitionAgentSessionRuntime(state, { type: 'begin-turn', turn: turn('headless') }).state
-
-    expect(state.background).toEqual({ kind: 'active', responder: 'interactive' })
-  })
-
-  it('blocks a connection rebuild as an explicit connection state and releases it with background work', () => {
+  it('keeps duplicate autonomous and background occupancy events idempotent', () => {
     const connection = { events: [], close: () => undefined } as never
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
     state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
@@ -368,23 +330,95 @@ describe('agentSessionRuntimeState', () => {
       connection
     }).state
     state = transitionAgentSessionRuntime(state, {
-      type: 'background-work-state',
+      type: 'autonomous-turn-state',
+      state: 'started'
+    }).state
+    const duplicateAutonomous = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started'
+    })
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-occupancy',
+      occupancy: 'background',
+      active: true,
+      responder: 'interactive'
+    }).state
+    const duplicateBackground = transitionAgentSessionRuntime(state, {
+      type: 'connection-occupancy',
+      occupancy: 'background',
+      active: true,
+      responder: 'headless'
+    })
+
+    expect(duplicateAutonomous).toEqual({ state: duplicateAutonomous.state, effects: [] })
+    expect(getAgentSessionRuntimeOccupancy(duplicateBackground.state)).toEqual({
+      background: { responder: 'interactive' }
+    })
+    expect(duplicateBackground.effects).toEqual([])
+  })
+
+  it('scopes occupancy to the connection: a disconnect erases it structurally', () => {
+    const connection = { events: [], close: () => undefined } as never
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
+    state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-connected',
+      attemptId: 'connect-1',
+      connection
+    }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-occupancy',
+      occupancy: 'background',
       active: true,
       responder: 'interactive'
     }).state
     state = transitionAgentSessionRuntime(state, {
-      type: 'connection-rebuild-blocked',
+      type: 'connection-occupancy',
+      occupancy: 'compaction',
+      active: true
+    }).state
+    expect(isAgentSessionRuntimeBusy(state)).toBe(true)
+
+    const disconnected = transitionAgentSessionRuntime(state, { type: 'connection-disconnected', connection })
+
+    expect(getAgentSessionRuntimeOccupancy(disconnected.state)).toBeUndefined()
+    expect(isAgentSessionRuntimeBusy(disconnected.state)).toBe(false)
+    expect(disconnected.effects).toEqual([
+      { type: 'release-background-waiter', connection },
+      { type: 'compaction-interrupted' }
+    ])
+  })
+
+  it('defers a rebuild behind background occupancy and releases it when the work drains', () => {
+    const connection = { events: [], close: () => undefined } as never
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
+    state = transitionAgentSessionRuntime(state, { type: 'connection-started', attemptId: 'connect-1' }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-connected',
+      attemptId: 'connect-1',
+      connection
+    }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-occupancy',
+      occupancy: 'background',
+      active: true,
+      responder: 'interactive'
+    }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'connection-rebuild-deferred',
       connection,
       target: { modelId: 'model-2', reasoningEffort: 'default', knowledgeBaseIds: ['kb-1'] }
     }).state
+    expect(state.connection).toMatchObject({ kind: 'connected', pendingRebuild: { modelId: 'model-2' } })
 
     const result = transitionAgentSessionRuntime(state, {
-      type: 'background-work-state',
+      type: 'connection-occupancy',
+      occupancy: 'background',
       active: false
     })
 
     expect(getAgentSessionRuntimeConnection(result.state)).toBe(connection)
-    expect(result.state.connection).toEqual({ kind: 'connected', connection })
+    expect(result.state.connection).toEqual({ kind: 'connected', connection, occupancy: {} })
     expect(result.effects).toContainEqual({ type: 'release-background-waiter', connection })
   })
 

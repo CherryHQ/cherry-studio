@@ -25,19 +25,28 @@ export interface AgentSessionRuntimeConnectionTarget {
   knowledgeBaseIds: readonly string[]
 }
 
+/**
+ * Runtime-initiated work occupying the connection, reported by driver edges. Structurally scoped to
+ * the `connected` variant: a connection's death erases its occupancy by construction — no cleanup
+ * path can forget it.
+ */
+export interface AgentSessionRuntimeConnectionOccupancy {
+  /** Detached tasks keep the connection alive. Deliberately not "busy": user turns may still start. */
+  background?: { responder: 'interactive' | 'headless' }
+  /** A context rewrite is in flight; it holds the session busy and the topic stream alive. */
+  compaction?: true
+}
+
 export type AgentSessionRuntimeConnectionState =
   | { kind: 'disconnected' }
   | { kind: 'connecting'; attemptId: string }
-  | { kind: 'connected'; connection: AgentRuntimeConnection }
   | {
-      kind: 'rebuild-blocked'
+      kind: 'connected'
       connection: AgentRuntimeConnection
-      target: AgentSessionRuntimeConnectionTarget
+      occupancy: AgentSessionRuntimeConnectionOccupancy
+      /** A spawn-frozen config mismatch waiting for background occupancy to drain before rebuilding. */
+      pendingRebuild?: AgentSessionRuntimeConnectionTarget
     }
-
-export type AgentSessionRuntimeBackgroundState =
-  | { kind: 'inactive' }
-  | { kind: 'active'; responder: 'interactive' | 'headless' }
 
 export type AgentSessionRuntimeExecution<TTurn, TReservation> =
   | { kind: 'idle'; lastTurn?: TTurn }
@@ -78,7 +87,8 @@ export interface AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation> {
   queue: TPendingTurn[]
   launch: AgentSessionRuntimeLaunchState
   connection: AgentSessionRuntimeConnectionState
-  background: AgentSessionRuntimeBackgroundState
+  /** Persistence-confirmed status of the most recently settled turn. Survives `reset`. */
+  lastTerminal?: AgentSessionTerminalStatus
 }
 
 export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
@@ -115,11 +125,16 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'launch-suppressed'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-finished'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-resumed' }
-  | { type: 'background-work-state'; active: boolean; responder?: 'interactive' | 'headless' }
+  | {
+      type: 'connection-occupancy'
+      occupancy: 'background' | 'compaction'
+      active: boolean
+      responder?: 'interactive' | 'headless'
+    }
   | { type: 'connection-started'; attemptId: string }
   | { type: 'connection-connected'; attemptId: string; connection: AgentRuntimeConnection }
   | {
-      type: 'connection-rebuild-blocked'
+      type: 'connection-rebuild-deferred'
       connection: AgentRuntimeConnection
       target: AgentSessionRuntimeConnectionTarget
     }
@@ -130,8 +145,9 @@ export type AgentSessionRuntimeStateEffect<TTurn> =
   | { type: 'schedule-launch'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'deliver-buffer'; turn: TTurn; chunks: UIMessageChunk[] }
   | { type: 'settle-turn'; turn: TTurn; outcome: AgentSessionTerminalOutcome }
-  | { type: 'mark-turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus }
   | { type: 'release-background-waiter'; connection?: AgentRuntimeConnection }
+  /** A connection died while a compaction occupied it — its projected status must leave `compacting`. */
+  | { type: 'compaction-interrupted' }
   | { type: 'log-invalid-transition'; event: string; state: string }
 
 export interface AgentSessionRuntimeTransition<TTurn, TPendingTurn, TReservation> {
@@ -146,8 +162,7 @@ export function createAgentSessionRuntimeState<TTurn, TPendingTurn, TReservation
     execution: turn ? { kind: 'turn', turn, stream: 'unopened', admission: 'pending' } : { kind: 'idle' },
     queue: [],
     launch: { kind: 'idle' },
-    connection: { kind: 'disconnected' },
-    background: { kind: 'inactive' }
+    connection: { kind: 'disconnected' }
   }
 }
 
@@ -159,6 +174,17 @@ function invalid<TTurn, TPendingTurn, TReservation>(
     state,
     effects: [{ type: 'log-invalid-transition', event: event.type, state: state.execution.kind }]
   }
+}
+
+/** Occupancy dies with its connection; these effects hand the interruption to the host. */
+function connectionTeardownEffects<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): AgentSessionRuntimeStateEffect<TTurn>[] {
+  if (state.connection.kind !== 'connected') return []
+  return [
+    { type: 'release-background-waiter', connection: state.connection.connection },
+    ...(state.connection.occupancy.compaction ? [{ type: 'compaction-interrupted' } as const] : [])
+  ]
 }
 
 function resumeAfterAutonomous<TTurn, TPendingTurn, TReservation>(
@@ -177,14 +203,10 @@ function resumeAfterAutonomous<TTurn, TPendingTurn, TReservation>(
           stream: 'unopened',
           admission: 'pending'
         },
-        launch: canSchedule ? { kind: 'scheduled', target: 'deferred-turn' } : state.launch
+        launch: canSchedule ? { kind: 'scheduled', target: 'deferred-turn' } : state.launch,
+        lastTerminal: execution.settled
       },
-      effects: [
-        ...(execution.turn
-          ? [{ type: 'mark-turn-terminal', turn: execution.turn, status: execution.settled } as const]
-          : []),
-        ...(canSchedule ? [{ type: 'schedule-launch', target: 'deferred-turn' } as const] : [])
-      ]
+      effects: canSchedule ? [{ type: 'schedule-launch', target: 'deferred-turn' }] : []
     }
   }
   return {
@@ -193,9 +215,10 @@ function resumeAfterAutonomous<TTurn, TPendingTurn, TReservation>(
       execution: {
         kind: 'idle',
         ...(execution.turn || execution.contextTurn ? { lastTurn: execution.turn ?? execution.contextTurn } : {})
-      }
+      },
+      lastTerminal: execution.settled
     },
-    effects: execution.turn ? [{ type: 'mark-turn-terminal', turn: execution.turn, status: execution.settled }] : []
+    effects: []
   }
 }
 
@@ -477,17 +500,15 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
             state: {
               ...state,
               execution: { ...execution, sourceStream: 'settled' },
-              launch: { kind: 'scheduled', target: 'steer-continuation' }
+              launch: { kind: 'scheduled', target: 'steer-continuation' },
+              lastTerminal: event.status
             },
-            effects: [
-              { type: 'mark-turn-terminal', turn: event.turn, status: event.status },
-              { type: 'schedule-launch', target: 'steer-continuation' }
-            ]
+            effects: [{ type: 'schedule-launch', target: 'steer-continuation' }]
           }
         }
         return {
-          state: { ...state, execution: { kind: 'idle', lastTurn: event.turn } },
-          effects: [{ type: 'mark-turn-terminal', turn: event.turn, status: event.status }]
+          state: { ...state, execution: { kind: 'idle', lastTurn: event.turn }, lastTerminal: event.status },
+          effects: []
         }
       }
       if (execution.kind === 'autonomous-turn' && execution.turn === event.turn) {
@@ -499,9 +520,14 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       }
       if (execution.kind === 'turn' && execution.turn === event.turn) {
         return {
-          state: { ...state, execution: { kind: 'idle', lastTurn: event.turn } },
-          effects: [{ type: 'mark-turn-terminal', turn: event.turn, status: event.status }]
+          state: { ...state, execution: { kind: 'idle', lastTurn: event.turn }, lastTerminal: event.status },
+          effects: []
         }
+      }
+      // An already-idle execution can still receive a terminal report (e.g. a launch failed before
+      // its turn existed). Record the status; there is no execution to transition.
+      if (execution.kind === 'idle') {
+        return { state: { ...state, lastTerminal: event.status }, effects: [] }
       }
       return invalid(state, event)
     }
@@ -526,31 +552,41 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         state: { ...state, launch: { kind: 'scheduled', target: state.launch.target } },
         effects: [{ type: 'schedule-launch', target: state.launch.target }]
       }
-    case 'background-work-state': {
+    case 'connection-occupancy': {
+      const connection = state.connection
+      if (connection.kind !== 'connected') {
+        // A cleared occupancy is already structurally gone with the connection; only an activation
+        // without a connection is a protocol violation worth logging.
+        return event.active ? invalid(state, event) : { state, effects: [] }
+      }
+      if (event.occupancy === 'compaction') {
+        if (event.active === (connection.occupancy.compaction === true)) return { state, effects: [] }
+        const occupancy = { ...connection.occupancy }
+        if (event.active) occupancy.compaction = true
+        else delete occupancy.compaction
+        return { state: { ...state, connection: { ...connection, occupancy } }, effects: [] }
+      }
       if (event.active) {
-        if (state.background.kind === 'active') return { state, effects: [] }
+        // Keep the first responder for the whole occupancy — a later edge cannot relax it.
+        if (connection.occupancy.background) return { state, effects: [] }
         return {
           state: {
             ...state,
-            background: { kind: 'active', responder: event.responder ?? 'headless' }
+            connection: {
+              ...connection,
+              occupancy: { ...connection.occupancy, background: { responder: event.responder ?? 'headless' } }
+            }
           },
           effects: []
         }
       }
-      if (state.background.kind === 'inactive') return { state, effects: [] }
-      const blockedConnection = state.connection.kind === 'rebuild-blocked' ? state.connection.connection : undefined
+      if (!connection.occupancy.background) return { state, effects: [] }
+      const occupancy = { ...connection.occupancy }
+      delete occupancy.background
+      // Draining background work also releases any rebuild it was blocking.
       return {
-        state: {
-          ...state,
-          background: { kind: 'inactive' },
-          connection: blockedConnection ? { kind: 'connected', connection: blockedConnection } : state.connection
-        },
-        effects: [
-          {
-            type: 'release-background-waiter',
-            connection: blockedConnection
-          }
-        ]
+        state: { ...state, connection: { kind: 'connected', connection: connection.connection, occupancy } },
+        effects: [{ type: 'release-background-waiter', connection: connection.connection }]
       }
     }
     case 'connection-started':
@@ -564,45 +600,51 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return invalid(state, event)
       }
       return {
-        state: { ...state, connection: { kind: 'connected', connection: event.connection } },
+        state: { ...state, connection: { kind: 'connected', connection: event.connection, occupancy: {} } },
         effects: []
       }
-    case 'connection-rebuild-blocked':
+    case 'connection-rebuild-deferred':
       if (
         state.connection.kind !== 'connected' ||
         state.connection.connection !== event.connection ||
-        state.background.kind !== 'active'
+        !state.connection.occupancy.background
       ) {
         return invalid(state, event)
       }
       return {
         state: {
           ...state,
-          connection: { kind: 'rebuild-blocked', connection: event.connection, target: event.target }
+          connection: { ...state.connection, pendingRebuild: event.target }
         },
         effects: []
       }
-    case 'connection-disconnected':
+    case 'connection-disconnected': {
       if (
         event.connection &&
-        state.connection.kind !== 'disconnected' &&
-        state.connection.kind !== 'connecting' &&
+        state.connection.kind === 'connected' &&
         state.connection.connection !== event.connection
       ) {
         return invalid(state, event)
       }
-      return { state: { ...state, connection: { kind: 'disconnected' } }, effects: [] }
+      return {
+        state: { ...state, connection: { kind: 'disconnected' } },
+        effects: connectionTeardownEffects(state)
+      }
+    }
     case 'reset':
       return {
-        state: createAgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>(),
+        state: {
+          ...createAgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>(),
+          ...(state.lastTerminal ? { lastTerminal: state.lastTerminal } : {})
+        },
         effects: [
           {
             type: 'release-background-waiter',
-            connection:
-              state.connection.kind === 'connected' || state.connection.kind === 'rebuild-blocked'
-                ? state.connection.connection
-                : undefined
-          }
+            connection: state.connection.kind === 'connected' ? state.connection.connection : undefined
+          },
+          ...(state.connection.kind === 'connected' && state.connection.occupancy.compaction
+            ? [{ type: 'compaction-interrupted' } as const]
+            : [])
         ]
       }
   }
@@ -623,20 +665,61 @@ export function getAgentSessionRuntimeCurrentTurn<TTurn, TPendingTurn, TReservat
   }
 }
 
-export function getAgentSessionRuntimeLiveTurn<TTurn, TPendingTurn, TReservation>(
+/**
+ * Machine-derived turn liveness — the single source of truth. A turn is live until its `settle-turn`
+ * effect has been issued (stream left `unopened`/`open`) or it is no longer referenced by the
+ * execution. A merely *recorded* terminal outcome (`execution.terminal` latched while the stream is
+ * still unopened) keeps the turn live: its stream must still open so the outcome can flush into it.
+ */
+export function isAgentSessionRuntimeTurnLive<TTurn, TPendingTurn, TReservation>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>,
-  isTerminal: (turn: TTurn) => boolean
+  turn: TTurn
+): boolean {
+  const execution = state.execution
+  switch (execution.kind) {
+    case 'idle':
+      return false
+    case 'turn':
+      return execution.turn === turn && (execution.stream === 'unopened' || execution.stream === 'open')
+    case 'steer-transition':
+      // The source turn settled at the boundary; only the continuation can still be live.
+      return execution.continuationTurn === turn && (execution.stream === 'unopened' || execution.stream === 'open')
+    case 'autonomous-turn':
+      // A deferred turn is parked, not settled — it will run once the generation releases.
+      if (execution.deferredTurn === turn) return true
+      return execution.turn === turn && (execution.stream === 'unopened' || execution.stream === 'open')
+  }
+}
+
+export function getAgentSessionRuntimeLiveTurn<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
 ): TTurn | undefined {
   const turn = getAgentSessionRuntimeCurrentTurn(state)
-  return turn && !isTerminal(turn) ? turn : undefined
+  return turn !== undefined && isAgentSessionRuntimeTurnLive(state, turn) ? turn : undefined
 }
 
 export function getAgentSessionRuntimeConnection<TTurn, TPendingTurn, TReservation>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
 ): AgentRuntimeConnection | undefined {
-  return state.connection.kind === 'connected' || state.connection.kind === 'rebuild-blocked'
-    ? state.connection.connection
-    : undefined
+  return state.connection.kind === 'connected' ? state.connection.connection : undefined
+}
+
+export function getAgentSessionRuntimeOccupancy<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): AgentSessionRuntimeConnectionOccupancy | undefined {
+  return state.connection.kind === 'connected' ? state.connection.occupancy : undefined
+}
+
+export function hasAgentSessionRuntimeBackgroundWork<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): boolean {
+  return getAgentSessionRuntimeOccupancy(state)?.background !== undefined
+}
+
+export function isAgentSessionRuntimeCompacting<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): boolean {
+  return getAgentSessionRuntimeOccupancy(state)?.compaction === true
 }
 
 export function isAgentSessionRuntimeTransitioning<TTurn, TPendingTurn, TReservation>(
@@ -684,17 +767,19 @@ export function hasAgentSessionRuntimeOpenStream<TTurn, TPendingTurn, TReservati
   return false
 }
 
+/**
+ * Busy ⇔ the machine is not fully idle. A turn-kind execution counts as busy even after its terminal
+ * outcome is recorded: only `turn-terminal` (persistence confirmed) returns the execution to `idle`,
+ * so a dispatcher can never begin a clobbering fresh turn inside a settle window.
+ */
 export function isAgentSessionRuntimeBusy<TTurn, TPendingTurn, TReservation>(
-  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>,
-  isTerminal: (turn: TTurn) => boolean
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
 ): boolean {
   return (
+    isAgentSessionRuntimeCompacting(state) ||
     state.launch.kind !== 'idle' ||
     state.queue.length > 0 ||
-    state.execution.kind === 'steer-transition' ||
-    state.execution.kind === 'autonomous-turn' ||
-    (state.execution.kind === 'turn' && state.execution.stream === 'awaiting-persistence') ||
-    getAgentSessionRuntimeLiveTurn(state, isTerminal) !== undefined
+    state.execution.kind !== 'idle'
   )
 }
 
@@ -702,6 +787,7 @@ export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn, TReservatio
   state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
 ): boolean {
   return (
+    isAgentSessionRuntimeCompacting(state) ||
     state.queue.length > 0 ||
     state.launch.kind !== 'idle' ||
     state.execution.kind === 'steer-transition' ||

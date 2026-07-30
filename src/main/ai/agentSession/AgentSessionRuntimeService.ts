@@ -71,11 +71,15 @@ import {
   getAgentSessionRuntimeConnection,
   getAgentSessionRuntimeCurrentTurn,
   getAgentSessionRuntimeLiveTurn,
+  getAgentSessionRuntimeOccupancy,
+  hasAgentSessionRuntimeBackgroundWork,
   hasAgentSessionRuntimeOpenStream,
   isAgentSessionRuntimeAutonomous,
   isAgentSessionRuntimeBusy,
+  isAgentSessionRuntimeCompacting,
   isAgentSessionRuntimeTransitioning,
   isAgentSessionRuntimeTurnAdmitted,
+  isAgentSessionRuntimeTurnLive,
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
@@ -143,6 +147,8 @@ export interface AgentSessionInteractionState {
 
 type AgentSessionTurn = {
   turnId: string
+  /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
+  systemReminder?: boolean
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
@@ -151,7 +157,6 @@ type AgentSessionTurn = {
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   abortController: AbortController
-  terminalStatus?: AgentSessionRuntimeTerminalStatus
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
   headless?: boolean
@@ -161,6 +166,12 @@ type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
+  /** The message arrived mid-turn (steer) — the drained turn wraps it in a system-reminder. */
+  steer?: boolean
+  /** The follow-up must open a responder-less/headless turn. */
+  headless?: boolean
+  /** Submit-time author snapshot so a mid-session agent/model change can't restamp the reply. */
+  messageSnapshot?: MessageSnapshot
 }
 
 type BackgroundFlowAccumulator = {
@@ -207,19 +218,7 @@ type AgentSessionRuntimeEntry = {
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
   lastResumeToken?: string
-  lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
   idleTimer?: ReturnType<typeof setTimeout>
-  /** Ids of pending messages that arrived mid-turn (steers) — drives the system-reminder wrap. */
-  steerMessageIds?: Set<string>
-  /** Ids of queued follow-ups that must open a responder-less/headless turn. */
-  headlessMessageIds?: Set<string>
-  /** Submit-time author snapshot per queued follow-up (keyed by user message id) so a mid-session
-   *  agent/model change can't stamp the queued reply with the prior turn's frozen snapshot. */
-  pendingSnapshots?: Map<string, MessageSnapshot>
-  compacting?: boolean
-  /** A `system/api_retry` backoff is in flight — set so its ephemeral cache state is cleared exactly
-   *  once when content resumes / the turn settles / the connection closes. */
-  retrying?: boolean
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
@@ -328,7 +327,11 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private liveTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
-    return getAgentSessionRuntimeLiveTurn(entry.runtimeState, (turn) => turn.terminalStatus !== undefined)
+    return getAgentSessionRuntimeLiveTurn(entry.runtimeState)
+  }
+
+  private isTurnLive(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): boolean {
+    return isAgentSessionRuntimeTurnLive(entry.runtimeState, turn)
   }
 
   private currentConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
@@ -336,10 +339,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private runtimeStatus(entry: AgentSessionRuntimeEntry): AgentSessionRuntimeStatus {
-    return isAgentSessionRuntimeBusy(entry.runtimeState, (turn) => turn.terminalStatus !== undefined) ||
-      entry.compacting === true
-      ? 'active'
-      : 'idle'
+    return isAgentSessionRuntimeBusy(entry.runtimeState) ? 'active' : 'idle'
   }
 
   private applyRuntimeStateEvent(entry: AgentSessionRuntimeEntry, event: RuntimeStateEvent): void {
@@ -367,15 +367,17 @@ export class AgentSessionRuntimeService extends BaseService {
         if (effect.outcome.status === 'error') {
           this.errorTurn(effect.turn, effect.outcome.error)
         } else {
-          this.closeTurn(effect.turn, effect.outcome.status)
+          this.closeTurn(effect.turn)
         }
         break
       }
-      case 'mark-turn-terminal':
-        effect.turn.terminalStatus = effect.status
-        break
       case 'release-background-waiter':
         this.releaseBackgroundWorkWaiter(entry, effect.connection)
+        break
+      case 'compaction-interrupted':
+        application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+          status: 'idle'
+        })
         break
       case 'log-invalid-transition':
         logger.warn('Ignoring invalid agent session runtime transition', {
@@ -476,8 +478,8 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    const turn = entry ? this.currentTurn(entry) : undefined
-    if (!turn || turn.terminalStatus) return undefined
+    const turn = entry ? this.liveTurn(entry) : undefined
+    if (!turn) return undefined
     return {
       agentSessionId: sessionId,
       assistantMessageId: turn.assistantMessageId,
@@ -491,14 +493,14 @@ export class AgentSessionRuntimeService extends BaseService {
     const steerMessage = inputs[0]?.message
     if (
       !turn ||
-      turn.terminalStatus ||
+      !this.isTurnLive(entry, turn) ||
       !steerMessage ||
       (entry.runtimeState.execution.kind === 'turn' && entry.runtimeState.execution.reservation)
     ) {
       return
     }
 
-    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    const messageSnapshot = inputs[0]?.messageSnapshot ?? entry.messageSnapshot
     this.applyRuntimeStateEvent(entry, {
       type: 'reserve-steer',
       reservation: {
@@ -629,11 +631,10 @@ export class AgentSessionRuntimeService extends BaseService {
         // Live patches are already applied (live-first). Rebuild eagerly only when nothing is
         // streaming — a roll or non-terminal turn keeps its connection, and the next fresh turn's
         // pull picks the rebuild up.
-        const turn = this.currentTurn(entry)
         const hasLiveTurn =
-          (turn && !turn.terminalStatus) ||
+          this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
-          entry.runtimeState.background.kind === 'active'
+          hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
         if (!hasLiveTurn) this.closeConnectionAsync(entry)
         return
       }
@@ -669,8 +670,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * on the stale model; and a fresh dispatch fails fast in the chat context with "no model configured".
    */
   private invalidateModelClearedEntry(entry: AgentSessionRuntimeEntry): void {
-    const turn = this.currentTurn(entry)
-    if (turn && !turn.terminalStatus) {
+    if (this.liveTurn(entry)) {
       application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-model-cleared')
     }
     this.closeSession(entry.sessionId)
@@ -704,16 +704,18 @@ export class AgentSessionRuntimeService extends BaseService {
           // A steer/autonomous transition owns any chunks that arrived before this controller. The
           // state transition atomically transfers that buffer to this exact turn before admission.
           this.applyRuntimeStateEvent(entry, { type: 'flush-transition' })
-          if (turn.terminalStatus) return
+          if (!this.isTurnLive(entry, turn)) return
           const connected = await this.ensureConnection(entry)
-          if (!connected || !this.isCurrentEntry(entry) || turn.terminalStatus) return
+          if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
           await this.admitTurn(entry, turn)
         } catch (error) {
           controller.error(error)
         }
       },
       cancel: () => {
-        this.closeCurrentTurn(entry, 'paused')
+        // Routed through the machine so the settle is a real transition (`awaiting-persistence`)
+        // rather than an out-of-band mutation the busy/live queries cannot see.
+        this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
       }
     })
   }
@@ -731,13 +733,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return
 
     this.clearIdleTimer(entry)
-    if (opts.headless === true) (entry.headlessMessageIds ??= new Set()).add(message.id)
-    // Store before the redirect check so a native-steer follow-up (redirect → steer-boundary/undelivered)
-    // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
-    if (opts.messageSnapshot) {
-      const pendingSnapshots = (entry.pendingSnapshots ??= new Map())
-      pendingSnapshots.set(message.id, structuredClone(opts.messageSnapshot))
-    }
+    // Message attributes ride the payloads themselves: a redirect carries them through the driver
+    // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
+    const headless = opts.headless === true
+    const messageSnapshot = opts.messageSnapshot ? structuredClone(opts.messageSnapshot) : undefined
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
 
@@ -758,9 +757,14 @@ export class AgentSessionRuntimeService extends BaseService {
       )
     if (
       turn &&
-      !turn.terminalStatus &&
+      this.isTurnLive(entry, turn) &&
       canRedirectOnCurrentConfig &&
-      this.currentConnection(entry)?.redirect?.({ message, systemReminder: true })
+      this.currentConnection(entry)?.redirect?.({
+        message,
+        systemReminder: true,
+        ...(headless ? { headless } : {}),
+        ...(messageSnapshot ? { messageSnapshot } : {})
+      })
     ) {
       return
     }
@@ -768,12 +772,18 @@ export class AgentSessionRuntimeService extends BaseService {
     // No live turn (or backend can't steer) → queue as the next turn, wrapped in a steer system-reminder.
     this.applyRuntimeStateEvent(entry, {
       type: 'queue-turn',
-      turn: { message, reasoningEffort, knowledgeBaseIds }
+      turn: {
+        message,
+        reasoningEffort,
+        knowledgeBaseIds,
+        steer: true,
+        ...(headless ? { headless } : {}),
+        ...(messageSnapshot ? { messageSnapshot } : {})
+      }
     })
-    ;(entry.steerMessageIds ??= new Set()).add(message.id)
     // An autonomous generation owns the connection until the runtime releases it.
     // Keep the user input queued instead of sending it into that generation.
-    if ((!turn || turn.terminalStatus) && !isAgentSessionRuntimeAutonomous(entry.runtimeState)) {
+    if ((!turn || !this.isTurnLive(entry, turn)) && !isAgentSessionRuntimeAutonomous(entry.runtimeState)) {
       this.requestRuntimeLaunch(entry, 'queued-turn')
     }
   }
@@ -792,7 +802,6 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!executionOwnsTurn || completedTurn?.turnId !== expectedTurnId) return
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
-    entry.lastTerminalStatus = status
     if (completedTurn) {
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     }
@@ -824,7 +833,8 @@ export class AgentSessionRuntimeService extends BaseService {
    * resources. Background keepalive is deliberately not "busy": a new user turn may still start.
    */
   releaseIdleConnection(sessionId: string): void {
-    if (this.entries.get(sessionId)?.runtimeState.background.kind === 'active') return
+    const idleEntry = this.entries.get(sessionId)
+    if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
     if (this.isSessionBusy(sessionId)) return
     this.closeSession(sessionId)
   }
@@ -840,7 +850,7 @@ export class AgentSessionRuntimeService extends BaseService {
   isSessionBusy(sessionId: string): boolean {
     const entry = this.entries.get(sessionId)
     if (!entry) return false
-    return entry.compacting === true || isAgentSessionRuntimeBusy(entry.runtimeState, (turn) => !!turn.terminalStatus)
+    return isAgentSessionRuntimeBusy(entry.runtimeState)
   }
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
@@ -866,7 +876,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // stream alive so A2 carries the renderer listeners.
     // `compacting`: a compaction is mid-flight between turns; keep the stream alive so its
     // compaction-anchor / completion chunks (and the resumed turn) still reach the renderer.
-    return entry.compacting === true || willAgentSessionRuntimeContinue(entry.runtimeState)
+    return willAgentSessionRuntimeContinue(entry.runtimeState)
   }
 
   inspect(sessionId: string): AgentSessionRuntimeSnapshot | undefined {
@@ -880,7 +890,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId: turn?.assistantMessageId,
       status: this.runtimeStatus(entry),
       pendingMessageCount: entry.runtimeState.queue.length,
-      lastTerminalStatus: entry.lastTerminalStatus,
+      lastTerminalStatus: entry.runtimeState.lastTerminal,
       resumeToken: entry.lastResumeToken,
       activeToolCount: turn?.activeToolIds.size ?? 0
     }
@@ -984,7 +994,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const turn = this.liveTurn(entry) ? 'live' : '-'
       work.push({
         id: sessionId,
-        summary: `turn=${turn} pending=${entry.runtimeState.queue.length} execution=${entry.runtimeState.execution.kind} compacting=${entry.compacting === true} launch=${entry.runtimeState.launch.kind}`
+        summary: `turn=${turn} pending=${entry.runtimeState.queue.length} execution=${entry.runtimeState.execution.kind} compacting=${isAgentSessionRuntimeCompacting(entry.runtimeState)} launch=${entry.runtimeState.launch.kind}`
       })
     }
     return work
@@ -1057,8 +1067,8 @@ export class AgentSessionRuntimeService extends BaseService {
     input: { toolCallId: string; toolName: string; durationMs: number }
   ): boolean {
     const entry = this.entries.get(sessionId)
-    const turn = entry ? this.currentTurn(entry) : undefined
-    if (!entry || !turn || turn.terminalStatus || !Number.isFinite(input.durationMs) || input.durationMs < 0) {
+    const turn = entry ? this.liveTurn(entry) : undefined
+    if (!entry || !turn || !Number.isFinite(input.durationMs) || input.durationMs < 0) {
       return false
     }
     const completedAt = Date.now()
@@ -1074,8 +1084,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   abortPendingTurn(sessionId: string, reason: string): boolean {
     const entry = this.entries.get(sessionId)
-    const turn = entry ? this.currentTurn(entry) : undefined
-    if (!turn || turn.terminalStatus || turn.abortController.signal.aborted) return false
+    const turn = entry ? this.liveTurn(entry) : undefined
+    if (!turn || turn.abortController.signal.aborted) return false
     turn.abortController.abort(reason)
     return true
   }
@@ -1122,9 +1132,9 @@ export class AgentSessionRuntimeService extends BaseService {
       (entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined)
     const live =
       turn &&
-      (!turn.terminalStatus ||
+      (this.isTurnLive(entry, turn) ||
         isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
-        entry.runtimeState.background.kind === 'active')
+        hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
     return live
       ? {
           modelId: turn.modelId,
@@ -1162,7 +1172,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (
           isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
-          (turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) && !turn.terminalStatus)
+          (turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) && this.isTurnLive(entry, turn))
         ) {
           return true
         }
@@ -1186,7 +1196,9 @@ export class AgentSessionRuntimeService extends BaseService {
         if (
           isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
-          (turnAfter && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turnAfter) && !turnAfter.terminalStatus)
+          (turnAfter &&
+            isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turnAfter) &&
+            this.isTurnLive(entry, turnAfter))
         ) {
           return true
         }
@@ -1199,7 +1211,7 @@ export class AgentSessionRuntimeService extends BaseService {
             // Background work may keep the old connection alive, but it cannot make a spawn-frozen
             // mismatch safe. Hold this fresh turn until the driver releases that work, then loop,
             // close A, connect B, and only then admit the user input.
-            if (entry.runtimeState.background.kind === 'active') {
+            if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) {
               logger.info('Deferring connection rebuild until background work releases', {
                 sessionId: entry.sessionId
               })
@@ -1302,8 +1314,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (this.currentConnection(entry) === connection) {
         this.resetConnectionRuntimeState(entry, connection)
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
-        const turn = this.currentTurn(entry)
-        if (entry.runtimeState.queue.length > 0 && (!turn || turn.terminalStatus)) {
+        if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
           this.requestRuntimeLaunch(entry, 'queued-turn')
         }
       }
@@ -1345,7 +1356,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'chunk': {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
-        if (entry.retrying) this.clearApiRetry(entry)
+        this.clearApiRetry(entry)
         // During a transition A1a is closed, or the receive-only stream is not open yet. Buffer the
         // chunks so `flush-transition` can replay them into the exact successor stream in order.
         const execution = entry.runtimeState.execution
@@ -1357,7 +1368,7 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk: event.chunk })
           break
         }
-        if (turn?.controller && !turn.terminalStatus) this.enqueueTurnChunk(entry, turn, event.chunk)
+        if (turn?.controller && this.isTurnLive(entry, turn)) this.enqueueTurnChunk(entry, turn, event.chunk)
         break
       }
       case 'tool-approval-request':
@@ -1374,11 +1385,8 @@ export class AgentSessionRuntimeService extends BaseService {
         this.applyRuntimeStateEvent(entry, {
           type: 'steer-boundary',
           inputs: event.inputs,
-          headless:
-            this.currentTurn(entry)?.headless === true &&
-            event.inputs.every((input) => entry.headlessMessageIds?.has(input.message.id) === true)
+          headless: this.currentTurn(entry)?.headless === true && event.inputs.every((input) => input.headless === true)
         })
-        for (const input of event.inputs) entry.headlessMessageIds?.delete(input.message.id)
         break
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
@@ -1390,10 +1398,12 @@ export class AgentSessionRuntimeService extends BaseService {
             turn: {
               message: input.message,
               reasoningEffort: this.currentTurn(entry)?.reasoningEffort ?? 'default',
-              knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? []
+              knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
+              steer: true,
+              ...(input.headless ? { headless: true } : {}),
+              ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
             }
           })
-          ;(entry.steerMessageIds ??= new Set()).add(input.message.id)
         }
         break
       case 'compaction-start':
@@ -1436,7 +1446,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Runtime-generated content is already streaming. The autonomous execution state buffers
         // chunks until its receive-only stream exists and owns any still-unadmitted user turn.
         const turn = this.currentTurn(entry)
-        const turnLive = turn !== undefined && turn.terminalStatus === undefined
+        const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
         if (turnLive && turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) break
         if (entry.runtimeState.execution.kind === 'steer-transition') break
         this.applyRuntimeStateEvent(entry, {
@@ -1474,7 +1484,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     trigger: AgentSessionCompactionTrigger | undefined
   ): void {
-    entry.compacting = true
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
       startedAt: new Date().toISOString(),
@@ -1489,10 +1499,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const capture = entry.usageCapture
     if (capture?.owner !== 'agent-sdk') return
 
-    const turn =
-      invocation.messageAssociation === 'current-turn' && !this.currentTurn(entry)?.terminalStatus
-        ? this.currentTurn(entry)
-        : undefined
+    const turn = invocation.messageAssociation === 'current-turn' ? this.liveTurn(entry) : undefined
     if (invocation.messageAssociation === 'current-turn' && !turn) {
       logger.warn('Agent SDK usage lost its active turn before persistence; recording stateless', {
         sessionId: entry.sessionId,
@@ -1525,10 +1532,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
-    entry.compacting = false
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
 
     const turn = this.currentTurn(entry)
-    if (anchor && turn?.controller && !turn.terminalStatus) {
+    if (anchor && turn?.controller && this.isTurnLive(entry, turn)) {
       this.enqueueTurnChunk(entry, turn, {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
@@ -1552,7 +1559,6 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleApiRetry(entry: AgentSessionRuntimeEntry, retry: AgentSessionApiRetryInfo): void {
     if (!this.isCurrentEntry(entry)) return
-    entry.retrying = true
     application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), {
       status: 'retrying',
       startedAt: new Date().toISOString(),
@@ -1560,14 +1566,15 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  /** The ephemeral retry status IS the shared-cache entry — read it back instead of shadowing it. */
   private clearApiRetry(entry: AgentSessionRuntimeEntry): void {
-    if (!entry.retrying) return
-    entry.retrying = false
-    application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
+    const cache = application.get('CacheService')
+    if (cache.getShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId))?.status !== 'retrying') return
+    cache.setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
-    entry.compacting = false
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
     // The failure is surfaced to the user through the turn error (handleRuntimeError) and logged here;
     // the compaction cache state only needs to leave the compacting status.
     logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
@@ -1674,7 +1681,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
     this.applyRuntimeStateEvent(entry, {
-      type: 'background-work-state',
+      type: 'connection-occupancy',
+      occupancy: 'background',
       active,
       ...(active
         ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
@@ -1729,7 +1737,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     entry.pendingBackgroundFlowChunks?.delete(messageId)
     for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
-    if (entry.runtimeState.background.kind === 'inactive') void this.finishBackgroundFlows(entry)
+    if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
@@ -1904,7 +1912,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (
       !this.isCurrentEntry(entry) ||
       this.currentConnection(entry) !== connection ||
-      entry.runtimeState.background.kind !== 'active'
+      !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
     ) {
       return Promise.resolve()
     }
@@ -1916,7 +1924,7 @@ export class AgentSessionRuntimeService extends BaseService {
       resolve = done
     })
     this.backgroundWorkWaiters.set(entry.sessionId, { connection, promise, resolve })
-    this.applyRuntimeStateEvent(entry, { type: 'connection-rebuild-blocked', connection, target })
+    this.applyRuntimeStateEvent(entry, { type: 'connection-rebuild-deferred', connection, target })
     return promise
   }
 
@@ -1973,7 +1981,7 @@ export class AgentSessionRuntimeService extends BaseService {
           !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
       ) {
         this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
-      } else if (turn?.controller && !turn.terminalStatus) {
+      } else if (turn?.controller && this.isTurnLive(entry, turn)) {
         this.enqueueTurnChunk(entry, turn, chunk)
       } else {
         logger.warn('Live tool approval request lost its turn stream', {
@@ -2037,7 +2045,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.flowMessageIdsByToolCallId?.clear()
     entry.persistedFlowMessageIds?.clear()
     entry.pendingBackgroundFlowChunks?.clear()
-    this.applyRuntimeStateEvent(entry, { type: 'background-work-state', active: false })
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
     }
@@ -2049,7 +2057,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
-    if (entry.compacting) {
+    if (isAgentSessionRuntimeCompacting(entry.runtimeState)) {
       this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
     }
 
@@ -2058,7 +2066,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (
       execution.kind === 'steer-transition' ||
       execution.kind === 'autonomous-turn' ||
-      (execution.kind === 'turn' && !turn?.terminalStatus)
+      (execution.kind === 'turn' && turn !== undefined && this.isTurnLive(entry, turn))
     ) {
       this.applyRuntimeStateEvent(entry, {
         type: 'runtime-terminal',
@@ -2075,15 +2083,16 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
-    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || turn.terminalStatus) return
+    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
-    // `Set.delete` returns whether it was queued as a steer — consume the flag as we admit the turn.
-    const systemReminder = entry.steerMessageIds?.delete(turn.userMessage.id) ?? false
     await this.refreshTurnTraceContext(entry, turn)
-    await this.currentConnection(entry)?.send({ message: turn.userMessage, systemReminder })
+    await this.currentConnection(entry)?.send({
+      message: turn.userMessage,
+      systemReminder: turn.systemReminder === true
+    })
   }
 
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
@@ -2102,15 +2111,10 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.controller?.enqueue(chunk)
   }
 
-  private closeCurrentTurn(entry: AgentSessionRuntimeEntry, status: AgentSessionRuntimeTerminalStatus): void {
-    const turn = this.currentTurn(entry)
-    if (!turn || turn.terminalStatus) return
-    this.closeTurn(turn, status)
-  }
-
-  private closeTurn(turn: AgentSessionTurn, status: AgentSessionRuntimeTerminalStatus): void {
-    if (turn.terminalStatus) return
-    turn.terminalStatus = status
+  /** Pure resource release. Terminality itself lives in the machine (the `settle-turn` transition
+   *  is synchronous, so a trailing `chunk` event in the same connection loop already reads not-live
+   *  and never touches the closed controller). */
+  private closeTurn(turn: AgentSessionTurn): void {
     try {
       turn.controller?.close()
     } catch {
@@ -2121,11 +2125,6 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private errorTurn(turn: AgentSessionTurn, error: unknown): void {
-    if (turn.terminalStatus) return
-    // Mark terminal synchronously: the listener's markTurnTerminal arrives async (after the
-    // stream error propagates), so a trailing `chunk` event in the same connection loop would
-    // otherwise hit enqueueTurnChunk and throw on the now-errored controller.
-    turn.terminalStatus = 'error'
     try {
       turn.controller?.error(error)
     } catch {
@@ -2136,7 +2135,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
-    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || turn.terminalStatus) return
+    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     const traceContext = this.sessionTraceContext(entry, turn.modelId)
     if (traceContext) await this.currentConnection(entry)?.refreshTraceContext?.(traceContext)
   }
@@ -2211,7 +2210,7 @@ export class AgentSessionRuntimeService extends BaseService {
                   entry.runtimeState.execution.kind === 'turn' &&
                   turn &&
                   !isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
-                  !turn.terminalStatus
+                  this.isTurnLive(entry, turn)
                 ) {
                   this.requestRuntimeLaunch(entry, 'deferred-turn')
                 }
@@ -2265,8 +2264,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
     // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
     // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
-    const frozenSnapshot = entry.pendingSnapshots?.get(nextMessage.id) ?? entry.messageSnapshot
-    entry.pendingSnapshots?.delete(nextMessage.id)
+    const frozenSnapshot = pendingTurn.messageSnapshot ?? entry.messageSnapshot
     const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
@@ -2293,11 +2291,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
-    const headless = entry.headlessMessageIds?.delete(nextMessage.id) === true
+    const headless = pendingTurn.headless === true
 
     const turnId = crypto.randomUUID()
     const nextTurn: AgentSessionTurn = {
       turnId,
+      systemReminder: pendingTurn.steer === true,
       assistantMessageId,
       userMessage: nextMessage,
       modelId: entry.modelId,
@@ -2351,8 +2350,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (
       execution.kind !== 'autonomous-turn' ||
       execution.deferredTurn !== turn ||
-      isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) ||
-      turn.terminalStatus
+      isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)
     ) {
       return
     }
@@ -2385,7 +2383,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private startDeferredTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
-    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || turn.terminalStatus) return
+    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
 
     const rootSpan = this.startRuntimeRootSpan(entry, turn.modelId)
     const messages = createRuntimeSeedMessages(turn.userMessage, turn.assistantMessageId)
@@ -2474,7 +2472,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-created', turn: receiveOnlyTurn })
     await this.refreshTurnTraceContext(entry, receiveOnlyTurn)
-    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== receiveOnlyTurn || receiveOnlyTurn.terminalStatus) {
+    if (
+      !this.isCurrentEntry(entry) ||
+      this.currentTurn(entry) !== receiveOnlyTurn ||
+      !this.isTurnLive(entry, receiveOnlyTurn)
+    ) {
       rootSpan?.end()
       return
     }
@@ -2536,8 +2538,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const messageSnapshot =
       reservation?.userMessageId === steerMessage.id
         ? reservation.messageSnapshot
-        : (entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot)
-    entry.pendingSnapshots?.delete(steerMessage.id)
+        : (transition.inputs[0]?.messageSnapshot ?? entry.messageSnapshot)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
@@ -2582,7 +2583,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (
       !this.isCurrentEntry(entry) ||
       this.currentTurn(entry) !== continuationTurn ||
-      continuationTurn.terminalStatus
+      !this.isTurnLive(entry, continuationTurn)
     ) {
       rootSpan?.end()
       return
@@ -2643,18 +2644,21 @@ export class AgentSessionRuntimeService extends BaseService {
         userResponse: execution.headless ? 'unavailable' : 'stream'
       }
     }
-    if (entry.runtimeState.background.kind === 'active') {
-      if (entry.runtimeState.background.responder === 'headless') {
+    const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
+    if (backgroundResponder) {
+      if (backgroundResponder === 'headless') {
         return { currentTurn, userResponse: 'unavailable' }
       }
       // A background wake is deliberately an independent interaction. It must not attach approval
       // UI to a prior turn's stream merely because the receive-only projection is still opening.
       if (execution.kind === 'autonomous-turn') return { currentTurn, userResponse: 'message' }
-      const hasStream = hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn?.terminalStatus === undefined
+      const hasStream =
+        hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn !== undefined && this.isTurnLive(entry, turn)
       return { currentTurn, userResponse: hasStream ? 'stream' : 'message' }
     }
     if (currentTurn !== 'interactive') return { currentTurn, userResponse: 'unavailable' }
-    const hasStream = hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn?.terminalStatus === undefined
+    const hasStream =
+      hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn !== undefined && this.isTurnLive(entry, turn)
     return { currentTurn, userResponse: hasStream ? 'stream' : 'message' }
   }
 
@@ -2728,13 +2732,13 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
-    if (entry.runtimeState.background.kind === 'active' || this.runtimeStatus(entry) !== 'idle') {
+    if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
       return
     }
     entry.idleTimer = setTimeout(() => {
       if (
         !this.isCurrentEntry(entry) ||
-        entry.runtimeState.background.kind === 'active' ||
+        hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
         this.runtimeStatus(entry) !== 'idle'
       ) {
         return
@@ -2774,25 +2778,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     void this.finishBackgroundFlows(entry)
     const currentTurn = this.currentTurn(entry)
-    if (currentTurn) this.closeTurn(currentTurn, 'paused')
+    if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
       entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.deferredTurn : undefined
-    if (deferredTurn && deferredTurn !== currentTurn) {
-      deferredTurn.terminalStatus = 'paused'
-      try {
-        deferredTurn.controller?.close()
-      } catch {
-        // Already closed by the suspended execution.
-      }
-      deferredTurn.controller = undefined
-      deferredTurn.activeToolIds.clear()
-    }
-    if (entry.compacting) {
-      application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-        status: 'idle'
-      })
-    }
-    entry.compacting = false
+    // The machine's `reset` below settles terminality; only the stream resource needs releasing.
+    if (deferredTurn && deferredTurn !== currentTurn) this.closeTurn(deferredTurn)
+    // Compaction-occupancy interruption is projected by the machine's connection-teardown effect.
     this.clearApiRetry(entry)
     // Context usage deliberately survives: unlike its neighbours here it is not per-CLI-process
     // state. No turn can run without a connection, so the last reading stays true until one does.
@@ -2813,8 +2804,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (this.currentConnection(entry) !== connection) return
-    const turn = this.currentTurn(entry)
-    if (turn && !turn.terminalStatus) {
+    if (this.liveTurn(entry)) {
       // Pause the live turn so the renderer learns it stopped (the abort path then tears the session
       // down via `closeSession`); a failed tighten must not keep streaming under the old policy.
       application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-policy-update-failed')

@@ -160,7 +160,7 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
         }
       }
       if (name === 'CacheService') {
-        return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
+        return { setShared: mocks.cacheSetShared, getShared: () => undefined, deleteShared: mocks.cacheDeleteShared }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
