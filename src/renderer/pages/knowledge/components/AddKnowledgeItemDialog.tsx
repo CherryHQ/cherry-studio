@@ -4,6 +4,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import { isValidHttpUrl } from '@renderer/utils/url'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -39,18 +40,6 @@ const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
 const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
-
-// The `url` source persists a real data source the moment it's added, so a bad value creates a
-// broken item that only fails asynchronously (e.g. "Invalid knowledge url: abc"). Gate submission
-// on a parseable http(s) URL instead of any non-empty text.
-const isValidHttpUrl = (value: string): boolean => {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
 
 const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)
@@ -105,6 +94,9 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     switch (activeSource) {
+      // The `url` source persists a real data source the moment it's added, so a bad value creates a
+      // broken item that only fails asynchronously (e.g. "Invalid knowledge url: abc"). Gate
+      // submission on a parseable http(s) URL instead of any non-empty text.
       case 'url':
         return isValidHttpUrl(urlValue.trim())
       case 'note':
