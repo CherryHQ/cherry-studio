@@ -78,6 +78,7 @@ export const DB_TABLES = [
   'agent_session_message',
   'agent_skill',
   'agent_workspace',
+  'ai_usage_record',
   'app_state',
   'assistant',
   'assistant_knowledge_base',
@@ -156,6 +157,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'sourceUrl', dbName: 'sourceUrl', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'namespace', dbName: 'namespace', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'author', dbName: 'author', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'version', dbName: 'version', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'tags', dbName: 'tags', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'contentHash', dbName: 'contentHash', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'isEnabled', dbName: 'isEnabled', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -228,6 +230,45 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  ai_usage_record: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'requestId', dbName: 'requestId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'recordKind', dbName: 'recordKind', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'requestCount', dbName: 'requestCount', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'messageKind', dbName: 'messageKind', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'messageId', dbName: 'messageId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'providerId', dbName: 'providerId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'providerName', dbName: 'providerName', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'modelName', dbName: 'modelName', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'sourceType', dbName: 'sourceType', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'sourceName', dbName: 'sourceName', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'sourceIcon', dbName: 'sourceIcon', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'modality', dbName: 'modality', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'apiKeyId', dbName: 'apiKeyId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'apiKeyLabel', dbName: 'apiKeyLabel', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'apiKeyMasked', dbName: 'apiKeyMasked', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'apiKeyAttribution', dbName: 'apiKeyAttribution', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'authMethod', dbName: 'authMethod', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'inputTokens', dbName: 'inputTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'outputTokens', dbName: 'outputTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'totalTokens', dbName: 'totalTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'reasoningTokens', dbName: 'reasoningTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'noCacheTokens', dbName: 'noCacheTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'cacheReadTokens', dbName: 'cacheReadTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'cacheWriteTokens', dbName: 'cacheWriteTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'imageCount', dbName: 'imageCount', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'cost', dbName: 'cost', isPrimaryKey: false, isNullable: true, sqlType: 'real' },
+    { name: 'costCurrency', dbName: 'costCurrency', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'costSource', dbName: 'costSource', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'costBreakdown', dbName: 'costBreakdown', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'pricingSnapshot', dbName: 'pricingSnapshot', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'timeFirstTokenMs', dbName: 'timeFirstTokenMs', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'timeCompletionMs', dbName: 'timeCompletionMs', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'timeThinkingMs', dbName: 'timeThinkingMs', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
   app_state: [
     { name: 'key', dbName: 'key', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
@@ -634,6 +675,7 @@ export const DB_PRIMARY_KEYS = {
   agent_session_message: { table: 'agent_session_message', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
   agent_skill: { table: 'agent_skill', columns: ['agentId', 'skillId'], kind: 'composite', ambiguous: false },
   agent_workspace: { table: 'agent_workspace', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
+  ai_usage_record: { table: 'ai_usage_record', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
   app_state: { table: 'app_state', columns: ['key'], kind: 'natural', ambiguous: true },
   assistant: { table: 'assistant', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   assistant_knowledge_base: {
@@ -720,6 +762,7 @@ export const DB_FOREIGN_KEYS = {
     { columns: ['skillId'], targetTable: 'agent_global_skill', targetColumns: ['id'], onDelete: 'cascade' }
   ],
   agent_workspace: [],
+  ai_usage_record: [],
   app_state: [],
   assistant: [
     { columns: ['modelId'], targetTable: 'user_model', targetColumns: ['id'], onDelete: 'set null' },
@@ -827,6 +870,7 @@ export const DB_UNIQUE_KEYS = {
   agent_session_message: [{ columns: ['ftsRowid'] }],
   agent_skill: [],
   agent_workspace: [{ columns: ['path'] }],
+  ai_usage_record: [{ columns: ['requestId'] }],
   app_state: [],
   assistant: [],
   assistant_knowledge_base: [],
@@ -874,6 +918,7 @@ export const DB_JSON_COLUMNS = {
   agent_session_message: ['data', 'messageSnapshot', 'stats'],
   agent_skill: [],
   agent_workspace: [],
+  ai_usage_record: ['costBreakdown', 'pricingSnapshot'],
   app_state: ['value'],
   assistant: ['settings'],
   assistant_knowledge_base: [],
@@ -923,5 +968,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-28T02:26:48.606Z'
+  generatedAt: '2026-07-30T05:55:10.663Z'
 } as const

@@ -39,7 +39,8 @@ const HIDDEN_PART_TYPES = new Set([
   'source-document',
   'data-citation',
   'data-agent-task-event',
-  'data-knowledge-scope'
+  'data-knowledge-scope',
+  'data-clear'
 ])
 
 const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([

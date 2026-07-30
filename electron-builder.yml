@@ -87,6 +87,9 @@ extraResources:
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -151,104 +154,50 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-beta.2 - Better Knowledge, Agents, Chat and UI
+    Cherry Studio 2.0.0-rc.2 - Model Routing, Clear Context & v2 Stabilization
 
     ✨ New Features
-    - [Knowledge] Pick an embedding model — including the local one, downloadable right from the dialog — when creating a knowledge base; it stays optional, so without a model the base still uses keyword (BM25) search
-    - [Agent] Knowledge bases can now be bound to agents the same way they are to assistants
-    - [Chat] Type @ in the composer to reference a past topic — or a past agent session in agent chats — and send its transcript to the model as a context block
-    - [Chat] Multi-model replies now show the generating model's icon and name in horizontal, vertical, and grid layouts
-    - [Providers] Doubao and Bailian catalogs are richer, and both providers now support built-in web search
-    - [Settings] Related settings are grouped into cards, and Skills and MCP pages now share the same header, search and filter layout as Scheduled Tasks
-    - [Tabs] Chrome-style close behavior: always-visible close button on the active tab, pinned tabs closable via right-click, smooth in-place closing, and closing the active tab activates its right neighbor
-    - [Session List] Topic and agent session rows now show clearer running, error, completion and tool-approval states, and pending-approval badges clear the moment you respond
-    - [Agent] Warmer in-progress wording in English and Simplified Chinese, plus a live scrolling preview of the latest reasoning on the collapsed thinking block
-    - [Agent] The built-in agent is now named "Cherry 助理" on Chinese-language systems
-    - [Agent] Claude SDK api_retry status is now surfaced as an ephemeral in-app status
-    - [Trace] Span details now support text selection and one-click copying for the active input, output, or raw payload
-    - [Library] Files, Notes and Knowledge Base now share a unified, softly illustrated empty state; the Knowledge Base keeps its navigator visible when empty with a clearer create flow
-    - [Library] Improved Files and Knowledge Base interfaces with consistent layout, preview spacing, and navigation behavior
-    - [UI] Quick Panel gets a translucent glass surface and faster directional open/close motion
-    - [macOS] Transparent windows are now enabled by default for new macOS users (existing choices and Windows behavior are unchanged)
-    - [Data] Data Reset in Settings is now a real v2 userData wipe
-
-    🚀 Action Required
-    - [Knowledge] Downloaded local embedding models are no longer selected automatically for new knowledge bases; enable an embedding model in RAG settings to use vector or hybrid retrieval
-    - [macOS] To use an opaque window on macOS, turn off Transparent Window in Settings > Display & Language
+    - [Knowledge] Added a Select All control when importing notes into a knowledge base.
+    - [Claude Code] Claude Code provider now offers Claude Opus 5 and Claude Sonnet 5, plus 1M-context variants of Opus 4.6/4.7/4.8/5 and Sonnet 4.6.
+    - [Chat] Home Chat can now start a fresh model context without creating a new conversation. Use Cmd/Ctrl+K or the input QuickPanel; the optional eraser button remains hidden by default and can be enabled from toolbar customization.
 
     🐛 Bug Fixes
-    - [Selection] The Selection Assistant no longer keeps a hidden action-window renderer process running (and recreating it on every launch) while the feature is disabled
-    - [Selection] Restored the processing timer for the Selection Assistant and fixed the opacity slider overflowing its popover
-    - [Quick Assistant] Settings now close the assistant selector after choosing an assistant
-    - [OpenClaw] Stopped excessive local gateway health requests during application shutdown
-    - [AI] Error diagnosis now consistently uses the default free model instead of relying on provider model-list order
-    - [Dialog] Smoother shared open and close animations; dialogs no longer disappear before their final frame
-    - [Knowledge] Restored a full-width New Knowledge Base action in the navigator
-    - [Chat] Removed the entrance animation for newly loaded messages
-    - [Chat] Tab switching no longer auto-expands the active conversation in the sidebar; global search jumps still reveal the target conversation
-    - [Chat] Previous and Next buttons in message navigation now go in the correct direction
-    - [Chat] Recalled prompts now preserve the current multi-model selection instead of sending to only one model
-    - [Chat] Conversation link preview cards now wait 1.5 seconds before appearing, reducing accidental popups while reading
-    - [Chat] Prevented unsafe deletion of the root message in a conversation
-    - [Chat] Fixed the Artifact pane title bar background in dark mode, and restored maximized right panes after switching tabs
-    - [Chat] Fixed chat requests failing on Gemini when a file is attached ("read_file ... schema didn't specify the schema type field")
-    - [Web Search] Fixed Bocha web search failures when successful API responses contain nullable message or result content fields
-    - [Security] Hardened the add-model flow against command injection and path traversal
-
-    ⚡ Performance
-    - [Chat] Sent messages no longer snap to the viewport top: nearby conversations return to and follow the live bottom, while users reading farther back keep their position
-    - [Agent] Large tool results are now lazy-loaded in agent sessions
-    - [Chat] Initial conversation rendering is staged so the first messages appear faster
-    - [Composer] Composer controls now wait for the editor to be ready, avoiding jank on first render
+    - [Chat] Fixed chat message toolbar icon buttons (edit, copy, regenerate, delete, save to notes) missing accessible names, so screen readers and keyboard users can now identify them.
+    - [Models] Fixed incorrect model grouping for providers that return flat model IDs.
+    - [Agent] Editing an assistant or agent now keeps the edit dialog open after each automatic save.
+    - [Chat] Fixed message-list flickering and ghosting when reversing direction while dragging the scrollbar thumb.
+    - [MCP] MCP JSON import now supports configurations containing multiple servers.
+    - [Agent] Changing the app language now updates existing agent sessions on their next turn instead of retaining the previous response-language instruction.
+    - [Chat] Fixed drag selection so messages leave the multi-select set when the selection box shrinks.
+    - [Agent] Fixed OpenCode Go and other mixed-endpoint providers returning a 400 error in new Agent Sessions by routing each model through its declared protocol.
+    - [Chat] Conversations and agent sessions without a valid owner are now consistently labeled Unlinked Assistant or Unlinked Agent while preserving their titles.
+    - [MCP] Fixed MCP server environment variables and headers remaining configured after all entries are cleared.
+    - [Notes] Opening an existing note no longer steals focus or jumps the caret to the end of the document; only new (empty) notes automatically focus the editor.
+    - [Migration] Migrated Agent tasks now preserve managed workspace files and relocate available Claude session caches while surfacing unavailable resume data through the normal runtime error.
+    - [Migration] Fixed model endpoint routing after migrating from Cherry Studio v1, including NewAPI-compatible providers.
+    - [Data] Existing v1 clear-context boundaries are preserved during migration when they have not already been discarded by an earlier v2 preview migration.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-beta.2 - 知识库、智能体、聊天与界面改进
+    Cherry Studio 2.0.0-rc.2 - 模型路由、清除上下文与 v2 稳定化
 
     ✨ 新功能
-    - [知识库] 创建知识库时可以直接选择嵌入模型（包括本地模型，支持在弹窗中直接下载）；仍是可选的，不选则只用 BM25 关键词检索
-    - [智能体] 知识库现在可以像助手一样绑定到智能体
-    - [聊天] 在输入框输入 @ 可以引用历史话题（在智能体对话中则是历史会话），并把它作为上下文块发给模型
-    - [聊天] 多模型回复现在会在横向、纵向和网格布局中显示当前生成模型的图标和名称
-    - [提供商] 豆包和百炼的模型目录更丰富，并都支持内置网络搜索
-    - [设置] 相关设置已按卡片分组，技能和 MCP 页面与计划任务使用同样的标题、搜索和筛选布局
-    - [标签页] 采用 Chrome 风格的关闭行为：当前标签页常驻关闭按钮，固定标签页通过右键菜单关闭，关闭时平滑收缩不位移，关闭当前标签页后激活右侧标签页
-    - [会话列表] 话题和智能体会话的运行、错误、完成和待审批状态更清晰，待审批徽标在你响应后立即消失
-    - [智能体] 优化了英文和简体中文下智能体执行中的文案，并在折叠的思考块上加入了最新推理的滚动预览
-    - [智能体] 中文系统下内置智能体现在命名为「Cherry 助理」
-    - [智能体] Claude SDK 的 api_retry 状态现在会作为临时状态展示在应用内
-    - [Trace] Span 详情支持选中文本，并一键复制当前的输入、输出或原始内容
-    - [资源库] 文件、笔记和知识库现在使用统一的柔和插画空状态，知识库在空状态下保留导航栏并提供更清晰的创建入口
-    - [资源库] 改进了文件和知识库界面，统一布局、预览间距和导航行为
-    - [UI] 快捷面板采用半透明玻璃效果，方向性开关动画更快
-    - [macOS] macOS 上默认启用透明窗口（已有选择和 Windows 行为不变）
-    - [数据] 设置中的「数据重置」现在是真正意义上的 v2 userData 清理
-
-    🚀 需要操作
-    - [知识库] 已下载的本地嵌入模型不再自动用于新建知识库；如需向量或混合检索，请在 RAG 设置中开启嵌入模型
-    - [macOS] 如需关闭透明窗口，请在 设置 > 显示与语言 中关闭「透明窗口」
+    - [知识库] 在向知识库导入笔记时新增“全选”控件。
+    - [Claude Code] Claude Code 服务商现已提供 Claude Opus 5 与 Claude Sonnet 5，以及 Opus 4.6/4.7/4.8/5 和 Sonnet 4.6 的 1M 上下文变体。
+    - [聊天] 主聊天现可在不新建对话的情况下开启全新的模型上下文。使用 Cmd/Ctrl+K 或输入框快捷面板；可选的橡皮擦按钮默认隐藏，可在工具栏自定义中开启。
 
     🐛 问题修复
-    - [划词助手] 关闭划词助手功能后，不再保留隐藏的动作窗口渲染进程（也不再每次启动都重建它）
-    - [划词助手] 恢复了划词助手的处理计时器，并修复了透明度滑块溢出弹层的问题
-    - [快捷助手] 在设置中选择助手后会自动关闭选择器
-    - [OpenClaw] 修复了应用关闭时本地网关大量健康检查请求的问题
-    - [AI] 错误诊断现在一律使用默认免费模型，不再依赖提供商模型列表的顺序
-    - [弹窗] 改进了弹窗开合动画，弹窗不再在最终帧前消失
-    - [知识库] 恢复了知识库导航中通栏的「新建知识库」操作
-    - [聊天] 移除了新加载消息的入场动画
-    - [聊天] 切换标签页不再自动展开侧边栏的当前会话；全局搜索跳转仍会定位到目标会话
-    - [聊天] 消息导航的上一个/下一个按钮方向已修正
-    - [聊天] 召回的提问现在会保留当前的多模型选择，不再只发给一个模型
-    - [聊天] 对话链接预览卡片改为延迟 1.5 秒出现，减少阅读时的误弹
-    - [聊天] 防止了对话根消息被不安全地删除
-    - [聊天] 修复了暗色模式下 Artifact 面板标题栏背景，以及切换标签页后右侧面板未恢复最大化的问题
-    - [聊天] 修复了 Gemini 在带文件附件时请求失败的问题（"read_file ... schema didn't specify the schema type field"）
-    - [网络搜索] 修复了 Bocha 网络搜索在 API 返回中含有可空字段时失败的问题
-    - [安全] 加固了添加模型的流程，防止命令注入和路径穿越
-
-    ⚡ 性能优化
-    - [聊天] 发送消息后不再吸附到视口顶部：靠近底部的会话回到并跟随实时底部，向上阅读更远的用户则保持原位置
-    - [智能体] 大型工具结果现在在智能体会话中按需懒加载
-    - [聊天] 初始对话渲染分阶段进行，首批消息出现得更快
-    - [输入框] 输入框控件改为等待编辑器就绪后再渲染，避免初次渲染卡顿
+    - [聊天] 修复了聊天消息工具栏图标按钮（编辑、复制、重新生成、删除、保存到笔记）缺少无障碍名称的问题，屏幕阅读器与键盘用户现可识别它们。
+    - [模型] 修复了返回扁平模型 ID 的服务商的模型分组错误。
+    - [智能体] 编辑助手或智能体时，每次自动保存后编辑对话框现保持打开。
+    - [聊天] 修复了反向拖动滚动条滑块时消息列表的闪烁与残影问题。
+    - [MCP] MCP JSON 导入现支持包含多个服务器的配置。
+    - [智能体] 更改应用语言后，已有智能体会话在下一轮对话中随即更新，不再沿用旧的回复语言指令。
+    - [聊天] 修复了拖选：当选择框缩小时，消息会移出多选集合。
+    - [智能体] 修复了 OpenCode Go 等混合端点服务商在新智能体会话中返回 400 错误的问题，现按各模型声明的协议进行路由。
+    - [聊天] 没有有效属主的对话与智能体会话现统一标记为“未关联助手”或“未关联智能体”，并保留标题。
+    - [MCP] 修复了 MCP 服务器环境变量与请求头在所有条目清空后仍保留配置的问题。
+    - [笔记] 打开已有笔记不再抢占焦点或将光标跳到文档末尾；仅新建（空白）笔记会自动聚焦编辑器。
+    - [迁移] 迁移后的智能体任务现保留受管工作区文件，并迁移可用的 Claude 会话缓存，不可用的恢复数据通过常规运行时错误展示。
+    - [迁移] 修复了从 Cherry Studio v1 迁移后的模型端点路由，含 NewAPI 兼容服务商。
+    - [数据] 既有 v1 的清除上下文边界在迁移时被保留（未被早期 v2 预览迁移丢弃的情况下）。
     <!--LANG:END-->

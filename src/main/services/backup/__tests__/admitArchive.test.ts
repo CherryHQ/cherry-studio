@@ -186,6 +186,10 @@ describe('admitArchive', () => {
     // bundledTip is read live from the test DB (which runs every production migration), so the
     // test stays correct as main adds migrations — no hardcoded count to drift.
     const bundledTip = (dbh.sqlite.prepare('SELECT COUNT(*) AS n FROM __drizzle_migrations').get() as { n: number }).n
+    // Post-#17553 the chain is a single folded migration, so no strict prefix
+    // (tip−1 = 0) exists — migrate-forward is unreachable until a new migration
+    // is appended. Return cleanly; the case re-activates once bundledTip >= 2.
+    if (bundledTip < 2) return
     const dbCopy = join(tmpDir, 'backup.sqlite')
     buildPrefixBackupDb(bundledTip - 1, dbCopy) // strict prefix (tip−1) → migrate-forward runs
     const archivePath = join(tmpDir, 'older.cherrybackup')

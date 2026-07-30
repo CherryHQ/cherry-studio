@@ -15,7 +15,7 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Message as SharedMessage, type MessageSnapshot, toContentRole } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -389,6 +389,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
+            runtimeTimingSeed: anchor.stats?.runtimeTiming,
             request: this.buildStreamRequest(
               req.topicId,
               assistantId,
@@ -493,7 +494,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    */
   private buildHistory(anchorMessageId: string): CherryUIMessage[] {
     const messagePath = messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
+    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    return messagePath.slice(lastClearIndex + 1).map((msg) => ({
       id: msg.id,
       role: toContentRole(msg.role),
       parts: msg.data.parts ?? []

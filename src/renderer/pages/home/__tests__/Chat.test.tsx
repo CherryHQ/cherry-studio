@@ -139,9 +139,11 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', () => {
-  const TopicRightPane = ({ children }: { children: ReactNode }) => <>{children}</>
-  TopicRightPane.Shortcuts = () => <div data-testid="topic-right-shortcuts" />
-  TopicRightPane.Viewport = () => <div data-testid="topic-right-pane-viewport" />
+  const TopicRightPane = {
+    Scope: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Shortcuts: () => <div data-testid="topic-right-shortcuts" />,
+    Viewport: () => <div data-testid="topic-right-pane-viewport" />
+  }
 
   return {
     TopicRightPane,

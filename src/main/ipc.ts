@@ -41,6 +41,17 @@ export async function registerIpc() {
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()
 
+  // Reject legacy v1 restore routes while a v2 restore quiesce window is held
+  // (R6/B): LegacyBackupManager.restore* write the live DB directly and would
+  // race a v2 snapshot→promote. Mirrors the assertNotBackupInProgress gate on
+  // App_SetSpellCheckLanguages / DataApi / PreferenceService.
+  const rejectDuringRestore =
+    <A extends unknown[], R>(fn: (...args: A) => R) =>
+    (...args: A): R => {
+      assertNotBackupInProgress()
+      return fn(...args)
+    }
+
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
     // Partial restore quiesce: reject while a restore holds BACKUP_IN_PROGRESS — this
@@ -147,19 +158,25 @@ export async function registerIpc() {
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_Restore, rejectDuringRestore(backupManager.restore.bind(backupManager)))
   ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
+  ipcMain.handle(
+    IpcChannel.Backup_RestoreFromWebdav,
+    rejectDuringRestore(backupManager.restoreFromWebdav.bind(backupManager))
+  )
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
+  ipcMain.handle(
+    IpcChannel.Backup_RestoreFromLocalBackup,
+    rejectDuringRestore(backupManager.restoreFromLocalBackup.bind(backupManager))
+  )
   ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, rejectDuringRestore(backupManager.restoreFromS3.bind(backupManager)))
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))

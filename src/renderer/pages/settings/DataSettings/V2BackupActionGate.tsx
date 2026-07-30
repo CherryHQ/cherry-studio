@@ -3,10 +3,10 @@ import type { FC, PropsWithChildren } from 'react'
 /**
  * Dual readiness flags for migrated Backup / Restore actions (Basic + Local).
  *
- * Unlike {@link BackupUnavailableGate} / `BACKUP_V2_READY` (shared by WebDAV /
- * S3 / Nutstore), these flags only control the live v2 action buttons. Flipping
- * or removing `BACKUP_V2_READY` is forbidden here — that would silently
- * re-enable v1 provider surfaces.
+ * These flags only control the live v2 action buttons. The legacy v1 gate
+ * (BackupUnavailableGate / BACKUP_V2_READY) was removed when v1 backup surfaces
+ * were re-enabled (#17555), so v2 and v1 now coexist as dual engines; v2
+ * readiness here no longer guards v1 entries.
  *
  * Export and restore are **independent**:
  * - {@link isV2BackupExportReady} — packaged ON (export uses `createSnapshot` / VACUUM INTO into a detached backup.sqlite, no quiesce).

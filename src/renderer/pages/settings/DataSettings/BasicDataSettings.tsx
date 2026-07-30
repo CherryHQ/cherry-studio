@@ -21,7 +21,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupExportV2Popup from './BackupExportV2Popup'
-import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestoreV2Popup from './RestoreV2Popup'
 import { isV2BackupExportReady, V2BackupRestoreGate } from './V2BackupActionGate'
 
@@ -214,10 +213,6 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setSkipBackupFile(value)
-  }
-
   return (
     <>
       <SettingGroup theme={theme}>
@@ -244,15 +239,13 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
-        </BackupUnavailableGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>

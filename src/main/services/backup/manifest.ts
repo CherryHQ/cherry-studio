@@ -17,13 +17,13 @@ import * as z from 'zod'
 import type { BackupPreset } from './presets'
 
 /**
- * Archive format major version. v2 baseline = 1. A major bump marks an
- * incompatible format change (e.g. release-time migration-chain regeneration,
- * see backup-architecture.md §2) so old archives are rejected at the gate rather
- * than failing inside migrate-forward. Minor format additions stay on the same
- * major.
+ * Archive format major version. Bumped from 1 → 2 for the rc.1 migration-chain
+ * consolidation (#17553): the initial migration was regenerated, so archives
+ * produced before rc.1 (version 1) are rejected at the gate rather than
+ * failing inside migrate-forward (see backup-architecture.md §2). Minor format
+ * additions stay on the same major.
  */
-export const BACKUP_FORMAT_VERSION = 1 as const
+export const BACKUP_FORMAT_VERSION = 2 as const
 
 /**
  * The manifest payload. Field semantics + the 3-field compatibility gate
@@ -110,8 +110,8 @@ const manifestSchema = z.object({
   producerAppVersion: z.string(),
   files: z.object({ ids: z.array(z.string()), total: z.number(), totalBytes: z.number() }),
   knowledge: z.object({ bases: z.array(z.string()) }),
-  // skills + degraded are additive on format 1 — default to empty so an archive
-  // produced before this change still parses (BACKUP_FORMAT_VERSION stays 1).
+  // skills + degraded are additive — default to empty so an older archive
+  // produced before this change still parses.
   skills: z
     .object({
       folders: z.array(

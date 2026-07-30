@@ -1027,13 +1027,22 @@ class FileStorage {
   private _isTextFile = async (filePath: string): Promise<boolean> => {
     try {
       const length = 8 * KB
+      const maxCharacterBytes = 4
       const fileHandle = await fs.promises.open(filePath, 'r')
-      const buffer = Buffer.alloc(length)
-      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
+      const buffer = Buffer.alloc(length + maxCharacterBytes)
+      const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
       await fileHandle.close()
 
-      const sampleBuffer = buffer.subarray(0, bytesRead)
-      return decodeTextBufferIfText(sampleBuffer) !== null
+      const firstEnd = Math.min(bytesRead, length)
+      const lastEnd = Math.min(bytesRead, length + maxCharacterBytes)
+
+      // A fixed byte window can end midway through a UTF-8, GB18030, or other
+      // multibyte character. Try the next few byte boundaries so valid text is
+      // not rejected solely because the sample ended inside that character.
+      for (let end = firstEnd; end <= lastEnd; end++) {
+        if (decodeTextBufferIfText(buffer.subarray(0, end)) !== null) return true
+      }
+      return false
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
       return false

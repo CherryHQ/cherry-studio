@@ -22,7 +22,6 @@ vi.mock('../V2BackupActionGate', async (importOriginal) => {
   }
 })
 
-import { BackupUnavailableGate } from '../BackupUnavailableGate'
 import { LegacyLocalBackupGate } from '../LegacyLocalBackupGate'
 import type * as V2BackupActionGateModule from '../V2BackupActionGate'
 import {
@@ -149,14 +148,5 @@ describe('dual v2 backup gates', () => {
     expect(screen.getByText('settings.data.backup.legacy_local_unavailable')).toBeInTheDocument()
     const wrapper = screen.getByRole('button', { name: 'legacy' }).parentElement
     expect(wrapper).toHaveAttribute('inert')
-  })
-
-  it('BackupUnavailableGate still gates shared provider surfaces', () => {
-    render(
-      <BackupUnavailableGate>
-        <button type="button">provider</button>
-      </BackupUnavailableGate>
-    )
-    expect(screen.getByRole('button', { name: 'provider' }).parentElement).toHaveAttribute('inert')
   })
 })

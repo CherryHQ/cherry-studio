@@ -441,6 +441,12 @@
       "list": {
         "title": "Tareas"
       },
+      "model_switch_confirm": {
+        "confirm": "Cambiar modelo",
+        "description": "Diferentes modelos pueden entender y procesar el contexto de manera diferente. Cambiar puede afectar la continuidad o la calidad de las respuestas posteriores. ¿Desea continuar?",
+        "skip_for_app_run": "No preguntar de nuevo hasta que cierre la aplicación",
+        "title": "¿Cambiar a \"{{model}}\"?"
+      },
       "new": "Nueva tarea",
       "pin": {
         "title": "Anclar tarea"
@@ -1035,7 +1041,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiar",
       "regenerate": "Regenerar",
       "restart": {
         "button": "Reiniciar",
@@ -1047,8 +1052,6 @@
     "authHeader": {
       "title": "Encabezado de autorización"
     },
-    "authHeaderText": "Usar en el encabezado de autorización:",
-    "configuration": "Configuración",
     "description": "Expone las capacidades de IA de Cherry Studio a través de APIs HTTP compatibles con OpenAI",
     "documentation": {
       "title": "Documentación API"
@@ -1056,13 +1059,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Clave API",
-        "description": "Token de autenticación seguro para el acceso a la API",
         "label": "Clave API",
         "placeholder": "La clave API se generará automáticamente"
       },
       "port": {
-        "description": "Número de puerto TCP para el servidor HTTP (1000-65535)",
-        "helpText": "Detén el servidor para cambiar el puerto",
         "label": "Puerto"
       },
       "url": {
@@ -1071,7 +1071,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Clave API copiada al portapapeles",
       "apiKeyRegenerated": "Clave API regenerada",
       "notEnabled": "El servidor de API no está habilitado.",
       "operationFailed": "Falló la operación del Servidor API: ",
@@ -1081,8 +1080,7 @@
       "startError": "Error al iniciar el Servidor API: ",
       "startSuccess": "Servidor API iniciado exitosamente",
       "stopError": "Error al detener el Servidor API: ",
-      "stopSuccess": "Servidor API detenido exitosamente",
-      "urlCopied": "URL del servidor copiada al portapapeles"
+      "stopSuccess": "Servidor API detenido exitosamente"
     },
     "status": {
       "running": "Ejecutándose",
@@ -1642,8 +1640,17 @@
       "token_details": {
         "cache_read": "Lectura de caché",
         "cache_write": "Escritura en caché",
+        "cost": "Costo",
+        "cost_billed": "Facturado por el proveedor",
+        "cost_estimated": "Estimado",
+        "end_to_end_throughput": "Rendimiento de extremo a extremo",
         "input": "Entrada",
         "input_breakdown": "Desglose de entrada",
+        "lane_approval": "Aprobación",
+        "lane_model": "Modelo",
+        "lane_other": "Otro",
+        "lane_tool": "Herramienta",
+        "model_throughput": "Generación de modelos TPS",
         "output": "Salida",
         "reasoning": "Razonamiento",
         "reasoning_time": "Razonamiento",
@@ -1652,6 +1659,7 @@
         "text_output": "Salida de texto",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "Duración de extremo a extremo",
         "uncached": "Sin caché",
         "usage": "Uso de tokens",
         "waiting_first_token": "Esperando"
@@ -2319,6 +2327,7 @@
     "open_in": "Abrir en {{name}}",
     "open_in_new_tab": "Abrir en nueva pestaña",
     "open_sidebar": "Abrir barra lateral",
+    "other": "Otro",
     "placeholders": {
       "select": {
         "model": "Seleccionar modelo"
@@ -4321,6 +4330,7 @@
     },
     "pinned": "Fijado",
     "price": {
+      "cache_read": "Precio de lectura de caché",
       "cost": "Costo",
       "currency": "Moneda",
       "custom": "Personalizado",
@@ -4936,6 +4946,11 @@
     "seed_random": "Aleatorio",
     "seed_tip": "La misma semilla y la misma sugerencia generarán imágenes similares",
     "select_model": "Seleccionar modelo",
+    "showcase": {
+      "caption": "Elige una plantilla para empezar y personaliza el prompt a continuación.",
+      "styles_label": "Plantillas de prompts",
+      "title": "Un espacio para tu próxima obra maestra."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5212,6 +5227,7 @@
       "label": "¿Está seguro de que desea restaurar los datos?"
     },
     "content": "La operación de restauración sobrescribirá todos los datos actuales de la aplicación con los datos de respaldo. Tenga en cuenta que el proceso de restauración puede llevar algún tiempo, gracias por su paciencia.",
+    "messages_paused": "Se está realizando una restauración de copia de seguridad; los mensajes nuevos están en pausa hasta que se complete.",
     "progress": {
       "completed": "Restauración completada",
       "copying_files": "Copiando archivos... {{progress}}%",
@@ -8185,6 +8201,108 @@
       "show": "Mostrar bandera del sistema",
       "title": "Bandera"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Días activos",
+        "cacheHitRate": "Tasa de aciertos de caché",
+        "cacheObservedTokens": "Entrada observable: {{tokens}}",
+        "cacheStartsWithNewRequests": "Comienza con nuevas solicitudes",
+        "dailyAverage": "Promedio diario",
+        "explicitApiKey": "Clave seleccionada",
+        "lastPeriod": "vs último período",
+        "matchedApiKey": "Sobrescritura coincidente",
+        "none": "N/A",
+        "peakDay": "Día pico",
+        "providerAuth": "Autenticación del proveedor",
+        "streak": "Racha más larga: {{days}} días",
+        "topModel": "Modelo de élite",
+        "totalCost": "Costo total",
+        "totalRequests": "Solicitudes",
+        "totalTokens": "Tokens totales",
+        "unattributedApiKey": "Solicitud no atribuida",
+        "unattributedSource": "Fuente no atribuida"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Línea",
+        "pie": "Pastel",
+        "stack": "Pila"
+      },
+      "currency": "Moneda",
+      "empty": {
+        "description": "El uso aparece después de que las solicitudes de IA compatibles crean registros de uso.",
+        "title": "Sin uso aún"
+      },
+      "explore": {
+        "analysis": "Análisis",
+        "chart": "Gráfico",
+        "clearDate": "Limpiar filtro de fecha",
+        "drilldownTitle": "{{date}} desglose",
+        "entries": "Solicitudes",
+        "groupBy": "Agrupar por",
+        "loadMore": "Cargar más",
+        "loading": "Cargando...",
+        "metric": "Métrica",
+        "noBreakdown": "No hay datos desglosados",
+        "noBreakdownDescription": "Prueba una ventana más amplia o un proveedor diferente.",
+        "noEntries": "Sin entradas",
+        "noEntriesDescription": "Prueba una ventana más amplia o un proveedor diferente.",
+        "rollup": "Rollup",
+        "selectedDate": "Fecha seleccionada: {{date}}",
+        "shareLabel": "Compartir",
+        "title": "Explorar",
+        "top": "Superior",
+        "totalEntries_one": "{{count}} entrada",
+        "totalEntries_other": "{{count}} entradas"
+      },
+      "groupBy": {
+        "apiKey": "Clave de API",
+        "model": "Modelo",
+        "provider": "Proveedor",
+        "source": "Asistente / Agente"
+      },
+      "heatmap": {
+        "ariaDate": "Uso el {{date}}",
+        "title": "Actividad diaria"
+      },
+      "metric": {
+        "cost": "Costo",
+        "requests": "Solicitudes",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Descripción general"
+      },
+      "rollup": {
+        "daily": "Diario",
+        "monthly": "Mensual",
+        "total": "Total",
+        "weekly": "Semanal"
+      },
+      "summary": "{{ventana}} / {{tokens}} tokens / {{requests}} solicitudes",
+      "table": {
+        "cost": "Coste",
+        "date": "Fecha",
+        "model": "Modelo",
+        "source": "Fuente",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Análisis de Uso",
+      "tooltip": {
+        "cost": "Costo {{value}}",
+        "requests_one": "{{count}} solicitud",
+        "requests_other": "{{count}} solicitudes",
+        "tokens": "{{valor}} tokens"
+      },
+      "window": {
+        "30d": "Últimos 30 días",
+        "365d": "El año pasado",
+        "90d": "Últimos 90 días"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Cambiar el estilo de la barra de título requiere reiniciar la aplicación para que surta efecto. ¿Desea reiniciar ahora?",
@@ -8360,6 +8478,7 @@
         "placeholder": "Buscar historial de traducciones"
       },
       "source": "Fuente",
+      "star": "Favorito",
       "success": {
         "add": "Guardado en el historial",
         "clear": "Historial borrado",

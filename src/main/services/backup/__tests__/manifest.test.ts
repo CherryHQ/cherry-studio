@@ -42,8 +42,8 @@ describe('manifest round-trip', () => {
     }
   })
 
-  it('BACKUP_FORMAT_VERSION is 1 (v2 baseline major)', () => {
-    expect(BACKUP_FORMAT_VERSION).toBe(1)
+  it('BACKUP_FORMAT_VERSION is 2 (rc.1 migration-chain consolidation major)', () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(2)
   })
 
   it('readManifest returns a deep-frozen object (mutation throws in strict mode)', async () => {

@@ -441,6 +441,12 @@
       "list": {
         "title": "Aufgaben"
       },
+      "model_switch_confirm": {
+        "confirm": "Modell wechseln",
+        "description": "Verschiedene Modelle können den Kontext unterschiedlich verstehen und verarbeiten. Ein Wechsel kann die Kontinuität oder Qualität nachfolgender Antworten beeinträchtigen. Möchten Sie fortfahren?",
+        "skip_for_app_run": "Nicht erneut fragen, bis ich die App beende",
+        "title": "Zu „{{model}}“ wechseln?"
+      },
       "new": "Neue Aufgabe",
       "pin": {
         "title": "Aufgabe anheften"
@@ -1035,7 +1041,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Kopieren",
       "regenerate": "Neu generieren",
       "restart": {
         "button": "Neustarten",
@@ -1047,8 +1052,6 @@
     "authHeader": {
       "title": "Autorisierungs-Header"
     },
-    "authHeaderText": "Im Autorisierungs-Header verwenden:",
-    "configuration": "Konfiguration",
     "description": "Stellen Sie die KI-Funktionen von Cherry Studio über eine OpenAI-kompatible HTTP-API bereit",
     "documentation": {
       "title": "API-Dokumentation"
@@ -1056,13 +1059,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "API-Schlüssel kopieren",
-        "description": "Sicherheits-Token für API-Zugriff",
         "label": "API-Schlüssel",
         "placeholder": "API-Schlüssel wird automatisch generiert"
       },
       "port": {
-        "description": "TCP-Portnummer des HTTP-Servers (1000-65535)",
-        "helpText": "Server stoppen, um Port zu ändern",
         "label": "Port"
       },
       "url": {
@@ -1071,7 +1071,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
       "notEnabled": "API server is not enabled.",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
@@ -1081,8 +1080,7 @@
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
       "stopError": "API-Server stoppen fehlgeschlagen:",
-      "stopSuccess": "API-Server erfolgreich gestoppt",
-      "urlCopied": "Server-URL in die Zwischenablage kopiert"
+      "stopSuccess": "API-Server erfolgreich gestoppt"
     },
     "status": {
       "running": "Läuft",
@@ -1642,8 +1640,17 @@
       "token_details": {
         "cache_read": "Cache-Lesevorgang",
         "cache_write": "Cache-Schreiben",
+        "cost": "Kosten",
+        "cost_billed": "Abgerechnet durch Anbieter",
+        "cost_estimated": "Geschätzt",
+        "end_to_end_throughput": "End-to-End-Durchsatz",
         "input": "Eingabe",
         "input_breakdown": "Eingabeaufschlüsselung",
+        "lane_approval": "Genehmigung",
+        "lane_model": "Modell",
+        "lane_other": "Andere",
+        "lane_tool": "Werkzeug",
+        "model_throughput": "Modellgenerierung TPS",
         "output": "Ausgabe",
         "reasoning": "Schlussfolgerung",
         "reasoning_time": "Schlussfolgerung",
@@ -1652,6 +1659,7 @@
         "text_output": "Textausgabe",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Token/s",
+        "total_duration": "Gesamtdauer",
         "uncached": "Nicht zwischengespeichert",
         "usage": "Token-Nutzung",
         "waiting_first_token": "Wartend"
@@ -2319,6 +2327,7 @@
     "open_in": "In {{name}} öffnen",
     "open_in_new_tab": "In neuem Tab öffnen",
     "open_sidebar": "Seitenleiste öffnen",
+    "other": "Andere",
     "placeholders": {
       "select": {
         "model": "Modell auswählen"
@@ -4321,6 +4330,7 @@
     },
     "pinned": "Angeheftet",
     "price": {
+      "cache_read": "Cache-Lesepreis",
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
@@ -4936,6 +4946,11 @@
     "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
+    "showcase": {
+      "caption": "Wähle eine Vorlage aus und passe anschließend den Prompt unten an.",
+      "styles_label": "Prompt-Vorlagen",
+      "title": "Raum für dein nächstes Meisterwerk."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5212,6 +5227,7 @@
       "label": "Möchten Sie die Daten wirklich wiederherstellen?"
     },
     "content": "Der Wiederherstellungsvorgang überschreibt alle aktuellen Anwendungsdaten mit den Backup-Daten. Bitte beachten Sie, dass der Wiederherstellungsprozess einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
+    "messages_paused": "Eine Wiederherstellung aus dem Backup läuft; neue Nachrichten sind bis zum Abschluss pausiert.",
     "progress": {
       "completed": "Wiederherstellung abgeschlossen",
       "copying_files": "Dateien kopieren... {{progress}}%",
@@ -8185,6 +8201,108 @@
       "show": "Tray-Symbol anzeigen",
       "title": "Tray"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Aktive Tage",
+        "cacheHitRate": "Cache-Trefferrate",
+        "cacheObservedTokens": "Beobachtbare Eingabe: {{tokens}}",
+        "cacheStartsWithNewRequests": "Beginnt mit neuen Anfragen",
+        "dailyAverage": "Tagesdurchschnitt",
+        "explicitApiKey": "Ausgewählter Schlüssel",
+        "lastPeriod": "gegen den letzten Zeitraum",
+        "matchedApiKey": "Übereinstimmende Überschreibung",
+        "none": "N/A",
+        "peakDay": "Höchsttag",
+        "providerAuth": "Anbieter-Authentifizierung",
+        "streak": "Längste Serie: {{days}} Tage",
+        "topModel": "Top-Model",
+        "totalCost": "Gesamtkosten",
+        "totalRequests": "Anfragen",
+        "totalTokens": "Gesamtzahl der Token",
+        "unattributedApiKey": "Nicht zugeordnete Anfrage",
+        "unattributedSource": "Unzugeordnete Quelle"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Zeile",
+        "pie": "Kuchen",
+        "stack": "Stapel"
+      },
+      "currency": "Währung",
+      "empty": {
+        "description": "Die Nutzung erscheint, nachdem unterstützte KI-Anfragen Nutzungsdatensätze erstellt haben.",
+        "title": "Noch keine Nutzung"
+      },
+      "explore": {
+        "analysis": "Analyse",
+        "chart": "Diagramm",
+        "clearDate": "Datumsfilter löschen",
+        "drilldownTitle": "{{date}} Drilldown",
+        "entries": "Anfragen",
+        "groupBy": "Gruppieren nach",
+        "loadMore": "Mehr laden",
+        "loading": "Wird geladen...",
+        "metric": "Metrisch",
+        "noBreakdown": "Keine Aufschlüsselung der Daten",
+        "noBreakdownDescription": "Versuchen Sie ein breiteres Fenster oder einen anderen Anbieter.",
+        "noEntries": "Keine Einträge",
+        "noEntriesDescription": "Probieren Sie ein breiteres Fenster oder einen anderen Anbieter aus.",
+        "rollup": "Rollup",
+        "selectedDate": "Ausgewähltes Datum: {{date}}",
+        "shareLabel": "Teilen",
+        "title": "Erkunden",
+        "top": "Spitze",
+        "totalEntries_one": "{{count}} Eintrag",
+        "totalEntries_other": "{{count}} Einträge"
+      },
+      "groupBy": {
+        "apiKey": "API-Schlüssel",
+        "model": "Modell",
+        "provider": "Anbieter",
+        "source": "Assistent / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "Verwendung am {{date}}",
+        "title": "Tägliche Aktivität"
+      },
+      "metric": {
+        "cost": "Kosten",
+        "requests": "Anfragen",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Übersicht"
+      },
+      "rollup": {
+        "daily": "Täglich",
+        "monthly": "Monatlich",
+        "total": "Gesamt",
+        "weekly": "Wöchentlich"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} Anfragen",
+      "table": {
+        "cost": "Kosten",
+        "date": "Datum",
+        "model": "Modell",
+        "source": "Quelle",
+        "tokens": "Token",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Nutzungsanalysen",
+      "tooltip": {
+        "cost": "Kosten {{value}}",
+        "requests_one": "{{count}} Anfrage",
+        "requests_other": "{{count}} Anfragen",
+        "tokens": "{{value}} Token"
+      },
+      "window": {
+        "30d": "Letzte 30 Tage",
+        "365d": "Letztes Jahr",
+        "90d": "Letzte 90 Tage"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Das Ändern des Titelleistenstils erfordert einen Neustart der App, damit die Änderung wirksam wird. Möchten Sie jetzt neu starten?",
@@ -8360,6 +8478,7 @@
         "placeholder": "Übersetzungsverlauf durchsuchen"
       },
       "source": "Quelle",
+      "star": "Lieblings-",
       "success": {
         "add": "In der Historie gespeichert",
         "clear": "Verlauf gelöscht",

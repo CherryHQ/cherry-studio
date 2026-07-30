@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,6 +7,7 @@ import {
   clearRestoreJournal,
   hasPendingRestore,
   readRestoreJournal,
+  removeRestoreJournal,
   writeRestoreJournal
 } from '@data/db/restore/restoreJournal'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -167,6 +168,18 @@ describe('restoreJournal', () => {
 
       expect(readRestoreJournal()).toEqual({ kind: 'ok', journal: updated })
       expect(() => JSON.parse(readFileSync(journalPath(), 'utf8'))).not.toThrow()
+    })
+  })
+
+  describe('removeRestoreJournal', () => {
+    it('removes the journal and an interrupted-write sibling', () => {
+      writeRestoreJournal({ ...stagedJournal(), state: 'completed', step: 'integrity-ok' })
+      writeFileSync(`${journalPath()}.tmp`, 'stale')
+
+      removeRestoreJournal()
+
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+      expect(existsSync(`${journalPath()}.tmp`)).toBe(false)
     })
   })
 

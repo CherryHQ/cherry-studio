@@ -74,6 +74,8 @@ export interface ToolContext {
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
     slashCommands?: SlashCommand[]
+    /** Knowledge bases statically bound to the Agent. */
+    knowledgeBaseIds?: readonly string[]
   }
 }
 

@@ -122,7 +122,7 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
 
       // Assert — manifest reflects the full preset
       expect(manifest.preset).toBe('full')
-      expect(manifest.backupFormatVersion).toBe(1)
+      expect(manifest.backupFormatVersion).toBe(2)
       expect(manifest.domains).toHaveLength(14)
       expect(new Set(manifest.domains)).toEqual(new Set(BACKUP_DOMAINS))
       expect(manifest.schemaMigrationId).toBe('0001_x.sql')

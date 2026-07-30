@@ -4,9 +4,10 @@ import {
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
+import { normalizeClaudePlugins, normalizeClawhub, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { normalizeClaudePlugins, searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
+import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -241,23 +242,14 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeSkillsSh', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = SkillsShSearchResponseSchema.parse(skillsShFixture)
-      const results = parsed.skills.map((s) => ({
-        slug: s.id,
-        name: s.name,
-        description: null,
-        author: s.source.split('/')[0] ?? null,
-        stars: 0,
-        downloads: s.installs,
-        sourceRegistry: 'skills.sh' as const,
-        installSource: `skills.sh:${s.id}`
-      }))
+      const results = normalizeSkillsSh(skillsShFixture)
 
       expect(results).toHaveLength(3)
       expect(results).toMatchSnapshot()
 
       expect(results[0].author).toBe('vercel-labs')
       expect(results[0].description).toBeNull()
+      expect(results[0].sourceUrl).toBe('https://skills.sh/vercel-labs/skills/find-skills')
       expect(results[1].downloads).toBe(263730)
       expect(results[2].installSource).toBe('skills.sh:vercel-labs/agent-skills/vercel-composition-patterns')
     })
@@ -265,28 +257,32 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeClawhub', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
-      const results = parsed.results.map((s) => ({
-        slug: s.slug,
-        name: s.displayName,
-        description: s.summary ?? null,
-        author: s.ownerHandle ?? null,
-        stars: 0,
-        downloads: 0,
-        sourceRegistry: 'clawhub.ai' as const,
-        sourceUrl: s.ownerHandle
-          ? `https://clawhub.ai/${s.ownerHandle}/skills/${s.slug}`
-          : `https://clawhub.ai/skills/${s.slug}`,
-        installSource: `clawhub:${s.slug}`
-      }))
+      const results = normalizeClawhub(clawhubSearchFixture)
 
       expect(results).toHaveLength(2)
       expect(results).toMatchSnapshot()
 
       expect(results[0].name).toBe('Code Reviewer Pro')
-      expect(results[0].installSource).toBe('clawhub:code-reviewer-pro')
+      expect(results[0].installSource).toBe('clawhub:devmaster/code-reviewer-pro')
       expect(results[0].author).toBe('devmaster')
       expect(results[0].sourceUrl).toBe('https://clawhub.ai/devmaster/skills/code-reviewer-pro')
+    })
+
+    it('drops results without an owner because clawhub slugs are not globally unique', () => {
+      const results = normalizeClawhub({
+        results: [
+          {
+            score: 1,
+            slug: 'shared-slug',
+            displayName: 'Shared Slug',
+            summary: 'Ambiguous publisher',
+            version: null,
+            updatedAt: 1
+          }
+        ]
+      })
+
+      expect(results).toEqual([])
     })
   })
 })

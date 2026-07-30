@@ -15,6 +15,8 @@ files.
 | `agents.db.channels` | `agent_channel` |
 | `agents.db.scheduled_tasks`, `channel_task_subscriptions` | `job_schedule`, `agent_channel_task` |
 | `agents.db.agents.mcps` | `agent_mcp_server` |
+| `.claude` | `Data/Agents/.claude` |
+| `.claude/projects/*/{agent_session_id}.jsonl` | Migrated Session workspace's Claude project cache |
 | `Data/Agents/{legacyAgentId suffix}` | `Data/Agents/{agentId}` and `Data/Agents/system/YYYY-MM-DD/{sessionId}` |
 
 `MigrationPaths` supplies every source and destination root. The migrator never
@@ -23,7 +25,9 @@ resolves migration storage through the live application path registry.
 ## Database transformations
 
 - Legacy prefix IDs and built-in sentinel IDs become deterministic UUIDs;
-  Agent and Session foreign keys are remapped in the same operation.
+  Agent and Session foreign keys are remapped in the same operation. Immutable
+  session-message author snapshots are rewritten to the same final Agent ID so
+  migrated usage and new usage group under one source identity.
 - Session workspaces come from the first valid Session-level accessible path,
   then the Agent-level path, then the v1 managed default.
 - A managed default becomes a Session-specific system workspace. External user
@@ -41,15 +45,30 @@ Filesystem probing and message-file materialization complete before `BEGIN`.
 
 ## Filesystem split
 
+Before importing `agents.db`, the migrator copies ordinary files and directories
+from the v1 `{userData}/.claude` tree to
+`{userData}/Data/Agents/.claude`. Symlinks are skipped so Windows migration does
+not require permission to create them. The copy uses a private staging
+directory, verifies the copied source and destination content, and atomically
+publishes the result. If the destination directory already exists, migration
+leaves it untouched and skips the legacy Claude config copy. This copy also
+runs when `agents.db` is absent.
+
 For each migrated Agent:
 
 - `SOUL.md`, `USER.md`, and `memory/` are materialized as real files and
   directories under `Data/Agents/{finalAgentId}`.
-- Ordinary files from the v1 managed workspace are copied to the most recently
-  used managed Session workspace. Other historical managed Sessions receive
-  independent empty system workspaces.
-- The most recent Session is selected by `updated_at DESC`, then
-  `created_at DESC`, then Session ID.
+- Each valid `session_messages.agent_session_id` is treated as an opaque Claude
+  runtime resume UUID. Migration first checks the old cwd project key and scans
+  the other project directories once for unresolved IDs. Only matching
+  `{id}.jsonl` transcripts are copied under the final runtime cwd project key.
+- Ordinary files from the v1 managed workspace are copied into every migrated
+  managed Session workspace without an age limit, independently of Claude
+  transcript availability. External user workspaces continue using their
+  original path without an ordinary workspace-file copy.
+- Imported resume tokens remain unchanged. If the latest Claude transcript
+  cannot be made available, the normal runtime resume attempt surfaces the
+  failure to the user.
 - A symlinked v1 Agent root is treated as an external user workspace: identity
   may be read from its resolved directory, but the target is never removed.
 - Identity symlinks are followed only when they resolve inside the source
@@ -62,11 +81,16 @@ Existing identity targets are never overwritten. Identical files from a prior
 attempt are accepted recursively; different files keep both the existing v2
 target and the v1 source in place.
 
+Claude project keys mirror the SDK's cwd sanitizer, including its 200-character
+limit and hash suffix for long paths. Claude session cache copies use the same
+verified staging and conflict rules as other Agent filesystem data; the old cwd
+cache is retained for downgrade compatibility.
+
 ## Copy-only and downgrade contract
 
 The filesystem migration is additive. It never removes or rewrites the v1
-`agents.db` or `Data/Agents/{legacyAgentId suffix}` workspace because those
-paths remain the source of truth when a user downgrades to v1.
+`.claude`, `agents.db`, or `Data/Agents/{legacyAgentId suffix}` workspace
+because those paths remain the source of truth when a user downgrades to v1.
 
 Each entry records its source metadata before copying, verifies that the source
 metadata is unchanged after the copy, and requires the private staging entry

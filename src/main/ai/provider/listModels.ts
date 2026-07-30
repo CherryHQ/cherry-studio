@@ -24,6 +24,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
   isGeminiProvider,
@@ -131,8 +132,7 @@ async function getFromApi<T>({
 /** Build default headers with rotated API key */
 
 function defaultGroup(modelId: string, providerId: string): string {
-  const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  return deriveModelGroupName(modelId) ?? providerId
 }
 
 /** Build a partial v2 Model from API response */
@@ -418,14 +418,17 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
 }
+const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
   if (!values?.length) {
@@ -434,7 +437,13 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
 
   const endpointTypes = dedup(
     values
-      .map((value) => ENDPOINT_TYPE_ALIASES[value.trim().toLowerCase()])
+      .map((value) => {
+        const normalized = value.trim().toLowerCase()
+        return (
+          ENDPOINT_TYPE_ALIASES[normalized] ??
+          (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
+        )
+      })
       .filter((value): value is EndpointType => Boolean(value)),
     (value) => value
   )
@@ -703,7 +712,12 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        ownedBy: m.owned_by
+      })
+    )
   }
 }
 

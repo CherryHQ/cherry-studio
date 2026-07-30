@@ -137,6 +137,37 @@ export async function runRestorePromotion(): Promise<void> {
 }
 
 /**
+ * Consume terminal restore artifacts after the gate has proved that no live
+ * database is stranded. Active and corrupt journals remain untouched.
+ */
+export function cleanupTerminalRestoreArtifacts(): void {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok') {
+    return
+  }
+  const journal = read.journal
+  if (journal.state === 'staged' || journal.state === 'promoting') {
+    return
+  }
+
+  try {
+    const stagingRoot = application.getPath('feature.backup.restore.staging')
+    fs.rmSync(path.join(stagingRoot, journal.restoreId), { recursive: true, force: true })
+    logger.info('Terminal restore staging cleared; journal kept for BackupService disclosure', {
+      restoreId: journal.restoreId,
+      state: journal.state,
+      step: journal.step
+    })
+  } catch (error) {
+    logger.warn('Failed to clear terminal restore staging — will retry on the next launch', {
+      restoreId: journal.restoreId,
+      state: journal.state,
+      error
+    })
+  }
+}
+
+/**
  * Last-resort net for a crash that ESCAPED runRestorePromotion — called only
  * by the gate shell's catch. Escaped throws are precisely the cases in-band
  * recovery could not handle. Two-way triage on the commit boundary:
@@ -659,7 +690,9 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
     case 'overwrite': {
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
       if (aside && fs.existsSync(aside)) {
-        fs.rmSync(live, { force: true })
+        // `overwrite` covers both files and whole directories. A failed
+        // promotion must clear either shape before restoring its aside.
+        fs.rmSync(live, { recursive: true, force: true })
         renameDurable(aside, live)
       }
       return
@@ -674,8 +707,8 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
 /**
  * Every terminal outcome writes the journal state and deletes the staging
  * tree (the staging tree's lifecycle is wholly owned by this state machine).
- * Terminal journals themselves are kept — BackupService reads them for the
- * post-boot report and owns their deletion.
+ * The gate shell removes the terminal journal only after its stranded-DB
+ * safety check, so the crash net can still locate the parked aside.
  */
 function finalize(
   ctx: PromotionContext,

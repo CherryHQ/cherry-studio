@@ -189,6 +189,25 @@ export function writeRestoreJournal(journal: RestoreJournal): void {
 }
 
 /**
+ * Remove a consumed terminal journal and any interrupted-write sibling,
+ * then durably flush the directory entry on POSIX.
+ */
+export function removeRestoreJournal(): void {
+  const journalPath = journalFilePath()
+  fs.rmSync(journalPath, { force: true })
+  fs.rmSync(`${journalPath}.tmp`, { force: true })
+
+  if (process.platform !== 'win32') {
+    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+    try {
+      fs.fsyncSync(dirFd)
+    } finally {
+      fs.closeSync(dirFd)
+    }
+  }
+}
+
+/**
  * Whether a restore is staged or mid-promotion — the signal orphan sweep uses
  * to stand aside. Corrupt journals count as pending (fail-safe: one skipped
  * sweep is harmless; the next boot's gate cleans the corrupt journal up).
