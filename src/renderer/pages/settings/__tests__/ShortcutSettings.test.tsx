@@ -187,12 +187,12 @@ describe('ShortcutSettings shortcut recorder', () => {
     fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
     const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
 
-    fireEvent.keyDown(recorder, { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true })
+    fireEvent.keyDown(recorder, { key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true, bubbles: true })
 
     expect(parentKeyDown).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
-        binding: ['CommandOrControl', 'K'],
+        binding: ['CommandOrControl', 'Shift', 'K'],
         enabled: true
       })
     })

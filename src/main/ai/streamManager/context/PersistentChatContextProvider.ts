@@ -12,10 +12,15 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
-import { type Message as SharedMessage, type MessageSnapshot, toContentRole } from '@shared/data/types/message'
+import {
+  type AssistantTurnOptions,
+  type Message as SharedMessage,
+  type MessageSnapshot,
+  toContentRole
+} from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -124,6 +129,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       modelId: message.modelId ?? undefined,
       messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
+      turnOptions: message.data.turnOptions,
       createdAt: message.createdAt,
       stats: message.stats ?? undefined,
       isActiveBranch: true,
@@ -187,6 +193,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
+        pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false
       }
@@ -196,6 +203,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
     const isMultiModel = models.length > 1
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort,
+      fastMode: req.fastMode === true
+    }
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
@@ -240,7 +251,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         siblingsGroupId,
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
-          data: { parts: [] },
+          data: { parts: [], turnOptions },
           status: 'pending',
           modelId: model.id,
           messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
@@ -270,6 +281,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             modelId: model.id,
             backend: new MessageServiceBackend({
               assistantMessageId: placeholder.id,
+              turnOptions,
               afterPersist: attachAutoRename
                 ? async (finalMessage) => {
                     await topicNamingService.maybeRenameFromConversationSummary(
@@ -300,7 +312,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           history,
           placeholder.id,
           knowledgeBaseIds,
-          req.trigger === 'submit-message' ? req.reasoningEffort : undefined
+          turnOptions.reasoningEffort,
+          turnOptions.fastMode === true
         ),
         rootSpan
       }))
@@ -367,7 +380,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
     try {
       messageService.update(req.parentAnchorId, {
-        data: { parts: updatedParts },
+        data: { ...anchor.data, parts: updatedParts },
         status: 'pending'
       })
 
@@ -376,7 +389,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({ assistantMessageId: anchor.id }),
+          backend: new MessageServiceBackend({
+            assistantMessageId: anchor.id,
+            turnOptions: anchor.data.turnOptions
+          }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
@@ -397,7 +413,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               anchor.id,
               knowledgeBaseIds,
-              undefined
+              anchor.data.turnOptions?.reasoningEffort,
+              anchor.data.turnOptions?.fastMode === true
             ),
             rootSpan
           }
@@ -433,6 +450,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
     const [model] = resolveModels([steerModelId], steerModelId)
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort,
+      fastMode: req.fastMode
+    }
 
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
@@ -442,7 +463,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         userMessage: { mode: 'existing', id: req.userMessageId },
         placeholders: [
-          { role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, messageSnapshot }
+          {
+            role: 'assistant',
+            data: { parts: [], turnOptions },
+            status: 'pending',
+            modelId: model.id,
+            messageSnapshot
+          }
         ]
       })
       const placeholder = placeholders[0]
@@ -452,7 +479,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id }),
+          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, turnOptions }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
@@ -472,7 +499,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
-              req.reasoningEffort
+              req.reasoningEffort,
+              req.fastMode
             ),
             rootSpan
           }
@@ -494,7 +522,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    */
   private buildHistory(anchorMessageId: string): CherryUIMessage[] {
     const messagePath = messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
+    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    return messagePath.slice(lastClearIndex + 1).map((msg) => ({
       id: msg.id,
       role: toContentRole(msg.role),
       parts: msg.data.parts ?? []
@@ -508,7 +537,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     history: CherryUIMessage[],
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
-    reasoningEffort: AiStreamRequest['reasoningEffort']
+    reasoningEffort: AiStreamRequest['reasoningEffort'],
+    fastMode: boolean
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -518,7 +548,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messages: history,
       messageId,
       knowledgeBaseIds,
-      reasoningEffort
+      reasoningEffort,
+      fastMode
     }
   }
 }

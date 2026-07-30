@@ -204,8 +204,10 @@ describe('AgentSessionRuntimeService', () => {
     it('is false with no entry and true while a turn is live', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.hasBusySessions()).toBe(false)
       service.beginTurn(baseTurnInput)
       expect(service.isSessionBusy('session-1')).toBe(true)
+      expect(service.hasBusySessions()).toBe(true)
     })
 
     it('is false once a turn settles with no queued follow-ups', () => {
@@ -213,6 +215,7 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn(baseTurnInput)
       service.markTurnTerminal('session-1', 'success')
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.hasBusySessions()).toBe(false)
     })
 
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
@@ -1112,7 +1115,8 @@ describe('AgentSessionRuntimeService', () => {
     expect((service as any).connectionTarget({ ...getEntry(service), currentTurn: undefined })).toEqual({
       modelId: switchedModelId,
       reasoningEffort: 'default',
-      knowledgeBaseIds: []
+      knowledgeBaseIds: [],
+      fastMode: false
     })
 
     await reader.cancel().catch(() => undefined)
@@ -1283,7 +1287,8 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.reconcile).toHaveBeenCalledWith({
       modelId: baseTurnInput.modelId,
       reasoningEffort: 'default',
-      knowledgeBaseIds: []
+      knowledgeBaseIds: [],
+      fastMode: false
     })
     expect(connection.close).not.toHaveBeenCalled()
   })
@@ -1331,9 +1336,29 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(connection.redirect).not.toHaveBeenCalled()
     expect(entry.pendingTurns).toEqual([
-      { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [] }
+      { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [], fastMode: false }
     ])
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
+  })
+
+  it('queues a follow-up when its Fast selection differs from the live turn', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, fastMode: true })
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      redirect: vi.fn().mockReturnValue(true)
+    }
+    entry.connection = connection
+
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    expect(connection.redirect).not.toHaveBeenCalled()
+    expect(entry.pendingTurns).toEqual([
+      { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [], fastMode: false }
+    ])
   })
 
   it('fails closed and logs when a push reconcile throws', async () => {
@@ -1392,7 +1417,7 @@ describe('AgentSessionRuntimeService', () => {
         expect.objectContaining({ message: userMessage('user-1'), systemReminder: false })
       )
     )
-    getEntry(service).pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
+    getEntry(service).pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
 
     await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
 
@@ -1531,7 +1556,8 @@ describe('AgentSessionRuntimeService', () => {
       expect(firstConnection.reconcile).toHaveBeenCalledWith({
         modelId: baseTurnInput.modelId,
         reasoningEffort: 'default',
-        knowledgeBaseIds: []
+        knowledgeBaseIds: [],
+        fastMode: false
       })
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenCalledTimes(1)
@@ -2230,6 +2256,7 @@ describe('AgentSessionRuntimeService', () => {
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
         knowledgeBaseIds: [],
+        fastMode: false,
         resumeToken: undefined,
         onSteerInjected: expect.any(Function),
         trace: {
@@ -2285,6 +2312,7 @@ describe('AgentSessionRuntimeService', () => {
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
         knowledgeBaseIds: [],
+        fastMode: false,
         resumeToken: 'resume-db',
         onSteerInjected: expect.any(Function),
         trace: {
@@ -2474,7 +2502,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(redirect).not.toHaveBeenCalled()
       expect(getEntry(service).pendingTurns).toEqual([
-        { message: changedScopeMessage, reasoningEffort: 'default', knowledgeBaseIds: ['kb-2'] }
+        { message: changedScopeMessage, reasoningEffort: 'default', fastMode: false, knowledgeBaseIds: ['kb-2'] }
       ])
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
@@ -3142,7 +3170,7 @@ describe('AgentSessionRuntimeService', () => {
     const entry = getEntry(service)
     entry.lastResumeToken = 'resume-1'
     entry.currentTurn.activeToolIds.add('tool-1')
-    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'high' })
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'high', fastMode: false })
 
     await (service as any).startNextTurn(entry)
 
@@ -3187,7 +3215,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
-    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
 
     await (service as any).handleAgentUpdated(
       'agent-1',
@@ -3262,7 +3290,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
-    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
 
     // The model was deleted while user-2 sat queued: its `user_model` row is gone and `agent.model` is
     // FK-nulled, but no agent update fires — the entry still caches the deleted model. The drain must
@@ -3294,7 +3322,7 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     const queued = userMessage('user-2')
-    entry.pendingTurns.push({ message: queued, reasoningEffort: 'default' })
+    entry.pendingTurns.push({ message: queued, reasoningEffort: 'default', fastMode: false })
 
     const saveError = new Error('db down')
     mocks.saveMessage.mockImplementationOnce(() => {

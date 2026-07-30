@@ -661,6 +661,9 @@
           "baseUrl": "https://api.anthropic.com"
         }
       },
+      "fastMode": {
+        "transport": "claude-code"
+      },
       "id": "claude-code",
       "metadata": {
         "website": {
@@ -683,6 +686,9 @@
           "adapterFamily": "openai",
           "baseUrl": "https://chatgpt.com/backend-api/codex"
         }
+      },
+      "fastMode": {
+        "transport": "openai-priority"
       },
       "id": "openai-codex",
       "metadata": {
@@ -1865,5 +1871,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4342003bd031e41f"
+  "version": "e70b8f300db53f9d"
 }

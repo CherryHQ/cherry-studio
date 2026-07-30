@@ -767,10 +767,10 @@ export const exportMarkdownToYuque = async (title: string, content: string): Pro
  * @param attributes.folder 选择的文件夹路径或文件路径
  * @param attributes.vault 选择的Vault名称
  */
-export const exportMarkdownToObsidian = async (attributes: any): Promise<void> => {
+export const exportMarkdownToObsidian = async (attributes: any): Promise<boolean> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   setExportingState(true)
@@ -783,12 +783,12 @@ export const exportMarkdownToObsidian = async (attributes: any): Promise<void> =
 
     if (!obsidianVault) {
       toast.error(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
-      return
+      return false
     }
 
     if (!attributes.title) {
       toast.error(i18n.t('chat.topics.export.obsidian_title_required'))
-      return
+      return false
     }
 
     // 检查是否选择了.md文件
@@ -825,9 +825,11 @@ export const exportMarkdownToObsidian = async (attributes: any): Promise<void> =
 
     window.open(obsidianUrl)
     toast.success(i18n.t('chat.topics.export.obsidian_export_success'))
+    return true
   } catch (error) {
     logger.error('Failed to export to Obsidian:', error as Error)
     toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+    return false
   } finally {
     setExportingState(false)
   }

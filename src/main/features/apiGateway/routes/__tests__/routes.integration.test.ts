@@ -11,20 +11,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockPreferenceGet, mockProcessMessage, mockGetModels } = vi.hoisted(() => ({
+const { mockPreferenceGet, mockProcessMessage, mockGetModels, mockIsInternalRequestToken } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] }))
+  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token')
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+  const overrides = {
+    PreferenceService: { get: mockPreferenceGet },
+    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
+  }
+  return mockApplicationFactory(overrides)
 })
 
 vi.mock('@logger', () => ({
@@ -85,6 +88,17 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.name).toBe('Cherry Studio API')
       expect(body.endpoints).toBeDefined()
+    })
+
+    it('OpenAPI spec advertises an absolute server URL from host/port', async () => {
+      // Scalar renders curl examples against `servers[0].url`; an absolute URL
+      // keeps the health-check example copyable (`curl http://.../health`)
+      // instead of a bare relative path (`curl /health`).
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
+
+      const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
+      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
     })
   })
 
@@ -162,6 +176,36 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.ok).toBe(true)
       expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('ignores the internal Fast header from a public API-key client', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, 'x-cherry-fast-mode': 'true' }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: false }))
+    })
+
+    it('accepts Fast only with the process-local internal request token', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          {
+            ...AUTH,
+            'x-cherry-fast-mode': 'true',
+            'x-cherry-internal-request-token': 'internal-request-token'
+          }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: true }))
     })
 
     it('GET /v1/models returns the model list', async () => {

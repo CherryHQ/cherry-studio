@@ -238,6 +238,19 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledOnce()
     })
 
+    it('reports whether any stream can still persist turn state', () => {
+      expect(mgr.hasLiveStreams()).toBe(false)
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      expect(mgr.hasLiveStreams()).toBe(true)
+    })
+
     it('throws on duplicate modelId within a single send call', () => {
       const request = req('a')
       expect(() =>
@@ -940,7 +953,8 @@ describe('AiStreamManager', () => {
     const steerReq = (topicId: string, userMessageId: string) => ({
       trigger: 'steer-continuation',
       topicId,
-      userMessageId
+      userMessageId,
+      fastMode: false
     })
 
     it('rebroadcasts awaiting-approval anchors when a live stream pauses and resumes for tool approval', () => {
@@ -1275,7 +1289,8 @@ describe('AiStreamManager', () => {
     const steerReq = (topicId: string, userMessageId: string) => ({
       trigger: 'steer-continuation',
       topicId,
-      userMessageId
+      userMessageId,
+      fastMode: false
     })
 
     it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {

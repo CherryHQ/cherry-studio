@@ -262,6 +262,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
+                  autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={handleNameBlur}

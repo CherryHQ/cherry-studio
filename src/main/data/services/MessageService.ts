@@ -41,7 +41,7 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { readCherryMeta } from '@shared/data/types/uiParts'
+import { hasClearContextPart, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
@@ -278,6 +278,7 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     // Tree nodes carry content roles only; toContentRole narrows (the root never reaches
     // here — guarded above) and 'system' is surfaced as 'assistant' for display.
     role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
+    isContextBoundary: hasClearContextPart(message.data.parts) || undefined,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,

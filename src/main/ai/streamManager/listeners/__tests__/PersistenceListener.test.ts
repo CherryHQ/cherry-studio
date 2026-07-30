@@ -369,6 +369,28 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
   })
 
+  it('retains frozen turn options when finalizing the assistant placeholder', async () => {
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({
+        assistantMessageId: 'assistant-1',
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
+      })
+    })
+
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
+      data: {
+        parts: makeFinalMessage().parts,
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
+      },
+      status: 'success',
+      runtimeStats: undefined
+    })
+    expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('swallows a failure of the terminal-error recovery write itself', async () => {
     messageFinalizeMock.mockImplementation(() => {
       throw new Error('db down')

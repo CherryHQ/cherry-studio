@@ -12,9 +12,11 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { getAppLanguage } from '@main/i18n'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -24,7 +26,12 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
+import {
+  isExternalCliProvider,
+  isOllamaProvider,
+  isSupportFastMode,
+  OLLAMA_PLACEHOLDER_AUTH_TOKEN
+} from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { AgentSessionUsageCapture } from '../types'
@@ -71,6 +78,7 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
   customHeaders?: Record<string, string>
   usageCapture: AgentSessionUsageCapture
+  internalRequestToken?: string
 }
 
 interface ConnectionMaterializationFacts {
@@ -185,6 +193,7 @@ export async function deriveConnectionConfig(
   sessionId: string,
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
+  fastMode = false,
   selectedKnowledgeBaseIds: readonly string[] = []
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
@@ -201,6 +210,7 @@ export async function deriveConnectionConfig(
         agent,
         connectionModelId ?? agent.model,
         reasoningEffort,
+        fastMode,
         selectedKnowledgeBaseIds
       )
     }
@@ -222,16 +232,18 @@ async function deriveConnectionConfigFromSnapshot(
   agent: AgentEntity,
   uniqueModelId: UniqueModelId,
   reasoningEffort: ReasoningEffortOption,
+  fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
   materialized?: ConnectionMaterializationFacts
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
+  const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
-    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    const provider = providerService.getByProviderId(providerId)
-    const model = modelService.getByKey(providerId, modelId)
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
     // Same pinning semantics as the query-request builder (see its comment).
     const pinSubModelsToPrimary = uniqueModelId !== agent.model
@@ -251,8 +263,10 @@ async function deriveConnectionConfigFromSnapshot(
   const rebuildFacts = {
     modelId: uniqueModelId,
     reasoningEffort,
+    fastMode: effectiveFastMode,
     route: routeFacts,
     cwd,
+    language: getAppLanguage(),
     instructions: agent.instructions ?? null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
@@ -313,6 +327,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   connectionModelId?: UniqueModelId,
   /** Canonical reasoning selection frozen when the turn was submitted. */
   reasoningEffort: ReasoningEffortOption = 'default',
+  /** Fast selection frozen when the turn was submitted. */
+  fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
   selectedKnowledgeBaseIds: readonly string[] = []
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
@@ -328,6 +344,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
@@ -366,11 +383,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         mcpServerSnapshots,
         linkedChannelSnapshot,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
-        thinkingOptions
+        thinkingOptions,
+        fastMode: fastModeTransport === 'claude-code'
       },
       agent
     ),
-    route
+    route,
+    fastModeTransport
   )
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
@@ -380,6 +399,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     agent,
     uniqueModelId,
     reasoningEffort,
+    fastMode,
     selectedKnowledgeBaseIds,
     {
       route: toConnectionRouteFacts(route),
@@ -513,7 +533,7 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !ref.provider || !supportsAnthropicMessages(ref.provider)
+    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
@@ -601,6 +621,7 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
+        internalRequestToken: gateway.internalRequestToken,
         credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
       }
     }
@@ -669,18 +690,17 @@ function resolveRuntimeModelRef(
   }
 }
 
-function supportsAnthropicMessages(provider: Provider): boolean {
-  return (
-    provider.id === 'anthropic' ||
-    provider.presetProviderId === 'anthropic' ||
-    provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
-    Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-  )
+function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
+  if (!ref.provider || !ref.model) return false
+  return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
 }
 
-async function resolveApiGatewayRuntime(
-  sessionId: string
-): Promise<{ baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }> {
+async function resolveApiGatewayRuntime(sessionId: string): Promise<{
+  baseUrl: string
+  apiKey: string
+  usageHeaders: Record<string, string>
+  internalRequestToken: string
+}> {
   const apiGatewayService = application.get('ApiGatewayService')
   const apiKey = await apiGatewayService.ensureValidApiKey()
   if (!apiGatewayService.isRunning()) {
@@ -692,7 +712,8 @@ async function resolveApiGatewayRuntime(
   return {
     baseUrl: `http://${host}:${port}`,
     apiKey,
-    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId)
+    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
+    internalRequestToken: apiGatewayService.getInternalRequestToken()
   }
 }
 
@@ -707,7 +728,27 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
-function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {
+function mergeRuntimeSettings(
+  settings: ClaudeCodeSettings,
+  route: ClaudeCodeRuntimeRoute,
+  fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
+): ClaudeCodeSettings {
+  const existingCustomHeaders = settings.env?.ANTHROPIC_CUSTOM_HEADERS
+  const routeCustomHeaders = route.customHeaders
+    ? Object.entries(route.customHeaders)
+        .map(([name, value]) => `${name}: ${value}`)
+        .join('\n')
+    : undefined
+  const customHeaders = [
+    existingCustomHeaders,
+    routeCustomHeaders,
+    route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
+      ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
+      : undefined
+  ]
+    .filter((header): header is string => Boolean(header))
+    .join('\n')
+
   return {
     ...settings,
     env: {
@@ -718,13 +759,7 @@ function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRun
       ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
       ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
-      ...(route.customHeaders
-        ? {
-            ANTHROPIC_CUSTOM_HEADERS: Object.entries(route.customHeaders)
-              .map(([name, value]) => `${name}: ${value}`)
-              .join('\n')
-          }
-        : {})
+      ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
     }
   }
 }

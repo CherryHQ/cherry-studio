@@ -743,20 +743,34 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
-    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, className, ...props }) => {
+    Tooltip: ({
+      children,
+      title,
+      content,
+      mouseEnterDelay,
+      classNames,
+      className,
+      sideOffset,
+      fullWidthTrigger,
+      ...props
+    }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       // Mirror the real Tooltip: the trigger wrapper carries classNames.placeholder.
-      const wrapperClassName = [className, classNames?.placeholder].filter(Boolean).join(' ') || undefined
+      const wrapperClassName =
+        [className, classNames?.placeholder, fullWidthTrigger && 'block w-full min-w-0 max-w-full']
+          .filter(Boolean)
+          .join(' ') || undefined
       return React.createElement(
         'div',
         {
           ...props,
           ...(wrapperClassName && { className: wrapperClassName }),
+          ...(tooltipText && { 'data-slot': 'tooltip-trigger' }),
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
           'data-mouse-enter-delay': mouseEnterDelay,
-          className: classNames?.placeholder
+          'data-side-offset': sideOffset
         },
         children,
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null

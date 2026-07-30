@@ -76,7 +76,6 @@ import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
@@ -328,7 +327,6 @@ export function Topics({
   } = useGroups('assistant')
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
-  const defaultAssistant = useMemo(() => ({ name: t('chat.default.name'), emoji: DEFAULT_ASSISTANT_EMOJI }), [t])
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
@@ -442,7 +440,7 @@ export function Topics({
     return ordered
   }, [assistants, optimisticAssistantOrderIds])
   // Move destinations intentionally include only persisted assistants. The
-  // unlinked "Default Assistant" group is a display fallback for orphaned data,
+  // unlinked assistant group is a display fallback for orphaned data,
   // not a user-selectable target that clears topic ownership.
   const assistantMoveTargets = useMemo<TopicMoveAssistantTarget[]>(() => {
     const targets = orderedAssistants.map((assistant) => ({
@@ -671,7 +669,6 @@ export function Topics({
     () =>
       createTopicDisplayGroupResolver<Topic>({
         assistantById,
-        defaultAssistant,
         mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
@@ -688,7 +685,7 @@ export function Topics({
         now: groupNow,
         pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, defaultAssistant, displayMode, groupNow, isAssistantDisplayMode, t]
+    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
   )
 
   const topicSectionBy = useMemo(() => {
@@ -1046,14 +1043,7 @@ export function Topics({
   const getGroupHeaderIcon = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || group.id === TOPIC_PINNED_GROUP_ID) return undefined
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
-        if (group.label !== defaultAssistant.name) return null
-
-        return renderAssistantEntityIcon(assistantIconType, {
-          emoji: defaultAssistant.emoji,
-          modelId: defaultModelId
-        })
-      }
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
@@ -1065,24 +1055,22 @@ export function Topics({
         modelName: assistant.modelName
       })
     },
-    [
-      assistantById,
-      assistantIconType,
-      defaultAssistant.emoji,
-      defaultAssistant.name,
-      defaultModelId,
-      isAssistantDisplayMode
-    ]
+    [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
+  )
+  const getGroupHeaderTooltip = useCallback(
+    (group: { id: string }) =>
+      group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
+    [t]
   )
   const isGroupHeaderIconVisible = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || assistantIconType === 'none' || group.id === TOPIC_PINNED_GROUP_ID) return false
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return group.label === defaultAssistant.name
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return false
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       return !!assistantId && assistantById.has(assistantId)
     },
-    [assistantById, assistantIconType, defaultAssistant.name, isAssistantDisplayMode]
+    [assistantById, assistantIconType, isAssistantDisplayMode]
   )
 
   const collapsedTopicState = useMemo(
@@ -1280,6 +1268,7 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
+        getGroupHeaderTooltip={getGroupHeaderTooltip}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
@@ -1402,7 +1391,6 @@ export function Topics({
             onOpenChange={(open) => {
               if (!open) setEditDialogTarget(null)
             }}
-            onSaved={refreshAssistants}
           />
         </Suspense>
       ) : null}
