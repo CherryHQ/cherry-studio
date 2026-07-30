@@ -115,10 +115,11 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
-  // Files and URLs delegate preview/fallback/error handling to `previewSource`, while directories
-  // drill into their children; all three remain status-independent. Notes activate only once their
-  // in-app chunk view is ready (`completed`).
-  const canActivate = item.type === 'note' ? canViewChunks : true
+  // Every row's primary click views its original content in-app: files/URLs delegate
+  // preview/fallback/error handling to `previewSource`, directories drill into their children, and
+  // notes open their stored `data.content`. All are status-independent — a note's text is present
+  // from creation, well before its chunk view (`completed`) exists.
+  const canActivate = true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
   const fullTitle = 'source' in item.data ? item.data.source : title
@@ -126,8 +127,12 @@ const KnowledgeItemRow = ({
   // Row actions, surfaced via the whole-row right-click menu (replacing the old per-row more
   // button). Same shape the navigator's KnowledgeBaseRow uses, so presentation stays consistent.
   const contextMenuItems = useMemo<CommandContextMenuExtraItem[]>(() => {
-    const items: CommandContextMenuExtraItem[] = [
-      {
+    const items: CommandContextMenuExtraItem[] = []
+
+    // Notes have no external source to preview — their original text opens via the row's primary
+    // click — so the "preview original" action only applies to files, URLs, and directories.
+    if (item.type !== 'note') {
+      items.push({
         type: 'item',
         id: 'preview-source',
         label: t('knowledge.data_source.actions.preview_source'),
@@ -137,8 +142,8 @@ const KnowledgeItemRow = ({
             toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
           })
         }
-      }
-    ]
+      })
+    }
 
     if (canViewChunks) {
       items.push({
@@ -179,7 +184,7 @@ const KnowledgeItemRow = ({
     })
 
     return items
-  }, [canReindex, canViewChunks, onDelete, onPreviewSource, onReindex, onViewChunks, t])
+  }, [canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
 
   // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
   // itself so Enter/Space on the checkbox (which bubble up) don't also open chunks.

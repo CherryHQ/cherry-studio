@@ -2676,15 +2676,17 @@ describe('AgentComposer', () => {
     ])
   })
 
-  it('restores a cached knowledge chip together with the selection its prompt text needs', () => {
-    // The cached text carries the sentence the chip contributed. The pick has to come back with it —
-    // seeded synchronously from the token payload — or the surface's managed-token sync drops the chip
-    // as unselected and the sentence survives as prose claiming a base that nothing scopes.
+  it('drops a cached knowledge chip together with its prompt text', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
     vi.mocked(cacheService.getCasual).mockReturnValue({
       text: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.',
-      tokens: [cachedToken]
+      tokens: [
+        {
+          ...cachedToken,
+          promptText: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+        }
+      ]
     })
 
     render(
@@ -2697,16 +2699,15 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
-    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
-    expect(mocks.surfaceProps?.tokens).toContainEqual(
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).not.toContainEqual(
       expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
     )
   })
 
-  it('persists a knowledge chip into the agent draft cache alongside its sentence', () => {
-    // The write side of the round-trip: the text handed to the cache already contains the sentence the
-    // chip contributed, so persisting the text while dropping the token is what strands it as prose.
+  it('excludes a knowledge chip and its prompt text from the agent draft cache', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
 
     render(
@@ -2719,19 +2720,90 @@ describe('AgentComposer', () => {
       />
     )
 
-    const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+    const cachedToken = { ...knowledgeBaseToken(knowledgeBaseOne), promptText }
     act(() => {
+      mocks.surfaceProps?.onTextChange(`${promptText} keep this`)
       mocks.surfaceProps?.onTokensChange?.([cachedToken])
     })
 
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
       'agent-session-draft-agent-1',
-      expect.objectContaining({ tokens: [cachedToken] }),
+      { text: 'keep this', tokens: [] },
       expect.any(Number)
     )
   })
 
-  it('drops a cached knowledge pick the agent no longer configures', () => {
+  it('clears knowledge state on a same-agent session switch while preserving text and skills', async () => {
+    let cachedDraft: unknown = ''
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1' ? cachedDraft : ''
+    )
+    vi.mocked(cacheService.setCasual).mockImplementation((key: string, value: unknown) => {
+      if (key === 'agent-session-draft-agent-1') cachedDraft = value
+    })
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    mocks.agentKnowledgeBaseIds = [knowledgeBaseOne.id]
+    mocks.availableSkills = [pdfSkill]
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+    const text = `${knowledgePrompt} ${pdfSkillToken.promptText} keep this`
+    mocks.getDraft.mockReturnValue({
+      text,
+      tokens: [
+        { ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt },
+        {
+          ...pdfSkillToken,
+          index: 1,
+          textOffset: knowledgePrompt.length + 1
+        }
+      ]
+    })
+    act(() => {
+      mocks.surfaceProps?.onTextChange(text)
+    })
+
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-2"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(`${pdfSkillToken.promptText} keep this`))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([{ ...pdfSkillToken, index: 0, textOffset: 0 }])
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).not.toContainEqual(
+      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
+    )
+  })
+
+  it('does not restore a cached knowledge pick', () => {
     mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
     mocks.agentKnowledgeBaseIds = [knowledgeBaseTwo.id]
     vi.mocked(cacheService.getCasual).mockReturnValue({

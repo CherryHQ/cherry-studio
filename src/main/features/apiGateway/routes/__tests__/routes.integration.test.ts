@@ -89,6 +89,17 @@ describe('API gateway routes (integration)', () => {
       expect(body.name).toBe('Cherry Studio API')
       expect(body.endpoints).toBeDefined()
     })
+
+    it('OpenAPI spec advertises an absolute server URL from host/port', async () => {
+      // Scalar renders curl examples against `servers[0].url`; an absolute URL
+      // keeps the health-check example copyable (`curl http://.../health`)
+      // instead of a bare relative path (`curl /health`).
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
+
+      const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
+      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+    })
   })
 
   describe('auth', () => {
