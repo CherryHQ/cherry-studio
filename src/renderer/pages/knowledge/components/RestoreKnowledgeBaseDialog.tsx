@@ -121,6 +121,7 @@ const RestoreKnowledgeBaseDialog = ({
             <KnowledgeDialogField>
               <Label htmlFor="knowledge-restore-name">{t('common.name')}</Label>
               <Input
+                autoFocus
                 id="knowledge-restore-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}

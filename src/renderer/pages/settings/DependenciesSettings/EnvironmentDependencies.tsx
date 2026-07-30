@@ -934,6 +934,7 @@ function AddToolDialog({
         <div className="flex flex-col gap-3 py-2">
           <div className="relative">
             <Input
+              autoFocus
               placeholder={t('settings.dependencies.searchRegistry')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -1003,9 +1004,10 @@ const UrlPresetField: FC<{
   presetLabel: string
   value: string
   presets: readonly InstallSettingPreset[]
+  autoFocus?: boolean
   onChange: (value: string) => void
   onCommit: (value: string) => void
-}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange, onCommit }) => {
+}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, autoFocus, onChange, onCommit }) => {
   const { t } = useTranslation()
   const inputId = useId()
   const descriptionId = useId()
@@ -1024,6 +1026,7 @@ const UrlPresetField: FC<{
       <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="flex items-center gap-2">
         <Input
+          autoFocus={autoFocus}
           id={inputId}
           value={value}
           placeholder={placeholder}
@@ -1130,6 +1133,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <UrlPresetField
+            autoFocus
             label={t('settings.dependencies.installSettings.githubMirror.label')}
             description={t('settings.dependencies.installSettings.githubMirror.help')}
             invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
