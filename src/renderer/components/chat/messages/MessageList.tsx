@@ -403,7 +403,7 @@ const MessageList = () => {
 
     for (const [messageId, element] of messageElements.current) {
       const message = messageById.get(messageId)
-      if (!message || message.type === 'clear') continue
+      if (!message || message.isContextBoundary) continue
       if (!element.isConnected || !scrollElement.contains(element)) continue
 
       const rect = element.getBoundingClientRect()

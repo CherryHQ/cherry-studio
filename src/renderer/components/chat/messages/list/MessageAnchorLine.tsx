@@ -92,7 +92,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
     /** Whether the current turn's preview assistant sits on the active branch. */
     let assistantOnActiveBranch = false
     for (const message of messages) {
-      if (message.type === 'clear') continue
+      if (message.isContextBoundary) continue
       if (message.role === 'user') {
         current = { anchorId: message.id, userMessageId: message.id, memberIds: [message.id] }
         assistantOnActiveBranch = false

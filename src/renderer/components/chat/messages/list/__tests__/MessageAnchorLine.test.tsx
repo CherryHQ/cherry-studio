@@ -147,6 +147,14 @@ describe('MessageAnchorLine', () => {
     expect(container.querySelectorAll('[data-message-anchor-tick]')).toHaveLength(5)
   })
 
+  it('does not create a tick for a clear-context boundary', () => {
+    const boundary = makeMessage({ id: 'clear-context', role: 'user', isContextBoundary: true })
+    const messagesWithBoundary = [...messages.slice(0, 5), boundary, ...messages.slice(5)]
+    const { container } = render(<MessageAnchorLine messages={messagesWithBoundary} />)
+
+    expect(container.querySelectorAll('[data-message-anchor-tick]')).toHaveLength(5)
+  })
+
   it('renders nothing with fewer than five turns — no anchoring needed', () => {
     const { container } = render(<MessageAnchorLine messages={messages.slice(0, 5)} />)
 
