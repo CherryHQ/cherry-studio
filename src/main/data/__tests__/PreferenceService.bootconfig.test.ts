@@ -26,15 +26,11 @@ vi.mock('@main/data/bootConfig', () => ({
 // Mock application.get('DbService') to return a stub with withWriteTx + getDb
 const mockWithWriteTx = vi.fn()
 const mockGetDb = vi.fn()
-const mockRunWrite = vi.fn(async (_label: string, operation: () => unknown | Promise<unknown>) => operation())
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'DbService') {
         return { withWriteTx: mockWithWriteTx, getDb: mockGetDb }
-      }
-      if (name === 'ProfileWriteBarrierService') {
-        return { runWrite: mockRunWrite }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -114,7 +110,6 @@ describe('PreferenceService BootConfig routing', () => {
       await service.set(BOOT_CONFIG_KEY, true)
 
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.disable_hardware_acceleration', true)
-      expect(mockRunWrite).not.toHaveBeenCalled()
     })
 
     it('skips write when BootConfig value is unchanged', async () => {
@@ -142,7 +137,6 @@ describe('PreferenceService BootConfig routing', () => {
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
       expect(mockBootConfigSet).not.toHaveBeenCalled()
-      expect(mockRunWrite).toHaveBeenCalledWith('preference:set:app.language', expect.any(Function))
     })
   })
 
@@ -168,7 +162,6 @@ describe('PreferenceService BootConfig routing', () => {
 
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.disable_hardware_acceleration', true)
       expect(mockTx.update).toHaveBeenCalled()
-      expect(mockRunWrite).toHaveBeenCalledWith('preference:set-multiple', expect.any(Function))
     })
 
     it('skips unchanged BootConfig values in batch', async () => {

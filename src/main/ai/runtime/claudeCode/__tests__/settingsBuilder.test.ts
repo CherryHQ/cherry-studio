@@ -46,7 +46,6 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
-  profileRunWrite: vi.fn(async <T>(_label: string, operation: () => T | Promise<T>): Promise<T> => operation()),
   rtkRewrite: vi.fn(),
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
@@ -140,8 +139,7 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
 
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) =>
-      name === 'ProfileWriteBarrierService' ? { runWrite: mocks.profileRunWrite } : mocks.applicationGet(name),
+    get: mocks.applicationGet,
     getPath: mocks.applicationGetPath
   }
 }))

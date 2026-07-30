@@ -1,4 +1,5 @@
 export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
 export { createClaudeCodeRuntimeDriver, loadClaudeCodeSettingsBuilder } from './loaders'
+export { assertPortableAgentTranscriptSnapshot } from './portableTranscriptStore'
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'

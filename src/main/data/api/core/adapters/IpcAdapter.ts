@@ -10,8 +10,6 @@ import type { ApiServer } from '../ApiServer'
 
 const logger = loggerService.withContext('DataApi:IpcAdapter')
 
-export type DataApiWriteRunner = <T>(label: string, operation: () => Promise<T>) => Promise<T>
-
 /**
  * IPC transport adapter for Electron environment.
  *
@@ -35,10 +33,7 @@ export type DataApiWriteRunner = <T>(label: string, operation: () => Promise<T>)
 export class IpcAdapter implements Disposable {
   private initialized = false
 
-  constructor(
-    private apiServer: ApiServer,
-    private readonly runWrite: DataApiWriteRunner
-  ) {}
+  constructor(private apiServer: ApiServer) {}
 
   /**
    * Register IPC handlers to bridge renderer requests to ApiServer
@@ -67,13 +62,7 @@ export class IpcAdapter implements Disposable {
       }
 
       try {
-        const execute = () => this.apiServer.handleRequest(request)
-        const response =
-          request.method === 'GET'
-            ? await execute()
-            : await this.runWrite(`data-api:${request.method} ${request.path}`, execute)
-
-        return response
+        return await this.apiServer.handleRequest(request)
       } catch (error) {
         logger.error(`Data request failed: ${request.method} ${request.path}`, error as Error)
 

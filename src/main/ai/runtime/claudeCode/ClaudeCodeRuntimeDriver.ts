@@ -62,6 +62,11 @@ import {
 } from './agentSessionWarmup'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import {
+  decodePortableAgentResumePoint,
+  encodePortableAgentResumePoint,
+  type PortableAgentTranscriptStore
+} from './portableTranscriptStore'
+import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
@@ -337,6 +342,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private transcriptStore?: PortableAgentTranscriptStore
+  private lastTopLevelAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -359,7 +366,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
-    this.resumeToken = input.resumeToken
+    this.resumeToken = decodePortableAgentResumePoint(input.resumeToken)?.sessionId
   }
 
   async start(): Promise<this> {
@@ -385,6 +392,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
+    this.transcriptStore = request.transcriptStore
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -470,6 +478,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
+    this.lastTopLevelAssistantUuid = undefined
     this.adapter?.beginTurn()
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
@@ -670,7 +679,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          if (message.parent_tool_use_id === null) this.lastTopLevelAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -681,6 +693,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           throw error
         }
         if (result.type === 'result') {
+          if (message.type === 'result' && message.subtype === 'success') {
+            await this.commitPortableResumePoint(result.sessionId)
+          }
           this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
@@ -839,7 +854,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private updateResumeToken(resumeToken: string): void {
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
-    this.eventQueue.push({ type: 'resume-token', token: resumeToken })
+  }
+
+  private async commitPortableResumePoint(sessionId: string): Promise<void> {
+    const transcriptStore = this.transcriptStore
+    if (!transcriptStore) {
+      throw new Error('Portable Agent transcript store is unavailable')
+    }
+    await transcriptStore.commitTurn(sessionId, this.lastTopLevelAssistantUuid)
+    this.eventQueue.push({
+      type: 'resume-token',
+      token: encodePortableAgentResumePoint({
+        sessionId,
+        ...(this.lastTopLevelAssistantUuid ? { resumeSessionAt: this.lastTopLevelAssistantUuid } : {})
+      })
+    })
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {

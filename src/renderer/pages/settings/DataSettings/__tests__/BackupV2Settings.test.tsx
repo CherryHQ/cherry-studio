@@ -52,6 +52,7 @@ const preview = {
   restoreId: 'r1',
   coverage: { available: 2, missing: 1, unverifiable: 0 },
   resources: { install: 3, replace: 1 },
+  knowledge: { ready: 0, rebuild: 0 },
   degradations: [],
   migratedForward: false
 }
@@ -560,11 +561,6 @@ describe('BackupV2Settings', () => {
   })
 
   it.each([
-    [
-      { kind: 'quiesce-timeout', phase: 'profile-write-barrier' },
-      'settings.data.backup_v2.error.export_quiesce',
-      undefined
-    ],
     [
       { kind: 'source-changed', path: 'Data/Notes' },
       'settings.data.backup_v2.error.export_source_changed_path',

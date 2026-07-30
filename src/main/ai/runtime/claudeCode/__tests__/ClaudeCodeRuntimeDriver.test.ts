@@ -22,8 +22,12 @@ const mocks = vi.hoisted(() => ({
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  transcriptStore: { commitTurn: vi.fn().mockResolvedValue(undefined) },
   adapterInstances: [] as any[]
 }))
+
+const SDK_RESULT_SESSION_ID = '11111111-1111-4111-8111-111111111111'
+const SDK_ASSISTANT_BOUNDARY_ID = '22222222-2222-4222-8222-222222222222'
 
 vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
@@ -360,7 +364,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: {},
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
     mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
@@ -387,6 +392,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'consume-key', masked: 'con-***' },
@@ -1362,7 +1368,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('emits resume token, chunks, and turn-complete events', async () => {
+  it('publishes a portable resume point only after the successful Turn transcript is committed', async () => {
     const queryQueue = createAsyncQueue<any>()
     const contextUsage = {
       categories: [],
@@ -1393,9 +1399,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'resume-init' }
-    })
 
     await connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
@@ -1408,9 +1411,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
 
     queryQueue.push({
+      type: 'assistant',
+      uuid: SDK_ASSISTANT_BOUNDARY_ID,
+      parent_tool_use_id: null,
+      session_id: 'resume-init',
+      message: { id: 'assistant-request', model: 'sonnet-sdk', usage: {} }
+    })
+    queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'resume-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: {
         input_tokens: 10,
         output_tokens: 5,
@@ -1419,11 +1429,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'resume-result' }
-    })
-    await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'finish' } }
     })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'resume-token', token: expect.stringMatching(/^cherry-agent-resume-v1:/) }
+    })
+    expect(mocks.transcriptStore.commitTurn).toHaveBeenCalledWith(SDK_RESULT_SESSION_ID, SDK_ASSISTANT_BOUNDARY_ID)
     await expect(events.next()).resolves.toMatchObject({
       value: {
         type: 'chunk',
@@ -1454,6 +1465,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1537,7 +1549,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'resume-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: { input_tokens: 14, output_tokens: 11, cache_creation_input_tokens: 3, cache_read_input_tokens: 2 },
       modelUsage: {
         'sonnet-sdk': {
@@ -1684,6 +1696,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1759,6 +1772,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'LongCat-2.0',
       initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1819,7 +1833,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'longcat-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: {
         input_tokens: 999,
         output_tokens: 999,
@@ -1873,6 +1887,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1929,7 +1944,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'sparse-terminal-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: {
         input_tokens: 10,
         output_tokens: 7,
@@ -1977,6 +1992,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -2010,7 +2026,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'background-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: { input_tokens: 8, output_tokens: 3, cache_read_input_tokens: 2, cache_creation_input_tokens: 1 }
     })
 
@@ -2057,7 +2073,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'resume-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
     })
 
@@ -2295,7 +2311,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // Open a turn so the adapter exists — retry status is turn-scoped and only forwarded below the
     // no-adapter drop.
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'resume-init' } })
     await connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
@@ -2339,10 +2354,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    // No `send()` → no adapter (prewarm / turn-less). A turn-less retry has no message to attach to and
-    // no clear boundary (init recovery only emits a resume-token), so it must be dropped, not surfaced
-    // as a stuck "retrying" state. Assert the retry produces nothing by proving the NEXT emitted event
-    // is the following commands_changed push.
+    // No `send()` → no adapter (prewarm / turn-less). A turn-less retry has no message to attach to
+    // and no completed-Turn boundary, so it must be dropped, not surfaced as a stuck "retrying"
+    // state. Assert the retry produces nothing by proving the NEXT emitted event is commands_changed.
     queryQueue.push({
       type: 'system',
       subtype: 'api_retry',
@@ -2472,7 +2486,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
         options: { model: 'sonnet' },
         settings: { toolPolicySnapshot: snapshot },
         sdkModelId: 'sonnet-sdk',
-        initializeTimeoutMs: 100
+        initializeTimeoutMs: 100,
+        transcriptStore: mocks.transcriptStore
       })
       const queryQueue = createAsyncQueue<any>()
       const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode }
@@ -2631,7 +2646,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await events.next() // resume-token
     await connection.send({ message: userMessage() })
     await events.next() // response-metadata chunk
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-init' })
@@ -3016,7 +3030,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await events.next()
     await connection.send({ message: userMessage() })
     await events.next()
 
@@ -3162,7 +3175,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -3217,7 +3231,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -3269,7 +3284,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const onSteerInjected = vi.fn()
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -3284,7 +3300,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(typeof steerHolder.onInjected).toBe('function')
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await events.next() // resume-token
     await connection.send({ message: userMessage() })
     await events.next() // metadata chunk (init replayed on send)
 
@@ -3319,7 +3334,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -3332,7 +3348,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     steerHolder.onInjected([{ message: userMessage() }])
 
     // Turn ends (result) with no following top-level message_start → no boundary, just a clean turn end.
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-result', usage: {} })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: SDK_RESULT_SESSION_ID, usage: {} })
 
     const seen: any[] = []
     for (;;) {
@@ -3358,7 +3374,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { approvalEmitter },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -3400,7 +3417,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { approvalEmitter },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -3411,7 +3429,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // Turn 1 runs to completion.
     await connection.send({ message: userMessage() })
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: { output_tokens: 1 } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: SDK_RESULT_SESSION_ID,
+      usage: { output_tokens: 1 }
+    })
     let evt = await events.next()
     while (evt.value?.type !== 'turn-complete') evt = await events.next()
 
@@ -3447,7 +3470,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { approvalEmitter, steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
+      initializeTimeoutMs: 100,
+      transcriptStore: mocks.transcriptStore
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',

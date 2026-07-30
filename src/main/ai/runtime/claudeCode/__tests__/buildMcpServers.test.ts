@@ -7,7 +7,6 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -395,7 +394,6 @@ describe('buildMcpServers', () => {
 
 describe('prepareClaudeCodeWorkspaceDirectory', () => {
   beforeEach(() => {
-    vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mockClear()
     mockGetPathStatus.mockReset()
     mockMkdir.mockReset()
     mockRealpath.mockReset()
@@ -418,7 +416,6 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
       prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/user-workspace', 'user'))
     ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
-    expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
     expect(mockMkdir).not.toHaveBeenCalled()
   })
 
@@ -430,10 +427,6 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     await prepareClaudeCodeWorkspaceDirectory(makeSession(workspacePath, 'system'))
 
     expect(mockMkdir).toHaveBeenCalledWith(workspacePath, { recursive: true })
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'agent:workspace-materialize:sess-workspace',
-      expect.any(Function)
-    )
   })
 
   it('rejects system workspace paths outside the managed root', async () => {

@@ -82,6 +82,8 @@ describe('exportArchive', () => {
         return join(userData, 'Data', 'Notes')
       case 'feature.agents.data':
         return join(userData, 'Data', 'Agents')
+      case 'feature.agents.transcripts':
+        return join(userData, 'Data', 'AgentTranscripts')
       case 'feature.agents.system_workspaces':
         return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
@@ -134,7 +136,8 @@ describe('exportArchive', () => {
     seedResources()
     writeFileSync(mkFile(join(userData, 'Data', 'Files', '11111111-1111-4111-8111-111111111111.pdf')), 'BLOB')
     writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'raw', 'doc.txt')), 'SOURCE')
-    // Derived state export drops on purpose (§6.7) — it is rebuilt after restore.
+    // This fixture is not a valid SQLite index, so the owner rejects it and
+    // falls back to transporting the raw material for a target-side rebuild.
     writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
     writeFileSync(mkFile(join(userData, 'Data', 'Notes', 'a.md')), '# note')
     mkdirSync(join(userData, 'Data', 'Notes', 'empty', 'nested'), { recursive: true })
@@ -259,7 +262,7 @@ describe('exportArchive', () => {
       .run()
   }
 
-  describe('Knowledge material the restoring device rebuilds from', () => {
+  describe('Knowledge material and index fallback', () => {
     it('carries a base whose indexed material is all on disk', async () => {
       seedResources()
       seedIndexedItem('doc.txt')
@@ -388,7 +391,7 @@ describe('exportArchive', () => {
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })
 
-  it('preflights all resource bytes before copying the first resource', async () => {
+  it('publishes nothing when the destination headroom check fails after owner capture', async () => {
     dbh.db
       .insert(fileEntryTable)
       .values({ id: '22222222-2222-4222-8222-222222222222', origin: 'internal', name: 'b', ext: 'bin', size: 4 })
@@ -407,7 +410,7 @@ describe('exportArchive', () => {
     await expect(exportArchive({ outPath })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
 
     expect(snapshotMock()).toHaveBeenCalledOnce()
-    expect(copied).toBe(false)
+    expect(copied).toBe(true)
     expect(existsSync(outPath)).toBe(false)
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })

@@ -1,27 +1,9 @@
 /**
- * Resource staging (docs/references/backup/README.md §1.7, §5.4).
+ * Owner-scoped resource capture.
  *
- * Turns the requirement inventory — what the exported database SAYS it needs —
- * into the payload inventory the archive actually carries. Each unit is copied
- * into the operation-owned staging tree through the shared drift-checked stagers,
- * so the archive can name the exact bytes it captured.
- *
- * The two failure modes are deliberately different (§1.7):
- *
- * - **Already absent, the opposite ordinary kind, or an uncapturable resource
- *   root at seal time** is an explicit whole-unit degradation.
- * - **Present but not rebuildable** is also omitted as a whole unit: derived
- *   state is excluded only when its database-declared source material exists.
- * - **Untransportable entries inside a directory** are omitted individually and
- *   disclosed while the rest of the payload is preserved.
- * - **Unportable/over-ceiling sources, or any change after the sealed baseline**
- *   fail the whole export. Continuing would publish a database and filesystem
- *   view that the transaction can no longer prove belong together.
- *
- * A payload's `archivePath` is its `livePath` under `resources/`, so the archive
- * mirrors the layout it will be installed into and payload distinctness follows
- * from destination distinctness — which is checked here, with the same collision
- * rules admission will re-apply.
+ * The detached main database says which managed units matter. Each unit then
+ * obtains its own consistent cut; there is deliberately no profile-wide file
+ * baseline and no requirement that unrelated background computation stop.
  */
 
 import fs from 'node:fs'
@@ -33,9 +15,15 @@ import { isSafeRelativeSubpath } from '@main/utils/relativePath'
 
 import { RESOURCES_PREFIX } from '../archiveLayout'
 import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES } from '../ceilings'
-import { type DirScanResult, type FsIdentity, fsIdentityOf, identitiesEqual, scanDirectoryUnit } from '../dirScan'
-import { BackupCancelledError, CeilingExceededError, SourceDriftError } from '../errors'
-import { hashDirectoryUnit } from '../hashing'
+import {
+  BackupCancelledError,
+  CeilingExceededError,
+  DiskFullError,
+  NonRegularSourceError,
+  SourceDriftError,
+  UnportableSourceError
+} from '../errors'
+import { hashDirectoryUnit, sha256FileCancellable } from '../hashing'
 import {
   type BackupManifestDegradation,
   type ResourceDegradationReason,
@@ -43,47 +31,61 @@ import {
   type ResourceRequirement
 } from '../manifest'
 import { validateResourcePathSet } from '../resourcePaths'
-import { scansEqual, stageDirectoryWithDriftCheck, stageFileWithDriftCheck } from '../sourceDrift'
-import { capturePolicyForKind, type ResourceRoots, type UnitContentRequirement } from './adapters'
+import { stageDirectoryWithDriftCheck, stageFileWithDriftCheck, stagePartialDirectoryTree } from '../sourceDrift'
+import {
+  captureModeForKind,
+  capturePolicyForKind,
+  type ResourceCaptureMode,
+  type ResourceRoots,
+  type UnitContentRequirement
+} from './adapters'
 import { carriesRequiredContent } from './contentProof'
 
 const logger = loggerService.withContext('backupStageResources')
 
-/** Deterministic seam for source changes between root inspection and directory scanning. */
-export const stageResourceHooks = {
-  async afterBaselineInspect(sourcePath: string): Promise<void> {
-    void sourcePath
-  },
-  async afterBaselineScan(sourcePath: string): Promise<void> {
-    void sourcePath
-  }
+export interface OwnerCaptureDegradation {
+  readonly reason: ResourceDegradationReason
+  /** Unit-relative path. Omit for a whole-unit owner result. */
+  readonly relativePath?: string
 }
 
+export interface OwnerCaptureContext {
+  readonly requirement: ResourceRequirement
+  readonly sourcePath: string
+  readonly stagingPath: string
+  readonly mode: ResourceCaptureMode
+  readonly signal?: AbortSignal
+}
+
+/**
+ * Fixed owner dispatch supplied by the export orchestrator. It may add a
+ * verified owner snapshot inside an already-staged unit, or materialize a whole
+ * `owner-snapshot` unit. Expected owner fallback is returned as degradation;
+ * archive/staging integrity failures are thrown.
+ */
+export type CaptureOwnerResource = (
+  context: OwnerCaptureContext
+) => Promise<{ readonly degradations?: readonly OwnerCaptureDegradation[] }>
+
+export type RunOwnerCaptureBoundary = <T>(
+  context: Pick<OwnerCaptureContext, 'requirement' | 'sourcePath' | 'mode' | 'signal'>,
+  capture: () => Promise<T>
+) => Promise<T>
+
 export interface StageResourcesInput {
-  /** The inventory the exported database produced; every entry is a candidate payload. */
   readonly requirements: readonly ResourceRequirement[]
-  /** Producer userData root that each `livePath` is relative to. */
   readonly userDataPath: string
-  /** Operation-owned directory the payloads are staged under (`resources/` in the archive). */
   readonly resourcesDir: string
-  /** Unit identities captured right after the database snapshot; staging is checked against them. */
-  readonly baseline?: ResourceStageBaseline
-  /**
-   * Per-unit source material the database says the payload must carry, from
-   * `collectRequirements`. A unit that cannot supply it is excluded whole rather
-   * than shipped as content no device could rebuild — see the module header.
-   */
   readonly requiredContent?: ReadonlyMap<string, UnitContentRequirement>
-  /** Producer managed roots used only by owner capture classification. */
   readonly roots?: ResourceRoots
+  readonly captureOwnerResource?: CaptureOwnerResource
+  readonly runOwnerCaptureBoundary?: RunOwnerCaptureBoundary
   readonly signal?: AbortSignal
 }
 
 export interface StagedResources {
   readonly payloads: readonly ResourcePayload[]
-  /** Whole-unit and per-entry omissions disclosed in the manifest (§1.7). */
   readonly degradations: readonly BackupManifestDegradation[]
-  /** True when at least one payload was staged, i.e. `resourcesDir` now has content. */
   readonly staged: boolean
 }
 
@@ -95,398 +97,300 @@ function absoluteOf(userDataPath: string, livePath: string): string {
   return path.resolve(userDataPath, ...livePath.split('/'))
 }
 
-/**
- * Snapshot-time classification of one declared source. Anything other than a
- * real node of the declared type is "not here", with the reason kept for the
- * manifest so a degraded archive can never look complete.
- */
-type SourceInspection =
-  | { readonly kind: 'present'; readonly stats: fs.BigIntStats }
-  | {
-      readonly kind: 'excluded'
-      readonly reason: ResourceDegradationReason
-      readonly proof?: { readonly identity: FsIdentity; readonly linkTarget?: string }
-    }
-
-export type ResourceUnitBaseline =
-  | {
-      readonly kind: 'excluded'
-      readonly reason: ResourceDegradationReason
-      readonly proof?: { readonly identity: FsIdentity; readonly linkTarget?: string }
-      /** Present for a captured directory omitted only because it cannot be rebuilt. */
-      readonly scan?: DirScanResult
-    }
-  | { readonly kind: 'file'; readonly identity: FsIdentity; readonly sizeBytes: bigint }
-  | { readonly kind: 'directory'; readonly scan: DirScanResult }
-
-export interface ResourceStageBaseline {
-  readonly units: ReadonlyMap<string, ResourceUnitBaseline>
-  readonly totalBytes: number
-  /**
-   * Archive entries the payloads this baseline admits will occupy, including the
-   * two fixed ones. Excluded units contribute nothing — they never become
-   * payloads.
-   */
-  readonly entryCount: number
-}
-
-function inspectSource(sourcePath: string, requirement: ResourceRequirement): SourceInspection {
-  let stats: fs.BigIntStats
-  try {
-    stats = fs.lstatSync(sourcePath, { bigint: true })
-  } catch (error) {
-    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
-      return { kind: 'excluded', reason: 'absent-at-snapshot' }
-    }
-    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) {
-      return { kind: 'excluded', reason: 'unclassified-reference' }
-    }
-    throw error
-  }
-  if (requirement.resourceType === 'file' ? stats.isFile() : stats.isDirectory()) {
-    return { kind: 'present', stats }
-  }
-  if (stats.isSymbolicLink()) {
-    let linkTarget: string | undefined
-    try {
-      linkTarget = fs.readlinkSync(sourcePath)
-    } catch {
-      // The identity still proves replacement/deletion after the seal.
-    }
-    return {
-      kind: 'excluded',
-      reason: 'external-reference',
-      proof: {
-        identity: fsIdentityOf(stats, 'symlink'),
-        ...(linkTarget !== undefined ? { linkTarget } : {})
-      }
-    }
-  }
-  if (!stats.isFile() && !stats.isDirectory()) {
-    return {
-      kind: 'excluded',
-      reason: 'unclassified-reference',
-      proof: { identity: fsIdentityOf(stats, 'special') }
-    }
-  }
-  return {
-    kind: 'excluded',
-    reason: 'type-mismatch-at-snapshot',
-    proof: { identity: fsIdentityOf(stats, stats.isFile() ? 'file' : 'dir') }
-  }
-}
-
-function canReadSealedFile(sourcePath: string, expected: fs.BigIntStats): boolean {
-  let fd: number
-  try {
-    fd = fs.openSync(sourcePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0))
-  } catch (error) {
-    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) return false
-    throw error
-  }
-  try {
-    const opened = fs.fstatSync(fd, { bigint: true })
-    if (!opened.isFile() || !identitiesEqual(fsIdentityOf(expected, 'file'), fsIdentityOf(opened, 'file'))) {
-      throw new SourceDriftError(sourcePath, 'file changed while baseline readability was checked')
-    }
-    return true
-  } finally {
-    fs.closeSync(fd)
-  }
-}
-
-async function assertExcludedSourceStillMatches(
-  sourcePath: string,
-  requirement: ResourceRequirement,
-  expected: Extract<ResourceUnitBaseline, { kind: 'excluded' }>,
-  roots: ResourceRoots | undefined,
-  signal: AbortSignal | undefined
-): Promise<void> {
-  if (expected.scan) {
-    const current = await scanDirectoryUnit(sourcePath, {
-      signal,
-      mode: 'capture',
-      capturePolicy: capturePolicyForKind(requirement.kind, roots)
-    })
-    if (!scansEqual(expected.scan, current)) {
-      throw new SourceDriftError(sourcePath, `source no longer matches sealed degradation ${expected.reason}`)
-    }
-    return
-  }
-
-  if (expected.proof) {
-    let stats: fs.BigIntStats
-    try {
-      stats = fs.lstatSync(sourcePath, { bigint: true })
-    } catch {
-      throw new SourceDriftError(sourcePath, `source no longer matches sealed degradation ${expected.reason}`)
-    }
-    const kind: FsIdentity['kind'] = stats.isSymbolicLink()
-      ? 'symlink'
-      : stats.isFile()
-        ? 'file'
-        : stats.isDirectory()
-          ? 'dir'
-          : 'special'
-    if (!identitiesEqual(expected.proof.identity, fsIdentityOf(stats, kind))) {
-      throw new SourceDriftError(sourcePath, `source no longer matches sealed degradation ${expected.reason}`)
-    }
-    if (expected.reason === 'unclassified-reference' && kind === 'file' && canReadSealedFile(sourcePath, stats)) {
-      throw new SourceDriftError(sourcePath, 'previously unreadable file became capturable after sealing')
-    }
-    if (expected.reason === 'unclassified-reference' && kind === 'dir') {
-      try {
-        fs.readdirSync(sourcePath)
-        throw new SourceDriftError(sourcePath, 'previously unreadable directory became capturable after sealing')
-      } catch (error) {
-        if (error instanceof SourceDriftError) throw error
-        if (!['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
-      }
-    }
-    if (expected.proof.linkTarget !== undefined) {
-      let currentTarget: string
-      try {
-        currentTarget = fs.readlinkSync(sourcePath)
-      } catch {
-        throw new SourceDriftError(sourcePath, 'excluded root link is no longer readable')
-      }
-      if (currentTarget !== expected.proof.linkTarget) {
-        throw new SourceDriftError(sourcePath, 'excluded root link target changed after sealing')
-      }
-    }
-    return
-  }
-
-  const current = inspectSource(sourcePath, requirement)
-  if (current.kind !== 'excluded' || current.reason !== expected.reason) {
-    throw new SourceDriftError(sourcePath, `source no longer matches sealed degradation ${expected.reason}`)
-  }
-}
-
 function assertRequirementSet(requirements: readonly ResourceRequirement[]): void {
   if (requirements.length > BACKUP_CEILINGS.maxResourceInstallEntries) {
-    // Producing it would produce an archive no device could restore: the journal
-    // schema and admission both cap install entries at the same number.
     throw new CeilingExceededError(
       'resource-entries',
       `${requirements.length} > ${BACKUP_CEILINGS.maxResourceInstallEntries}`
     )
   }
-
   const pathSet = validateResourcePathSet(requirements.map((requirement) => requirement.livePath))
-  if (!pathSet.ok) {
-    throw new Error(`resource payloads are not a legal install set: ${pathSet.violation.code}`)
-  }
+  if (!pathSet.ok) throw new Error(`resource payloads are not a legal install set: ${pathSet.violation.code}`)
 }
 
-/**
- * Size the exact resource requirement set before copying it into staging.
- * Excluded roots and omitted directory entries contribute no bytes. Directory
- * scans are immediately repeated to prove the baseline did not move while it
- * was being enumerated, and the archive-wide entry ceiling is enforced before
- * staging starts.
- */
-export async function captureResourceStageBaseline(
-  input: Omit<StageResourcesInput, 'resourcesDir' | 'baseline'>
-): Promise<ResourceStageBaseline> {
-  const { requirements, userDataPath, requiredContent, roots, signal } = input
-  throwIfAborted(signal)
-  assertRequirementSet(requirements)
+function sourceRootDegradation(
+  sourcePath: string,
+  requirement: ResourceRequirement,
+  error?: unknown
+): ResourceDegradationReason | undefined {
+  let stats: fs.Stats
+  try {
+    stats = fs.lstatSync(sourcePath)
+  } catch (probeError) {
+    const code = (probeError as NodeJS.ErrnoException).code ?? (error as NodeJS.ErrnoException | undefined)?.code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return 'absent-at-snapshot'
+    if (code === 'EACCES' || code === 'EPERM') return 'unclassified-reference'
+    return undefined
+  }
+  if (stats.isSymbolicLink()) return 'external-reference'
+  if (requirement.resourceType === 'file' ? stats.isFile() : stats.isDirectory()) return undefined
+  if (!stats.isFile() && !stats.isDirectory()) return 'unclassified-reference'
+  return 'type-mismatch-at-snapshot'
+}
 
-  const units = new Map<string, ResourceUnitBaseline>()
-  let total = 0n
-  let entries = FIXED_ARCHIVE_ENTRIES
-  const countEntries = (count: number): void => {
-    entries += count
-    if (entries > BACKUP_CEILINGS.maxArchiveEntries) {
-      // Publication enforces the same bound, but only after every payload has
-      // been copied. Refusing here means an over-sized profile costs a scan
-      // rather than a full staging tree.
-      throw new CeilingExceededError('entry-count', `${entries} > ${BACKUP_CEILINGS.maxArchiveEntries}`)
+function sourceFailureDegradation(
+  sourcePath: string,
+  requirement: ResourceRequirement,
+  error: unknown
+): ResourceDegradationReason | undefined {
+  const root = sourceRootDegradation(sourcePath, requirement, error)
+  if (root) return root
+  if (error instanceof SourceDriftError) return 'changed-during-capture'
+  if (error instanceof NonRegularSourceError) return 'non-regular-source'
+  if (error instanceof UnportableSourceError) return 'unportable-source'
+  if (error instanceof CeilingExceededError) return 'resource-ceiling-exceeded'
+  if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) return 'unclassified-reference'
+  return undefined
+}
+
+function entryDegradation(
+  requirement: ResourceRequirement,
+  relativePath: string | undefined,
+  reason: ResourceDegradationReason
+): BackupManifestDegradation {
+  if (relativePath) {
+    const livePath = `${requirement.livePath}/${relativePath}`
+    return {
+      kind: `resource-entry:${requirement.kind}`,
+      reason,
+      ...(isSafeRelativeSubpath(livePath) ? { livePath } : {})
     }
   }
-  for (const requirement of requirements) {
+  return { kind: `resource:${requirement.kind}`, livePath: requirement.livePath, reason }
+}
+
+async function removeStagedUnit(stagingPath: string, resourcesDir: string): Promise<void> {
+  await rm(stagingPath, { recursive: true, force: true })
+  await removeEmptyStagingAncestors(stagingPath, resourcesDir)
+}
+
+async function captureStrictUnit(input: {
+  requirement: ResourceRequirement
+  sourcePath: string
+  stagingPath: string
+  roots?: ResourceRoots
+  signal?: AbortSignal
+}): Promise<{
+  readonly contentPaths: readonly string[]
+  readonly degradations: readonly OwnerCaptureDegradation[]
+}> {
+  const { requirement, sourcePath, stagingPath, roots, signal } = input
+  const capturePolicy = capturePolicyForKind(requirement.kind, roots)
+  const maxAttempts = captureModeForKind(requirement.kind).kind === 'strict-unit' ? 2 : 1
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     throwIfAborted(signal)
-    const sourcePath = absoluteOf(userDataPath, requirement.livePath)
-    const inspected = inspectSource(sourcePath, requirement)
-    if (inspected.kind === 'excluded') {
-      units.set(requirement.livePath, inspected)
-      continue
-    }
-    await stageResourceHooks.afterBaselineInspect(sourcePath)
+    try {
+      if (requirement.resourceType === 'file') {
+        await stageFileWithDriftCheck({ sourcePath, stagingPath, signal })
+        return { contentPaths: [], degradations: [] }
+      }
 
-    if (requirement.resourceType === 'file') {
-      if (!canReadSealedFile(sourcePath, inspected.stats)) {
-        units.set(requirement.livePath, {
-          kind: 'excluded',
-          reason: 'unclassified-reference',
-          proof: { identity: fsIdentityOf(inspected.stats, 'file') }
-        })
-        continue
-      }
-      const sizeBytes = inspected.stats.size
-      if (sizeBytes > BigInt(BACKUP_CEILINGS.maxEntryUncompressedBytes)) {
-        throw new CeilingExceededError(
-          'entry-bytes',
-          `${requirement.livePath} is ${sizeBytes} > ${BACKUP_CEILINGS.maxEntryUncompressedBytes}`
-        )
-      }
-      total += sizeBytes
-      countEntries(1)
-      units.set(requirement.livePath, {
-        kind: 'file',
-        identity: fsIdentityOf(inspected.stats, 'file'),
-        sizeBytes
+      await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
+      const staged = await stageDirectoryWithDriftCheck({
+        sourceDir: sourcePath,
+        stagingDir: stagingPath,
+        signal,
+        capturePolicy
       })
-    } else {
-      const capturePolicy = capturePolicyForKind(requirement.kind, roots)
-      let scan: DirScanResult
-      try {
-        scan = await scanDirectoryUnit(sourcePath, {
-          signal,
-          mode: 'capture',
-          capturePolicy
-        })
-      } catch (error) {
-        if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) {
-          units.set(requirement.livePath, {
-            kind: 'excluded',
-            reason: 'unclassified-reference',
-            proof: { identity: fsIdentityOf(inspected.stats, 'dir') }
-          })
-          continue
-        }
-        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
-          throw new SourceDriftError(sourcePath, 'directory disappeared during baseline capture')
-        }
-        throw error
+      return {
+        contentPaths: staged.files.map((file) => file.relPath),
+        degradations: staged.scan.omissions.map((omission) => ({
+          relativePath: omission.relPath,
+          reason: omission.reason
+        }))
       }
-      await stageResourceHooks.afterBaselineScan(sourcePath)
-      let verification: DirScanResult
-      try {
-        verification = await scanDirectoryUnit(sourcePath, { signal, mode: 'capture', capturePolicy })
-      } catch (error) {
-        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
-          throw new SourceDriftError(sourcePath, 'directory disappeared during baseline verification')
-        }
-        throw error
-      }
-      if (!scansEqual(scan, verification)) {
-        throw new SourceDriftError(sourcePath, 'directory changed during baseline capture')
-      }
-      if (
-        !carriesRequiredContent(
-          scan.entries.map((entry) => entry.relPath),
-          requiredContent?.get(requirement.livePath)
-        )
-      ) {
-        units.set(requirement.livePath, {
-          kind: 'excluded',
-          reason: 'unrebuildable-content',
-          scan
-        })
-        continue
-      }
-      total += scan.totalBytes
-      countEntries(scan.entryCount)
-      units.set(requirement.livePath, { kind: 'directory', scan })
-    }
-    if (total > BigInt(BACKUP_CEILINGS.maxTotalUncompressedBytes)) {
-      throw new CeilingExceededError('total-bytes', `${total} > ${BACKUP_CEILINGS.maxTotalUncompressedBytes}`)
+    } catch (error) {
+      if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
+      lastError = error
+      await rm(stagingPath, { recursive: true, force: true }).catch(() => {})
+      if (!(error instanceof SourceDriftError) || attempt === maxAttempts) throw error
     }
   }
-  return { units, totalBytes: Number(total), entryCount: entries }
+  throw lastError
 }
 
-export async function measureResourceStageBytes(
-  input: Omit<StageResourcesInput, 'resourcesDir' | 'baseline'>
-): Promise<number> {
-  return (await captureResourceStageBaseline(input)).totalBytes
+async function capturePartialTree(input: {
+  requirement: ResourceRequirement
+  sourcePath: string
+  stagingPath: string
+  roots?: ResourceRoots
+  signal?: AbortSignal
+}): Promise<{
+  readonly contentPaths: readonly string[]
+  readonly degradations: readonly OwnerCaptureDegradation[]
+}> {
+  const { requirement, sourcePath, stagingPath, roots, signal } = input
+  if (requirement.resourceType !== 'directory') {
+    throw new Error(`partial-tree capture requires a directory: ${requirement.livePath}`)
+  }
+  const capturePolicy = capturePolicyForKind(requirement.kind, roots)
+  let lastError: unknown
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    throwIfAborted(signal)
+    try {
+      await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
+      const staged = await stagePartialDirectoryTree({
+        sourceDir: sourcePath,
+        stagingDir: stagingPath,
+        signal,
+        capturePolicy
+      })
+      return {
+        contentPaths: staged.files.map((file) => file.relPath),
+        degradations: staged.omissions.map((omission) => ({
+          relativePath: omission.relPath,
+          reason: omission.reason
+        }))
+      }
+    } catch (error) {
+      if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
+      lastError = error
+      await rm(stagingPath, { recursive: true, force: true }).catch(() => {})
+      if (!(error instanceof SourceDriftError) || attempt === 2) throw error
+    }
+  }
+  throw lastError
 }
 
 export async function stageResources(input: StageResourcesInput): Promise<StagedResources> {
-  const { requirements, userDataPath, resourcesDir, requiredContent, roots, signal } = input
+  const {
+    requirements,
+    userDataPath,
+    resourcesDir,
+    requiredContent,
+    roots,
+    captureOwnerResource,
+    runOwnerCaptureBoundary,
+    signal
+  } = input
   throwIfAborted(signal)
   assertRequirementSet(requirements)
-  const baseline =
-    input.baseline ??
-    (await captureResourceStageBaseline({ requirements, userDataPath, requiredContent, roots, signal }))
 
   const payloads: ResourcePayload[] = []
   const degradations: BackupManifestDegradation[] = []
+  let archiveEntries = FIXED_ARCHIVE_ENTRIES
+  let archiveBytes = 0
 
   for (const requirement of requirements) {
     throwIfAborted(signal)
     const sourcePath = absoluteOf(userDataPath, requirement.livePath)
-    const captured = baseline.units.get(requirement.livePath)
-    if (!captured) throw new Error(`resource baseline is missing requirement: ${requirement.livePath}`)
-    if (captured.kind === 'excluded') {
-      // A degradation describes the sealed view, not a permission to ignore
-      // later source creation/type repair. Recheck the classification after
-      // writers resume so a newly materialized resource cannot be paired with
-      // the older detached database.
-      await assertExcludedSourceStillMatches(sourcePath, requirement, captured, roots, signal)
-      degradations.push({
-        kind: `resource:${requirement.kind}`,
-        livePath: requirement.livePath,
-        reason: captured.reason
-      })
+    const stagingPath = path.join(resourcesDir, ...requirement.livePath.split('/'))
+    const mode = captureModeForKind(requirement.kind)
+    const unavailable = sourceRootDegradation(sourcePath, requirement)
+    if (unavailable && mode.kind !== 'owner-snapshot') {
+      degradations.push(entryDegradation(requirement, undefined, unavailable))
       continue
     }
-    const stagingPath = path.join(resourcesDir, ...requirement.livePath.split('/'))
-    const common = {
-      kind: requirement.kind,
-      archivePath: `${RESOURCES_PREFIX}${requirement.livePath}`,
-      livePath: requirement.livePath
-    }
+
     try {
-      if (requirement.resourceType === 'file') {
-        if (captured.kind !== 'file') throw new Error(`resource baseline type mismatch: ${requirement.livePath}`)
-        const staged = await stageFileUnit(sourcePath, stagingPath, captured.identity, signal)
-        payloads.push({ ...common, resourceType: 'file', ...staged })
-      } else {
-        if (captured.kind !== 'directory') throw new Error(`resource baseline type mismatch: ${requirement.livePath}`)
-        await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
-        const capturePolicy = capturePolicyForKind(requirement.kind, roots)
-        const staged = await stageDirectoryWithDriftCheck({
-          sourceDir: sourcePath,
-          stagingDir: stagingPath,
-          expectedScan: captured.scan,
-          signal,
-          capturePolicy
-        })
-        for (const omission of captured.scan.omissions) {
-          const nestedLivePath = `${requirement.livePath}/${omission.relPath}`
-          degradations.push({
-            kind: `resource-entry:${requirement.kind}`,
-            reason: omission.reason,
-            ...(isSafeRelativeSubpath(nestedLivePath) ? { livePath: nestedLivePath } : {})
-          })
+      const capture = async () => {
+        let captured:
+          | {
+              readonly contentPaths: readonly string[]
+              readonly degradations: readonly OwnerCaptureDegradation[]
+            }
+          | undefined
+        if (mode.kind === 'strict-unit') {
+          captured = await captureStrictUnit({ requirement, sourcePath, stagingPath, roots, signal })
+        } else if (mode.kind === 'partial-tree') {
+          captured = await capturePartialTree({ requirement, sourcePath, stagingPath, roots, signal })
+        } else {
+          await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
         }
-        // Hashing operation-owned output is an archive invariant. Corruption
-        // here fails the export and can never become a source degradation.
-        const { hash } = await hashDirectoryUnit(stagingPath, { signal })
-        payloads.push({
+
+        if (!carriesRequiredContent(captured?.contentPaths ?? [], requiredContent?.get(requirement.livePath))) {
+          return { status: 'unrebuildable' as const, degradations: [] }
+        }
+
+        const ownerResult = await captureOwnerResource?.({
+          requirement,
+          sourcePath,
+          stagingPath,
+          mode,
+          signal
+        })
+        return {
+          status: 'captured' as const,
+          degradations: [...(captured?.degradations ?? []), ...(ownerResult?.degradations ?? [])]
+        }
+      }
+      const boundaryContext = { requirement, sourcePath, mode, signal }
+      const captured = runOwnerCaptureBoundary
+        ? await runOwnerCaptureBoundary(boundaryContext, capture)
+        : await capture()
+      if (captured.status === 'unrebuildable') {
+        await removeStagedUnit(stagingPath, resourcesDir)
+        degradations.push(entryDegradation(requirement, undefined, 'unrebuildable-content'))
+        continue
+      }
+      const unitDegradations = captured.degradations
+
+      const common = {
+        kind: requirement.kind,
+        archivePath: `${RESOURCES_PREFIX}${requirement.livePath}`,
+        livePath: requirement.livePath
+      }
+      let payload: ResourcePayload
+      let entryCount: number
+      if (requirement.resourceType === 'file') {
+        const staged = await fs.promises.lstat(stagingPath)
+        if (!staged.isFile() || staged.isSymbolicLink()) {
+          throw new Error(`owner capture did not materialize a regular file: ${requirement.livePath}`)
+        }
+        payload = {
+          ...common,
+          resourceType: 'file',
+          hash: await sha256FileCancellable(stagingPath, signal),
+          sizeBytes: staged.size,
+          executable: (staged.mode & 0o111) !== 0
+        }
+        entryCount = 1
+      } else {
+        const staged = await hashDirectoryUnit(stagingPath, { signal })
+        payload = {
           ...common,
           resourceType: 'directory',
-          hash,
+          hash: staged.hash,
           sizeBytes: staged.files.reduce((sum, file) => sum + file.size, 0)
-        })
+        }
+        entryCount = staged.entryCount
       }
+
+      if (
+        archiveEntries + entryCount > BACKUP_CEILINGS.maxArchiveEntries ||
+        archiveBytes + payload.sizeBytes > BACKUP_CEILINGS.maxTotalUncompressedBytes
+      ) {
+        await removeStagedUnit(stagingPath, resourcesDir)
+        degradations.push(entryDegradation(requirement, undefined, 'resource-ceiling-exceeded'))
+        continue
+      }
+      archiveEntries += entryCount
+      archiveBytes += payload.sizeBytes
+      payloads.push(payload)
+      degradations.push(
+        ...unitDegradations.map((degradation) =>
+          entryDegradation(requirement, degradation.relativePath, degradation.reason)
+        )
+      )
     } catch (error) {
-      // This unit is transaction-private and requirements cannot overlap.
-      // Best-effort local cleanup keeps large failures bounded; the operation
-      // owner still removes the complete staging tree during rollback.
-      await rm(stagingPath, { recursive: true, force: true }).catch((cleanupError) => {
+      await removeStagedUnit(stagingPath, resourcesDir).catch((cleanupError) => {
         logger.warn('Could not remove failed resource staging unit', cleanupError as Error, {
           livePath: requirement.livePath
         })
       })
-      await removeEmptyStagingAncestors(stagingPath, resourcesDir).catch((cleanupError) => {
-        logger.warn('Could not prune failed resource staging parents', cleanupError as Error, {
-          livePath: requirement.livePath
-        })
-      })
+      if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
+      // An owner-snapshot is the only portable representation of its live
+      // state (for example an Agent resume transcript). Publishing the DB
+      // reference without that snapshot would create a dangling active token,
+      // so ordinary source-degradation fallback is not valid for this mode.
+      if (mode.kind === 'owner-snapshot') throw error
+      const reason = sourceFailureDegradation(sourcePath, requirement, error)
+      if (reason) {
+        degradations.push(entryDegradation(requirement, undefined, reason))
+        continue
+      }
       throw error
     }
   }
@@ -494,12 +398,11 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
   logger.info('Staged Full resource payloads', {
     payloads: payloads.length,
     degraded: degradations.length,
-    bytes: payloads.reduce((sum, payload) => sum + payload.sizeBytes, 0)
+    bytes: archiveBytes
   })
   return { payloads, degradations, staged: payloads.length > 0 }
 }
 
-/** Remove only empty operation-owned parents left by a failed unit. */
 async function removeEmptyStagingAncestors(stagingPath: string, resourcesDir: string): Promise<void> {
   const root = path.resolve(resourcesDir)
   let current = path.dirname(path.resolve(stagingPath))
@@ -522,14 +425,4 @@ async function removeEmptyStagingAncestors(stagingPath: string, resourcesDir: st
     }
     current = path.dirname(current)
   }
-}
-
-async function stageFileUnit(
-  sourcePath: string,
-  stagingPath: string,
-  expectedIdentity: FsIdentity,
-  signal: AbortSignal | undefined
-): Promise<{ hash: string; sizeBytes: number; executable: boolean }> {
-  const staged = await stageFileWithDriftCheck({ sourcePath, stagingPath, expectedIdentity, signal })
-  return { hash: staged.hash, sizeBytes: staged.size, executable: staged.executable }
 }

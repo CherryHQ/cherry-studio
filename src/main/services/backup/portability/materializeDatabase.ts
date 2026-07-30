@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
@@ -13,6 +14,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import type { DbOrTx } from '@data/db/types'
 import {
   DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
+  isPortableAgentResumeToken,
   sanitizeAgentAutomation,
   toDisconnectedAgentWorkspaceSegment
 } from '@main/ai/agents/portableProfilePolicy'
@@ -21,7 +23,7 @@ import { sanitizeMcpServerCapability } from '@main/ai/mcp/portableProfilePolicy'
 import { ACTIVE_JOB_STATUSES, JobStatusAtomSchema } from '@shared/data/api/schemas/jobs'
 import { KNOWLEDGE_ITEM_STATUSES } from '@shared/data/types/knowledge'
 import Database from 'better-sqlite3'
-import { and, eq, inArray, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 
@@ -101,6 +103,8 @@ export type MaterializationDegradationReason =
   | 'path-collision'
   /** An agent workspace pointed somewhere this device will not honour; the binding was replaced by a local placeholder. */
   | 'workspace-disconnected'
+  /** A runtime resume token had no owner-managed portable transcript and was made inert. */
+  | 'runtime-reference-reset'
 
 /** One row that survived materialization in a reduced form. */
 export interface MaterializationDegradation {
@@ -390,6 +394,39 @@ function resetAgents(db: DbOrTx, summary: SummaryBuilder): void {
     }
   }
   summary.agentsSanitized = rows.length
+}
+
+/**
+ * A raw Claude session id only resolves through the SDK's producer-cwd keyed
+ * `.claude/projects` cache. That cache is intentionally not transported.
+ * Preserve only versioned resume points backed by Agent's managed transcript
+ * resource; clearing the rest prevents a restored row from advertising a
+ * resume target that cannot exist on the new device.
+ *
+ * This update does not touch `data`, so the table's `AFTER UPDATE OF data` FTS
+ * trigger is not selected under `trusted_schema = OFF`.
+ */
+function resetUnportableAgentResumeTokens(db: DbOrTx, summary: SummaryBuilder): void {
+  const rows = db
+    .select({
+      id: agentSessionMessageTable.id,
+      runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken
+    })
+    .from(agentSessionMessageTable)
+    .where(isNotNull(agentSessionMessageTable.runtimeResumeToken))
+    .all()
+    .filter((row) => !isPortableAgentResumeToken(row.runtimeResumeToken))
+
+  for (const row of rows) {
+    db.update(agentSessionMessageTable)
+      .set({
+        runtimeResumeToken: null,
+        updatedAt: preserveUpdatedAt(agentSessionMessageTable.updatedAt)
+      })
+      .where(eq(agentSessionMessageTable.id, row.id))
+      .run()
+    summary.degrade('agent_session_message', row.id, 'runtime-reference-reset')
+  }
 }
 
 function resetAgentChannels(db: DbOrTx, summary: SummaryBuilder): void {
@@ -685,12 +722,13 @@ function disconnectAgentWorkspaces(
 /**
  * The whole policy, in one transaction.
  *
- * NOTE for future policy additions: no statement here may touch `message` or
- * `agent_session_message`. Their FTS5 sync triggers cannot run under
- * `trusted_schema = OFF` (fts5 is not an "innocuous" virtual table), which is the
- * setting that makes an untrusted archive schema safe to open. Those two tables'
- * external-content indexes are keyed on a stable `fts_rowid` column precisely so
- * they survive `VACUUM INTO` transport, so there is nothing to rebuild.
+ * NOTE for future policy additions: no statement here may change message
+ * `data`, insert, or delete `message` / `agent_session_message`. Their FTS5
+ * sync triggers cannot run under `trusted_schema = OFF` (fts5 is not an
+ * "innocuous" virtual table). The one narrow exception is updating
+ * `agent_session_message.runtime_resume_token`: its trigger is explicitly
+ * `AFTER UPDATE OF data`, so that owner reference can be made inert without
+ * invoking FTS.
  */
 function dropExternalFileEntries(db: DbOrTx, summary: SummaryBuilder): void {
   const rows = db
@@ -713,6 +751,7 @@ function applyPolicy(db: DbOrTx, mode: MaterializeMode): MaterializationSummary 
   dropExternalFileEntries(db, summary)
   resetMcpServers(db, summary)
   resetAgents(db, summary)
+  resetUnportableAgentResumeTokens(db, summary)
   resetAgentChannels(db, summary)
   resetKnowledgeItems(db, summary)
   resetPreferences(db, summary)

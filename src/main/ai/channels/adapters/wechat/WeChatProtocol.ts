@@ -598,7 +598,6 @@ interface LoginOptions {
   force?: boolean
   signal?: AbortSignal
   onQrUrl?: (url: string) => void
-  runWrite?: <T>(label: string, work: () => Promise<T>) => Promise<T>
 }
 
 /** Maximum number of expired QR codes before giving up. */
@@ -652,11 +651,7 @@ async function loginFlow(options: LoginOptions): Promise<Credentials> {
           accountId: status.ilink_bot_id,
           userId: status.ilink_user_id
         }
-        if (options.runWrite) {
-          await options.runWrite('credentials-save', () => saveCredentials(credentials, options.tokenPath))
-        } else {
-          await saveCredentials(credentials, options.tokenPath)
-        }
+        await saveCredentials(credentials, options.tokenPath)
         return credentials
       }
 
@@ -680,7 +675,6 @@ export interface WeixinBotOptions {
   tokenPath?: string
   onError?: (error: unknown) => void
   onQrUrl?: (url: string) => void
-  runWrite?: <T>(label: string, work: () => Promise<T>) => Promise<T>
 }
 
 /** Normalize a base URL to origin form (no trailing slash). */
@@ -695,7 +689,6 @@ export class WeixinBot {
   private readonly contextTokenPath?: string
   private readonly onErrorCallback?: (error: unknown) => void
   private readonly onQrUrlCallback?: (url: string) => void
-  private readonly runWrite: <T>(label: string, work: () => Promise<T>) => Promise<T>
   private readonly handlers: MessageHandler[] = []
   private readonly contextTokens = new Map<string, string>()
   private credentials?: Credentials
@@ -712,7 +705,6 @@ export class WeixinBot {
     this.contextTokenPath = options.tokenPath ? options.tokenPath.replace(/\.json$/, '.context-tokens.json') : undefined
     this.onErrorCallback = options.onError
     this.onQrUrlCallback = options.onQrUrl
-    this.runWrite = options.runWrite ?? ((_label, work) => work())
     this.restoreContextTokens()
   }
 
@@ -732,8 +724,7 @@ export class WeixinBot {
       tokenPath: this.tokenPath!,
       force: options.force,
       signal,
-      onQrUrl: this.onQrUrlCallback,
-      runWrite: this.runWrite
+      onQrUrl: this.onQrUrlCallback
     })
     this.loginAbort = null
 
@@ -743,7 +734,7 @@ export class WeixinBot {
     if (previousToken && previousToken !== credentials.token) {
       this.cursor = ''
       this.contextTokens.clear()
-      await this.runWrite('context-tokens-clear', () => this.clearPersistedContextTokens())
+      this.clearPersistedContextTokens()
     }
 
     logger.info('Logged in', { userId: credentials.userId })
@@ -756,10 +747,8 @@ export class WeixinBot {
   }
 
   async reply(message: IncomingMessage, text: string): Promise<void> {
-    await this.runWrite('context-tokens-save', async () => {
-      this.contextTokens.set(message.userId, message._contextToken)
-      await this.persistContextTokens()
-    })
+    this.contextTokens.set(message.userId, message._contextToken)
+    this.persistContextTokens()
     await this.sendText(message.userId, text, message._contextToken)
     this.stopTyping(message.userId).catch(() => {})
   }
@@ -895,29 +884,27 @@ export class WeixinBot {
 
     while (!this.stopped) {
       try {
-        await this.runWrite('poll', async () => {
-          const credentials = await this.ensureCredentials()
-          this.currentPollController = new AbortController()
-          const updates = await getUpdates(
-            this.baseUrl,
-            credentials.token,
-            this.uin,
-            this.cursor,
-            this.currentPollController.signal
-          )
+        const credentials = await this.ensureCredentials()
+        this.currentPollController = new AbortController()
+        const updates = await getUpdates(
+          this.baseUrl,
+          credentials.token,
+          this.uin,
+          this.cursor,
+          this.currentPollController.signal
+        )
 
-          this.currentPollController = null
-          this.cursor = updates.get_updates_buf || this.cursor
-          retryDelayMs = 1_000
+        this.currentPollController = null
+        this.cursor = updates.get_updates_buf || this.cursor
+        retryDelayMs = 1_000
 
-          for (const raw of updates.msgs ?? []) {
-            await this.rememberContext(raw)
-            const incoming = this.toIncomingMessage(raw)
-            if (incoming) {
-              await this.dispatchMessage(incoming)
-            }
+        for (const raw of updates.msgs ?? []) {
+          this.rememberContext(raw)
+          const incoming = this.toIncomingMessage(raw)
+          if (incoming) {
+            await this.dispatchMessage(incoming)
           }
-        })
+        }
       } catch (error) {
         this.currentPollController = null
 
@@ -930,7 +917,7 @@ export class WeixinBot {
           this.contextTokens.clear()
 
           try {
-            await this.runWrite('credentials-clear', () => clearCredentials(this.tokenPath!))
+            await clearCredentials(this.tokenPath!)
             await this.login({ force: true })
             retryDelayMs = 1_000
             continue
@@ -982,7 +969,7 @@ export class WeixinBot {
     }
   }
 
-  private async rememberContext(message: WeixinMessage): Promise<void> {
+  private rememberContext(message: WeixinMessage): void {
     const userId = message.message_type === MessageType.USER ? message.from_user_id : message.to_user_id
     if (userId && message.context_token) {
       // Evict oldest entry when map exceeds max size
@@ -991,7 +978,7 @@ export class WeixinBot {
         if (oldest !== undefined) this.contextTokens.delete(oldest)
       }
       this.contextTokens.set(userId, message.context_token)
-      await this.persistContextTokens()
+      this.persistContextTokens()
     }
   }
 
@@ -1017,14 +1004,16 @@ export class WeixinBot {
     }
   }
 
-  private async persistContextTokens(): Promise<void> {
+  private persistContextTokens(): void {
     if (!this.contextTokenPath) return
     try {
       const tokens: Record<string, string> = {}
       for (const [k, v] of this.contextTokens) {
         tokens[k] = v
       }
-      await writeFile(this.contextTokenPath, JSON.stringify(tokens), { mode: 0o600 })
+      writeFile(this.contextTokenPath, JSON.stringify(tokens), { mode: 0o600 }).catch((err) => {
+        logger.warn('Failed to persist context tokens', { error: err instanceof Error ? err.message : String(err) })
+      })
     } catch (err) {
       logger.warn('Failed to persist context tokens', { error: err instanceof Error ? err.message : String(err) })
     }
@@ -1051,9 +1040,9 @@ export class WeixinBot {
     }
   }
 
-  private async clearPersistedContextTokens(): Promise<void> {
+  private clearPersistedContextTokens(): void {
     if (!this.contextTokenPath) return
-    await rm(this.contextTokenPath, { force: true })
+    rm(this.contextTokenPath, { force: true }).catch(() => {})
   }
 
   private reportError(error: unknown): void {

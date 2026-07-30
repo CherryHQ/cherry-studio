@@ -208,6 +208,16 @@ export interface StagedDirectoryFile extends StagedFile {
   readonly relPath: string
 }
 
+export interface PartialTreeOmission {
+  readonly relPath: string
+  readonly reason:
+    | 'changed-during-capture'
+    | 'external-reference'
+    | 'dangling-reference'
+    | 'cyclic-reference'
+    | 'unclassified-reference'
+}
+
 export function scansEqual(a: DirScanResult, b: DirScanResult): boolean {
   if (!identitiesEqual(a.rootId, b.rootId)) return false
   if (a.entryCount !== b.entryCount || a.totalBytes !== b.totalBytes) return false
@@ -286,7 +296,8 @@ async function assertAncestorsUnchanged(
   sourceDir: string,
   sourceRelPath: string,
   rootId: FsIdentity,
-  dirById: ReadonlyMap<string, FsIdentity>
+  dirById: ReadonlyMap<string, FsIdentity>,
+  identityMatches: (expected: FsIdentity, actual: FsIdentity) => boolean = identitiesEqual
 ): Promise<void> {
   await driftHooks.beforeAncestorVerify(sourceDir, sourceRelPath)
   for (const anc of ancestorRelPaths(sourceRelPath)) {
@@ -305,7 +316,7 @@ async function assertAncestorsUnchanged(
     if (st.isSymbolicLink() || !st.isDirectory()) {
       throw new SourceDriftError(absAnc, 'ancestor is no longer a real directory')
     }
-    if (!identitiesEqual(expected, fsIdentityOf(st, 'dir'))) {
+    if (!identityMatches(expected, fsIdentityOf(st, 'dir'))) {
       throw new SourceDriftError(absAnc, 'ancestor directory identity changed during staging')
     }
   }
@@ -365,7 +376,7 @@ export async function stageDirectoryWithDriftCheck(args: {
   expectedScan?: DirScanResult
   signal?: AbortSignal
   capturePolicy?: CapturePolicy
-}): Promise<{ files: readonly StagedDirectoryFile[] }> {
+}): Promise<{ files: readonly StagedDirectoryFile[]; scan: DirScanResult }> {
   const { sourceDir, stagingDir, signal, capturePolicy } = args
   throwIfAborted(signal)
 
@@ -435,9 +446,234 @@ export async function stageDirectoryWithDriftCheck(args: {
     if (!scansEqual(initial, final)) {
       throw new SourceDriftError(sourceDir, 'directory tree changed during staging')
     }
-    return { files }
+    return { files, scan: initial }
   } catch (err) {
     await rm(stagingDir, { recursive: true, force: true }).catch(() => {})
     throw mapEnospc(err)
+  }
+}
+
+function sameFilesystemNode(a: FsIdentity, b: FsIdentity): boolean {
+  return a.kind === b.kind && a.dev === b.dev && a.ino === b.ino
+}
+
+function sameDirectoryEntry(
+  left: DirScanResult['dirs'][number] | undefined,
+  right: DirScanResult['dirs'][number] | undefined
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.relPath === right.relPath &&
+      left.sourceRelPath === right.sourceRelPath &&
+      sameFilesystemNode(left.id, right.id)
+  )
+}
+
+function sameFileEntry(
+  left: DirScanResult['entries'][number] | undefined,
+  right: DirScanResult['entries'][number] | undefined
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.relPath === right.relPath &&
+      left.sourceRelPath === right.sourceRelPath &&
+      left.executable === right.executable &&
+      identitiesEqual(left.id, right.id)
+  )
+}
+
+function sameLinkEntry(
+  left: DirScanResult['links'][number] | undefined,
+  right: DirScanResult['links'][number] | undefined
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.relPath === right.relPath &&
+      left.sourceRelPath === right.sourceRelPath &&
+      left.linkTarget === right.linkTarget &&
+      left.targetRelPath === right.targetRelPath &&
+      identitiesEqual(left.id, right.id)
+  )
+}
+
+function sameOmission(
+  left: DirScanResult['omissions'][number] | undefined,
+  right: DirScanResult['omissions'][number] | undefined
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.relPath === right.relPath &&
+      left.sourceRelPath === right.sourceRelPath &&
+      left.reason === right.reason &&
+      left.linkTarget === right.linkTarget &&
+      ((left.id === undefined && right.id === undefined) ||
+        (left.id !== undefined && right.id !== undefined && identitiesEqual(left.id, right.id)))
+  )
+}
+
+function pathIsAtOrBelow(candidate: string, ancestor: string): boolean {
+  return candidate === ancestor || candidate.startsWith(`${ancestor}/`)
+}
+
+function stableLinkChain(
+  relPath: string,
+  firstLinks: ReadonlyMap<string, DirScanResult['links'][number]>,
+  secondLinks: ReadonlyMap<string, DirScanResult['links'][number]>
+): boolean {
+  for (const [linkPath, first] of firstLinks) {
+    if (pathIsAtOrBelow(relPath, linkPath) && !sameLinkEntry(first, secondLinks.get(linkPath))) return false
+  }
+  for (const linkPath of secondLinks.keys()) {
+    if (pathIsAtOrBelow(relPath, linkPath) && !firstLinks.has(linkPath)) return false
+  }
+  return true
+}
+
+function addPartialOmission(
+  omissions: Map<string, PartialTreeOmission['reason']>,
+  relPath: string,
+  reason: PartialTreeOmission['reason']
+): void {
+  const current = omissions.get(relPath)
+  if (current === undefined || reason === 'changed-during-capture') omissions.set(relPath, reason)
+}
+
+/**
+ * Capture a useful cut of a directory whose unrelated entries may keep
+ * changing. Two owner-scoped scans define the candidate set. Only files whose
+ * identity, materialized-link chain, and ancestor inode chain agree in both
+ * scans are copied; a file that changes during its own copy is omitted too.
+ *
+ * Unlike {@link stageDirectoryWithDriftCheck}, sibling creation/deletion does
+ * not invalidate already-stable files. This is intentional for workspaces and
+ * notes: each included file is a complete byte version, while changing entries
+ * are disclosed individually as `changed-during-capture`.
+ */
+export async function stagePartialDirectoryTree(args: {
+  sourceDir: string
+  stagingDir: string
+  signal?: AbortSignal
+  capturePolicy?: CapturePolicy
+}): Promise<{ files: readonly StagedDirectoryFile[]; omissions: readonly PartialTreeOmission[] }> {
+  const { sourceDir, stagingDir, signal, capturePolicy } = args
+  throwIfAborted(signal)
+
+  try {
+    await mkdir(stagingDir, { mode: 0o700 })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new Error(`stagePartialDirectoryTree: staging dir already exists (ambiguous ownership): ${stagingDir}`)
+    }
+    throw error
+  }
+
+  try {
+    const scan = async (): Promise<DirScanResult> =>
+      scanDirectoryUnit(sourceDir, {
+        signal,
+        capturePolicy,
+        mode: capturePolicy ? 'capture' : 'strict'
+      })
+    const first = await scan()
+    const second = await scan()
+    if (!sameFilesystemNode(first.rootId, second.rootId)) {
+      throw new SourceDriftError(sourceDir, 'partial-tree root was replaced during capture')
+    }
+
+    const firstDirs = new Map(first.dirs.map((entry) => [entry.relPath, entry]))
+    const secondDirs = new Map(second.dirs.map((entry) => [entry.relPath, entry]))
+    const firstFiles = new Map(first.entries.map((entry) => [entry.relPath, entry]))
+    const secondFiles = new Map(second.entries.map((entry) => [entry.relPath, entry]))
+    const firstLinks = new Map(first.links.map((entry) => [entry.relPath, entry]))
+    const secondLinks = new Map(second.links.map((entry) => [entry.relPath, entry]))
+    const firstOmissions = new Map(first.omissions.map((entry) => [entry.relPath, entry]))
+    const secondOmissions = new Map(second.omissions.map((entry) => [entry.relPath, entry]))
+    const omissions = new Map<string, PartialTreeOmission['reason']>()
+
+    for (const relPath of new Set([...firstOmissions.keys(), ...secondOmissions.keys()])) {
+      const firstOmission = firstOmissions.get(relPath)
+      const secondOmission = secondOmissions.get(relPath)
+      addPartialOmission(
+        omissions,
+        relPath,
+        sameOmission(firstOmission, secondOmission) ? secondOmission!.reason : 'changed-during-capture'
+      )
+    }
+
+    const stableDirs = new Set<string>()
+    for (const relPath of new Set([...firstDirs.keys(), ...secondDirs.keys()])) {
+      const stable =
+        sameDirectoryEntry(firstDirs.get(relPath), secondDirs.get(relPath)) &&
+        stableLinkChain(relPath, firstLinks, secondLinks)
+      if (stable) {
+        stableDirs.add(relPath)
+      } else {
+        addPartialOmission(omissions, relPath, 'changed-during-capture')
+      }
+    }
+    for (const relPath of [...stableDirs].sort((left, right) => left.split('/').length - right.split('/').length)) {
+      const ancestors = ancestorRelPaths(`${relPath}/leaf`).filter(Boolean)
+      if (ancestors.some((ancestor) => ancestor !== relPath && !stableDirs.has(ancestor))) {
+        stableDirs.delete(relPath)
+        addPartialOmission(omissions, relPath, 'changed-during-capture')
+        continue
+      }
+      await mkdir(path.join(stagingDir, ...relPath.split('/')), { recursive: true, mode: 0o700 })
+    }
+
+    const secondDirBySourcePath = new Map(second.dirs.map((entry) => [entry.sourceRelPath, entry.id]))
+    const files: StagedDirectoryFile[] = []
+    for (const relPath of new Set([...firstFiles.keys(), ...secondFiles.keys()])) {
+      throwIfAborted(signal)
+      const entry = secondFiles.get(relPath)
+      const stable = sameFileEntry(firstFiles.get(relPath), entry) && stableLinkChain(relPath, firstLinks, secondLinks)
+      if (!stable || !entry) {
+        addPartialOmission(omissions, relPath, 'changed-during-capture')
+        continue
+      }
+
+      try {
+        await assertAncestorsUnchanged(
+          sourceDir,
+          entry.sourceRelPath,
+          second.rootId,
+          secondDirBySourcePath,
+          sameFilesystemNode
+        )
+        await driftHooks.afterAncestorVerify(sourceDir, entry.relPath)
+        const staged = await stageFileWithDriftCheck({
+          sourcePath: path.join(sourceDir, ...entry.sourceRelPath.split('/')),
+          stagingPath: path.join(stagingDir, ...entry.relPath.split('/')),
+          expectedIdentity: entry.id,
+          signal
+        })
+        files.push({ relPath: entry.relPath, ...staged })
+      } catch (error) {
+        if (error instanceof BackupCancelledError || error instanceof DiskFullError) throw error
+        if (
+          error instanceof SourceDriftError ||
+          error instanceof NonRegularSourceError ||
+          ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')
+        ) {
+          addPartialOmission(omissions, relPath, 'changed-during-capture')
+          continue
+        }
+        throw error
+      }
+    }
+
+    return {
+      files,
+      omissions: [...omissions]
+        .sort(([left], [right]) => Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8')))
+        .map(([relPath, reason]) => ({ relPath, reason }))
+    }
+  } catch (error) {
+    await rm(stagingDir, { recursive: true, force: true }).catch(() => {})
+    throw mapEnospc(error)
   }
 }

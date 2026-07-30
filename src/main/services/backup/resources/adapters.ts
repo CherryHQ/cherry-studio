@@ -24,17 +24,22 @@ import path from 'node:path'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import type { DbOrTx } from '@data/db/types'
-import { DISCONNECTED_AGENT_WORKSPACE_DIRECTORY } from '@main/ai/agents/portableProfilePolicy'
-import { isAgentRuntimeConfigCaptureExcluded, isWorkspaceManagedSkillProjection } from '@main/ai/skills/capturePolicy'
+import {
+  DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
+  isAgentRuntimeConfigCaptureExcluded,
+  isPortableAgentResumeToken
+} from '@main/ai/agents/portableProfilePolicy'
+import { isWorkspaceManagedSkillProjection } from '@main/ai/skills/capturePolicy'
 import { collectKnowledgeRequiredMaterial, isKnowledgeCaptureExcluded } from '@main/features/knowledge'
 import { toInternalBlobFileName } from '@main/services/file'
 import { isSafeRelativeSubpath } from '@main/utils/relativePath'
-import { eq, isNull, sql } from 'drizzle-orm'
+import { eq, isNotNull, isNull, sql } from 'drizzle-orm'
 
 import type { CapturePolicy } from '../dirScan'
 import type { ResourceRequirement } from '../manifest'
@@ -56,6 +61,8 @@ export interface ResourceRoots {
   readonly notes: string
   /** `feature.agents.data` — parent of per-agent identity and memory directories. */
   readonly agentData: string
+  /** `feature.agents.transcripts` — completed-Turn, workspace-independent SDK session snapshots. */
+  readonly agentTranscripts: string
   /** `feature.agents.system_workspaces` — parent of per-session system workspaces. */
   readonly systemWorkspaces: string
   /** `feature.agents.skills` — installed skill library. */
@@ -91,6 +98,7 @@ export const BACKUP_RESOURCE_KINDS = [
   'knowledge-base',
   'note-root',
   'agent-data',
+  'agent-transcript',
   'agent-workspace',
   'skill',
   'mcp-workspace',
@@ -101,12 +109,18 @@ export const BACKUP_RESOURCE_KINDS = [
 
 export type BackupResourceKind = (typeof BACKUP_RESOURCE_KINDS)[number]
 
+export type ResourceCaptureMode =
+  | { readonly kind: 'strict-unit'; readonly maxAttempts: 2 }
+  | { readonly kind: 'partial-tree'; readonly maxAttempts: 2 }
+  | { readonly kind: 'owner-snapshot' }
+
 /** The one trusted managed root each resource kind is allowed to replace. */
 export const RESOURCE_ROOT_BY_KIND = Object.freeze({
   'file-blob': 'files',
   'knowledge-base': 'knowledge',
   'note-root': 'notes',
   'agent-data': 'agentData',
+  'agent-transcript': 'agentTranscripts',
   'agent-workspace': 'systemWorkspaces',
   skill: 'skills',
   'mcp-workspace': 'mcpWorkspace',
@@ -146,16 +160,15 @@ export interface AdapterInventory {
 export type UnitContentRequirement = readonly string[] | null
 
 /**
- * Kinds whose payload carries SOURCE MATERIAL only, with the derived index left
- * to the target's owner after restore (§2 coverage, §6.7). Their coverage bucket
- * is `rebuildable` rather than `available`: the bytes are there, the usable state
- * is not yet. Typed as `string` because a manifest `kind` is untrusted text
- * until matched here.
+ * A kind belongs here only when every successful payload necessarily requires
+ * owner rebuild. Knowledge no longer does: a verified index is carried by
+ * default, while a per-base degradation identifies the fallback cases.
  */
-export const REBUILDABLE_RESOURCE_KINDS: ReadonlySet<string> = new Set<BackupResourceKind>(['knowledge-base'])
+export const REBUILDABLE_RESOURCE_KINDS: ReadonlySet<string> = new Set<BackupResourceKind>()
 
 export interface BackupResourceAdapter {
   readonly kind: BackupResourceKind
+  readonly captureMode: ResourceCaptureMode
   readonly capturePolicy?: (roots: ResourceRoots | undefined) => CapturePolicy
   collectRequirements(ctx: SnapshotReadContext): AdapterInventory
 }
@@ -194,6 +207,7 @@ function managedLivePath(ctx: SnapshotReadContext, root: string, absolute: strin
  */
 const fileBlobAdapter: BackupResourceAdapter = {
   kind: 'file-blob',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   collectRequirements(ctx) {
     const rows = ctx.db
       .select({ id: fileEntryTable.id, ext: fileEntryTable.ext, origin: fileEntryTable.origin })
@@ -219,8 +233,9 @@ const fileBlobAdapter: BackupResourceAdapter = {
 }
 
 /**
- * Per base id, the `raw/` material every COMPLETED indexable leaf needs for the
- * target to rebuild the index this archive excludes.
+ * Per base id, the `raw/` source and processed material every COMPLETED
+ * indexable leaf needs. The same closure backs both immediate use of a carried
+ * index and the explicit rebuild fallback.
  *
  * Only `completed` leaves count: an unfinished item has nothing indexed to
  * reproduce. `directory` items are containers whose children are separate rows,
@@ -242,17 +257,18 @@ function knowledgeMaterialsByBase(ctx: SnapshotReadContext): ReadonlyMap<string,
 /**
  * Knowledge bases. The unit is the whole `{baseId}` directory: its raw sources
  * are only meaningful together, and overlaying two of them would produce a base
- * whose index describes files it does not contain. The rebuildable index inside
- * it is excluded when Phase 3 stages the bytes, not here — a requirement names
- * the unit, not its contents.
+ * whose index describes files it does not contain. Generic capture excludes the
+ * live WAL index; the Knowledge owner then adds a verified online SQLite
+ * snapshot at the same portable path.
  *
- * Because the index is excluded, the raw material is the ONLY thing that makes a
- * restored base recoverable, so each base also declares the material set staging
- * must find. A base that cannot supply it is degraded out of the archive rather
- * than shipped as an index-less shell that no device could ever rebuild.
+ * Raw and processed material remain mandatory even when that snapshot is ready:
+ * they are user-visible content and the fallback from an index that a future
+ * target cannot accept. A base that cannot supply them is degraded out of the
+ * archive rather than shipped as an index-only shell.
  */
 const knowledgeBaseAdapter: BackupResourceAdapter = {
   kind: 'knowledge-base',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   capturePolicy: () => ({ excludeRelativePath: isKnowledgeCaptureExcluded }),
   collectRequirements(ctx) {
     const rows = ctx.db.select({ id: knowledgeBaseTable.id }).from(knowledgeBaseTable).all()
@@ -289,6 +305,7 @@ function fixedManagedResource(
 
 const mcpWorkspaceAdapter: BackupResourceAdapter = {
   kind: 'mcp-workspace',
+  captureMode: { kind: 'partial-tree', maxAttempts: 2 },
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.mcpWorkspace, 'directory')
   }
@@ -296,6 +313,7 @@ const mcpWorkspaceAdapter: BackupResourceAdapter = {
 
 const mcpMemoryAdapter: BackupResourceAdapter = {
   kind: 'mcp-memory',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.mcpMemory, 'file')
   }
@@ -303,6 +321,7 @@ const mcpMemoryAdapter: BackupResourceAdapter = {
 
 const agentChannelStateAdapter: BackupResourceAdapter = {
   kind: 'agent-channel-state',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.agentChannels, 'directory')
   }
@@ -310,6 +329,7 @@ const agentChannelStateAdapter: BackupResourceAdapter = {
 
 const agentRuntimeConfigAdapter: BackupResourceAdapter = {
   kind: 'agent-runtime-config',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   capturePolicy: () => ({ excludeRelativePath: isAgentRuntimeConfigCaptureExcluded }),
   collectRequirements(ctx) {
     return fixedManagedResource(ctx, this.kind, ctx.roots.agentRuntimeConfig, 'directory')
@@ -333,6 +353,7 @@ const agentRuntimeConfigAdapter: BackupResourceAdapter = {
  */
 const noteRootAdapter: BackupResourceAdapter = {
   kind: 'note-root',
+  captureMode: { kind: 'partial-tree', maxAttempts: 2 },
   collectRequirements(ctx) {
     const rows = ctx.db.select({ rootPath: noteTable.rootPath }).from(noteTable).all()
 
@@ -359,6 +380,7 @@ const noteRootAdapter: BackupResourceAdapter = {
 /** Agent identity and memory, one app-owned directory per live agent row. */
 const agentDataAdapter: BackupResourceAdapter = {
   kind: 'agent-data',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   collectRequirements(ctx) {
     const rows = ctx.db.select({ id: agentTable.id }).from(agentTable).where(isNull(agentTable.deletedAt)).all()
 
@@ -377,6 +399,45 @@ const agentDataAdapter: BackupResourceAdapter = {
 }
 
 /**
+ * One owner-committed transcript snapshot per Agent session with a portable
+ * resume point. Raw pre-feature SDK tokens are intentionally not requirements:
+ * portable DB materialization clears them because their cwd-keyed
+ * `.claude/projects` file cannot be proven portable.
+ */
+const agentTranscriptAdapter: BackupResourceAdapter = {
+  kind: 'agent-transcript',
+  captureMode: { kind: 'owner-snapshot' },
+  collectRequirements(ctx) {
+    const rows = ctx.db
+      .select({
+        sessionId: agentSessionMessageTable.sessionId,
+        runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken
+      })
+      .from(agentSessionMessageTable)
+      .where(isNotNull(agentSessionMessageTable.runtimeResumeToken))
+      .all()
+
+    const requirements: ResourceRequirement[] = []
+    let unverifiable = 0
+    for (const sessionId of new Set(
+      rows.filter((row) => isPortableAgentResumeToken(row.runtimeResumeToken)).map((row) => row.sessionId)
+    )) {
+      const livePath = managedLivePath(
+        ctx,
+        ctx.roots.agentTranscripts,
+        path.join(ctx.roots.agentTranscripts, `${sessionId}.json`)
+      )
+      if (livePath === null) {
+        unverifiable++
+        continue
+      }
+      requirements.push({ kind: 'agent-transcript', resourceType: 'file', livePath })
+    }
+    return { requirements, unverifiable }
+  }
+}
+
+/**
  * Agent workspaces. Only rows physically inside the managed workspaces root are
  * requirements; a user-chosen workspace is their own directory, which Cherry
  * neither owns nor may overwrite (§4). Containment — not the row's `type`
@@ -385,6 +446,7 @@ const agentDataAdapter: BackupResourceAdapter = {
  */
 const agentWorkspaceAdapter: BackupResourceAdapter = {
   kind: 'agent-workspace',
+  captureMode: { kind: 'partial-tree', maxAttempts: 2 },
   capturePolicy: (roots) => ({
     decideNode(context) {
       if (
@@ -435,6 +497,7 @@ const agentWorkspaceAdapter: BackupResourceAdapter = {
  */
 const skillAdapter: BackupResourceAdapter = {
   kind: 'skill',
+  captureMode: { kind: 'strict-unit', maxAttempts: 2 },
   collectRequirements(ctx) {
     const rows = ctx.db.select({ folderName: agentGlobalSkillTable.folderName }).from(agentGlobalSkillTable).all()
 
@@ -461,10 +524,20 @@ export const RESOURCE_ADAPTERS: readonly BackupResourceAdapter[] = [
   agentChannelStateAdapter,
   agentRuntimeConfigAdapter,
   agentDataAdapter,
+  agentTranscriptAdapter,
   agentWorkspaceAdapter,
   skillAdapter
 ]
 
 export function capturePolicyForKind(kind: string, roots?: ResourceRoots): CapturePolicy {
   return RESOURCE_ADAPTERS.find((adapter) => adapter.kind === kind)?.capturePolicy?.(roots) ?? {}
+}
+
+export function captureModeForKind(kind: string): ResourceCaptureMode {
+  return (
+    RESOURCE_ADAPTERS.find((adapter) => adapter.kind === kind)?.captureMode ?? {
+      kind: 'strict-unit',
+      maxAttempts: 2
+    }
+  )
 }

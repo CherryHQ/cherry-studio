@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { MockMainProfileWriteBarrierServiceUtils } from '@test-mocks/main/ProfileWriteBarrierService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { createAgentDataDirectory, removeAgentDataDirectory, createAgentWithId } = vi.hoisted(() => ({
@@ -23,7 +22,6 @@ describe('createAgent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
     vi.mocked(application.getPath).mockReturnValue('/tmp/agents')
     createAgentDataDirectory.mockResolvedValue('/tmp/agents/11111111-1111-4111-8111-111111111111')
     removeAgentDataDirectory.mockResolvedValue(undefined)
@@ -40,35 +38,6 @@ describe('createAgent', () => {
     expect(createAgentDataDirectory.mock.invocationCallOrder[0]).toBeLessThan(
       createAgentWithId.mock.invocationCallOrder[0]
     )
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'agent:create',
-      expect.any(Function)
-    )
-  })
-
-  it('waits for profile write admission before provisioning the directory or database row', async () => {
-    let admit!: () => void
-    const admitted = new Promise<void>((resolve) => {
-      admit = resolve
-    })
-    vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mockImplementationOnce(
-      async (_label, operation) => {
-        await admitted
-        return operation()
-      }
-    )
-
-    const pending = createAgent(request)
-    await Promise.resolve()
-
-    expect(createAgentDataDirectory).not.toHaveBeenCalled()
-    expect(createAgentWithId).not.toHaveBeenCalled()
-
-    admit()
-    await pending
-
-    expect(createAgentDataDirectory).toHaveBeenCalledOnce()
-    expect(createAgentWithId).toHaveBeenCalledOnce()
   })
 
   it('removes the provisioned directory when the database write fails', async () => {

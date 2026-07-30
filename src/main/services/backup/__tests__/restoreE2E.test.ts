@@ -21,13 +21,19 @@ import { runRestorePromotionV2 } from '@data/db/restore/restorePromotionV2'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { noteTable } from '@data/db/schemas/note'
-import { DISCONNECTED_AGENT_WORKSPACE_DIRECTORY } from '@main/ai/agents/portableProfilePolicy'
+import {
+  DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
+  encodePortableAgentResumePoint
+} from '@main/ai/agents/portableProfilePolicy'
+import { createKnowledgeIndexStoreAtPath } from '@main/features/knowledge/vectorstore/indexStore/createIndexStore'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { ZipArchive } from 'archiver'
@@ -39,7 +45,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { acknowledgeRestore } from '../acknowledgeRestore'
 import { presentJournalDegradations } from '../degradationReport'
-import { ArchiveAdmissionError, SourceDriftError } from '../errors'
+import { ArchiveAdmissionError } from '../errors'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
 import { readRestoreKnowledgeReadiness, withRestoreKnowledgeProgress } from '../restoreOwnerReadiness'
@@ -62,6 +68,10 @@ import { driftHooks } from '../sourceDrift'
 
 const FILE_ID = '11111111-1111-4111-8111-111111111111'
 const AGENT_ID = '22222222-2222-4222-8222-222222222222'
+const AGENT_SESSION_ID = '33333333-3333-4333-8333-333333333333'
+const AGENT_MESSAGE_ID = '44444444-4444-7444-8444-444444444444'
+const SDK_SESSION_ID = '55555555-5555-4555-8555-555555555555'
+const SDK_ASSISTANT_BOUNDARY = '66666666-6666-4666-8666-666666666666'
 const TARGET_MARKER = 'e2e-target-marker'
 
 const dbh = setupTestDatabase()
@@ -88,6 +98,7 @@ function pathFor(key: string, filename?: string): string {
     'feature.knowledgebase.data': join(activeUserData, 'Data', 'KnowledgeBase'),
     'feature.notes.data': join(activeUserData, 'Data', 'Notes'),
     'feature.agents.data': join(activeUserData, 'Data', 'Agents'),
+    'feature.agents.transcripts': join(activeUserData, 'Data', 'AgentTranscripts'),
     'feature.agents.system_workspaces': join(activeUserData, 'Data', 'Agents', 'system'),
     'feature.agents.skills': join(activeUserData, 'Data', 'Skills'),
     'feature.mcp.workspace': join(activeUserData, 'Data', 'Workspace'),
@@ -162,31 +173,74 @@ function seedSourceDatabase(): void {
     })
     .run()
   dbh.db
+    .insert(agentSessionTable)
+    .values({
+      id: AGENT_SESSION_ID,
+      agentId: AGENT_ID,
+      workspaceId: 'w-1',
+      name: 'Portable session',
+      orderKey: 'a'
+    } as never)
+    .run()
+  dbh.db
+    .insert(agentSessionMessageTable)
+    .values({
+      id: AGENT_MESSAGE_ID,
+      sessionId: AGENT_SESSION_ID,
+      role: 'assistant',
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'completed turn' }] },
+      runtimeResumeToken: encodePortableAgentResumePoint({
+        sessionId: SDK_SESSION_ID,
+        resumeSessionAt: SDK_ASSISTANT_BOUNDARY
+      })
+    } as never)
+    .run()
+  dbh.db
     .insert(agentGlobalSkillTable)
     .values({ id: 'sk-1', name: 'skill', folderName: 'skill-1', source: 'local', contentHash: 'h' })
     .run()
 }
 
+function writeSourceResource(relative: string, content: string): void {
+  const target = join(sourceUserData, relative)
+  mkdirSync(join(target, '..'), { recursive: true })
+  writeFileSync(target, content)
+}
+
+function seedSourceAgentTranscript(): void {
+  writeSourceResource(
+    join('Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.json`),
+    JSON.stringify({
+      version: 1,
+      sessions: {
+        [SDK_SESSION_ID]: {
+          '': [
+            { type: 'user', uuid: '77777777-7777-4777-8777-777777777777' },
+            { type: 'assistant', uuid: SDK_ASSISTANT_BOUNDARY }
+          ]
+        }
+      }
+    })
+  )
+}
+
 /** The bytes those rows point at, on the source device. */
 function seedSourceResources(): void {
-  const write = (relative: string, content: string) => {
-    const target = join(sourceUserData, relative)
-    mkdirSync(join(target, '..'), { recursive: true })
-    writeFileSync(target, content)
-  }
-  write(join('Data', 'Files', `${FILE_ID}.pdf`), 'SOURCE-BLOB')
-  write(join('Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE-KB')
-  write(join('Data', 'Notes', 'a.md'), '# source note')
-  write(join('Data', 'Agents', AGENT_ID, 'SOUL.md'), 'SOURCE-SOUL')
-  write(join('Data', 'Agents', AGENT_ID, 'USER.md'), 'SOURCE-USER')
-  write(join('Data', 'Agents', AGENT_ID, 'memory', 'profile.md'), 'SOURCE-MEMORY')
-  write(join('Data', 'Agents', 'system', 's-1', 'session.json'), 'SOURCE-WS')
-  write(join('Data', 'Skills', 'skill-1', 'SKILL.md'), 'SOURCE-SKILL')
-  write(join('Data', 'Workspace', 'draft.md'), 'SOURCE-MCP-WORKSPACE')
-  write(join('Data', 'Mcp', 'memory.json'), '{"entities":[],"relations":[]}')
-  write(join('Data', 'Channels', 'weixin_bot_channel-1.json'), 'SOURCE-CHANNEL')
-  write(join('Data', 'Agents', '.claude', 'settings.json'), 'SOURCE-RUNTIME')
-  write(join('Data', 'Agents', '.claude', 'skills', 'skill-1', 'SKILL.md'), 'DERIVED-MIRROR')
+  writeSourceResource(join('Data', 'Files', `${FILE_ID}.pdf`), 'SOURCE-BLOB')
+  writeSourceResource(join('Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE-KB')
+  writeSourceResource(join('Data', 'Notes', 'a.md'), '# source note')
+  writeSourceResource(join('Data', 'Agents', AGENT_ID, 'SOUL.md'), 'SOURCE-SOUL')
+  writeSourceResource(join('Data', 'Agents', AGENT_ID, 'USER.md'), 'SOURCE-USER')
+  writeSourceResource(join('Data', 'Agents', AGENT_ID, 'memory', 'profile.md'), 'SOURCE-MEMORY')
+  writeSourceResource(join('Data', 'Agents', 'system', 's-1', 'session.json'), 'SOURCE-WS')
+  seedSourceAgentTranscript()
+  writeSourceResource(join('Data', 'Skills', 'skill-1', 'SKILL.md'), 'SOURCE-SKILL')
+  writeSourceResource(join('Data', 'Workspace', 'draft.md'), 'SOURCE-MCP-WORKSPACE')
+  writeSourceResource(join('Data', 'Mcp', 'memory.json'), '{"entities":[],"relations":[]}')
+  writeSourceResource(join('Data', 'Channels', 'weixin_bot_channel-1.json'), 'SOURCE-CHANNEL')
+  writeSourceResource(join('Data', 'Agents', '.claude', 'settings.json'), 'SOURCE-RUNTIME')
+  writeSourceResource(join('Data', 'Agents', '.claude', 'skills', 'skill-1', 'SKILL.md'), 'DERIVED-MIRROR')
 }
 
 async function exportFrom(name: string): Promise<string> {
@@ -277,6 +331,9 @@ beforeEach(() => {
     snapshotTo(dbh.sqlite, target)
   )
   seedSourceDatabase()
+  // A retained portable token has no safe payload-less fallback, so every
+  // export fixture supplies its owner-committed transcript.
+  seedSourceAgentTranscript()
 })
 
 afterEach(() => {
@@ -427,7 +484,7 @@ describe('Full restore, empty target device', () => {
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
     // Nothing to park on a device that has none of them.
-    expect(preview.resources).toEqual({ install: 10, replace: 0 })
+    expect(preview.resources).toEqual({ install: 11, replace: 0 })
     await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
@@ -441,6 +498,22 @@ describe('Full restore, empty target device', () => {
     )
     expect(readFileSync(join(targetUserData, 'Data', 'Agents', 'system', 's-1', 'session.json'), 'utf8')).toBe(
       'SOURCE-WS'
+    )
+    const restoredTranscript = JSON.parse(
+      readFileSync(join(targetUserData, 'Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.json`), 'utf8')
+    ) as { sessions: Record<string, Record<string, Array<{ uuid?: string }>>> }
+    expect(restoredTranscript.sessions[SDK_SESSION_ID]?.['']?.at(-1)?.uuid).toBe(SDK_ASSISTANT_BOUNDARY)
+    expect(
+      query<{ runtime_resume_token: string }>(
+        liveDbPath(),
+        'SELECT runtime_resume_token FROM agent_session_message WHERE id = ?',
+        AGENT_MESSAGE_ID
+      )?.runtime_resume_token
+    ).toBe(
+      encodePortableAgentResumePoint({
+        sessionId: SDK_SESSION_ID,
+        resumeSessionAt: SDK_ASSISTANT_BOUNDARY
+      })
     )
     expect(readFileSync(join(targetUserData, 'Data', 'Skills', 'skill-1', 'SKILL.md'), 'utf8')).toBe('SOURCE-SKILL')
     expect(readFileSync(join(targetUserData, 'Data', 'Workspace', 'draft.md'), 'utf8')).toBe('SOURCE-MCP-WORKSPACE')
@@ -479,8 +552,84 @@ describe('Full restore, empty target device', () => {
     if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
     expect(readRestoreKnowledgeReadiness(read.journal)).toEqual({
       kind: 'ok',
-      summary: { baseIds: ['kb-1'], requiresRebuild: true }
+      summary: {
+        baseIds: ['kb-1'],
+        readyBaseIds: [],
+        rebuildBaseIds: ['kb-1'],
+        requiresRebuild: true
+      }
     })
+  })
+
+  it('installs a reconciled Knowledge index as immediately ready on another device', async () => {
+    seedSourceResources()
+    writeSourceResource(join('Data', 'KnowledgeBase', 'kb-1', 'raw', 'doc.txt'), 'SOURCE-KB')
+    const itemId = '99999999-9999-7999-8999-999999999999'
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: itemId,
+        baseId: 'kb-1',
+        type: 'file',
+        data: { source: '/source/doc.txt', relativePath: 'doc.txt' },
+        status: 'completed'
+      })
+      .run()
+
+    const liveIndexPath = join(sourceUserData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')
+    mkdirSync(join(liveIndexPath, '..'), { recursive: true })
+    const indexStore = createKnowledgeIndexStoreAtPath(liveIndexPath, { baseId: 'kb-1' })
+    await indexStore.rebuildMaterial(itemId, {
+      material: { relativePath: 'doc.txt' },
+      content: { text: 'SOURCE-KB' },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 'SOURCE-KB'.length }],
+      usesEmbeddings: false,
+      embeddings: []
+    })
+    await indexStore.close()
+
+    const vectorService = application.get('KnowledgeVectorStoreService')
+    vi.mocked(vectorService.snapshotPortableIndex).mockImplementationOnce(async (_baseId, destination) => {
+      mkdirSync(join(destination, '..'), { recursive: true })
+      const source = new Database(liveIndexPath, { fileMustExist: true, readonly: true })
+      try {
+        await source.backup(destination)
+      } finally {
+        source.close()
+      }
+      return { status: 'ready', stagedPath: destination }
+    })
+
+    const archive = await exportFrom('knowledge-index-ready')
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.knowledge).toEqual({ ready: 1, rebuild: 0 })
+    await armPreparedRestore(preview.restoreId)
+    await runRestorePromotionV2()
+
+    const restoredIndex = new Database(
+      join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite'),
+      { fileMustExist: true, readonly: true }
+    )
+    try {
+      expect(restoredIndex.prepare('SELECT material_id, relative_path FROM material').all()).toEqual([
+        { material_id: itemId, relative_path: 'doc.txt' }
+      ])
+    } finally {
+      restoredIndex.close()
+    }
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+    expect(readRestoreKnowledgeReadiness(read.journal)).toEqual({
+      kind: 'ok',
+      summary: {
+        baseIds: ['kb-1'],
+        readyBaseIds: ['kb-1'],
+        rebuildBaseIds: [],
+        requiresRebuild: false
+      }
+    })
+    expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })
   })
 
   it('restores internal links as ordinary bytes and keeps every omitted reference disclosed', async () => {
@@ -539,8 +688,28 @@ describe('Full restore, empty target device', () => {
   })
 })
 
-describe('Full export with source drift after the sealed baseline', () => {
-  it('fails the export and publishes no partial archive', async () => {
+describe('Full export with owner-scoped resource cuts', () => {
+  it('refuses to publish a portable resume token without its matching completed-Turn prefix', async () => {
+    writeSourceResource(
+      join('Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.json`),
+      JSON.stringify({
+        version: 1,
+        sessions: {
+          [SDK_SESSION_ID]: {
+            '': [{ type: 'assistant', uuid: '88888888-8888-4888-8888-888888888888' }]
+          }
+        }
+      })
+    )
+    const archive = join(workDir, 'out', 'dangling-agent-resume.cherrybackup')
+
+    await expect(exportArchive({ outPath: archive })).rejects.toThrow(
+      'Portable Agent transcript does not end at its retained Turn boundary'
+    )
+    expect(existsSync(archive)).toBe(false)
+  })
+
+  it('keeps a valid partial-tree cut when a sibling appears after its candidate scans', async () => {
     seedSourceResources()
     driftHooks.afterStagePreVerify = async (sourcePath) => {
       if (sourcePath === join(sourceUserData, 'Data', 'Notes', 'a.md')) {
@@ -550,8 +719,11 @@ describe('Full export with source drift after the sealed baseline', () => {
     activeUserData = sourceUserData
     const archive = join(workDir, 'out', 'full-with-drift.cherrybackup')
 
-    await expect(exportArchive({ outPath: archive })).rejects.toBeInstanceOf(SourceDriftError)
-    expect(existsSync(archive)).toBe(false)
+    await exportArchive({ outPath: archive })
+    await restoreOnTarget(archive)
+
+    expect(readFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), 'utf8')).toBe('# source note')
+    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'changed-during-export.md'))).toBe(false)
   })
 })
 
@@ -570,7 +742,7 @@ describe('Full restore, same device with content already there', () => {
 
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.resources).toEqual({ install: 0, replace: 10 })
+    expect(preview.resources).toEqual({ install: 0, replace: 11 })
     await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
@@ -580,7 +752,7 @@ describe('Full restore, same device with content already there', () => {
     expect(readFileSync(join(targetUserData, 'Data', 'Files', 'not-in-the-backup.bin'), 'utf8')).toBe('TARGET-ONLY')
   })
 
-  it('aborts instead of pairing an older database snapshot with a newer live file', async () => {
+  it('degrades an independently changing strict unit instead of blocking the archive', async () => {
     seedSourceResources()
     const blob = join(sourceUserData, 'Data', 'Files', `${FILE_ID}.pdf`)
     const archive = join(workDir, 'out', 'full-newer-resource.cherrybackup')
@@ -589,9 +761,17 @@ describe('Full restore, same device with content already there', () => {
     }
     activeUserData = sourceUserData
 
-    await expect(exportArchive({ outPath: archive })).rejects.toBeInstanceOf(SourceDriftError)
+    const result = await exportArchive({ outPath: archive })
 
-    expect(existsSync(archive)).toBe(false)
+    expect(existsSync(archive)).toBe(true)
+    expect(result.manifest.resourcePayloads).not.toContainEqual(
+      expect.objectContaining({ kind: 'file-blob', livePath: `Data/Files/${FILE_ID}.pdf` })
+    )
+    expect(result.manifest.degradations).toContainEqual({
+      kind: 'resource:file-blob',
+      livePath: `Data/Files/${FILE_ID}.pdf`,
+      reason: 'changed-during-capture'
+    })
     expect(readFileSync(blob, 'utf8')).toBe('NEWER-BLOB')
   })
 

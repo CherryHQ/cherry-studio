@@ -12,23 +12,32 @@ import {
   withKnowledgeRestoreProgress
 } from '../restorePolicy'
 
+function rebuildSummary(...baseIds: string[]): KnowledgeRestoreSummary {
+  return {
+    baseIds,
+    readyBaseIds: [],
+    rebuildBaseIds: baseIds,
+    requiresRebuild: baseIds.length > 0
+  }
+}
+
 describe('Knowledge restore ownership policy', () => {
   it('uses the shared typed owner-summary read contract', () => {
     expectTypeOf(
       createKnowledgeRestoreOwnerSummary({
         userDataPath: '/profile',
         knowledgeRoot: '/profile/Data/KnowledgeBase',
-        livePaths: []
+        resources: []
       })
     ).toEqualTypeOf<KnowledgeRestoreOwnerSummary>()
     expectTypeOf(readKnowledgeRestoreSummary(undefined)).toEqualTypeOf<
       RestoreOwnerSummaryReadResult<KnowledgeRestoreSummary>
     >()
+    expectTypeOf(readKnowledgeRestoreProgress(undefined, undefined, rebuildSummary())).toEqualTypeOf<
+      RestoreOwnerProgressReadResult<KnowledgeRestoreProgress>
+    >()
     expectTypeOf(
-      readKnowledgeRestoreProgress(undefined, undefined, { baseIds: [], requiresRebuild: false })
-    ).toEqualTypeOf<RestoreOwnerProgressReadResult<KnowledgeRestoreProgress>>()
-    expectTypeOf(
-      withKnowledgeRestoreProgress(undefined, { baseIds: [], requiresRebuild: false }, { completedBaseIds: [] })
+      withKnowledgeRestoreProgress(undefined, rebuildSummary(), { completedBaseIds: [] })
     ).toEqualTypeOf<KnowledgeRestoreOwnerProgress>()
   })
 
@@ -37,11 +46,19 @@ describe('Knowledge restore ownership policy', () => {
       createKnowledgeRestoreOwnerSummary({
         userDataPath: '/profile',
         knowledgeRoot: '/profile/Data/KnowledgeBase',
-        livePaths: ['Data/KnowledgeBase/kb-2', 'Data/KnowledgeBase/kb-1']
+        resources: [
+          {
+            livePath: 'Data/KnowledgeBase/kb-2',
+            contentPaths: ['raw/source.md', '.cherry/index.sqlite']
+          },
+          { livePath: 'Data/KnowledgeBase/kb-1', contentPaths: ['raw/source.md'] }
+        ]
       })
     ).toEqual({
       knowledge: {
         baseIds: ['kb-2', 'kb-1'],
+        readyBaseIds: ['kb-2'],
+        rebuildBaseIds: ['kb-1'],
         requiresRebuild: true
       }
     })
@@ -52,7 +69,7 @@ describe('Knowledge restore ownership policy', () => {
       createKnowledgeRestoreOwnerSummary({
         userDataPath: '/profile',
         knowledgeRoot: '/profile/Data/KnowledgeBase',
-        livePaths: ['Data/Files/kb-1']
+        resources: [{ livePath: 'Data/Files/kb-1', contentPaths: [] }]
       })
     ).toThrow(/outside its managed unit root/)
   })
@@ -60,11 +77,11 @@ describe('Knowledge restore ownership policy', () => {
   it('reads the new opaque owner bag without falling back from malformed owner state', () => {
     expect(
       readKnowledgeRestoreSummary({
-        knowledge: { baseIds: ['kb-1'], requiresRebuild: true }
+        knowledge: rebuildSummary('kb-1')
       })
     ).toEqual({
       kind: 'ok',
-      summary: { baseIds: ['kb-1'], requiresRebuild: true }
+      summary: rebuildSummary('kb-1')
     })
 
     expect(readKnowledgeRestoreSummary({ knowledge: { baseIds: ['kb-1'] } }, ['legacy-kb'])).toEqual({
@@ -75,13 +92,13 @@ describe('Knowledge restore ownership policy', () => {
   it('reads the pre-release terminal summary only when no owner bag exists', () => {
     expect(readKnowledgeRestoreSummary(undefined, ['legacy-kb'])).toEqual({
       kind: 'ok',
-      summary: { baseIds: ['legacy-kb'], requiresRebuild: true }
+      summary: rebuildSummary('legacy-kb')
     })
     expect(readKnowledgeRestoreSummary(undefined)).toEqual({ kind: 'missing' })
   })
 
   it('reads Knowledge progress from its opaque owner entry', () => {
-    const summary = { baseIds: ['kb-1', 'kb-2'], requiresRebuild: true }
+    const summary = rebuildSummary('kb-1', 'kb-2')
 
     expect(
       readKnowledgeRestoreProgress({ knowledge: { completedBaseIds: ['kb-2'], abandoned: true } }, undefined, summary)
@@ -96,7 +113,7 @@ describe('Knowledge restore ownership policy', () => {
   })
 
   it('fails closed on malformed current progress without consulting legacy state', () => {
-    const summary = { baseIds: ['kb-1'], requiresRebuild: true }
+    const summary = rebuildSummary('kb-1')
 
     expect(
       readKnowledgeRestoreProgress(
@@ -118,7 +135,7 @@ describe('Knowledge restore ownership policy', () => {
   })
 
   it('reads pre-release progress only when the entire owner bag is absent', () => {
-    const summary = { baseIds: ['legacy-kb'], requiresRebuild: true }
+    const summary = rebuildSummary('legacy-kb')
 
     expect(readKnowledgeRestoreProgress(undefined, { completedBaseIds: ['legacy-kb'] }, summary)).toEqual({
       kind: 'ok',
@@ -131,7 +148,7 @@ describe('Knowledge restore ownership policy', () => {
   })
 
   it('updates only Knowledge progress and preserves every other owner entry', () => {
-    const summary = { baseIds: ['kb-1'], requiresRebuild: true }
+    const summary = rebuildSummary('kb-1')
 
     expect(
       withKnowledgeRestoreProgress({ futureOwner: { cursor: 3 } }, summary, {

@@ -68,6 +68,7 @@ const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'dangling-reference': 'settings.data.backup_v2.outcome.degradation.dangling_reference',
   'cyclic-reference': 'settings.data.backup_v2.outcome.degradation.cyclic_reference',
   'unclassified-reference': 'settings.data.backup_v2.outcome.degradation.unclassified_reference',
+  'knowledge-index-rebuild': 'settings.data.backup_v2.outcome.degradation.knowledge_index_rebuild',
   unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
 }
 
@@ -227,10 +228,6 @@ function exportSourceDiagnostic(data: unknown): BackupExportSourceDiagnostic | u
   if (value.path !== undefined && !isDiagnosticPath(value.path)) return undefined
 
   switch (value.kind) {
-    case 'quiesce-timeout':
-      return typeof value.phase === 'string' && /^[a-z0-9-]{1,64}$/.test(value.phase)
-        ? (value as BackupExportSourceDiagnostic)
-        : undefined
     case 'source-changed':
     case 'non-regular':
       return value.path === undefined || isDiagnosticPath(value.path)
@@ -256,8 +253,6 @@ function exportSourceMessage(data: unknown): ExportSourceMessage {
   if (!diagnostic) return { key: 'settings.data.backup_v2.error.export_source' }
 
   switch (diagnostic.kind) {
-    case 'quiesce-timeout':
-      return { key: 'settings.data.backup_v2.error.export_quiesce' }
     case 'source-changed':
       return diagnostic.path
         ? { key: 'settings.data.backup_v2.error.export_source_changed_path', path: diagnostic.path }
@@ -736,6 +731,16 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
+      {preview.knowledge.ready > 0 && (
+        <SettingHelpText>
+          {t('settings.data.backup_v2.preview.knowledge_ready', { count: preview.knowledge.ready })}
+        </SettingHelpText>
+      )}
+      {preview.knowledge.rebuild > 0 && (
+        <SettingHelpText>
+          {t('settings.data.backup_v2.preview.knowledge_rebuild', { count: preview.knowledge.rebuild })}
+        </SettingHelpText>
+      )}
       {preview.degradations.length > 0 && (
         <SettingHelpText>
           <DegradationDetails

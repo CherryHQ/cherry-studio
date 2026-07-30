@@ -6,13 +6,12 @@ import { RestoreStateError } from './errors'
 const logger = loggerService.withContext('backup/restoreTransitionFailure')
 
 /**
- * The journal may already authorize preboot work, so reopening writers is no
- * longer safe. Prefer a normal relaunch; if Electron cannot schedule one,
- * force this process to exit. The retained quiescence hold dies with the
- * process and preboot remains the sole recovery owner.
+ * The journal already authorizes preboot work. Prefer a normal relaunch; if
+ * Electron cannot schedule one, force this process to exit so preboot remains
+ * the sole recovery owner.
  */
 export async function exitForRestoreJournalRecovery(cause: unknown): Promise<never> {
-  logger.error('Restore journal transition could not be rolled back; exiting with profile writers quiesced', {
+  logger.error('Restore journal transition could not be rolled back; exiting for preboot recovery', {
     cause: cause instanceof Error ? cause.message : String(cause)
   })
   try {

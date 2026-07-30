@@ -38,7 +38,8 @@ function inventory(requiredContent: ResourceInventory['requiredContent'] = new M
       'mcp-workspace': 0,
       'mcp-memory': 0,
       'agent-channel-state': 0,
-      'agent-runtime-config': 0
+      'agent-runtime-config': 0,
+      'agent-transcript': 0
     }
   }
 }

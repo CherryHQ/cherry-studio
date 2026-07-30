@@ -7,6 +7,7 @@ import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -18,6 +19,7 @@ import { noteTable } from '@data/db/schemas/note'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbType } from '@data/db/types'
+import { encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
@@ -161,6 +163,71 @@ describe('materializePortableDatabase', () => {
       expect(result.summary.activeJobsDeleted).toBe(3)
       const surviving = inspect(dbPath, (db) => db.select({ id: jobTable.id }).from(jobTable).all())
       expect(surviving.map((row) => row.id).sort()).toEqual(['j-cancelled', 'j-completed', 'j-failed'])
+    })
+
+    it('keeps only Agent resume tokens backed by owner-managed portable transcripts', async () => {
+      insertAgent('agent-1', {})
+      insertWorkspace('workspace-1', `${PRODUCER_WORKSPACES}/session-1`, 'system')
+      dbh.db
+        .insert(agentSessionTable)
+        .values({
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspaceId: 'workspace-1',
+          name: 'Session',
+          orderKey: 'session-1'
+        } as never)
+        .run()
+      const portable = encodePortableAgentResumePoint({
+        sessionId: '33333333-3333-4333-8333-333333333333',
+        resumeSessionAt: '44444444-4444-4444-8444-444444444444'
+      })
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values([
+          {
+            id: 'message-legacy',
+            sessionId: 'session-1',
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [] },
+            runtimeResumeToken: 'sdk-cwd-keyed'
+          },
+          {
+            id: 'message-portable',
+            sessionId: 'session-1',
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [] },
+            runtimeResumeToken: portable
+          }
+        ] as never)
+        .run()
+
+      const dbPath = snapshot()
+      const result = await materializePortableDatabase({ dbPath, mode: EXPORT_MODE })
+
+      expect(
+        inspect(dbPath, (db) =>
+          db
+            .select({
+              id: agentSessionMessageTable.id,
+              runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken
+            })
+            .from(agentSessionMessageTable)
+            .all()
+            .sort((left, right) => left.id.localeCompare(right.id))
+        )
+      ).toEqual([
+        { id: 'message-legacy', runtimeResumeToken: null },
+        { id: 'message-portable', runtimeResumeToken: portable }
+      ])
+      expect(result.summary.degradations).toContainEqual({
+        table: 'agent_session_message',
+        rowId: 'message-legacy',
+        reason: 'runtime-reference-reset',
+        detail: undefined
+      })
     })
 
     it('disables every enabled schedule without touching its scheduling cursors', async () => {

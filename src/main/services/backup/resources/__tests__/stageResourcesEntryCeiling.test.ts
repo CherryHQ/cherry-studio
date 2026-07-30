@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,10 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CeilingsModule from '../../ceilings'
 
 /**
- * The archive-wide entry ceiling, checked BEFORE the first payload byte is
- * copied (§5.3, §5.4). Publication enforces the same bound, but only once the
- * whole staging tree exists — so this file proves the preflight, not the
- * backstop.
+ * The archive-wide entry ceiling is accumulated from owner-scoped resource
+ * cuts. A unit that would cross it is omitted with an explicit degradation;
+ * previously captured units remain usable.
  *
  * The real ceiling is 100,000 entries, which no test should materialize. The
  * ceilings module is narrowed instead, exactly as `publishArchiveWithCeilings`
@@ -26,10 +25,9 @@ vi.mock('../../ceilings', async (importOriginal) => {
   }
 })
 
-const { captureResourceStageBaseline, stageResources } = await import('../stageResources')
-const { CeilingExceededError } = await import('../../errors')
+const { stageResources } = await import('../stageResources')
 
-describe('archive entry ceiling at the staging baseline', () => {
+describe('archive entry ceiling during owner-scoped staging', () => {
   let root = ''
   let userData = ''
   let resourcesDir = ''
@@ -65,36 +63,30 @@ describe('archive entry ceiling at the staging baseline', () => {
     { kind: 'knowledge-base', resourceType: 'directory' as const, livePath: 'Data/KnowledgeBase/kb-2' }
   ]
 
-  it('counts the three fixed archive entries alongside the units', async () => {
+  it('reserves the three fixed archive entries alongside payloads', async () => {
     writeSource('Data/Files/blob.pdf')
 
-    const baseline = await captureResourceStageBaseline({
+    const result = await stageResources({
       requirements: [{ kind: 'file-blob', resourceType: 'file', livePath: 'Data/Files/blob.pdf' }],
-      userDataPath: userData
+      userDataPath: userData,
+      resourcesDir
     })
 
-    // `manifest.json` + `backup.sqlite` + the reserved `attestation.json` slot,
-    // plus one payload.
-    expect(baseline.entryCount).toBe(4)
+    expect(result.payloads).toHaveLength(1)
+    expect(result.degradations).toEqual([])
   })
 
-  it('refuses a profile whose units together exceed the ceiling', async () => {
+  it('keeps earlier units and degrades the unit that crosses the ceiling', async () => {
     seedTwoBases()
 
-    await expect(captureResourceStageBaseline({ requirements: bases, userDataPath: userData })).rejects.toBeInstanceOf(
-      CeilingExceededError
-    )
-  })
+    const result = await stageResources({ requirements: bases, userDataPath: userData, resourcesDir })
 
-  it('refuses before copying a single payload byte', async () => {
-    seedTwoBases()
-
-    await expect(stageResources({ requirements: bases, userDataPath: userData, resourcesDir })).rejects.toBeInstanceOf(
-      CeilingExceededError
-    )
-
-    // Staging is where payload bytes land; it was never created.
-    expect(existsSync(resourcesDir)).toBe(false)
+    expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/KnowledgeBase/kb-1'])
+    expect(result.degradations).toContainEqual({
+      kind: 'resource:knowledge-base',
+      livePath: 'Data/KnowledgeBase/kb-2',
+      reason: 'resource-ceiling-exceeded'
+    })
   })
 
   it('does not charge the ceiling for a unit it excludes', async () => {

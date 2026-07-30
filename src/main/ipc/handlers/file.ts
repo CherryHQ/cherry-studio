@@ -62,11 +62,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
         async (path) => {
           await assertOutsideManagedStorageMutation(path)
-          return application
-            .get('ProfileWriteBarrierService')
-            .runWrite('file-manager:path-write-if-unchanged', () =>
-              writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
-            )
+          return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
         }
       )
     } catch (error) {

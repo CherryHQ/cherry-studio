@@ -1,4 +1,3 @@
-import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
@@ -552,10 +551,6 @@ describe('KnowledgeService', () => {
       base
     )
     expect(getIndexStoreMock).toHaveBeenCalledWith(base)
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'knowledge:create-base',
-      expect.any(Function)
-    )
 
     getIndexStoreMock.mockImplementationOnce(() => {
       throw new Error('store failed')
@@ -564,29 +559,6 @@ describe('KnowledgeService', () => {
       service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
     ).rejects.toThrow('store failed')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
-  })
-
-  it('waits for profile write admission before creating a knowledge base row or artifacts', async () => {
-    const service = new KnowledgeService()
-    const admitted = createDeferred()
-    vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mockImplementationOnce(
-      async (_label, operation) => {
-        await admitted.promise
-        return operation()
-      }
-    )
-
-    const pending = service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
-    await Promise.resolve()
-
-    expect(knowledgeBaseCreateMock).not.toHaveBeenCalled()
-    expect(getIndexStoreMock).not.toHaveBeenCalled()
-
-    admitted.resolve()
-    await pending
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledOnce()
-    expect(getIndexStoreMock).toHaveBeenCalledOnce()
   })
 
   it('rollback removes the orphaned index dir and still surfaces the original error when cleanup itself fails', async () => {

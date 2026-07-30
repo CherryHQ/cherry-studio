@@ -196,7 +196,7 @@ type ResolvedPreferenceKey =
  */
 @Injectable('PreferenceService')
 @ServicePhase(Phase.BeforeReady)
-@DependsOn(['DbService', 'ProfileWriteBarrierService'])
+@DependsOn(['DbService'])
 export class PreferenceService extends BaseService {
   private windowSubscriptions = new Map<number, Set<string>>() // windowId -> Set<keys>
   private cache: PreferenceDefaultScopeType = DefaultPreferences.default
@@ -387,23 +387,21 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      await application.get('ProfileWriteBarrierService').runWrite(`preference:set:${cacheKey}`, async () => {
-        application
-          .get('DbService')
-          .getDb()
-          .update(preferenceTable)
-          .set({
-            value: value as any
-          })
-          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
-          .run()
+      application
+        .get('DbService')
+        .getDb()
+        .update(preferenceTable)
+        .set({
+          value: value as any
+        })
+        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
+        .run()
 
-        // Update memory cache immediately — safe after resolveKey + cache key check
-        ;(this.cache as Record<string, unknown>)[cacheKey] = value
+      // Update memory cache immediately — safe after resolveKey + cache key check
+      ;(this.cache as Record<string, unknown>)[cacheKey] = value
 
-        // Unified notification to both main and renderer processes
-        await this.notifyChange(key, value, oldValue)
-      })
+      // Unified notification to both main and renderer processes
+      await this.notifyChange(key, value, oldValue)
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
@@ -550,11 +548,7 @@ export class PreferenceService extends BaseService {
         }
       }
 
-      if (actualUpdateCount > 0) {
-        await application.get('ProfileWriteBarrierService').runWrite('preference:set-multiple', applyUpdates)
-      } else {
-        await applyUpdates()
-      }
+      await applyUpdates()
 
       if (actualUpdateCount === 0 && bootConfigKeyCount === 0) {
         logger.debug(`All ${Object.keys(updates).length} preference values unchanged, skipping batch update`)

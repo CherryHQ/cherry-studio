@@ -222,10 +222,6 @@ const WORKSPACE_PATH_FIELDS = {
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
-function runAgentProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
-  return application.get('ProfileWriteBarrierService').runWrite(`agent:${label}`, operation)
-}
-
 function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
   let holder = toolApprovalEmitters.get(sessionId)
   if (!holder) {
@@ -451,13 +447,10 @@ export async function buildClaudeCodeSessionSettings(
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
-  const agentDataPromise = runAgentProfileWrite(`session-materialize:${session.id}`, async () => {
-    await prepareClaudeCodeWorkspaceDirectory(session)
-    return ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
-  })
+  await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
-    agentDataPromise,
+    ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent),
     discoverPlugins(cwd, agent.id)
   ])
@@ -658,9 +651,7 @@ export function resolveClaudeExecutablePath(): string {
 }
 
 export { AgentSessionWorkspaceError, isAgentSessionWorkspaceError }
-export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
-  await runAgentProfileWrite(`workspace-materialize:${session.id}`, () => prepareAgentSessionWorkspaceDirectory(session))
-}
+export const prepareClaudeCodeWorkspaceDirectory = prepareAgentSessionWorkspaceDirectory
 export const assertClaudeCodeWorkspaceDirectory = assertAgentSessionWorkspaceDirectory
 
 async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
