@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   type AgentFileSessionPlan,
+  type ClaudeConfigMigrationProgress,
   claudeProjectDirectoryName,
   copyLegacyClaudeConfig,
   copyLegacyClaudeSessionData,
@@ -33,8 +34,10 @@ import {
 const { copyMutation, platformState } = vi.hoisted(() => ({
   copyMutation: {
     afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>),
+    afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
     beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
+    cpCalls: [] as string[],
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
   platformState: { isWin: false }
@@ -56,6 +59,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...original,
     cp: async (...args: Parameters<typeof original.cp>) => {
       const [source, destination, options] = args
+      copyMutation.cpCalls.push(String(source))
       await original.cp(source, destination, {
         ...options,
         filter: async (sourcePath, destinationPath) => {
@@ -69,6 +73,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         }
       })
       await copyMutation.afterCopy?.(String(args[0]))
+    },
+    copyFile: async (...args: Parameters<typeof original.copyFile>) => {
+      const result = await original.copyFile(...args)
+      await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
+      return result
     },
     realpath: async (...args: Parameters<typeof original.realpath>) => {
       await copyMutation.beforeRealpath?.(String(args[0]))
@@ -142,8 +151,10 @@ describe('agentsFilesystemMigration', () => {
 
   afterEach(async () => {
     copyMutation.afterCopy = undefined
+    copyMutation.afterCopyFile = undefined
     copyMutation.beforeRealpath = undefined
     copyMutation.beforeSymlink = undefined
+    copyMutation.cpCalls.length = 0
     copyMutation.symlinkCalls.length = 0
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
@@ -171,6 +182,47 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(source, 'projects', 'legacy-project', 'session.jsonl'), 'utf8')).toBe(
       '{"session":true}'
     )
+  })
+
+  it('reports incremental scan, copy, and verification progress for a large Claude config', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    const contents = [
+      Buffer.alloc(9 * 1024 * 1024, 0x61),
+      Buffer.alloc(9 * 1024 * 1024, 0x62),
+      Buffer.from('session transcript')
+    ]
+    await mkdir(path.join(source, 'plugins'), { recursive: true })
+    await mkdir(path.join(source, 'projects', 'legacy-project'), { recursive: true })
+    await writeFile(path.join(source, 'settings.json'), contents[0])
+    await writeFile(path.join(source, 'plugins', 'installed.json'), contents[1])
+    await writeFile(path.join(source, 'projects', 'legacy-project', 'session.jsonl'), contents[2])
+
+    const progress: ClaudeConfigMigrationProgress[] = []
+    await copyLegacyClaudeConfig(source, destination, (update) => progress.push(update))
+
+    expect([...new Set(progress.map((update) => update.phase))]).toEqual(['scanning', 'copying', 'verifying'])
+    const expectedBytes = contents.reduce((total, content) => total + content.byteLength, 0)
+    for (const phase of ['scanning', 'copying', 'verifying'] as const) {
+      const phaseProgress = progress.filter((update) => update.phase === phase)
+      expect(phaseProgress.at(-1)).toEqual({
+        phase,
+        processed: contents.length,
+        total: contents.length,
+        byteCount: expectedBytes,
+        byteTotal: expectedBytes
+      })
+      expect(
+        phaseProgress.every(
+          (update, index) =>
+            index === 0 ||
+            (update.processed >= phaseProgress[index - 1].processed &&
+              update.byteCount >= phaseProgress[index - 1].byteCount)
+        )
+      ).toBe(true)
+      expect(phaseProgress.some((update) => update.byteCount > 0 && update.byteCount < expectedBytes)).toBe(true)
+    }
   })
 
   it('skips symlinks while copying the legacy Claude config', async () => {
@@ -608,6 +660,176 @@ describe('agentsFilesystemMigration', () => {
     )
   })
 
+  it('creates one verified ordinary-content template and reuses it for every managed session', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceFile, 'workspace content')
+
+    const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_old',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-05-01T00:00:00Z'),
+      updatedAt: Date.parse('2026-05-02T00:00:00Z')
+    })
+    const recentSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [oldSession, recentSession]
+    })
+
+    expect(copyMutation.cpCalls.filter((sourcePath) => sourcePath === sourceFile)).toHaveLength(1)
+    expect(await readFile(path.join(oldSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe('workspace content')
+    expect(await readFile(path.join(recentSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+      'workspace content'
+    )
+    expect((await readdir(agentsDataRoot)).every((entry) => !entry.startsWith('.workspace-migration-'))).toBe(true)
+  })
+
+  it('verifies template clone content before publishing it', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceFile, 'AAAA')
+
+    const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    copyMutation.afterCopyFile = async (copiedSourcePath, copiedDestinationPath) => {
+      if (
+        !copiedSourcePath.includes('.workspace-migration-') ||
+        !path.basename(copiedDestinationPath).startsWith(`.${FINAL_LATEST_SESSION_ID}.migration-`)
+      ) {
+        return
+      }
+      await writeFile(copiedDestinationPath, 'BBBB')
+    }
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [session]
+      })
+    ).rejects.toThrow(/copy verification failed/)
+
+    expect(await readFile(sourceFile, 'utf8')).toBe('AAAA')
+    await expect(access(path.join(session.systemWorkspacePath!, 'ordinary.txt'))).rejects.toThrow()
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'reuses one ordinary-content template when a directory contains symlinks',
+    async () => {
+      const { agentsDataRoot, legacyWorkspace } = await createFixture()
+      const sourceBundle = path.join(legacyWorkspace, 'bundle')
+      await mkdir(sourceBundle, { recursive: true })
+      await writeFile(path.join(sourceBundle, 'payload.txt'), 'workspace content')
+      await symlink('payload.txt', path.join(sourceBundle, 'payload-link'))
+      await symlink(path.join(sourceBundle, 'payload.txt'), path.join(sourceBundle, 'absolute-payload-link'))
+
+      const sessions = [
+        sessionPlan(agentsDataRoot, legacyWorkspace, {
+          sourceSessionId: 'session_old',
+          finalSessionId: FINAL_OLD_SESSION_ID,
+          createdAt: Date.parse('2026-05-01T00:00:00Z'),
+          updatedAt: Date.parse('2026-05-02T00:00:00Z')
+        }),
+        sessionPlan(agentsDataRoot, legacyWorkspace, {
+          sourceSessionId: 'session_latest',
+          finalSessionId: FINAL_LATEST_SESSION_ID,
+          createdAt: Date.parse('2026-07-22T00:00:00Z'),
+          updatedAt: Date.parse('2026-07-23T00:00:00Z')
+        })
+      ]
+
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions
+      })
+
+      expect(copyMutation.cpCalls.filter((sourcePath) => sourcePath === sourceBundle)).toHaveLength(1)
+      for (const session of sessions) {
+        expect(await readFile(path.join(session.systemWorkspacePath!, 'bundle', 'payload.txt'), 'utf8')).toBe(
+          'workspace content'
+        )
+        expect(await readlink(path.join(session.systemWorkspacePath!, 'bundle', 'payload-link'))).toBe('payload.txt')
+        expect(await readlink(path.join(session.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))).toBe(
+          path.join(session.systemWorkspacePath!, 'bundle', 'payload.txt')
+        )
+      }
+    }
+  )
+
+  it('aborts if a cached workspace source changes while its template is reused', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceFile, 'original workspace content')
+
+    const sessions = [
+      sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_old',
+        finalSessionId: FINAL_OLD_SESSION_ID,
+        createdAt: Date.parse('2026-05-01T00:00:00Z'),
+        updatedAt: Date.parse('2026-05-02T00:00:00Z')
+      }),
+      sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+    ]
+    let templateCopies = 0
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (!copiedSourcePath.includes('.workspace-migration-') || ++templateCopies !== 1) return
+      await writeFile(sourceFile, 'changed workspace content')
+    }
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions
+      })
+    ).rejects.toThrow(/changed while being copied/)
+
+    expect(await readFile(sourceFile, 'utf8')).toBe('changed workspace content')
+    for (const session of sessions) {
+      await expect(access(path.join(session.systemWorkspacePath!, 'ordinary.txt'))).rejects.toThrow()
+      expect(
+        (await readdir(path.dirname(session.systemWorkspacePath!))).every(
+          (entry) => !entry.startsWith(`.${path.basename(session.systemWorkspacePath!)}.migration-`)
+        )
+      ).toBe(true)
+    }
+    expect((await readdir(agentsDataRoot)).every((entry) => !entry.startsWith('.workspace-migration-'))).toBe(true)
+
+    copyMutation.afterCopyFile = undefined
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions
+    })
+
+    for (const session of sessions) {
+      expect(await readFile(path.join(session.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+        'changed workspace content'
+      )
+    }
+  })
+
   it('keeps the newest identity entry when first-migration sources differ', async () => {
     const { tempRoot, agentsDataRoot } = await createFixture()
     const olderWorkspace = path.join(tempRoot, 'older-workspace')
@@ -904,6 +1126,9 @@ describe('agentsFilesystemMigration', () => {
       sessions: [latestSession]
     })
 
+    expect(
+      copyMutation.cpCalls.filter((sourcePath) => sourcePath === path.join(legacyWorkspace, 'completed.txt'))
+    ).toHaveLength(0)
     expect(await readFile(path.join(legacyWorkspace, 'completed.txt'), 'utf8')).toBe('copied value')
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'completed.txt'), 'utf8')).toBe('copied value')
   })
@@ -936,6 +1161,7 @@ describe('agentsFilesystemMigration', () => {
 
     expect(await readFile(sourcePath, 'utf8')).toBe('newest value')
     await expect(access(path.join(latestSession.systemWorkspacePath!, 'race.txt'))).rejects.toThrow()
+    expect((await readdir(agentsDataRoot)).every((entry) => !entry.startsWith('.workspace-migration-'))).toBe(true)
   })
 
   it.runIf(process.platform !== 'win32')(

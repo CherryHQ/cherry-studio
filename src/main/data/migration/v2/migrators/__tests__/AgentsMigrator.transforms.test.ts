@@ -1,6 +1,9 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import {
+  AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME,
+  agentSessionMessageTable
+} from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -192,6 +195,68 @@ describe('importLegacySessionMessages', () => {
     expect(JSON.stringify(row.data)).not.toContain('"message"')
   })
 
+  it('uses the trigger searchable-text semantics for transformed legacy blocks', async () => {
+    await seedSession('s-searchable-semantics')
+
+    await importLegacyRows([
+      {
+        id: 20,
+        sessionId: 's-searchable-semantics',
+        role: 'assistant',
+        content: {
+          message: {
+            id: '20',
+            role: 'assistant',
+            status: 'success'
+          },
+          blocks: [
+            { id: 'text', type: 'main_text', content: 'visible phrase', createdAt: 0 },
+            {
+              id: 'translation',
+              type: 'translation',
+              content: 'translation needle',
+              targetLanguage: 'zh-CN',
+              createdAt: 0
+            },
+            { id: 'code', type: 'code', content: 'code needle', language: 'typescript', createdAt: 0 },
+            {
+              id: 'compact',
+              type: 'compact',
+              content: 'compact needle',
+              compactedContent: 'compacted result',
+              createdAt: 0
+            }
+          ]
+        }
+      }
+    ])
+
+    const [imported] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-searchable-semantics'))
+    expect(imported.searchableText).toBe('visible phrase')
+
+    await dbh.db
+      .update(agentSessionMessageTable)
+      .set({ data: imported.data })
+      .where(eq(agentSessionMessageTable.id, imported.id))
+    const [updated] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, imported.id))
+    expect(updated.searchableText).toBe(imported.searchableText)
+
+    const hiddenMatches = dbh.db.all<{ id: string }>(
+      sql.raw(`SELECT agent_session_message.id
+        FROM agent_session_message_fts
+        INNER JOIN agent_session_message
+          ON agent_session_message.fts_rowid = agent_session_message_fts.rowid
+        WHERE agent_session_message_fts MATCH 'translation needle'`)
+    )
+    expect(hiddenMatches).toEqual([])
+  })
+
   it('preserves legacy token usage as agent session message stats', async () => {
     await seedSession('s-stats')
     await dbh.db
@@ -300,5 +365,89 @@ describe('importLegacySessionMessages', () => {
     expect(row.role).toBe('user')
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hi' }] })
     expect(row.searchableText).toBe('hi')
+  })
+
+  it('reads large legacy sets in chunks, batch-inserts them, and rebuilds searchable FTS data', async () => {
+    await seedSession('s-batched')
+    const rows: LegacyMessageRow[] = Array.from({ length: 505 }, (_, index) => ({
+      id: index + 1,
+      sessionId: 's-batched',
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: {
+        parts: [{ type: 'text', text: index === 504 ? 'batch migration needle' : `message ${index}` }]
+      }
+    }))
+
+    await expect(importLegacyRows(rows)).resolves.toBe(505)
+
+    const importedRows = await dbh.db
+      .select({
+        ftsRowid: agentSessionMessageTable.ftsRowid,
+        searchableText: agentSessionMessageTable.searchableText
+      })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-batched'))
+    expect(importedRows).toHaveLength(505)
+    expect(new Set(importedRows.map((row) => row.ftsRowid)).size).toBe(505)
+    expect(importedRows.every((row) => row.ftsRowid !== null)).toBe(true)
+
+    const matches = dbh.db.all<{ searchableText: string }>(
+      sql.raw(`SELECT agent_session_message.searchable_text AS searchableText
+        FROM agent_session_message_fts
+        INNER JOIN agent_session_message
+          ON agent_session_message.fts_rowid = agent_session_message_fts.rowid
+        WHERE agent_session_message_fts MATCH 'migration needle'`)
+    )
+    expect(matches).toEqual([{ searchableText: 'batch migration needle' }])
+  })
+
+  it('rolls back partial batches and restores the FTS insert trigger after an insert failure', async () => {
+    await seedSession('s-rollback')
+    dbh.db.run(
+      sql.raw(`CREATE TRIGGER fail_agent_message_import BEFORE INSERT ON agent_session_message
+        WHEN NEW.searchable_text = 'force rollback'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced Agent message import failure');
+        END`)
+    )
+
+    const rows: LegacyMessageRow[] = Array.from({ length: 101 }, (_, index) => ({
+      id: index + 1,
+      sessionId: 's-rollback',
+      role: 'assistant',
+      content: {
+        parts: [{ type: 'text', text: index === 100 ? 'force rollback' : `message ${index}` }]
+      }
+    }))
+
+    try {
+      await expect(importLegacyRows(rows)).rejects.toThrow(/forced Agent message import failure/)
+    } finally {
+      dbh.db.run(sql.raw('DROP TRIGGER IF EXISTS fail_agent_message_import'))
+    }
+
+    const importedRows = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-rollback'))
+    expect(importedRows).toHaveLength(0)
+    const triggerRows = dbh.db.all<{ name: string }>(
+      sql`SELECT name FROM sqlite_master
+          WHERE type = 'trigger' AND name = ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME}`
+    )
+    expect(triggerRows).toEqual([{ name: AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME }])
+
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId: 's-rollback',
+      status: 'success',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'trigger restored needle' }] } as never
+    })
+    const [inserted] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-rollback'))
+    expect(inserted.searchableText).toBe('trigger restored needle')
+    expect(inserted.ftsRowid).not.toBeNull()
   })
 })
