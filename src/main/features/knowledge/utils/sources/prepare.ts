@@ -10,7 +10,7 @@ import {
 import type { IndexableKnowledgeItem } from '../../types/items'
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../storage/pathStorage'
-import { type DirectoryCopyProgress, expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
+import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')
 const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
@@ -21,7 +21,7 @@ export interface PrepareKnowledgeItemOptions {
   onCreatedItem: (item: KnowledgeItem) => void
   runMutation: <T>(task: () => T) => Promise<T>
   signal: AbortSignal
-  onDirectoryCopyProgress?: (progress: DirectoryCopyProgress) => void
+  onDirectoryCopyProgress?: (percent: number) => void
 }
 
 export async function prepareKnowledgeItem({
@@ -47,7 +47,7 @@ async function prepareDirectoryForRuntime(
   onCreatedItem: (item: KnowledgeItem) => void,
   runMutation: <T>(task: () => T) => Promise<T>,
   signal: AbortSignal,
-  onDirectoryCopyProgress?: (progress: DirectoryCopyProgress) => void
+  onDirectoryCopyProgress?: (percent: number) => void
 ): Promise<IndexableKnowledgeItem[]> {
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.

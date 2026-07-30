@@ -62,15 +62,11 @@ export function createPrepareRootJobHandler(
 
       try {
         // Source expansion creates child items, so it runs under the base mutation lock.
-        const leafItems = await scanRootItem(ctx, knowledgeLockManager, (progress) => {
-          if (progress.percent === lastCopyPercent) return
-          lastCopyPercent = progress.percent
-          cacheService.setShared(progressKey, progress.percent)
-          reportKnowledgeProgress(ctx, Math.round(progress.percent / 2), {
-            stage: 'copying',
-            currentFile: progress.currentFile,
-            totalFiles: progress.totalFiles
-          })
+        const leafItems = await scanRootItem(ctx, knowledgeLockManager, (percent) => {
+          if (percent === lastCopyPercent) return
+          lastCopyPercent = percent
+          cacheService.setShared(progressKey, percent)
+          reportKnowledgeProgress(ctx, Math.round(percent / 2), { stage: 'copying' })
         })
         // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
         await enqueueLeafItems(ctx, leafItems, workflowService)

@@ -17,9 +17,12 @@ export type KnowledgeItemId = string & { readonly [knowledgeItemIdBrand]: true }
 
 export type KnowledgeProgressDetail =
   | {
-      stage: 'reading' | 'embedding' | 'writing' | 'copying' | 'enqueuing' | 'already-completed'
+      stage: 'reading' | 'embedding' | 'writing' | 'enqueuing' | 'already-completed'
       currentFile: number
       totalFiles: number
+    }
+  | {
+      stage: 'copying'
     }
   | {
       stage: 'scanning'

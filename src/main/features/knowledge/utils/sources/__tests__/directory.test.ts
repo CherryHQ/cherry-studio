@@ -238,11 +238,7 @@ describe('expandDirectoryOwnerToTree', () => {
       onCopyProgress
     )
 
-    expect(onCopyProgress.mock.calls.map(([progress]) => progress)).toEqual([
-      { currentFile: 0, totalFiles: 2, percent: 0 },
-      { currentFile: 1, totalFiles: 2, percent: 50 },
-      { currentFile: 2, totalFiles: 2, percent: 100 }
-    ])
+    expect(onCopyProgress.mock.calls.map(([percent]) => percent)).toEqual([0, 50, 100])
   })
 
   it('gives same-basename files in different subdirectories distinct relative paths', async () => {

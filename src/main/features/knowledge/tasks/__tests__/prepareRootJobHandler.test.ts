@@ -1,5 +1,5 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   createCtx,
@@ -39,7 +39,7 @@ describe('prepare-root job handler', () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
-      onDirectoryCopyProgress?.({ currentFile: 2, totalFiles: 4, percent: 50 })
+      onDirectoryCopyProgress?.(50)
       return []
     })
     const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
@@ -50,11 +50,7 @@ describe('prepare-root job handler', () => {
       'knowledge.item.directory_copy_progress.dir-1',
       50
     )
-    expect(ctx.reportProgress).toHaveBeenCalledWith(25, {
-      stage: 'copying',
-      currentFile: 2,
-      totalFiles: 4
-    })
+    expect(ctx.reportProgress).toHaveBeenCalledWith(25, { stage: 'copying' })
   })
 
   it('clears stale directory copy progress before retrying the scan', async () => {
@@ -76,25 +72,18 @@ describe('prepare-root job handler', () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
-      onDirectoryCopyProgress?.({ currentFile: 1, totalFiles: 200, percent: 1 })
-      onDirectoryCopyProgress?.({ currentFile: 2, totalFiles: 200, percent: 1 })
-      onDirectoryCopyProgress?.({ currentFile: 3, totalFiles: 200, percent: 2 })
+      onDirectoryCopyProgress?.(1)
+      onDirectoryCopyProgress?.(1)
+      onDirectoryCopyProgress?.(4)
       return []
     })
-    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+    const reportProgress = vi.fn()
+    const ctx = { ...createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'), reportProgress }
 
     await handler.execute(ctx)
 
-    expect(ctx.reportProgress).toHaveBeenCalledWith(1, {
-      stage: 'copying',
-      currentFile: 3,
-      totalFiles: 200
-    })
-    expect(ctx.reportProgress).not.toHaveBeenCalledWith(1, {
-      stage: 'copying',
-      currentFile: 2,
-      totalFiles: 200
-    })
+    expect(reportProgress).toHaveBeenCalledWith(2, { stage: 'copying' })
+    expect(reportProgress.mock.calls.filter(([, detail]) => detail?.stage === 'copying')).toHaveLength(2)
   })
 
   it('clears stale expansion vectors before deleting rows', async () => {
