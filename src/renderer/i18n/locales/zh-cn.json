@@ -4547,6 +4547,10 @@
   },
   "notification": {
     "assistant": "助手响应",
+    "completion": {
+      "agent": "Agent 任务已完成",
+      "assistant": "助手回复已完成"
+    },
     "knowledge": {
       "batch_error": "{{failed}} 个项目处理失败",
       "batch_mixed": "{{succeeded}} 个项目处理成功，{{failed}} 个项目处理失败",
@@ -4554,7 +4558,7 @@
       "error": "{{error}}",
       "success": "成功添加 {{type}} 到知识库"
     },
-    "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
+    "tip": "此开关仅控制 Cherry Studio 处于后台时的系统通知，软件内完成卡片始终启用。"
   },
   "ocr": {
     "processing": "OCR 处理中..."
@@ -7261,7 +7265,7 @@
     },
     "no_provider_selected": "未选择提供商",
     "notification": {
-      "assistant": "助手消息",
+      "assistant": "Agent 与助手完成通知",
       "backup": "备份",
       "knowledge_embed": "知识库",
       "title": "通知"

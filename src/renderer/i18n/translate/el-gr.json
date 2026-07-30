@@ -434,6 +434,7 @@
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Χθες"
       },
       "label_one": "Συνεδρία",
@@ -1932,6 +1933,7 @@
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_assistant": "Αποσυνδεδεμένος Βοηθός",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Χθες"
       },
       "list": "Λίστα θεμάτων",
@@ -2299,6 +2301,12 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "group": {
+      "create": "[to be translated]:New Group",
+      "create_failed": "[to be translated]:Failed to create group",
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required"
+    },
     "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
@@ -4539,6 +4547,10 @@
   },
   "notification": {
     "assistant": "Απάντηση Βοηθού",
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    },
     "knowledge": {
       "batch_error": "{{failed}} στοιχεία απέτυχαν να επεξεργαστούν",
       "batch_mixed": "{{succeeded}} στοιχεία πέτυχαν, {{failed}} στοιχεία απέτυχαν",
@@ -6648,9 +6660,6 @@
           "dxtFile": "Αρχείο Πακέτου DXT",
           "dxtHelp": "Επιλέξτε ένα αρχείο .dxt που περιέχει διακομιστή MCP",
           "dxtProcessFailed": "Αποτυχία επεξεργασίας αρχείου DXT",
-          "error": {
-            "multipleServers": "Δεν είναι δυνατή η εισαγωγή από πολλαπλούς διακομιστές"
-          },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
           "json": "Εισαγωγή από JSON",
           "mcpb": "Εισαγωγή Δέσμης MCPB",

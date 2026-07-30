@@ -6,6 +6,7 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useTaskCompletionNotifications } from '@renderer/hooks/useTaskCompletionNotifications'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 
@@ -15,6 +16,7 @@ import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell
 // none of the main-only concerns (boot spinner/timer, update/storage notification).
 function SubWindowRuntime(): null {
   useWindowRuntime()
+  useTaskCompletionNotifications()
 
   return null
 }

@@ -10,6 +10,7 @@ import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
+import { useTaskCompletionNotifications } from '@renderer/hooks/useTaskCompletionNotifications'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
@@ -54,6 +55,14 @@ function MainWindowRuntime(): null {
   return null
 }
 
+// Completion routing needs TabsContext, so it is mounted only in the normal
+// post-onboarding branch, as a sibling of the shared window runtime.
+function TaskCompletionNotificationRuntime(): null {
+  useTaskCompletionNotifications()
+
+  return null
+}
+
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
@@ -72,6 +81,7 @@ export function MainWindowContent(): React.ReactElement {
     <TabsProvider>
       <AppShell />
       <MainWindowRuntime />
+      <TaskCompletionNotificationRuntime />
       <PopupHost />
       <ToastHost />
       <PrivacyPolicyUpdateGate />

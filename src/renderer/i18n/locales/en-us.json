@@ -4547,6 +4547,10 @@
   },
   "notification": {
     "assistant": "Assistant Response",
+    "completion": {
+      "agent": "Agent task complete",
+      "assistant": "Assistant response complete"
+    },
     "knowledge": {
       "batch_error": "{{failed}} items failed to process",
       "batch_mixed": "{{succeeded}} items succeeded, {{failed}} items failed",
@@ -4554,7 +4558,7 @@
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },
-    "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+    "tip": "This switch only controls system notifications when Cherry Studio is in the background. In-app completion cards are always enabled."
   },
   "ocr": {
     "processing": "OCR processing..."
@@ -7261,7 +7265,7 @@
     },
     "no_provider_selected": "Provider not selected",
     "notification": {
-      "assistant": "Assistant Message",
+      "assistant": "Agent & Assistant Completion",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
       "title": "Notifications"

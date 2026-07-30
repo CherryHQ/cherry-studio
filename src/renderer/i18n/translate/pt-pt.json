@@ -434,6 +434,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Ontem"
       },
       "label_one": "Sessão",
@@ -1932,6 +1933,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Ontem"
       },
       "list": "Lista de tópicos",
@@ -2299,6 +2301,12 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "group": {
+      "create": "[to be translated]:New Group",
+      "create_failed": "[to be translated]:Failed to create group",
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required"
+    },
     "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
@@ -4539,6 +4547,10 @@
   },
   "notification": {
     "assistant": "Resposta do assistente",
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    },
     "knowledge": {
       "batch_error": "{{failed}} itens falharam ao ser processados",
       "batch_mixed": "{{succeeded}} itens foram bem-sucedidos, {{failed}} itens falharam",
@@ -6648,9 +6660,6 @@
           "dxtFile": "Arquivo do pacote DXT",
           "dxtHelp": "Selecione um arquivo .dxt que contenha o servidor MCP",
           "dxtProcessFailed": "Falha ao processar o arquivo DXT",
-          "error": {
-            "multipleServers": "Não é possível importar de vários servidores"
-          },
           "invalid": "Entrada inválida, verifique o formato JSON",
           "json": "Importar do JSON",
           "mcpb": "Importar Pacote MCPB",
