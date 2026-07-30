@@ -8,6 +8,7 @@ import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { excludeComposerDraftTokens } from './composerDraft'
 import type { FollowupQueueItem } from './useFollowupQueue'
 
 interface QueuedFollowupsDockProps {
@@ -61,6 +62,10 @@ function QueuedFollowupRow({
   onRemove: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const previewText = item.draft
+    ? excludeComposerDraftTokens(item.draft, (token) => token.kind === 'knowledge').text
+    : item.payload.text
+
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
       <span
@@ -70,7 +75,7 @@ function QueuedFollowupRow({
         <GripVertical className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-foreground text-sm">{item.draft?.text ?? item.payload.text}</span>
+        <span className="line-clamp-2 text-foreground text-sm">{previewText}</span>
         <DraftTokenChips item={item} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
