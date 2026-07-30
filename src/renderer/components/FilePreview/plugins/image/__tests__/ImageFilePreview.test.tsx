@@ -24,7 +24,7 @@ describe('image file preview plugin', () => {
     const image = await screen.findByRole('img', { name: 'summer holiday.png' })
 
     expect(image).toHaveAttribute('src', 'file:///tmp/photos/summer%20holiday.png')
-    expect(image.parentElement).toHaveClass('p-4')
+    expect(screen.getByTestId('image-preview-viewport').parentElement).toHaveClass('p-4')
   })
 
   it('shows loading feedback until the image loads', async () => {
