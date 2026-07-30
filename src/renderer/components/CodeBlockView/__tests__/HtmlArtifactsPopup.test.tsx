@@ -134,6 +134,25 @@ describe('HtmlArtifactsPopup', () => {
     expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
   })
 
+  it('renders a caller-provided preview inside the existing popup shell', () => {
+    const renderPreview = vi.fn(() => <div data-testid="custom-preview" />)
+
+    render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<h1>Hello</h1>"
+        canCapturePreview={false}
+        renderPreview={renderPreview}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('custom-preview')).toBeInTheDocument()
+    expect(renderPreview).toHaveBeenCalledWith(expect.objectContaining({ current: null }))
+  })
+
   it('renders the editor when editable is true', () => {
     render(
       <HtmlArtifactsPopup

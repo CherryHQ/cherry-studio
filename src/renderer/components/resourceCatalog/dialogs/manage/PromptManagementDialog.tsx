@@ -131,6 +131,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
             <div className="relative min-w-0 flex-1">
               <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
               <Input
+                autoFocus
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('library.toolbar.search_placeholder')}
