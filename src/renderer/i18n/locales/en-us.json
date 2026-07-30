@@ -198,6 +198,11 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
+      "local_greetings": {
+        "plan": "Tell me the outcome you want, and I’ll help make a plan.",
+        "progress": "What task can I help you move forward today?",
+        "research": "Need help researching, planning, or drafting something?"
+      },
       "welcome_title": "What should we work on today?"
     },
     "icon": {
@@ -1436,6 +1441,11 @@
       "view_full_content": "View Full Content"
     },
     "home": {
+      "local_greetings": {
+        "casual": "What’s on your mind today?",
+        "explore": "What would you like to explore together?",
+        "play": "Up for a quick chat, a curious question, or a game?"
+      },
       "welcome_title": "What should we talk about today?"
     },
     "input": {
@@ -7359,8 +7369,8 @@
     },
     "privacy": {
       "contextual_greetings": {
-        "description": "When enabled, Cherry Studio contacts IPInfo to detect a coarse country or region, then sends that result with your name, app language, local date and time, and time zone to the built-in CherryAI model to generate greetings. Disabled by default.",
-        "title": "AI-generated contextual greetings"
+        "description": "Local, rotating Chat and Agent greetings stay on and never leave your device. Enable this option to contact IPInfo for a coarse country or region, then send that result with your name, app language, local date and time, and time zone to the built-in CherryAI model for contextual enhancement. Disabled by default.",
+        "title": "AI-enhanced contextual greetings"
       },
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"

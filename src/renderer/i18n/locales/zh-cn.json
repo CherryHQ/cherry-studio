@@ -198,6 +198,11 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
+      "local_greetings": {
+        "plan": "告诉我你想达成的结果，我来帮你制定计划。",
+        "progress": "今天有什么任务需要我帮你推进？",
+        "research": "需要我帮你调研、规划，还是起草内容？"
+      },
       "welcome_title": "今天想做点什么？"
     },
     "icon": {
@@ -1436,6 +1441,11 @@
       "view_full_content": "查看完整内容"
     },
     "home": {
+      "local_greetings": {
+        "casual": "今天有什么想聊聊的吗？",
+        "explore": "今天想一起探索点什么？",
+        "play": "想来个轻松的话题，还是玩个小游戏？"
+      },
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
@@ -7359,8 +7369,8 @@
     },
     "privacy": {
       "contextual_greetings": {
-        "description": "开启后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区，并将该结果与您的姓名、应用语言、本地日期和时间及时区发送给内置 CherryAI 模型以生成问候语。此功能默认关闭。",
-        "title": "AI 生成的情境问候语"
+        "description": "Chat 和 Agent 的本地动态问候语会始终开启，且数据不会离开您的设备。开启此选项后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区，并将该结果与您的姓名、应用语言、本地日期和时间及时区发送给内置 CherryAI 模型，进一步生成情境化问候语。此选项默认关闭。",
+        "title": "AI 增强的情境问候语"
       },
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"

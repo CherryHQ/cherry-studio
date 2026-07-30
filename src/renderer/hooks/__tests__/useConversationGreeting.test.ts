@@ -23,17 +23,42 @@ describe('useConversationGreeting', () => {
     sessionStorage.clear()
   })
 
-  it('keeps the localized fallback without contacting remote services until the user opts in', async () => {
+  it('changes the local Chat greeting after refresh without contacting remote services', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', false)
 
-    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'disabled-conversation'))
-    await act(async () => Promise.resolve())
+    const firstRender = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'disabled-conversation'))
+    await waitFor(() => expect(firstRender.result.current).not.toBe('今天想聊点什么？'))
+    const firstGreeting = firstRender.result.current
+    firstRender.unmount()
 
-    expect(result.current).toBe('今天想聊点什么？')
+    const refreshedRender = renderHook(() =>
+      useConversationGreeting('chat', '今天想聊点什么？', 'disabled-conversation')
+    )
+    await waitFor(() => expect(refreshedRender.result.current).not.toBe('今天想聊点什么？'))
+
+    expect(refreshedRender.result.current).not.toBe(firstGreeting)
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
-  it('shows the localized fallback while CherryAI generates a contextual greeting', async () => {
+  it('uses distinct local greetings for Chat and Agent without contacting remote services', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', false)
+
+    const chatRender = renderHook(() =>
+      useConversationGreeting('chat', '今天想聊点什么？', 'disabled-chat-conversation')
+    )
+    const agentRender = renderHook(() =>
+      useConversationGreeting('agent', '今天想做点什么？', 'disabled-agent-conversation')
+    )
+
+    await waitFor(() => {
+      expect(chatRender.result.current).not.toBe('今天想聊点什么？')
+      expect(agentRender.result.current).not.toBe('今天想做点什么？')
+    })
+    expect(agentRender.result.current).not.toBe(chatRender.result.current)
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('replaces the local greeting when CherryAI generates a contextual greeting', async () => {
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.ip_country.detect') {
         return Promise.resolve('US')
@@ -46,7 +71,6 @@ describe('useConversationGreeting', () => {
 
     const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'chat-conversation'))
 
-    expect(result.current).toBe('今天想聊点什么？')
     await waitFor(() => expect(result.current).toBe('晚上好，Siin！想聊点什么？'))
 
     expect(mocks.request).toHaveBeenCalledWith('system.ip_country.detect')
@@ -100,7 +124,7 @@ describe('useConversationGreeting', () => {
     expect(agentSystem).not.toBe(chatSystem)
   })
 
-  it('keeps the localized fallback when generation fails', async () => {
+  it('keeps the local greeting when generation fails', async () => {
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.ip_country.detect') {
         return Promise.resolve('CN')
@@ -111,7 +135,7 @@ describe('useConversationGreeting', () => {
     const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'failed-conversation'))
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
-    expect(result.current).toBe('今天想聊点什么？')
+    expect(result.current).not.toBe('今天想聊点什么？')
   })
 
   it('marks the language region as low-confidence when IP-region detection is unavailable', async () => {
@@ -195,7 +219,7 @@ describe('useConversationGreeting', () => {
     ['emoji', 'Hello there 👋'],
     ['multiple lines', 'Hello there\nHow are you?'],
     ['more than two sentences', 'One. Two. Three.']
-  ])('keeps the fallback for invalid model output: %s', async (_caseName, generatedText) => {
+  ])('keeps the local greeting for invalid model output: %s', async (_caseName, generatedText) => {
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.ip_country.detect') return Promise.resolve('US')
       if (route === 'ai.text.generate') return Promise.resolve({ text: generatedText })
@@ -206,8 +230,9 @@ describe('useConversationGreeting', () => {
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
     await act(async () => Promise.resolve())
 
-    expect(result.current).toBe('今天想聊点什么？')
-    expect(sessionStorage.length).toBe(0)
+    expect(result.current).not.toBe('今天想聊点什么？')
+    expect(result.current).not.toBe(generatedText)
+    expect(sessionStorage.getItem(`conversation-greeting:last:invalid-${_caseName}`)).toBe(result.current)
   })
 
   it('regenerates for a new conversation and ignores the previous result', async () => {
@@ -235,7 +260,6 @@ describe('useConversationGreeting', () => {
     await waitFor(() => expect(generationCount).toBe(1))
 
     rerender({ conversationId: 'conversation-2' })
-    expect(result.current).toBe('今天想聊点什么？')
     await waitFor(() => expect(result.current).toBe('第二个会话的问候'))
 
     await act(async () => {

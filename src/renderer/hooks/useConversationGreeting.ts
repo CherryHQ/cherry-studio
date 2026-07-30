@@ -2,7 +2,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useConversationGreeting')
 const GREETING_STORAGE_KEY_PREFIX = 'conversation-greeting:last:'
@@ -21,7 +22,7 @@ type GreetingRegionContext = {
 }
 
 const GREETING_MODE_GUIDANCE: Record<ConversationGreetingMode, string> = {
-  chat: `This is Chat mode. Keep the greeting casual and conversational, inviting the user to chat, ask a question, learn, create, or play. Tone examples only: "晚上好，想聊点什么？" "中秋节快乐！想知道它的起源吗？" "周末愉快，要来玩个游戏吗？"`,
+  chat: `This is Chat mode. Keep the greeting casual and conversational, inviting the user to chat, ask a question, learn, create, or play. Tone examples only: "Good evening, what would you like to talk about?" "Happy Mid-Autumn Festival! Curious about how it began?" "Enjoying the weekend? Want to play a game?"`,
   agent: `This is Agent mode. Make the greeting task-oriented and invite the user to give a concrete task. Mention one practical kind of work the agent can help accomplish, such as researching, planning, drafting, analyzing, organizing, or executing a task. Tone examples only: "What would you like to accomplish today? I can help turn it into a plan." "Have something to research, draft, or organize? Let's get it done."`
 }
 
@@ -114,6 +115,13 @@ function storeGreeting(storageKey: string, greeting: string): void {
   }
 }
 
+function selectLocalGreeting(candidates: string[], previousGreeting: string): string {
+  const uniqueCandidates = [...new Set(candidates.map((candidate) => candidate.trim()).filter(Boolean))]
+  const newCandidates = uniqueCandidates.filter((candidate) => candidate !== previousGreeting)
+  const pool = newCandidates.length > 0 ? newCandidates : uniqueCandidates
+  return pool[Math.floor(Math.random() * pool.length)] ?? ''
+}
+
 function hasControlCharacter(text: string): boolean {
   return Array.from(text).some((character) => {
     const codePoint = character.codePointAt(0) ?? 0
@@ -156,7 +164,8 @@ async function resolveCountryOrRegion(language: string): Promise<GreetingRegionC
 
 /**
  * Generates a contextual greeting for an empty chat or agent conversation.
- * The localized static title remains visible while generation runs and on any failure.
+ * Localized greetings rotate without network access; optional remote enhancement
+ * adds time, region, and holiday context through CherryAI.
  */
 export function useConversationGreeting(
   mode: ConversationGreetingMode,
@@ -166,19 +175,46 @@ export function useConversationGreeting(
   const [language] = usePreference('app.language')
   const [userName] = usePreference('app.user.name')
   const [contextualGreetingsEnabled] = usePreference('feature.conversation_greeting.enabled')
+  const { t } = useTranslation()
   const resolvedLanguage = language || navigator.language
+  const localGreetingCandidates = useMemo(
+    () =>
+      mode === 'chat'
+        ? [
+            t('chat.home.local_greetings.casual'),
+            t('chat.home.local_greetings.explore'),
+            t('chat.home.local_greetings.play')
+          ]
+        : [
+            t('agent.home.local_greetings.plan'),
+            t('agent.home.local_greetings.progress'),
+            t('agent.home.local_greetings.research')
+          ],
+    [mode, t]
+  )
   const requestKey = JSON.stringify([
     contextualGreetingsEnabled,
     mode,
     conversationId,
     fallbackGreeting,
     resolvedLanguage,
-    userName
+    userName,
+    localGreetingCandidates
   ])
   const storageKey = getGreetingStorageKey(conversationId)
   const [generatedGreeting, setGeneratedGreeting] = useState<{ requestKey: string; text: string } | null>(null)
+  const localGreetingRef = useRef<{ requestKey: string; text: string } | null>(null)
 
   useEffect(() => {
+    const previousGreeting = readPreviousGreeting(storageKey)
+    let localGreeting = localGreetingRef.current?.requestKey === requestKey ? localGreetingRef.current.text : ''
+    if (!localGreeting) {
+      localGreeting = selectLocalGreeting(localGreetingCandidates, previousGreeting) || fallbackGreeting
+      localGreetingRef.current = { requestKey, text: localGreeting }
+      storeGreeting(storageKey, localGreeting)
+    }
+    setGeneratedGreeting({ requestKey, text: localGreeting })
+
     if (!contextualGreetingsEnabled) return
 
     let cancelled = false
@@ -195,7 +231,6 @@ export function useConversationGreeting(
 
     const generateGreeting = async () => {
       try {
-        const previousGreeting = readPreviousGreeting(storageKey)
         const region = await resolveCountryOrRegion(resolvedLanguage)
         if (cancelled) return
 
@@ -246,7 +281,7 @@ export function useConversationGreeting(
         }
       } catch (error) {
         if (cancelled) return
-        logger.warn('Failed to generate conversation greeting; keeping the localized fallback', {
+        logger.warn('Failed to generate conversation greeting; keeping the local greeting', {
           error: error as Error
         })
       }
@@ -257,7 +292,16 @@ export function useConversationGreeting(
       cancelled = true
       abortActiveRequest()
     }
-  }, [contextualGreetingsEnabled, fallbackGreeting, mode, requestKey, resolvedLanguage, storageKey, userName])
+  }, [
+    contextualGreetingsEnabled,
+    fallbackGreeting,
+    localGreetingCandidates,
+    mode,
+    requestKey,
+    resolvedLanguage,
+    storageKey,
+    userName
+  ])
 
   return generatedGreeting?.requestKey === requestKey ? generatedGreeting.text : fallbackGreeting
 }
