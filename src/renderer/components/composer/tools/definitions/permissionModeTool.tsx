@@ -5,7 +5,6 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
-import { defaultConfiguration } from '@renderer/utils/agent/agentConfiguration'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -41,10 +40,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     (nextMode: PermissionMode) => {
       if (!agentId || !agent || nextMode === currentMode) return
 
-      const configuration = agent.configuration ?? defaultConfiguration
-      const updatedConfiguration = { ...configuration, permission_mode: nextMode }
-
-      void updateAgent({ id: agentId, configuration: updatedConfiguration }, { showSuccessToast: false })
+      void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
     },
     [currentMode, agent, agentId, updateAgent]
   )

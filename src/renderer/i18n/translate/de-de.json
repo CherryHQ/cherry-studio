@@ -435,6 +435,7 @@
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
+        "unknown_agent_tip": "Dies ist eine historische Sitzungsgruppe ohne Agent, kein tatsächlicher Agent. Sie ist nur anzeigbar und kann nicht weiter ausgeführt werden.",
         "yesterday": "Gestern"
       },
       "label_one": "Sitzung",
@@ -670,6 +671,14 @@
       }
     },
     "sidebar_title": "Agenten",
+    "speed": {
+      "effort": "Aufwand",
+      "fast": "Schnell",
+      "faster": "Schneller",
+      "label": "Geschwindigkeit",
+      "smarter": "Intelligenter",
+      "title": "Antworteinstellungen"
+    },
     "tasks": {
       "add": "Aufgabe hinzufügen",
       "cancel": "Abbrechen",
@@ -1558,6 +1567,7 @@
         },
         "open_file": "Datei öffnen",
         "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
+        "open_with": "Öffnen mit",
         "reveal_in_finder": "Im Finder anzeigen"
       },
       "topics": "Themen",
@@ -1933,6 +1943,7 @@
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_assistant": "Unverknüpfter Assistent",
+        "unknown_assistant_tip": "Dies ist eine historische Gesprächsgruppe ohne Assistent, kein eigentlicher Assistent. Verschieben Sie das Gespräch zu einem vorhandenen Assistenten, um fortzufahren.",
         "yesterday": "Gestern"
       },
       "list": "Themenliste",
@@ -2300,6 +2311,12 @@
     "generate_random_seed": "Zufälligen Seed generieren",
     "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
+    "group": {
+      "create": "Neue Gruppe",
+      "create_failed": "Gruppe konnte nicht erstellt werden",
+      "name_placeholder": "Gruppennamen eingeben...",
+      "name_required": "Gruppenname ist erforderlich"
+    },
     "help": "Hilfe",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
@@ -2886,6 +2903,10 @@
     "code": "Code",
     "empty_preview": "Kein Inhalt zum Anzeigen",
     "generating": "Wird generiert",
+    "interactive_preview": {
+      "action": "Webseite anzeigen",
+      "description": "Diese Webseite enthält Skripte oder externe Ressourcen. Beim Öffnen kann Code ausgeführt und eine Internetverbindung hergestellt werden."
+    },
     "preview": "Vorschau",
     "split": "Geteilte Ansicht",
     "view_mode": "Ansichtsmodus"
@@ -5735,6 +5756,7 @@
         "button": "Anzeigen",
         "title": "Changelog"
       },
+      "repository": "GitHub-Repository",
       "social": {
         "title": "Social-Media-Konten"
       },
@@ -6594,7 +6616,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Deaktivierung der Hardwarebeschleunigung erfordert Neustart. Jetzt neu starten?",
+        "content_disable": "Die Deaktivierung der Hardwarebeschleunigung erfordert einen Neustart der App, um wirksam zu werden. Möchten Sie jetzt neu starten?",
+        "content_enable": "Die Aktivierung der Hardwarebeschleunigung erfordert einen Neustart der App, um wirksam zu werden. Möchten Sie jetzt neu starten?",
         "title": "Anwendungsneustart erforderlich"
       },
       "title": "Hardwarebeschleunigung deaktivieren"
@@ -6649,9 +6672,6 @@
           "dxtFile": "DXT-Paket-Datei",
           "dxtHelp": "MCP-Server-Datei .dxt auswählen",
           "dxtProcessFailed": "DXT-Datei verarbeiten fehlgeschlagen",
-          "error": {
-            "multipleServers": "Import von mehreren Servern nicht möglich"
-          },
           "invalid": "Ungültige Eingabe, bitte JSON-Format überprüfen",
           "json": "Von JSON importieren",
           "mcpb": "MCPB-Bundle importieren",
@@ -6805,6 +6825,15 @@
       "providers": "Anbieter",
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
+      "registryOptions": {
+        "custom": "Benutzerdefiniert",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Quelle für Paketinstallation auswählen um Netzwerkprobleme der Standardquelle zu lösen",
       "requiresConfig": "Konfiguration erforderlich",
       "resources": {
@@ -6980,6 +7009,7 @@
         "display": "Anzeigeverwaltung",
         "preferences": "Einstellungen"
       },
+      "hide_app": "{{name}} ausblenden",
       "open_link_external": {
         "description": "Wenn aktiviert, öffnen Links, die in einem Mini-App-Fenster ein neues Fenster öffnen, in Ihrem Standardbrowser.",
         "title": "Neue Fensterlinks im Browser öffnen"
@@ -6992,6 +7022,7 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
+      "show_app": "{{name}} anzeigen",
       "title": "Mini-Apps-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
     },

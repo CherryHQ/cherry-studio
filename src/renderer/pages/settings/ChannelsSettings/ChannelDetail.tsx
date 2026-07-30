@@ -268,6 +268,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
+                  autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={handleNameBlur}
@@ -376,12 +377,12 @@ const ChannelInstanceRow: FC<{
         </div>
       </div>
       <Tooltip title={t('agent.channels.logs')}>
-        <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('agent.channels.logs')} onClick={onShowLogs}>
           <FileText className="size-4" />
         </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={onEdit}>
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
@@ -390,6 +391,7 @@ const ChannelInstanceRow: FC<{
           variant="ghost"
           size="icon-sm"
           className="hover:text-destructive!"
+          aria-label={t('common.delete')}
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
         </Button>

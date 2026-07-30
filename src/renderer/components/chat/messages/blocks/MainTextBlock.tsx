@@ -5,6 +5,7 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
@@ -16,7 +17,7 @@ import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
-import ChatMarkdown from '../markdown/ChatMarkdown'
+import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -24,6 +25,7 @@ import { useScrollAnchor } from './useScrollAnchor'
 interface Props {
   id: string
   content: string
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
@@ -32,6 +34,7 @@ interface Props {
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   userContentExpanded?: boolean
+  onPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onUserContentExpandedChange?: (expanded: boolean) => void
 }
 
@@ -43,21 +46,12 @@ const composerTokenIcon: Partial<
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
 
-const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
-  'file',
-  'folder',
-  'knowledge',
-  'quote',
-  'reference',
-  'skill'
-])
-
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
-  return COMPOSER_TOKEN_BACKED_KINDS.has(token.kind)
+  return isComposerInputTokenKind(token.kind)
 }
 
 function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
@@ -252,6 +246,7 @@ function CollapsibleUserMessageContent({
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
+  inlineHtmlPreviewMode,
   isStreaming,
   citations = [],
   citationReferences,
@@ -260,6 +255,7 @@ const MainTextBlock: React.FC<Props> = ({
   composer,
   readOnlyFilePreviews,
   userContentExpanded,
+  onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
@@ -297,11 +293,26 @@ const MainTextBlock: React.FC<Props> = ({
     updateSmoothStream(content, !isStreaming)
   }, [content, isStreaming, updateSmoothStream])
 
+  const isPlayoutSettled = !isStreaming && smoothedContent === content
+  useEffect(() => {
+    onPlayoutSettledChange?.(id, isPlayoutSettled)
+  }, [id, isPlayoutSettled, onPlayoutSettledChange])
+  useEffect(
+    () => () => {
+      onPlayoutSettledChange?.(id, true)
+    },
+    [id, onPlayoutSettledChange]
+  )
+
   const block: MarkdownSource = {
     id,
     content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
+  // Upstream completion can precede the smooth-stream tail. Keep the iframe unmounted
+  // until its first srcDoc contains the complete artifact.
+  const resolvedInlineHtmlPreviewMode =
+    inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   const processContent = useCallback(
     (rawText: string) => {
@@ -366,7 +377,11 @@ const MainTextBlock: React.FC<Props> = ({
           )}
         </CollapsibleUserMessageContent>
       ) : (
-        <ChatMarkdown block={block} postProcess={processContent} />
+        <ChatMarkdown
+          block={block}
+          inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
+          postProcess={processContent}
+        />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
       {citations.length > 0 && <CitationsList citations={citations} />}

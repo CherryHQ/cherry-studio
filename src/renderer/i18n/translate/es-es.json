@@ -435,6 +435,7 @@
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_agent": "Agente desconocido",
+        "unknown_agent_tip": "Este es un grupo de sesión histórico sin agente, no un agente real. Es solo de visualización y no puede continuar ejecutándose.",
         "yesterday": "Ayer"
       },
       "label_one": "Sesión",
@@ -670,6 +671,14 @@
       }
     },
     "sidebar_title": "Agentes",
+    "speed": {
+      "effort": "Esfuerzo",
+      "fast": "Rápido",
+      "faster": "Más rápido",
+      "label": "Velocidad",
+      "smarter": "Más inteligente",
+      "title": "Configuración de respuesta"
+    },
     "tasks": {
       "add": "Agregar tarea",
       "cancel": "Cancelar",
@@ -1558,6 +1567,7 @@
         },
         "open_file": "Abrir archivo",
         "open_file_error": "Error al abrir el archivo: {{path}}",
+        "open_with": "Abrir con",
         "reveal_in_finder": "Mostrar en el Finder"
       },
       "topics": "Temas",
@@ -1933,6 +1943,7 @@
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_assistant": "Asistente No Vinculado",
+        "unknown_assistant_tip": "Este es un grupo de conversación histórico sin un asistente, no un asistente real. Mueva la conversación a un asistente existente para continuar.",
         "yesterday": "Ayer"
       },
       "list": "Lista de temas",
@@ -2300,6 +2311,12 @@
     "generate_random_seed": "Generar semilla aleatoria",
     "get_embedding_dimension": "Obtener dimensión de incrustación",
     "go_to_settings": "Ir a la configuración",
+    "group": {
+      "create": "Nuevo Grupo",
+      "create_failed": "Error al crear el grupo",
+      "name_placeholder": "Introduzca el nombre del grupo...",
+      "name_required": "El nombre del grupo es obligatorio"
+    },
     "help": "Ayuda",
     "html_preview": "Vista previa de HTML",
     "i_know": "Entendido",
@@ -2886,6 +2903,10 @@
     "code": "Código",
     "empty_preview": "Sin contenido para mostrar",
     "generating": "Generando",
+    "interactive_preview": {
+      "action": "Ver página web",
+      "description": "Esta página web contiene scripts o recursos externos. Al abrirla puede ejecutar código y conectarse a Internet."
+    },
     "preview": "Vista previa",
     "split": "Dividir",
     "view_mode": "Modo de vista"
@@ -5735,6 +5756,7 @@
         "button": "Ver",
         "title": "Registro de cambios"
       },
+      "repository": "Repositorio de GitHub",
       "social": {
         "title": "Cuentas sociales"
       },
@@ -6594,7 +6616,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "La desactivación de la aceleración por hardware requiere reiniciar la aplicación para que surta efecto, ¿desea reiniciar ahora?",
+        "content_disable": "Desactivar la aceleración por hardware requiere reiniciar la aplicación para que surta efecto. ¿Desea reiniciar ahora?",
+        "content_enable": "La activación de la aceleración por hardware requiere reiniciar la aplicación para que surta efecto. ¿Desea reiniciar ahora?",
         "title": "Se requiere reiniciar la aplicación"
       },
       "title": "Deshabilitar aceleración por hardware"
@@ -6649,9 +6672,6 @@
           "dxtFile": "Archivo de paquete DXT",
           "dxtHelp": "Selecciona un archivo .dxt que contenga un servidor MCP",
           "dxtProcessFailed": "Error al procesar el archivo DXT",
-          "error": {
-            "multipleServers": "No se puede importar desde múltiples servidores"
-          },
           "invalid": "Entrada no válida, verifica el formato JSON",
           "json": "Importar desde JSON",
           "mcpb": "Importar paquete MCPB",
@@ -6805,6 +6825,15 @@
       "providers": "Proveedores",
       "registry": "Repositorio de paquetes",
       "registryDefault": "Predeterminado",
+      "registryOptions": {
+        "custom": "Personalizado",
+        "npmTaobao": "Espejo NPM de Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Nube de Huawei",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Seleccione un repositorio para instalar paquetes, útil para resolver problemas de red con el repositorio predeterminado.",
       "requiresConfig": "Requiere configuración",
       "resources": {
@@ -6980,6 +7009,7 @@
         "display": "Gestión de pantalla",
         "preferences": "Preferencias"
       },
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "description": "Cuando está habilitado, los enlaces que abren una nueva ventana dentro de una mini aplicación se abren en tu navegador predeterminado.",
         "title": "Abrir enlace en nueva ventana del navegador"
@@ -6992,6 +7022,7 @@
         "title": "Filtro de área de la miniaplicación"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
+      "show_app": "Mostrar {{name}}",
       "title": "Configuración de Mini Apps",
       "visible": "Miniaplicaciones visibles"
     },

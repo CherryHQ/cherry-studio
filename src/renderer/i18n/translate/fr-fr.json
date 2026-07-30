@@ -435,6 +435,7 @@
         "this_week": "Cette semaine",
         "today": "Aujourd'hui",
         "unknown_agent": "Agent inconnu",
+        "unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter.",
         "yesterday": "Hier"
       },
       "label_one": "Session",
@@ -670,6 +671,14 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "effort": "Effort",
+      "fast": "Rapide",
+      "faster": "Plus rapide",
+      "label": "Vitesse",
+      "smarter": "Plus intelligent",
+      "title": "Paramètres de réponse"
+    },
     "tasks": {
       "add": "Ajouter une tâche",
       "cancel": "Annuler",
@@ -1558,6 +1567,7 @@
         },
         "open_file": "Ouvrir le fichier",
         "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
+        "open_with": "Ouvrir avec",
         "reveal_in_finder": "Afficher dans le Finder"
       },
       "topics": "Sujets",
@@ -1933,6 +1943,7 @@
         "this_week": "Cette semaine",
         "today": "Aujourd'hui",
         "unknown_assistant": "Assistant non lié",
+        "unknown_assistant_tip": "Il s'agit d'un groupe de conversation historique sans assistant, pas d'un assistant réel. Déplacez la conversation vers un assistant existant pour continuer.",
         "yesterday": "Hier"
       },
       "list": "Liste des sujets",
@@ -2300,6 +2311,12 @@
     "generate_random_seed": "Générer une graine aléatoire",
     "get_embedding_dimension": "Obtenir la dimension d'intégration",
     "go_to_settings": "Aller aux paramètres",
+    "group": {
+      "create": "Nouveau groupe",
+      "create_failed": "Échec de la création du groupe",
+      "name_placeholder": "Entrez le nom du groupe...",
+      "name_required": "Le nom du groupe est obligatoire"
+    },
     "help": "Aide",
     "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
@@ -2886,6 +2903,10 @@
     "code": "Code",
     "empty_preview": "Aucun contenu à afficher",
     "generating": "Génération",
+    "interactive_preview": {
+      "action": "Afficher la page web",
+      "description": "Cette page web contient des scripts ou des ressources externes. Son ouverture peut exécuter du code et se connecter à Internet."
+    },
     "preview": "Aperçu",
     "split": "Diviser",
     "view_mode": "Mode d'affichage"
@@ -5735,6 +5756,7 @@
         "button": "Afficher",
         "title": "Journal des mises à jour"
       },
+      "repository": "Dépôt GitHub",
       "social": {
         "title": "Comptes sociaux"
       },
@@ -6594,7 +6616,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "La désactivation de l'accélération matérielle nécessite un redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
+        "content_disable": "La désactivation de l'accélération matérielle nécessite le redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
+        "content_enable": "L'activation de l'accélération matérielle nécessite le redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
         "title": "Redémarrage de l'application requis"
       },
       "title": "Désactiver l'accélération matérielle"
@@ -6649,9 +6672,6 @@
           "dxtFile": "Fichier du paquet DXT",
           "dxtHelp": "Sélectionnez un fichier .dxt contenant un serveur MCP",
           "dxtProcessFailed": "Échec du traitement du fichier DXT",
-          "error": {
-            "multipleServers": "Impossible d'importer à partir de plusieurs serveurs"
-          },
           "invalid": "Entrée invalide, veuillez vérifier le format JSON",
           "json": "Importer depuis JSON",
           "mcpb": "Importer le bundle MCPB",
@@ -6805,6 +6825,15 @@
       "providers": "Fournisseurs",
       "registry": "Источник управления пакетами",
       "registryDefault": "По умолчанию",
+      "registryOptions": {
+        "custom": "Personnalisé",
+        "npmTaobao": "Miroir NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Выберите источник для установки пакетов, чтобы решить проблемы с сетью по умолчанию.",
       "requiresConfig": "Configuration requise",
       "resources": {
@@ -6980,6 +7009,7 @@
         "display": "Gestion de l'affichage",
         "preferences": "Préférences"
       },
+      "hide_app": "Masquer {{name}}",
       "open_link_external": {
         "description": "Lorsqu'elle est activée, les liens qui ouvrent une nouvelle fenêtre dans une mini-application s'ouvrent dans votre navigateur par défaut",
         "title": "Ouvrir un nouveau lien dans une fenêtre du navigateur"
@@ -6992,6 +7022,7 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
+      "show_app": "Afficher {{name}}",
       "title": "Paramètres des Mini Apps",
       "visible": "Applications visibles"
     },

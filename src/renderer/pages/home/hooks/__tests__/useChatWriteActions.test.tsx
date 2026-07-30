@@ -422,6 +422,42 @@ describe('useChatWriteActions — regenerate', () => {
     finishRegenerate?.()
     await request
   })
+
+  it('inherits the persisted turn options when retrying an assistant message', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    const { actions, regenerate } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot'), assistantMessage])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'a1',
+      body: expect.objectContaining({
+        parentAnchorId: 'u1',
+        reasoningEffort: 'high',
+        fastMode: true
+      })
+    })
+  })
+
+  it('inherits the active assistant turn options when resending its user message', async () => {
+    streamOpen.mockReset()
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.isActiveBranch = true
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'minimal', fastMode: false }
+    const { actions } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot'), assistantMessage])
+
+    await actions.resend('u1')
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentAnchorId: 'u1',
+        reasoningEffort: 'minimal',
+        fastMode: false
+      })
+    )
+  })
 })
 
 describe('useChatWriteActions — fork and resend', () => {
@@ -450,7 +486,10 @@ describe('useChatWriteActions — fork and resend', () => {
       cache
     )
 
-    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
 
     expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
     expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
@@ -460,10 +499,35 @@ describe('useChatWriteActions — fork and resend', () => {
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 't1',
-        parentAnchorId: 'forked-user'
+        parentAnchorId: 'forked-user',
+        reasoningEffort: 'high',
+        fastMode: true
       })
     )
     expect(onLocalSendStarted).toHaveBeenCalledOnce()
+  })
+
+  it('inherits the source turn options when a historical multi-model user message is edited', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const firstAssistant = uiMsg('a1', 'assistant', 'u1')
+    firstAssistant.metadata.modelId = 'provider::model-a'
+    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    const secondAssistant = uiMsg('a2', 'assistant', 'u1')
+    secondAssistant.metadata.modelId = 'provider::model-b'
+    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    const { actions } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot'), firstAssistant, secondAssistant], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+        reasoningEffort: 'high',
+        fastMode: true
+      })
+    )
   })
 
   it('does not mark edit-and-resend when stream open is blocked', async () => {
