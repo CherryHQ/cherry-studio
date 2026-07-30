@@ -21,7 +21,7 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     Markdown: ({ children, className, ...props }: any) =>
