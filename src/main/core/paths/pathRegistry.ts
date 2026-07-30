@@ -159,6 +159,12 @@ export function buildPathRegistry() {
     // Sibling of the staging tree on purpose: promotion renames between the two,
     // and a rename is only atomic within one filesystem.
     'feature.backup.restore.aside': path.join(appUserData, 'restore-aside'),
+    // Per-install secret that lets a restore recognize an archive THIS install
+    // produced (backup self-attestation, docs/references/backup/README.md §3.1).
+    // Deliberately at the userData ROOT, outside `Data/`: every exported managed
+    // root lives under `Data/`, so no export can ever sweep the secret into an
+    // archive.
+    'feature.backup.attestation.key_file': path.join(appUserData, 'backup-attestation.key'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),

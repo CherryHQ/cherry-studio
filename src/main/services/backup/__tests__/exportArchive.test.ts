@@ -72,6 +72,8 @@ describe('exportArchive', () => {
         return dbh.sqlite.name
       case 'feature.backup.temp':
         return join(userData, 'backup-temp')
+      case 'feature.backup.attestation.key_file':
+        return join(userData, 'backup-attestation.key')
       case 'feature.files.data':
         return join(userData, 'Data', 'Files')
       case 'feature.knowledgebase.data':
@@ -183,6 +185,60 @@ describe('exportArchive', () => {
       const runtime = admitted.resources.find((resource) => resource.livePath === 'Data/Agents/.claude')
       expect(readFileSync(join(runtime!.stagedPath, 'settings.json'), 'utf8')).toBe('RUNTIME')
       expect(existsSync(join(runtime!.stagedPath, 'skills'))).toBe(false)
+    } finally {
+      await admitted.cleanup()
+      rmSync(stagingParent, { recursive: true, force: true })
+    }
+  })
+
+  it('attests its own archive so a restore on this install recognizes it', async () => {
+    // The end-to-end shape of §3.1 Layer 1: the export mints the secret, signs the
+    // manifest bytes it actually wrote, and admission on the SAME install accepts
+    // the proof. Nothing about this is visible in the manifest itself.
+    seedResources()
+    await exportArchive({ outPath })
+
+    expect(existsSync(join(userData, 'backup-attestation.key'))).toBe(true)
+
+    const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))
+    const admitted = await admitArchive({
+      archivePath: outPath,
+      stagingParent,
+      migrationsFolder: resolveMigrationsPath()
+    })
+    try {
+      expect(admitted.selfAttested).toBe(true)
+      expect(existsSync(join(admitted.stagingDir, 'attestation.json'))).toBe(true)
+    } finally {
+      await admitted.cleanup()
+      rmSync(stagingParent, { recursive: true, force: true })
+    }
+  })
+
+  it('publishes an unattested archive rather than failing when no secret can be minted', async () => {
+    // A read-only or missing userData must cost the archive its attestation, not
+    // the whole export.
+    seedResources()
+    rmSync(join(userData, 'backup-attestation.key'), { force: true })
+    const readOnly = mkdtempSync(join(workDir, 'ro-'))
+    rmSync(readOnly, { recursive: true, force: true })
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.backup.attestation.key_file') return join(readOnly, 'nested', 'backup-attestation.key')
+      const base = pathFor(key)
+      return filename ? join(base, filename) : base
+    })
+
+    await exportArchive({ outPath })
+
+    const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))
+    const admitted = await admitArchive({
+      archivePath: outPath,
+      stagingParent,
+      migrationsFolder: resolveMigrationsPath()
+    })
+    try {
+      expect(admitted.selfAttested).toBe(false)
+      expect(existsSync(join(admitted.stagingDir, 'attestation.json'))).toBe(false)
     } finally {
       await admitted.cleanup()
       rmSync(stagingParent, { recursive: true, force: true })

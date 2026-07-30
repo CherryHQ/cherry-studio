@@ -15,14 +15,14 @@ import type * as CeilingsModule from '../../ceilings'
  * The real ceiling is 100,000 entries, which no test should materialize. The
  * ceilings module is narrowed instead, exactly as `publishArchiveWithCeilings`
  * lets publication tests hit boundaries without allocating GiB files. It is
- * narrowed to 6 (not 2) so the per-unit scanner limit — which reads the same
+ * narrowed to 7 (not 3) so the per-unit scanner limit — which reads the same
  * constant — still admits each unit on its own, and only the AGGREGATE trips.
  */
 vi.mock('../../ceilings', async (importOriginal) => {
   const actual = await importOriginal<typeof CeilingsModule>()
   return {
     ...actual,
-    BACKUP_CEILINGS: Object.freeze({ ...actual.BACKUP_CEILINGS, maxArchiveEntries: 6 })
+    BACKUP_CEILINGS: Object.freeze({ ...actual.BACKUP_CEILINGS, maxArchiveEntries: 7 })
   }
 })
 
@@ -51,7 +51,7 @@ describe('archive entry ceiling at the staging baseline', () => {
     writeFileSync(abs, content)
   }
 
-  /** Two three-file bases: 2 fixed + 3 + 1 dir + 3 + 1 dir entries, over 6. */
+  /** Two three-file bases: 3 fixed + 3 + 1 dir + 3 + 1 dir entries, over 7. */
   function seedTwoBases(): void {
     for (const base of ['kb-1', 'kb-2']) {
       for (const name of ['a.txt', 'b.txt', 'c.txt']) {
@@ -65,7 +65,7 @@ describe('archive entry ceiling at the staging baseline', () => {
     { kind: 'knowledge-base', resourceType: 'directory' as const, livePath: 'Data/KnowledgeBase/kb-2' }
   ]
 
-  it('counts the two fixed archive entries alongside the units', async () => {
+  it('counts the three fixed archive entries alongside the units', async () => {
     writeSource('Data/Files/blob.pdf')
 
     const baseline = await captureResourceStageBaseline({
@@ -73,8 +73,9 @@ describe('archive entry ceiling at the staging baseline', () => {
       userDataPath: userData
     })
 
-    // `manifest.json` + `backup.sqlite` + one payload.
-    expect(baseline.entryCount).toBe(3)
+    // `manifest.json` + `backup.sqlite` + the reserved `attestation.json` slot,
+    // plus one payload.
+    expect(baseline.entryCount).toBe(4)
   })
 
   it('refuses a profile whose units together exceed the ceiling', async () => {

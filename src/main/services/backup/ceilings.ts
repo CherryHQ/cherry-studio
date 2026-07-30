@@ -65,9 +65,23 @@ export const BACKUP_CEILINGS = Object.freeze({
 export type BackupCeilings = typeof BACKUP_CEILINGS
 
 /**
- * Entries every archive carries besides its resource payloads: `manifest.json`
- * and `backup.sqlite`. Both the staging preflight and publication reserve them
- * against {@link BACKUP_CEILINGS.maxArchiveEntries}, so the two cannot disagree
- * about how much room the payloads actually have.
+ * Entries an archive may carry besides its resource payloads: `manifest.json`,
+ * `backup.sqlite`, and the optional `attestation.json`. Both the staging
+ * preflight and publication reserve them against
+ * {@link BACKUP_CEILINGS.maxArchiveEntries}, so the two cannot disagree about how
+ * much room the payloads actually have. The optional entry is reserved
+ * unconditionally: over-reserving one slot costs nothing, while making the
+ * reservation depend on whether this install can attest would let one archive's
+ * payload budget differ from another's.
  */
-export const FIXED_ARCHIVE_ENTRIES = 2
+export const FIXED_ARCHIVE_ENTRIES = 3
+
+/**
+ * Pre-read bound on `attestation.json` (docs/references/backup/README.md §5.3).
+ *
+ * Not a member of {@link BACKUP_CEILINGS} because it is not an operating
+ * ceiling that scales with a profile: the entry is one fixed-shape JSON object
+ * with a 64-char hex MAC, so 4 KiB is already orders of magnitude of headroom.
+ * Enforced on the declared size before extraction and again as the streaming cap.
+ */
+export const MAX_ATTESTATION_ENTRY_BYTES = 4 * 1024
