@@ -618,11 +618,11 @@
             "title": "Auto-accept Edits"
           },
           "auto": {
-            "description": "Only asks about actions judged risky.",
+            "description": "Runs without routine prompts. A safety check blocks risky actions.",
             "title": "Approve for Me"
           },
           "bypassPermissions": {
-            "description": "Never asks. Can delete files and use the network.",
+            "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
@@ -637,7 +637,7 @@
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "description": "Reads and plans only. No edits or commands.",
+            "description": "Plans without editing files. Only read-only or vetted commands run.",
             "title": "Plan Only"
           },
           "title": "Permission mode"

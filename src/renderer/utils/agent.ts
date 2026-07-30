@@ -55,7 +55,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.plan.title',
     titleFallback: 'Plan Only',
     descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
-    descriptionFallback: 'Reads and plans only. No edits or commands.'
+    descriptionFallback: 'Plans without editing files. Only read-only or vetted commands run.'
   },
   {
     mode: 'acceptEdits',
@@ -71,7 +71,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.auto.title',
     titleFallback: 'Approve for Me',
     descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
-    descriptionFallback: 'Only asks about actions judged risky.'
+    descriptionFallback: 'Runs without routine prompts. A safety check blocks risky actions.'
   },
   {
     mode: 'bypassPermissions',
@@ -79,7 +79,7 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
     titleFallback: 'Full Access',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
-    descriptionFallback: 'Never asks. Can delete files and use the network.',
+    descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
     dangerous: true
   }
 ]

@@ -43,6 +43,11 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         sources: ['popover'] as const,
         order: 80 + index / 100,
         label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} />,
+        // label/description are React nodes, which yield no searchable text — provide it explicitly.
+        searchAliases: getQuickPanelSearchAliases(t, card.titleKey, [
+          t(card.titleKey, card.titleFallback),
+          t(card.descriptionKey, card.descriptionFallback)
+        ]),
         description: (
           <span className={card.dangerous ? 'text-destructive/80' : undefined}>
             {t(card.descriptionKey, card.descriptionFallback)}
