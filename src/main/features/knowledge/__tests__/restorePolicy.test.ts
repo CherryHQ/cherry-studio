@@ -1,11 +1,15 @@
-import type { RestoreOwnerSummaryReadResult } from '@data/portableProfilePolicy'
+import type { RestoreOwnerProgressReadResult, RestoreOwnerSummaryReadResult } from '@data/portableProfilePolicy'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
   createKnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreOwnerProgress,
   type KnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreProgress,
   type KnowledgeRestoreSummary,
-  readKnowledgeRestoreSummary
+  readKnowledgeRestoreProgress,
+  readKnowledgeRestoreSummary,
+  withKnowledgeRestoreProgress
 } from '../restorePolicy'
 
 describe('Knowledge restore ownership policy', () => {
@@ -20,6 +24,12 @@ describe('Knowledge restore ownership policy', () => {
     expectTypeOf(readKnowledgeRestoreSummary(undefined)).toEqualTypeOf<
       RestoreOwnerSummaryReadResult<KnowledgeRestoreSummary>
     >()
+    expectTypeOf(
+      readKnowledgeRestoreProgress(undefined, undefined, { baseIds: [], requiresRebuild: false })
+    ).toEqualTypeOf<RestoreOwnerProgressReadResult<KnowledgeRestoreProgress>>()
+    expectTypeOf(
+      withKnowledgeRestoreProgress(undefined, { baseIds: [], requiresRebuild: false }, { completedBaseIds: [] })
+    ).toEqualTypeOf<KnowledgeRestoreOwnerProgress>()
   })
 
   it('derives base IDs only from direct children of the managed Knowledge root', () => {
@@ -68,5 +78,72 @@ describe('Knowledge restore ownership policy', () => {
       summary: { baseIds: ['legacy-kb'], requiresRebuild: true }
     })
     expect(readKnowledgeRestoreSummary(undefined)).toEqual({ kind: 'missing' })
+  })
+
+  it('reads Knowledge progress from its opaque owner entry', () => {
+    const summary = { baseIds: ['kb-1', 'kb-2'], requiresRebuild: true }
+
+    expect(
+      readKnowledgeRestoreProgress({ knowledge: { completedBaseIds: ['kb-2'], abandoned: true } }, undefined, summary)
+    ).toEqual({
+      kind: 'ok',
+      progress: { completedBaseIds: ['kb-2'], abandoned: true }
+    })
+    expect(readKnowledgeRestoreProgress({}, undefined, summary)).toEqual({
+      kind: 'ok',
+      progress: { completedBaseIds: [] }
+    })
+  })
+
+  it('fails closed on malformed current progress without consulting legacy state', () => {
+    const summary = { baseIds: ['kb-1'], requiresRebuild: true }
+
+    expect(
+      readKnowledgeRestoreProgress(
+        { knowledge: { completedBaseIds: ['outside-summary'] } },
+        { completedBaseIds: ['kb-1'] },
+        summary
+      )
+    ).toEqual({ kind: 'invalid' })
+    expect(
+      readKnowledgeRestoreProgress(
+        { knowledge: { completedBaseIds: [], abandoned: false } },
+        { completedBaseIds: ['kb-1'] },
+        summary
+      )
+    ).toEqual({ kind: 'invalid' })
+    expect(
+      readKnowledgeRestoreProgress({ knowledge: { completedBaseIds: ['kb-1', 'kb-1'] } }, undefined, summary)
+    ).toEqual({ kind: 'invalid' })
+  })
+
+  it('reads pre-release progress only when the entire owner bag is absent', () => {
+    const summary = { baseIds: ['legacy-kb'], requiresRebuild: true }
+
+    expect(readKnowledgeRestoreProgress(undefined, { completedBaseIds: ['legacy-kb'] }, summary)).toEqual({
+      kind: 'ok',
+      progress: { completedBaseIds: ['legacy-kb'] }
+    })
+    expect(readKnowledgeRestoreProgress(undefined, undefined, summary)).toEqual({
+      kind: 'ok',
+      progress: { completedBaseIds: [] }
+    })
+  })
+
+  it('updates only Knowledge progress and preserves every other owner entry', () => {
+    const summary = { baseIds: ['kb-1'], requiresRebuild: true }
+
+    expect(
+      withKnowledgeRestoreProgress({ futureOwner: { cursor: 3 } }, summary, {
+        completedBaseIds: ['kb-1'],
+        abandoned: true
+      })
+    ).toEqual({
+      futureOwner: { cursor: 3 },
+      knowledge: { completedBaseIds: ['kb-1'], abandoned: true }
+    })
+    expect(() => withKnowledgeRestoreProgress(undefined, summary, { completedBaseIds: ['outside-summary'] })).toThrow(
+      /inconsistent/
+    )
   })
 })

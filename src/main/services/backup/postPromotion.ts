@@ -17,7 +17,11 @@ import { application } from '@application'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
-import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
+import {
+  readRestoreKnowledgeProgress,
+  readRestoreKnowledgeReadiness,
+  withRestoreKnowledgeProgress
+} from './restoreOwnerReadiness'
 
 const logger = loggerService.withContext('backupPostPromotion')
 
@@ -46,11 +50,15 @@ export async function runPostPromotionWork(shouldContinue: () => boolean): Promi
   if (readiness.kind !== 'ok') {
     throw new Error(`Restore Knowledge readiness summary is ${readiness.kind}`)
   }
+  const progress = readRestoreKnowledgeProgress(read.journal, readiness.summary)
+  if (progress.kind !== 'ok') {
+    throw new Error('Restore Knowledge progress is invalid')
+  }
   const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
-  if (read.journal.knowledgeRebuild?.abandoned) {
+  if (progress.progress.abandoned) {
     return { ran: true, enqueuedBaseIds: [], pending: false }
   }
-  const completed = new Set(read.journal.knowledgeRebuild?.completedBaseIds ?? [])
+  const completed = new Set(progress.progress.completedBaseIds)
   const reconciling: string[] = []
 
   for (const baseId of requiredBaseIds) {
@@ -74,7 +82,7 @@ export async function runPostPromotionWork(shouldContinue: () => boolean): Promi
   }
 
   const completedBaseIds = requiredBaseIds.filter((id) => completed.has(id))
-  if (completedBaseIds.length !== (read.journal.knowledgeRebuild?.completedBaseIds.length ?? 0)) {
+  if (completedBaseIds.length !== progress.progress.completedBaseIds.length) {
     persistKnowledgeCompletion(restoreId, completedBaseIds)
   }
 
@@ -94,17 +102,21 @@ function persistKnowledgeCompletion(restoreId: string, completedBaseIds: readonl
   if (readiness.kind !== 'ok') {
     throw new Error(`Restore Knowledge readiness summary is ${readiness.kind}`)
   }
+  const progress = readRestoreKnowledgeProgress(current.journal, readiness.summary)
+  if (progress.kind !== 'ok') {
+    throw new Error('Restore Knowledge progress is invalid')
+  }
   const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
   const allowed = new Set(requiredBaseIds)
-  const merged = new Set(current.journal.knowledgeRebuild?.completedBaseIds ?? [])
+  const merged = new Set(progress.progress.completedBaseIds)
   for (const id of completedBaseIds) {
     if (allowed.has(id)) merged.add(id)
   }
   writeRestoreJournalV2({
     ...current.journal,
-    knowledgeRebuild: {
-      ...current.journal.knowledgeRebuild,
+    ownerProgress: withRestoreKnowledgeProgress(current.journal, readiness.summary, {
+      ...progress.progress,
       completedBaseIds: requiredBaseIds.filter((id) => merged.has(id))
-    }
+    })
   })
 }

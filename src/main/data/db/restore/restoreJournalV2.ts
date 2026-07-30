@@ -13,12 +13,10 @@ const logger = loggerService.withContext('RestoreJournalV2')
 
 /**
  * Restore-promotion journal v2 — the crash-safe contract for the Backup v2
- * replacement flow (docs/references/backup/README.md §6). This is a
- * SIDE-BY-SIDE contract: the v1 journal (`./restoreJournal.ts`, `version: 1`,
- * state `staged`) and its promotion code stay live and untouched until the
- * promotion cutover. Both versions address the SAME sidecar file, so at most
- * one of them ever parses it; `./restoreGuard.ts` owns that cross-version
- * decision for readers that only need "is a restore holding storage".
+ * replacement flow (docs/references/backup/README.md §6). It is the only
+ * active journal writer. The preboot shell recognizes a leftover version-1
+ * sidecar only to park it as pre-release recovery evidence; no runtime path
+ * creates or promotes that retired format.
  *
  * Version independence: `RESTORE_JOURNAL_VERSION` (the on-disk journal contract)
  * is distinct from the archive `BACKUP_FORMAT_VERSION`. Both being `2` is
@@ -136,12 +134,8 @@ const RestoreSummarySchema = z.strictObject({
  */
 const RestoreOwnerSummarySchema = z.record(z.string().min(1), z.json())
 
-/** Durable completion or the user's explicit decision to stop derived rebuilding. */
-const KnowledgeRebuildSchema = z.strictObject({
-  completedBaseIds: uniqueKnowledgeBaseIds,
-  /** The restored DB stays live, but missing derived index material is accepted. */
-  abandoned: z.literal(true).optional()
-})
+/** Feature-owned progress transported opaquely through preboot and rollback. */
+const RestoreOwnerProgressSchema = z.record(z.string().min(1), z.json())
 
 /**
  * One aggregated line of "what this restore reduced", as produced by
@@ -173,6 +167,12 @@ const commonFields = {
    * written by an earlier pre-release; every current producer supplies it.
    */
   ownerSummary: RestoreOwnerSummarySchema.optional(),
+  /**
+   * Durable per-owner progress. The data layer validates only JSON structure;
+   * owner keys, schemas, and consistency with `ownerSummary` remain business
+   * policy and are interpreted after lifecycle startup.
+   */
+  ownerProgress: RestoreOwnerProgressSchema.optional(),
   /**
    * What materializing THIS archive against THIS device reduced (§4). Carried by
    * the journal because the restore report is rendered after a relaunch, by
@@ -223,21 +223,24 @@ const journalVariants = [
      * unit is installed; `true` is the only other value.
      */
     resourcesIncomplete: z.literal(true).optional(),
-    knowledgeRebuild: KnowledgeRebuildSchema.optional()
+    /** @deprecated Pre-release compatibility only. New journals use `ownerProgress`. */
+    knowledgeRebuild: z.json().optional()
   }),
   z.strictObject({
     ...commonFields,
     state: z.literal('rollback-armed'),
     step: PromotionStepSchema.optional(),
     summary: RestoreSummarySchema.optional(),
-    knowledgeRebuild: KnowledgeRebuildSchema.optional()
+    /** @deprecated Pre-release compatibility only. New journals use `ownerProgress`. */
+    knowledgeRebuild: z.json().optional()
   }),
   z.strictObject({
     ...commonFields,
     state: z.literal('rolled-back'),
     step: PromotionStepSchema.optional(),
     summary: RestoreSummarySchema.optional(),
-    knowledgeRebuild: KnowledgeRebuildSchema.optional()
+    /** @deprecated Pre-release compatibility only. New journals use `ownerProgress`. */
+    knowledgeRebuild: z.json().optional()
   }),
   z.strictObject({
     ...commonFields,
@@ -273,20 +276,6 @@ export const RestoreJournalV2Schema = z
       path: ['ownerSummary']
     }
   )
-  .refine(
-    (journal) => {
-      if (!('knowledgeRebuild' in journal) || journal.knowledgeRebuild === undefined) return true
-      const legacySummary = journal.summary
-      return (
-        legacySummary === undefined ||
-        journal.knowledgeRebuild.completedBaseIds.every((id) => legacySummary.knowledgeBaseIds.includes(id))
-      )
-    },
-    {
-      message: 'completed knowledge rebuild IDs must belong to the restore summary',
-      path: ['knowledgeRebuild', 'completedBaseIds']
-    }
-  )
 
 export type RestoreJournalV2 = z.infer<typeof RestoreJournalV2Schema>
 export type RestoreJournalV2State = RestoreJournalV2['state']
@@ -299,6 +288,7 @@ export type ResourceInstallEntry = z.infer<typeof ResourceInstallEntrySchema>
 export type SealedResourceInstallEntry = ResourceInstallEntry & { readonly hadLive: boolean }
 export type JournalDegradation = z.infer<typeof JournalDegradationSchema>
 export type RestoreOwnerSummary = z.infer<typeof RestoreOwnerSummarySchema>
+export type RestoreOwnerProgress = z.infer<typeof RestoreOwnerProgressSchema>
 /** @deprecated Pre-release compatibility only. New journals use {@link RestoreOwnerSummary}. */
 export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
 
@@ -442,10 +432,10 @@ export type ReadJournalV2FileResult =
 
 /**
  * Read the on-disk journal as v2. A v1 journal, a future version, or garbage all
- * come back `corrupt` here; preboot detects the version first and dispatches a
- * recognized v1 journal to its compatibility reader. Unreadable is `corrupt`
- * too, not `none`: "absent" is a claim only ENOENT can
- * make, and every other errno must fail safe for the reclaim guard.
+ * come back `corrupt` here; preboot detects and parks a recognized v1 sidecar
+ * before calling this reader. Unreadable is `corrupt` too, not `none`:
+ * "absent" is a claim only ENOENT can make, and every other errno must fail
+ * safe for the reclaim guard.
  */
 export function readRestoreJournalV2(): ReadJournalV2FileResult {
   let raw: string

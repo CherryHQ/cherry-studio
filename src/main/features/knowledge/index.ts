@@ -8,10 +8,15 @@ export {
 } from './portableProfilePolicy'
 export {
   createKnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreOwnerProgress,
   type KnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreProgress,
+  type KnowledgeRestoreProgressRead,
   type KnowledgeRestoreSummary,
   type KnowledgeRestoreSummaryRead,
-  readKnowledgeRestoreSummary
+  readKnowledgeRestoreProgress,
+  readKnowledgeRestoreSummary,
+  withKnowledgeRestoreProgress
 } from './restorePolicy'
 export { KnowledgeVectorStoreService } from './vectorstore/KnowledgeVectorStoreService'
 

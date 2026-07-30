@@ -48,7 +48,15 @@ describe('post-promotion work', () => {
       },
       resourceInstalls: []
     }
-    if (state === 'completed') return { ...base, state, summary: { knowledgeBaseIds } }
+    if (state === 'completed') {
+      return {
+        ...base,
+        state,
+        ownerSummary: {
+          knowledge: { baseIds: knowledgeBaseIds, requiresRebuild: knowledgeBaseIds.length > 0 }
+        }
+      }
+    }
     return { ...base, state }
   }
 
@@ -70,7 +78,7 @@ describe('post-promotion work', () => {
     const read = readRestoreJournalV2()
     expect(read.kind).toBe('ok')
     if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected completed journal')
-    expect(read.journal.knowledgeRebuild).toEqual({ completedBaseIds: [BASE_ID] })
+    expect(read.journal.ownerProgress).toEqual({ knowledge: { completedBaseIds: [BASE_ID] } })
 
     reconcile.mockClear()
     await expect(runPostPromotionWork(() => true)).resolves.toMatchObject({ pending: false })
@@ -82,7 +90,7 @@ describe('post-promotion work', () => {
     if (completed.state !== 'completed') throw new Error('expected completed journal fixture')
     writeRestoreJournalV2({
       ...completed,
-      knowledgeRebuild: { completedBaseIds: [], abandoned: true }
+      ownerProgress: { knowledge: { completedBaseIds: [], abandoned: true } }
     })
 
     await expect(runPostPromotionWork(() => true)).resolves.toEqual({
@@ -131,6 +139,29 @@ describe('post-promotion work', () => {
     const read = readRestoreJournalV2()
     expect(read.kind).toBe('ok')
     if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected completed journal')
-    expect(read.journal.knowledgeRebuild).toEqual({ completedBaseIds: [OTHER_BASE_ID] })
+    expect(read.journal.ownerProgress).toEqual({ knowledge: { completedBaseIds: [OTHER_BASE_ID] } })
+  })
+
+  it('preserves another owner progress entry when Knowledge completes', async () => {
+    const completed = journal('completed', [BASE_ID])
+    if (completed.state !== 'completed') throw new Error('expected completed journal fixture')
+    writeRestoreJournalV2({
+      ...completed,
+      ownerProgress: { futureOwner: { cursor: 7 } }
+    })
+    reconcile.mockResolvedValue('completed')
+
+    await runPostPromotionWork(() => true)
+
+    const read = readRestoreJournalV2()
+    expect(read).toMatchObject({
+      kind: 'ok',
+      journal: {
+        ownerProgress: {
+          futureOwner: { cursor: 7 },
+          knowledge: { completedBaseIds: [BASE_ID] }
+        }
+      }
+    })
   })
 })
