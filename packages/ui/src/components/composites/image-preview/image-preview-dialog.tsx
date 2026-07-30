@@ -1,12 +1,11 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '../../../lib/utils'
 import { Button } from '../../primitives/button'
 import { Dialog, DialogContent, DialogTitle } from '../../primitives/dialog'
-import { ImagePreviewContextMenu } from './image-preview-context-menu'
-import { ImagePreviewImage } from './image-preview-image'
 import { ImagePreviewToolbar } from './image-preview-toolbar'
+import { ImagePreviewViewport } from './image-preview-viewport'
 import {
   DEFAULT_IMAGE_PREVIEW_LABELS,
   type ImagePreviewAction,
@@ -30,11 +29,6 @@ export interface ImagePreviewDialogProps {
   onOpenChange: (open: boolean) => void
   open: boolean
   overlayClassName?: string
-  renderImage?: (
-    item: ImagePreviewItem,
-    context: { transform: ReturnType<typeof useImagePreviewTransform> }
-  ) => React.ReactNode
-  renderMetadata?: (item: ImagePreviewItem, context: { index: number; items: ImagePreviewItem[] }) => React.ReactNode
   toolbarActions?: ImagePreviewAction[]
 }
 
@@ -59,8 +53,6 @@ export function ImagePreviewDialog({
   onOpenChange,
   open,
   overlayClassName,
-  renderImage,
-  renderMetadata,
   toolbarActions = []
 }: ImagePreviewDialogProps) {
   const mergedLabels = React.useMemo(() => ({ ...DEFAULT_IMAGE_PREVIEW_LABELS, ...labels }), [labels])
@@ -95,11 +87,11 @@ export function ImagePreviewDialog({
   )
 
   const showPrevious = React.useCallback(() => {
-    setActiveIndex((currentIndex - 1 + items.length) % items.length)
-  }, [currentIndex, items.length, setActiveIndex])
+    setActiveIndex(Math.max(0, currentIndex - 1))
+  }, [currentIndex, setActiveIndex])
 
   const showNext = React.useCallback(() => {
-    setActiveIndex((currentIndex + 1) % items.length)
+    setActiveIndex(Math.min(items.length - 1, currentIndex + 1))
   }, [currentIndex, items.length, setActiveIndex])
 
   const close = React.useCallback(() => {
@@ -119,11 +111,11 @@ export function ImagePreviewDialog({
   }
 
   return (
-    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-describedby={undefined}
         className={cn(
-          'pointer-events-none fixed top-0 left-0 z-50 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 text-foreground shadow-none sm:max-w-none',
+          'fixed top-0 left-0 z-[80] h-screen w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:max-w-none',
           className
         )}
         data-testid="image-preview-dialog"
@@ -140,22 +132,39 @@ export function ImagePreviewDialog({
             showNext()
           }
         }}
-        onPointerDownOutside={close}
+        overlayClassName={cn('bg-black/70', overlayClassName)}
         showCloseButton={false}>
-        <div
-          aria-hidden="true"
-          className={cn('pointer-events-none fixed inset-0 z-0 bg-background/80 dark:bg-black/70', overlayClassName)}
-        />
-        <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>
-        <div
-          className={cn(
-            'relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-6 pt-14 pb-8 sm:px-20 sm:pt-16 sm:pb-10',
-            contentClassName
-          )}>
+        <div className="relative h-full w-full">
+          <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>
+          <Button
+            aria-label={mergedLabels.close}
+            className="absolute top-4 right-4 z-20 size-9 rounded-full border-border bg-popover text-popover-foreground shadow-md hover:bg-accent hover:text-accent-foreground"
+            onClick={close}
+            size="icon"
+            type="button"
+            variant="outline">
+            <X className="size-4" />
+          </Button>
+          <div
+            className={cn('absolute inset-0 px-6 pt-14 pb-20 sm:px-20 sm:pt-16 sm:pb-24', contentClassName)}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) close()
+            }}>
+            <ImagePreviewViewport
+              actionContext={actionContext}
+              actions={actions}
+              imageClassName={imageClassName}
+              item={item}
+              onActionError={onActionError}
+              onBackdropClick={close}
+              transformControls={transformControls}
+            />
+          </div>
           {hasMultipleItems && (
             <Button
               aria-label={mergedLabels.previous}
-              className="pointer-events-auto absolute left-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
+              className="absolute left-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border bg-popover text-popover-foreground shadow-md hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
+              disabled={currentIndex === 0}
               onClick={showPrevious}
               size="icon"
               type="button"
@@ -163,21 +172,11 @@ export function ImagePreviewDialog({
               <ChevronLeft className="size-5" />
             </Button>
           )}
-          <ImagePreviewContextMenu actions={actions} context={actionContext} item={item} onActionError={onActionError}>
-            <div className="pointer-events-none flex h-full max-h-full min-h-0 w-full max-w-full items-center justify-center">
-              <div className="pointer-events-auto flex h-full max-h-full min-h-0 w-full max-w-full items-center justify-center">
-                {renderImage ? (
-                  renderImage(item, { transform: transformControls })
-                ) : (
-                  <ImagePreviewImage className={imageClassName} item={item} transform={transformControls.transform} />
-                )}
-              </div>
-            </div>
-          </ImagePreviewContextMenu>
           {hasMultipleItems && (
             <Button
               aria-label={mergedLabels.next}
-              className="pointer-events-auto absolute right-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
+              className="absolute right-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border bg-popover text-popover-foreground shadow-md hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
+              disabled={currentIndex === items.length - 1}
               onClick={showNext}
               size="icon"
               type="button"
@@ -185,20 +184,16 @@ export function ImagePreviewDialog({
               <ChevronRight className="size-5" />
             </Button>
           )}
-        </div>
-        {renderMetadata && (
-          <div className="pointer-events-auto px-6 pb-3">{renderMetadata(item, { index: currentIndex, items })}</div>
-        )}
-        <div className="pointer-events-auto flex justify-center px-4 pb-6">
-          <ImagePreviewToolbar
-            actions={toolbarActions}
-            context={actionContext}
-            item={item}
-            labels={mergedLabels}
-            onActionError={onActionError}
-            onClose={close}
-            transformControls={transformControls}
-          />
+          <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 sm:bottom-8">
+            <ImagePreviewToolbar
+              actions={toolbarActions}
+              context={actionContext}
+              item={item}
+              labels={mergedLabels}
+              onActionError={onActionError}
+              transformControls={transformControls}
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

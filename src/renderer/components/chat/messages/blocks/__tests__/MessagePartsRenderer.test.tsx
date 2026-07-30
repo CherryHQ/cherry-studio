@@ -599,13 +599,9 @@ describe('MessagePartsRenderer', () => {
         { type: 'file', mediaType: 'image/png' }
       ] as unknown as CherryMessagePart[])
 
-      const blocks = screen.getAllByTestId('mock-image-block')
-      expect(blocks).toHaveLength(2)
-      expect(blocks.every((block) => block.getAttribute('data-single') === 'false')).toBe(true)
-      expect(blocks.map((block) => block.getAttribute('data-images'))).toEqual([
-        '["https://img.test/a.png"]',
-        '["https://img.test/b.jpg"]'
-      ])
+      const block = screen.getByTestId('mock-image-block')
+      expect(block).toHaveAttribute('data-single', 'false')
+      expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
     it('hides the duplicate user image when its composer file token is visible', () => {

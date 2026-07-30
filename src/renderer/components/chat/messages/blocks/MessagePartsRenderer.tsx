@@ -763,11 +763,7 @@ function renderGroupedEntry(
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: '100%' }}>
-            {images.map((src, i) => (
-              <ImageBlock key={`${groupKey}-img-${i}`} images={[src]} isSingle={false} />
-            ))}
-          </div>
+          <ImageBlock images={images} isSingle={false} />
         </AnimatedBlockWrapper>
       )
     }

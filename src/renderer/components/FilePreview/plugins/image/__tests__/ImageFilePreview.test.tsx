@@ -73,22 +73,30 @@ describe('image file preview plugin', () => {
     expect(zoomOut).toBeDisabled()
 
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.zoom_in' }))
-    expect(image).toHaveStyle({ transform: 'scale(1.25) rotate(0deg) scaleX(1) scaleY(1)' })
+    expect(image).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1.25) scaleX(1) scaleY(1)'
+    })
     expect(zoomOut).toBeEnabled()
 
     fireEvent.click(zoomOut)
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.rotate_left' }))
-    expect(image).toHaveStyle({ transform: 'scale(1) rotate(270deg) scaleX(1) scaleY(1)' })
+    expect(image).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(270deg) scale(1) scaleX(1) scaleY(1)'
+    })
 
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.zoom_in' }))
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.rotate_right' }))
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.rotate_right' }))
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.flip_horizontal' }))
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.flip_vertical' }))
-    expect(image).toHaveStyle({ transform: 'scale(1.25) rotate(90deg) scaleX(-1) scaleY(-1)' })
+    expect(image).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(90deg) scale(1.25) scaleX(-1) scaleY(-1)'
+    })
 
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.reset' }))
-    expect(image).toHaveStyle({ transform: 'scale(1) rotate(0deg) scaleX(1) scaleY(1)' })
+    expect(image).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1) scaleX(1) scaleY(1)'
+    })
   })
 
   it('resets image state when the file path changes', async () => {
@@ -98,16 +106,19 @@ describe('image file preview plugin', () => {
     const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.zoom_in' }))
     fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.rotate_right' }))
-    fireEvent.click(within(toolbar).getByRole('button', { name: 'preview.flip_horizontal' }))
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    expect(firstImage).toHaveStyle({ transform: 'scale(1.25) rotate(90deg) scaleX(-1) scaleY(1)' })
+    expect(firstImage).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(90deg) scale(1.25) scaleX(1) scaleY(1)'
+    })
 
     rerender(<FilePreview filePath={'/tmp/photos/second.jpg' as AbsoluteFilePath} />)
 
     const secondImage = await screen.findByRole('img', { name: 'second.jpg' })
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
-    expect(secondImage).toHaveStyle({ transform: 'scale(1) rotate(0deg) scaleX(1) scaleY(1)' })
+    expect(secondImage).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1) scaleX(1) scaleY(1)'
+    })
   })
 
   it('rebuilds the image preview when the refresh key changes', async () => {

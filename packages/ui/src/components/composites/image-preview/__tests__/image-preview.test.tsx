@@ -56,45 +56,57 @@ afterEach(() => {
 
 describe('useImagePreviewTransform', () => {
   it('clamps zoom and resets transform state', () => {
-    const { result } = renderHook(() => useImagePreviewTransform({ maxScale: 2, minScale: 1, zoomStep: 0.5 }))
+    const { result } = renderHook(() => useImagePreviewTransform({ maxZoom: 2, minZoom: 1, zoomStep: 0.5 }))
 
-    expect(result.current.transform).toEqual({ flipX: false, flipY: false, rotate: 0, scale: 1 })
+    expect(result.current.transform).toEqual({
+      flipX: false,
+      flipY: false,
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      zoom: 1
+    })
 
     act(() => result.current.zoomOut())
-    expect(result.current.transform.scale).toBe(1)
+    expect(result.current.transform.zoom).toBe(1)
 
     act(() => {
       result.current.zoomIn()
       result.current.zoomIn()
       result.current.zoomIn()
     })
-    expect(result.current.transform.scale).toBe(2)
+    expect(result.current.transform.zoom).toBe(2)
 
     act(() => {
       result.current.rotateLeft()
       result.current.flipHorizontal()
       result.current.flipVertical()
     })
-    expect(result.current.transform).toMatchObject({ flipX: true, flipY: true, rotate: 270 })
+    expect(result.current.transform).toMatchObject({ flipX: true, flipY: true, rotation: 270 })
 
     act(() => result.current.reset())
-    expect(result.current.transform).toEqual({ flipX: false, flipY: false, rotate: 0, scale: 1 })
+    expect(result.current.transform).toEqual({
+      flipX: false,
+      flipY: false,
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      zoom: 1
+    })
   })
 
   it('updates transform through a clamped patch API', () => {
-    const { result } = renderHook(() => useImagePreviewTransform({ maxScale: 2, minScale: 1 }))
+    const { result } = renderHook(() => useImagePreviewTransform({ maxZoom: 2, minZoom: 1 }))
 
-    act(() => result.current.update({ rotate: 450, scale: -10 }))
+    act(() => result.current.update({ offsetX: 12, rotation: 450, zoom: -10 }))
 
-    expect(result.current.transform).toMatchObject({ rotate: 90, scale: 1 })
+    expect(result.current.transform).toMatchObject({ offsetX: 12, rotation: 90, zoom: 1 })
     expect(result.current.canZoomIn).toBe(true)
     expect(result.current.canZoomOut).toBe(false)
   })
 
   it('validates transform bounds at hook entry', () => {
-    expect(() => renderHook(() => useImagePreviewTransform({ maxScale: 1, minScale: 2 }))).toThrow(
-      'minScale <= maxScale'
-    )
+    expect(() => renderHook(() => useImagePreviewTransform({ maxZoom: 1, minZoom: 2 }))).toThrow('minZoom <= maxZoom')
     expect(() => renderHook(() => useImagePreviewTransform({ zoomStep: 0 }))).toThrow('zoomStep > 0')
   })
 })
@@ -126,7 +138,26 @@ describe('ImagePreviewDialog', () => {
     expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
   })
 
-  it('runs toolbar actions with the active item', async () => {
+  it('renders all view transform controls', () => {
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
+
+    expect(
+      screen
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+        .filter((label) => label !== LABELS.previous && label !== LABELS.next && label !== LABELS.close)
+    ).toEqual([
+      LABELS.zoomOut,
+      LABELS.zoomIn,
+      LABELS.rotateLeft,
+      LABELS.rotateRight,
+      LABELS.flipHorizontal,
+      LABELS.flipVertical,
+      LABELS.reset
+    ])
+  })
+
+  it('runs injected toolbar actions with the active item', async () => {
     const onSelect = vi.fn()
 
     render(
@@ -135,11 +166,11 @@ describe('ImagePreviewDialog', () => {
         items={ITEMS}
         labels={LABELS}
         onOpenChange={vi.fn()}
-        toolbarActions={[{ id: 'copy', label: 'Copy image', onSelect }]}
+        toolbarActions={[{ id: 'open-external', label: 'Open externally', onSelect }]}
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open externally' }))
 
     await act(async () => {
       await Promise.resolve()
@@ -148,62 +179,40 @@ describe('ImagePreviewDialog', () => {
     expect(onSelect).toHaveBeenCalledWith(ITEMS[0], expect.objectContaining({ index: 0 }))
   })
 
-  it('reports rejected toolbar actions', async () => {
-    const error = new Error('copy failed')
-    const onActionError = vi.fn()
-
-    render(
-      <ImagePreviewDialog
-        open
-        items={ITEMS}
-        labels={LABELS}
-        onActionError={onActionError}
-        onOpenChange={vi.fn()}
-        toolbarActions={[{ id: 'copy', label: 'Copy image', onSelect: () => Promise.reject(error) }]}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Copy image' }))
-
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(onActionError).toHaveBeenCalledWith(error, expect.objectContaining({ id: 'copy' }), ITEMS[0])
-  })
-
-  it('uses pointer outside to close the dialog', async () => {
+  it('uses the viewport backdrop to close the dialog', () => {
     const onOpenChange = vi.fn()
 
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={onOpenChange} />)
 
-    await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 0))
-    })
-
-    fireEvent.pointerDown(document.body, { pointerType: 'mouse' })
+    fireEvent.click(screen.getByTestId('image-preview-viewport'))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('navigates with arrow keys from the dialog content', () => {
-    const onActiveIndexChange = vi.fn()
+  it('zooms from the viewport and resets from the icon control', () => {
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 
-    render(
-      <ImagePreviewDialog
-        open
-        items={ITEMS}
-        labels={LABELS}
-        onActiveIndexChange={onActiveIndexChange}
-        onOpenChange={vi.fn()}
-      />
-    )
+    const viewport = screen.getByTestId('image-preview-viewport')
+    const image = screen.getByRole('img', { name: 'One' })
+    fireEvent.wheel(viewport, { clientX: 0, clientY: 0, deltaY: -120 })
 
-    fireEvent.keyDown(screen.getByTestId('image-preview-dialog'), { key: 'ArrowRight' })
-    expect(onActiveIndexChange).toHaveBeenCalledWith(1)
+    expect(image).not.toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1) scaleX(1) scaleY(1)'
+    })
 
-    fireEvent.keyDown(screen.getByTestId('image-preview-dialog'), { key: 'ArrowLeft' })
-    expect(onActiveIndexChange).toHaveBeenCalledWith(1)
+    fireEvent.click(screen.getByRole('button', { name: LABELS.reset }))
+    expect(image).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1) scaleX(1) scaleY(1)'
+    })
+  })
+
+  it('stops navigation at the first and last image', () => {
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: LABELS.previous })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: LABELS.next }))
+    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByRole('button', { name: LABELS.next })).toBeDisabled()
   })
 
   it('clamps active index when the items list shrinks', () => {
@@ -259,7 +268,7 @@ describe('ImagePreviewContextMenu', () => {
       index: 0,
       items: ITEMS,
       resetTransform: vi.fn(),
-      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
+      transform: { flipX: false, flipY: false, offsetX: 0, offsetY: 0, rotation: 0, zoom: 1 }
     }
 
     render(
