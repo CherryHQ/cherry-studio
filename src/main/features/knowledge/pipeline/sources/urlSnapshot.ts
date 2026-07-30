@@ -7,13 +7,14 @@ const SNAPSHOT_TITLE_MAX = 80
 
 /**
  * Derive a human-readable file stem for a captured URL snapshot: the page's
- * first markdown heading (or first non-empty line), falling back to a slug of
- * the URL host and last path segment, and finally to `page`.
+ * fetched page title, then its first markdown heading (or first non-empty line),
+ * falling back to a slug of the URL host and last path segment, and finally to
+ * `page`.
  */
-export function deriveUrlSnapshotSlug(markdown: string, url: string): string {
-  const fromMarkdown = sanitizeFilename(firstHeadingOrLine(markdown).slice(0, SNAPSHOT_TITLE_MAX).trim())
-  if (fromMarkdown && fromMarkdown !== 'untitled') {
-    return fromMarkdown
+export function deriveUrlSnapshotSlug(markdown: string, url: string, pageTitle?: string): string {
+  const fromTitle = sanitizeFilename(preferredTitle(pageTitle, markdown))
+  if (fromTitle && fromTitle !== 'untitled') {
+    return fromTitle
   }
   const fromUrl = sanitizeFilename(urlStem(url).slice(0, SNAPSHOT_TITLE_MAX).trim())
   if (fromUrl && fromUrl !== 'untitled') {
@@ -23,17 +24,21 @@ export function deriveUrlSnapshotSlug(markdown: string, url: string): string {
 }
 
 /**
- * The page's display title for the OKF `title` field: the first markdown
- * heading (or non-empty line), unsanitized, capped at {@link SNAPSHOT_TITLE_MAX};
- * falls back to the URL host + last segment, then the raw URL. Unlike the slug
- * this keeps spaces/punctuation, since it is a frontmatter value, not a filename.
+ * The page's display title for the OKF `title` field: the fetched page title,
+ * falling back to the first markdown heading (or non-empty line), then the URL
+ * host + last segment and raw URL. Unlike the slug this keeps spaces/punctuation,
+ * since it is a frontmatter value, not a filename.
  */
-export function deriveUrlSnapshotTitle(markdown: string, url: string): string {
-  const fromMarkdown = firstHeadingOrLine(markdown).slice(0, SNAPSHOT_TITLE_MAX).trim()
-  if (fromMarkdown) {
-    return fromMarkdown
+export function deriveUrlSnapshotTitle(markdown: string, url: string, pageTitle?: string): string {
+  const fromTitle = preferredTitle(pageTitle, markdown)
+  if (fromTitle) {
+    return fromTitle
   }
   return urlStem(url).slice(0, SNAPSHOT_TITLE_MAX).trim() || url
+}
+
+function preferredTitle(pageTitle: string | undefined, markdown: string): string {
+  return (pageTitle?.trim() || firstHeadingOrLine(markdown)).slice(0, SNAPSHOT_TITLE_MAX).trim()
 }
 
 function firstHeadingOrLine(markdown: string): string {
@@ -60,22 +65,24 @@ function urlStem(url: string): string {
  * extension), without touching disk. The `fileText` is the markdown prefixed with
  * an OKF frontmatter block recording the source URL and title; reading for indexing
  * strips it back off. Shared by {@link captureUrlSnapshotFile} (native capture) and
- * the v1→v2 vector migrator so both produce byte-identical snapshots; the caller
+ * the v1→v2 vector migrator so both use the same snapshot format and fallback title
+ * rules. Native capture may additionally supply the fetched page title. The caller
  * supplies the `timestamp` (frontmatter-only, so it never affects a content hash).
  */
 export function buildUrlSnapshotFile(
   url: string,
   markdown: string,
-  timestamp: string
+  timestamp: string,
+  pageTitle?: string
 ): { slug: string; fileText: string } {
   const frontmatter = serializeOkfFrontmatter({
     type: 'URL',
-    title: deriveUrlSnapshotTitle(markdown, url),
+    title: deriveUrlSnapshotTitle(markdown, url, pageTitle),
     resource: url,
     timestamp
   })
   return {
-    slug: deriveUrlSnapshotSlug(markdown, url),
+    slug: deriveUrlSnapshotSlug(markdown, url, pageTitle),
     fileText: frontmatter + markdown
   }
 }
@@ -90,9 +97,10 @@ export async function captureUrlSnapshotFile(
   baseId: string,
   url: string,
   markdown: string,
-  reservedPaths: Set<string>
+  reservedPaths: Set<string>,
+  pageTitle?: string
 ): Promise<string> {
-  const { slug, fileText } = buildUrlSnapshotFile(url, markdown, new Date().toISOString())
+  const { slug, fileText } = buildUrlSnapshotFile(url, markdown, new Date().toISOString(), pageTitle)
   const relativePath = reserveImportedFileRelativePath(`${slug}.md`, false, reservedPaths)
   return await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText)
 }

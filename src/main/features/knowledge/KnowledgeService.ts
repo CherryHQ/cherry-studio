@@ -40,7 +40,7 @@ import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler
  */
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService'])
+@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)

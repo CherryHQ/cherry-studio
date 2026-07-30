@@ -396,7 +396,8 @@ describe('KnowledgeService', () => {
     expect(getDependencies(KnowledgeService)).toEqual([
       'KnowledgeVectorStoreService',
       'JobManager',
-      'FileProcessingService'
+      'FileProcessingService',
+      'WebSearchService'
     ])
   })
 
