@@ -376,17 +376,35 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
             {!isDefaultZoom && (
-              <Button onClick={() => handleZoomFactor(0, true)} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
+              <Tooltip content={t('preview.reset')} delay={800}>
+                <Button
+                  onClick={() => handleZoomFactor(0, true)}
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('preview.reset')}>
+                  <ResetIcon size="14" />
+                </Button>
+              </Tooltip>
             )}
-            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
-              <Minus size="14" />
-            </Button>
+            <Tooltip content={t('preview.zoom_out')} delay={800}>
+              <Button
+                onClick={() => handleZoomFactor(-0.1)}
+                variant="ghost"
+                size="icon"
+                aria-label={t('preview.zoom_out')}>
+                <Minus size="14" />
+              </Button>
+            </Tooltip>
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
-              <Plus size="14" />
-            </Button>
+            <Tooltip content={t('preview.zoom_in')} delay={800}>
+              <Button
+                onClick={() => handleZoomFactor(0.1)}
+                variant="ghost"
+                size="icon"
+                aria-label={t('preview.zoom_in')}>
+                <Plus size="14" />
+              </Button>
+            </Tooltip>
           </ZoomButtonGroup>
         </SettingRow>
         <SettingDivider />

@@ -55,7 +55,7 @@ export const KNOWLEDGE_BASE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition 
     icon: <FileSearch />
   },
   label: (t) => t('chat.input.knowledge_base'),
-  visibleInScopes: [TopicType.Chat]
+  visibleInScopes: [TopicType.Chat, TopicType.Session]
 }
 
 export const THINKING_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {

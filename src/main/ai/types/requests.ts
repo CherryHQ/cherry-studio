@@ -1,4 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
@@ -15,6 +16,15 @@ export interface AiTransportOptions {
   timeout?: number
   /** AI SDK transparent-retry override. Defaults to 0 — retries can duplicate stream state in tool loops. */
   maxRetries?: number
+}
+
+/** In-process-only usage correlation; never accepted on renderer IPC schemas. */
+export interface InProcessUsageContext {
+  agentSessionId: string
+  /** Assistant message that owns this request: a reserved steer continuation or the active turn. */
+  assistantMessageId: string
+  /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
+  source: SourceSnapshot | null
 }
 
 /**
@@ -48,9 +58,10 @@ export interface AiBaseRequest {
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /**
-   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseIds`: the
-   * assistant's own bound bases take precedence when non-empty (these ids are then ignored); only
-   * when the assistant has none does this selection define the scope.
+   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseScope`: when
+   * the assistant has its own bound bases they are a ceiling — these ids may narrow that binding but
+   * never widen it, and are ignored entirely when none of them falls inside it. Only when the
+   * assistant has no binding does this selection define the scope on its own.
    */
   knowledgeBaseIds?: string[]
   requestOptions?: AiTransportOptions

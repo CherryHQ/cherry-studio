@@ -35,8 +35,10 @@ export interface CherryAgentContext {
   /** Built-in Assistant sessions have no shell and therefore omit CLI management. */
   canManageCli?: boolean
   /**
-   * Read the knowledge bases this agent is currently bound to. An empty list means
-   * the agent has no knowledge access. The autonomy tools ignore this field.
+   * Read this agent's effective knowledge scope — `resolveKnowledgeBaseScope(binding,
+   * composerSelection)`, not the raw binding. The binding half is re-read live; the composer
+   * selection half is frozen when the connection is built. An empty list means neither source
+   * granted access. The autonomy tools ignore this field.
    */
   getKnowledgeBaseIds: () => string[]
 }

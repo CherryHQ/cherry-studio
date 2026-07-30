@@ -441,6 +441,12 @@
       "list": {
         "title": "Nhiệm vụ"
       },
+      "model_switch_confirm": {
+        "confirm": "Chuyển đổi mô hình",
+        "description": "Các mô hình khác nhau có thể hiểu và xử lý ngữ cảnh theo cách khác nhau. Việc chuyển đổi có thể ảnh hưởng đến tính liên tục hoặc chất lượng của các phản hồi tiếp theo. Bạn có muốn tiếp tục không?",
+        "skip_for_app_run": "Đừng hỏi lại cho đến khi tôi thoát ứng dụng",
+        "title": "Chuyển sang \"{{model}}\"?"
+      },
       "new": "Nhiệm vụ mới",
       "pin": {
         "title": "Ghim nhiệm vụ"
@@ -1633,8 +1639,17 @@
       "token_details": {
         "cache_read": "Đọc bộ nhớ đệm",
         "cache_write": "Ghi vào bộ nhớ đệm",
+        "cost": "Chi phí",
+        "cost_billed": "Thanh toán bởi nhà cung cấp",
+        "cost_estimated": "Ước tính",
+        "end_to_end_throughput": "Thông lượng đầu cuối",
         "input": "Đầu vào",
         "input_breakdown": "Phân tích đầu vào",
+        "lane_approval": "Phê duyệt",
+        "lane_model": "Mô hình",
+        "lane_other": "Khác",
+        "lane_tool": "Công cụ",
+        "model_throughput": "TPS tạo mô hình",
         "output": "Kết quả đầu ra",
         "reasoning": "Lý luận",
         "reasoning_time": "Suy luận",
@@ -1643,6 +1658,7 @@
         "text_output": "Đầu ra văn bản",
         "tokens": "{{value}} Mã thông báo",
         "tokens_per_second_value": "{{value}} Token/giây",
+        "total_duration": "Thời lượng từ đầu đến cuối",
         "uncached": "Uncached",
         "usage": "Sử dụng token",
         "waiting_first_token": "Đang chờ"
@@ -2310,6 +2326,7 @@
     "open_in": "Mở trong {{name}}",
     "open_in_new_tab": "Mở trong tab mới",
     "open_sidebar": "Mở thanh bên",
+    "other": "Khác",
     "placeholders": {
       "select": {
         "model": "Chọn một mô hình"
@@ -4312,6 +4329,7 @@
     },
     "pinned": "Đã ghim",
     "price": {
+      "cache_read": "Giá Đọc Cache",
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
@@ -4927,6 +4945,11 @@
     "seed_random": "Ngẫu nhiên",
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
+    "showcase": {
+      "caption": "Chọn một mẫu để bắt đầu, rồi tùy chỉnh lời nhắc bên dưới theo ý bạn.",
+      "styles_label": "Mẫu lời nhắc",
+      "title": "Không gian cho kiệt tác tiếp theo của bạn."
+    },
     "style_options": {
       "anime": "Phim hoạt hình Nhật Bản",
       "auto": "Tự động",
@@ -5203,6 +5226,7 @@
       "label": "Bạn có chắc chắn muốn khôi phục dữ liệu không?"
     },
     "content": "Thao tác khôi phục sẽ ghi đè toàn bộ dữ liệu ứng dụng hiện tại bằng dữ liệu sao lưu. Xin lưu ý rằng quá trình khôi phục có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
+    "messages_paused": "Đang khôi phục bản sao lưu; các tin nhắn mới đã tạm dừng cho đến khi hoàn tất.",
     "progress": {
       "completed": "Khôi phục hoàn tất",
       "copying_files": "Sao chép tệp... {{progress}}%",
@@ -5788,8 +5812,7 @@
       },
       "backup": {
         "skip_file_data_help": "Bỏ qua việc sao lưu các tệp dữ liệu như hình ảnh và cơ sở tri thức, chỉ sao lưu lịch sử trò chuyện và cài đặt. Giảm chiếm dụng dung lượng và tăng tốc độ sao lưu.",
-        "skip_file_data_title": "Sao lưu mỏng",
-        "v2_unavailable": "Sao lưu & khôi phục V2 chưa khả dụng. Sắp ra mắt."
+        "skip_file_data_title": "Sao lưu mỏng"
       },
       "clear_cache": {
         "button": "Xóa bộ nhớ đệm",
@@ -8100,6 +8123,108 @@
       "show": "Hiển thị biểu tượng khay",
       "title": "Bandeja"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Ngày hoạt động",
+        "cacheHitRate": "Tỷ lệ truy cập bộ nhớ đệm thành công",
+        "cacheObservedTokens": "Đầu vào có thể quan sát: {{tokens}}",
+        "cacheStartsWithNewRequests": "Bắt đầu với các yêu cầu mới",
+        "dailyAverage": "Trung bình hàng ngày",
+        "explicitApiKey": "Phím được chọn",
+        "lastPeriod": "so với kỳ trước",
+        "matchedApiKey": "Ghi đè phù hợp",
+        "none": "N/A",
+        "peakDay": "Ngày cao điểm",
+        "providerAuth": "Xác thực nhà cung cấp",
+        "streak": "Chuỗi dài nhất: {{days}} ngày",
+        "topModel": "Siêu mẫu hàng đầu",
+        "totalCost": "Tổng chi phí",
+        "totalRequests": "Yêu cầu",
+        "totalTokens": "Tổng số token",
+        "unattributedApiKey": "Yêu cầu không được ghi nhận nguồn",
+        "unattributedSource": "Nguồn không được ghi nhận"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Dòng",
+        "pie": "Bánh pie",
+        "stack": "Ngăn xếp"
+      },
+      "currency": "Tiền tệ",
+      "empty": {
+        "description": "Mức sử dụng xuất hiện sau khi các yêu cầu AI được hỗ trợ tạo ra các bản ghi mức sử dụng.",
+        "title": "Chưa có lượt sử dụng nào"
+      },
+      "explore": {
+        "analysis": "Phân tích",
+        "chart": "Biểu đồ",
+        "clearDate": "Xóa bộ lọc ngày",
+        "drilldownTitle": "Phân tích chi tiết {{date}}",
+        "entries": "Yêu cầu",
+        "groupBy": "Nhóm theo",
+        "loadMore": "Tải thêm",
+        "loading": "Đang tải...",
+        "metric": "Métrik",
+        "noBreakdown": "Không có dữ liệu chi tiết",
+        "noBreakdownDescription": "Thử một cửa sổ rộng hơn hoặc nhà cung cấp khác.",
+        "noEntries": "Không có mục nào",
+        "noEntriesDescription": "Thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
+        "rollup": "Cuộn lên / Tổng hợp (tùy ngữ cảnh)",
+        "selectedDate": "Ngày đã chọn: {{date}}",
+        "shareLabel": "Chia sẻ",
+        "title": "Khám phá",
+        "top": "Đầu",
+        "totalEntries_one": "{{count}} mục",
+        "totalEntries_other": "{{count}} mục"
+      },
+      "groupBy": {
+        "apiKey": "Khóa API",
+        "model": "Mô hình",
+        "provider": "Nhà cung cấp",
+        "source": "Trợ lý / Đại lý"
+      },
+      "heatmap": {
+        "ariaDate": "Sử dụng vào {{date}}",
+        "title": "Hoạt động hàng ngày"
+      },
+      "metric": {
+        "cost": "Chi phí",
+        "requests": "Yêu cầu",
+        "tokens": "Token"
+      },
+      "overview": {
+        "title": "Tổng quan"
+      },
+      "rollup": {
+        "daily": "Hàng ngày",
+        "monthly": "Hàng tháng",
+        "total": "Tổng cộng",
+        "weekly": "Hàng tuần"
+      },
+      "summary": "{{window}} / {{tokens}} token / {{requests}} yêu cầu",
+      "table": {
+        "cost": "Chi phí",
+        "date": "Ngày",
+        "model": "Mô hình",
+        "source": "Nguồn",
+        "tokens": "Token",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Phân tích sử dụng",
+      "tooltip": {
+        "cost": "Chi phí {{value}}",
+        "requests_one": "{{count}} yêu cầu",
+        "requests_other": "{{count}} yêu cầu",
+        "tokens": "{{value}} token"
+      },
+      "window": {
+        "30d": "30 ngày qua",
+        "365d": "Năm ngoái",
+        "90d": "90 ngày qua"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Việc thay đổi kiểu thanh tiêu đề yêu cầu khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
@@ -8275,6 +8400,7 @@
         "placeholder": "Buscar historial de traducción"
       },
       "source": "Nguồn",
+      "star": "Yêu thích",
       "success": {
         "add": "Đã lưu vào lịch sử",
         "clear": "Lịch sử đã được xóa",

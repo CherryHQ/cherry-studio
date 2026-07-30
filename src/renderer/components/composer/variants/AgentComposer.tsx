@@ -38,6 +38,7 @@ import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspac
 import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -55,8 +56,10 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
@@ -78,6 +81,7 @@ import {
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
+  getAgentManagedDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
@@ -87,6 +91,7 @@ import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSo
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
+  agentKnowledgeBaseToComposerToken,
   agentSkillToComposerToken,
   getAgentComposerTokenIds
 } from './agentComposerTokens'
@@ -97,17 +102,22 @@ import {
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
-import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
+import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
 
-const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
+const AGENT_MANAGED_TOKEN_KINDS = [
+  'file',
+  'knowledge',
+  'skill'
+] as const satisfies readonly ComposerDraftToken['kind'][]
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
@@ -322,7 +332,8 @@ const AgentComposerRoot = ({
       sessionId,
       agentType: agent.type,
       accessiblePaths,
-      slashCommands: sessionSlashCommands
+      slashCommands: sessionSlashCommands,
+      knowledgeBaseIds: agent.knowledgeBaseIds ?? []
     }
   }, [session, agent, agentId, sessionId, sessionSlashCommands])
 
@@ -380,6 +391,12 @@ const AgentComposerRoot = ({
       />
     </ComposerToolRuntimeProvider>
   )
+}
+
+/** Managed picks parked while an input-history entry is previewed, restored when the preview exits. */
+interface InputHistoryToolSnapshot {
+  files: ComposerAttachment[]
+  selectedKnowledgeBases: KnowledgeBase[]
 }
 
 interface InnerProps {
@@ -637,8 +654,8 @@ const AgentComposerInner = ({
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
-  const { files, isExpanded } = useComposerToolState()
-  const { setFiles, setIsExpanded, toolsRegistry } = useComposerToolDispatch()
+  const { files, isExpanded, selectedKnowledgeBases } = useComposerToolState()
+  const { setFiles, setIsExpanded, setSelectedKnowledgeBases, toolsRegistry } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -672,7 +689,7 @@ const AgentComposerInner = ({
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
   const previousModelIdRef = useRef(model?.id)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
-    initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
+    getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
   const draftCacheKey = getAgentDraftCacheKey(agentId)
   const [text, setTextState] = useState(() => initialDraftRef.current?.text ?? '')
@@ -687,6 +704,7 @@ const AgentComposerInner = ({
   const workspaceWarning =
     resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
@@ -697,43 +715,52 @@ const AgentComposerInner = ({
   }, [model])
 
   const setText = useCallback(
-    (nextText: string, options: { persist?: boolean } = {}) => {
+    (nextText: string, options: { persist?: boolean; tokens?: readonly ComposerSerializedToken[] } = {}) => {
       clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
       if (options.persist ?? true) {
-        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+        writeAgentDraftCache(draftCacheKey, nextText, options.tokens ?? draftTokensRef.current)
       }
     },
     [clearTimeoutTimer, draftCacheKey]
   )
   const filesRef = useLatest(files)
-  const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
+  const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
+  const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
+      const nextDraftTokens = getAgentManagedDraftTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
-      setDraftTokens(nextSkillTokens)
-      draftTokensRef.current = nextSkillTokens
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
       if (persistDraft) {
-        writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+        writeAgentDraftCache(draftCacheKey, historyDraft.text, nextDraftTokens)
       }
-      setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
+      setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
 
       if (options.source === 'history') {
-        inputHistoryFilesRef.current ??= filesRef.current
+        // A recalled entry is plain text with no tokens, so every managed pick steps aside — skills
+        // and files already do. A live knowledge selection would re-insert its chip on top of the
+        // sentence the entry already carries, sending the same attachment claim twice.
+        inputHistoryToolsRef.current ??= {
+          files: filesRef.current,
+          selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+        }
         setFiles([])
+        setSelectedKnowledgeBases([])
         return
       }
 
-      const savedFiles = inputHistoryFilesRef.current
-      inputHistoryFilesRef.current = null
-      if (!savedFiles) return
-      setFiles(savedFiles)
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (!savedTools) return
+      setFiles(savedTools.files)
+      setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
     },
-    [actionsRef, draftCacheKey, filesRef, setFiles, setText]
+    [actionsRef, draftCacheKey, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
   const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
@@ -741,10 +768,12 @@ const AgentComposerInner = ({
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
-      inputHistoryFilesRef.current = null
-      setText(nextText)
+      inputHistoryToolsRef.current = null
+      // Controlled token sync updates text without firing onTokensChange, so this editor-originated
+      // path must persist the live token snapshot rather than the potentially stale draftTokensRef.
+      setText(nextText, { tokens: actionsRef.current.getDraft().tokens })
     },
-    [resetHistoryIndex, setText]
+    [actionsRef, resetHistoryIndex, setText]
   )
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
@@ -759,9 +788,29 @@ const AgentComposerInner = ({
     draftTokensRef.current = draftTokens
   }, [draftTokens])
 
+  const selectedKnowledgeBasesScopeKey = `${sessionTopicId}:${agentId}`
+  const {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection
+  } = useComposerKnowledgeBaseScope({
+    configuredKnowledgeBaseIds: agent?.knowledgeBaseIds,
+    allKnowledgeBases,
+    isKnowledgeBasesLoading,
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases,
+    // The tool provider above is keyed by agent + session, so this hook remounts with the scope.
+    remountsOnScopeChange: true
+  })
   const tokens = useMemo(
-    () => [...files.map(agentFileToComposerToken), ...selectedSkills.map(agentSkillToComposerToken)],
-    [files, selectedSkills]
+    () => [
+      ...files.map(agentFileToComposerToken),
+      ...selectedKnowledgeBasesInScope.map(agentKnowledgeBaseToComposerToken),
+      ...selectedSkills.map(agentSkillToComposerToken)
+    ],
+    [files, selectedKnowledgeBasesInScope, selectedSkills]
   )
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
@@ -947,7 +996,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getCachedSkillTokens(draftTokens)
+      const nextDraftTokens = getAgentManagedDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
@@ -986,13 +1035,24 @@ const AgentComposerInner = ({
   )
 
   const buildQueuedPayload = useCallback(
-    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
-      buildComposerQueuedPayload(draft, {
+    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
+      const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
         extra: () => ({ reasoningEffort })
-      }),
-    [files, reasoningEffort]
+      })
+      if (!payload) return null
+
+      const tokenIds = getAgentComposerTokenIds(draft.tokens)
+      const knowledgeBaseIds = selectedKnowledgeBasesInScope
+        .filter((base) => tokenIds.has(agentComposerTokenId.knowledge(base)))
+        .map((base) => base.id)
+      return {
+        ...payload,
+        userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
+      }
+    },
+    [files, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1013,7 +1073,7 @@ const AgentComposerInner = ({
           }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
-        saveHistory(payload.text)
+        saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
@@ -1044,7 +1104,7 @@ const AgentComposerInner = ({
     // ArrowDown would restore the already-sent draft and ArrowUp would resume
     // from a stale index.
     resetHistoryIndex()
-    inputHistoryFilesRef.current = null
+    inputHistoryToolsRef.current = null
   }, [draftCacheKey, resetHistoryIndex, setFiles, setText, setTimeoutTimer])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
@@ -1065,20 +1125,21 @@ const AgentComposerInner = ({
   })
 
   // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
-  // skill subset and managed file/skill state before dropping it from the queue.
+  // skill subset and managed file/knowledge/skill state before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getCachedSkillTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentManagedDraftTokens(item.draft.tokens)
       resetHistoryIndex()
-      inputHistoryFilesRef.current = null
+      inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       setText(item.draft.text)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      setSelectedSkills(nextDraftTokens.map(getSkillFromCachedToken))
+      setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
+      restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
     },
-    [actionsRef, resetHistoryIndex, setFiles, setText]
+    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
@@ -1256,7 +1317,10 @@ const AgentComposerInner = ({
   )
 
   return (
-    <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
+    <ComposerToolDerivedStateProvider
+      couldAddImageFile={canAddImageFile}
+      extensions={supportedExts}
+      selectableKnowledgeBases={selectableKnowledgeBases}>
       {model && (
         <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
       )}
@@ -1269,6 +1333,7 @@ const AgentComposerInner = ({
           draftTokens={draftTokens}
           managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
           onTokensChange={handleTokensChange}
+          resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
           sendDisabled={

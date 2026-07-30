@@ -101,6 +101,9 @@ vi.mock('@renderer/hooks/useGroups', () => ({
       }
     ],
     isLoading: false
+  }),
+  useGroupMutations: () => ({
+    createGroup: vi.fn()
   })
 }))
 
@@ -274,13 +277,16 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockReturnValue({
-    data: ASSISTANTS_RESPONSE,
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    refetch: refetchAssistantsMock,
-    mutate: vi.fn()
+  useQueryMock.mockImplementation((path: string) => {
+    const data = path === '/assistants/:id' ? ASSISTANTS_RESPONSE.items[0] : ASSISTANTS_RESPONSE
+    return {
+      data,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchAssistantsMock,
+      mutate: vi.fn()
+    }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
@@ -482,7 +488,7 @@ describe('AssistantSelector', () => {
     expect(onChange).toHaveBeenCalledWith('created-assistant')
   })
 
-  it('keeps the selector closed after editing an assistant from a row action', async () => {
+  it('keeps the selector closed and the edit dialog open after auto-saving an assistant', async () => {
     renderSelector()
     openPopover()
 
@@ -493,8 +499,8 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
   })
 
   it('restores focus after the edit dialog close animation completes', async () => {
@@ -541,7 +547,6 @@ describe('AssistantSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
 

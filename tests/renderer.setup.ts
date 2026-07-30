@@ -229,15 +229,26 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
-    ConfirmDialog: ({ cancelText, confirmText, description, onConfirm, open, title }) =>
+    ConfirmDialog: ({ cancelText, confirmText, content, description, onConfirm, onOpenChange, open, title }) =>
       open
         ? React.createElement(
             'div',
             { role: 'dialog' },
             React.createElement('h2', null, title),
             description ? React.createElement('p', null, description) : null,
-            React.createElement('button', { type: 'button' }, cancelText),
-            React.createElement('button', { type: 'button', onClick: onConfirm }, confirmText)
+            content,
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: async () => {
+                  await onConfirm?.()
+                  onOpenChange?.(false)
+                }
+              },
+              confirmText
+            )
           )
         : null,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
@@ -732,20 +743,34 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
-    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, className, ...props }) => {
+    Tooltip: ({
+      children,
+      title,
+      content,
+      mouseEnterDelay,
+      classNames,
+      className,
+      sideOffset,
+      fullWidthTrigger,
+      ...props
+    }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       // Mirror the real Tooltip: the trigger wrapper carries classNames.placeholder.
-      const wrapperClassName = [className, classNames?.placeholder].filter(Boolean).join(' ') || undefined
+      const wrapperClassName =
+        [className, classNames?.placeholder, fullWidthTrigger && 'block w-full min-w-0 max-w-full']
+          .filter(Boolean)
+          .join(' ') || undefined
       return React.createElement(
         'div',
         {
           ...props,
           ...(wrapperClassName && { className: wrapperClassName }),
+          ...(tooltipText && { 'data-slot': 'tooltip-trigger' }),
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
           'data-mouse-enter-delay': mouseEnterDelay,
-          className: classNames?.placeholder
+          'data-side-offset': sideOffset
         },
         children,
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null

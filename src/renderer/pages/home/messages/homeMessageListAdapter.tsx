@@ -50,7 +50,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
-import { last } from 'es-toolkit/compat'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -109,8 +108,10 @@ export function useHomeMessageListProviderValue({
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const { editingMessageId, startEditing } = useMessageEditing()
+  const { editingMessage, editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
+  const canStartNewContext =
+    normalInteractionsEnabled && Boolean(chatWrite?.canStartNewContext) && editingMessage?.message.topicId !== topicId
   const resolvedAssistantId = assistant?.id ?? assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -221,7 +222,7 @@ export function useHomeMessageListProviderValue({
     messages: messageItems,
     partsByMessageId,
     streamingLayers,
-    deleteMessage,
+    deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     persistDiagnosis
   })
 
@@ -251,9 +252,6 @@ export function useHomeMessageListProviderValue({
         if (!confirmed) return
 
         void clearTopic(data)
-      }),
-      EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
-        logger.info('[NEW_CONTEXT] Not yet implemented.')
       })
     ]
 
@@ -273,7 +271,7 @@ export function useHomeMessageListProviderValue({
   useCommandHandler(
     'chat.message.copy_last',
     () => {
-      const lastMessage = last(messageItems)
+      const lastMessage = messageItems.findLast((message) => !message.isContextBoundary)
       if (lastMessage) {
         const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
         const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
@@ -297,7 +295,7 @@ export function useHomeMessageListProviderValue({
   useCommandHandler(
     'chat.message.edit_last_user',
     () => {
-      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
+      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && !m.isContextBoundary)
       if (lastUserMessage) {
         void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
       }
@@ -416,8 +414,18 @@ export function useHomeMessageListProviderValue({
   }, [])
 
   const startNewContext = useCallback(() => {
-    logger.info('[NEW_CONTEXT] Not yet implemented.')
-  }, [])
+    if (!canStartNewContext) return
+
+    void requireChatWrite('startNewContext')
+      .startNewContext()
+      .then(() => {
+        void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: topic.id })
+      })
+      .catch((error) => {
+        logger.error('Failed to update context boundary:', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      })
+  }, [canStartNewContext, requireChatWrite, t, topic.id])
 
   const saveCodeBlock = useCallback(
     async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
@@ -804,7 +812,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
-      startNewContext,
+      ...(canStartNewContext && { startNewContext }),
       saveCodeBlock,
       ...exportActions,
       ...errorActions,
@@ -821,8 +829,8 @@ export function useHomeMessageListProviderValue({
       updateRenderConfig,
       editMessage,
       startEditing,
-      getMessageDeleteAvailability,
-      deleteMessage,
+      getMessageDeleteAvailability: normalInteractionsEnabled ? getMessageDeleteAvailability : undefined,
+      deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
       startMessageBranch,
       setActiveBranch,
       deleteMessageGroup,
@@ -839,6 +847,7 @@ export function useHomeMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      canStartNewContext,
       getMessageDeleteAvailability,
       deleteMessage,
       deleteMessageGroup,
@@ -852,6 +861,7 @@ export function useHomeMessageListProviderValue({
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openPath,
       regenerateMessage,

@@ -40,6 +40,7 @@ import { PromptBuilder } from '@main/ai/agents/prompt'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import SkillsServer from '@main/ai/mcp/servers/skills'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -51,6 +52,7 @@ import {
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
@@ -172,6 +174,14 @@ function getSteerHolder(sessionId: string): SteerHolder {
 // subprocess never sees, so mid-session tool-policy updates would silently no-op.
 type ToolPolicySnapshot = Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 const toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
+interface McpSessionCatalogState {
+  agentId: string
+  serverIds: Set<string>
+  metadata: Record<string, McpToolDisplayMetadata>
+  refreshSequence: number
+  subscription?: { dispose(): void }
+}
+const mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
 
 async function ensureToolPolicySnapshot(
   sessionId: string,
@@ -196,6 +206,72 @@ function getToolPolicySnapshot(sessionId: string): ToolPolicySnapshot | undefine
 
 export function disposeToolPolicySnapshot(sessionId: string): void {
   toolPolicySnapshots.delete(sessionId)
+  mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
+  mcpSessionCatalogStates.delete(sessionId)
+}
+
+export function registerMcpSessionCatalogSync(
+  sessionId: string,
+  agentId: string,
+  mcpIds: readonly string[],
+  metadata: Record<string, McpToolDisplayMetadata> | undefined
+): void {
+  mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
+  mcpSessionCatalogStates.delete(sessionId)
+  if (!metadata || mcpIds.length === 0) return
+
+  const serverIds = new Set(
+    mcpIds.flatMap((mcpId) => {
+      const server = mcpServerService.findByIdOrName(mcpId)
+      return server ? [server.id] : []
+    })
+  )
+  if (serverIds.size === 0) return
+
+  const state: McpSessionCatalogState = {
+    agentId,
+    serverIds,
+    metadata,
+    refreshSequence: 0
+  }
+  state.subscription = application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
+    if (!state.serverIds.has(serverId)) return
+    void refreshMcpSessionCatalogState(sessionId).catch((error) => {
+      logger.warn('Failed to refresh live MCP session catalog', { sessionId, serverId, error })
+    })
+  })
+  mcpSessionCatalogStates.set(sessionId, state)
+}
+
+async function refreshMcpSessionCatalogState(sessionId: string): Promise<void> {
+  const state = mcpSessionCatalogStates.get(sessionId)
+  if (!state) return
+  const liveAgent = agentService.getAgent(state.agentId)
+  if (!liveAgent) return
+  const sequence = ++state.refreshSequence
+
+  const [policyResult, metadataResult] = await Promise.allSettled([
+    getToolPolicySnapshot(sessionId)?.update(liveAgent),
+    buildMcpToolMetadata(liveAgent)
+  ])
+  if (mcpSessionCatalogStates.get(sessionId) !== state || sequence !== state.refreshSequence) return
+
+  if (policyResult.status === 'rejected') {
+    logger.warn('Failed to refresh MCP tool policy snapshot after catalog update', {
+      sessionId,
+      error: policyResult.reason
+    })
+  }
+  if (metadataResult.status === 'rejected') {
+    logger.warn('Failed to refresh MCP tool metadata after catalog update', {
+      sessionId,
+      error: metadataResult.reason
+    })
+    return
+  }
+
+  for (const key of Object.keys(state.metadata)) delete state.metadata[key]
+  if (metadataResult.value) Object.assign(state.metadata, metadataResult.value)
 }
 
 function extractSteerText(input: AgentRuntimeUserInput): string {
@@ -241,6 +317,8 @@ export interface ClaudeCodeSessionOptions {
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
+  /** Per-turn composer selection captured by the connection builder. */
+  knowledgeBaseIds?: readonly string[]
   thinkingOptions?: {
     effort?: Options['effort']
     thinking?: Options['thinking']
@@ -282,21 +360,16 @@ export async function buildClaudeCodeSessionSettings(
   // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
   const assistantMcpEnabled = isAssistant && linkedChannelSnapshot === null
 
-  // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
-  // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
-  // `warmAgentMcpToolCaches`. The returned handle drives the post-timeout reconciliation below.
-  const mcpWarm = await warmAgentMcpToolCaches(agent)
-
-  // 1. Working directory (session-bound)
+  // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
-
-  // 2. Environment variables
-  const env = await buildEnvironment(provider, agent)
-
-  // 3. Plugins
-  const workspacePlugins = await discoverPlugins(cwd, session.agentId)
+  const mcpWarmPromise = warmAgentMcpToolCaches(agent)
+  const [agentDataPath, env, workspacePlugins] = await Promise.all([
+    ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
+    buildEnvironment(provider, agent),
+    discoverPlugins(cwd, agent.id)
+  ])
+  const mcpWarm = await mcpWarmPromise
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(agentConfig?.builtin_role)
   const plugins = needsPrivateSkillPlugin
     ? [
@@ -331,21 +404,20 @@ export async function buildClaudeCodeSessionSettings(
     assistantMcpEnabled,
     options?.mcpServerSnapshots,
     linkedChannelSnapshot,
-    agentDataPath
+    agentDataPath,
+    options?.knowledgeBaseIds
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
+  if (agent.mcps?.length) mcpToolMetadata ??= {}
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
   // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
   // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
-  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can
-  // see. Those two are one-shot bakes with no invalidation channel of their own, so chain onto the
-  // surviving refresh: rebuild the live session policy snapshot and fill the metadata map in place
-  // (the stream adapter reads this same object by reference on every turn), so both converge with
-  // what the bridge exposes. The agent is re-fetched at fire-time so this late rebuild can't
-  // clobber a policy update applied between build and refresh completion.
+  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can see.
+  // Rebuild the shared policy snapshot and fill this build's metadata object in place when the warm
+  // lands. A real connection separately registers live catalog sync after it owns the settings;
+  // warm-only settings builds never subscribe.
   if (!mcpWarm.completedInTime) {
-    mcpToolMetadata ??= {}
     const metadataRef = mcpToolMetadata
     void mcpWarm.warm
       .then(async () => {
@@ -353,7 +425,9 @@ export async function buildClaudeCodeSessionSettings(
         if (!liveAgent) return
         await getToolPolicySnapshot(session.id)?.update(liveAgent)
         const freshMetadata = await buildMcpToolMetadata(liveAgent)
-        if (freshMetadata) Object.assign(metadataRef, freshMetadata)
+        if (!metadataRef || !freshMetadata) return
+        for (const key of Object.keys(metadataRef)) delete metadataRef[key]
+        Object.assign(metadataRef, freshMetadata)
       })
       .catch((error) => {
         logger.warn('Failed to reconcile MCP tool snapshot after bounded warm timed out', {
@@ -583,6 +657,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
+    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -607,6 +682,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
+      'CHERRY_STUDIO_SKILLS_DIR',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
@@ -670,11 +746,11 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
  * startup reconcile, never here — so concurrent session builds never race.
  */
 export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
-  const installedSkills = await skillService.list({ agentId })
+  const [installedSkills, workspaceNames] = await Promise.all([
+    skillService.list({ agentId }),
+    skillService.listLocalFolderNames(cwd)
+  ])
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
-
-  const workspaceSkills = await skillService.listLocal(cwd)
-  const workspaceNames = workspaceSkills.map((skill) => skill.filename)
 
   return Array.from(new Set([...enabledNames, ...workspaceNames]))
 }
@@ -893,6 +969,27 @@ async function buildToolPermissions(
     }
   }
 
+  // Installing a skill requires the same permission handling as any other mutating tool. Interactive
+  // turns defer to the SDK: default / acceptEdits prompt through canUseTool, while bypassPermissions
+  // runs directly. A headless turn has no responder, so deny only when its live permission mode still
+  // requires approval. Resolve the mode from the session snapshot so a warm connection observes a
+  // live permission-mode update instead of the agent config captured when these hooks were built.
+  const headlessSkillInstallHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'mcp__skills__install_skill') return {}
+    if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'This channel or scheduled turn cannot approve a skill installation. Use bypassPermissions for unattended installation, or install it from an interactive turn.'
+      }
+    }
+  }
+
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -981,6 +1078,31 @@ async function buildToolPermissions(
     }
   }
 
+  const postToolTimingHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
+      return {}
+    }
+    const event = input as unknown as Record<string, unknown>
+    const toolCallId = event.tool_use_id
+    const toolName = event.tool_name
+    const durationMs = event.duration_ms
+    if (
+      typeof toolCallId !== 'string' ||
+      typeof toolName !== 'string' ||
+      typeof durationMs !== 'number' ||
+      !Number.isFinite(durationMs) ||
+      durationMs < 0
+    ) {
+      return {}
+    }
+    application.get('AgentSessionRuntimeService').recordToolExecutionTiming(session.id, {
+      toolCallId,
+      toolName,
+      durationMs
+    })
+    return {}
+  }
+
   return {
     canUseTool,
     hooks: {
@@ -989,6 +1111,7 @@ async function buildToolPermissions(
           hooks: [
             interactiveToolPermissionHook,
             headlessConfigMutationHook,
+            headlessSkillInstallHook,
             disabledToolHook,
             workspacePathHook,
             dependencyIsolationHook,
@@ -996,7 +1119,9 @@ async function buildToolPermissions(
             steerHook
           ]
         }
-      ]
+      ],
+      PostToolUse: [{ hooks: [postToolTimingHook] }],
+      PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
     },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; agent/assistant overlays stay until they migrate to per-tool exposure (PR-7).
@@ -1118,7 +1243,8 @@ export function buildMcpServers(
   assistantMcpEnabled: boolean,
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
-  agentDataPath = session.workspace.path
+  agentDataPath = session.workspace.path,
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
@@ -1167,7 +1293,10 @@ export function buildMcpServers(
       workspacePath: session.workspace.path,
       sourceChannelId,
       canManageCli: agent.configuration?.builtin_role !== 'assistant',
-      getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
+      getKnowledgeBaseIds: () => {
+        const liveAgent = agentService.getAgent(agent.id)
+        return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
+      }
     }).mcpServer
   }
 
@@ -1176,6 +1305,11 @@ export function buildMcpServers(
   // "log completion" step (and all memory writes) have no backing server.
   const memoryServer = new AgentMemoryServer(agent.id, agentDataPath)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
+
+  // skills — deterministic marketplace search + install (the find-skills skill drives these).
+  // install_skill clones and installs exactly one skill into the managed library via SkillService,
+  // so a model only needs one tool call instead of a correct multi-step shell sequence.
+  mcpList.skills = { type: 'sdk', name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
 
   logger.debug('Injected cherry-tools + agent-memory MCP servers', {
     agentId: agent.id,
@@ -1227,16 +1361,16 @@ function addMcpToolMetadataAliases(
 // Session build reads MCP tools from cache-only `listTools` (sync, so a dead server can't stall
 // startup — issue #16242). The approval descriptors + tool-card metadata built below therefore
 // see nothing for a server whose cache is still cold on a first session. Warm the agent's own
-// servers via the single-flighted `warmToolsCache` so those cache-only reads reflect configured
-// tools — bounded by a short cap so a dead/slow server still can't stall session start; on
-// timeout we fall back to the empty cache. The in-flight refresh keeps running past the cap and
+// servers via the single-flighted `warmToolsCache` so fast cache hits can contribute configured
+// tools — bounded by a short cache-hit window so a dead/slow server still can't stall session
+// start; on timeout we fall back to the empty cache. The in-flight refresh keeps running past the cap and
 // then converges BOTH remaining consumers: the caller chains a reconciliation onto `warm` (step 7
 // of the build) that rebuilds the session snapshot + metadata, and the cache write it lands fires
 // `onToolsCacheUpdated`, which the SDK bridge relays as `tools/list_changed` so the SDK re-lists.
 // The warm also carries a liveness duty beyond latency: it is the only path that re-probes a
-// warmed-but-empty cache (see `warmToolsCache`), i.e. the retry that lets a previously-dead
-// server recover at all.
-const MCP_WARM_TIMEOUT_MS = 3_000
+// warmed-but-empty cache after its retry window (see `warmToolsCache`), letting a previously-dead
+// server recover without reconnecting it on every session build.
+const MCP_WARM_TIMEOUT_MS = 100
 
 interface McpWarmResult {
   // False when the bounded race hit the cap with the refresh still in flight.
@@ -1311,6 +1445,9 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   result.push('mcp__agent-memory__*')
+  // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
+  // (clones + installs third-party code), so it deliberately stays on per-call approval.
+  result.push('mcp__skills__search_skills')
   if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
   return result
 }
