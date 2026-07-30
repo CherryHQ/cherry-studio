@@ -63,6 +63,21 @@ import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from 
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+
+function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
+  return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
+}
+
+function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
+  const text = (input.message.data.parts ?? [])
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+    .trimStart()
+
+  return /^\/fast(?:\s|$)/i.test(text)
+}
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
   const baselineFacts = baseline.rebuildFactFingerprints
@@ -354,6 +369,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.resumeToken,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
+      this.input.fastMode === true,
       this.input.knowledgeBaseIds
     )
     if (!request) {
@@ -436,6 +452,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    if (isFastSlashCommand(input)) {
+      throw new Error('The /fast command is unavailable; use the host Fast control instead')
+    }
+
     this.adapter?.beginTurn()
 
     this.sdkInputQueue.push(
@@ -468,6 +488,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -484,12 +505,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
+      input.fastMode === true,
       input.knowledgeBaseIds
     )
     if (!derived.ok) return 'invalid'
@@ -545,7 +568,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
-      return await this.query.supportedCommands()
+      return (await this.query.supportedCommands()).filter((command) => !isHostManagedSlashCommand(command))
     } catch (error) {
       logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
       return null
@@ -659,7 +682,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
       },
       statusSink: {
-        emit: (event) => this.eventQueue.push(event)
+        emit: (event) => {
+          // Mirror `getSupportedCommands`: host-managed commands never reach the catalog, whether it
+          // arrives at init or as a mid-session `commands_changed` push.
+          if (event.type === 'supported-commands') {
+            this.eventQueue.push({
+              ...event,
+              commands: event.commands.filter((command) => !isHostManagedSlashCommand(command))
+            })
+            return
+          }
+          this.eventQueue.push(event)
+        }
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata

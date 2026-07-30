@@ -372,6 +372,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'resume-1',
       'claude-code::sonnet',
       'default',
+      false,
       undefined
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
@@ -389,6 +390,24 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
+    void connection.close()
+  })
+
+  it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const blockedMessage = userMessage()
+    blockedMessage.data.parts[0].text = '  /fast'
+
+    await expect(connection.send({ message: blockedMessage })).rejects.toThrow('use the host Fast control')
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+
     void connection.close()
   })
 
@@ -1842,7 +1861,18 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const commands = [
+      { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
+      { name: 'effort', description: 'Set reasoning effort', argumentHint: '' },
+      { name: 'fast', description: 'Toggle fast mode', argumentHint: '' }
+    ]
+    const visibleCommands = [commands[0]]
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      supportedCommands: vi.fn().mockResolvedValue(commands)
+    }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -1853,12 +1883,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // No `send()` → no adapter (the primed, turn-less case). The mid-session push must still surface so
     // the catalog refreshes; `supportedCommands()` alone would miss it (captured once at init).
-    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
     queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
 
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'supported-commands', commands }
+      value: { type: 'supported-commands', commands: visibleCommands }
     })
+    await expect(connection.getSupportedCommands?.()).resolves.toEqual(visibleCommands)
 
     void connection.close()
   })
@@ -2554,7 +2584,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await connection.reconcile({ modelId: 'claude-code::sonnet' as any, knowledgeBaseIds: ['kb-1'] })
 
-      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', ['kb-1'])
+      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {
