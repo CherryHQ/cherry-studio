@@ -1,4 +1,4 @@
-import { cacheService } from '@renderer/data/CacheService'
+import { cacheService } from '@data/CacheService'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { type TransientMiniApp, TransientMiniAppSchema } from '@shared/data/types/miniApp'
 

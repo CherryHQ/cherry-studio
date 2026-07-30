@@ -110,17 +110,9 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-// Detach reads the mini-app keep-alive pool imperatively; default to empty so only the
-// detach tests below populate it.
-let keepAliveMiniAppsValue: unknown[] = []
-vi.mock('@renderer/data/CacheService', () => ({
-  cacheService: {
-    get: (key: string) => (key === 'mini_app.opened_keep_alive' ? keepAliveMiniAppsValue : undefined)
-  }
-}))
-
 import { useTabsContext } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -320,7 +312,7 @@ beforeEach(() => {
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
-  keepAliveMiniAppsValue = []
+  MockCacheUtils.resetMocks()
 })
 
 afterEach(() => {
@@ -334,17 +326,24 @@ describe('TabsProvider detach', () => {
   // riding along, `/app/mini-app/<id>` resolves to nothing there and the new window renders
   // "app not found".
   it('carries the transient mini-app descriptor with the detach payload', async () => {
-    keepAliveMiniAppsValue = [
-      {
-        appId: 'openclaw-dashboard',
-        presetMiniAppId: null,
-        status: 'enabled',
-        orderKey: '',
-        name: 'OpenClaw',
-        url: 'http://127.0.0.1:18790#token=secret',
-        logo: 'openclaw'
-      }
-    ]
+    MockCacheUtils.setInitialState({
+      memory: [
+        [
+          'mini_app.opened_keep_alive',
+          [
+            {
+              appId: 'openclaw-dashboard',
+              presetMiniAppId: null,
+              status: 'enabled',
+              orderKey: '',
+              name: 'OpenClaw',
+              url: 'http://127.0.0.1:18790#token=secret',
+              logo: 'openclaw'
+            }
+          ]
+        ]
+      ]
+    })
 
     render(
       <TabsProvider includePinnedTabs={false}>

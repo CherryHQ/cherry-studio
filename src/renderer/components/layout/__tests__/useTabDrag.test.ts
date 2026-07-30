@@ -6,12 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const requestMock = vi.hoisted(() => vi.fn())
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
 
-let keepAliveMiniApps: unknown[] = []
-vi.mock('@renderer/data/CacheService', () => ({
-  cacheService: {
-    get: (key: string) => (key === 'mini_app.opened_keep_alive' ? keepAliveMiniApps : undefined)
-  }
-}))
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 
 import { useTabDrag } from '../useTabDrag'
 
@@ -85,7 +80,7 @@ function dragTabOut(tab: Tab) {
 }
 
 beforeEach(() => {
-  keepAliveMiniApps = []
+  MockCacheUtils.resetMocks()
 })
 
 afterEach(() => {
@@ -98,7 +93,7 @@ describe('useTabDrag detach', () => {
   // and this drag tear-off. Both must send the transient mini-app descriptor, or the torn-off
   // window has no way to resolve `/app/mini-app/<id>` and renders "app not found".
   it('carries the transient mini-app descriptor when a mini-app tab is torn off', () => {
-    keepAliveMiniApps = [OPENCLAW_KEEP_ALIVE_ENTRY]
+    MockCacheUtils.setInitialState({ memory: [['mini_app.opened_keep_alive', [OPENCLAW_KEEP_ALIVE_ENTRY]]] })
 
     dragTabOut(MINI_APP_TAB)
 
