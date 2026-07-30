@@ -1072,7 +1072,7 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('renders pasted links with a constrained favicon, identifiable label, and removable open action', () => {
+  it('renders pasted links with the default icon, identifiable label, and removable open action', () => {
     const url = 'https://www.example.com/docs'
     const onRemove = vi.fn()
     const { container } = render(
@@ -1091,18 +1091,37 @@ describe('ComposerToken', () => {
     const link = screen.getByRole('link', { name: url })
     expect(link).toHaveTextContent('example.com/docs')
     expect(link).toHaveClass('text-primary', 'cursor-pointer')
-    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.example.com')
-    expect(container.querySelector('[data-composer-link-favicon]')).toHaveClass(
-      'size-[1em]',
-      'overflow-hidden',
-      '[&>img]:size-full!'
-    )
+    expect(link.querySelector('svg')).toHaveClass('size-[1em]', 'text-current', 'opacity-80')
+    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-composer-link-favicon]')).not.toBeInTheDocument()
     fireEvent.click(link)
     expect(ipcRequestMock).toHaveBeenCalledWith('system.shell.open_website', url)
 
     fireEvent.click(container.querySelector('[data-composer-token-remove]') as HTMLButtonElement)
     expect(onRemove).toHaveBeenCalledTimes(1)
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders sent links with a constrained favicon', () => {
+    const url = 'https://www.example.com/docs'
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url
+        }}
+        readOnly
+      />
+    )
+
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.example.com')
+    expect(container.querySelector('[data-composer-link-favicon]')).toHaveClass(
+      'size-[1em]',
+      'overflow-hidden',
+      '[&>img]:size-full!'
+    )
   })
 
   it('renders knowledge tokens without a popover and exposes inline remove on the icon', () => {

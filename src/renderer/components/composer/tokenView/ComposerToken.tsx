@@ -272,12 +272,14 @@ export function LinkComposerToken(props: ComposerTokenProps) {
       'cursor-pointer rounded-[4px] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
       props.className
     ),
-    icon: (
+    icon: props.readOnly ? (
       <span
         className="inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-[4px] [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!"
         data-composer-link-favicon="">
         <Favicon hostname={link.hostname} alt="" />
       </span>
+    ) : (
+      tokenIconByKind.link
     ),
     children: <span className="min-w-0 truncate">{link.label}</span>,
     interactionProps: {
