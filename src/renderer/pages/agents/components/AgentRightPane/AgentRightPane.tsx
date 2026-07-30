@@ -46,7 +46,7 @@ import { cn } from '@renderer/utils/style'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { TreeDirRoot } from '@shared/utils/file'
+import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
@@ -287,10 +287,10 @@ function AgentRightPaneActionsProvider({
       }
 
       void window.api.file
-        .isDirectory(getArtifactPaneSelectionPath(selection))
-        .then((isDirectory) => {
+        .getMetadata(createFilePathHandle(getArtifactPaneSelectionPath(selection)))
+        .then((metadata) => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(isDirectory ? null : selection)
+          requestFileSelection(metadata.kind === 'directory' ? null : selection)
         })
         .catch(() => {
           if (artifactOpenRequestRef.current !== requestId) return
@@ -595,7 +595,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
-  const panelState = useRightPanelState()
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
     workspacePath: state.workspacePath,
@@ -639,8 +638,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={panelState.pdfLayoutPending}
-      pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
       enableFileSearch
       fileSession={state.fileSession}
       editMode={state.editMode}

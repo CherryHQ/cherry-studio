@@ -126,7 +126,7 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   )
 }
 
-export default function PdfFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -250,10 +250,6 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
 
     void (async () => {
       try {
-        // Preflight the size via metadata (a stat, not a read) so oversized PDFs are
-        // rejected before we read + IPC-transfer the whole file into pdf.js.
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
-        if (cancelled) return
         if (metadata.size > PDF_PREVIEW_MAX_SIZE_BYTES) {
           setStatus('too_large')
           return
@@ -286,7 +282,7 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
         loadingTask = null
       }
     }
-  }, [filePath, refreshKey])
+  }, [filePath, metadata.size, refreshKey])
 
   useEffect(() => {
     const container = containerRef.current

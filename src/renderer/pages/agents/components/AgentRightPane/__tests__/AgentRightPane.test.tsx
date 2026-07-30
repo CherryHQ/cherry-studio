@@ -184,7 +184,6 @@ vi.mock('@renderer/utils/filePath', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
-  ArtifactFilePreview: () => <div data-testid="artifact-preview" />,
   ArtifactPaneView: ({
     editMode,
     onEditModeChange,
@@ -245,8 +244,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   getArtifactPaneSelectionPath: (
     await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath')
   ).getArtifactPaneSelectionPath,
-  isOfficeDocumentFile: () => false,
-  isImageFile: () => false,
   resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
@@ -466,7 +463,14 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
+    window.api.file.getMetadata = vi.fn().mockResolvedValue({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
     fileSessionState.isDirty = false
     fileSessionState.isSaving = false
     fileSessionState.saveError = undefined
@@ -774,11 +778,16 @@ describe('AgentRightPane', () => {
     await waitFor(() => {
       expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
     })
-    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/workspace/report.md')
+    expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/workspace/report.md' })
   })
 
   it('opens the files pane without previewing a declared directory', async () => {
-    vi.mocked(window.api.file.isDirectory).mockResolvedValue(true)
+    vi.mocked(window.api.file.getMetadata).mockResolvedValue({
+      kind: 'directory',
+      size: 0,
+      createdAt: 1,
+      modifiedAt: 1
+    })
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'html in canvas'
@@ -795,7 +804,7 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     await waitFor(() => {
-      expect(window.api.file.isDirectory).toHaveBeenCalledWith('/workspace/html in canvas')
+      expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/workspace/html in canvas' })
     })
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()

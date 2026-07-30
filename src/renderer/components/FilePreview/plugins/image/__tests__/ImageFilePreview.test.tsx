@@ -4,12 +4,23 @@ import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
+
+beforeEach(() => {
+  window.api.file.getMetadata = vi.fn().mockResolvedValue({
+    kind: 'file',
+    type: 'image',
+    size: 128,
+    createdAt: 1,
+    modifiedAt: 1,
+    mime: 'image/png'
+  })
+})
 
 afterEach(() => {
   cleanup()

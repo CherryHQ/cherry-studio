@@ -84,9 +84,12 @@ function plugin(id: string, extensions: readonly string[]): FilePreviewPlugin {
 }
 
 describe('file preview registry', () => {
-  it.each(['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP'])('registers the image plugin for .%s files', (extension) => {
-    expect(resolveExtensionPlugin(`/tmp/image.${extension}`, filePreviewRegistry)?.id).toBe('image')
-  })
+  it.each(['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP', 'AVIF', 'ICO'])(
+    'registers the image plugin for .%s files',
+    (extension) => {
+      expect(resolveExtensionPlugin(`/tmp/image.${extension}`, filePreviewRegistry)?.id).toBe('image')
+    }
+  )
 
   it('does not register SVG as a raster image preview', () => {
     expect(resolveExtensionPlugin('/tmp/image.svg', filePreviewRegistry)).toBeNull()
@@ -106,6 +109,10 @@ describe('file preview registry', () => {
 
   it.each(['html', 'htm', 'HTML', 'HTM'])('registers the HTML plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/page.${extension}`, filePreviewRegistry)?.id).toBe('html')
+  })
+
+  it.each(['md', 'markdown', 'mdx', 'MDX'])('registers the Markdown plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/readme.${extension}`, filePreviewRegistry)?.id).toBe('markdown')
   })
 
   it('keeps the text plugin extension whitelist explicit', () => {
