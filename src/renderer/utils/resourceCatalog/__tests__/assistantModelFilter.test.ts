@@ -17,12 +17,8 @@ function createModel(overrides: Partial<Model> = {}): Model {
 }
 
 describe('isSelectableAssistantModel', () => {
-  it('rejects embedding models', () => {
-    expect(isSelectableAssistantModel(createModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING] }))).toBe(false)
-  })
-
-  it('rejects rerank models', () => {
-    expect(isSelectableAssistantModel(createModel({ capabilities: [MODEL_CAPABILITY.RERANK] }))).toBe(false)
+  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])('rejects %s models', (capability) => {
+    expect(isSelectableAssistantModel(createModel({ capabilities: [capability] }))).toBe(false)
   })
 
   it('accepts chat-capable models', () => {
