@@ -34,6 +34,7 @@ export function LocalBackupModal({
           <DialogTitle>{t('settings.data.local.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={t('settings.data.local.backup.modal.filename.placeholder')}
