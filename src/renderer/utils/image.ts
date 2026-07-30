@@ -802,3 +802,13 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   const response = await fetch(src)
   return response.blob()
 }
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
+}

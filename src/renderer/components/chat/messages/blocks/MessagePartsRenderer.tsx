@@ -181,6 +181,7 @@ interface RenderGroupedEntryOptions {
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
   settleActiveTools?: boolean
@@ -540,6 +541,7 @@ function renderPart(
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
+          onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
             message.role === 'user' && options?.onTextPartExpandedChange
               ? (expanded) => options.onTextPartExpandedChange?.(partId, expanded)
@@ -560,6 +562,7 @@ function renderPart(
           inlineHtmlPreviewMode={inlineHtmlPreviewMode}
           isStreaming={isStreaming}
           role={message.role}
+          onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
         />
       )
     }
@@ -776,11 +779,7 @@ function renderGroupedEntry(
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: '100%' }}>
-            {images.map((src, i) => (
-              <ImageBlock key={`${groupKey}-img-${i}`} images={[src]} isSingle={false} />
-            ))}
-          </div>
+          <ImageBlock images={images} isSingle={false} />
         </AnimatedBlockWrapper>
       )
     }
@@ -1319,6 +1318,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     wasActiveTurnProcessingRef.current = isActiveTurnProcessing
   }, [isActiveTurnProcessing, requestFollowRecovery])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const handleTextPartExpandedChange = React.useCallback((partId: string, expanded: boolean) => {
     setExpandedTextPartIds((current) => {
       const hasPartId = current.has(partId)
@@ -1329,6 +1331,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         next.add(partId)
       } else {
         next.delete(partId)
+      }
+      return next
+    })
+  }, [])
+  const handleTextPlayoutSettledChange = React.useCallback((partId: string, settled: boolean) => {
+    setUnsettledTextPlayoutPartIds((current) => {
+      const isUnsettled = current.has(partId)
+      if (isUnsettled === !settled) return current
+
+      const next = new Set(current)
+      if (settled) {
+        next.delete(partId)
+      } else {
+        next.add(partId)
       }
       return next
     })
@@ -1354,22 +1370,31 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getDisplayEntries(partEntries, message, visibleComposerFileTokens),
     [message, partEntries, visibleComposerFileTokens]
   )
-  const hasVisibleEntry = useMemo(
-    () => displayEntries.some((entry) => isPotentiallyVisibleEntry(entry, message.id)),
+  const hasVisibleNonArtifactEntry = useMemo(
+    () =>
+      displayEntries.some(
+        (entry) => isPotentiallyVisibleEntry(entry, message.id) && !isReportArtifactEntry(entry, message.id)
+      ),
     [displayEntries, message.id]
   )
   const renderOptions = useMemo(
     () => ({
       expandedTextPartIds,
       readOnlyFilePreviews,
+      onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
-    [expandedTextPartIds, handleTextPartExpandedChange, readOnlyFilePreviews]
+    [expandedTextPartIds, handleTextPartExpandedChange, handleTextPlayoutSettledChange, readOnlyFilePreviews]
   )
+  const canRenderReportArtifacts =
+    !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
 
   // No parts to render — normal for user messages (content is in message text, not parts)
-  // But if the message is processing (pending/streaming), show the loading placeholder
-  if (partEntries.length === 0 || (!hasVisibleEntry && reportArtifactToolResponses.length === 0)) {
+  // But if the message is processing (pending/streaming), show the loading placeholder.
+  // Report-artifact entries don't count as renderable here: the live layout filters
+  // them out and the card itself is gated on canRenderReportArtifacts, so a message
+  // whose only content is report_artifacts must keep its placeholder until the card can show.
+  if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
@@ -1401,8 +1426,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         renderOptions={renderOptions}
       />
       {isActiveTurnProcessing && activeTurnStatus?.(null)}
-      {reportArtifactToolResponses.length > 0 && (
-        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreamLive} animation="fade">
+      {canRenderReportArtifacts && (
+        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
         </AnimatedBlockWrapper>
       )}

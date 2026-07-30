@@ -1337,6 +1337,68 @@ describe('ComposerSurface', () => {
     expect(onTextChange).not.toHaveBeenCalled()
   })
 
+  it('preserves prompt variables when replacing a draft that also contains another token', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text=""
+        onActionsChange={(actions) => {
+          mocks.actions = actions
+        }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    mocks.setContent.mockClear()
+
+    act(() => {
+      mocks.actions?.replaceDraft({
+        text: '${city} https://example.com',
+        tokens: [
+          {
+            id: 'prompt-variable:0:city',
+            kind: 'promptVariable',
+            label: 'city',
+            promptText: '${city}',
+            index: 0,
+            textOffset: 0
+          },
+          {
+            id: 'link-1',
+            kind: 'link',
+            label: 'example.com',
+            promptText: 'https://example.com',
+            index: 1,
+            textOffset: 8
+          }
+        ]
+      })
+    })
+
+    expect(mocks.setContent).toHaveBeenCalledWith(
+      {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'composerToken',
+                attrs: expect.objectContaining({ kind: 'promptVariable', promptText: '${city}' })
+              },
+              { type: 'text', text: ' ' },
+              {
+                type: 'composerToken',
+                attrs: expect.objectContaining({ kind: 'link', promptText: 'https://example.com' })
+              }
+            ]
+          }
+        ]
+      },
+      { emitUpdate: false }
+    )
+  })
+
   it('truncates external text updates at the maximum text length', async () => {
     const onTextChange = vi.fn()
 
@@ -3051,6 +3113,63 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         id: 'skill:pdf',
         textOffset: 6
+      })
+    ])
+  })
+
+  it('notifies editor-owned token changes when prompt-backed token content changes', async () => {
+    const onTokensChange = vi.fn()
+    const createEditor = (promptText: string) => ({
+      getJSON: () => ({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'composerToken',
+                attrs: {
+                  id: 'prompt-variable:0:city',
+                  kind: 'promptVariable',
+                  label: promptText,
+                  promptText
+                }
+              }
+            ]
+          }
+        ]
+      }),
+      schema: { nodes: {} },
+      state: {
+        doc: {
+          descendants: vi.fn()
+        },
+        tr: mocks.transaction
+      },
+      view: {
+        composing: false,
+        dispatch: mocks.dispatch
+      }
+    })
+
+    render(<ComposerSurface {...baseProps} managedTokenKinds={[]} onTokensChange={onTokensChange} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: createEditor('${city}') })
+    })
+    onTokensChange.mockClear()
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: createEditor('上海') })
+    })
+
+    expect(onTokensChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        kind: 'promptVariable',
+        label: '上海',
+        promptText: '上海'
       })
     ])
   })
