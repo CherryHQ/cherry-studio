@@ -284,11 +284,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       return
     }
     await navigator.clipboard.writeText(content)
-    void exportMarkdownToObsidian({
+    const success = await exportMarkdownToObsidian({
       ...state,
       folder: state.folder,
       vault: selectedVault
     })
+    if (!success) {
+      return
+    }
     setOpen(false)
     resolve(true)
   }
@@ -492,7 +495,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <Button type="button" variant="outline" onClick={handleCancel}>
             {i18n.t('common.cancel')}
           </Button>
-          <Button type="button" disabled={vaults.length === 0 || loading || !!error} onClick={handleOk}>
+          <Button
+            type="button"
+            disabled={vaults.length === 0 || loading || !!error || !state.title.trim()}
+            onClick={handleOk}>
             {i18n.t('chat.topics.export.obsidian_btn')}
           </Button>
         </DialogFooter>
