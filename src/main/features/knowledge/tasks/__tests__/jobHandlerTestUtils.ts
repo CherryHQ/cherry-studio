@@ -1,4 +1,4 @@
-import type { JobContext } from '@main/core/job/types'
+import type { CooperativeJobContext, JobContext } from '@main/core/job/types'
 import type * as FsUtils from '@main/utils/file'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
@@ -319,11 +319,27 @@ export function createCtx<TInput>(input: TInput, jobId = 'job-1', parentId: stri
   }
 }
 
+export function createCooperativeCtx<TInput>(input: TInput, jobId = 'job-1'): CooperativeJobContext<TInput> {
+  return {
+    ...createCtx(input, jobId),
+    quiesceAtSafePoint: vi.fn().mockResolvedValue(undefined)
+  }
+}
+
 export function createAbortedCtx<TInput>(input: TInput, jobId = 'job-1'): JobContext<TInput> {
   const controller = new AbortController()
   controller.abort()
   return {
     ...createCtx(input, jobId),
+    signal: controller.signal
+  }
+}
+
+export function createAbortedCooperativeCtx<TInput>(input: TInput, jobId = 'job-1'): CooperativeJobContext<TInput> {
+  const controller = new AbortController()
+  controller.abort()
+  return {
+    ...createCooperativeCtx(input, jobId),
     signal: controller.signal
   }
 }
