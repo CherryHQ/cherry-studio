@@ -110,33 +110,33 @@ deleteItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
-  -> under same-base mutation lock:
+  -> under same-base mutation lock and one DB transaction:
        mark selected root subtrees deleting
-  -> enqueue knowledge.delete-subtree
+       enqueue knowledge.delete-subtree
        idempotency key = knowledge:${baseId}:${sorted root ids}:delete
-  -> if enqueue throws:
-       keep rows deleting
-       log and rethrow
+  -> if the transaction or enqueue throws:
+       roll back the deleting status write
+       rethrow
 ```
 
-### Why Enqueue Failure Keeps `deleting`
+### Why Enqueue Failure Rolls Back `deleting`
 
-`deleting` is a recoverable intermediate state, not a terminal error. Once a subtree is marked `deleting`, other runtime paths can stop treating it as normal searchable/indexable content.
+The `deleting` status write and durable job enqueue share one transaction. If `enqueueTx` throws, the transaction rolls back, so the rows retain their previous status and remain visible to the user. No committed delete intent exists for startup recovery to resume.
 
-If enqueue fails, the rows remain `deleting`. The service does not run an in-session retry loop. Startup recovery scans deleting roots once and re-enqueues cleanup jobs best-effort:
+Startup recovery still scans committed `deleting` roots once and re-enqueues cleanup jobs best-effort. That scan covers rows left behind after an already-enqueued cleanup is interrupted or fails; it is not the fallback for a synchronous `enqueueTx` failure:
 
 ```text
 deleteItems enqueue failure
-  -> keep rows deleting
+  -> roll back rows to their previous status
   -> throw the enqueue error to the caller
 
 onAllReady
-  -> scan deleting root groups
+  -> scan previously committed deleting root groups
   -> enqueue knowledge.delete-subtree in bounded chunks
   -> log scan or enqueue failures without retrying in-session
 ```
 
-This keeps delete cleanup durable across process restart without maintaining a runtime recovery scheduler for the small enqueue-failure window.
+This keeps delete admission atomic while retaining recovery for cleanup work that had already become durable.
 
 ### Why Delete Cleanup Failure Does Not Mark Items `failed`
 
@@ -261,7 +261,7 @@ When changing these operations, check the operation-specific failure behavior be
 | Operation | Failed base | Root collapse | Extra status guard | State before enqueue | Enqueue failure |
 | --- | --- | --- | --- | --- | --- |
 | `addItems` | Reject | N/A | N/A | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
-| `deleteItems` | Allow | Yes | N/A | `deleting` | Keep `deleting`; startup recovery best-effort re-enqueues |
+| `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
 | `reindexItems` | Reject | Yes | Entire selected subtree must be `completed` or `failed` | None | Throw; no active state was written |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 

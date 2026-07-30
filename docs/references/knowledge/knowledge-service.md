@@ -171,14 +171,13 @@ Current persisted `knowledge_base` columns include:
 `delete-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Workflow service marks selected root subtrees `deleting` under the base mutation lock.
-3. Workflow service enqueues `knowledge.delete-subtree`.
-4. The delete job cancels active jobs touching the subtree.
-5. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
+2. Under the base mutation lock, one DB transaction marks selected root subtrees `deleting` and enqueues `knowledge.delete-subtree`.
+3. The delete job cancels active jobs touching the subtree.
+4. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
-If enqueueing `knowledge.delete-subtree` fails after rows are marked `deleting`, rows remain `deleting`. Startup recovery scans deleting roots and re-enqueues cleanup jobs best-effort.
+If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery still scans committed `deleting` roots and re-enqueues cleanup jobs best-effort when already-durable cleanup was interrupted or failed.
 
 `reindex-items` currently runs:
 
