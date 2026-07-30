@@ -8,6 +8,12 @@ const {
   getRegistry,
   jobManagerPause,
   drainInFlight,
+  channelPause,
+  channelDrain,
+  aiPause,
+  aiDrain,
+  agentPause,
+  agentDrain,
   relaunchMock,
   broadcastMock
 } = vi.hoisted(() => ({
@@ -18,6 +24,12 @@ const {
   getRegistry: vi.fn(() => ({ domains: [] })),
   jobManagerPause: vi.fn(() => ({ dispose: vi.fn() })),
   drainInFlight: vi.fn(async () => ({ stragglerIds: [] as string[], startupRecoveryPending: false })),
+  channelPause: vi.fn(() => ({ dispose: vi.fn() })),
+  channelDrain: vi.fn(async () => ({ stragglerIds: [] as string[] })),
+  aiPause: vi.fn(() => ({ dispose: vi.fn() })),
+  aiDrain: vi.fn(async () => ({ stragglerIds: [] as string[] })),
+  agentPause: vi.fn(() => ({ dispose: vi.fn() })),
+  agentDrain: vi.fn(async () => ({ stragglerIds: [] as string[] })),
   relaunchMock: vi.fn(),
   broadcastMock: vi.fn()
 }))
@@ -50,6 +62,15 @@ vi.mock('@application', async () => {
   mocked.application.get = vi.fn((name: string) => {
     if (name === 'JobManager') {
       return { pause: jobManagerPause, drainInFlight }
+    }
+    if (name === 'ChannelManager') {
+      return { pause: channelPause, drainInFlight: channelDrain }
+    }
+    if (name === 'AiStreamManager') {
+      return { pause: aiPause, drainInFlight: aiDrain }
+    }
+    if (name === 'AgentSessionRuntimeService') {
+      return { pause: agentPause, drainInFlight: agentDrain }
     }
     if (name === 'IpcApiService') {
       return { broadcast: broadcastMock }

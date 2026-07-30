@@ -22,7 +22,7 @@ import {
 import { ALWAYS_STRIP_TABLES } from '../exclusions'
 
 // Current business-table count (sqliteTable() definitions). Update if schemas change.
-const EXPECTED_TABLE_COUNT = 39
+const EXPECTED_TABLE_COUNT = 40
 
 describe('DB_TABLES membership', () => {
   it('discovers exactly the sqliteTable() business tables, sorted ascending', () => {
@@ -40,13 +40,16 @@ describe('DB_TABLES membership', () => {
   })
 
   it('includes the always-strip DB tables (they ARE sqliteTable definitions)', () => {
-    // app_state and job are always stripped from backups but still discovered as
-    // business tables — the coverage universe iterates DB_TABLES, and exclusions
-    // account for them separately.
+    // app_state, job, and ai_usage_record are always stripped from backups but still
+    // discovered as business tables — the coverage universe iterates DB_TABLES, and
+    // exclusions account for them separately.
     expect(DB_TABLES).toContain('app_state')
     expect(DB_TABLES).toContain('job')
+    expect(DB_TABLES).toContain('ai_usage_record')
     for (const t of DB_TABLES) {
-      expect(ALWAYS_STRIP_TABLES.has(t)).toBe(t === 'app_state' || t === 'job' ? true : false)
+      expect(ALWAYS_STRIP_TABLES.has(t)).toBe(
+        t === 'app_state' || t === 'job' || t === 'ai_usage_record' ? true : false
+      )
     }
   })
 })
@@ -222,9 +225,9 @@ describe('DB_JSON_COLUMNS', () => {
     expect(DB_JSON_COLUMNS.topic).toEqual([])
   })
 
-  it('lists exactly 45 JSON columns in total', () => {
+  it('lists exactly 47 JSON columns in total', () => {
     const total = Object.values(DB_JSON_COLUMNS).reduce((sum, cols) => sum + cols.length, 0)
-    expect(total).toBe(45)
+    expect(total).toBe(47)
   })
 
   it('every listed column is a known column of its table', () => {

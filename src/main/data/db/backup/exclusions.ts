@@ -17,13 +17,14 @@ import type { FileRefSourceType } from '@shared/data/types/file'
  * Physical tables stripped from every backup (never owned by any contributor).
  * - app_state: runtime process state (seed journal, caches) — not user data.
  * - job: runtime job queue — not user data.
+ * - ai_usage_record: cost-analytics usage aggregates (#15992) — derivable, not user data.
  *
  * These ARE in DB_TABLES (codegen discovers sqliteTable() calls), so the stripper's
  * DB_TABLES whitelist admits them directly.
  *
  * finalize invariant #4 asserts no contributor owns these.
  */
-export const ALWAYS_STRIP_PHYSICAL_TABLES: readonly string[] = ['app_state', 'job']
+export const ALWAYS_STRIP_PHYSICAL_TABLES: readonly string[] = ['app_state', 'job', 'ai_usage_record']
 
 /**
  * FTS5 virtual tables — NOT independently stripped on export. They are external-content

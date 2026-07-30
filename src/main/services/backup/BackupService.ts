@@ -19,9 +19,10 @@
 // spine. The renderer triggers export via backup.start_backup; restore runs the
 // ImportOrchestrator spine (quiesce → fingerprint → snapshot → planResources → merge →
 // migrate → seal → 2nd fingerprint → journal → broadcast restore_summary → renderer
-// backup.restore_relaunch). quiesce is PARTIAL
-// (BACKUP_IN_PROGRESS flag + JobManager.pause + best-effort drain; full quiesce a1/#17014
-// follow-up). MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
+// backup.restore_relaunch). quiesce pauses every mutation writer
+// (ChannelManager / AiStreamManager / AgentSessionRuntimeService / JobManager: pause +
+// drainInFlight, #17014) plus the BACKUP_IN_PROGRESS IPC gate; the a1 WindowManager hold
+// (destroying mutation-capable renderers) is the remaining follow-up. MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
 // dangling-ref repair + FTS) is wired; planResources feeds journal.fileResources + merge
 // skip sets. performRestoreRecovery at startup GCs staging residue from a crashed prior
 // restore; gcExportTempResidue GCs unredacted export-temp DB copies from a crashed prior export.
@@ -161,13 +162,14 @@ export class BackupService extends BaseService {
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
   /**
-   * JobManager pause hold for the active restore's partial-quiesce window. Acquired
-   * in startRestore's quiesceWriters callback; released on failure short of seal.
-   * After seal it stays held until the user-confirmed relaunch exits the process
-   * (the write window must not reopen between disclosure and the preboot gate).
-   * `undefined` outside a restore.
+   * Writer pause holds for the active restore's quiesce window — one Disposable per
+   * mutation writer paused in startRestore's quiesceWriters (ChannelManager,
+   * AiStreamManager, AgentSessionRuntimeService, JobManager). Acquired together;
+   * released on failure short of seal. After seal they stay held until the
+   * user-confirmed relaunch exits the process (the write window must not reopen
+   * between disclosure and the preboot gate). Empty outside a restore.
    */
-  private restoreQuiesceHold?: Disposable
+  private restoreQuiesceHolds: Disposable[] = []
   /** Finalized contributor registry, available only in the current backup surface. */
   private registry?: ReturnType<typeof contributorManager.getRegistry>
   /**
@@ -409,40 +411,62 @@ export class BackupService extends BaseService {
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
         // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — FIELD_MERGE/
-        // SKIP + junction + FTS + fileId disclosure) are wired. quiesce is PARTIAL
-        // (BACKUP_IN_PROGRESS flag + JobManager.pause + drain; full quiesce a1/#17014
-        // is follow-up). Unclean drain aborts restore (vaayne A7) — do not proceed into
-        // createSnapshot. Full + lite both admit; assertFullManifestInvariants runs inside
-        // admitArchive for full presets.
+        // SKIP + junction + FTS + fileId disclosure) are wired. quiesce pauses every
+        // mutation writer (Channel → drain → AI/Agent/Job → drain, #17014) plus the
+        // BACKUP_IN_PROGRESS IPC gate; the a1 WindowManager hold is follow-up. Unclean
+        // drain aborts restore (vaayne A7) — do not proceed into createSnapshot. Full +
+        // lite both admit; assertFullManifestInvariants runs inside admitArchive for full
+        // presets.
         admitArchive: (path, workDir, migrationsFolder) => admitArchive(path, workDir, migrationsFolder),
         quiesceWriters: async () => {
-          // PARTIAL quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject
-          // (DataApi/Preference/IpcApi gates), then pause JobManager (#16925) and DRAIN
-          // its in-flight executions before createSnapshot. Pause alone gates NEW dispatch
-          // + croner but lets already-running handlers finish their writes, so
-          // drainInFlight MUST precede the snapshot (ImportOrchestrator §9 / #16850 Q3c /
-          // #16925). AI/channel in-flight drain needs #17014 (deferred); this covers
-          // scheduled jobs only. Unclean drain (stragglers or startupRecoveryPending)
+          // Write quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject (DataApi /
+          // Preference / IpcApi gates), then pause + drain every mutation writer before
+          // createSnapshot. ORDER MATTERS — the channel must pause admission and DRAIN its
+          // flushed batches (which wait on AI admission) to completion BEFORE the AI writers
+          // pause (ChannelMessageHandler.drainInFlight contract): pausing AI first would
+          // deadlock those in-flight batches. After the channel drain, pause AiStreamManager
+          // + AgentSessionRuntimeService + JobManager (admission gates), then drainInFlight
+          // each (PRECONDITION: a live pause hold must precede drain, else the verdict is a
+          // point-in-time snapshot). Unclean verdict (stragglers / startupRecoveryPending)
           // aborts restore — promotion is NOT a backstop for writes that slip past
-          // (vaayne A7). Full quiesce (a1 WindowManager hold) is follow-up.
+          // (vaayne A7). The a1 WindowManager hold (destroying mutation-capable renderers)
+          // remains follow-up; this covers all service-side writers (#17014).
           setBackupInProgress(true)
           acquiredQuiesce = true
+          const channelManager = application.get('ChannelManager')
+          const aiStream = application.get('AiStreamManager')
+          const agentRuntime = application.get('AgentSessionRuntimeService')
           const jobManager = application.get('JobManager')
-          this.restoreQuiesceHold = jobManager.pause('restore-quiesce')
-          const verdict = await jobManager.drainInFlight({ timeoutMs: 5000 })
-          if (verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending) {
-            logger.error(
-              `restore quiesce drain returned unclean verdict; aborting restore: stragglerIds=${verdict.stragglerIds.length} startupRecoveryPending=${verdict.startupRecoveryPending}`,
-              { stragglerIds: verdict.stragglerIds, startupRecoveryPending: verdict.startupRecoveryPending }
-            )
-            // ABORT: do NOT proceed into createSnapshot. Caller's try/catch → toIpcError
-            // returns IPC error to renderer; the finally clause releases the quiesce hold +
-            // BACKUP_IN_PROGRESS so the write window reopens.
-            throw new IpcError(
-              backupErrorCodes.RESTORE_DRAIN_UNCLEAN,
-              `restore aborted: JobManager drain returned unclean verdict (stragglerIds=${verdict.stragglerIds.length}, startupRecoveryPending=${verdict.startupRecoveryPending})`
-            )
+          // Reset first so an abort mid-quiesce still releases every writer paused so far
+          // (the finally clause disposes this list, not a local that the throw would skip).
+          this.restoreQuiesceHolds = []
+          const abortUnclean = (
+            writer: string,
+            verdict: { stragglerIds: string[]; startupRecoveryPending?: boolean }
+          ): void => {
+            if (verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending) {
+              logger.error(
+                `restore quiesce drain returned unclean verdict; aborting restore: writer=${writer} stragglerIds=${verdict.stragglerIds.length} startupRecoveryPending=${verdict.startupRecoveryPending ?? false}`
+              )
+              throw new IpcError(
+                backupErrorCodes.RESTORE_DRAIN_UNCLEAN,
+                `restore aborted: ${writer} drain returned unclean verdict (stragglerIds=${verdict.stragglerIds.length}, startupRecoveryPending=${verdict.startupRecoveryPending ?? false})`
+              )
+            }
           }
+
+          // Channel first: pause admission + drain flushed batches before AI writers pause.
+          this.restoreQuiesceHolds.push(channelManager.pause('restore-quiesce'))
+          abortUnclean('ChannelManager', await channelManager.drainInFlight({ timeoutMs: 5000 }))
+
+          // AI writers + JobManager: pause admission (gates new turns), then drain the
+          // in-flight turns that were admitted before the pause.
+          this.restoreQuiesceHolds.push(aiStream.pause('restore-quiesce'))
+          this.restoreQuiesceHolds.push(agentRuntime.pause('restore-quiesce'))
+          this.restoreQuiesceHolds.push(jobManager.pause('restore-quiesce'))
+          abortUnclean('AiStreamManager', await aiStream.drainInFlight({ timeoutMs: 5000 }))
+          abortUnclean('AgentSessionRuntimeService', await agentRuntime.drainInFlight({ timeoutMs: 5000 }))
+          abortUnclean('JobManager', await jobManager.drainInFlight({ timeoutMs: 5000 }))
         },
         mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
           // Defensive belt: registry must be finalized in onInit. Unreachable in normal
@@ -508,8 +532,10 @@ export class BackupService extends BaseService {
    */
   private releaseRestoreQuiesce(): void {
     setBackupInProgress(false)
-    this.restoreQuiesceHold?.dispose()
-    this.restoreQuiesceHold = undefined
+    for (const hold of this.restoreQuiesceHolds) {
+      hold.dispose()
+    }
+    this.restoreQuiesceHolds = []
   }
 
   /**
