@@ -14,15 +14,28 @@ describe('usePaintingInitialSelection', () => {
   it('re-seeds the untouched draft on the resolved provider once options resolve (fresh user)', () => {
     const draft = makeDraft('zhipu')
     const setCurrentPainting = vi.fn()
-    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
-      initialProps: { currentPainting: draft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    const { rerender, result } = renderHook<boolean, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: {
+        currentPainting: draft,
+        historyItems: [],
+        historyIsLoading: false,
+        initialProviderId: 'zhipu',
+        setCurrentPainting
+      }
     })
 
     // Provider still matches the draft and there's no history → nothing to do.
     expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current).toBe(true)
 
     // Options resolve to a different default provider.
-    rerender({ currentPainting: draft, historyItems: [], initialProviderId: 'openai', setCurrentPainting })
+    rerender({
+      currentPainting: draft,
+      historyItems: [],
+      historyIsLoading: false,
+      initialProviderId: 'openai',
+      setCurrentPainting
+    })
 
     expect(setCurrentPainting).toHaveBeenCalledTimes(1)
     const reseeded = setCurrentPainting.mock.calls[0][0]
@@ -34,30 +47,66 @@ describe('usePaintingInitialSelection', () => {
     const draft = makeDraft('zhipu')
     const recent = makeDraft('aihubmix')
     const setCurrentPainting = vi.fn()
-    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
-      initialProps: { currentPainting: draft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    const { rerender, result } = renderHook<boolean, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: {
+        currentPainting: draft,
+        historyItems: [],
+        historyIsLoading: true,
+        initialProviderId: 'zhipu',
+        setCurrentPainting
+      }
     })
 
-    rerender({ currentPainting: draft, historyItems: [recent], initialProviderId: 'zhipu', setCurrentPainting })
+    expect(result.current).toBe(false)
+
+    rerender({
+      currentPainting: draft,
+      historyItems: [recent],
+      historyIsLoading: false,
+      initialProviderId: 'zhipu',
+      setCurrentPainting
+    })
 
     expect(setCurrentPainting).toHaveBeenCalledWith(recent)
+    expect(result.current).toBe(true)
   })
 
-  it('adopts history after the untouched draft was re-seeded for the resolved provider', () => {
+  it('waits for initial history before adopting instead of re-seeding the draft early', () => {
     const draft = makeDraft('zhipu')
     const recent = makeDraft('aihubmix')
     const setCurrentPainting = vi.fn()
-    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
-      initialProps: { currentPainting: draft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    const { rerender, result } = renderHook<boolean, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: {
+        currentPainting: draft,
+        historyItems: [],
+        historyIsLoading: true,
+        initialProviderId: 'zhipu',
+        setCurrentPainting
+      }
     })
 
-    rerender({ currentPainting: draft, historyItems: [], initialProviderId: 'openai', setCurrentPainting })
+    rerender({
+      currentPainting: draft,
+      historyItems: [],
+      historyIsLoading: true,
+      initialProviderId: 'openai',
+      setCurrentPainting
+    })
 
-    const reseeded = setCurrentPainting.mock.calls[0][0] as PaintingData
+    expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current).toBe(false)
 
-    rerender({ currentPainting: reseeded, historyItems: [recent], initialProviderId: 'openai', setCurrentPainting })
+    rerender({
+      currentPainting: draft,
+      historyItems: [recent],
+      historyIsLoading: false,
+      initialProviderId: 'openai',
+      setCurrentPainting
+    })
 
-    expect(setCurrentPainting).toHaveBeenNthCalledWith(2, recent)
+    expect(setCurrentPainting).toHaveBeenCalledTimes(1)
+    expect(setCurrentPainting).toHaveBeenCalledWith(recent)
+    expect(result.current).toBe(true)
   })
 
   it('does not replace an edited unsaved draft when history loads', () => {
@@ -65,13 +114,26 @@ describe('usePaintingInitialSelection', () => {
     const editedDraft = { ...draft, prompt: 'edited prompt' }
     const recent = makeDraft('aihubmix')
     const setCurrentPainting = vi.fn()
-    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
-      initialProps: { currentPainting: draft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    const { rerender, result } = renderHook<boolean, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: {
+        currentPainting: draft,
+        historyItems: [],
+        historyIsLoading: true,
+        initialProviderId: 'zhipu',
+        setCurrentPainting
+      }
     })
 
-    rerender({ currentPainting: editedDraft, historyItems: [recent], initialProviderId: 'zhipu', setCurrentPainting })
+    rerender({
+      currentPainting: editedDraft,
+      historyItems: [recent],
+      historyIsLoading: false,
+      initialProviderId: 'zhipu',
+      setCurrentPainting
+    })
 
     expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current).toBe(true)
   })
 
   it('does not replace a user-created blank draft when history loads', () => {
@@ -79,32 +141,59 @@ describe('usePaintingInitialSelection', () => {
     const userCreatedDraft = { ...makeDraft('zhipu'), id: 'user-created-draft' }
     const recent = makeDraft('aihubmix')
     const setCurrentPainting = vi.fn()
-    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
-      initialProps: { currentPainting: initialDraft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    const { rerender, result } = renderHook<boolean, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: {
+        currentPainting: initialDraft,
+        historyItems: [],
+        historyIsLoading: true,
+        initialProviderId: 'zhipu',
+        setCurrentPainting
+      }
     })
 
     rerender({
       currentPainting: userCreatedDraft,
       historyItems: [recent],
+      historyIsLoading: false,
       initialProviderId: 'zhipu',
       setCurrentPainting
     })
 
     expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current).toBe(true)
   })
 
-  it('does not re-adopt history after the first bootstrap completes', () => {
+  it('keeps an explicit new blank draft ready after history bootstrap', () => {
     const draft = makeDraft('zhipu')
     const recent = makeDraft('aihubmix')
     const newDraft = makeDraft('openai')
     const setCurrentPainting = vi.fn()
-    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
-      initialProps: { currentPainting: draft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    const { rerender, result } = renderHook<boolean, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: {
+        currentPainting: draft,
+        historyItems: [],
+        historyIsLoading: true,
+        initialProviderId: 'zhipu',
+        setCurrentPainting
+      }
     })
 
-    rerender({ currentPainting: draft, historyItems: [recent], initialProviderId: 'zhipu', setCurrentPainting })
-    rerender({ currentPainting: newDraft, historyItems: [recent], initialProviderId: 'openai', setCurrentPainting })
+    rerender({
+      currentPainting: draft,
+      historyItems: [recent],
+      historyIsLoading: false,
+      initialProviderId: 'zhipu',
+      setCurrentPainting
+    })
+    rerender({
+      currentPainting: newDraft,
+      historyItems: [recent],
+      historyIsLoading: false,
+      initialProviderId: 'openai',
+      setCurrentPainting
+    })
 
     expect(setCurrentPainting).toHaveBeenCalledTimes(1)
+    expect(result.current).toBe(true)
   })
 })

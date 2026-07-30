@@ -366,7 +366,9 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
 
     expect(result.paths.databaseFile).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite'))
     expect(result.paths.legacyClaudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, '.claude'))
+    expect(result.paths.legacyClaudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, '.claude', 'projects'))
     expect(result.paths.claudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude'))
+    expect(result.paths.claudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude', 'projects'))
   })
 
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {

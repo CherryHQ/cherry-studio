@@ -433,7 +433,8 @@
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
-        "unknown_agent": "Unknown agent",
+        "unknown_agent": "Unlinked Agent",
+        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Yesterday"
       },
       "label_one": "Session",
@@ -1932,6 +1933,7 @@
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
+        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Yesterday"
       },
       "list": "Conversation List",
@@ -4945,6 +4947,11 @@
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "showcase": {
+      "caption": "Choose a template to start, then make the prompt your own below.",
+      "styles_label": "Prompt templates",
+      "title": "A place for your next masterpiece."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5221,6 +5228,7 @@
       "label": "Are you sure you want to restore data?"
     },
     "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+    "messages_paused": "A backup restore is in progress; new messages are paused until it completes.",
     "progress": {
       "completed": "Restore completed",
       "copying_files": "Copying files... {{progress}}%",
@@ -5806,8 +5814,7 @@
       },
       "backup": {
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup",
-        "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
+        "skip_file_data_title": "Slim Backup"
       },
       "clear_cache": {
         "button": "Clear Cache",
@@ -6643,9 +6650,6 @@
           "dxtFile": "DXT Package File",
           "dxtHelp": "Select a .dxt file containing an MCP server package",
           "dxtProcessFailed": "Failed to process DXT file",
-          "error": {
-            "multipleServers": "Cannot import from multiple servers"
-          },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
           "mcpb": "Import MCPB Bundle",
@@ -8395,6 +8399,7 @@
         "placeholder": "Search translation history"
       },
       "source": "Source",
+      "star": "Favorite",
       "success": {
         "add": "Saved to history",
         "clear": "History cleared",

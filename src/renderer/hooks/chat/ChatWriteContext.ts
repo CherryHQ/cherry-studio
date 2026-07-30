@@ -35,6 +35,10 @@ export interface RegenerateOptions {
 }
 
 export interface ChatWriteActions {
+  /** Whether a context boundary can be created or removed in the current topic state. */
+  canStartNewContext: boolean
+  /** Create a context boundary at the active leaf, or remove it when it is already the active leaf. */
+  startNewContext: () => Promise<void>
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
   getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability

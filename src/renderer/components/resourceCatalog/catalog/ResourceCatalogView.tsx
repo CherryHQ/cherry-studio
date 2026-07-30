@@ -45,8 +45,7 @@ export function ResourceCatalogView({
       (resourceType === 'skill' && dialogs.systemSkillOpen) ||
       dialogs.createDialogOpen ||
       dialogs.createDialogKind ||
-      dialogs.editDialogOpen ||
-      dialogs.editDialog
+      dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
 

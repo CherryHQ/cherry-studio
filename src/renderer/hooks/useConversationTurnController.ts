@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -62,7 +63,7 @@ export function useConversationTurnController<TInput, TConversation>({
         const ack = await ipcApi.request('ai.stream.open', buildStreamRequest(input, conversation))
 
         if (ack.mode === 'blocked') {
-          toast.error(ack.message)
+          toast.error(getStreamBlockedMessage(ack))
           if (isCurrentScope()) setPhase('ready')
           void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
             logger.warn('Failed to refresh conversation metadata after blocked turn', err as Error)
