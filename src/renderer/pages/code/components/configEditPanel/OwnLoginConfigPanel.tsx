@@ -131,11 +131,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : undefined)}>
-      <DialogContent
-        size="lg"
-        aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="flex max-h-[85vh] flex-col">
+      <DialogContent size="lg" aria-describedby={undefined} className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
             <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border/30" />

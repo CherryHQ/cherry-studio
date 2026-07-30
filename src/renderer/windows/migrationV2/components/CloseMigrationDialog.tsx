@@ -35,7 +35,7 @@ export const CloseMigrationDialog: FC<Props> = ({ open, onOpenChange, onConfirm 
         size="sm"
         showCloseButton={false}
         onOpenAutoFocus={(event) => {
-          // Radix would otherwise focus the first button: destructive Quit.
+          // Prefer the safe action over the shared dialog-content focus default.
           event.preventDefault()
           continueRef.current?.focus()
         }}>

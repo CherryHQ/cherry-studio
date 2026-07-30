@@ -76,11 +76,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
-      <DialogContent
-        size="lg"
-        aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="flex max-h-[85vh] flex-col">
+      <DialogContent size="lg" aria-describedby={undefined} className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
             {isApiGatewayProviderId(provider.id) ? (

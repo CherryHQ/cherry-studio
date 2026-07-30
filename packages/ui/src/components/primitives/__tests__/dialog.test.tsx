@@ -49,6 +49,59 @@ function DialogWithSelect({ onOpenChange }: { onOpenChange: (open: boolean) => v
 }
 
 describe('Dialog primitive', () => {
+  it('focuses the dialog content instead of selecting the first input by default', async () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+          <input aria-label="Name" defaultValue="Existing name" />
+        </DialogContent>
+      </Dialog>
+    )
+
+    const dialog = screen.getByRole('dialog')
+    const input = screen.getByLabelText('Name')
+
+    await waitFor(() => expect(dialog).toHaveFocus())
+    expect(input).not.toHaveFocus()
+  })
+
+  it('preserves consumer open autofocus handling', async () => {
+    render(
+      <Dialog open>
+        <DialogContent
+          aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            if (event.currentTarget instanceof HTMLElement) {
+              event.currentTarget.querySelector<HTMLInputElement>('input')?.focus()
+            }
+          }}>
+          <DialogTitle>Rename item</DialogTitle>
+          <input aria-label="Name" defaultValue="Existing name" />
+        </DialogContent>
+      </Dialog>
+    )
+
+    const input = screen.getByLabelText('Name') as HTMLInputElement
+
+    await waitFor(() => expect(input).toHaveFocus())
+    expect(input.selectionStart).toBe(input.selectionEnd)
+  })
+
+  it('preserves explicit input autofocus', async () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+          <input aria-label="Name" autoFocus />
+        </DialogContent>
+      </Dialog>
+    )
+
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveFocus())
+  })
+
   it('keeps nested dialogs in the page dialog portal instead of the parent dialog content', () => {
     const pagePortalContainer = document.createElement('div')
     document.body.appendChild(pagePortalContainer)
