@@ -10,21 +10,11 @@ const list = vi.fn()
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    McpCatalogService: { listTools },
-    McpRuntimeService: { callTool: vi.fn() }
+    McpCatalogService: { listTools, listToolsWithStatus: listTools },
+    McpRuntimeService: { callTool: vi.fn() },
+    CacheService: { getShared: vi.fn() },
+    IpcApiService: { broadcast: vi.fn() }
   } as Record<string, unknown>)
-})
-
-vi.mock('@application', async () => {
-  return {
-    application: {
-      get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
-        if (name === 'McpRuntimeService') return { callTool: vi.fn() }
-        throw new Error(`unexpected service: ${name}`)
-      }
-    }
-  }
 })
 
 vi.mock('@main/data/services/McpServerService', () => ({
@@ -59,7 +49,9 @@ describe('syncMcpToolsToRegistry', () => {
     const reg = new ToolRegistry()
     list.mockReturnValue({ items: [activeServer('s1'), activeServer('s2')] })
     listTools.mockImplementation((serverId: string) =>
-      serverId === 's1' ? [mcpTool('s1', 'a'), mcpTool('s1', 'b')] : [mcpTool('s2', 'c')]
+      serverId === 's1'
+        ? { tools: [mcpTool('s1', 'a'), mcpTool('s1', 'b')], fresh: true }
+        : { tools: [mcpTool('s2', 'c')], fresh: true }
     )
 
     await syncMcpToolsToRegistry(reg)
@@ -78,7 +70,7 @@ describe('syncMcpToolsToRegistry', () => {
     const reg = new ToolRegistry()
     // Server disables auto-approve for tool 'a' (force-prompt); 'b' stays auto-approve.
     list.mockReturnValue({ items: [activeServer('s1', ['a'])] })
-    listTools.mockReturnValue([mcpTool('s1', 'a'), mcpTool('s1', 'b')])
+    listTools.mockReturnValue({ tools: [mcpTool('s1', 'a'), mcpTool('s1', 'b')], fresh: true })
 
     await syncMcpToolsToRegistry(reg)
 
@@ -98,7 +90,7 @@ describe('syncMcpToolsToRegistry', () => {
     } satisfies ToolEntry)
 
     list.mockReturnValue({ items: [activeServer('s1')] })
-    listTools.mockReturnValue([mcpTool('s1', 'a')])
+    listTools.mockReturnValue({ tools: [mcpTool('s1', 'a')], fresh: true })
 
     await syncMcpToolsToRegistry(reg)
 
@@ -109,11 +101,11 @@ describe('syncMcpToolsToRegistry', () => {
   it('replaces an existing entry when the schema changes (drift fix)', async () => {
     const reg = new ToolRegistry()
     list.mockReturnValue({ items: [activeServer('s1')] })
-    listTools.mockReturnValueOnce([mcpTool('s1', 't', 'v1 desc')])
+    listTools.mockReturnValueOnce({ tools: [mcpTool('s1', 't', 'v1 desc')], fresh: true })
     await syncMcpToolsToRegistry(reg)
     expect(reg.getByName('mcp__s1__t')?.description).toBe('v1 desc')
 
-    listTools.mockReturnValueOnce([mcpTool('s1', 't', 'v2 desc')])
+    listTools.mockReturnValueOnce({ tools: [mcpTool('s1', 't', 'v2 desc')], fresh: true })
     await syncMcpToolsToRegistry(reg)
     expect(reg.getByName('mcp__s1__t')?.description).toBe('v2 desc')
     expect(reg.getAll().filter((e) => e.name === 'mcp__s1__t').length).toBe(1)
@@ -130,19 +122,19 @@ describe('syncMcpToolsToRegistry', () => {
     } satisfies ToolEntry)
 
     list.mockReturnValue({ items: [] })
-    listTools.mockReturnValue([])
+    listTools.mockReturnValue({ tools: [], fresh: true })
 
     await syncMcpToolsToRegistry(reg)
 
     expect(reg.getByName('web_search')).toBeDefined()
   })
 
-  it('continues when a single server throws on listTools', async () => {
+  it('continues when a single server reports a stale (fresh:false) snapshot', async () => {
     const reg = new ToolRegistry()
     list.mockReturnValue({ items: [activeServer('broken'), activeServer('ok')] })
     listTools.mockImplementation((serverId: string) => {
-      if (serverId === 'broken') throw new Error('connection refused')
-      return [mcpTool('ok', 't')]
+      if (serverId === 'broken') return { tools: [], fresh: false }
+      return { tools: [mcpTool('ok', 't')], fresh: true }
     })
 
     await syncMcpToolsToRegistry(reg)
@@ -151,10 +143,68 @@ describe('syncMcpToolsToRegistry', () => {
     expect(reg.getAll()).toHaveLength(1)
   })
 
+  it('keeps last-known-good tools and flags stale when a server reports fresh:false', async () => {
+    const reg = new ToolRegistry()
+    list.mockReturnValue({ items: [activeServer('flaky')] })
+    // Cache still holds the previous snapshot; the refresh failed so `fresh` is false.
+    listTools.mockReturnValue({ tools: [mcpTool('flaky', 'stale')], fresh: false })
+
+    await syncMcpToolsToRegistry(reg)
+
+    // Tools are kept registered (not evicted) and no stale-broadcast assertion needed here.
+    expect(reg.getByName('mcp__flaky__stale')).toBeDefined()
+  })
+
+  it('evicts a locally-disabled tool immediately even when the cache snapshot is stale', async () => {
+    const reg = new ToolRegistry()
+    // Pre-existing entry from a previous sync.
+    reg.register({
+      name: 'mcp__srv__old_bug',
+      namespace: 'mcp:srv',
+      description: 'now disabled by user',
+      defer: 'auto',
+      tool: { description: '' } as unknown as Tool
+    } satisfies ToolEntry)
+
+    list.mockReturnValue({
+      items: [
+        { id: 'srv', name: 'srv', isActive: true, disabledTools: ['mcp__srv__old_bug'], disabledAutoApproveTools: [] }
+      ]
+    })
+    // Stale cache still has the previous snapshot including the now-disabled tool.
+    listTools.mockReturnValue({ tools: [mcpTool('srv', 'old_bug'), mcpTool('srv', 'ok')], fresh: false })
+
+    await syncMcpToolsToRegistry(reg)
+
+    // Locally-disabled tool is evicted regardless of stale/fresh status.
+    expect(reg.getByName('mcp__srv__old_bug')).toBeUndefined()
+    // Enabled tool is kept (stale fallback preserves last-known-good).
+    expect(reg.getByName('mcp__srv__ok')).toBeDefined()
+  })
+
+  it('evicts removed/disabled tools on a successful empty refresh (fresh:true with [])', async () => {
+    const reg = new ToolRegistry()
+    // Pre-existing entry that the server no longer offers.
+    reg.register({
+      name: 'mcp__s1__gone',
+      namespace: 'mcp:s1',
+      description: 'removed',
+      defer: 'auto',
+      tool: { description: '' } as unknown as Tool
+    } satisfies ToolEntry)
+
+    list.mockReturnValue({ items: [activeServer('s1')] })
+    listTools.mockReturnValue({ tools: [], fresh: true })
+
+    await syncMcpToolsToRegistry(reg)
+
+    expect(reg.getByName('mcp__s1__gone')).toBeUndefined()
+  })
+
   it('synced entry only applies when its id is in scope.mcpToolIds', async () => {
     const reg = new ToolRegistry()
     list.mockReturnValue({ items: [activeServer('gh')] })
-    listTools.mockReturnValue([mcpTool('gh', 'search'), mcpTool('gh', 'fork')])
+    listTools.mockReturnValue({ tools: [mcpTool('gh', 'search'), mcpTool('gh', 'fork')], fresh: true })
     await syncMcpToolsToRegistry(reg)
 
     const searchEntry = reg.getByName('mcp__gh__search')!
@@ -167,7 +217,7 @@ describe('syncMcpToolsToRegistry', () => {
     it('only calls listTools on servers whose tool ids appear in the selection', async () => {
       const reg = new ToolRegistry()
       list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
-      listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 't')])
+      listTools.mockImplementation((serverId: string) => ({ tools: [mcpTool(serverId, 't')], fresh: true }))
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
 
@@ -187,7 +237,7 @@ describe('syncMcpToolsToRegistry', () => {
       } satisfies ToolEntry)
 
       list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira')] })
-      listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 'fresh')])
+      listTools.mockImplementation((serverId: string) => ({ tools: [mcpTool(serverId, 'fresh')], fresh: true }))
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__fresh']) })
 
@@ -208,7 +258,7 @@ describe('syncMcpToolsToRegistry', () => {
       } satisfies ToolEntry)
 
       list.mockReturnValue({ items: [activeServer('gh')] })
-      listTools.mockReturnValue([mcpTool('gh', 't')])
+      listTools.mockReturnValue({ tools: [mcpTool('gh', 't')], fresh: true })
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
 
@@ -218,7 +268,7 @@ describe('syncMcpToolsToRegistry', () => {
     it('empty selection → no servers synced, no listTools call', async () => {
       const reg = new ToolRegistry()
       list.mockReturnValue({ items: [activeServer('gh')] })
-      listTools.mockReturnValue([mcpTool('gh', 't')])
+      listTools.mockReturnValue({ tools: [mcpTool('gh', 't')], fresh: true })
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set() })
 
@@ -231,16 +281,19 @@ describe('syncMcpToolsToRegistry', () => {
       list.mockReturnValue({
         items: [{ id: 'srv', name: 'my-server', isActive: true, disabledAutoApproveTools: [] }]
       })
-      listTools.mockReturnValue([
-        {
-          id: 'mcp__myServer__t',
-          serverId: 'srv',
-          serverName: 'my-server',
-          name: 't',
-          description: '',
-          inputSchema: { type: 'object', properties: {} }
-        }
-      ])
+      listTools.mockReturnValue({
+        tools: [
+          {
+            id: 'mcp__myServer__t',
+            serverId: 'srv',
+            serverName: 'my-server',
+            name: 't',
+            description: '',
+            inputSchema: { type: 'object', properties: {} }
+          }
+        ],
+        fresh: true
+      })
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__myServer__t']) })
 

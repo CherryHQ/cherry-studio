@@ -105,7 +105,7 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'disabled')
   })
 
-  it('refreshTools clears the shared tools cache and marks status on list failure', async () => {
+  it('refreshTools preserves the shared tools cache and marks status on list failure', async () => {
     getById.mockReturnValue(server())
     const error = new Error('connection failed')
     listTools.mockRejectedValue(error)
@@ -113,8 +113,45 @@ describe('McpCatalogService', () => {
     const service = new McpCatalogService()
 
     await expect(service.refreshTools('server-1')).rejects.toThrow('connection failed')
+    // Cold failure writes an empty sentinel (not a populated snapshot) so the cache-only
+    // hot path reads `[]` instead of `undefined` and stops re-kicking warms on every request.
     expect(cacheService.setShared).toHaveBeenCalledWith('mcp.tools.server-1', [])
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', error)
+  })
+
+  it('listToolsWithStatus reports stale (fresh:false) after a cold refresh failure', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockRejectedValue(new Error('connection failed'))
+
+    const service = new McpCatalogService()
+    await expect(service.refreshTools('server-1')).rejects.toThrow('connection failed')
+
+    const result = service.listToolsWithStatus('server-1')
+    expect(result).toEqual({ tools: [], fresh: false })
+  })
+
+  it('listToolsWithStatus keeps last-known-good tools but reports stale on a refresh failure', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'search' }])
+    getById.mockReturnValue(server())
+    listTools.mockRejectedValue(new Error('connection failed'))
+
+    const service = new McpCatalogService()
+    await expect(service.refreshTools('server-1')).rejects.toThrow('connection failed')
+
+    const result = service.listToolsWithStatus('server-1')
+    expect(result).toEqual({ tools: [{ name: 'search' }], fresh: false })
+    expect(cacheStore.get('mcp.tools.server-1')).toEqual([{ name: 'search' }])
+  })
+
+  it('listToolsWithStatus reports fresh for a successful empty refresh', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [] })
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1')
+
+    const result = service.listToolsWithStatus('server-1')
+    expect(result).toEqual({ tools: [], fresh: true })
   })
 
   it('prewarms active server tools into shared cache', async () => {
@@ -219,12 +256,15 @@ describe('McpCatalogService', () => {
     expect(runtimeService.withClient).not.toHaveBeenCalled()
   })
 
-  it('warmToolsCache resolves and leaves a warmed-but-empty cache when the refresh fails', async () => {
+  it('warmToolsCache resolves and writes an empty sentinel on cold failure (no per-request retry)', async () => {
     getById.mockReturnValue(server())
     listTools.mockRejectedValue(new Error('connection failed'))
 
     const service = new McpCatalogService()
     await expect(service.warmToolsCache('server-1')).resolves.toBeUndefined()
+    // The empty sentinel is written so the cache-only hot path reads `[]` (not `undefined`)
+    // and stops re-kicking warms on every request; the in-flight map still coalesces retries.
+    expect(cacheStore.has('mcp.tools.server-1')).toBe(true)
     expect(cacheStore.get('mcp.tools.server-1')).toEqual([])
   })
 
@@ -277,7 +317,7 @@ describe('McpCatalogService', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
-  it('onToolsCacheUpdated fires when a populated cache degrades to empty', async () => {
+  it('onToolsCacheUpdated does not fire when a populated cache survives a refresh failure', async () => {
     cacheStore.set('mcp.tools.server-1', [{ name: 'search' }])
     getById.mockReturnValue(server())
     listTools.mockRejectedValue(new Error('connection failed'))
@@ -287,7 +327,8 @@ describe('McpCatalogService', () => {
     service.onToolsCacheUpdated(listener)
     await expect(service.refreshTools('server-1')).rejects.toThrow('connection failed')
 
-    expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
+    expect(listener).not.toHaveBeenCalled()
+    expect(cacheStore.get('mcp.tools.server-1')).toEqual([{ name: 'search' }])
   })
 
   it('delegates listResources to the runtime service', async () => {

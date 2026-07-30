@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
@@ -124,23 +124,53 @@ export async function syncMcpToolsToRegistry(
   const activeNamespaces = new Set(activeServers.map((s) => `mcp:${s.name}`))
 
   const freshNames = new Set<string>()
-  // Only namespaces whose `listTools` actually succeeded. A transient connection drop
-  // must NOT evict a still-active server's previously-registered tools — without this
-  // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
+  // refreshedNamespaces still gates eviction on upstream freshness for tools that are
+  // neither locally disabled nor confirmed present by a successful refresh. This
+  // preserves last-known-good tools when the cache is stale.
   const refreshedNamespaces = new Set<string>()
+  // Locally-disabled tool IDs per namespace. These are evicted immediately regardless
+  // of whether the upstream snapshot is fresh, because a user toggling a tool off in
+  // settings is a local policy change we cannot defer to a server refresh.
+  const locallyDisabledIdsByNamespace = new Map<string, Set<string>>()
+  const ipcApi = application.get('IpcApiService')
   for (const server of targetServers) {
-    try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
-      for (const mcpTool of enabledTools) {
-        reg.register(toEntry(mcpTool, server))
-        freshNames.add(mcpTool.id)
+    // Read the full cached snapshot (includeDisabled: true) so the eviction pass can
+    // distinguish "tool removed upstream" (fresh-gated) from "tool disabled locally in
+    // settings" (immediate eviction regardless of freshness).
+    const { tools: allCachedTools, fresh } = application
+      .get('McpCatalogService')
+      .listToolsWithStatus(server.id, { includeDisabled: true })
+
+    const enabledTools: McpTool[] = []
+    const disabledIds = new Set<string>()
+    for (const tool of allCachedTools) {
+      if (isMcpToolDisabledBySource(server, tool)) {
+        disabledIds.add(tool.id)
+      } else {
+        enabledTools.push(tool)
       }
+    }
+    locallyDisabledIdsByNamespace.set(`mcp:${server.name}`, disabledIds)
+
+    for (const mcpTool of enabledTools) {
+      reg.register(toEntry(mcpTool, server))
+      freshNames.add(mcpTool.id)
+    }
+
+    if (fresh) {
       refreshedNamespaces.add(`mcp:${server.name}`)
-    } catch (error) {
-      logger.error('Failed to list MCP tools for server', {
+    } else if (enabledTools.length > 0) {
+      // Snapshot is stale (last refresh failed) but we still hold last-known-good tools — keep
+      // them registered and warn the user that the server is disconnected.
+      logger.warn('MCP server unavailable, using cached tool definitions', {
         serverId: server.id,
         serverName: server.name,
-        error
+        toolCount: enabledTools.length
+      })
+      ipcApi.broadcast('mcp.server.tools_stale', {
+        serverId: server.id,
+        serverName: server.name,
+        toolCount: enabledTools.length
       })
     }
   }
@@ -148,11 +178,10 @@ export async function syncMcpToolsToRegistry(
   for (const entry of reg.getAll()) {
     if (!entry.namespace.startsWith('mcp:')) continue
     const serverDeactivated = !activeNamespaces.has(entry.namespace)
-    // Gate the in-scope eviction on a successful refresh, so a failed `listTools` leaves
-    // the prior snapshot intact. A truly deactivated server is still evicted regardless.
     const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
     const missing = !freshNames.has(entry.name)
-    if (serverDeactivated || (inSyncScope && missing)) {
+    const disabledIds = locallyDisabledIdsByNamespace.get(entry.namespace)
+    if (serverDeactivated || disabledIds?.has(entry.name) || (inSyncScope && missing)) {
       reg.deregister(entry.name)
     }
   }

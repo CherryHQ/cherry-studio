@@ -45,4 +45,5 @@ export type McpEventSchemas = {
   'mcp.server.added': McpServer
   'mcp.server.log': McpServerLogEntry & { serverId: string }
   'mcp.tool.call_progress': McpProgressEvent
+  'mcp.server.tools_stale': { serverId: string; serverName: string; toolCount: number }
 }
