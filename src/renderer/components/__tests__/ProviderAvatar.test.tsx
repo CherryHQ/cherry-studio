@@ -91,6 +91,7 @@ describe('ProviderAvatarPrimitive', () => {
     // This flex alignment is the visual contract: an oversized WebP must overflow
     // equally above and below the fixed avatar frame instead of shifting downward.
     expect(image?.parentElement).toHaveClass('items-center', 'justify-center')
+    expect(image).toHaveClass('max-w-none')
     expect(image).not.toHaveClass('m-auto')
   })
 

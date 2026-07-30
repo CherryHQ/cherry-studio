@@ -73,7 +73,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
         <AvatarImage
           alt=""
           src={effectiveLogo}
-          className={builtinWebpUrl ? 'bg-background object-contain' : 'object-cover'}
+          className={builtinWebpUrl ? 'max-w-none bg-background object-contain' : 'object-cover'}
           draggable={false}
           style={builtinWebpUrl ? iconStyle : undefined}
         />
