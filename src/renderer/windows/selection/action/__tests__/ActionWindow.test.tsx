@@ -1,22 +1,24 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ActionWindow from '../ActionWindow'
 
-const { opacityPreference, platform } = vi.hoisted(() => ({
+const { actionState, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
+  actionState: {
+    value: {
+      id: 'test-action',
+      name: 'Test action',
+      icon: 'test-icon',
+      isBuiltIn: false
+    } as SelectionActionItem
+  },
+  ipcRequest: vi.fn(),
   opacityPreference: { value: 100 },
   platform: { isMac: false }
 }))
-
-const action = {
-  id: 'test-action',
-  name: 'Test action',
-  icon: 'test-icon',
-  isBuiltIn: false
-} as SelectionActionItem
 
 vi.mock('@renderer/components/selection/SelectionActionIcon', () => ({
   default: ({ size }: { size: number }) => <span data-testid="action-icon" data-size={size} />
@@ -44,11 +46,11 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
-  useWindowInitData: () => action
+  useWindowInitData: () => actionState.value
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() }
+  ipcApi: { request: ipcRequest }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -62,6 +64,12 @@ vi.mock('../components/ActionTranslate', () => ({ default: () => null }))
 
 describe('ActionWindow surface', () => {
   beforeEach(() => {
+    actionState.value = {
+      id: 'test-action',
+      name: 'Test action',
+      icon: 'test-icon',
+      isBuiltIn: false
+    } as SelectionActionItem
     opacityPreference.value = 100
     platform.isMac = false
     HTMLElement.prototype.scrollTo = vi.fn()
@@ -118,5 +126,30 @@ describe('ActionWindow surface', () => {
 
     expect(opacitySlider).toHaveClass('data-[orientation=vertical]:min-h-0')
     expect(opacitySlider).not.toHaveClass('data-[orientation=vertical]:min-h-44')
+  })
+
+  it('resets transient state when a pooled window reuses the same action type', async () => {
+    const { container, rerender } = render(<ActionWindow />)
+    const pinButton = container.querySelector('.lucide-pin')?.closest('button')
+    const opacityButton = container.querySelector('.lucide-droplet')?.closest('button')
+
+    fireEvent.click(pinButton!)
+    fireEvent.click(opacityButton!)
+    expect(pinButton).toHaveClass('bg-accent')
+    expect(container.querySelector('[data-slot="slider"]')).toBeInTheDocument()
+
+    vi.mocked(HTMLElement.prototype.scrollTo).mockClear()
+    ipcRequest.mockClear()
+    opacityPreference.value = 60
+    actionState.value = { ...actionState.value, selectedText: 'next selection' }
+    rerender(<ActionWindow />)
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="slider"]')).not.toBeInTheDocument()
+      expect(pinButton).not.toHaveClass('bg-accent')
+    })
+    expect(container.firstElementChild).toHaveStyle({ opacity: '0.6' })
+    expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith({ top: 0 })
+    expect(ipcRequest).toHaveBeenCalledWith('selection.pin_action_window', false)
   })
 })
