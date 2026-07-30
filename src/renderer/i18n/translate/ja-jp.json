@@ -139,6 +139,7 @@
         "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
         "disconnected": "切断されました",
         "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+        "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
         "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
         "qrTitle": "WeChat QRコードログイン",
         "title": "WeChat",
@@ -447,7 +448,7 @@
         "this_week": "今週",
         "today": "今日",
         "unknown_agent": "不明なエージェント",
-        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+        "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。",
         "yesterday": "昨日"
       },
       "label_one": "セッション",
@@ -684,12 +685,12 @@
     },
     "sidebar_title": "エージェント",
     "speed": {
-      "effort": "[to be translated]:Effort",
-      "fast": "[to be translated]:Fast",
-      "faster": "[to be translated]:Faster",
-      "label": "[to be translated]:Speed",
-      "smarter": "[to be translated]:Smarter",
-      "title": "[to be translated]:Response settings"
+      "effort": "努力",
+      "fast": "速い",
+      "faster": "より速く",
+      "label": "スピード",
+      "smarter": "スマーター",
+      "title": "応答設定"
     },
     "tasks": {
       "add": "タスクを追加",
@@ -1579,6 +1580,7 @@
         },
         "open_file": "ファイルを開く",
         "open_file_error": "ファイルを開けませんでした: {{path}}",
+        "open_with": "開く",
         "reveal_in_finder": "Finderで表示"
       },
       "topics": " トピック ",
@@ -1954,7 +1956,7 @@
         "this_week": "今週",
         "today": "今日",
         "unknown_assistant": "リンクされていないアシスタント",
-        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
+        "unknown_assistant_tip": "これはアシスタントではなく、履歴的な会話グループです。続行するには、既存のアシスタントに会話を移動してください。",
         "yesterday": "昨日"
       },
       "list": "トピックリスト",
@@ -2323,10 +2325,10 @@
     "get_embedding_dimension": "埋め込み次元を取得",
     "go_to_settings": "設定に移動",
     "group": {
-      "create": "[to be translated]:New Group",
-      "create_failed": "[to be translated]:Failed to create group",
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required"
+      "create": "新規グループ",
+      "create_failed": "グループの作成に失敗しました",
+      "name_placeholder": "グループ名を入力...",
+      "name_required": "グループ名は必須です"
     },
     "help": "助け",
     "html_preview": "HTMLプレビュー",
@@ -3461,6 +3463,7 @@
         "json_invalid": "無効なJSON形式",
         "max_tokens": "最大トークン",
         "max_tool_calls": "最大ツール呼び出し",
+        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
         "mcp_mode": "MCPモード",
         "model": "デフォルトモデル",
         "model_clear": "クリア",
@@ -3476,8 +3479,7 @@
         "tags": "タグ",
         "temperature": "温度",
         "title": "基本設定",
-        "top_p": "Top-P",
-        "unlimited": "無制限"
+        "top_p": "Top-P"
       },
       "breadcrumb": "図書館",
       "dialogs": {
@@ -5779,6 +5781,7 @@
         "button": "リリース",
         "title": "リリースノート"
       },
+      "repository": "GitHubリポジトリ",
       "social": {
         "title": "ソーシャルアカウント"
       },
@@ -6638,7 +6641,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？",
+        "content_disable": "ハードウェアアクセラレーションを無効にするには、アプリの再起動が必要です。今すぐ再起動しますか？",
+        "content_enable": "ハードウェアアクセラレーションを有効にするには、アプリの再起動が必要です。今すぐ再起動しますか？",
         "title": "再起動が必要"
       },
       "title": "ハードウェアアクセラレーションを無効にする"
@@ -6846,6 +6850,15 @@
       "providers": "プロバイダー",
       "registry": "パッケージ管理レジストリ",
       "registryDefault": "デフォルト",
+      "registryOptions": {
+        "custom": "カスタム",
+        "npmTaobao": "タオバオ NPM ミラー",
+        "pipAliyun": "アリババクラウド",
+        "pipHuawei": "ファーウェイクラウド",
+        "pipTencent": "テンセントクラウド",
+        "pipTsinghua": "清華",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
       "requiresConfig": "設定が必要",
       "resources": {
@@ -7021,6 +7034,7 @@
         "display": "ディスプレイ管理",
         "preferences": "設定"
       },
+      "hide_app": "{{name}}を非表示にする",
       "open_link_external": {
         "description": "有効にすると、ミニアプリ内で新しいウィンドウを開くリンクは既定のブラウザで開かれます",
         "title": "新視窗のリンクをブラウザで開く"
@@ -7033,6 +7047,7 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
+      "show_app": "{{name}}を表示",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },

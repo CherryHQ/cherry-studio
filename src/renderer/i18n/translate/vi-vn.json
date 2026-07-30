@@ -139,6 +139,7 @@
         "description": "Nhận và phản hồi tin nhắn qua WeChat bằng API iLink Bot.",
         "disconnected": "Chưa đăng nhập",
         "loginHint": "Lần đăng nhập đầu tiên yêu cầu quét mã QR. Một mã QR sẽ tự động xuất hiện khi kênh kết nối.",
+        "qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
         "qrHint": "Mở WeChat trên điện thoại của bạn, quét mã QR để đăng nhập.",
         "qrTitle": "Đăng nhập bằng mã QR WeChat",
         "title": "WeChat",
@@ -447,7 +448,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
-        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+        "unknown_agent_tip": "Đây là một nhóm phiên lịch sử không có agent, không phải là agent thực tế. Nó chỉ có thể xem và không thể tiếp tục chạy.",
         "yesterday": "Hôm qua"
       },
       "label_one": "Phiên",
@@ -684,12 +685,12 @@
     },
     "sidebar_title": "Đại lý",
     "speed": {
-      "effort": "[to be translated]:Effort",
-      "fast": "[to be translated]:Fast",
-      "faster": "[to be translated]:Faster",
-      "label": "[to be translated]:Speed",
-      "smarter": "[to be translated]:Smarter",
-      "title": "[to be translated]:Response settings"
+      "effort": "Nỗ lực",
+      "fast": "Nhanh",
+      "faster": "Nhanh hơn",
+      "label": "Tốc độ",
+      "smarter": "Thông minh hơn",
+      "title": "Cài đặt phản hồi"
     },
     "tasks": {
       "add": "Thêm Nhiệm vụ",
@@ -1579,6 +1580,7 @@
         },
         "open_file": "Mở Tệp",
         "open_file_error": "Không mở được tệp: {{path}}",
+        "open_with": "Mở bằng",
         "reveal_in_finder": "Hiển thị trong Finder"
       },
       "topics": "Chủ đề",
@@ -1954,7 +1956,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
-        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
+        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục.",
         "yesterday": "Hôm qua"
       },
       "list": "Daftar Topik",
@@ -2323,10 +2325,10 @@
     "get_embedding_dimension": "Lấy kích thước embedding",
     "go_to_settings": "Đi tới cài đặt",
     "group": {
-      "create": "[to be translated]:New Group",
-      "create_failed": "[to be translated]:Failed to create group",
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required"
+      "create": "Nhóm mới",
+      "create_failed": "Không thể tạo nhóm",
+      "name_placeholder": "Nhập tên nhóm...",
+      "name_required": "Tên nhóm là bắt buộc"
     },
     "help": "Giúp đỡ",
     "html_preview": "Xem trước HTML",
@@ -3461,6 +3463,7 @@
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
+        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
         "mcp_mode": "Chế độ MCP",
         "model": "Mô hình mặc định",
         "model_clear": "Rõ ràng",
@@ -3476,8 +3479,7 @@
         "tags": "Thẻ",
         "temperature": "Nhiệt độ",
         "title": "Cài đặt cơ bản",
-        "top_p": "Top-P",
-        "unlimited": "Không giới hạn"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Thư viện",
       "dialogs": {
@@ -5779,6 +5781,7 @@
         "button": "Bản phát hành",
         "title": "Ghi chú phát hành"
       },
+      "repository": "Kho lưu trữ GitHub",
       "social": {
         "title": "Tài khoản mạng xã hội"
       },
@@ -6638,7 +6641,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Việc tắt tăng tốc phần cứng cần khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+        "content_disable": "Tắt tăng tốc phần cứng cần khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+        "content_enable": "Bật tăng tốc phần cứng yêu cầu khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
         "title": "Yêu cầu khởi động lại"
       },
       "title": "Tắt Tăng tốc Phần cứng"
@@ -6846,6 +6850,15 @@
       "providers": "Nhà cung cấp",
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
+      "registryOptions": {
+        "custom": "Tùy chỉnh",
+        "npmTaobao": "Gương NPM Taobao",
+        "pipAliyun": "Alibaba Cloud",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Thanh Hoa",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Chọn registry để cài đặt gói nhằm khắc phục các vấn đề mạng với registry mặc định.",
       "requiresConfig": "Yêu cầu cấu hình",
       "resources": {
@@ -7021,6 +7034,7 @@
         "display": "Quản lý hiển thị",
         "preferences": "Tùy chọn"
       },
+      "hide_app": "Ẩn {{name}}",
       "open_link_external": {
         "description": "Khi được bật, các liên kết mở cửa sổ mới trong mini app sẽ mở trong trình duyệt mặc định của bạn",
         "title": "Mở liên kết cửa sổ mới trong trình duyệt"
@@ -7033,6 +7047,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
+      "show_app": "Hiển thị {{name}}",
       "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
     },

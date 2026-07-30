@@ -227,7 +227,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
   )
 }
 
-type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected'
+type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
@@ -241,11 +241,12 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
-      // Credentials are saved by main process (saveCredentialsAndReconnect).
-      // ChannelDetail will reload data on statusChange → connected.
     } else if (data.status === 'expired') {
       setQrUrl(null)
       setStatus('expired')
+    } else if (data.status === 'error') {
+      setQrUrl(null)
+      setStatus('error')
     } else if (data.url) {
       setQrUrl(data.url)
       setStatus('pending')
@@ -261,6 +262,12 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-error" />
               <span className="text-error text-xs">{t('agent.channels.feishu.qrExpired')}</span>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.error')}</span>
             </>
           )}
           {status === 'idle' && <span className="text-info text-xs">{t('agent.channels.feishu.loginHint')}</span>}
@@ -386,7 +393,7 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   )
 }
 
-type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'disconnected'
+type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ channel, onConfigChange, onRemove }) => {
   const { t } = useTranslation()
@@ -411,9 +418,13 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
       if (data.userId) setLoginUserId(data.userId)
     } else if (data.status === 'expired') {
       setQrUrl(null)
+      setStatus('expired')
     } else if (data.status === 'disconnected') {
       setStatus('disconnected')
       setLoginUserId(null)
+    } else if (data.status === 'error') {
+      setQrUrl(null)
+      setStatus('error')
     } else if (data.url) {
       setQrUrl(data.url)
       setStatus('pending')
@@ -434,6 +445,18 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-error" />
               <span className="text-error text-xs">{t('agent.channels.wechat.disconnected')}</span>
+            </>
+          )}
+          {status === 'expired' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.wechat.qrExpired')}</span>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.error')}</span>
             </>
           )}
           {(status === 'idle' || status === 'pending') && (

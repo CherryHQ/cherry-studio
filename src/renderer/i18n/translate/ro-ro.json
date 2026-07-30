@@ -139,6 +139,7 @@
         "description": "Primește și răspunde la mesaje prin WeChat folosind API-ul iLink Bot.",
         "disconnected": "Deconectat",
         "loginHint": "Prima autentificare necesită scanarea unui cod QR. Verifică jurnalele aplicației pentru adresa URL de autentificare.",
+        "qrExpired": "Codul QR a expirat. Vă rugăm să reîncercați comutând canalul.",
         "qrHint": "Deschideți WeChat pe telefon, scanați codul QR pentru a vă conecta.",
         "qrTitle": "Autentificare WeChat cu cod QR",
         "title": "WeChat",
@@ -447,7 +448,7 @@
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
-        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+        "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
         "yesterday": "Ieri"
       },
       "label_one": "Sesiune",
@@ -684,12 +685,12 @@
     },
     "sidebar_title": "Agenți",
     "speed": {
-      "effort": "[to be translated]:Effort",
-      "fast": "[to be translated]:Fast",
-      "faster": "[to be translated]:Faster",
-      "label": "[to be translated]:Speed",
-      "smarter": "[to be translated]:Smarter",
-      "title": "[to be translated]:Response settings"
+      "effort": "Efort",
+      "fast": "Rapid",
+      "faster": "Mai rapid",
+      "label": "Viteză",
+      "smarter": "Mai inteligent",
+      "title": "Setări de răspuns"
     },
     "tasks": {
       "add": "Adaugă sarcină",
@@ -1579,6 +1580,7 @@
         },
         "open_file": "Deschide fișier",
         "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
+        "open_with": "Deschide cu",
         "reveal_in_finder": "Afișează în Finder"
       },
       "topics": " Subiecte ",
@@ -1954,7 +1956,7 @@
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_assistant": "Asistent Deconectat",
-        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
+        "unknown_assistant_tip": "Acesta este un grup de conversație istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua.",
         "yesterday": "Ieri"
       },
       "list": "Listă subiecte",
@@ -2323,10 +2325,10 @@
     "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
     "group": {
-      "create": "[to be translated]:New Group",
-      "create_failed": "[to be translated]:Failed to create group",
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required"
+      "create": "Grup Nou",
+      "create_failed": "Nu s-a putut crea grupul",
+      "name_placeholder": "Introduceți numele grupului...",
+      "name_required": "Numele grupului este obligatoriu"
     },
     "help": "Ajutor",
     "html_preview": "Previzualizare HTML",
@@ -3461,6 +3463,7 @@
         "json_invalid": "Format JSON invalid",
         "max_tokens": "Tokeni maximi",
         "max_tool_calls": "Apeluri maxime de instrumente",
+        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
         "mcp_mode": "Modul MCP",
         "model": "Model implicit",
         "model_clear": "Clar",
@@ -3476,8 +3479,7 @@
         "tags": "Etichete",
         "temperature": "Temperatură",
         "title": "Setări de bază",
-        "top_p": "Top-P",
-        "unlimited": "Nelimitat"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Bibliotecă",
       "dialogs": {
@@ -5779,6 +5781,7 @@
         "button": "Lansări",
         "title": "Note de lansare"
       },
+      "repository": "Depozit GitHub",
       "social": {
         "title": "Conturi sociale"
       },
@@ -6638,7 +6641,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Dezactivarea accelerării hardware necesită repornirea aplicației pentru a intra în vigoare. Vrei să repornești acum?",
+        "content_disable": "Dezactivarea accelerării hardware necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
+        "content_enable": "Activarea accelerării hardware necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
         "title": "Repornire necesară"
       },
       "title": "Dezactivează accelerarea hardware"
@@ -6846,6 +6850,15 @@
       "providers": "Furnizori",
       "registry": "Registru pachete",
       "registryDefault": "Implicit",
+      "registryOptions": {
+        "custom": "Personalizat",
+        "npmTaobao": "Oglindă NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "Universitatea de Știință și Tehnologie a Chinei"
+      },
       "registryTooltip": "Alege registrul pentru instalarea pachetelor pentru a rezolva problemele de rețea cu registrul implicit.",
       "requiresConfig": "Necesită configurare",
       "resources": {
@@ -7021,6 +7034,7 @@
         "display": "Gestionarea afișajului",
         "preferences": "Preferințe"
       },
+      "hide_app": "Ascunde {{name}}",
       "open_link_external": {
         "description": "Când este activată, linkurile care deschid o fereastră nouă într-o mini-aplicație se deschid în browserul tău implicit",
         "title": "Deschide în browser linkurile care deschid ferestre noi"
@@ -7033,6 +7047,7 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
+      "show_app": "Arată {{name}}",
       "title": "Setări Mini Apps",
       "visible": "Mini-aplicații vizibile"
     },

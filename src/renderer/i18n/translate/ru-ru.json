@@ -139,6 +139,7 @@
         "description": "Получайте и отвечайте на сообщения через WeChat с помощью iLink Bot API.",
         "disconnected": "Отключено",
         "loginHint": "Первый вход требует сканирования QR-кода. Проверьте журналы приложения для получения URL-адреса входа.",
+        "qrExpired": "QR-код истёк. Повторите попытку, переключив канал.",
         "qrHint": "Откройте WeChat на телефоне, отсканируйте QR-код для входа.",
         "qrTitle": "Вход по QR-коду WeChat",
         "title": "WeChat",
@@ -447,7 +448,7 @@
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
-        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+        "unknown_agent_tip": "Это историческая группа сеансов без агента, а не фактический агент. Она доступна только для просмотра и не может продолжить работу.",
         "yesterday": "Вчера"
       },
       "label_one": "Сессия",
@@ -684,12 +685,12 @@
     },
     "sidebar_title": "Агенты",
     "speed": {
-      "effort": "[to be translated]:Effort",
-      "fast": "[to be translated]:Fast",
-      "faster": "[to be translated]:Faster",
-      "label": "[to be translated]:Speed",
-      "smarter": "[to be translated]:Smarter",
-      "title": "[to be translated]:Response settings"
+      "effort": "Усилие",
+      "fast": "Быстро",
+      "faster": "Быстрее",
+      "label": "Скорость",
+      "smarter": "Умнее",
+      "title": "Настройки ответа"
     },
     "tasks": {
       "add": "Добавить задачу",
@@ -1579,6 +1580,7 @@
         },
         "open_file": "Открыть файл",
         "open_file_error": "Не удалось открыть файл: {{path}}",
+        "open_with": "Открыть с помощью",
         "reveal_in_finder": "Показать в Finder"
       },
       "topics": " Топики ",
@@ -1954,7 +1956,7 @@
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_assistant": "Несвязанный помощник",
-        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
+        "unknown_assistant_tip": "Это историческая группа переписки без ассистента, а не реальный ассистент. Переместите переписку в существующего ассистента, чтобы продолжить.",
         "yesterday": "Вчера"
       },
       "list": "Список топиков",
@@ -2323,10 +2325,10 @@
     "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
     "group": {
-      "create": "[to be translated]:New Group",
-      "create_failed": "[to be translated]:Failed to create group",
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required"
+      "create": "Новая группа",
+      "create_failed": "Не удалось создать группу",
+      "name_placeholder": "Введите название группы...",
+      "name_required": "Название группы обязательно"
     },
     "help": "Помощь",
     "html_preview": "Предпросмотр HTML",
@@ -3461,6 +3463,7 @@
         "json_invalid": "Неверный формат JSON",
         "max_tokens": "Максимальное количество токенов",
         "max_tool_calls": "Максимальное количество вызовов инструментов",
+        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
         "mcp_mode": "Режим MCP",
         "model": "Модель по умолчанию",
         "model_clear": "Очистить",
@@ -3476,8 +3479,7 @@
         "tags": "Теги",
         "temperature": "Температура",
         "title": "Базовые настройки",
-        "top_p": "Top-P",
-        "unlimited": "Безлимитный"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Библиотека",
       "dialogs": {
@@ -5779,6 +5781,7 @@
         "button": "Релизы",
         "title": "Заметки о релизах"
       },
+      "repository": "Репозиторий GitHub",
       "social": {
         "title": "Социальные аккаунты"
       },
@@ -6638,7 +6641,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Отключение аппаратного ускорения требует перезапуска приложения для вступления в силу. Перезапустить приложение?",
+        "content_disable": "Отключение аппаратного ускорения требует перезапуска приложения для вступления в силу. Хотите перезапустить сейчас?",
+        "content_enable": "Включение аппаратного ускорения требует перезапуска приложения для вступления в силу. Хотите перезапустить сейчас?",
         "title": "Требуется перезапуск"
       },
       "title": "Отключить аппаратное ускорение"
@@ -6846,6 +6850,15 @@
       "providers": "Поставщики",
       "registry": "Реестр пакетов",
       "registryDefault": "По умолчанию",
+      "registryOptions": {
+        "custom": "Пользовательский",
+        "npmTaobao": "Зеркало NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Облако Huawei",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Цинхуа",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Выберите реестр для установки пакетов, если возникают проблемы с сетью при использовании реестра по умолчанию.",
       "requiresConfig": "Требуется настройка",
       "resources": {
@@ -7021,6 +7034,7 @@
         "display": "Управление дисплеем",
         "preferences": "Предпочтения"
       },
+      "hide_app": "Скрыть {{name}}",
       "open_link_external": {
         "description": "Когда включено, ссылки, открывающие новое окно внутри мини-приложения, открываются в вашем браузере по умолчанию",
         "title": "Открывать новые окна в браузере"
@@ -7033,6 +7047,7 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
+      "show_app": "Показать {{name}}",
       "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
     },

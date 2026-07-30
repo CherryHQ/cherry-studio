@@ -139,6 +139,7 @@
         "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
         "disconnected": "已斷線",
         "loginHint": "首次登入需要掃描 QR 碼。請查看應用程式記錄以取得登入網址。",
+        "qrExpired": "QR碼已過期，請切換頻道後重試。",
         "qrHint": "打開手機上的微信，掃描 QR 碼登入。",
         "qrTitle": "微信 QR 碼登入",
         "title": "微信",
@@ -447,7 +448,7 @@
         "this_week": "本週",
         "today": "今天",
         "unknown_agent": "未知代理",
-        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+        "unknown_agent_tip": "這是一個沒有代理程式的歷史會話群組，並非實際的代理程式。此群組僅供檢視，無法繼續執行。",
         "yesterday": "昨天"
       },
       "label_one": "工作階段",
@@ -684,12 +685,12 @@
     },
     "sidebar_title": "Agents",
     "speed": {
-      "effort": "[to be translated]:Effort",
-      "fast": "[to be translated]:Fast",
-      "faster": "[to be translated]:Faster",
-      "label": "[to be translated]:Speed",
-      "smarter": "[to be translated]:Smarter",
-      "title": "[to be translated]:Response settings"
+      "effort": "努力",
+      "fast": "快速",
+      "faster": "更快",
+      "label": "速度",
+      "smarter": "更聰明",
+      "title": "回應設定"
     },
     "tasks": {
       "add": "新增任務",
@@ -1579,6 +1580,7 @@
         },
         "open_file": "開啟檔案",
         "open_file_error": "無法開啟檔案: {{path}}",
+        "open_with": "開啟方式",
         "reveal_in_finder": "在檔案管理器中顯示"
       },
       "topics": "對話",
@@ -1954,7 +1956,7 @@
         "this_week": "本週",
         "today": "今天",
         "unknown_assistant": "未連結的助理",
-        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
+        "unknown_assistant_tip": "這是一個沒有助理的歷史對話群組，並非實際的助理。請將對話移至現有的助理以繼續。",
         "yesterday": "昨天"
       },
       "list": "對話列表",
@@ -2323,10 +2325,10 @@
     "get_embedding_dimension": "取得嵌入維度",
     "go_to_settings": "前往設定",
     "group": {
-      "create": "[to be translated]:New Group",
-      "create_failed": "[to be translated]:Failed to create group",
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required"
+      "create": "新群組",
+      "create_failed": "建立群組失敗",
+      "name_placeholder": "輸入群組名稱...",
+      "name_required": "群組名稱為必填項目"
     },
     "help": "幫助",
     "html_preview": "HTML 預覽",
@@ -3461,6 +3463,7 @@
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
+        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
         "mcp_mode": "MCP 模式",
         "model": "預設模型",
         "model_clear": "清除",
@@ -3476,8 +3479,7 @@
         "tags": "標籤",
         "temperature": "溫度",
         "title": "基礎設定",
-        "top_p": "Top-P",
-        "unlimited": "無限"
+        "top_p": "Top-P"
       },
       "breadcrumb": "圖書館",
       "dialogs": {
@@ -5779,6 +5781,7 @@
         "button": "檢視",
         "title": "更新日誌"
       },
+      "repository": "GitHub 儲存庫",
       "social": {
         "title": "社交帳號"
       },
@@ -6638,7 +6641,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "停用硬體加速需要重新啟動應用程式才能生效。要立即重新啟動嗎？",
+        "content_disable": "停用硬體加速需要重新啟動應用程式才能生效。您現在要重新啟動嗎？",
+        "content_enable": "啟用硬體加速需要重新啟動應用程式才能生效。您現在要重新啟動嗎？",
         "title": "需要重新啟動"
       },
       "title": "停用硬體加速"
@@ -6846,6 +6850,15 @@
       "providers": "供應商",
       "registry": "套件管理源",
       "registryDefault": "預設",
+      "registryOptions": {
+        "custom": "自訂",
+        "npmTaobao": "淘寶 NPM 鏡像",
+        "pipAliyun": "阿里雲",
+        "pipHuawei": "華為雲",
+        "pipTencent": "騰訊雲",
+        "pipTsinghua": "清華",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題",
       "requiresConfig": "需要設定",
       "resources": {
@@ -7021,6 +7034,7 @@
         "display": "顯示管理",
         "preferences": "使用偏好"
       },
+      "hide_app": "隱藏 {{name}}",
       "open_link_external": {
         "description": "新視窗連結用系統預設瀏覽器開啟",
         "title": "在瀏覽器中開啟新視窗連結"
@@ -7033,6 +7047,7 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
+      "show_app": "顯示 {{name}}",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },

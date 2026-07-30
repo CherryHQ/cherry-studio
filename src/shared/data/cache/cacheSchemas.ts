@@ -1,5 +1,5 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -285,6 +285,16 @@ export type SharedCacheSchema = {
   // active, then left to linger under a short TTL after the job exits so the
   // polled item status can reach its terminal state before the value vanishes.
   'knowledge.item.embedding_progress.${itemId}': number | null
+  // A mini app opened via `openSmartMiniApp` (OpenClaw's dashboard, the S3 help page,
+  // the release notes) has no database row, so `/app/mini-app/<id>` is unresolvable
+  // through DataApi. Publishing the descriptor here — not into the keep-alive list,
+  // which doubles as the per-window WebView LRU — makes it readable by every window
+  // and outlives any single window's eviction, so detaching such a tab and attaching
+  // it back both keep resolving. Memory-only: the URL can hold a session secret (the
+  // OpenClaw dashboard embeds the gateway auth token) and must not reach disk.
+  // Nothing evicts an entry — that is the point, and it costs a handful of rows per
+  // session. Null is the cache miss (see the `jobs.state` precedent above).
+  'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -310,7 +320,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
   'jobs.progress.${jobId}': { progress: 0 },
-  'knowledge.item.embedding_progress.${itemId}': null
+  'knowledge.item.embedding_progress.${itemId}': null,
+  'mini_app.transient_descriptor.${appId}': null
 }
 
 /**
