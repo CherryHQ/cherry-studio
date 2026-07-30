@@ -10,8 +10,10 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { noteTable } from '@data/db/schemas/note'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { sanitizeAgentChannelCapability } from '@main/ai/channelPortableProfilePolicy'
 import { sanitizeMcpServerCapability } from '@main/ai/mcp/portableProfilePolicy'
 import { getTableColumns, getTableName } from 'drizzle-orm'
@@ -48,7 +50,7 @@ const SCHEMA_UNDER_POLICY = {
   preference: preferenceTable
 } as const satisfies Record<string, SQLiteTable>
 
-const REVIEWED_REFERENCE_SURFACES = [
+const DECLARED_AUTOMATIC_OR_DEVICE_BOUND_REFERENCE_SURFACES = [
   'agent.configuration',
   'agent_channel.config',
   'agent_channel.workspace',
@@ -77,6 +79,22 @@ const REVIEWED_REFERENCE_SURFACES = [
   'preference.key',
   'preference.value'
 ] as const
+
+/**
+ * Schema-bound inventory of references that are only opened, edited, or shown
+ * after a user action. They remain preserved business data and deliberately do
+ * not drive portable-database materialization in this change.
+ */
+const USER_TRIGGERED_REFERENCE_SURFACES = {
+  user_provider: {
+    table: userProviderTable,
+    columns: ['endpointConfigs', 'authConfig', 'providerSettings']
+  },
+  mini_app: {
+    table: miniAppTable,
+    columns: ['url', 'configuration', 'logoKey']
+  }
+} as const satisfies Record<string, { readonly table: SQLiteTable; readonly columns: readonly string[] }>
 
 function columnNamesOf(table: SQLiteTable): string[] {
   return Object.keys(getTableColumns(table))
@@ -111,13 +129,25 @@ describe('policy ↔ production schema', () => {
     }
   })
 
-  it('covers the complete reviewed path, URL, workspace, and reference-bearing JSON ledger', () => {
+  it('covers every declared automatic or device-bound reference surface', () => {
     const actual = PORTABLE_DB_POLICIES.flatMap((entry) =>
       (entry.references ?? []).flatMap((reference) => reference.columns.map((column) => `${entry.table}.${column}`))
     ).sort()
 
     expect(new Set(actual).size).toBe(actual.length)
-    expect(actual).toEqual([...REVIEWED_REFERENCE_SURFACES].sort())
+    expect(actual).toEqual([...DECLARED_AUTOMATIC_OR_DEVICE_BOUND_REFERENCE_SURFACES].sort())
+  })
+
+  it('binds user-triggered reference declarations to production schemas without materializing them', () => {
+    const materializedTables = new Set(PORTABLE_DB_POLICIES.map((entry) => entry.table))
+    for (const [tableName, declaration] of Object.entries(USER_TRIGGERED_REFERENCE_SURFACES)) {
+      expect(getTableName(declaration.table)).toBe(tableName)
+      const columns = columnNamesOf(declaration.table)
+      for (const column of declaration.columns) {
+        expect(columns, `${tableName}.${column}`).toContain(column)
+      }
+      expect(materializedTables.has(tableName), tableName).toBe(false)
+    }
   })
 
   it('declares a safe disposition and checkable owner evidence for every reference surface', () => {
@@ -313,6 +343,14 @@ describe('module purity', () => {
     return specifiers
   }
 
+  /** Every static import, including type-only edges used by ownership checks. */
+  function allImportsOf(source: string): string[] {
+    const specifiers: string[] = []
+    const pattern = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?[^;]*?\bfrom\s+['"]([^'"]+)['"]/g
+    for (const match of source.matchAll(pattern)) specifiers.push(match[1])
+    return specifiers
+  }
+
   /** Maps a workspace package's `exports` entry back to the source file it is built from. */
   function resolveWorkspace(specifier: string): string | null {
     const [pkg, ...rest] = specifier.slice(WORKSPACE_SCOPE.length).split('/')
@@ -457,6 +495,31 @@ describe('module purity', () => {
     for (const file of OWNER_POLICY_MODULES) {
       expect(fs.readFileSync(file, 'utf8'), path.relative(REPO_SRC, file)).not.toMatch(/services\/backup/)
     }
+  })
+
+  it('keeps generic restore primitives independent of feature and Backup owners', () => {
+    const restoreDir = path.join(REPO_SRC, 'main/data/db/restore')
+    const forbiddenOwners = [
+      '@main/features/knowledge',
+      '@main/ai/skills',
+      '@main/ai/agents',
+      '@main/ai/channels',
+      '@main/ai/mcp',
+      '@main/services/backup'
+    ]
+    const violations: string[] = []
+
+    for (const name of fs.readdirSync(restoreDir).filter((candidate) => candidate.endsWith('.ts'))) {
+      const file = path.join(restoreDir, name)
+      const source = fs.readFileSync(file, 'utf8')
+      for (const specifier of allImportsOf(source)) {
+        if (forbiddenOwners.some((owner) => specifier === owner || specifier.startsWith(`${owner}/`))) {
+          violations.push(`${name} imports ${specifier}`)
+        }
+      }
+    }
+
+    expect(violations).toEqual([])
   })
 
   it('detects a forbidden import when one is introduced', () => {
