@@ -87,8 +87,9 @@ export function decodePortableAgentResumePoint(value: string | null | undefined)
 /**
  * Runtime config excludes owner-managed projections/caches:
  * - `skills/` is rebuilt by Skill owner from `Data/Skills`.
- * - `projects/` is the SDK's cwd-keyed live JSONL cache. Agent transports its
- *   workspace-independent, completed-Turn sessionStore under canonical data.
+ * - `projects/` is the SDK's cwd-keyed live JSONL tree. Export cuts the one
+ *   retained session per resume point into a canonical owner snapshot instead
+ *   of shipping the whole cache.
  */
 export function isAgentRuntimeConfigCaptureExcluded(relativePath: string): boolean {
   return (

@@ -322,7 +322,7 @@ describe('collectResourceRequirements', () => {
         ] as never)
         .run()
 
-      expect(livePathsOf('agent-transcript', collect())).toEqual(['Data/AgentTranscripts/session-1.json'])
+      expect(livePathsOf('agent-transcript', collect())).toEqual(['Data/AgentTranscripts/session-1.jsonl'])
     })
   })
 
