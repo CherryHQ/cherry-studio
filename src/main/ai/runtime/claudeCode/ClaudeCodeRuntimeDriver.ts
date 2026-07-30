@@ -15,6 +15,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { decodePortableAgentResumePoint, encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -69,10 +70,6 @@ import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import {
-  decodePortableAgentResumePoint,
-  encodePortableAgentResumePoint,
-  type PortableAgentTranscriptStore
-} from './portableTranscriptStore'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -339,7 +336,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
   private lastMainAssistantUuid?: string
-  private transcriptStore?: PortableAgentTranscriptStore
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -388,7 +384,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
-    this.transcriptStore = request.transcriptStore
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
@@ -736,7 +731,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         if (result.type === 'result') {
           if (message.type === 'result' && message.subtype === 'success') {
-            await this.commitPortableResumePoint(result.sessionId)
+            this.emitPortableResumePoint(result.sessionId)
           }
           this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
@@ -872,12 +867,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = resumeToken
   }
 
-  private async commitPortableResumePoint(sessionId: string): Promise<void> {
-    const transcriptStore = this.transcriptStore
-    if (!transcriptStore) {
-      throw new Error('Portable Agent transcript store is unavailable')
-    }
-    await transcriptStore.commitTurn(sessionId, this.lastMainAssistantUuid)
+  private emitPortableResumePoint(sessionId: string): void {
     this.eventQueue.push({
       type: 'resume-token',
       token: encodePortableAgentResumePoint({

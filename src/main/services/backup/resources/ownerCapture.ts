@@ -1,10 +1,9 @@
 import path from 'node:path'
 
 import { application } from '@application'
-import { assertPortableAgentTranscriptSnapshot } from '@main/ai/runtime/claudeCode'
+import { stagePortableAgentTranscript } from '@main/ai/runtime/claudeCode'
 import { capturePortableKnowledgeIndex, knowledgeBaseIdFromManagedPath } from '@main/features/knowledge'
 
-import { stageFileWithDriftCheck } from '../sourceDrift'
 import type { ResourceRoots } from './adapters'
 import type { CaptureOwnerResource, RunOwnerCaptureBoundary } from './stageResources'
 
@@ -21,14 +20,10 @@ export function createOwnerResourceCapture(input: { readonly detachedDbPath: str
   return {
     async captureOwnerResource(context) {
       if (context.requirement.kind === 'agent-transcript') {
-        await stageFileWithDriftCheck({
-          sourcePath: context.sourcePath,
-          stagingPath: context.stagingPath,
-          signal: context.signal
-        })
-        await assertPortableAgentTranscriptSnapshot({
+        await stagePortableAgentTranscript({
           detachedDbPath: input.detachedDbPath,
           transcriptRoot: input.roots.agentTranscripts,
+          agentRuntimeConfigRoot: input.roots.agentRuntimeConfig,
           sourcePath: context.sourcePath,
           stagedPath: context.stagingPath
         })
