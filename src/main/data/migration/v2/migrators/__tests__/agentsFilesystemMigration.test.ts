@@ -1153,7 +1153,7 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).rejects.toThrow(/changed while being copied/)
+    ).rejects.toThrow(/changed while being (?:read|copied)/)
 
     expect(await readFile(sourcePath, 'utf8')).toBe('newest value')
     await expect(access(path.join(latestSession.systemWorkspacePath!, 'race.txt'))).rejects.toThrow()
