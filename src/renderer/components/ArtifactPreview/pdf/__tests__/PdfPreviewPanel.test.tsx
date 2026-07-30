@@ -214,6 +214,28 @@ const renderPdfPreviewPanel = async (props: React.ComponentProps<typeof PdfPrevi
   return result!
 }
 
+async function setupWheelZoom(): Promise<HTMLElement> {
+  await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
+  await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
+  return screen.getByTestId('pdfjs-viewer-container')
+}
+
+function dispatchPinchWheel(container: HTMLElement, deltaY: number, init?: WheelEventInit): void {
+  container.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY, ...init }))
+}
+
+async function advanceWheelTimers(milliseconds = 16): Promise<void> {
+  await act(async () => {
+    vi.advanceTimersByTime(milliseconds)
+  })
+}
+
+function getWheelScaleFactor(callIndex: number): number {
+  const options = mocks.pdfViewerUpdateScale.mock.calls[callIndex]?.[0] as { scaleFactor?: number } | undefined
+  if (typeof options?.scaleFactor !== 'number') throw new Error(`Missing wheel scale update at call ${callIndex}`)
+  return options.scaleFactor
+}
+
 describe('PdfPreviewPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -358,32 +380,19 @@ describe('PdfPreviewPanel', () => {
   })
 
   it('coalesces pinch wheel zooms into one small rAF scale update while keeping keyboard zooms immediate', async () => {
-    await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
-    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
-
-    const viewerContainer = screen.getByTestId('pdfjs-viewer-container')
-
+    const viewerContainer = await setupWheelZoom()
     await waitFor(() => expect(viewerContainer).toHaveFocus())
-
     vi.useFakeTimers()
 
-    viewerContainer.dispatchEvent(
-      new WheelEvent('wheel', { cancelable: true, clientX: 24, clientY: 36, ctrlKey: true, deltaY: -10 })
-    )
-    viewerContainer.dispatchEvent(
-      new WheelEvent('wheel', { cancelable: true, clientX: 24, clientY: 36, ctrlKey: true, deltaY: -400 })
-    )
+    dispatchPinchWheel(viewerContainer, -10, { clientX: 24, clientY: 36 })
+    dispatchPinchWheel(viewerContainer, -400, { clientX: 24, clientY: 36 })
 
     expect(mocks.pdfViewerUpdateScale).not.toHaveBeenCalled()
 
-    await act(async () => {
-      vi.advanceTimersByTime(16)
-    })
+    await advanceWheelTimers()
 
     expect(mocks.pdfViewerUpdateScale).toHaveBeenCalledTimes(1)
     expect(mocks.pdfViewerUpdateScale).toHaveBeenCalledWith({ origin: [24, 36], scaleFactor: expect.any(Number) })
-    expect(mocks.pdfViewerUpdateScale.mock.calls[0][0].scaleFactor).toBeGreaterThan(1.02)
-    expect(mocks.pdfViewerUpdateScale.mock.calls[0][0].scaleFactor).toBeLessThanOrEqual(1.06)
     expect(mocks.pdfViewerIncreaseScale).not.toHaveBeenCalled()
     expect(mocks.pdfViewerDecreaseScale).not.toHaveBeenCalled()
 
@@ -396,100 +405,48 @@ describe('PdfPreviewPanel', () => {
 
     fireEvent.keyDown(viewerContainer, { ctrlKey: true, key: '0' })
     expect(mocks.pdfViewerScaleValues).toContain('page-width')
-
-    vi.useRealTimers()
   })
 
-  it('keeps every pinch wheel scale factor within a small per-frame range', async () => {
-    await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
-    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
-
-    const viewerContainer = screen.getByTestId('pdfjs-viewer-container')
-
+  it('keeps both pinch directions within the small per-frame scale range', async () => {
+    const viewerContainer = await setupWheelZoom()
     vi.useFakeTimers()
 
-    viewerContainer.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -400 }))
+    dispatchPinchWheel(viewerContainer, -400)
+    await advanceWheelTimers()
+    expect(getWheelScaleFactor(0)).toBeGreaterThan(1.02)
+    expect(getWheelScaleFactor(0)).toBeLessThanOrEqual(1.06)
 
-    await act(async () => {
-      vi.advanceTimersByTime(16)
-    })
-
-    expect(mocks.pdfViewerUpdateScale.mock.calls[0][0].scaleFactor).toBeGreaterThan(1.02)
-    expect(mocks.pdfViewerUpdateScale.mock.calls[0][0].scaleFactor).toBeLessThanOrEqual(1.06)
-
-    viewerContainer.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: 400 }))
-
-    await act(async () => {
-      vi.advanceTimersByTime(16)
-    })
-
-    expect(mocks.pdfViewerUpdateScale.mock.calls[1][0].scaleFactor).toBeGreaterThanOrEqual(0.94)
-    expect(mocks.pdfViewerUpdateScale.mock.calls[1][0].scaleFactor).toBeLessThan(0.98)
-
-    vi.useRealTimers()
+    dispatchPinchWheel(viewerContainer, 400)
+    await advanceWheelTimers()
+    expect(getWheelScaleFactor(1)).toBeGreaterThanOrEqual(0.94)
+    expect(getWheelScaleFactor(1)).toBeLessThan(0.98)
   })
 
-  it('accumulates small trackpad wheel deltas into a visible rAF zoom step', async () => {
-    await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
-    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
-
-    const viewerContainer = screen.getByTestId('pdfjs-viewer-container')
-
+  it('accumulates small trackpad deltas but resets them after an idle gap', async () => {
+    const viewerContainer = await setupWheelZoom()
     vi.useFakeTimers()
-
     for (let i = 0; i < 3; i += 1) {
-      viewerContainer.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -0.2 }))
-
-      await act(async () => {
-        vi.advanceTimersByTime(16)
-      })
+      dispatchPinchWheel(viewerContainer, -0.2)
+      await advanceWheelTimers()
     }
-
     expect(mocks.pdfViewerUpdateScale).not.toHaveBeenCalled()
 
-    viewerContainer.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -0.2 }))
-
-    await act(async () => {
-      vi.advanceTimersByTime(16)
-    })
-
+    dispatchPinchWheel(viewerContainer, -0.2)
+    await advanceWheelTimers()
     expect(mocks.pdfViewerUpdateScale).toHaveBeenCalledWith({ origin: [0, 0], scaleFactor: expect.any(Number) })
-    expect(mocks.pdfViewerUpdateScale.mock.calls[0][0].scaleFactor).toBeGreaterThan(1)
+    expect(getWheelScaleFactor(0)).toBeGreaterThan(1)
 
-    vi.useRealTimers()
-  })
-
-  it('resets small pinch wheel accumulation after idle gaps', async () => {
-    await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
-    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
-
-    const viewerContainer = screen.getByTestId('pdfjs-viewer-container')
-
-    vi.useFakeTimers()
-
+    mocks.pdfViewerUpdateScale.mockClear()
     for (let i = 0; i < 3; i += 1) {
-      viewerContainer.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -0.2 }))
-
-      await act(async () => {
-        vi.advanceTimersByTime(16)
-      })
+      dispatchPinchWheel(viewerContainer, -0.2)
+      await advanceWheelTimers()
     }
-
     expect(mocks.pdfViewerUpdateScale).not.toHaveBeenCalled()
 
-    await act(async () => {
-      vi.advanceTimersByTime(181)
-    })
-
-    viewerContainer.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -0.2 }))
-
-    await act(async () => {
-      vi.advanceTimersByTime(16)
-    })
-
+    await advanceWheelTimers(181)
+    dispatchPinchWheel(viewerContainer, -0.2)
+    await advanceWheelTimers()
     expect(mocks.pdfViewerUpdateScale).not.toHaveBeenCalled()
-
-    vi.useRealTimers()
   })
 
   it('shows the existing error state when the PDF cannot be loaded', async () => {
