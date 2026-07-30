@@ -15,6 +15,16 @@ import type { JobPayloadOf, JobType } from './jobRegistry'
 export type RecoveryStrategy = 'abandon' | 'retry' | 'singleton'
 
 /**
+ * Drain behavior while JobManager is paused for profile quiescence.
+ *
+ * Existing handlers use `whole-execution`: drain waits for execute + onSettled
+ * to finish. A handler may explicitly opt into `cooperative` only when it can
+ * identify a point where it holds no profile mutation capability and can wait
+ * there without losing in-memory work.
+ */
+export type JobQuiescenceMode = 'whole-execution' | 'cooperative'
+
+/**
  * Per-job context passed to handler.execute. Provides cancel signal, mutable
  * metadata, progress reporting, and a scoped logger.
  */
@@ -41,6 +51,18 @@ export interface JobContext<TPayload = unknown> {
   reportProgress(progress: number, detail?: unknown): void
   /** Logger pre-bound to { jobId, type }. */
   logger: LoggerService
+}
+
+/**
+ * Context exposed only to a handler that declares cooperative quiescence.
+ *
+ * The handler MUST call this only while it holds no profile write lease or
+ * business mutex and before starting its next profile mutation. It returns
+ * immediately when JobManager is not paused; during a pause it remains parked
+ * until the final pause hold is released.
+ */
+export interface CooperativeJobContext<TPayload = unknown> extends JobContext<TPayload> {
+  quiesceAtSafePoint(): Promise<void>
 }
 
 export interface JobMissEvent {
@@ -99,6 +121,16 @@ export interface JobHandler<TPayload = unknown> {
    * type-erased `JobHandler` — a property-style arrow signature would reject it.
    */
   onSettled?(event: JobSettledEvent<TPayload>): void | Promise<void>
+}
+
+/**
+ * Opt-in handler variant whose execute context exposes a cooperative safe
+ * point. It remains structurally assignable to JobHandler so registry,
+ * recovery, and schedule code keep one handler collection.
+ */
+export interface CooperativeJobHandler<TPayload = unknown> extends JobHandler<TPayload> {
+  readonly quiescence: Extract<JobQuiescenceMode, 'cooperative'>
+  execute(ctx: CooperativeJobContext<TPayload>): Promise<unknown>
 }
 
 /** Strongly-typed handler for a registered job type. */

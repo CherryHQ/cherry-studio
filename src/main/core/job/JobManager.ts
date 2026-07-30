@@ -23,6 +23,8 @@ import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
 import { runStartupRecovery } from './runtime/recovery'
 import {
+  type CooperativeJobContext,
+  type CooperativeJobHandler,
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,
   JOB_STATE_KEY_PREFIX,
@@ -77,6 +79,21 @@ class JobHandlerTimeoutError extends Error {
 interface FinishedResolver {
   resolve: (snapshot: JobSnapshot) => void
   promise: Promise<JobSnapshot>
+}
+
+interface CooperativeExecutionState {
+  parkedGeneration: number | null
+  readonly listeners: Set<() => void>
+}
+
+interface JobQuiescenceWindow {
+  readonly generation: number
+  readonly released: Promise<void>
+  readonly release: () => void
+}
+
+function isCooperativeJobHandler(handler: JobHandler): handler is CooperativeJobHandler {
+  return (handler as Partial<CooperativeJobHandler>).quiescence === 'cooperative'
 }
 
 /**
@@ -147,6 +164,12 @@ export class JobManager extends BaseService {
    * a controller is registered.
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
+  /**
+   * Per-execution state for opt-in cooperative handlers. A parked generation
+   * is safe for the matching pause window only; it can never satisfy a later
+   * drain after the manager resumes and pauses again.
+   */
+  private readonly cooperativeExecutions = new Map<string, CooperativeExecutionState>()
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
@@ -184,6 +207,10 @@ export class JobManager extends BaseService {
    * dispose of one hold cannot release someone else's.
    */
   private readonly pauseHolds = new Set<symbol>()
+  /** Monotonically increasing identity for first-hold → last-release windows. */
+  private pauseGeneration = 0
+  /** Release gate awaited by cooperative handlers parked in the current window. */
+  private activeQuiescenceWindow: JobQuiescenceWindow | null = null
   /**
    * `once` schedule ids whose fire callback was suppressed by the pause gate.
    * scheduleOnce self-cleans its timer before invoking the callback, so a
@@ -505,6 +532,12 @@ export class JobManager extends BaseService {
     // onSettled — and exists for every execution in this process. Same
     // primitive as drainInFlight. Snapshot before aborting: the finally
     // deletes entries as handlers settle.
+    //
+    // Lifecycle shutdown supersedes a profile-quiescence window. Release only
+    // the cooperative wait gate (not external pause holds) immediately before
+    // aborting controllers, so parked handlers observe the abort instead of
+    // waiting forever on a hold whose owner is also shutting down.
+    this.releaseActiveQuiescenceWindow()
     const inFlight = Array.from(this.inFlightExecuted.keys())
     const executedSignals = Array.from(this.inFlightExecuted.values())
     for (const controller of this.abortControllers.values()) {
@@ -538,17 +571,21 @@ export class JobManager extends BaseService {
     // Promise — their responsibility to wrap in a timeout / race.
     this.finishedResolvers.clear()
     this.inFlightExecuted.clear()
+    this.cooperativeExecutions.clear()
     this.abortControllers.clear()
   }
 
   protected override onDestroy(): void {
+    this.releaseActiveQuiescenceWindow()
     this.handlers.clear()
     this.queues.clear()
     this.abortControllers.clear()
     this.finishedResolvers.clear()
     this.inFlightExecuted.clear()
+    this.cooperativeExecutions.clear()
     this.scheduleDisposables.clear()
     this.pauseHolds.clear()
+    this.pauseGeneration = 0
     this.suppressedOnceScheduleIds.clear()
     this.pausedCronScheduleIds.clear()
     this.suppressedPromotionFires.clear()
@@ -577,7 +614,11 @@ export class JobManager extends BaseService {
       throw new Error(`JobManager: handler for type "${type}" is already registered`)
     }
     this.handlers.set(type, handler as JobHandler)
-    logger.info('Handler registered', { type, recovery: handler.recovery })
+    logger.info('Handler registered', {
+      type,
+      recovery: handler.recovery,
+      quiescence: isCooperativeJobHandler(handler as JobHandler) ? 'cooperative' : 'whole-execution'
+    })
   }
 
   /** True if a handler is registered for `type`. */
@@ -608,13 +649,17 @@ export class JobManager extends BaseService {
   pause(reason?: string): Disposable {
     const token = Symbol(reason ?? 'jobmanager-pause')
     this.pauseHolds.add(token)
-    if (this.pauseHolds.size === 1) this.engageCronPause()
+    if (this.pauseHolds.size === 1) {
+      this.startQuiescenceWindow()
+      this.engageCronPause()
+    }
     logger.info('JobManager paused', { reason: reason ?? null, holds: this.pauseHolds.size })
     return {
       dispose: () => {
         if (!this.pauseHolds.delete(token)) return
         logger.info('JobManager pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
         if (this.pauseHolds.size > 0) return
+        this.releaseActiveQuiescenceWindow()
         // Shutdown wins: onStop owns the teardown, compensation would only
         // race it (and its dispatches would be aborted immediately anyway).
         if (this._isShuttingDown) return
@@ -653,14 +698,15 @@ export class JobManager extends BaseService {
       logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
     }
 
-    // Wait on the executor signals (resolve in spawnExecute's finally, AFTER
-    // finalize + onSettled), never on JobHandle.finished: finalizeJob
-    // resolves `finished` before awaiting onSettled, so settlement writes
-    // (e.g. the agent.task breaker) would leak past the verdict. The set can
-    // only shrink while paused (claims are gated), so the snapshot is the
+    // Whole-execution handlers wait on executor signals (resolve in
+    // spawnExecute's finally, AFTER finalize + onSettled), never on
+    // JobHandle.finished. Cooperative handlers may instead satisfy this exact
+    // pause generation by parking at an owner-certified safe point. The set
+    // can only shrink while paused (claims are gated), so the snapshot is the
     // complete wait set.
     const waitedIds = Array.from(this.inFlightExecuted.keys())
-    const waited = waitedIds.map((id) => this.inFlightExecuted.get(id)!)
+    const generation = this.activeQuiescenceWindow?.generation ?? null
+    const waited = waitedIds.map((id) => this.waitForExecutionDrain(id, this.inFlightExecuted.get(id)!, generation))
 
     const recovery = this._recoveryDone
     let recoverySettled = recovery === undefined
@@ -686,13 +732,97 @@ export class JobManager extends BaseService {
     if (winner === 'done') {
       return { stragglerIds: [], startupRecoveryPending: false }
     }
-    const stragglerIds = waitedIds.filter((id) => this.inFlightExecuted.has(id))
+    const stragglerIds = waitedIds.filter((id) => !this.isExecutionDrained(id, generation))
     logger.warn('drainInFlight timed out with unsettled work', {
       timeoutMs: opts.timeoutMs,
       stragglerIds,
       startupRecoveryPending: !recoverySettled
     })
     return { stragglerIds, startupRecoveryPending: !recoverySettled }
+  }
+
+  private startQuiescenceWindow(): void {
+    let release!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    this.activeQuiescenceWindow = {
+      generation: ++this.pauseGeneration,
+      released,
+      release
+    }
+  }
+
+  private releaseActiveQuiescenceWindow(): void {
+    const window = this.activeQuiescenceWindow
+    if (!window) return
+    this.activeQuiescenceWindow = null
+    window.release()
+  }
+
+  private isExecutionDrained(jobId: string, generation: number | null): boolean {
+    if (!this.inFlightExecuted.has(jobId)) return true
+    if (generation === null) return false
+    return this.cooperativeExecutions.get(jobId)?.parkedGeneration === generation
+  }
+
+  private waitForExecutionDrain(jobId: string, executed: Promise<void>, generation: number | null): Promise<void> {
+    if (this.isExecutionDrained(jobId, generation)) return Promise.resolve()
+    const state = this.cooperativeExecutions.get(jobId)
+    if (!state || generation === null) return executed
+
+    return new Promise<void>((resolve) => {
+      let settled = false
+      const finish = (): void => {
+        if (settled) return
+        settled = true
+        state.listeners.delete(check)
+        resolve()
+      }
+      const check = (): void => {
+        if (this.isExecutionDrained(jobId, generation)) finish()
+      }
+
+      state.listeners.add(check)
+      void executed.then(finish)
+      check()
+    })
+  }
+
+  private notifyCooperativeExecution(state: CooperativeExecutionState): void {
+    for (const listener of [...state.listeners]) listener()
+  }
+
+  private parkedWindowForExecution(jobId: string): JobQuiescenceWindow | null {
+    const window = this.activeQuiescenceWindow
+    if (!window) return null
+    return this.cooperativeExecutions.get(jobId)?.parkedGeneration === window.generation ? window : null
+  }
+
+  private async quiesceExecutionAtSafePoint(jobId: string, signal: AbortSignal): Promise<void> {
+    const state = this.cooperativeExecutions.get(jobId)
+    if (!state) {
+      throw new Error(`JobManager invariant: job "${jobId}" has no cooperative execution state`)
+    }
+
+    // A new pause can begin in the microtask between an earlier window's
+    // release and this continuation. Loop until there is no active window so
+    // a stale parked generation never lets the handler cross a new seal.
+    while (this.activeQuiescenceWindow) {
+      const window = this.activeQuiescenceWindow
+      state.parkedGeneration = window.generation
+      this.notifyCooperativeExecution(state)
+      await window.released
+      if (state.parkedGeneration === window.generation) {
+        state.parkedGeneration = null
+        this.notifyCooperativeExecution(state)
+      }
+    }
+
+    // Cancellation is deliberately observed only after the final hold
+    // releases. Throwing while parked would run finalize/onSettled inside the
+    // profile snapshot window.
+    signal.throwIfAborted()
   }
 
   /**
@@ -1076,8 +1206,32 @@ export class JobManager extends BaseService {
       const executed = this.inFlightExecuted.get(jobId)
       if (executed) {
         const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), graceMs))
-        const winner = await Promise.race([executed.then(() => 'done' as const), timeout])
+        let winner = await Promise.race([executed.then(() => 'done' as const), timeout])
         if (winner === 'timeout') {
+          let waitedForSafePointRelease = false
+          let parkedWindow = this.parkedWindowForExecution(jobId)
+          while (parkedWindow) {
+            waitedForSafePointRelease = true
+            logger.info('Cancel grace elapsed while cooperative job was parked; deferring settlement until release', {
+              jobId,
+              generation: parkedWindow.generation
+            })
+            await Promise.race([executed, parkedWindow.released])
+            if (!this.inFlightExecuted.has(jobId)) return { outcome: 'cancelled' }
+            parkedWindow = this.parkedWindowForExecution(jobId)
+          }
+
+          // Once the snapshot window opens, give the aborted handler its full
+          // normal grace period to leave the checkpoint and settle. Time spent
+          // parked must not force a terminal write into the snapshot.
+          if (waitedForSafePointRelease) {
+            const afterReleaseTimeout = new Promise<'timeout'>((resolve) =>
+              setTimeout(() => resolve('timeout'), graceMs)
+            )
+            winner = await Promise.race([executed.then(() => 'done' as const), afterReleaseTimeout])
+            if (winner === 'done') return { outcome: 'cancelled' }
+          }
+
           logger.warn('cancel timed out — forcing terminal state', { jobId, graceMs })
           await this.finalizeJob(jobId, 'cancelled', undefined, {
             code: JOB_ERROR_CODES.CANCELLED,
@@ -1727,6 +1881,12 @@ export class JobManager extends BaseService {
       resolveExecuted = resolve
     })
     this.inFlightExecuted.set(row.id, executed)
+    if (isCooperativeJobHandler(handler)) {
+      this.cooperativeExecutions.set(row.id, {
+        parkedGeneration: null,
+        listeners: new Set()
+      })
+    }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     if (row.timeoutMs && row.timeoutMs > 0) {
@@ -1767,7 +1927,12 @@ export class JobManager extends BaseService {
       // the job sits in `delayed` (not working) and must not hold the machine awake.
       const sleepHold = application.get('PowerService').preventSleep(`job:${row.type}:${row.id}`)
       try {
-        const output = await handler.execute(ctx)
+        const output = isCooperativeJobHandler(handler)
+          ? await handler.execute({
+              ...ctx,
+              quiesceAtSafePoint: () => this.quiesceExecutionAtSafePoint(row.id, controller.signal)
+            } satisfies CooperativeJobContext)
+          : await handler.execute(ctx)
         if (timeoutHandle) clearTimeout(timeoutHandle)
         await this.finalizeJob(row.id, 'completed', output, null)
       } catch (err) {
@@ -1809,6 +1974,12 @@ export class JobManager extends BaseService {
       } finally {
         sleepHold.dispose()
         this.abortControllers.delete(row.id)
+        const cooperative = this.cooperativeExecutions.get(row.id)
+        if (cooperative) {
+          cooperative.parkedGeneration = null
+          this.notifyCooperativeExecution(cooperative)
+          this.cooperativeExecutions.delete(row.id)
+        }
         this.inFlightExecuted.delete(row.id)
         resolveExecuted()
       }
