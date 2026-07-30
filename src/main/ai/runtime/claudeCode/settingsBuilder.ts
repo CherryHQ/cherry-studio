@@ -210,17 +210,18 @@ export function disposeToolPolicySnapshot(sessionId: string): void {
   mcpSessionCatalogStates.delete(sessionId)
 }
 
-function registerMcpSessionCatalogSync(
+export function registerMcpSessionCatalogSync(
   sessionId: string,
-  agent: AgentEntity,
+  agentId: string,
+  mcpIds: readonly string[],
   metadata: Record<string, McpToolDisplayMetadata> | undefined
 ): void {
   mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
   mcpSessionCatalogStates.delete(sessionId)
-  if (!metadata || !agent.mcps?.length) return
+  if (!metadata || mcpIds.length === 0) return
 
   const serverIds = new Set(
-    agent.mcps.flatMap((mcpId) => {
+    mcpIds.flatMap((mcpId) => {
       const server = mcpServerService.findByIdOrName(mcpId)
       return server ? [server.id] : []
     })
@@ -228,7 +229,7 @@ function registerMcpSessionCatalogSync(
   if (serverIds.size === 0) return
 
   const state: McpSessionCatalogState = {
-    agentId: agent.id,
+    agentId,
     serverIds,
     metadata,
     refreshSequence: 0
@@ -408,27 +409,25 @@ export async function buildClaudeCodeSessionSettings(
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}
-  registerMcpSessionCatalogSync(session.id, agent, mcpToolMetadata)
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
   // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
   // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
-  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can
-  // see. The live cache listener normally refreshes both host-side consumers before the warm resolves;
-  // chain onto the surviving refresh as a fallback for an empty first write, which intentionally emits
-  // no cache-change event.
+  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can see.
+  // Rebuild the shared policy snapshot and fill this build's metadata object in place when the warm
+  // lands. A real connection separately registers live catalog sync after it owns the settings;
+  // warm-only settings builds never subscribe.
   if (!mcpWarm.completedInTime) {
-    const timedOutCatalogState = mcpSessionCatalogStates.get(session.id)
-    const refreshSequenceAtTimeout = timedOutCatalogState?.refreshSequence
+    const metadataRef = mcpToolMetadata
     void mcpWarm.warm
       .then(async () => {
-        // A changed cache fires the live listener before the warm resolves. Avoid rebuilding the same
-        // snapshot and metadata twice; a first write of [] still reaches the fallback below.
-        const currentState = mcpSessionCatalogStates.get(session.id)
-        if (currentState !== timedOutCatalogState || currentState?.refreshSequence !== refreshSequenceAtTimeout) {
-          return
-        }
-        await refreshMcpSessionCatalogState(session.id)
+        const liveAgent = agentService.getAgent(agent.id)
+        if (!liveAgent) return
+        await getToolPolicySnapshot(session.id)?.update(liveAgent)
+        const freshMetadata = await buildMcpToolMetadata(liveAgent)
+        if (!metadataRef || !freshMetadata) return
+        for (const key of Object.keys(metadataRef)) delete metadataRef[key]
+        Object.assign(metadataRef, freshMetadata)
       })
       .catch((error) => {
         logger.warn('Failed to reconcile MCP tool snapshot after bounded warm timed out', {

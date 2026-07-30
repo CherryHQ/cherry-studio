@@ -1,6 +1,7 @@
 import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { loggerDebug } = vi.hoisted(() => ({ loggerDebug: vi.fn() }))
 const getById = vi.fn()
 const listServers = vi.fn()
 const listTools = vi.fn()
@@ -39,6 +40,17 @@ vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { getById, list: listServers }
 }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: loggerDebug,
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn()
+    })
+  }
+}))
+
 const { McpCatalogService } = await import('../McpCatalogService')
 
 function server(overrides: Record<string, unknown> = {}) {
@@ -66,6 +78,7 @@ describe('McpCatalogService', () => {
     getById.mockReset()
     listServers.mockReset()
     listTools.mockReset()
+    loggerDebug.mockReset()
     runtimeListResources.mockReset()
     runtimeListPrompts.mockReset()
     cacheStore.clear()
@@ -217,6 +230,22 @@ describe('McpCatalogService', () => {
     await service.warmToolsCache('server-1')
 
     expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(loggerDebug).toHaveBeenCalledWith(
+      'Skipping MCP tools warm during retry backoff',
+      expect.objectContaining({ serverId: 'server-1', remainingMs: expect.any(Number) })
+    )
+  })
+
+  it('clears the retry deadline when the shared tools cache is explicitly cleared', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValueOnce({ tools: [] }).mockResolvedValueOnce({ tools: [sdkTool('search')] })
+    const service = new McpCatalogService()
+
+    await service.warmToolsCache('server-1')
+    service.clearSharedToolsCache('server-1')
+    await service.warmToolsCache('server-1')
+
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(2)
   })
 
   it('re-probes a confirmed empty server after the retry window', async () => {

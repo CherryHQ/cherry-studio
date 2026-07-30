@@ -128,16 +128,23 @@ export class McpCatalogService extends BaseService {
    * (refresh, prewarm, failure/inactive clearing) lands here, which is what lets this
    * single point drive `onToolsCacheUpdated`.
    *
-   * Change detection compares effective content (`undefined` reads as `[]`, so first-write
-   * of an empty list is not a "change"): consumers debounce on it, and a spurious fire only
-   * costs the SDK a redundant re-list. Stringify order-sensitivity is fine — lists are
-   * rebuilt from the same upstream source, so key/element order is stable across refreshes.
+   * Backoff state is maintained here too, so clearing or replacing the shared cache cannot
+   * leave a stale retry deadline behind. Change detection compares effective content
+   * (`undefined` reads as `[]`, so first-write of an empty list is not a "change"): consumers
+   * debounce on it because a spurious fire makes the SDK re-list and active sessions rebuild
+   * their host-side tool metadata and policy snapshot. Stringify order-sensitivity is fine —
+   * lists are rebuilt from the same upstream source, so key/element order is stable across refreshes.
    */
-  private writeToolsCache(serverId: string, tools: McpTool[]): void {
+  private writeToolsCache(serverId: string, tools: McpTool[], emptyRetryMs = 0): void {
     const cacheService = application.get('CacheService')
     const cacheKey = mcpToolsCacheKey(serverId)
     const previous = cacheService.getShared(cacheKey) as McpTool[] | undefined
     cacheService.setShared(cacheKey, tools)
+    if (tools.length === 0 && emptyRetryMs > 0) {
+      this.emptyCacheRetryAt.set(serverId, Date.now() + emptyRetryMs)
+    } else {
+      this.emptyCacheRetryAt.delete(serverId)
+    }
     if (JSON.stringify(previous ?? []) !== JSON.stringify(tools)) {
       this._onToolsCacheUpdated.fire({ serverId })
     }
@@ -195,7 +202,6 @@ export class McpCatalogService extends BaseService {
 
   private async listToolsForServer(server: McpServer, options: ListToolsOptions = {}): Promise<McpTool[]> {
     if (!server.isActive) {
-      this.emptyCacheRetryAt.delete(server.id)
       this.writeToolsCache(server.id, [])
       this.runtimeService().setServerStatus(server.id, 'disabled')
       return []
@@ -217,17 +223,11 @@ export class McpCatalogService extends BaseService {
 
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
-      this.writeToolsCache(server.id, tools)
-      if (tools.length === 0) {
-        this.emptyCacheRetryAt.set(server.id, Date.now() + EMPTY_TOOLS_RETRY_MS)
-      } else {
-        this.emptyCacheRetryAt.delete(server.id)
-      }
+      this.writeToolsCache(server.id, tools, tools.length === 0 ? EMPTY_TOOLS_RETRY_MS : 0)
       this.runtimeService().setServerStatus(server.id, 'connected')
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
-      this.writeToolsCache(server.id, [])
-      this.emptyCacheRetryAt.set(server.id, Date.now() + FAILED_TOOLS_RETRY_MS)
+      this.writeToolsCache(server.id, [], FAILED_TOOLS_RETRY_MS)
       this.runtimeService().setServerStatus(server.id, 'error', error)
       throw error
     }
@@ -284,7 +284,15 @@ export class McpCatalogService extends BaseService {
   public async warmToolsCache(serverId: string): Promise<void> {
     const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
     if (cached !== undefined && cached.length > 0) return
-    if (cached !== undefined && (this.emptyCacheRetryAt.get(serverId) ?? 0) > Date.now()) return
+    const retryAt = this.emptyCacheRetryAt.get(serverId) ?? 0
+    const now = Date.now()
+    if (cached !== undefined && retryAt > now) {
+      logger.debug('Skipping MCP tools warm during retry backoff', {
+        serverId,
+        remainingMs: retryAt - now
+      })
+      return
+    }
     let refresh = this.warmRefreshInFlight.get(serverId)
     if (!refresh) {
       refresh = this.refreshTools(serverId)

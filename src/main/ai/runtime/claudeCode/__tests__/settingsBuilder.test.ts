@@ -188,7 +188,9 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } = await import(
+  '../settingsBuilder'
+)
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
@@ -1753,6 +1755,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
       expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__old_tool')
+      registerMcpSessionCatalogSync('session-1', 'agent-1', ['srv-a'], settings.mcpToolMetadata)
 
       mocks.listMcpTools.mockReturnValue([{ id: 'new-tool', name: 'new_tool', description: 'New' }])
       const listener = mocks.onToolsCacheUpdated.mock.calls.at(-1)?.[0]
@@ -1765,10 +1768,19 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.mcpToolMetadata).not.toHaveProperty('mcp__srv-a__old_tool')
     })
 
-    it('disposes the live MCP cache subscription with the session policy snapshot', async () => {
+    it('does not subscribe during a warm-only settings build', async () => {
       const session = sessionWithMcps(['srv-a'])
 
       await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+      expect(mocks.onToolsCacheUpdated).not.toHaveBeenCalled()
+    })
+
+    it('disposes the live MCP cache subscription with the session policy snapshot', async () => {
+      const session = sessionWithMcps(['srv-a'])
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      registerMcpSessionCatalogSync('session-1', 'agent-1', ['srv-a'], settings.mcpToolMetadata)
       disposeToolPolicySnapshot('session-1')
 
       expect(mocks.mcpSubscriptionDispose).toHaveBeenCalledOnce()

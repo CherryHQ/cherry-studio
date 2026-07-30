@@ -20,8 +20,7 @@ const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
-  recordUsage: vi.fn(),
-  getRawShellEnv: vi.fn()
+  recordUsage: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -58,10 +57,6 @@ vi.mock('@main/services/TopicNamingService', () => ({
 
 vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
-}))
-
-vi.mock('@main/utils/shellEnv', () => ({
-  getRawShellEnv: mocks.getRawShellEnv
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
@@ -162,7 +157,6 @@ describe('AgentSessionRuntimeService', () => {
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
-    mocks.getRawShellEnv.mockResolvedValue({})
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -765,15 +759,6 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('starts shell environment capture without awaiting it', async () => {
-      mocks.getRawShellEnv.mockReturnValue(new Promise<never>(() => {}))
-      const service = new AgentSessionRuntimeService()
-
-      await expect((service as any).onInit()).resolves.toBeUndefined()
-
-      expect(mocks.getRawShellEnv).toHaveBeenCalledOnce()
-    })
-
     it('marks crash-orphaned pending assistant messages as errored on init', async () => {
       mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
       const service = new AgentSessionRuntimeService()
