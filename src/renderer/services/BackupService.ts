@@ -64,7 +64,7 @@ export async function backup(skipBackupFile = false) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    // Use the direct compatibility archive with the selected full or slim resource set.
+    // The compatibility IPC retains this argument, but main exports one v2 Full archive.
     await window.api.backup.backup(filename, selectFolder, skipBackupFile)
     toast.success(i18n.t('message.backup.success'))
   }
@@ -128,7 +128,7 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
       : `${customFileName}.zip`
     : undefined
 
-  // 上传文件 - Use direct backup method (copy IndexedDB/LocalStorage directories)
+  // Main exports the v2 Full archive, then the compatibility adapter uploads it.
   try {
     const { result: success, cleanupFailed } = await window.api.backup.backupToWebdav({
       webdavHost,
@@ -217,7 +217,7 @@ export async function backupToS3({ customFileName = '' }: ManualBackupOptions = 
     : undefined
 
   try {
-    // Use the direct backup method with the configured full or slim resource set.
+    // Main exports the v2 Full archive; the retained setting no longer changes its closure.
     const { result: success, cleanupFailed } = await window.api.backup.backupToS3({
       ...s3Config,
       fileName: finalFileName
@@ -327,7 +327,7 @@ export async function backupToLocal({ customFileName = '' }: ManualBackupOptions
     : undefined
 
   try {
-    // Use direct backup method (copy IndexedDB/LocalStorage directories)
+    // Main exports the v2 Full archive directly into the configured local directory.
     const { result, cleanupFailed } = await window.api.backup.backupToLocalDir(finalFileName, {
       localBackupDir,
       maxBackups: localBackupMaxBackups,

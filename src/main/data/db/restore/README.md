@@ -2,7 +2,7 @@
 
 Journal + preboot-promotion primitives for Backup v2's **whole-database replacement** ([backup §6](../../../../../docs/references/backup/README.md#6-journal-v2--promotion)).
 
-The runtime never writes restored rows into the live database. `BackupService` admits an archive, materializes its database into a sealed file under `restore-staging/`, and writes a journal; the preboot gate then swaps that file in by atomic rename during the zero-connection window. Feature readiness travels through the journal as an opaque JSON `ownerSummary`; this module persists and returns it but never interprets Knowledge, Skill, Agent, Channel, MCP, or File semantics.
+The runtime never writes restored rows into the live database. `BackupService` admits an archive, materializes its database into a sealed file under `restore-staging/`, and writes a journal; the preboot gate then swaps that file in by atomic rename during the zero-connection window. Feature readiness and progress travel through the journal as opaque JSON `ownerSummary` / `ownerProgress` bags; this module persists and returns them but never interprets Knowledge, Skill, Agent, Channel, MCP, or File semantics.
 
 **No barrel** — consumers deep-import specific files (same convention as `src/main/core/preboot/`).
 
@@ -57,6 +57,8 @@ prepared ──armed by the user──▶ armed ──gate passed──▶ promo
 | Journal state transitions during promotion | `restorePromotionV2.ts` (driven by the gate shell, `src/main/core/preboot/backupRestoreGate.ts`) |
 | Opaque `ownerSummary` JSON validation and transport | this module |
 | `ownerSummary` production and interpretation | the feature owner, called by Backup before preparation and after boot |
+| Opaque `ownerProgress` JSON validation and transport | this module |
+| `ownerProgress` schema, summary consistency, and updates | the feature owner after boot |
 | `restore-staging/` tree content (`feature.backup.restore.staging`) | BackupService before boot, promotion afterwards; explicit rollback reuses it to retain displaced restored resources until acknowledgement |
 | Terminal-journal deletion + aside cleanup | acknowledgement (§6.5) |
 | Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) | kept for forensics alongside terminal journals |
@@ -75,3 +77,8 @@ Before writing a `prepared` journal:
 4. **Use userData-relative paths** for `promote` / `aside` (§6.6): `runUserDataRelocation()` copies the whole tree before the gate runs, and relative paths are what let a prepared restore survive it.
 5. **Name the aside per restore.** Recovery decides from `(staged, live, aside)` existence, so a stale aside from an earlier restore mistaken for this one's rollback source is worse than no aside at all.
 6. **Seal feature readiness before the journal.** Backup asks each owner to project readiness from the already admitted inventory before moving admission staging. The journal stores that projection opaquely; an active new-format restore without it fails closed rather than reconstructing feature meaning from paths.
+
+After promotion, an owner may persist bounded progress in its own `ownerProgress` entry.
+Updates must preserve every other owner entry. The pre-release `knowledgeRebuild` field is
+read only when the whole new progress bag is absent; current writers never emit it, and a
+malformed current owner entry fails closed at that owner boundary.
