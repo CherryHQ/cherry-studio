@@ -84,16 +84,12 @@ function plugin(id: string, extensions: readonly string[]): FilePreviewPlugin {
 }
 
 describe('file preview registry', () => {
-  it.each(['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP', 'AVIF', 'ICO'])(
+  it.each(['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP', 'AVIF', 'ICO', 'SVG'])(
     'registers the image plugin for .%s files',
     (extension) => {
       expect(resolveExtensionPlugin(`/tmp/image.${extension}`, filePreviewRegistry)?.id).toBe('image')
     }
   )
-
-  it('does not register SVG as a raster image preview', () => {
-    expect(resolveExtensionPlugin('/tmp/image.svg', filePreviewRegistry)).toBeNull()
-  })
 
   it.each(['pdf', 'PDF'])('registers the PDF plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('pdf')

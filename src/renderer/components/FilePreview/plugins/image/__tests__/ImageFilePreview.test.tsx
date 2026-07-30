@@ -29,13 +29,21 @@ afterEach(() => {
 })
 
 describe('image file preview plugin', () => {
-  it('renders a local image through a safe file URL', async () => {
+  it('renders a local image through a file URL', async () => {
     render(<FilePreview filePath={'/tmp/photos/drafts/../summer holiday.png' as AbsoluteFilePath} />)
 
     const image = await screen.findByRole('img', { name: 'summer holiday.png' })
 
     expect(image).toHaveAttribute('src', 'file:///tmp/photos/summer%20holiday.png')
     expect(image.parentElement).toHaveClass('p-4')
+  })
+
+  it('renders SVG through a direct file URL instead of the danger-ext directory wrap', async () => {
+    render(<FilePreview filePath={'/tmp/art/logo.svg' as AbsoluteFilePath} />)
+
+    const image = await screen.findByRole('img', { name: 'logo.svg' })
+
+    expect(image).toHaveAttribute('src', 'file:///tmp/art/logo.svg')
   })
 
   it('shows loading feedback until the image loads', async () => {

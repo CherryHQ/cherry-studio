@@ -1,7 +1,6 @@
 import { EmptyState, ImagePreviewImage, useImagePreviewTransform } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { getFilePreviewExtension } from '@renderer/utils/filePreview'
-import { toSafeFileUrl } from '@shared/utils/file'
+import { toFileUrl } from '@shared/utils/file'
 import ImageOff from 'lucide-react/dist/esm/icons/image-off'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useMemo, useState } from 'react'
@@ -20,7 +19,10 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
   const item = useMemo(
     () => ({
       id: `${filePath}:${refreshKey}`,
-      src: toSafeFileUrl(filePath, getFilePreviewExtension(filePath)),
+      // Raw file URL, not `toSafeFileUrl`: `.svg` is a DANGEROUS_EXT (its danger-wrap
+      // would point at the parent directory), but `<img src>` never executes SVG
+      // scripts, so serving registered image extensions directly is safe here.
+      src: toFileUrl(filePath),
       alt: fileName,
       title: fileName
     }),
