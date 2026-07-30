@@ -239,43 +239,6 @@ describe('SubWindowService', () => {
       expect(args.initData).toMatchObject({ icon: 'chatgpt' })
     })
 
-    it('threads the transient mini-app descriptor through initData', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({
-        id: 'tab-openclaw',
-        url: '/app/mini-app/openclaw-dashboard',
-        title: 'OpenClaw',
-        miniApp: {
-          appId: 'openclaw-dashboard',
-          name: 'OpenClaw',
-          url: 'http://127.0.0.1:18790#token=secret',
-          logo: 'openclaw'
-        }
-      })
-
-      const { args } = lastOpenCall()
-      expect(args.initData).toMatchObject({
-        miniApp: {
-          appId: 'openclaw-dashboard',
-          name: 'OpenClaw',
-          url: 'http://127.0.0.1:18790#token=secret',
-          logo: 'openclaw'
-        }
-      })
-    })
-
-    it('omits miniApp from initData for an ordinary tab', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({ id: 'tab-plain', url: '/app/chat', title: 'Chat' })
-
-      const { args } = lastOpenCall()
-      expect(args.initData).not.toHaveProperty('miniApp')
-    })
-
     it('omits icon from initData when blank or absent', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)

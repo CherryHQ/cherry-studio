@@ -3,7 +3,6 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
-import { transientMiniAppForTab } from '@renderer/utils/miniAppTab'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
@@ -529,13 +528,10 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
 
-      const miniApp = transientMiniAppForTab(tab)
-
       // Send IPC message to create new window
       void ipcApi.request('tab.detach', {
         ...tab,
-        url: resolveSidebarAppTabEntryUrl(tab),
-        ...(miniApp && { miniApp })
+        url: resolveSidebarAppTabEntryUrl(tab)
       })
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs

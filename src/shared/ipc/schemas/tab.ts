@@ -1,5 +1,4 @@
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { TransientMiniAppSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -24,8 +23,6 @@ export const tabRequestSchemas = {
       type: z.string().optional(),
       isPinned: z.boolean().optional(),
       metadata: z.record(z.string(), z.unknown()).optional(),
-      // Only set for a transient mini-app tab; see TransientMiniAppSchema.
-      miniApp: TransientMiniAppSchema.optional(),
       x: z.number().optional(),
       y: z.number().optional()
     }),

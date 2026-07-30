@@ -5,7 +5,6 @@ import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
-import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
@@ -31,7 +30,6 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 
 export const SubWindowAppShell = () => {
   const { tabs, activeTabId, updateTab, openTab } = useTabs()
-  const { openMiniAppKeepAlive } = useMiniAppPopup()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
 
@@ -42,11 +40,6 @@ export const SubWindowAppShell = () => {
     if (!init || initialized.current) return
     initialized.current = true
 
-    // A transient mini app lives only in the opening window's keep-alive cache (Memory
-    // tier, per-window), so `/app/mini-app/<id>` would resolve to nothing here. Seed this
-    // window's own pool from the detach payload before the route mounts.
-    if (init.miniApp) openMiniAppKeepAlive(toTransientMiniApp(init.miniApp))
-
     openTab(init.url, {
       id: init.tabId,
       title: init.title,
@@ -56,7 +49,7 @@ export const SubWindowAppShell = () => {
       isPinned: init.isPinned,
       forceNew: true
     })
-  }, [init, openTab, openMiniAppKeepAlive])
+  }, [init, openTab])
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto

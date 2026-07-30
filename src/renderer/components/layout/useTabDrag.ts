@@ -1,6 +1,5 @@
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
-import { transientMiniAppForTab } from '@renderer/utils/miniAppTab'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -224,13 +223,9 @@ export function useTabDrag({
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
           if (tab) {
-            // Same payload as TabsContext.detachTab, position aside — including the mini-app
-            // descriptor, without which a torn-off mini-app tab lands on "app not found".
-            const miniApp = transientMiniAppForTab(tab)
             void ipcApi.request('tab.detach', {
               ...tab,
               url: resolveSidebarAppTabEntryUrl(tab),
-              ...(miniApp && { miniApp }),
               x: e.screenX - 400,
               y: e.screenY - 20
             })
