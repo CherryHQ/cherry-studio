@@ -13,10 +13,11 @@ import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgent
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +26,11 @@ import { useAgentTools } from './useAgentTools'
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
 export type AgentWithTools = AgentEntity & { tools: Tool[] }
+type UpdateAgentModelInput = {
+  agentId: string
+  modelId: UniqueModelId
+  reasoningEffort?: ReasoningEffortOption
+}
 
 /**
  * Fetch a single agent by id from SQLite via DataApi. Parses `configuration`
@@ -118,7 +124,7 @@ export const useUpdateAgent = () => {
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
         const { id, ...patch } = form
-        const result = await updateTrigger({ params: { agentId: id }, body: patch as unknown as UpdateAgentDto })
+        const result = await updateTrigger({ params: { agentId: id }, body: patch })
         if (options?.showSuccessToast ?? true) {
           toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -136,8 +142,15 @@ export const useUpdateAgent = () => {
   )
 
   const updateModel = useCallback(
-    async (agentId: string, modelId: UniqueModelId, options?: UpdateAgentBaseOptions) => {
-      return updateAgent({ id: agentId, model: modelId }, options)
+    async ({ agentId, modelId, reasoningEffort }: UpdateAgentModelInput, options?: UpdateAgentBaseOptions) => {
+      return updateAgent(
+        {
+          id: agentId,
+          model: modelId,
+          ...(reasoningEffort === undefined ? {} : { configuration: { reasoning_effort: reasoningEffort } })
+        },
+        options
+      )
     },
     [updateAgent]
   )

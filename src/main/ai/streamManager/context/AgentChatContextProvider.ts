@@ -61,6 +61,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const agent = agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
+    const reasoningEffort = req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default'
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
@@ -123,7 +124,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
         headless: req.headless === true,
         messageSnapshot,
-        reasoningEffort: req.reasoningEffort,
+        reasoningEffort,
         fastMode: req.fastMode
       })
 
@@ -196,7 +197,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentId,
       agentType: agent.type,
       modelId: uniqueModelId,
-      reasoningEffort: req.reasoningEffort,
+      reasoningEffort,
       fastMode: req.fastMode,
       assistantMessageId,
       userMessage,
@@ -220,7 +221,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
               { id: assistantMessageId, role: 'assistant', parts: [] }
             ],
             messageId: assistantMessageId,
-            reasoningEffort: req.reasoningEffort,
+            reasoningEffort,
             fastMode: req.fastMode,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },

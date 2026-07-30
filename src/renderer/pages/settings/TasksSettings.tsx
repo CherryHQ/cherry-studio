@@ -1099,6 +1099,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                 {t('agent.tasks.name.label')}
               </FieldLabel>
               <Input
+                autoFocus
                 id="task-form-name"
                 value={name}
                 disabled={saving}

@@ -661,7 +661,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateModel } = useUpdateAgent()
+  const { updateAgent, updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -697,9 +697,42 @@ const AgentComposerInner = ({
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
   }
 
-  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
+  const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
+  const canonicalReasoningEffort = model
+    ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
+    : configuredReasoningEffort
+  const [reasoningOverride, setReasoningOverride] = useState<{
+    agentId: string
+    value: ThinkingOption
+    version: number
+    canonicalAtMutationStart?: ThinkingOption
+  } | null>(null)
+  const reasoningMutationVersionRef = useRef(0)
+  const pendingReasoningEditRef = useRef<{
+    agentId: string
+    version: number
+    effort: ThinkingOption
+  } | null>(null)
+  const activeReasoningOverride =
+    reasoningOverride &&
+    reasoningOverride.agentId === agent?.id &&
+    (reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort)
+      ? reasoningOverride
+      : null
+  useEffect(() => {
+    if (
+      !reasoningOverride ||
+      reasoningOverride.agentId !== agent?.id ||
+      reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort
+    ) {
+      return
+    }
+    setReasoningOverride((current) => (current === reasoningOverride ? null : current))
+  }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
+  const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
   const [fastMode, setFastMode] = useState(false)
-  const previousModelIdRef = useRef(model?.id)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
@@ -719,12 +752,6 @@ const AgentComposerInner = ({
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
-
-  useEffect(() => {
-    if (previousModelIdRef.current === model?.id) return
-    previousModelIdRef.current = model?.id
-    setReasoningEffort((current) => (model ? (resolveReasoningEffortForModel(model, current) ?? 'default') : 'default'))
-  }, [model])
 
   useEffect(() => {
     if (model?.supportsFastMode !== true) setFastMode(false)
@@ -968,12 +995,48 @@ const AgentComposerInner = ({
 
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
-      if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
-      const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
-      if (!updatedAgent) return
-      setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
+      if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
+
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
+      const pendingReasoningEdit =
+        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
+      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
+      const previousReasoningOverride = activeReasoningOverride
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        agentId: agent.id,
+        value: nextReasoningEffort,
+        version
+      })
+
+      const updatedAgent = await updateModel(
+        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
+        { showSuccessToast: false }
+      )
+      if (!updatedAgent) {
+        setReasoningOverride((current) => {
+          if (current?.agentId !== agent.id || current.version !== version) return current
+          if (!previousReasoningOverride) return null
+
+          const previousEditStillPending =
+            pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
+            pendingReasoningEditRef.current.version === previousReasoningOverride.version
+          return previousEditStillPending || previousReasoningOverride.canonicalAtMutationStart !== undefined
+            ? previousReasoningOverride
+            : { ...previousReasoningOverride, canonicalAtMutationStart: canonicalReasoningEffort }
+        })
+        return
+      }
+      if (
+        pendingReasoningEdit &&
+        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
+        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
+      ) {
+        pendingReasoningEditRef.current = null
+      }
+      setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [agentId, canChangeModel, model?.id, updateModel]
+    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1001,6 +1064,47 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
+  const handleReasoningEffortChange = useCallback(
+    (option: ThinkingOption) => {
+      if (!agent) return
+
+      const canonicalAtMutationStart = canonicalReasoningEffort
+      const version = ++reasoningMutationVersionRef.current
+      pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
+      setReasoningOverride({
+        agentId: agent.id,
+        value: option,
+        version
+      })
+
+      void updateAgent(
+        {
+          id: agent.id,
+          configuration: { reasoning_effort: option }
+        },
+        { showSuccessToast: false }
+      ).then((updatedAgent) => {
+        if (!updatedAgent) return
+
+        if (
+          pendingReasoningEditRef.current?.agentId === agent.id &&
+          pendingReasoningEditRef.current.version === version
+        ) {
+          pendingReasoningEditRef.current = null
+        }
+        setReasoningOverride((current) =>
+          current?.agentId === agent.id && current.version === version
+            ? {
+                ...current,
+                value: updatedAgent.configuration?.reasoning_effort ?? 'default',
+                canonicalAtMutationStart
+              }
+            : current
+        )
+      })
+    },
+    [agent, canonicalReasoningEffort, updateAgent]
+  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1154,10 +1258,10 @@ const AgentComposerInner = ({
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
-      setReasoningEffort(item.payload.reasoningEffort ?? 'default')
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
       setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
@@ -1337,7 +1441,7 @@ const AgentComposerInner = ({
           model={model}
           reasoningEffort={reasoningEffort}
           fastMode={fastMode}
-          onReasoningEffortChange={setReasoningEffort}
+          onReasoningEffortChange={handleReasoningEffortChange}
           onFastModeChange={setFastMode}
         />
       ) : null}
