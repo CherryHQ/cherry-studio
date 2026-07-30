@@ -26,6 +26,7 @@ export type { ModelIconKey } from './models/meta-catalog'
 export * from './providers'
 export { PROVIDER_ICON_META_CATALOG, type ProviderIconKey } from './providers/meta-catalog'
 export {
+  getIconWebpUrl,
   type IconRef,
   modelIconRef,
   providerIconRef,

@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui/icons', () => {
   const ProviderIcon = ({ id }: { id: string }) => <span data-testid={`provider-icon-${id}`} />
   return {
+    getIconWebpUrl: () => undefined,
     resolveProviderIconRef: (id: string) =>
       id === 'anthropic' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
     useIcon: (ref: { key: string } | undefined) => {

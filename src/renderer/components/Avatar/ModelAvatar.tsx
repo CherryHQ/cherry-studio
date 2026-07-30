@@ -1,9 +1,11 @@
-import { Avatar, AvatarFallback } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { getIconWebpUrl, useIcon } from '@cherrystudio/ui/icons'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { first } from 'es-toolkit/compat'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 
 /**
  * Structural minimum the avatar needs. `getModelLogoRef` is shape-agnostic
@@ -21,10 +23,24 @@ interface Props {
   model?: AvatarModel
   size: number
   className?: string
+  fallback?: ReactNode
 }
 
-const ModelAvatar: FC<Props> = ({ model, size, className }) => {
-  const Icon = useIcon(getModelLogoRef(model))
+const ModelAvatar: FC<Props> = ({ model, size, className, fallback = first(model?.name) }) => {
+  const { theme } = useTheme()
+  const iconRef = getModelLogoRef(model)
+  const webpUrl = getIconWebpUrl(iconRef, theme === ThemeMode.dark ? 'dark' : 'light')
+  const Icon = useIcon(webpUrl ? undefined : iconRef)
+
+  if (webpUrl) {
+    return (
+      <Avatar className={className} style={{ width: size, height: size }}>
+        <AvatarImage alt="" className="bg-background object-contain" draggable={false} src={webpUrl} />
+        <AvatarFallback>{fallback}</AvatarFallback>
+      </Avatar>
+    )
+  }
+
   if (Icon) {
     return <Icon.Avatar size={size} className={className} />
   }
@@ -32,7 +48,7 @@ const ModelAvatar: FC<Props> = ({ model, size, className }) => {
     <Avatar
       className={cn('flex items-center justify-center rounded-lg', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="rounded-lg">{first(model?.name)}</AvatarFallback>
+      <AvatarFallback className="rounded-lg">{fallback}</AvatarFallback>
     </Avatar>
   )
 }

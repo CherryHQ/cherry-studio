@@ -149,6 +149,11 @@ export default defineConfig({
     },
     build: {
       target: 'esnext', // for build
+      // Generated provider/model WebPs are deliberately requested as files.
+      // Inlining hundreds of small avatars would move their bytes back into
+      // every renderer window's first-paint JavaScript.
+      assetsInlineLimit: (filePath) =>
+        /[\\/]packages[\\/]ui[\\/]src[\\/]components[\\/]icons[\\/].+\.webp$/.test(filePath) ? false : undefined,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/windows/main/index.html'),

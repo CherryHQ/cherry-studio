@@ -9,6 +9,7 @@ vi.mock('@cherrystudio/ui/icons', () => {
   const BrandIcon = ({ style }: { style?: CSSProperties }) => <svg data-testid="provider-brand-icon" style={style} />
 
   return {
+    getIconWebpUrl: () => undefined,
     resolveProviderIconRef: (id: string) =>
       id === 'custom-provider' ? undefined : { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } },
     useIcon: (ref: unknown) => (ref ? BrandIcon : undefined)

@@ -317,6 +317,13 @@ export type IconRef =
   | { kind: 'provider'; key: ProviderIconKey; meta: IconMeta }
   | { kind: 'model'; key: ModelIconKey; meta: IconMeta }
 
+/** Resolve a build-time WebP URL without loading the SVG component catalog. */
+export function getIconWebpUrl(iconRef: IconRef | undefined, variant: 'light' | 'dark'): string | undefined {
+  const webp = iconRef?.meta.webp
+  if (!webp) return undefined
+  return variant === 'dark' ? (webp.dark ?? webp.light) : webp.light
+}
+
 function providerRef(key: string): IconRef | undefined {
   const meta = (PROVIDER_ICON_META_CATALOG as Record<string, IconMeta>)[key]
   return meta ? { kind: 'provider', key: key as ProviderIconKey, meta } : undefined

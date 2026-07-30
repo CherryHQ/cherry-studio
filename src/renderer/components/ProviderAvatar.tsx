@@ -1,8 +1,10 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
-import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { getIconWebpUrl, resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getFirstCharacter } from '@renderer/utils/naming'
 import { generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import React from 'react'
 
 interface ProviderAvatarPrimitiveProps {
@@ -27,6 +29,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   style,
   iconStyle
 }) => {
+  const { theme } = useTheme()
   const backgroundColor = generateColorFromChar(providerName)
   const color = providerName ? getForegroundColor(backgroundColor) : 'white'
   const fallbackContent = getFirstCharacter(providerName)
@@ -42,8 +45,9 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     typeof resolvedLogo === 'string' && resolvedLogo.startsWith('icon:')
       ? resolveProviderIconRef(resolvedLogo.slice('icon:'.length))
       : undefined
-  const builtinIcon = useIcon(builtinIconRef)
-  const effectiveLogo = builtinIcon ?? resolvedLogo
+  const builtinWebpUrl = getIconWebpUrl(builtinIconRef, theme === ThemeMode.dark ? 'dark' : 'light')
+  const builtinIcon = useIcon(builtinWebpUrl ? undefined : builtinIconRef)
+  const effectiveLogo = builtinWebpUrl ?? builtinIcon ?? resolvedLogo
 
   // CompoundIcon handles light/dark variants internally; size the icon to the avatar container.
   if (effectiveLogo && typeof effectiveLogo !== 'string') {
@@ -64,7 +68,13 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
       <Avatar className={className} style={{ width: size, height: size, ...style }}>
-        <AvatarImage src={effectiveLogo} className="object-cover" draggable={false} />
+        <AvatarImage
+          alt=""
+          src={effectiveLogo}
+          className={builtinWebpUrl ? 'm-auto bg-background object-contain' : 'object-cover'}
+          draggable={false}
+          style={builtinWebpUrl ? iconStyle : undefined}
+        />
         <AvatarFallback style={{ backgroundColor, color }}>{fallbackContent}</AvatarFallback>
       </Avatar>
     )

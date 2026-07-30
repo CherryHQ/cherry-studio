@@ -14,6 +14,7 @@ import { transform } from '@svgr/core'
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
+import sharp from 'sharp'
 
 import { generateMeta } from './codegen'
 import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, type LogoType } from './svg-utils'
@@ -38,6 +39,10 @@ const MANUAL_LOGO_DIRS: Record<LogoType, readonly string[]> = {
   providers: ['opencode'],
   models: []
 }
+
+export const STATIC_ICON_SIZE = 64
+const STATIC_ICON_DENSITY = 192
+const STATIC_ICON_PIPELINE_VERSION = 1
 
 type HashCache = Record<string, string>
 
@@ -301,8 +306,40 @@ async function generateFlatIcon(
   await fs.writeFile(path.join(outputDir, outputFilename), jsCode, 'utf-8')
 }
 
+function resolveWebpSvg(svgCode: string, variant: 'light' | 'dark'): string {
+  const currentColor = variant === 'dark' ? '#ffffff' : '#000000'
+  return ensureViewBox(svgCode).replace(/currentColor/gi, currentColor)
+}
+
+async function writeIconWebp(svgCode: string, outputPath: string, variant: 'light' | 'dark'): Promise<void> {
+  await sharp(Buffer.from(resolveWebpSvg(svgCode, variant)), { density: STATIC_ICON_DENSITY })
+    .resize(STATIC_ICON_SIZE, STATIC_ICON_SIZE, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    })
+    .webp({ lossless: true, effort: 6, preset: 'icon' })
+    .toFile(outputPath)
+}
+
+export async function generateIconWebpAssets(
+  lightSvg: string,
+  darkSvg: string | null,
+  outputDir: string
+): Promise<{ hasDark: boolean; size: number }> {
+  await writeIconWebp(lightSvg, path.join(outputDir, 'light.webp'), 'light')
+
+  const resolvedDarkSvg = darkSvg ?? (/currentColor/i.test(lightSvg) ? lightSvg : null)
+  if (resolvedDarkSvg) {
+    await writeIconWebp(resolvedDarkSvg, path.join(outputDir, 'dark.webp'), 'dark')
+  } else {
+    await fs.rm(path.join(outputDir, 'dark.webp'), { force: true })
+  }
+
+  return { hasDark: resolvedDarkSvg !== null, size: STATIC_ICON_SIZE }
+}
+
 /**
- * Generate per-logo directory with light.tsx + optional dark.tsx + meta.ts.
+ * Generate per-logo directory with light.tsx/WebP + optional dark.tsx/WebP + meta.ts.
  *
  * When the logo has no dedicated dark variant (pair.dark === null), no dark.tsx
  * is emitted. The public CompoundIcon API remains uniform through the component
@@ -321,13 +358,16 @@ async function generateLogoDirDual(
   const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`)
   await fs.writeFile(path.join(logoDir, 'light.tsx'), lightTsx, 'utf-8')
 
+  let darkSvg: string | null = null
   if (pair.dark) {
-    const darkSvg = await fs.readFile(pair.dark, 'utf-8')
+    darkSvg = await fs.readFile(pair.dark, 'utf-8')
     const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
     await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
   } else {
     await fs.rm(path.join(logoDir, 'dark.tsx'), { force: true })
   }
+
+  const webp = await generateIconWebpAssets(lightSvg, darkSvg, logoDir)
 
   let colorPrimary = extractColorPrimary(lightSvg)
   if (/^black$/i.test(colorPrimary)) colorPrimary = '#000000'
@@ -336,7 +376,8 @@ async function generateLogoDirDual(
     outPath: path.join(logoDir, 'meta.ts'),
     dirName,
     colorPrimary,
-    colorScheme: 'color'
+    colorScheme: 'color',
+    webp
   })
 }
 
@@ -420,11 +461,15 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
       try {
         const lightContent = await fs.readFile(pair.light, 'utf-8')
         const darkContent = pair.dark ? await fs.readFile(pair.dark, 'utf-8') : '<no-dark>'
-        const hash = computeHash(`light:${lightContent}\ndark:${darkContent}`)
+        const hash = computeHash(
+          `static-webp:${STATIC_ICON_PIPELINE_VERSION}:${STATIC_ICON_SIZE}\nlight:${lightContent}\ndark:${darkContent}`
+        )
         const cacheKey = `${type}:${baseFile}`
 
         const lightFile = path.join(outputDir, dirName, 'light.tsx')
         const darkFile = path.join(outputDir, dirName, 'dark.tsx')
+        const lightWebpFile = path.join(outputDir, dirName, 'light.webp')
+        const darkWebpFile = path.join(outputDir, dirName, 'dark.webp')
         const lightExists = await fs
           .stat(lightFile)
           .then(() => true)
@@ -433,7 +478,20 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
           .stat(darkFile)
           .then(() => true)
           .catch(() => false)
-        const outputExists = lightExists && (pair.dark ? darkExists : !darkExists)
+        const lightWebpExists = await fs
+          .stat(lightWebpFile)
+          .then(() => true)
+          .catch(() => false)
+        const darkWebpExists = await fs
+          .stat(darkWebpFile)
+          .then(() => true)
+          .catch(() => false)
+        const expectsDarkWebp = Boolean(pair.dark || /currentColor/i.test(lightContent))
+        const outputExists =
+          lightExists &&
+          lightWebpExists &&
+          (pair.dark ? darkExists : !darkExists) &&
+          (expectsDarkWebp ? darkWebpExists : !darkWebpExists)
 
         if (!force && hashCache[cacheKey] === hash && outputExists) {
           skipped++
@@ -443,7 +501,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
         await generateLogoDirDual(pair, outputDir, dirName, componentName)
         newHashCache[cacheKey] = hash
         generated++
-        console.log(`  ${baseFile} -> ${componentName}{Light${pair.dark ? ',Dark' : ''}}`)
+        console.log(`  ${baseFile} -> ${componentName}{Light${pair.dark ? ',Dark' : ''}} + ${STATIC_ICON_SIZE}px WebP`)
       } catch (error) {
         console.error(`  Failed to process ${dirName}:`, error)
       }

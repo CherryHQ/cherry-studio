@@ -230,8 +230,8 @@ pnpm icons:generate --type=models
 | Type        | SVG source                            | Generated output                                                                 |
 | ----------- | ------------------------------------- | -------------------------------------------------------------------------------- |
 | `icons`     | `icons/general/*.svg`                 | General React icon components and their barrel                                   |
-| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, and catalogs          |
-| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and catalogs             |
+| `providers` | `icons/providers/{light,dark}/*.svg` | Provider components, 64px WebP assets, metadata, Avatars, barrels, and catalogs   |
+| `models`    | `icons/models/{light,dark}/*.svg`    | Model components, 64px WebP assets, metadata, Avatars, barrels, and catalogs      |
 
 Generation uses a hash cache and skips unchanged SVG files. Use the optional arguments when a narrower or clean regeneration is needed:
 
@@ -252,6 +252,10 @@ pnpm icons:generate --type=providers --force
 - `--force` bypasses the SVG hash cache.
 
 Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
+
+Provider and Model sources also export transparent, lossless 64×64 WebP files beside their generated components.
+Runtime avatar paths can resolve those asset URLs synchronously with `getIconWebpUrl`; the renderer build disables
+inlining for this asset directory so the image bytes stay outside the first-paint JavaScript bundle.
 
 ## Package Surface
 

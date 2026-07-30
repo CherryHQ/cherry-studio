@@ -13,5 +13,8 @@ export default defineConfig({
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
+  loader: {
+    '.webp': 'asset'
+  },
   external: ['react', 'react-dom', 'motion', 'tailwindcss', 'unist-util-visit']
 })
