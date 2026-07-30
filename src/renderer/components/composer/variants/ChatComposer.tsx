@@ -29,6 +29,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -39,7 +40,12 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { canModelUseAssistantWebSearch, resolveReasoningEffortForModel } from '@renderer/utils/model'
+import {
+  canModelUseAssistantWebSearch,
+  isGPT5SeriesReasoningModel,
+  isOpenAIWebSearchModel,
+  resolveReasoningEffortForModel
+} from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -80,6 +86,7 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -136,6 +143,7 @@ export interface ChatComposerProps {
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
+      fastMode?: boolean
     }
   ) => void | Promise<void>
   captureLocalSendScrollEligibility?: () => void
@@ -439,6 +447,7 @@ const ChatComposerInner = ({
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const { models: allModels } = useModels({ enabled: true })
   const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
   const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -550,6 +559,7 @@ const ChatComposerInner = ({
   const reasoningMutationVersionRef = useRef(0)
   const reasoningEffort =
     reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+  const [fastMode, setFastMode] = useState(false)
 
   // A local override only bridges the latest PATCH/revalidation window. Do
   // not retire it on an intermediate refresh from an older mutation.
@@ -560,27 +570,6 @@ const ChatComposerInner = ({
       return current
     })
   }, [selectedAssistantId])
-
-  const handleReasoningEffortChange = useCallback(
-    (option: ReasoningEffortOption) => {
-      if (!selectedAssistantId) return
-      const version = ++reasoningMutationVersionRef.current
-      setReasoningOverride({
-        assistantId: selectedAssistantId,
-        value: option,
-        version
-      })
-      void updateAssistantSettings({ reasoning_effort: option })
-        .then(() => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-        })
-        .catch((error) => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-          logger.warn('Failed to persist reasoning effort', { error })
-        })
-    },
-    [selectedAssistantId, updateAssistantSettings]
-  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -613,11 +602,6 @@ const ChatComposerInner = ({
         })
     },
     [assistant, reasoningEffort, reasoningOverride, setModel]
-  )
-
-  const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
-    [handleReasoningEffortChange, reasoningEffort]
   )
 
   const {
@@ -678,6 +662,61 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
       ? editingMessageForCurrentTopic.lockedMentionedModels
       : EMPTY_MODELS
+  const effectiveSubmittedModels =
+    lockedMentionedModels.length > 1
+      ? lockedMentionedModels
+      : useMentionedModelSelector
+        ? mentionedModelSelectorValue
+        : mentionedModels.length > 0
+          ? mentionedModels
+          : runtimeModel
+            ? [runtimeModel]
+            : EMPTY_MODELS
+  const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
+  // Without an assistant, reasoning has no persistence owner. Keep Fast available for the selected
+  // model while hiding a reasoning control that could not apply its selection.
+  const speedControlModel = useMemo(
+    () =>
+      effectiveSubmittedModel && !selectedAssistantId
+        ? { ...effectiveSubmittedModel, reasoning: undefined }
+        : effectiveSubmittedModel,
+    [effectiveSubmittedModel, selectedAssistantId]
+  )
+
+  useEffect(() => {
+    if (speedControlModel?.supportsFastMode !== true) setFastMode(false)
+  }, [speedControlModel?.supportsFastMode])
+
+  const handleReasoningEffortChange = useCallback(
+    (option: ReasoningEffortOption) => {
+      if (!selectedAssistantId) return
+      if (
+        option === 'minimal' &&
+        effectiveSubmittedModel &&
+        isOpenAIWebSearchModel(effectiveSubmittedModel) &&
+        isGPT5SeriesReasoningModel(effectiveSubmittedModel) &&
+        assistant?.settings.enableWebSearch
+      ) {
+        toast.warning(t('chat.web_search.warning.openai'))
+        return
+      }
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: selectedAssistantId,
+        value: option,
+        version
+      })
+      void updateAssistantSettings({ reasoning_effort: option })
+        .then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          logger.warn('Failed to persist reasoning effort', { error })
+        })
+    },
+    [assistant?.settings.enableWebSearch, effectiveSubmittedModel, selectedAssistantId, t, updateAssistantSettings]
+  )
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({
       scopeKey,
@@ -1055,7 +1094,13 @@ const ChatComposerInner = ({
         requireText: false,
         extra: () => ({
           mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
-          reasoningEffort: assistantId ? reasoningEffort : 'default'
+          reasoningEffort:
+            assistantId && speedControlModel
+              ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+              : assistantId
+                ? reasoningEffort
+                : 'default',
+          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {})
         })
       })
       if (!payload) return null
@@ -1069,7 +1114,7 @@ const ChatComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [assistantId, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
+    [assistantId, fastMode, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope, speedControlModel]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1083,7 +1128,8 @@ const ChatComposerInner = ({
         await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
-          reasoningEffort: payload.reasoningEffort
+          reasoningEffort: payload.reasoningEffort,
+          ...(payload.fastMode ? { fastMode: true } : {})
         })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
@@ -1140,8 +1186,30 @@ const ChatComposerInner = ({
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      const queuedModels = (item.payload.mentionedModels ?? [])
+        .map((modelId) => allModels.find((candidate) => candidate.id === modelId))
+        .filter((candidate): candidate is Model => candidate !== undefined)
+      if (queuedModels.length > 0) {
+        changeMentionedModelMultiSelectMode(queuedModels.length > 1)
+        selectMentionedModels(queuedModels)
+      } else {
+        restoreMentionedModelSelector()
+      }
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [
+      actionsRef,
+      allModels,
+      changeMentionedModelMultiSelectMode,
+      handleReasoningEffortChange,
+      resetHistoryIndex,
+      restoreKnowledgeBaseSelection,
+      restoreMentionedModelSelector,
+      selectMentionedModels,
+      setFiles,
+      setText
+    ]
   )
 
   const buildEditedMessageParts = useCallback(
@@ -1195,8 +1263,7 @@ const ChatComposerInner = ({
         if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
         const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
-        const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
-        if (!saveEditedMessage) {
+        if (!chatWrite) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
@@ -1215,7 +1282,22 @@ const ChatComposerInner = ({
           const savedParts = isAssistantReply
             ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
             : editedParts
-          await saveEditedMessage(editingMessageForCurrentTopic.message.id, savedParts)
+          if (isAssistantReply) {
+            await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+          } else {
+            const editedTurnOptions = isMentionedModelSelectorLocked
+              ? undefined
+              : {
+                  reasoningEffort:
+                    assistantId && speedControlModel
+                      ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                      : assistantId
+                        ? reasoningEffort
+                        : 'default',
+                  fastMode: fastMode && speedControlModel?.supportsFastMode === true
+                }
+            await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+          }
           if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
             restoreSavedDraft()
             stopEditing()
@@ -1288,6 +1370,7 @@ const ChatComposerInner = ({
       }
     },
     [
+      assistantId,
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
@@ -1297,19 +1380,23 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopic,
       editingMessageForCurrentTopicRef,
       enqueueFollowup,
+      fastMode,
       files,
       handleModelSelect,
+      isMentionedModelSelectorLocked,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      reasoningEffort,
       selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
+      speedControlModel,
       setFiles,
       setSelectedKnowledgeBases,
       setText,
@@ -1380,18 +1467,23 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = speedControlModel ? (
+    <ComposerSpeedControl
+      model={speedControlModel}
+      reasoningEffort={reasoningEffort}
+      fastMode={fastMode}
+      onReasoningEffortChange={handleReasoningEffortChange}
+      onFastModeChange={setFastMode}
+    />
+  ) : null
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost
-          scope={scope}
-          assistant={displayAssistant}
-          model={runtimeModel}
-          reasoning={reasoningContext}
-        />
+        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
@@ -1482,6 +1574,7 @@ const ChatComposerInner = ({
           rootPanelAdditionalItems={rootPanelAdditionalItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
+          sendAccessory={sendAccessory}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

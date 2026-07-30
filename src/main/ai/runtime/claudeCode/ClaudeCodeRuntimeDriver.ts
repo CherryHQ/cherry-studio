@@ -62,12 +62,28 @@ import {
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
-  prepareClaudeCodeWorkspaceDirectory
+  prepareClaudeCodeWorkspaceDirectory,
+  registerMcpSessionCatalogSync
 } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+
+function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
+  return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
+}
+
+function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
+  const text = (input.message.data.parts ?? [])
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+    .trimStart()
+
+  return /^\/fast(?:\s|$)/i.test(text)
+}
 
 type InvocationUsageBuckets = {
   outputTokens?: number
@@ -348,6 +364,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.resumeToken,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
+      this.input.fastMode === true,
       this.input.knowledgeBaseIds
     )
     if (!request) {
@@ -395,6 +412,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
+    registerMcpSessionCatalogSync(
+      this.input.sessionId,
+      this.input.agentId,
+      request.connectionConfig?.live.toolPolicy.mcps ?? [],
+      this.mcpToolMetadata
+    )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
@@ -416,6 +439,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    if (isFastSlashCommand(input)) {
+      throw new Error('The /fast command is unavailable; use the host Fast control instead')
+    }
+
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
@@ -451,6 +478,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -467,12 +495,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
+      input.fastMode === true,
       input.knowledgeBaseIds
     )
     if (!derived.ok) return 'invalid'
@@ -520,7 +550,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
-      return await this.query.supportedCommands()
+      return (await this.query.supportedCommands()).filter((command) => !isHostManagedSlashCommand(command))
     } catch (error) {
       logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
       return null
@@ -559,7 +589,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
         // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
         if (message.type === 'system' && message.subtype === 'commands_changed') {
-          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
+          this.eventQueue.push({
+            type: 'supported-commands',
+            commands: message.commands.filter((command) => !isHostManagedSlashCommand(command))
+          })
           continue
         }
 

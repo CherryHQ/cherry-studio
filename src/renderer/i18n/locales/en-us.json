@@ -670,6 +670,14 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "effort": "Effort",
+      "fast": "Fast",
+      "faster": "Faster",
+      "label": "Speed",
+      "smarter": "Smarter",
+      "title": "Response settings"
+    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -2893,6 +2901,10 @@
     "code": "Code",
     "empty_preview": "No content to display",
     "generating": "Generating",
+    "interactive_preview": {
+      "action": "View webpage",
+      "description": "This webpage contains scripts or external resources. Opening it may run code and connect to the internet."
+    },
     "preview": "Preview",
     "split": "Split",
     "view_mode": "View mode"

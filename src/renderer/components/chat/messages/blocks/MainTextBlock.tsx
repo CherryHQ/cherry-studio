@@ -17,7 +17,7 @@ import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
-import ChatMarkdown from '../markdown/ChatMarkdown'
+import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -25,6 +25,7 @@ import { useScrollAnchor } from './useScrollAnchor'
 interface Props {
   id: string
   content: string
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
@@ -244,6 +245,7 @@ function CollapsibleUserMessageContent({
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
+  inlineHtmlPreviewMode,
   isStreaming,
   citations = [],
   citationReferences,
@@ -294,6 +296,10 @@ const MainTextBlock: React.FC<Props> = ({
     content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
+  // Upstream completion can precede the smooth-stream tail. Keep the iframe unmounted
+  // until its first srcDoc contains the complete artifact.
+  const resolvedInlineHtmlPreviewMode =
+    inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   const processContent = useCallback(
     (rawText: string) => {
@@ -358,7 +364,11 @@ const MainTextBlock: React.FC<Props> = ({
           )}
         </CollapsibleUserMessageContent>
       ) : (
-        <ChatMarkdown block={block} postProcess={processContent} />
+        <ChatMarkdown
+          block={block}
+          inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
+          postProcess={processContent}
+        />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
       {citations.length > 0 && <CitationsList citations={citations} />}
