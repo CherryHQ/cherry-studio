@@ -464,9 +464,13 @@ export const webFetchInputSchema = z.object({
   // keyword) yet still runs locally, so the model's tool call is validated before `execute` and a
   // malformed URL surfaces as a repairable input error instead of a bogus network failure.
   //
-  // `isHttpUrl` is the same predicate `normalizeWebSearchUrls` enforces service-side, which is the
-  // one validation point every provider shares — the SSRF checks in `remoteUrlSafety` only sit on
-  // the direct-fetch providers, since proxy readers (Jina, Firecrawl, …) never fetch the target here.
+  // `isHttpUrl` is literally the predicate `normalizeWebSearchUrls` enforces service-side, so the
+  // schema and the service agree by construction instead of via two copies of one rule that drift.
+  //
+  // It is only a syntax gate, though: `remoteUrlSafety` additionally rejects credentials and
+  // loopback/private hosts that `isHttpUrl` accepts, and it is reached solely by the `fetch`
+  // provider — `jina`, the only other one exposing `fetchUrls`, hands the target to r.jina.ai and
+  // never retrieves it here.
   urls: z
     .array(z.string().trim().min(1).refine(isHttpUrl, 'must be an absolute http(s) URL'))
     .min(1)

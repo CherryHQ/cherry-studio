@@ -281,14 +281,13 @@ describe('web_fetch', () => {
     it.each([
       ['a bare host', 'example.com'],
       ['a non-http scheme', 'file:///etc/passwd']
-    ])('rejects %s without ever reaching the service', async (_label, url) => {
+    ])('rejects %s at the SDK validator, before execute', async (_label, url) => {
       const validated = await safeValidateTypes({
         value: { urls: [url] },
         schema: asSchema(fetchEntry.tool.inputSchema)
       })
 
       expect(validated.success).toBe(false)
-      expect(fetchUrls).not.toHaveBeenCalled()
     })
 
     it('accepts a well-formed http(s) URL', async () => {
@@ -301,11 +300,11 @@ describe('web_fetch', () => {
     })
 
     it('keeps the `uri` format strict providers reject out of the provider-facing schema', () => {
-      const { jsonSchema } = asSchema(fetchEntry.tool.inputSchema) as {
-        jsonSchema: { properties?: { urls?: { items?: { format?: unknown } } } }
-      }
+      const { jsonSchema } = asSchema(fetchEntry.tool.inputSchema)
 
-      expect(jsonSchema.properties?.urls?.items?.format).toBeUndefined()
+      // Whole-document rather than `properties.urls.items.format`: an optional chain that stops
+      // matching after a shape change would report success while `format` reappeared elsewhere.
+      expect(JSON.stringify(jsonSchema)).not.toContain('"format"')
     })
   })
 

@@ -60,11 +60,9 @@ describe('builtin tool contracts', () => {
     // OpenAI-compatible providers reject with a 400 that kills the whole request, not just this
     // tool ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format").
     // The http(s) contract is carried by a refinement, which `toJSONSchema` cannot express.
-    const json = z.toJSONSchema(webFetchInputSchema) as {
-      properties?: { urls?: { items?: { format?: unknown } } }
-    }
-
-    expect(json.properties?.urls?.items?.format).toBeUndefined()
+    // Whole-document rather than a `properties.urls.items.format` chain: an optional chain that
+    // stops matching after a shape change would pass while `format` reappeared elsewhere.
+    expect(JSON.stringify(z.toJSONSchema(webFetchInputSchema))).not.toContain('"format"')
     expect(webFetchInputSchema.safeParse({ urls: ['https://example.com'] }).success).toBe(true)
   })
 
