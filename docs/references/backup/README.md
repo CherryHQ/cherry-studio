@@ -821,6 +821,27 @@ the database queries, degradation aggregation, resource-kind mapping, manifest/j
 state, staging, and transaction errors. A missing owner policy is caught by schema and
 dependency audit tests; it is not deferred to a user's export.
 
+Policy consistency is defined **per role**, not by forcing every owner into one universal
+service interface:
+
+- Portable-DB sanitizers accept untrusted values and return the shared
+  `PortableProfileSanitization<Patch, MalformedField>` shape. Each owner supplies the
+  exact patch type, a literal union of reportable fields, its runtime schemas, and the
+  fail-closed fallback. Backup applies the returned patch as a whole rather than
+  reconstructing owner columns.
+- Durable restore readiness is an owner-produced JSON entry. The data layer transports
+  the bag opaquely; the owner validates its entry with its own runtime schema and returns
+  the shared `ok` / `missing` / `invalid` read result.
+- Capture predicates and resource projections keep their narrower owner-specific return
+  types. Owners that have no derived capture node or post-restore readiness work do not
+  implement empty placeholder methods merely for symmetry.
+
+The shared structural types live in `src/main/data/portableProfilePolicy.ts`; they contain
+no Agent, Channel, MCP, Knowledge, manifest, journal-state, or resource-kind semantics.
+`unknown` at an archive input is intentional—type safety begins only after the owning
+schema validates it. Owner outputs must not fall back to `Record<string, unknown>` or an
+unbounded `string[]` diagnostic.
+
 **Resource unit by ownership:**
 
 | Content | Unit |

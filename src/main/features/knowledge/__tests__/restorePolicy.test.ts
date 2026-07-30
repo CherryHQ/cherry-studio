@@ -1,8 +1,27 @@
-import { describe, expect, it } from 'vitest'
+import type { RestoreOwnerSummaryReadResult } from '@data/portableProfilePolicy'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { createKnowledgeRestoreOwnerSummary, readKnowledgeRestoreSummary } from '../restorePolicy'
+import {
+  createKnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreSummary,
+  readKnowledgeRestoreSummary
+} from '../restorePolicy'
 
 describe('Knowledge restore ownership policy', () => {
+  it('uses the shared typed owner-summary read contract', () => {
+    expectTypeOf(
+      createKnowledgeRestoreOwnerSummary({
+        userDataPath: '/profile',
+        knowledgeRoot: '/profile/Data/KnowledgeBase',
+        livePaths: []
+      })
+    ).toEqualTypeOf<KnowledgeRestoreOwnerSummary>()
+    expectTypeOf(readKnowledgeRestoreSummary(undefined)).toEqualTypeOf<
+      RestoreOwnerSummaryReadResult<KnowledgeRestoreSummary>
+    >()
+  })
+
   it('derives base IDs only from direct children of the managed Knowledge root', () => {
     expect(
       createKnowledgeRestoreOwnerSummary({

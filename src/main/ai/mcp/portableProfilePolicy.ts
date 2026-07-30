@@ -1,3 +1,5 @@
+import type { McpServerRow } from '@data/db/schemas/mcpServer'
+import type { PortableProfileSanitization } from '@data/portableProfilePolicy'
 import { McpConfigSampleSchema } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 
@@ -24,10 +26,12 @@ export interface McpServerCapabilityPatch {
   readonly configSample?: null
 }
 
-export interface McpServerCapabilitySanitization {
-  readonly patch: McpServerCapabilityPatch
-  readonly malformedFields: readonly string[]
-}
+export type McpServerCapabilityMalformedField = keyof McpServerCapabilityInput
+
+export type McpServerCapabilitySanitization = PortableProfileSanitization<
+  McpServerCapabilityPatch,
+  McpServerCapabilityMalformedField
+>
 
 const StringArraySchema = z.array(z.string())
 const StringRecordSchema = z.record(z.string(), z.string())
@@ -45,7 +49,7 @@ function matches(schema: z.ZodType, value: unknown): boolean {
  * the user later repairs and reactivates it.
  */
 export function sanitizeMcpServerCapability(input: McpServerCapabilityInput): McpServerCapabilitySanitization {
-  const malformedFields: string[] = []
+  const malformedFields: McpServerCapabilityMalformedField[] = []
   if (!matches(StringArraySchema, input.args)) malformedFields.push('args')
   if (!matches(StringRecordSchema, input.env)) malformedFields.push('env')
   if (!matches(StringRecordSchema, input.headers)) malformedFields.push('headers')
@@ -53,11 +57,40 @@ export function sanitizeMcpServerCapability(input: McpServerCapabilityInput): Mc
   if (!matches(StringArraySchema, input.disabledTools)) malformedFields.push('disabledTools')
   if (!matches(StringArraySchema, input.disabledAutoApproveTools)) malformedFields.push('disabledAutoApproveTools')
 
-  const reset = { isActive: false, isTrusted: null, trustedAt: null, dxtPath: null } as const
+  const reset = {
+    isActive: false,
+    isTrusted: null,
+    trustedAt: null,
+    dxtPath: null
+  } as const satisfies Readonly<Pick<McpServerRow, 'isActive' | 'isTrusted' | 'trustedAt' | 'dxtPath'>>
   if (malformedFields.length === 0) return { patch: reset, malformedFields }
 
+  const patch = {
+    ...reset,
+    command: null,
+    args: null,
+    env: null,
+    baseUrl: null,
+    headers: null,
+    configSample: null
+  } as const satisfies Readonly<
+    Pick<
+      McpServerRow,
+      | 'isActive'
+      | 'isTrusted'
+      | 'trustedAt'
+      | 'dxtPath'
+      | 'command'
+      | 'args'
+      | 'env'
+      | 'baseUrl'
+      | 'headers'
+      | 'configSample'
+    >
+  >
+
   return {
-    patch: { ...reset, command: null, args: null, env: null, baseUrl: null, headers: null, configSample: null },
+    patch,
     malformedFields
   }
 }
