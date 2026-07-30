@@ -10,7 +10,7 @@ import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import { sweepStaleExportOperations } from './exportOperation'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
-import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
+import { readRestoreKnowledgeProgress, readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
 import { armRestoreRollback } from './rollbackRestore'
 
 const logger = loggerService.withContext('BackupService')
@@ -367,6 +367,17 @@ export class BackupService extends BaseService {
     }
     const journal = read.journal
     const knowledgeReadiness = journal.state === 'completed' ? readRestoreKnowledgeReadiness(journal) : null
+    const knowledgeProgress =
+      journal.state === 'completed' && knowledgeReadiness?.kind === 'ok'
+        ? readRestoreKnowledgeProgress(journal, knowledgeReadiness.summary)
+        : null
+    const knowledgeRebuildPending =
+      journal.state === 'completed' &&
+      (knowledgeReadiness?.kind !== 'ok' ||
+        knowledgeProgress?.kind !== 'ok' ||
+        (!knowledgeProgress.progress.abandoned &&
+          knowledgeReadiness.summary.requiresRebuild &&
+          knowledgeReadiness.summary.baseIds.some((id) => !knowledgeProgress.progress.completedBaseIds.includes(id))))
     return {
       kind: 'journal',
       state: journal.state,
@@ -374,13 +385,7 @@ export class BackupService extends BaseService {
       ...(journal.state === 'promoting' ? { step: journal.step } : {}),
       ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {}),
       ...(journal.state === 'completed' && journal.resourcesIncomplete ? { resourcesIncomplete: true as const } : {}),
-      ...(journal.state === 'completed' &&
-      !journal.knowledgeRebuild?.abandoned &&
-      (knowledgeReadiness?.kind !== 'ok' ||
-        (knowledgeReadiness.summary.requiresRebuild &&
-          knowledgeReadiness.summary.baseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))))
-        ? { knowledgeRebuildPending: true as const }
-        : {}),
+      ...(knowledgeRebuildPending ? { knowledgeRebuildPending: true as const } : {}),
       ...(journal.degradations && journal.degradations.length > 0 ? { degradations: journal.degradations } : {})
     }
   }

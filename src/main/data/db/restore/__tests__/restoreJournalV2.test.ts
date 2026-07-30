@@ -126,33 +126,29 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
     ).toBe(false)
   })
 
-  it('allows durable Knowledge completion only for bases in the restore summary', () => {
-    const valid = baseJournal({
-      state: 'completed',
-      summary: { knowledgeBaseIds: ['kb-1', 'kb-2'] },
-      knowledgeRebuild: { completedBaseIds: ['kb-2'] }
-    })
-    expect(RestoreJournalV2Schema.safeParse(valid).success).toBe(true)
+  it('transports current and pre-release owner progress without interpreting business schemas', () => {
     expect(
-      RestoreJournalV2Schema.safeParse({
-        ...valid,
-        knowledgeRebuild: { completedBaseIds: ['kb-3'] }
-      }).success
+      RestoreJournalV2Schema.safeParse(
+        baseJournal({
+          state: 'completed',
+          ownerSummary,
+          ownerProgress: {
+            knowledge: { completedBaseIds: ['unknown-to-data'], abandoned: false },
+            futureOwner: { cursor: 4 }
+          },
+          knowledgeRebuild: { futureLegacyShape: true }
+        })
+      ).success
+    ).toBe(true)
+    expect(
+      RestoreJournalV2Schema.safeParse(
+        baseJournal({ state: 'prepared', ownerSummary, ownerProgress: { invalidJson: undefined } })
+      ).success
     ).toBe(false)
-  })
-
-  it('persists only an explicit true when the user abandons derived rebuilding', () => {
-    const base = baseJournal({
-      state: 'completed',
-      summary: { knowledgeBaseIds: ['kb-1'] },
-      knowledgeRebuild: { completedBaseIds: [], abandoned: true }
-    })
-    expect(RestoreJournalV2Schema.safeParse(base).success).toBe(true)
     expect(
-      RestoreJournalV2Schema.safeParse({
-        ...base,
-        knowledgeRebuild: { completedBaseIds: [], abandoned: false }
-      }).success
+      RestoreJournalV2Schema.safeParse(
+        baseJournal({ state: 'prepared', ownerSummary, knowledgeRebuild: { completedBaseIds: [] } })
+      ).success
     ).toBe(false)
   })
 

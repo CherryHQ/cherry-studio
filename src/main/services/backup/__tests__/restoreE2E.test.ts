@@ -42,7 +42,7 @@ import { presentJournalDegradations } from '../degradationReport'
 import { ArchiveAdmissionError, SourceDriftError } from '../errors'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
-import { readRestoreKnowledgeReadiness } from '../restoreOwnerReadiness'
+import { readRestoreKnowledgeReadiness, withRestoreKnowledgeProgress } from '../restoreOwnerReadiness'
 import { driftHooks } from '../sourceDrift'
 
 /**
@@ -249,9 +249,9 @@ function markKnowledgeRebuildComplete(): void {
   if (readiness.kind !== 'ok') throw new Error('expected Knowledge owner readiness')
   writeRestoreJournalV2({
     ...read.journal,
-    knowledgeRebuild: {
+    ownerProgress: withRestoreKnowledgeProgress(read.journal, readiness.summary, {
       completedBaseIds: readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
-    }
+    })
   })
 }
 
@@ -393,7 +393,7 @@ describe('restore, same install', () => {
     // No device switch: the registry keeps describing the producing install.
     activeUserData = sourceUserData
     const preview = await prepareRestore({ archivePath: archive })
-    armPreparedRestore(preview.restoreId)
+    await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     const workspace = query<{ path: string; disconnected_path: string | null }>(

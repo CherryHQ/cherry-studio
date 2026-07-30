@@ -33,7 +33,11 @@ import { loggerService } from '@logger'
 import { findUnsafeAncestor } from '@main/utils/file'
 
 import { RestoreStateError } from './errors'
-import { readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
+import {
+  readRestoreKnowledgeProgress,
+  readRestoreKnowledgeReadiness,
+  withRestoreKnowledgeProgress
+} from './restoreOwnerReadiness'
 
 const logger = loggerService.withContext('backupAcknowledgeRestore')
 
@@ -62,15 +66,19 @@ export function abandonKnowledgeRebuild(): AbandonedKnowledgeRebuild {
   if (readiness.kind !== 'ok') {
     throw new RestoreStateError('unreadable', `the restore Knowledge readiness summary is ${readiness.kind}`)
   }
+  const progress = readRestoreKnowledgeProgress(journal, readiness.summary)
+  if (progress.kind !== 'ok') {
+    throw new RestoreStateError('unreadable', 'the restore Knowledge progress is invalid')
+  }
   const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
-  const completed = new Set(journal.knowledgeRebuild?.completedBaseIds ?? [])
+  const completed = new Set(progress.progress.completedBaseIds)
   const pendingBaseIds = requiredBaseIds.filter((id) => !completed.has(id))
   writeRestoreJournalV2({
     ...journal,
-    knowledgeRebuild: {
+    ownerProgress: withRestoreKnowledgeProgress(journal, readiness.summary, {
       completedBaseIds: requiredBaseIds.filter((id) => completed.has(id)),
       abandoned: true
-    }
+    })
   })
   return { restoreId: journal.restoreId, pendingBaseIds }
 }
@@ -178,12 +186,16 @@ export function acknowledgeRestore(): AcknowledgeResult {
     )
   }
 
-  if (journal.state === 'completed' && !journal.knowledgeRebuild?.abandoned) {
+  if (journal.state === 'completed') {
     const readiness = readRestoreKnowledgeReadiness(journal)
+    const progress =
+      readiness.kind === 'ok' ? readRestoreKnowledgeProgress(journal, readiness.summary) : { kind: 'invalid' as const }
     const rebuildPending =
       readiness.kind !== 'ok' ||
-      (readiness.summary.requiresRebuild &&
-        readiness.summary.baseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id)))
+      progress.kind !== 'ok' ||
+      (!progress.progress.abandoned &&
+        readiness.summary.requiresRebuild &&
+        readiness.summary.baseIds.some((id) => !progress.progress.completedBaseIds.includes(id)))
     if (rebuildPending) {
       // The journal is also the durable retry marker for derived Knowledge work.
       // Clearing it while a base is pending would turn the next shutdown into a
