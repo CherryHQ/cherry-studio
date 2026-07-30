@@ -24,8 +24,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
-    Markdown: ({ children, className, ...props }: any) =>
-      React.createElement('div', { ...props, className: ['markdown', className].filter(Boolean).join(' ') }, children)
+    Markdown: ({ children, className, footnoteLabel, ...props }: any) =>
+      React.createElement(
+        'div',
+        {
+          ...props,
+          className: ['markdown', className].filter(Boolean).join(' '),
+          'data-footnote-label': footnoteLabel
+        },
+        children
+      )
   }
 })
 
@@ -48,7 +56,7 @@ describe('McpToolsSection', () => {
     isActive: true
   }
 
-  it('shows a shortened description preview without duplicating the full text in a tooltip', () => {
+  it('shows the description only in the expanded row', () => {
     render(
       <McpToolsSection
         tools={[tool]}
@@ -60,10 +68,7 @@ describe('McpToolsSection', () => {
     )
 
     expect(screen.getByText(tool.name)).toHaveClass('truncate')
-
-    const description = screen.getByText(`${toolDescription.slice(0, 40).trimEnd()}…`)
-    expect(description).toHaveClass('line-clamp-1', 'block', 'w-full', 'max-w-72')
-    expect(description.closest('[data-slot="tooltip-trigger"]')).toBeNull()
+    expect(screen.queryByText(toolDescription)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand row' }))
 
@@ -81,7 +86,7 @@ describe('McpToolsSection', () => {
       />
     )
 
-    const table = container.querySelector('[data-slot="data-table-shell"]')
+    const table = container.querySelector('[data-slot="data-table-shell"]')!
     expect(table).toHaveClass('bg-transparent')
     expect(table.className).toContain('[&_[data-slot=table-cell]]:bg-transparent')
     expect(table.className).toContain('[&_[data-slot=table-head]]:bg-transparent')
@@ -139,7 +144,10 @@ describe('McpToolsSection', () => {
 
     expect(screen.getByRole('heading', { name: 'common.description' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'settings.mcp.tools.inputSchema.label' })).toBeInTheDocument()
-    expect(screen.getByText(nestedTool.description!, { selector: '.markdown' })).toBeInTheDocument()
+    expect(screen.getByText(nestedTool.description!, { selector: '.markdown' })).toHaveAttribute(
+      'data-footnote-label',
+      'common.footnotes'
+    )
 
     const configName = screen.getByText('config')
     const configNode = configName.closest('[data-schema-property="config"]')

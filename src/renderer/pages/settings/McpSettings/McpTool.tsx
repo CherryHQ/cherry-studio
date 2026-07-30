@@ -19,7 +19,6 @@ interface McpToolsSectionProps {
   onToggleAutoApprove: (tool: McpTool, autoApprove: boolean) => void
 }
 
-const DESCRIPTION_PREVIEW_LENGTH = 40
 const MAX_NESTING_DEPTH = 5
 
 interface SchemaProperty {
@@ -181,7 +180,10 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         {tool.description && (
           <div>
             <h4 className="mb-2 font-bold text-foreground text-sm">{t('common.description')}</h4>
-            <Markdown id={`mcp-tool-description-${tool.id}`} className="font-normal text-foreground-secondary text-sm">
+            <Markdown
+              id={`mcp-tool-description-${tool.id}`}
+              footnoteLabel={t('common.footnotes')}
+              className="font-normal text-foreground-secondary text-sm">
               {tool.description}
             </Markdown>
           </div>
@@ -224,13 +226,6 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
               </span>
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
-            {tool.description && (
-              <p className="m-0 line-clamp-1 block w-full max-w-72 text-[13px] text-foreground-secondary leading-5">
-                {tool.description.length > DESCRIPTION_PREVIEW_LENGTH
-                  ? `${tool.description.slice(0, DESCRIPTION_PREVIEW_LENGTH).trimEnd()}…`
-                  : tool.description}
-              </p>
-            )}
           </ColFlex>
         )
       }
