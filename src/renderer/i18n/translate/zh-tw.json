@@ -139,6 +139,7 @@
         "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
         "disconnected": "已斷線",
         "loginHint": "首次登入需要掃描 QR 碼。請查看應用程式記錄以取得登入網址。",
+        "qrExpired": "QR碼已過期，請切換頻道後重試。",
         "qrHint": "打開手機上的微信，掃描 QR 碼登入。",
         "qrTitle": "微信 QR 碼登入",
         "title": "微信",

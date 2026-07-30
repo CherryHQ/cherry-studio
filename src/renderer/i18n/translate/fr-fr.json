@@ -139,6 +139,7 @@
         "description": "Recevoir et répondre aux messages via WeChat en utilisant l'API iLink Bot.",
         "disconnected": "Déconnecté",
         "loginHint": "La première connexion nécessite de scanner un code QR. Vérifiez les journaux de l'application pour obtenir l'URL de connexion.",
+        "qrExpired": "Code QR expiré. Veuillez réessayer en basculant le canal.",
         "qrHint": "Ouvrez WeChat sur votre téléphone, scannez le code QR pour vous connecter.",
         "qrTitle": "Connexion par QR WeChat",
         "title": "WeChat",

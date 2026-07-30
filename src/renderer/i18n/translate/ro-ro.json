@@ -139,6 +139,7 @@
         "description": "Primește și răspunde la mesaje prin WeChat folosind API-ul iLink Bot.",
         "disconnected": "Deconectat",
         "loginHint": "Prima autentificare necesită scanarea unui cod QR. Verifică jurnalele aplicației pentru adresa URL de autentificare.",
+        "qrExpired": "Codul QR a expirat. Vă rugăm să reîncercați comutând canalul.",
         "qrHint": "Deschideți WeChat pe telefon, scanați codul QR pentru a vă conecta.",
         "qrTitle": "Autentificare WeChat cu cod QR",
         "title": "WeChat",
