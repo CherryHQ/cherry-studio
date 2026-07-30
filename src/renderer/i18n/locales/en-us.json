@@ -3421,7 +3421,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call loops when enabled"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -3448,7 +3448,8 @@
         "group_placeholder": "Select group",
         "json_invalid": "Invalid JSON format",
         "max_tokens": "Max tokens",
-        "max_tool_calls": "Max tool calls",
+        "max_tool_calls": "Max tool call rounds",
+        "max_tool_calls_default": "Default ({{count}} rounds)",
         "mcp_mode": "MCP Mode",
         "model": "Default model",
         "model_clear": "Clear",
@@ -3464,8 +3465,7 @@
         "tags": "Tag",
         "temperature": "Temperature",
         "title": "Basic settings",
-        "top_p": "Top-P",
-        "unlimited": "Unlimited"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Library",
       "dialogs": {
