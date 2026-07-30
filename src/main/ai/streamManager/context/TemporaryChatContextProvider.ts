@@ -8,6 +8,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
@@ -89,10 +90,11 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
       : undefined
 
-    const greetingContext =
+    const greetingContext = validateConversationGreeting(
       req.greetingContext?.trim() && temporaryChatService.listMessages(req.topicId).length === 0
         ? req.greetingContext
         : undefined
+    )
 
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
     temporaryChatService.appendMessage(req.topicId, {
@@ -131,6 +133,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       uniqueModelId: model.id,
       messageId,
       messages: history,
+      ...(greetingContext ? { omitTelemetryInputs: true } : {}),
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})

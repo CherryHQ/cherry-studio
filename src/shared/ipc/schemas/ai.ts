@@ -1,4 +1,5 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -78,6 +79,8 @@ export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 /** Edit-save patch: form fields only — pause/resume are separate commands, so no `enabled` here. */
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
+
+const ConversationGreetingContextSchema = z.string().transform(validateConversationGreeting).pipe(z.string().min(1))
 
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
 const agentTaskRefSchema = z.strictObject({
@@ -192,7 +195,7 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          greetingContext: z.string().optional(),
+          greetingContext: ConversationGreetingContextSchema.optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),

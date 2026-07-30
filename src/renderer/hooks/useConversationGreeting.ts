@@ -1,18 +1,13 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useConversationGreeting')
 const GREETING_STORAGE_KEY_PREFIX = 'conversation-greeting:last:'
-const MAX_GREETING_LENGTH = 120
-const GREETING_EMOJI_PATTERN = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\u20e3\ufe0f]/u
-const GREETING_MARKUP_PATTERN = /[*_`#[\]<>]|^\s*(?:[-+>]|\d+[.)])\s/u
-const GREETING_QUOTATION_MARK_PATTERN = /["«»“”„‟「」『』]/u
-const GREETING_URL_PATTERN = /(?:https?:\/\/|www\.)/iu
-const GREETING_SENTENCE_PATTERN = /[.!?。！？؟।]+/gu
 
 export type ConversationGreetingMode = 'chat' | 'agent'
 type GreetingRegionSource = 'ip' | 'language' | 'unknown'
@@ -120,29 +115,6 @@ function selectLocalGreeting(candidates: string[], previousGreeting: string): st
   const newCandidates = uniqueCandidates.filter((candidate) => candidate !== previousGreeting)
   const pool = newCandidates.length > 0 ? newCandidates : uniqueCandidates
   return pool[Math.floor(Math.random() * pool.length)] ?? ''
-}
-
-function hasControlCharacter(text: string): boolean {
-  return Array.from(text).some((character) => {
-    const codePoint = character.codePointAt(0) ?? 0
-    return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f) || codePoint === 0x2028 || codePoint === 0x2029
-  })
-}
-
-function validateGreeting(text?: string): string {
-  const greeting = text?.trim() ?? ''
-  if (!greeting || Array.from(greeting).length > MAX_GREETING_LENGTH) return ''
-  if (
-    hasControlCharacter(greeting) ||
-    GREETING_EMOJI_PATTERN.test(greeting) ||
-    GREETING_MARKUP_PATTERN.test(greeting) ||
-    GREETING_QUOTATION_MARK_PATTERN.test(greeting) ||
-    GREETING_URL_PATTERN.test(greeting)
-  ) {
-    return ''
-  }
-  if ((greeting.match(GREETING_SENTENCE_PATTERN) ?? []).length > 2) return ''
-  return greeting
 }
 
 async function resolveCountryOrRegion(language: string): Promise<GreetingRegionContext> {
@@ -265,7 +237,7 @@ export function useConversationGreeting(
               system,
               uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
             })
-            return validateGreeting(result?.text)
+            return validateConversationGreeting(result?.text)
           } finally {
             if (activeRequestId === requestId) activeRequestId = null
           }

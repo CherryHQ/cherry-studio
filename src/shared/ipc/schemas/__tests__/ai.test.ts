@@ -66,3 +66,26 @@ describe('ai.agent.create IPC schema', () => {
     })
   })
 })
+
+describe('ai.stream.open greeting context validation', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+  const base = {
+    topicId: 'topic-1',
+    trigger: 'submit-message' as const,
+    userMessageParts: [{ type: 'text', text: 'yes' }]
+  }
+
+  it('accepts and trims a bounded plain-text greeting', () => {
+    expect(openStream.parse({ ...base, greetingContext: '  Want to play a game?  ' })).toMatchObject({
+      greetingContext: 'Want to play a game?'
+    })
+  })
+
+  it.each([
+    ['overlong text', 'x'.repeat(121)],
+    ['markup', '**Want to play?**'],
+    ['bidirectional override', 'Safe link \u202Emoc.elpmaxe']
+  ])('rejects unsafe greeting context at the IPC boundary: %s', (_caseName, greetingContext) => {
+    expect(openStream.safeParse({ ...base, greetingContext }).success).toBe(false)
+  })
+})

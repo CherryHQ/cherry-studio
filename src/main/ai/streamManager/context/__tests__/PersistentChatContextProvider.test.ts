@@ -11,7 +11,7 @@ import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiChildTurnSpan } from '../../../observability'
+import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -126,7 +126,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
-  it('adds greeting context only to an empty topic model history without persisting it', async () => {
+  it('adds greeting context as untrusted user data without persisting it as a message or trace input', async () => {
     const emptyTopic = topicService.create({ name: 'Empty topic' })
     const greetingContext = '晚上好，想聊点什么？'
     const first = await provider.prepareDispatch(
@@ -140,12 +140,26 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { hasLiveStream: false }
     )
 
-    expect(flatten(first.models[0].request.messages!)).toEqual([
-      { role: 'assistant', text: greetingContext },
-      { role: 'user', text: '好' }
-    ])
+    const firstRequest = first.models[0].request
+    expect(firstRequest.messages).toHaveLength(1)
+    expect(firstRequest.messages?.[0]).toMatchObject({ role: 'user' })
+    expect(firstRequest.messages?.[0].parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('<untrusted-ui-context kind="conversation-greeting">')
+    })
+    expect(firstRequest.messages?.[0].parts[0]).toMatchObject({
+      text: expect.stringContaining(JSON.stringify(greetingContext))
+    })
+    expect(firstRequest.messages?.[0].parts.at(-1)).toEqual({ type: 'text', text: '好' })
+    expect(firstRequest.omitTelemetryInputs).toBe(true)
     expect(first.reservedMessages?.map((message) => message.role)).toEqual(['user', 'assistant'])
     expect(messageService.getById(first.userMessageId!).data.parts).toEqual([{ type: 'text', text: '好' }])
+    expect(vi.mocked(applyTurnInputAttributes)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        messages: [expect.objectContaining({ role: 'user', parts: [{ type: 'text', text: '好' }] })]
+      })
+    )
 
     const later = await provider.prepareDispatch(
       makeSubscriber(),
@@ -159,9 +173,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
 
     expect(later.models[0].request.messages?.[0]?.role).toBe('user')
-    expect(later.models[0].request.messages?.some((message) => message.id === 'conversation-greeting-context')).toBe(
-      false
-    )
+    expect(later.models[0].request.omitTelemetryInputs).toBeUndefined()
+    expect(
+      later.models[0].request.messages?.some((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text.includes('<untrusted-ui-context'))
+      )
+    ).toBe(false)
   })
 
   it('sends only messages after the latest clear marker on the selected branch', async () => {

@@ -111,7 +111,7 @@ export interface BeginAgentSessionTurnInput {
   fastMode?: boolean
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
-  /** First-turn-only greeting context supplied to the runtime without persistence. */
+  /** First-turn-only untrusted greeting context supplied without storing it as a session message. */
   greetingContext?: string
   headless?: boolean
   /** Container-level OTel trace id (one trace per session); cached on the entry. */

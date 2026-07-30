@@ -10,6 +10,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -104,12 +105,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const runtimeService = application.get('AgentSessionRuntimeService')
     const isSessionBusy = runtimeService.isSessionBusy(sessionId)
-    const greetingContext =
+    const greetingContext = validateConversationGreeting(
       !isSessionBusy &&
-      req.greetingContext?.trim() &&
-      agentSessionMessageService.listSessionMessages(sessionId, { limit: 1 }).items.length === 0
+        req.greetingContext?.trim() &&
+        agentSessionMessageService.listSessionMessages(sessionId, { limit: 1 }).items.length === 0
         ? req.greetingContext
         : undefined
+    )
 
     // Decide enqueue-vs-begin off the runtime entry's authoritative state, NOT
     // `AiStreamManager.hasLiveStream`: the latter is false during the inter-turn drain window

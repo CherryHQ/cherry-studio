@@ -239,7 +239,7 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
   })
 
-  it('adds greeting context only to the first model request without appending it', async () => {
+  it('adds greeting context as untrusted user data only to the first model request without appending it', async () => {
     const greetingContext = '周末愉快，要来玩个游戏吗？'
     const firstUser = {
       id: 'msg-u-1',
@@ -254,14 +254,17 @@ describe('TemporaryChatContextProvider', () => {
       { hasLiveStream: false }
     )
 
-    expect(first.models[0].request.messages).toEqual([
-      {
-        id: 'conversation-greeting-context',
-        role: 'assistant',
-        parts: [{ type: 'text', text: greetingContext }]
-      },
-      { id: 'msg-u-1', role: 'user', parts: [{ type: 'text', text: '好' }] }
-    ])
+    expect(first.models[0].request.messages).toHaveLength(1)
+    expect(first.models[0].request.messages?.[0]).toMatchObject({ id: 'msg-u-1', role: 'user' })
+    expect(first.models[0].request.messages?.[0].parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('<untrusted-ui-context kind="conversation-greeting">')
+    })
+    expect(first.models[0].request.messages?.[0].parts[0]).toMatchObject({
+      text: expect.stringContaining(JSON.stringify(greetingContext))
+    })
+    expect(first.models[0].request.messages?.[0].parts.at(-1)).toEqual({ type: 'text', text: '好' })
+    expect(first.models[0].request.omitTelemetryInputs).toBe(true)
     expect(listMessagesMock).toHaveBeenCalledTimes(2)
     expect(appendMessageMock.mock.calls[0]?.[1]).toEqual({
       role: 'user',
@@ -292,8 +295,11 @@ describe('TemporaryChatContextProvider', () => {
     )
 
     expect(listMessagesMock).toHaveBeenCalledTimes(2)
-    expect(later.models[0].request.messages?.some((message) => message.id === 'conversation-greeting-context')).toBe(
-      false
-    )
+    expect(later.models[0].request.omitTelemetryInputs).toBeUndefined()
+    expect(
+      later.models[0].request.messages?.some((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text.includes('<untrusted-ui-context'))
+      )
+    ).toBe(false)
   })
 })

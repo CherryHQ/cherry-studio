@@ -151,8 +151,9 @@ export type AiStreamOpenRequest = {
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
       /**
-       * Exact greeting displayed immediately before the first user turn. Main validates the
-       * conversation is still empty before adding it to model context; it is never persisted.
+       * Exact greeting displayed immediately before the first user turn. Main validates both the
+       * text and empty-conversation state before adding it as untrusted user context. It is not
+       * stored as a conversation message; developer traces may record model inputs.
        */
       greetingContext?: string
       /** Canonical reasoning selection captured when the composer submitted. */

@@ -218,6 +218,7 @@ describe('useConversationGreeting', () => {
     ['quotation marks', '"Hello there"'],
     ['emoji', 'Hello there 👋'],
     ['multiple lines', 'Hello there\nHow are you?'],
+    ['bidirectional override', 'Safe link \u202Emoc.elpmaxe'],
     ['more than two sentences', 'One. Two. Three.']
   ])('keeps the local greeting for invalid model output: %s', async (_caseName, generatedText) => {
     mocks.request.mockImplementation((route: string) => {
