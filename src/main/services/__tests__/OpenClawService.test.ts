@@ -305,7 +305,7 @@ describe('OpenClawService gateway status state machine', () => {
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           detached: false,
-          env: { Path: 'C:\\Windows\\System32' },
+          env: { Path: 'C:\\Windows\\System32', OPENCLAW_NO_AUTO_UPDATE: '1' },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true
         })

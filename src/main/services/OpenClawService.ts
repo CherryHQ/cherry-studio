@@ -249,7 +249,10 @@ export class OpenClawService extends BaseService {
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
     const proc = crossPlatformSpawn(openclawPath, args, {
-      env: shellEnv,
+      // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
+      // version BinaryManager installed and reports. This is OpenClaw's documented kill
+      // switch, scoped to the gateway process we spawn.
+      env: { ...shellEnv, OPENCLAW_NO_AUTO_UPDATE: '1' },
       detached: !isWin, // Only detach on non-Windows to avoid console flash
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
