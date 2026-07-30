@@ -115,7 +115,7 @@ export function ImagePreviewDialog({
       <DialogContent
         aria-describedby={undefined}
         className={cn(
-          'fixed top-0 left-0 z-[80] h-screen w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:max-w-none',
+          'fixed top-0 left-0 z-[80] h-screen w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none data-[state=closed]:animate-none data-[state=open]:animate-none sm:max-w-none',
           className
         )}
         data-testid="image-preview-dialog"
@@ -138,12 +138,12 @@ export function ImagePreviewDialog({
           <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>
           <Button
             aria-label={mergedLabels.close}
-            className="absolute top-4 right-4 z-20 size-9 rounded-full border-border bg-popover text-popover-foreground shadow-md hover:bg-accent hover:text-accent-foreground"
+            className="absolute top-4 right-4 z-20 size-9 rounded-none bg-transparent p-0 text-white shadow-none transition-none hover:bg-transparent hover:text-white"
             onClick={close}
             size="icon"
             type="button"
-            variant="outline">
-            <X className="size-4" />
+            variant="ghost">
+            <X className="size-5" />
           </Button>
           <div
             className={cn('absolute inset-0 px-6 pt-14 pb-20 sm:px-20 sm:pt-16 sm:pb-24', contentClassName)}
