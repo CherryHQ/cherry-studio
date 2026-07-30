@@ -43,11 +43,56 @@ function queueFilesystemOperation<T>(queue: PQueue, operation: () => Promise<T>)
   return queue.add(operation, { throwOnTimeout: true })
 }
 
-async function settleFilesystemOperations<T>(operations: Array<Promise<T>>): Promise<T[]> {
+async function settleFilesystemOperations(operations: Array<Promise<void>>): Promise<void> {
   const settled = await Promise.allSettled(operations)
   const rejected = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected')
   if (rejected) throw rejected.reason
-  return settled.map((result) => (result as PromiseFulfilledResult<T>).value)
+}
+
+class FilesystemBranchScheduler {
+  // The caller owns the first branch; descendants borrow the remaining slots.
+  private activeBranches = 1
+
+  tryRun<T>(operation: () => Promise<T>): Promise<T> | undefined {
+    if (this.activeBranches >= AGENT_MIGRATION_FILESYSTEM_CONCURRENCY) return undefined
+    this.activeBranches++
+    return operation().finally(() => {
+      this.activeBranches--
+    })
+  }
+}
+
+// Keep the current branch inline and borrow only immediately available slots.
+// Each batch therefore retains at most the global concurrency number of Promises,
+// even when recursive directories discover more high-fan-out descendants.
+async function processFilesystemEntriesWithWorkers<T>(
+  entries: string[],
+  scheduler: FilesystemBranchScheduler,
+  processEntry: (entry: string, index: number) => Promise<T>,
+  recordResult?: (result: T, index: number) => void
+): Promise<void> {
+  let nextIndex = 0
+  while (nextIndex < entries.length) {
+    const inlineIndex = nextIndex++
+    const operations: Array<Promise<void>> = []
+    while (nextIndex < entries.length) {
+      const index = nextIndex
+      const operation = scheduler.tryRun(async () => {
+        const result = await processEntry(entries[index], index)
+        recordResult?.(result, index)
+      })
+      if (!operation) break
+      nextIndex++
+      operations.push(operation)
+    }
+    operations.push(
+      (async () => {
+        const result = await processEntry(entries[inlineIndex], inlineIndex)
+        recordResult?.(result, inlineIndex)
+      })()
+    )
+    await settleFilesystemOperations(operations)
+  }
 }
 
 export interface AgentFilesystemMigrationProgress {
@@ -434,10 +479,14 @@ async function copyIdentityFromWorkspace(
 }
 
 async function removeTreeWithoutFollowing(targetPath: string): Promise<void> {
-  await removeTreeWithoutFollowingWithQueue(targetPath, createFilesystemQueue())
+  await removeTreeWithoutFollowingWithQueue(targetPath, createFilesystemQueue(), new FilesystemBranchScheduler())
 }
 
-async function removeTreeWithoutFollowingWithQueue(targetPath: string, queue: PQueue): Promise<void> {
+async function removeTreeWithoutFollowingWithQueue(
+  targetPath: string,
+  queue: PQueue,
+  scheduler: FilesystemBranchScheduler
+): Promise<void> {
   const targetStat = await queueFilesystemOperation(queue, () => lstatIfExists(targetPath))
   if (!targetStat) return
   if (targetStat.isSymbolicLink() || !targetStat.isDirectory()) {
@@ -445,8 +494,8 @@ async function removeTreeWithoutFollowingWithQueue(targetPath: string, queue: PQ
     return
   }
   const entries = await queueFilesystemOperation(queue, () => readdir(targetPath))
-  await settleFilesystemOperations(
-    entries.map((entry) => removeTreeWithoutFollowingWithQueue(path.join(targetPath, entry), queue))
+  await processFilesystemEntriesWithWorkers(entries, scheduler, (entry) =>
+    removeTreeWithoutFollowingWithQueue(path.join(targetPath, entry), queue, scheduler)
   )
   await queueFilesystemOperation(queue, () => rmdir(targetPath))
 }
@@ -1116,13 +1165,20 @@ async function filesystemEntrySnapshot(
   skipSymlinks = false,
   onReadProgress?: FilesystemReadProgressCallback
 ): Promise<FilesystemEntrySnapshot | undefined> {
-  return filesystemEntrySnapshotWithQueue(targetPath, skipSymlinks, createFilesystemQueue(), onReadProgress)
+  return filesystemEntrySnapshotWithQueue(
+    targetPath,
+    skipSymlinks,
+    createFilesystemQueue(),
+    new FilesystemBranchScheduler(),
+    onReadProgress
+  )
 }
 
 async function filesystemEntrySnapshotWithQueue(
   targetPath: string,
   skipSymlinks: boolean,
   queue: PQueue,
+  scheduler: FilesystemBranchScheduler,
   onReadProgress?: FilesystemReadProgressCallback
 ): Promise<FilesystemEntrySnapshot | undefined> {
   const targetStat = await queueFilesystemOperation(queue, () => lstatBigIntIfExists(targetPath))
@@ -1150,10 +1206,19 @@ async function filesystemEntrySnapshotWithQueue(
   } else {
     const entries = await queueFilesystemOperation(queue, () => readdir(targetPath))
     entries.sort()
-    const children = await settleFilesystemOperations(
-      entries.map(async (entry) => {
+    const children: Array<{ entry: string; snapshot: FilesystemEntrySnapshot } | undefined> = new Array(entries.length)
+    await processFilesystemEntriesWithWorkers(
+      entries,
+      scheduler,
+      async (entry) => {
         const childPath = path.join(targetPath, entry)
-        const childSnapshot = await filesystemEntrySnapshotWithQueue(childPath, skipSymlinks, queue, onReadProgress)
+        const childSnapshot = await filesystemEntrySnapshotWithQueue(
+          childPath,
+          skipSymlinks,
+          queue,
+          scheduler,
+          onReadProgress
+        )
         if (!childSnapshot) {
           if (
             skipSymlinks &&
@@ -1164,7 +1229,10 @@ async function filesystemEntrySnapshotWithQueue(
           throw new Error(`Agent migration fingerprint source disappeared: ${childPath}`)
         }
         return { entry, snapshot: childSnapshot }
-      })
+      },
+      (child, index) => {
+        children[index] = child
+      }
     )
     for (const child of children) {
       if (!child) continue
@@ -1190,12 +1258,13 @@ async function filesystemEntryMetadataFingerprint(targetPath: string): Promise<s
 }
 
 async function filesystemEntryMetadataSnapshot(targetPath: string): Promise<FilesystemEntrySnapshot | undefined> {
-  return filesystemEntryMetadataSnapshotWithQueue(targetPath, createFilesystemQueue())
+  return filesystemEntryMetadataSnapshotWithQueue(targetPath, createFilesystemQueue(), new FilesystemBranchScheduler())
 }
 
 async function filesystemEntryMetadataSnapshotWithQueue(
   targetPath: string,
-  queue: PQueue
+  queue: PQueue,
+  scheduler: FilesystemBranchScheduler
 ): Promise<FilesystemEntrySnapshot | undefined> {
   const targetStat = await queueFilesystemOperation(queue, () => lstatBigIntIfExists(targetPath))
   if (!targetStat) return undefined
@@ -1207,15 +1276,21 @@ async function filesystemEntryMetadataSnapshotWithQueue(
   if (kind === 'directory') {
     const entries = await queueFilesystemOperation(queue, () => readdir(targetPath))
     entries.sort()
-    const childSnapshots = await settleFilesystemOperations(
-      entries.map(async (entry) => {
+    const childSnapshots: Array<{ entry: string; snapshot: FilesystemEntrySnapshot }> = new Array(entries.length)
+    await processFilesystemEntriesWithWorkers(
+      entries,
+      scheduler,
+      async (entry) => {
         const childPath = path.join(targetPath, entry)
-        const snapshot = await filesystemEntryMetadataSnapshotWithQueue(childPath, queue)
+        const snapshot = await filesystemEntryMetadataSnapshotWithQueue(childPath, queue, scheduler)
         if (!snapshot) {
           throw new Error(`Agent migration fingerprint source disappeared: ${childPath}`)
         }
         return { entry, snapshot }
-      })
+      },
+      (child, index) => {
+        childSnapshots[index] = child
+      }
     )
     for (const { entry, snapshot } of childSnapshots) {
       updateFingerprintField(hash, entry)
@@ -1371,12 +1446,13 @@ async function identitySourceMetadataFingerprint(
 }
 
 async function workspaceSourceSnapshot(sourcePath: string): Promise<WorkspaceSourceSnapshot | undefined> {
-  return workspaceSourceSnapshotWithQueue(sourcePath, createFilesystemQueue())
+  return workspaceSourceSnapshotWithQueue(sourcePath, createFilesystemQueue(), new FilesystemBranchScheduler())
 }
 
 async function workspaceSourceSnapshotWithQueue(
   sourcePath: string,
-  queue: PQueue
+  queue: PQueue,
+  scheduler: FilesystemBranchScheduler
 ): Promise<WorkspaceSourceSnapshot | undefined> {
   const sourceStat = await queueFilesystemOperation(queue, () => lstatBigIntIfExists(sourcePath))
   if (!sourceStat) return undefined
@@ -1430,15 +1506,21 @@ async function workspaceSourceSnapshotWithQueue(
   let byteCount = 0
   const entries = await queueFilesystemOperation(queue, () => readdir(sourcePath))
   entries.sort()
-  const childSnapshots = await settleFilesystemOperations(
-    entries.map(async (entry) => {
+  const childSnapshots: Array<{ name: string; snapshot: WorkspaceSourceSnapshot }> = new Array(entries.length)
+  await processFilesystemEntriesWithWorkers(
+    entries,
+    scheduler,
+    async (entry) => {
       const childPath = path.join(sourcePath, entry)
-      const snapshot = await workspaceSourceSnapshotWithQueue(childPath, queue)
+      const snapshot = await workspaceSourceSnapshotWithQueue(childPath, queue, scheduler)
       if (!snapshot) {
         throw new Error(`Agent migration fingerprint source disappeared: ${childPath}`)
       }
       return { name: entry, snapshot }
-    })
+    },
+    (child, index) => {
+      childSnapshots[index] = child
+    }
   )
   for (const child of childSnapshots) {
     const { name: entry, snapshot: childSnapshot } = child
@@ -1609,13 +1691,19 @@ async function sourceSnapshotForWorkspaceEntry(
  * Session before the complete private staging tree is fingerprinted.
  */
 async function cloneWorkspaceRegularContent(sourcePath: string, destinationPath: string): Promise<void> {
-  await cloneWorkspaceRegularContentWithQueue(sourcePath, destinationPath, createFilesystemQueue())
+  await cloneWorkspaceRegularContentWithQueue(
+    sourcePath,
+    destinationPath,
+    createFilesystemQueue(),
+    new FilesystemBranchScheduler()
+  )
 }
 
 async function cloneWorkspaceRegularContentWithQueue(
   sourcePath: string,
   destinationPath: string,
-  queue: PQueue
+  queue: PQueue,
+  scheduler: FilesystemBranchScheduler
 ): Promise<void> {
   const sourceStat = await queueFilesystemOperation(queue, () => lstatBigIntIfExists(sourcePath))
   if (!sourceStat) {
@@ -1636,9 +1724,12 @@ async function cloneWorkspaceRegularContentWithQueue(
     await queueFilesystemOperation(queue, () => mkdir(destinationPath, { mode: Number(sourceStat.mode & 0o777n) }))
     const entries = await queueFilesystemOperation(queue, () => readdir(sourcePath))
     entries.sort()
-    await settleFilesystemOperations(
-      entries.map((entry) =>
-        cloneWorkspaceRegularContentWithQueue(path.join(sourcePath, entry), path.join(destinationPath, entry), queue)
+    await processFilesystemEntriesWithWorkers(entries, scheduler, (entry) =>
+      cloneWorkspaceRegularContentWithQueue(
+        path.join(sourcePath, entry),
+        path.join(destinationPath, entry),
+        queue,
+        scheduler
       )
     )
   }

@@ -18,6 +18,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type * as Platform from '@main/core/platform'
+import PQueue from 'p-queue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -687,6 +688,49 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(recentSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
       'workspace content'
     )
+  })
+
+  it('bounds outstanding filesystem work for a high-fan-out workspace', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceBundle = path.join(legacyWorkspace, 'bundle', 'nested')
+    const fileCount = 64
+    await mkdir(sourceBundle, { recursive: true })
+    await Promise.all(
+      Array.from({ length: fileCount }, (_, index) =>
+        writeFile(path.join(sourceBundle, `file-${index.toString().padStart(3, '0')}.txt`), `content ${index}`)
+      )
+    )
+
+    const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    const originalAdd = PQueue.prototype.add
+    let maxRunning = 0
+    let maxOutstanding = 0
+    const trackedAdd = function (this: PQueue, ...args: Parameters<PQueue['add']>): ReturnType<PQueue['add']> {
+      const result = originalAdd.apply(this, args)
+      maxRunning = Math.max(maxRunning, this.pending)
+      maxOutstanding = Math.max(maxOutstanding, this.pending + this.size)
+      return result
+    }
+    const addSpy = vi.spyOn(PQueue.prototype, 'add').mockImplementation(trackedAdd as PQueue['add'])
+
+    try {
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [session]
+      })
+    } finally {
+      addSpy.mockRestore()
+    }
+
+    expect(maxRunning).toBeGreaterThan(1)
+    expect(maxOutstanding).toBeLessThanOrEqual(16)
+    expect(await readdir(path.join(session.systemWorkspacePath!, 'bundle', 'nested'))).toHaveLength(fileCount)
   })
 
   it('verifies the first private copy before publishing it', async () => {
