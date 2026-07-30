@@ -68,12 +68,13 @@ describe('importLegacySessionMessages', () => {
     insertedSessions.push(id)
   }
 
-  async function importLegacyRows(rows: LegacyMessageRow[]): Promise<number> {
+  async function importLegacyRows(rows: LegacyMessageRow[], options: { includeId?: boolean } = {}): Promise<number> {
+    const includeId = options.includeId ?? true
     dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
     try {
       dbh.db.run(
         sql.raw(`CREATE TABLE agents_legacy.session_messages (
-          id INTEGER PRIMARY KEY,
+          ${includeId ? 'id INTEGER PRIMARY KEY,' : ''}
           session_id TEXT NOT NULL,
           role TEXT NOT NULL,
           content TEXT NOT NULL,
@@ -90,17 +91,19 @@ describe('importLegacySessionMessages', () => {
       )
       dbh.db.run(sql.raw("INSERT INTO agents_legacy.agents (id) VALUES ('a1')"))
 
+      const idColumn = includeId ? sql.raw('id,') : sql.raw('')
       for (const row of rows) {
         dbh.db.run(sql`
           INSERT OR IGNORE INTO agents_legacy.sessions (id, agent_id)
           VALUES (${row.sessionId}, 'a1')
         `)
+        const idValue = includeId ? sql`${row.id},` : sql.raw('')
         dbh.db.run(sql`
           INSERT INTO agents_legacy.session_messages
-            (id, session_id, role, content, agent_session_id, created_at, updated_at)
+            (${idColumn} session_id, role, content, agent_session_id, created_at, updated_at)
           VALUES
             (
-              ${row.id},
+              ${idValue}
               ${row.sessionId},
               ${row.role},
               ${JSON.stringify(row.content)},
@@ -122,7 +125,15 @@ describe('importLegacySessionMessages', () => {
       }
       schemaInfo.session_messages = {
         exists: true,
-        columns: new Set(['id', 'session_id', 'role', 'content', 'agent_session_id', 'created_at', 'updated_at'])
+        columns: new Set([
+          ...(includeId ? ['id'] : []),
+          'session_id',
+          'role',
+          'content',
+          'agent_session_id',
+          'created_at',
+          'updated_at'
+        ])
       }
 
       return await importLegacySessionMessages(dbh.db, schemaInfo)
@@ -367,7 +378,7 @@ describe('importLegacySessionMessages', () => {
     expect(row.searchableText).toBe('hi')
   })
 
-  it('reads large legacy sets in chunks, batch-inserts them, and rebuilds searchable FTS data', async () => {
+  it('stages and imports large legacy sets in bounded pages, then rebuilds searchable FTS data', async () => {
     await seedSession('s-batched')
     const rows: LegacyMessageRow[] = Array.from({ length: 505 }, (_, index) => ({
       id: index + 1,
@@ -399,6 +410,31 @@ describe('importLegacySessionMessages', () => {
         WHERE agent_session_message_fts MATCH 'migration needle'`)
     )
     expect(matches).toEqual([{ searchableText: 'batch migration needle' }])
+    expect(
+      dbh.db.all<{ name: string }>(
+        sql.raw(
+          "SELECT name FROM sqlite_temp_master WHERE type = 'table' AND name = 'migration_agent_session_messages'"
+        )
+      )
+    ).toEqual([])
+  })
+
+  it('uses SQLite rowid for bounded paging when the legacy id column is absent', async () => {
+    await seedSession('s-rowid')
+    const rows: LegacyMessageRow[] = Array.from({ length: 505 }, (_, index) => ({
+      id: index + 1,
+      sessionId: 's-rowid',
+      role: 'assistant',
+      content: { parts: [{ type: 'text', text: `rowid message ${index}` }] }
+    }))
+
+    await expect(importLegacyRows(rows, { includeId: false })).resolves.toBe(505)
+
+    const importedRows = await dbh.db
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-rowid'))
+    expect(importedRows).toHaveLength(505)
   })
 
   it('rolls back partial batches and restores the FTS insert trigger after an insert failure', async () => {
@@ -436,6 +472,13 @@ describe('importLegacySessionMessages', () => {
           WHERE type = 'trigger' AND name = ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME}`
     )
     expect(triggerRows).toEqual([{ name: AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME }])
+    expect(
+      dbh.db.all<{ name: string }>(
+        sql.raw(
+          "SELECT name FROM sqlite_temp_master WHERE type = 'table' AND name = 'migration_agent_session_messages'"
+        )
+      )
+    ).toEqual([])
 
     await dbh.db.insert(agentSessionMessageTable).values({
       sessionId: 's-rollback',

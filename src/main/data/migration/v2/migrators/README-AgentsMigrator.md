@@ -42,6 +42,10 @@ resolves migration storage through the live application path registry.
 
 The main `BEGIN`/`COMMIT` region contains only synchronous better-sqlite3 work.
 Filesystem probing and message-file materialization complete before `BEGIN`.
+Prepared messages are written to a file-backed SQLite TEMP table in 500-row
+pages, then read and inserted in 100-row pages inside the transaction. This
+keeps message payload memory bounded while preserving atomic import and one
+final FTS rebuild. The temporary table is dropped before workspace copying.
 
 ## Filesystem split
 

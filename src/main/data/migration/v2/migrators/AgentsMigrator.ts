@@ -22,7 +22,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -81,7 +81,9 @@ type V1ChannelTaskSubscription = {
 const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
 const AGENT_MESSAGE_READ_BATCH_SIZE = 500
 const AGENT_MESSAGE_INSERT_BATCH_SIZE = 100
+const AGENT_MESSAGE_PREPARE_SAVEPOINT = 'agent_message_page_prepare'
 const AGENT_MESSAGE_IMPORT_SAVEPOINT = 'agent_message_batch_import'
+const PREPARED_AGENT_MESSAGE_TABLE = 'migration_agent_session_messages'
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -241,7 +243,7 @@ export class AgentsMigrator extends BaseMigrator {
       isAttached = true
       const messagePreparationStartedAt = performance.now()
       const derivedSessionWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
-      const preparedSessionMessages = await prepareLegacySessionMessages(
+      const preparedSessionMessageCount = await prepareLegacySessionMessages(
         ctx.db,
         this.sourceSchemaInfo,
         {
@@ -259,14 +261,14 @@ export class AgentsMigrator extends BaseMigrator {
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, derivedSessionWorkspaces)
       logger.info('Agent migration phase completed', {
         phase: 'message-preparation',
-        messages: preparedSessionMessages.length,
+        messages: preparedSessionMessageCount,
         workspaces: derivedSessionWorkspaces.workspaces.length,
         sessions: derivedSessionWorkspaces.mappings.length,
         durationMs: Math.round(performance.now() - messagePreparationStartedAt)
       })
-      this.reportProgress(55, `Prepared ${preparedSessionMessages.length} Agent messages`, {
+      this.reportProgress(55, `Prepared ${preparedSessionMessageCount} Agent messages`, {
         key: 'migration.progress.agents_messages',
-        params: { processed: preparedSessionMessages.length, total: preparedSessionMessages.length }
+        params: { processed: preparedSessionMessageCount, total: preparedSessionMessageCount }
       })
 
       // Foreign keys are already OFF for the whole migration (MigrationDbService sets the
@@ -291,7 +293,7 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
-      insertPreparedLegacySessionMessages(ctx.db, preparedSessionMessages)
+      insertPreparedLegacySessionMessages(ctx.db, preparedSessionMessageCount)
       migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
@@ -299,7 +301,7 @@ export class AgentsMigrator extends BaseMigrator {
       logger.info('Agent migration phase completed', {
         phase: 'database-import',
         statements: importStatements.length,
-        messages: preparedSessionMessages.length,
+        messages: preparedSessionMessageCount,
         durationMs: Math.round(performance.now() - databaseImportStartedAt)
       })
       this.reportProgress(55, 'Imported Agent database records', {
@@ -332,7 +334,8 @@ export class AgentsMigrator extends BaseMigrator {
       })
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
-      const fileSessionPlans = toAgentFileSessionPlans(finalSessionWorkspaces, preparedSessionMessages)
+      const fileSessionPlans = toAgentFileSessionPlans(ctx.db, finalSessionWorkspaces)
+      dropPreparedLegacySessionMessages(ctx.db)
       const workspaceCopyStartedAt = performance.now()
       let reportedFileProgress = 65
       await stageLegacyAgentFiles({
@@ -410,6 +413,12 @@ export class AgentsMigrator extends BaseMigrator {
       }
       logger.error('Agents migration execute failed:', error as Error)
       pendingError = error
+    }
+
+    try {
+      dropPreparedLegacySessionMessages(ctx.db)
+    } catch (cleanupError) {
+      logger.error('Failed to drop prepared Agent message store', cleanupError as Error)
     }
 
     if (isAttached) {
@@ -849,6 +858,7 @@ type DerivedSessionWorkspaces = {
 }
 
 type LegacySessionMessageRow = {
+  paginationId: string | number
   legacyId: string | number | null
   sessionId: string
   role: string | null
@@ -881,6 +891,11 @@ type PreparedLegacySessionMessage = {
   runtimeResumeToken: string | null
   createdAt: number
   updatedAt: number
+}
+
+type StoredPreparedLegacySessionMessage = {
+  sequenceNumber: number
+  payload: string
 }
 
 function selectLegacySessionColumn(
@@ -1109,20 +1124,38 @@ function finalizeSessionWorkspaces(
   return { workspaces: Array.from(workspacesById.values()), mappings }
 }
 
-function toAgentFileSessionPlans(
-  derived: DerivedSessionWorkspaces,
-  preparedSessionMessages: PreparedLegacySessionMessage[]
-): AgentFileSessionPlan[] {
+function toAgentFileSessionPlans(db: DbType, derived: DerivedSessionWorkspaces): AgentFileSessionPlan[] {
   const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace]))
   const runtimeResumeTokensBySessionId = new Map<string, Set<string>>()
   const latestRuntimeResumeTokenBySessionId = new Map<string, string>()
-  for (const message of preparedSessionMessages) {
-    if (message.runtimeResumeToken) {
-      const runtimeResumeTokens = runtimeResumeTokensBySessionId.get(message.sessionId) ?? new Set<string>()
-      runtimeResumeTokens.add(message.runtimeResumeToken)
-      runtimeResumeTokensBySessionId.set(message.sessionId, runtimeResumeTokens)
-      latestRuntimeResumeTokenBySessionId.set(message.sessionId, message.runtimeResumeToken)
+
+  let sequenceCursor = 0
+  while (true) {
+    const rows = db.all<{
+      sequenceNumber: number
+      sessionId: string
+      runtimeResumeToken: string
+    }>(
+      sql.raw(
+        `SELECT sequence_number AS sequenceNumber,
+                json_extract(payload, '$.sessionId') AS sessionId,
+                json_extract(payload, '$.runtimeResumeToken') AS runtimeResumeToken
+         FROM temp.${PREPARED_AGENT_MESSAGE_TABLE}
+         WHERE sequence_number > ${sequenceCursor}
+           AND json_extract(payload, '$.runtimeResumeToken') IS NOT NULL
+         ORDER BY sequence_number
+         LIMIT ${AGENT_MESSAGE_READ_BATCH_SIZE}`
+      )
+    )
+    if (rows.length === 0) break
+
+    for (const row of rows) {
+      const runtimeResumeTokens = runtimeResumeTokensBySessionId.get(row.sessionId) ?? new Set<string>()
+      runtimeResumeTokens.add(row.runtimeResumeToken)
+      runtimeResumeTokensBySessionId.set(row.sessionId, runtimeResumeTokens)
+      latestRuntimeResumeTokenBySessionId.set(row.sessionId, row.runtimeResumeToken)
     }
+    sequenceCursor = rows.at(-1)!.sequenceNumber
   }
 
   return derived.mappings.map((mapping) => {
@@ -1263,7 +1296,9 @@ type SessionAuthor = Omit<MessageSnapshot, 'model'>
  * {@link MessageSnapshot} the runtime writer persists (author with the model nested).
  * Sessions whose agent is missing get no author, hence no snapshot.
  */
-function readSessionAuthors(db: DbType): Map<string, SessionAuthor> {
+function readSessionAuthors(db: DbType, sessionIds: string[]): Map<string, SessionAuthor> {
+  if (sessionIds.length === 0) return new Map()
+
   const rows = db
     .select({
       sessionId: agentSessionTable.id,
@@ -1273,6 +1308,7 @@ function readSessionAuthors(db: DbType): Map<string, SessionAuthor> {
     })
     .from(agentSessionTable)
     .innerJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+    .where(inArray(agentSessionTable.id, sessionIds))
     .all()
 
   return new Map(
@@ -1303,7 +1339,18 @@ async function prepareLegacySessionMessages(
   schemaInfo: AgentsSchemaInfo,
   deps?: ChatMappingDeps,
   onProgress?: (processed: number, total: number) => void
-): Promise<PreparedLegacySessionMessage[]> {
+): Promise<number> {
+  db.run(sql.raw('PRAGMA temp_store = FILE'))
+  dropPreparedLegacySessionMessages(db)
+  db.run(
+    sql.raw(
+      `CREATE TEMP TABLE ${PREPARED_AGENT_MESSAGE_TABLE} (
+        sequence_number INTEGER PRIMARY KEY,
+        payload TEXT NOT NULL
+      )`
+    )
+  )
+
   if (
     !schemaInfo.session_messages.exists ||
     !schemaInfo.session_messages.columns.has('session_id') ||
@@ -1311,10 +1358,12 @@ async function prepareLegacySessionMessages(
     !schemaInfo.sessions.columns.has('agent_id') ||
     !schemaInfo.agents.exists
   ) {
-    return []
+    return 0
   }
 
+  const paginationColumn = schemaInfo.session_messages.columns.has('id') ? 'id' : '_rowid_'
   const selectColumns = [
+    `${paginationColumn} AS paginationId`,
     selectLegacyMessageColumn(schemaInfo, 'id', 'legacyId', 'NULL'),
     selectLegacyMessageColumn(schemaInfo, 'session_id', 'sessionId', 'NULL'),
     selectLegacyMessageColumn(schemaInfo, 'role', 'role', "'assistant'"),
@@ -1325,7 +1374,7 @@ async function prepareLegacySessionMessages(
   ]
   const orderBy = [
     schemaInfo.session_messages.columns.has('created_at') ? 'created_at ASC' : null,
-    schemaInfo.session_messages.columns.has('id') ? 'id ASC' : null
+    `${paginationColumn} ASC`
   ]
     .filter(Boolean)
     .join(', ')
@@ -1341,9 +1390,10 @@ async function prepareLegacySessionMessages(
     )[0]?.count ?? 0
   )
   const modelCache = new Map<string, string | null>()
-  const prepared: PreparedLegacySessionMessage[] = []
+  let preparedCount = 0
 
-  const prepareRows = async (rows: LegacySessionMessageRow[]) => {
+  const prepareRows = async (rows: LegacySessionMessageRow[]): Promise<PreparedLegacySessionMessage[]> => {
+    const prepared: PreparedLegacySessionMessage[] = []
     for (const row of rows) {
       if (!row.sessionId) continue
       let normalized: NormalizedLegacySessionMessage
@@ -1384,6 +1434,37 @@ async function prepareLegacySessionMessages(
         updatedAt
       })
     }
+    return prepared
+  }
+
+  const storePreparedRows = (prepared: PreparedLegacySessionMessage[]) => {
+    if (prepared.length === 0) return
+
+    db.run(sql.raw(`SAVEPOINT ${AGENT_MESSAGE_PREPARE_SAVEPOINT}`))
+    try {
+      for (const [index, message] of prepared.entries()) {
+        db.run(
+          sql`INSERT INTO ${sql.raw(`temp.${PREPARED_AGENT_MESSAGE_TABLE}`)} (
+                sequence_number,
+                payload
+              )
+              VALUES (
+                ${preparedCount + index + 1},
+                ${JSON.stringify(message)}
+              )`
+        )
+      }
+      db.run(sql.raw(`RELEASE SAVEPOINT ${AGENT_MESSAGE_PREPARE_SAVEPOINT}`))
+      preparedCount += prepared.length
+    } catch (error) {
+      try {
+        db.run(sql.raw(`ROLLBACK TO SAVEPOINT ${AGENT_MESSAGE_PREPARE_SAVEPOINT}`))
+        db.run(sql.raw(`RELEASE SAVEPOINT ${AGENT_MESSAGE_PREPARE_SAVEPOINT}`))
+      } catch (rollbackError) {
+        logger.error('Failed to roll back prepared Agent message page', rollbackError as Error)
+      }
+      throw error
+    }
   }
 
   const baseQuery = sql.raw(
@@ -1391,30 +1472,25 @@ async function prepareLegacySessionMessages(
      FROM agents_legacy.session_messages
      WHERE ${eligibleMessagesWhere}`
   )
-  if (!schemaInfo.session_messages.columns.has('id')) {
-    const rows = db.all<LegacySessionMessageRow>(sql`${baseQuery} ${sql.raw(orderBy ? `ORDER BY ${orderBy}` : '')}`)
-    await prepareRows(rows)
-    onProgress?.(rows.length, totalRows)
-    return prepared
-  }
 
   const hasCreatedAt = schemaInfo.session_messages.columns.has('created_at')
-  let cursor: Pick<LegacySessionMessageRow, 'legacyId' | 'createdAt'> | undefined
+  let cursor: Pick<LegacySessionMessageRow, 'paginationId' | 'createdAt'> | undefined
   let processedRows = 0
   while (processedRows < totalRows) {
     let pageQuery = baseQuery
     if (cursor) {
-      if (cursor.legacyId == null) {
-        throw new Error('Legacy Agent session message id is null; keyset pagination cannot continue')
-      }
       if (!hasCreatedAt) {
-        pageQuery = sql`${pageQuery} AND id > ${cursor.legacyId}`
+        pageQuery = sql`${pageQuery} AND ${sql.raw(paginationColumn)} > ${cursor.paginationId}`
       } else if (cursor.createdAt == null) {
-        pageQuery = sql`${pageQuery} AND ((created_at IS NULL AND id > ${cursor.legacyId}) OR created_at IS NOT NULL)`
+        pageQuery = sql`${pageQuery}
+          AND ((created_at IS NULL AND ${sql.raw(paginationColumn)} > ${cursor.paginationId})
+            OR created_at IS NOT NULL)`
       } else {
         pageQuery = sql`${pageQuery}
           AND created_at IS NOT NULL
-          AND (created_at > ${cursor.createdAt} OR (created_at = ${cursor.createdAt} AND id > ${cursor.legacyId}))`
+          AND (created_at > ${cursor.createdAt}
+            OR (created_at = ${cursor.createdAt}
+              AND ${sql.raw(paginationColumn)} > ${cursor.paginationId}))`
       }
     }
 
@@ -1425,46 +1501,75 @@ async function prepareLegacySessionMessages(
       throw new Error(`Legacy Agent session message pagination stopped after ${processedRows}/${totalRows} rows`)
     }
 
-    await prepareRows(rows)
+    storePreparedRows(await prepareRows(rows))
     processedRows += rows.length
     const lastRow = rows.at(-1)!
-    cursor = { legacyId: lastRow.legacyId, createdAt: lastRow.createdAt }
+    cursor = { paginationId: lastRow.paginationId, createdAt: lastRow.createdAt }
     onProgress?.(Math.min(processedRows, totalRows), totalRows)
   }
 
-  return prepared
+  return preparedCount
 }
 
-function insertPreparedLegacySessionMessages(db: DbType, prepared: PreparedLegacySessionMessage[]): number {
-  if (prepared.length === 0) return 0
+function readPreparedLegacySessionMessageBatch(
+  db: DbType,
+  sequenceCursor: number
+): StoredPreparedLegacySessionMessage[] {
+  return db.all<StoredPreparedLegacySessionMessage>(
+    sql.raw(
+      `SELECT sequence_number AS sequenceNumber,
+              payload
+       FROM temp.${PREPARED_AGENT_MESSAGE_TABLE}
+       WHERE sequence_number > ${sequenceCursor}
+       ORDER BY sequence_number
+       LIMIT ${AGENT_MESSAGE_INSERT_BATCH_SIZE}`
+    )
+  )
+}
 
-  const sessionAuthors = readSessionAuthors(db)
+function dropPreparedLegacySessionMessages(db: DbType): void {
+  db.run(sql.raw(`DROP TABLE IF EXISTS temp.${PREPARED_AGENT_MESSAGE_TABLE}`))
+}
+
+function insertPreparedLegacySessionMessages(db: DbType, preparedCount: number): number {
+  if (preparedCount === 0) return 0
+
   const maxFtsRowid = Number(
     db.all<{ maxFtsRowid: number | null }>(
       sql.raw('SELECT MAX(fts_rowid) AS maxFtsRowid FROM agent_session_message')
     )[0]?.maxFtsRowid ?? 0
   )
-  const values = prepared.map(({ modelSnapshot, stats, ...message }, index) => {
-    // Resolve authors only after the target agent/session rows have been inserted.
-    // Message normalization remains outside the transaction, while the immutable
-    // author+model snapshot is assembled synchronously inside it.
-    const author = sessionAuthors.get(message.sessionId)
-    const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
-    return {
-      ...message,
-      messageSnapshot,
-      stats: stats ?? undefined,
-      ftsRowid: maxFtsRowid + index + 1
-    }
-  })
 
   db.run(sql.raw(`SAVEPOINT ${AGENT_MESSAGE_IMPORT_SAVEPOINT}`))
   try {
     db.run(sql.raw(`DROP TRIGGER IF EXISTS ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME}`))
-    for (let index = 0; index < values.length; index += AGENT_MESSAGE_INSERT_BATCH_SIZE) {
-      db.insert(agentSessionMessageTable)
-        .values(values.slice(index, index + AGENT_MESSAGE_INSERT_BATCH_SIZE))
-        .run()
+    let importedCount = 0
+    let sequenceCursor = 0
+    while (importedCount < preparedCount) {
+      const rows = readPreparedLegacySessionMessageBatch(db, sequenceCursor)
+      if (rows.length === 0) {
+        throw new Error(`Prepared Agent message import stopped after ${importedCount}/${preparedCount} rows`)
+      }
+
+      const prepared = rows.map((row) => JSON.parse(row.payload) as PreparedLegacySessionMessage)
+      const sessionAuthors = readSessionAuthors(db, Array.from(new Set(prepared.map((message) => message.sessionId))))
+      const values = prepared.map(({ modelSnapshot, stats, ...message }, index) => {
+        // Resolve authors only after the target agent/session rows have been inserted.
+        // Message normalization stays outside the transaction in the temporary
+        // store, while immutable snapshots are assembled one bounded page at a time.
+        const author = sessionAuthors.get(message.sessionId)
+        const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
+        return {
+          ...message,
+          messageSnapshot,
+          stats: stats ?? undefined,
+          ftsRowid: maxFtsRowid + importedCount + index + 1
+        }
+      })
+
+      db.insert(agentSessionMessageTable).values(values).run()
+      importedCount += rows.length
+      sequenceCursor = rows.at(-1)!.sequenceNumber
     }
     db.run(sql.raw("INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')"))
     db.run(sql.raw(AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL))
@@ -1479,11 +1584,11 @@ function insertPreparedLegacySessionMessages(db: DbType, prepared: PreparedLegac
     throw error
   }
   logger.info('Imported legacy agent session messages with UUID ids', {
-    imported: prepared.length,
+    imported: preparedCount,
     readBatchSize: AGENT_MESSAGE_READ_BATCH_SIZE,
     insertBatchSize: AGENT_MESSAGE_INSERT_BATCH_SIZE
   })
-  return prepared.length
+  return preparedCount
 }
 
 export async function importLegacySessionMessages(
@@ -1491,7 +1596,11 @@ export async function importLegacySessionMessages(
   schemaInfo: AgentsSchemaInfo,
   deps?: ChatMappingDeps
 ): Promise<number> {
-  return insertPreparedLegacySessionMessages(db, await prepareLegacySessionMessages(db, schemaInfo, deps))
+  try {
+    return insertPreparedLegacySessionMessages(db, await prepareLegacySessionMessages(db, schemaInfo, deps))
+  } finally {
+    dropPreparedLegacySessionMessages(db)
+  }
 }
 
 /**
