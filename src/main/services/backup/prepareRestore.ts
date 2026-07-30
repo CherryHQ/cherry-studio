@@ -164,7 +164,13 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
   try {
     const materialized = await materializePortableDatabase({
       dbPath: admitted.db.path,
-      mode: { kind: 'restore', rebase: buildRebaseTable(admitted.manifest.producer) },
+      mode: {
+        kind: 'restore',
+        rebase: buildRebaseTable(admitted.manifest.producer),
+        // An archive this install produced describes this install's own
+        // filesystem, so its external paths are kept verbatim (§3.1 Layer 1).
+        selfAttested: admitted.selfAttested
+      },
       signal
     })
 
@@ -241,6 +247,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     logger.info('Restore prepared', {
       restoreId,
       coverage,
+      selfAttested: admitted.selfAttested,
       installs: plan.entries.length,
       replacing: plan.replace,
       migratedForward: admitted.migratedForward

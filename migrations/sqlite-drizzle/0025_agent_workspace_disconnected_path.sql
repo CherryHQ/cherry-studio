@@ -1,0 +1,1 @@
+ALTER TABLE `agent_workspace` ADD `disconnected_path` text;

@@ -107,6 +107,40 @@ function splitAbsolutePath(value: string, platform: BackupPlatform): SplitAbsolu
 }
 
 /**
+ * The shape of an UNTRUSTED absolute path, for owners that must reason about a
+ * path they are not rebasing (today: the agent-workspace local-volume gate,
+ * {@link ./workspacePathPolicy}). `null` when the value is not absolute for
+ * `platform`, which is already a refusal for every caller.
+ *
+ * Exposes the decomposition's conclusions rather than its segments on purpose:
+ * a caller outside this module has no business re-deriving containment, and
+ * these three facts are exactly what a volume/normalization gate needs.
+ */
+export interface AbsolutePathShape {
+  /** `/` on POSIX; a drive (`C:`) or a UNC share (`\\server\share`) on win32. */
+  readonly volume: string
+  /** True for a win32 UNC path — a network location, never provably local. */
+  readonly isUnc: boolean
+  /** True when any component is `.` or `..`, i.e. the value is not normalized. */
+  readonly hasDotSegment: boolean
+}
+
+export function describeAbsolutePath(value: string, platform: BackupPlatform): AbsolutePathShape | null {
+  const split = splitAbsolutePath(value, platform)
+  if (!split) return null
+  return {
+    volume: split.volume,
+    isUnc: platform === 'win32' && split.volume.startsWith('\\\\'),
+    hasDotSegment: split.segments.some((segment) => segment === '.' || segment === '..')
+  }
+}
+
+/** Case-folding for a volume comparison, matching {@link comparisonKey}'s rules. */
+export function sameVolume(a: string, b: string, platform: BackupPlatform): boolean {
+  return comparisonKey(a, platform) === comparisonKey(b, platform)
+}
+
+/**
  * Comparison key for one path component.
  *
  * win32 folds case (NTFS/`\\?\`-less Win32 paths are case-insensitive), so
@@ -348,6 +382,16 @@ export function targetLocalPath(
   if (!pairing) return null
   const path = joinAbsolute(pairing.target, segments)
   return isPathContainedIn(pairing.targetPath, path, table.targetPlatform) ? path : null
+}
+
+/**
+ * Every TRUSTED target root this table can rebase onto. The one legitimate use
+ * is proving a path is NOT inside one: a value an owner intends to keep verbatim
+ * must be genuinely external on this device, because a path inside a managed
+ * root is an overlay target this archive did not declare.
+ */
+export function targetRootPaths(table: ManagedRootRebaseTable): readonly string[] {
+  return table.pairings.map((pairing) => pairing.targetPath)
 }
 
 /**
