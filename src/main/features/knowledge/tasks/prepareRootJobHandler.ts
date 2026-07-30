@@ -130,7 +130,7 @@ async function deletePreviousLeafExpansion(
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
   knowledgeLockManager: KnowledgeLockManager,
-  onDirectoryCopyProgress: NonNullable<Parameters<typeof prepareKnowledgeItem>[0]['onDirectoryCopyProgress']>
+  onDirectoryCopyProgress: Parameters<typeof prepareKnowledgeItem>[0]['onDirectoryCopyProgress']
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 

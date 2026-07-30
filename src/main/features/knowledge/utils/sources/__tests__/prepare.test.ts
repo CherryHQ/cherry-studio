@@ -51,7 +51,8 @@ function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()): Pre
     item,
     onCreatedItem,
     runMutation: async (task) => await task(),
-    signal
+    signal,
+    onDirectoryCopyProgress: vi.fn()
   }
 }
 
@@ -171,7 +172,7 @@ describe('prepareKnowledgeItem', () => {
       baseId,
       expect.any(Set),
       options.signal,
-      undefined
+      options.onDirectoryCopyProgress
     )
     expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
     expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(1, baseId, {

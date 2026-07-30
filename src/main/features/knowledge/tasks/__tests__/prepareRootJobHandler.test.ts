@@ -39,7 +39,7 @@ describe('prepare-root job handler', () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
-      onDirectoryCopyProgress?.(50)
+      onDirectoryCopyProgress(50)
       return []
     })
     const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
@@ -72,9 +72,9 @@ describe('prepare-root job handler', () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
-      onDirectoryCopyProgress?.(1)
-      onDirectoryCopyProgress?.(1)
-      onDirectoryCopyProgress?.(4)
+      onDirectoryCopyProgress(1)
+      onDirectoryCopyProgress(1)
+      onDirectoryCopyProgress(4)
       return []
     })
     const reportProgress = vi.fn()

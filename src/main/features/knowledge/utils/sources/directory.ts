@@ -87,7 +87,7 @@ async function expandDirectoryNode(
   pathPrefix: string,
   node: DirectoryEntryNode,
   signal: AbortSignal,
-  onFileCopied?: () => void
+  onFileCopied: () => void
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
@@ -107,7 +107,7 @@ async function expandDirectoryNode(
       overwrite: true
     })
     signal.throwIfAborted()
-    onFileCopied?.()
+    onFileCopied()
 
     return {
       type: 'file',
@@ -149,7 +149,7 @@ export async function expandDirectoryOwnerToTree(
   baseId: string,
   reservedTopLevelNames: Set<string>,
   signal: AbortSignal,
-  onCopyProgress?: (percent: number) => void
+  onCopyProgress: (percent: number) => void
 ): Promise<ExpandedDirectoryTree> {
   if (owner.type !== 'directory') {
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
@@ -170,18 +170,14 @@ export async function expandDirectoryOwnerToTree(
 
   const children = await readDirectoryTree(resolvedPath, signal)
   const expandedChildren: ExpandedDirectoryNode[] = []
-  let onFileCopied: (() => void) | undefined
-
-  if (onCopyProgress) {
-    const totalFiles = countSupportedFiles(children)
-    let copiedFiles = 0
-    if (totalFiles > 0) {
-      onCopyProgress(0)
-      onFileCopied = () => {
-        copiedFiles += 1
-        onCopyProgress(Math.round((copiedFiles / totalFiles) * 100))
-      }
-    }
+  const totalFiles = countSupportedFiles(children)
+  let copiedFiles = 0
+  if (totalFiles > 0) {
+    onCopyProgress(0)
+  }
+  const onFileCopied = () => {
+    copiedFiles += 1
+    onCopyProgress(Math.round((copiedFiles / totalFiles) * 100))
   }
 
   for (const child of children) {

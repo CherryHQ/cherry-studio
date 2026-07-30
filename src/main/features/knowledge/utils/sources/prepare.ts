@@ -21,7 +21,7 @@ export interface PrepareKnowledgeItemOptions {
   onCreatedItem: (item: KnowledgeItem) => void
   runMutation: <T>(task: () => T) => Promise<T>
   signal: AbortSignal
-  onDirectoryCopyProgress?: (percent: number) => void
+  onDirectoryCopyProgress: (percent: number) => void
 }
 
 export async function prepareKnowledgeItem({
@@ -47,7 +47,7 @@ async function prepareDirectoryForRuntime(
   onCreatedItem: (item: KnowledgeItem) => void,
   runMutation: <T>(task: () => T) => Promise<T>,
   signal: AbortSignal,
-  onDirectoryCopyProgress?: (percent: number) => void
+  onDirectoryCopyProgress: (percent: number) => void
 ): Promise<IndexableKnowledgeItem[]> {
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.

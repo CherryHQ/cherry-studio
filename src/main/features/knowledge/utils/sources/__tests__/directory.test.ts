@@ -35,6 +35,8 @@ function createSignal() {
   return new AbortController().signal
 }
 
+const ignoreCopyProgress = vi.fn()
+
 describe('expandDirectoryOwnerToTree', () => {
   let tempRoot: string | undefined
 
@@ -69,7 +71,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(pathPrefix).toBe('anna')
@@ -122,7 +125,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(JSON.stringify(children)).not.toContain(emptyDir)
@@ -187,7 +191,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(children).toEqual([
@@ -268,7 +273,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     const relativePaths = JSON.stringify(children)
@@ -302,7 +308,8 @@ describe('expandDirectoryOwnerToTree', () => {
       'kb-1',
       // A prior `project` directory already occupies that top-level name under raw/.
       new Set(['project']),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(pathPrefix).toBe('project_1')
@@ -342,7 +349,8 @@ describe('expandDirectoryOwnerToTree', () => {
       'kb-1',
       // A prior `report.v2` directory already occupies that top-level name under raw/.
       new Set(['report.v2']),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(pathPrefix).toBe('report.v2_1')
@@ -380,7 +388,8 @@ describe('expandDirectoryOwnerToTree', () => {
         },
         'kb-1',
         new Set(),
-        controller.signal
+        controller.signal,
+        ignoreCopyProgress
       )
     ).rejects.toBe(abortError)
   })
