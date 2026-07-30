@@ -33,11 +33,10 @@ import {
 
 const { copyMutation, platformState } = vi.hoisted(() => ({
   copyMutation: {
-    afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>),
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
     beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
-    cpCalls: [] as string[],
+    copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
   platformState: { isWin: false }
@@ -59,7 +58,6 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...original,
     cp: async (...args: Parameters<typeof original.cp>) => {
       const [source, destination, options] = args
-      copyMutation.cpCalls.push(String(source))
       await original.cp(source, destination, {
         ...options,
         filter: async (sourcePath, destinationPath) => {
@@ -72,9 +70,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
           return included
         }
       })
-      await copyMutation.afterCopy?.(String(args[0]))
     },
     copyFile: async (...args: Parameters<typeof original.copyFile>) => {
+      copyMutation.copyFileCalls.push([String(args[0]), String(args[1])])
       const result = await original.copyFile(...args)
       await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
       return result
@@ -150,11 +148,10 @@ describe('agentsFilesystemMigration', () => {
   }
 
   afterEach(async () => {
-    copyMutation.afterCopy = undefined
     copyMutation.afterCopyFile = undefined
     copyMutation.beforeRealpath = undefined
     copyMutation.beforeSymlink = undefined
-    copyMutation.cpCalls.length = 0
+    copyMutation.copyFileCalls.length = 0
     copyMutation.symlinkCalls.length = 0
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
@@ -660,7 +657,7 @@ describe('agentsFilesystemMigration', () => {
     )
   })
 
-  it('creates one verified ordinary-content template and reuses it for every managed session', async () => {
+  it('reuses the first verified private copy for every later managed session', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -685,15 +682,14 @@ describe('agentsFilesystemMigration', () => {
       sessions: [oldSession, recentSession]
     })
 
-    expect(copyMutation.cpCalls.filter((sourcePath) => sourcePath === sourceFile)).toHaveLength(1)
+    expect(copyMutation.copyFileCalls.filter(([sourcePath]) => sourcePath === sourceFile)).toHaveLength(1)
     expect(await readFile(path.join(oldSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe('workspace content')
     expect(await readFile(path.join(recentSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
       'workspace content'
     )
-    expect((await readdir(agentsDataRoot)).every((entry) => !entry.startsWith('.workspace-migration-'))).toBe(true)
   })
 
-  it('verifies template clone content before publishing it', async () => {
+  it('verifies the first private copy before publishing it', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -707,7 +703,7 @@ describe('agentsFilesystemMigration', () => {
     })
     copyMutation.afterCopyFile = async (copiedSourcePath, copiedDestinationPath) => {
       if (
-        !copiedSourcePath.includes('.workspace-migration-') ||
+        copiedSourcePath !== sourceFile ||
         !path.basename(copiedDestinationPath).startsWith(`.${FINAL_LATEST_SESSION_ID}.migration-`)
       ) {
         return
@@ -728,7 +724,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'reuses one ordinary-content template when a directory contains symlinks',
+    'reuses the first ordinary-content copy when a directory contains symlinks',
     async () => {
       const { agentsDataRoot, legacyWorkspace } = await createFixture()
       const sourceBundle = path.join(legacyWorkspace, 'bundle')
@@ -758,7 +754,9 @@ describe('agentsFilesystemMigration', () => {
         sessions
       })
 
-      expect(copyMutation.cpCalls.filter((sourcePath) => sourcePath === sourceBundle)).toHaveLength(1)
+      expect(
+        copyMutation.copyFileCalls.filter(([sourcePath]) => sourcePath === path.join(sourceBundle, 'payload.txt'))
+      ).toHaveLength(1)
       for (const session of sessions) {
         expect(await readFile(path.join(session.systemWorkspacePath!, 'bundle', 'payload.txt'), 'utf8')).toBe(
           'workspace content'
@@ -771,7 +769,7 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
-  it('aborts if a cached workspace source changes while its template is reused', async () => {
+  it('aborts if a cached workspace source changes while its private copy is reused', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -791,9 +789,9 @@ describe('agentsFilesystemMigration', () => {
         updatedAt: Date.parse('2026-07-23T00:00:00Z')
       })
     ]
-    let templateCopies = 0
+    let reusedCopies = 0
     copyMutation.afterCopyFile = async (copiedSourcePath) => {
-      if (!copiedSourcePath.includes('.workspace-migration-') || ++templateCopies !== 1) return
+      if (copiedSourcePath === sourceFile || ++reusedCopies !== 1) return
       await writeFile(sourceFile, 'changed workspace content')
     }
 
@@ -814,8 +812,6 @@ describe('agentsFilesystemMigration', () => {
         )
       ).toBe(true)
     }
-    expect((await readdir(agentsDataRoot)).every((entry) => !entry.startsWith('.workspace-migration-'))).toBe(true)
-
     copyMutation.afterCopyFile = undefined
     await stageLegacyAgentFiles({
       agentsDataRoot,
@@ -1127,7 +1123,7 @@ describe('agentsFilesystemMigration', () => {
     })
 
     expect(
-      copyMutation.cpCalls.filter((sourcePath) => sourcePath === path.join(legacyWorkspace, 'completed.txt'))
+      copyMutation.copyFileCalls.filter(([sourcePath]) => sourcePath === path.join(legacyWorkspace, 'completed.txt'))
     ).toHaveLength(0)
     expect(await readFile(path.join(legacyWorkspace, 'completed.txt'), 'utf8')).toBe('copied value')
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'completed.txt'), 'utf8')).toBe('copied value')
@@ -1139,7 +1135,7 @@ describe('agentsFilesystemMigration', () => {
     await mkdir(legacyWorkspace, { recursive: true })
     await writeFile(sourcePath, 'copied value')
     const originalStat = await stat(sourcePath)
-    copyMutation.afterCopy = async (copiedSourcePath) => {
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
       if (copiedSourcePath !== sourcePath) return
       await writeFile(sourcePath, 'newest value')
       await utimes(sourcePath, originalStat.atime, originalStat.mtime)
@@ -1161,7 +1157,6 @@ describe('agentsFilesystemMigration', () => {
 
     expect(await readFile(sourcePath, 'utf8')).toBe('newest value')
     await expect(access(path.join(latestSession.systemWorkspacePath!, 'race.txt'))).rejects.toThrow()
-    expect((await readdir(agentsDataRoot)).every((entry) => !entry.startsWith('.workspace-migration-'))).toBe(true)
   })
 
   it.runIf(process.platform !== 'win32')(

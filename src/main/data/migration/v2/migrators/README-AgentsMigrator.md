@@ -77,10 +77,10 @@ For each migrated Agent:
 - Ordinary workspace symlinks remain links. Targets under identity entries are
   rewritten to Agent data; other internal targets are rewritten to the new
   Session workspace; external and dangling targets retain their meaning.
-- Ordinary workspace content is scanned once into a verified template and
-  cloned for every Session. Symlinks are omitted from the shared template and
-  recreated with each Session's rewritten target, so one nested link does not
-  force the surrounding files back onto the per-Session source-copy path.
+- Ordinary workspace content is scanned once. The first verified private
+  staging copy is reused as the regular-content source for later Sessions, so
+  migration does not need an additional full-size template. Symlinks are
+  omitted while cloning and recreated with each Session's rewritten target.
 
 Existing identity targets are never overwritten. Identical files from a prior
 attempt are accepted recursively; different files keep both the existing v2

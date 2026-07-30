@@ -1062,7 +1062,6 @@ interface WorkspaceSourceSnapshot {
   kind: FilesystemEntryKind
   metadataFingerprint: string
   copiedFingerprint?: string
-  templateFingerprint?: string
   linkTarget?: string
   linkType?: WorkspaceLinkType
   children: Array<{ name: string; snapshot: WorkspaceSourceSnapshot }>
@@ -1418,7 +1417,6 @@ async function workspaceSourceSnapshotWithQueue(
       kind,
       metadataFingerprint: metadataHash.digest('hex'),
       copiedFingerprint,
-      templateFingerprint: copiedFingerprint,
       children: [],
       hasSymlinks: false,
       fileCount: 1,
@@ -1426,8 +1424,6 @@ async function workspaceSourceSnapshotWithQueue(
     }
   }
 
-  const templateHash = createHash('sha256')
-  updateFingerprintField(templateHash, kind)
   const children: WorkspaceSourceSnapshot['children'] = []
   let hasSymlinks = false
   let fileCount = 0
@@ -1449,10 +1445,6 @@ async function workspaceSourceSnapshotWithQueue(
     children.push({ name: entry, snapshot: childSnapshot })
     updateFingerprintField(metadataHash, entry)
     updateFingerprintField(metadataHash, childSnapshot.metadataFingerprint)
-    if (childSnapshot.templateFingerprint !== undefined) {
-      updateFingerprintField(templateHash, entry)
-      updateFingerprintField(templateHash, childSnapshot.templateFingerprint)
-    }
     if (childSnapshot.copiedFingerprint !== undefined) {
       updateFingerprintField(copiedHash, entry)
       updateFingerprintField(copiedHash, childSnapshot.copiedFingerprint)
@@ -1468,7 +1460,6 @@ async function workspaceSourceSnapshotWithQueue(
     kind,
     metadataFingerprint: metadataHash.digest('hex'),
     copiedFingerprint: hasSymlinks ? undefined : copiedHash.digest('hex'),
-    templateFingerprint: templateHash.digest('hex'),
     children,
     hasSymlinks,
     fileCount,
@@ -1580,11 +1571,8 @@ async function publishStagedWorkspaceEntry(
 }
 
 interface WorkspaceCopyContext {
-  agentsDataRoot: string
-  templateRoot: string
-  templateRootPrepared: boolean
   sourceSnapshots: Map<string, WorkspaceSourceSnapshot>
-  templatePaths: Map<string, string>
+  reusableStagingPaths: Map<string, string>
   pendingPublications: PendingWorkspacePublication[]
 }
 
@@ -1612,70 +1600,31 @@ async function sourceSnapshotForWorkspaceEntry(
   return sourceSnapshot
 }
 
-async function prepareWorkspaceEntryTemplate(
-  context: WorkspaceCopyContext,
-  sourcePath: string,
-  sourceSnapshot: WorkspaceSourceSnapshot
-): Promise<string | undefined> {
-  if (sourceSnapshot.kind === 'symlink') return undefined
-
-  const sourceKey = path.resolve(sourcePath)
-  const existingTemplatePath = context.templatePaths.get(sourceKey)
-  if (existingTemplatePath) return existingTemplatePath
-
-  if (!context.templateRootPrepared) {
-    await ensureAgentStorageDirectory(context.agentsDataRoot, context.templateRoot)
-    context.templateRootPrepared = true
-  }
-
-  const templatePath = path.join(context.templateRoot, randomUUID())
-  await cp(sourcePath, templatePath, {
-    recursive: true,
-    force: false,
-    errorOnExist: true,
-    dereference: false,
-    verbatimSymlinks: true,
-    mode: constants.COPYFILE_FICLONE,
-    filter: async (entrySourcePath) => !(await lstat(entrySourcePath)).isSymbolicLink()
-  })
-
-  const currentSourceMetadata = await filesystemEntryMetadataFingerprint(sourcePath)
-  if (currentSourceMetadata !== sourceSnapshot.metadataFingerprint) {
-    throw new Error(`Legacy Agent workspace entry changed while being copied: ${sourcePath}`)
-  }
-
-  const templateSnapshot = await requiredFilesystemEntrySnapshot(templatePath)
-  if (templateSnapshot.fingerprint !== sourceSnapshot.templateFingerprint) {
-    throw new Error(`Legacy Agent workspace template verification failed: ${sourcePath}`)
-  }
-
-  context.templatePaths.set(sourceKey, templatePath)
-  return templatePath
-}
-
 /**
- * Clone regular content from an immutable, content-verified template.
+ * Clone regular content without following or recreating symlinks.
  * COPYFILE_FICLONE uses copy-on-write where the volume supports it and
- * otherwise performs a regular kernel copy. Links are materialized separately
- * for each Session before the complete private staging tree is fingerprinted.
+ * otherwise performs a regular kernel copy. The first private staging entry
+ * becomes the reusable source for later Sessions, so migration never needs an
+ * additional full-size template. Links are materialized separately for each
+ * Session before the complete private staging tree is fingerprinted.
  */
-async function cloneWorkspaceEntryTemplate(sourcePath: string, destinationPath: string): Promise<void> {
-  await cloneWorkspaceEntryTemplateWithQueue(sourcePath, destinationPath, createFilesystemQueue())
+async function cloneWorkspaceRegularContent(sourcePath: string, destinationPath: string): Promise<void> {
+  await cloneWorkspaceRegularContentWithQueue(sourcePath, destinationPath, createFilesystemQueue())
 }
 
-async function cloneWorkspaceEntryTemplateWithQueue(
+async function cloneWorkspaceRegularContentWithQueue(
   sourcePath: string,
   destinationPath: string,
   queue: PQueue
 ): Promise<void> {
   const sourceStat = await queueFilesystemOperation(queue, () => lstatBigIntIfExists(sourcePath))
   if (!sourceStat) {
-    throw new Error(`Agent migration workspace template disappeared: ${sourcePath}`)
+    throw new Error(`Agent migration reusable staging entry disappeared: ${sourcePath}`)
   }
 
   const kind = filesystemEntryKind(sourceStat)
   if (kind === 'symlink') {
-    throw new Error(`Agent migration workspace template contains an unexpected symlink: ${sourcePath}`)
+    return
   }
   if (kind === 'file') {
     await queueFilesystemOperation(queue, async () => {
@@ -1689,14 +1638,14 @@ async function cloneWorkspaceEntryTemplateWithQueue(
     entries.sort()
     await settleFilesystemOperations(
       entries.map((entry) =>
-        cloneWorkspaceEntryTemplateWithQueue(path.join(sourcePath, entry), path.join(destinationPath, entry), queue)
+        cloneWorkspaceRegularContentWithQueue(path.join(sourcePath, entry), path.join(destinationPath, entry), queue)
       )
     )
   }
   await assertFilesystemEntryUnchanged(sourcePath, sourceStat)
 }
 
-async function materializeWorkspaceTemplateLinks(
+async function materializeWorkspaceLinks(
   sourceSnapshot: WorkspaceSourceSnapshot,
   stagingPath: string,
   finalDestinationPath: string,
@@ -1726,7 +1675,7 @@ async function materializeWorkspaceTemplateLinks(
 
   for (const child of sourceSnapshot.children) {
     if (!child.snapshot.hasSymlinks) continue
-    await materializeWorkspaceTemplateLinks(
+    await materializeWorkspaceLinks(
       child.snapshot,
       path.join(stagingPath, child.name),
       path.join(finalDestinationPath, child.name),
@@ -1775,11 +1724,12 @@ async function copyWorkspaceEntry(
   const stagingPath = path.join(stagingParent, `${stagingPrefix}${randomUUID()}`)
   let pendingPublication = false
   try {
-    const templatePath = await prepareWorkspaceEntryTemplate(context, sourcePath, sourceTree)
-    if (templatePath) {
-      await cloneWorkspaceEntryTemplate(templatePath, stagingPath)
+    const sourceKey = path.resolve(sourcePath)
+    const reusableStagingPath = context.reusableStagingPaths.get(sourceKey)
+    if (sourceTree.kind !== 'symlink') {
+      await cloneWorkspaceRegularContent(reusableStagingPath ?? sourcePath, stagingPath)
     }
-    await materializeWorkspaceTemplateLinks(
+    await materializeWorkspaceLinks(
       sourceTree,
       stagingPath,
       destinationPath,
@@ -1791,6 +1741,9 @@ async function copyWorkspaceEntry(
     const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
     if (stagingSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
       throw new Error(`Legacy Agent workspace copy verification failed: ${sourcePath}`)
+    }
+    if (sourceTree.kind !== 'symlink' && !reusableStagingPath) {
+      context.reusableStagingPaths.set(sourceKey, stagingPath)
     }
 
     // Keep every verified copy private until all cached sources pass the final
@@ -1853,7 +1806,7 @@ async function copyOrdinaryWorkspaceContent(
   return { copiedEntries, reusedEntries, fileCount, byteCount }
 }
 
-async function verifyWorkspaceTemplateSources(context: WorkspaceCopyContext): Promise<void> {
+async function verifyWorkspaceSources(context: WorkspaceCopyContext): Promise<void> {
   for (const [sourcePath, sourceSnapshot] of context.sourceSnapshots) {
     const currentSourceMetadata = await filesystemEntryMetadataFingerprint(sourcePath)
     if (currentSourceMetadata !== sourceSnapshot.metadataFingerprint) {
@@ -1929,11 +1882,8 @@ export async function stageLegacyAgentFiles(input: {
   }
 
   const workspaceCopyContext: WorkspaceCopyContext = {
-    agentsDataRoot: input.agentsDataRoot,
-    templateRoot: path.join(input.agentsDataRoot, `.workspace-migration-${randomUUID()}`),
-    templateRootPrepared: false,
     sourceSnapshots: new Map(),
-    templatePaths: new Map(),
+    reusableStagingPaths: new Map(),
     pendingPublications: []
   }
   const totalWorkspaceSessions = input.sessions.filter(
@@ -2019,7 +1969,7 @@ export async function stageLegacyAgentFiles(input: {
         })
       }
     }
-    await verifyWorkspaceTemplateSources(workspaceCopyContext)
+    await verifyWorkspaceSources(workspaceCopyContext)
     const publicationStats = await publishPreparedWorkspaceEntries(workspaceCopyContext)
     copiedWorkspaceEntries = publicationStats.publishedEntries
     reusedWorkspaceEntries += publicationStats.reusedEntries
@@ -2027,7 +1977,6 @@ export async function stageLegacyAgentFiles(input: {
     for (const publication of workspaceCopyContext.pendingPublications) {
       await removeTreeWithoutFollowing(publication.stagingPath).catch(() => undefined)
     }
-    await removeTreeWithoutFollowing(workspaceCopyContext.templateRoot).catch(() => undefined)
   }
 
   logger.info('Prepared Agent identity and workspace files', {

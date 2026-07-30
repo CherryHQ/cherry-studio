@@ -1343,16 +1343,7 @@ async function prepareLegacySessionMessages(
   const modelCache = new Map<string, string | null>()
   const prepared: PreparedLegacySessionMessage[] = []
 
-  for (let offset = 0; offset < totalRows; offset += AGENT_MESSAGE_READ_BATCH_SIZE) {
-    const rows = db.all<LegacySessionMessageRow>(
-      sql.raw(
-        `SELECT ${selectColumns.join(', ')}
-         FROM agents_legacy.session_messages
-         WHERE ${eligibleMessagesWhere}
-         ${orderBy ? `ORDER BY ${orderBy}` : ''}
-         LIMIT ${AGENT_MESSAGE_READ_BATCH_SIZE} OFFSET ${offset}`
-      )
-    )
+  const prepareRows = async (rows: LegacySessionMessageRow[]) => {
     for (const row of rows) {
       if (!row.sessionId) continue
       let normalized: NormalizedLegacySessionMessage
@@ -1393,7 +1384,52 @@ async function prepareLegacySessionMessages(
         updatedAt
       })
     }
-    onProgress?.(Math.min(offset + rows.length, totalRows), totalRows)
+  }
+
+  const baseQuery = sql.raw(
+    `SELECT ${selectColumns.join(', ')}
+     FROM agents_legacy.session_messages
+     WHERE ${eligibleMessagesWhere}`
+  )
+  if (!schemaInfo.session_messages.columns.has('id')) {
+    const rows = db.all<LegacySessionMessageRow>(sql`${baseQuery} ${sql.raw(orderBy ? `ORDER BY ${orderBy}` : '')}`)
+    await prepareRows(rows)
+    onProgress?.(rows.length, totalRows)
+    return prepared
+  }
+
+  const hasCreatedAt = schemaInfo.session_messages.columns.has('created_at')
+  let cursor: Pick<LegacySessionMessageRow, 'legacyId' | 'createdAt'> | undefined
+  let processedRows = 0
+  while (processedRows < totalRows) {
+    let pageQuery = baseQuery
+    if (cursor) {
+      if (cursor.legacyId == null) {
+        throw new Error('Legacy Agent session message id is null; keyset pagination cannot continue')
+      }
+      if (!hasCreatedAt) {
+        pageQuery = sql`${pageQuery} AND id > ${cursor.legacyId}`
+      } else if (cursor.createdAt == null) {
+        pageQuery = sql`${pageQuery} AND ((created_at IS NULL AND id > ${cursor.legacyId}) OR created_at IS NOT NULL)`
+      } else {
+        pageQuery = sql`${pageQuery}
+          AND created_at IS NOT NULL
+          AND (created_at > ${cursor.createdAt} OR (created_at = ${cursor.createdAt} AND id > ${cursor.legacyId}))`
+      }
+    }
+
+    const rows = db.all<LegacySessionMessageRow>(
+      sql`${pageQuery} ${sql.raw(`ORDER BY ${orderBy} LIMIT ${AGENT_MESSAGE_READ_BATCH_SIZE}`)}`
+    )
+    if (rows.length === 0) {
+      throw new Error(`Legacy Agent session message pagination stopped after ${processedRows}/${totalRows} rows`)
+    }
+
+    await prepareRows(rows)
+    processedRows += rows.length
+    const lastRow = rows.at(-1)!
+    cursor = { legacyId: lastRow.legacyId, createdAt: lastRow.createdAt }
+    onProgress?.(Math.min(processedRows, totalRows), totalRows)
   }
 
   return prepared
