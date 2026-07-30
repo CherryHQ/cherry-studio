@@ -53,8 +53,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+import { application } from '@application'
+
 import { BackupCancelledError } from '../errors'
-import { acquireProfileQuiescence, captureSealedProfileView } from '../exportQuiesce'
+import {
+  acquireProfileQuiescence,
+  captureSealedProfileView,
+  EXPORT_QUIESCE_WHEN_READY_SERVICES
+} from '../exportQuiesce'
 
 describe('backup export quiesce transaction', () => {
   beforeEach(() => {
@@ -132,6 +138,11 @@ describe('backup export quiesce transaction', () => {
       'release:channel-runtime',
       'release:channel-intake'
     ])
+    const resolvedWhenReady = vi
+      .mocked(application.get)
+      .mock.calls.map(([name]) => name)
+      .filter((name) => name !== 'ProfileWriteBarrierService')
+    expect(resolvedWhenReady).toEqual(EXPORT_QUIESCE_WHEN_READY_SERVICES)
   })
 
   it('keeps the drained writer boundary closed until its owner disposes the shared hold', async () => {

@@ -10,6 +10,21 @@ const logger = loggerService.withContext('backup/exportQuiesce')
 export const EXPORT_SEAL_DEADLINE_MS = 30_000
 const EXPORT_QUIESCE_REASON = 'backup export: seal database and resource baseline'
 
+/**
+ * Same-phase lifecycle services resolved by the fixed export transaction.
+ *
+ * ProfileWriteBarrierService is BeforeReady and therefore intentionally absent:
+ * phase ordering, rather than a cross-phase dependency edge, keeps it alive.
+ */
+export const EXPORT_QUIESCE_WHEN_READY_SERVICES = [
+  'ChannelManager',
+  'AiStreamManager',
+  'AgentSessionRuntimeService',
+  'JobManager',
+  'ClaudeCodeWarmQueryManager',
+  'McpRuntimeService'
+] as const
+
 interface DrainVerdict {
   readonly stragglerIds: readonly string[]
   readonly startupRecoveryPending?: boolean
