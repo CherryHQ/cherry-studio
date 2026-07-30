@@ -81,29 +81,31 @@ Handlers must be registered in the owning service's `onInit` (see [handler-autho
 
 ## Pause and drain (write quiesce)
 
-Serves backup restore (#16850): after the restore snapshot is taken at time T, any JobManager write to the old live DB fails the fingerprint re-check and wastes the whole restore attempt. `pause()` stops **autonomous** writes to avoid that waste; the fingerprint gate stays the correctness backstop. The restore orchestrator must NOT run as a JobManager job — a handler that pauses and drains its own manager deadlocks until timeout.
+Serves the backup export seal (#16850): the detached DB and filesystem baseline must come
+from one writer-free view. `pause()` stops **autonomous** JobManager writes while the
+coordinator drains admitted work, captures both sides of that boundary, and then releases
+its hold. The export orchestrator must NOT run as a JobManager job — a handler that pauses
+and drains its own manager deadlocks until timeout.
 
 ```ts
-const hold = jobManager.pause('backup restore')
-const verdict = await jobManager.drainInFlight({ timeoutMs: 15_000 })
-const clean = verdict.stragglerIds.length === 0 && !verdict.startupRecoveryPending
-if (!clean) {
-  hold.dispose() // abort path ONLY — give the manager back its autonomy
-  return abortRestoreAttempt()
+const hold = jobManager.pause('backup export seal')
+try {
+  const verdict = await jobManager.drainInFlight({ timeoutMs: 15_000 })
+  const clean = verdict.stragglerIds.length === 0 && !verdict.startupRecoveryPending
+  if (!clean) return abortExportAttempt()
+  await createDetachedSnapshot()
+  await captureResourceBaseline()
+} finally {
+  hold.dispose()
 }
-await createSnapshot()
-// Happy path: NEVER dispose. The release pass writes to the old live DB
-// (promotion, markFired, catch-up enqueues) — post-snapshot that fails the
-// fingerprint re-check and voids the attempt. The hold stands until the
-// process relaunches into the restored DB (a lost hold fails closed).
 ```
 
 | Rule | Detail |
 |---|---|
 | No `resume()` | Release = dispose your own hold. Holds are refcounted; the last dispose runs the compensation pass: any outstanding recovery settles FIRST — an internal release barrier keeps autonomous fires/claims frozen until it does (interval chains and croner timers would otherwise resume the moment the holds are gone and race the flow's stale-snapshot catch-up) — then delayed promotion + dispatch, suppressed-once re-arm, croner resume. A lost hold fails closed — paused until relaunch. |
 | Drain precondition | Caller must hold a live pause hold. Without one the verdict is a point-in-time snapshot (warn, no throw) and MUST NOT gate a DB snapshot. |
-| Clean verdict | `stragglerIds` empty **and** `startupRecoveryPending === false`. The deferred startup recovery is a JM-internal writer that is not a job, so it gets its own verdict field — never fake ids in `stragglerIds`. `true` means the flow is still blocked inside a step; a flow that short-circuited at a step boundary writes nothing more and reports `false` (the remainder is release's debt). |
-| Timeout | `drainInFlight` never rejects. Stragglers are **not** aborted — an abort settles them as `cancelled` into the snapshot and they would never re-run after a restore; left `running`, startup recovery applies the handler strategy. Orchestrator rule: any drain timeout → abort the restore attempt. |
+| Clean verdict | `stragglerIds` empty **and** `startupRecoveryPending === false`. A normal handler drains only after `execute` and `onSettled` finish. An opt-in cooperative handler also drains when it is parked at a safe point for the **current pause generation**. The deferred startup recovery is a JM-internal writer that is not a job, so it gets its own verdict field — never fake ids in `stragglerIds`. `true` means the flow is still blocked inside a step; a flow that short-circuited at a step boundary writes nothing more and reports `false` (the remainder is release's debt). |
+| Timeout | `drainInFlight` never rejects. Stragglers are **not** aborted — an abort settles them as `cancelled` into the snapshot and they would never re-run after a restore; left `running`, startup recovery applies the handler strategy. Orchestrator rule: any drain timeout → abort the export attempt. |
 | No error surface | No API throws because of a pause; there is no pause-related error code. |
 
 **Blocked while paused** (autonomous writes): dispatch claims (entry check + post-mutex re-check), schedule fire callbacks (crons are additionally paused at the croner layer so `limit` quotas survive the window), GC / delayed-promotion ticks, delayed/retry promotion fires, and new startup-recovery steps — a started step (one schedule's `onMissed` + catch-up enqueue, atomic) runs to completion and is awaited by drain.
@@ -111,6 +113,31 @@ await createSnapshot()
 **Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` + `markFired`; `true` still means "row persisted").
 
 Missed cron fires are skipped, not caught up (croner semantics). A suppressed `once` fire is re-armed on release from the recorded id set — exactly once; never rebuild by scanning "enabled ∧ missing scheduler entry", which also matches historical completed one-shots.
+
+### Cooperative handler safe points
+
+`whole-execution` is the default and remains the contract for every existing handler. A
+long-running handler may explicitly declare `quiescence: 'cooperative'`; only that typed
+variant receives `ctx.quiesceAtSafePoint()`.
+
+A safe point is an owner assertion that the handler:
+
+- holds no profile write lease or business mutation mutex;
+- has no in-flight operation that can still mutate profile state; and
+- will perform no further profile mutation until the returned promise resolves.
+
+When no pause is active the call returns immediately. During a pause, it marks the execution
+parked for that generation and waits for the **last** hold to release. A parked marker from
+an older generation never satisfies a later drain. Cancellation observed while parked is
+also deferred until release, so terminal DB writes and `onSettled` cannot run inside the
+sealed view. A cooperative job that has not reached a current-generation safe point by the
+deadline remains a real straggler; JobManager never force-aborts it for backup.
+
+`knowledge.index-documents` is the first consumer. It checks before the first embedding
+request, between provider batches after preserving completed vectors in memory, and before
+the final material write while still outside the Knowledge base mutex. Therefore at most
+the already-admitted provider batch finishes after pause; no next batch or profile mutation
+starts until export releases the hold.
 
 ## Why DB-driven and not in-memory queue?
 

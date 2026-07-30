@@ -80,6 +80,50 @@ async execute(ctx: JobContext<RemotePollInput>): Promise<RemoteResult> {
 
 Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without signal (delays cancellation by up to N ms).
 
+## Cooperative quiescence (rare, opt-in)
+
+Handlers drain through their complete `execute` + `onSettled` lifetime by default. Use the
+cooperative variant only when a long-running handler has a real boundary where it can keep
+completed work in memory while guaranteeing that it owns no profile mutation capability:
+
+```typescript
+import type { CooperativeJobHandler } from '@main/core/job/types'
+
+const handler: CooperativeJobHandler<IndexInput> = {
+  recovery: 'retry',
+  quiescence: 'cooperative',
+  async execute(ctx) {
+    const vectors = []
+    for (const batch of batches(ctx.input)) {
+      // Before starting the next external request; no write lease or owner lock held.
+      await ctx.quiesceAtSafePoint()
+      vectors.push(...(await embed(batch, ctx.signal)))
+    }
+
+    // Keep vectors in memory while parked; acquire the owner lock only afterward.
+    await ctx.quiesceAtSafePoint()
+    await withOwnerMutationLock(() => persist(vectors))
+  }
+}
+```
+
+The owner, not JobManager, certifies the safe boundary. At every call:
+
+- release all profile write leases and business mutation mutexes first;
+- await any earlier operation that may still write before declaring the safe point;
+- start no provider call or profile mutation until the safe-point promise returns;
+- keep enough in-memory state to resume from the next unit without replaying completed paid
+  work; and
+- continue checking `ctx.signal` at ordinary cancellation boundaries.
+
+Do not opt in when the handler cannot identify such a boundary, must hold a lock across the
+wait, or cannot resume the same attempt safely. In those cases whole-execution drain and a
+possible backup timeout are the correct fail-closed behavior.
+
+Safe points are scoped to one pause generation and stay blocked until its final refcounted
+hold releases. Cancellation while parked becomes observable only after release; this
+prevents terminal-row and `onSettled` writes from entering the export seal.
+
 ## Settled event (`onSettled`)
 
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:
@@ -202,4 +246,3 @@ src/main/services/knowledge/tasks/IndexLeafJobHandler.ts
 | All new handlers added later | ✅ Yes |
 | Experimental handlers (not in `JobRegistry`) | ⚠ Recommended, not blocking |
 | Pre-existing handlers, if any | Migrate opportunistically when touching nearby code |
-

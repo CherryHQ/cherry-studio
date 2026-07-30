@@ -492,6 +492,12 @@ One 30-second monotonic deadline governs sealing:
 1. Channel intake enters defer mode and flushes, then drains already admitted work into
    Agent/AI.
 2. Channel adapter runtime, AI, Agent, Job, and Claude warm-query pause and drain.
+   Job handlers normally drain through complete execution and settlement. An explicitly
+   cooperative handler may instead park at an owner-proven safe point for the current pause
+   generation. The Knowledge indexer uses this only between embedding batches and before
+   final material persistence, while holding no profile write lease or Knowledge base
+   mutex. Thus an already-admitted provider batch may finish, but no next batch or profile
+   mutation crosses the sealed boundary.
 3. The profile write barrier closes and drains DataApi, Preference, File, Knowledge,
    Skill, credential/context-token, and other owner-scoped direct writes.
 4. MCP runtime pauses last and drains tool calls, client initialization, and managed
@@ -505,7 +511,9 @@ One 30-second monotonic deadline governs sealing:
 The `finally` path releases every hold in strict reverse order — MCP, profile barrier,
 Job/Agent/AI/warm-query/Channel runtime, then Channel intake — without letting a release
 error hide the original export failure. Deferred requests then resume normally; they are
-not rejected as busy and messages are not discarded.
+not rejected as busy and messages are not discarded. Cooperative jobs leave their safe
+points after the JobManager hold is released and continue the same in-memory attempt; work
+completed before the safe point is not re-enqueued or repeated.
 
 Bulk work happens after writers resume. The detached DB is materialized, requirement
 closure is checked again, and resources are copied against the sealed baseline:
