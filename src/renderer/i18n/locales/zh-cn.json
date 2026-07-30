@@ -199,7 +199,7 @@
       "type": "智能体图标"
     },
     "input": {
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令"
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令，输入 @ 引用文件或会话"
     },
     "list": {
       "error": {
@@ -378,6 +378,11 @@
         "label": "预先授权工具",
         "placeholder": "选择预先授权的工具"
       },
+      "api_retry": {
+        "reason": "请求失败（{{error}}，HTTP {{status}}），正在重试",
+        "retrying": "正在重试 {{attempt}}/{{max}}…",
+        "retrying_in": "{{seconds}} 秒后重试 {{attempt}}/{{max}}"
+      },
       "auto_rename": "生成任务名",
       "create": {
         "error": {
@@ -428,13 +433,20 @@
         "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
-        "unknown_agent": "未知智能体",
+        "unknown_agent": "未关联智能体",
+        "unknown_agent_tip": "这是未关联智能体的历史会话分组，并非真实智能体。仅供查看，无法继续运行。",
         "yesterday": "昨天"
       },
       "label_one": "会话",
       "label_other": "会话",
       "list": {
         "title": "任务"
+      },
+      "model_switch_confirm": {
+        "confirm": "切换模型",
+        "description": "不同模型理解和处理上下文的方式可能不同。切换后，后续回复的连贯性或效果可能受到影响。是否继续切换？",
+        "skip_for_app_run": "退出应用前不再提示",
+        "title": "切换到「{{model}}」？"
       },
       "new": "新任务",
       "pin": {
@@ -678,6 +690,7 @@
         "deleteFailed": "删除任务失败",
         "loadFailed": "加载任务失败",
         "runFailed": "运行任务失败",
+        "triggerInvalid": "定时设置无效：请检查表达式、时区或间隔范围",
         "updateFailed": "更新任务失败"
       },
       "frequency": {
@@ -720,6 +733,38 @@
       "run": "运行",
       "runTriggered": "任务已触发",
       "save": "保存",
+      "schedule": {
+        "custom": "自定义计划",
+        "daily": "每天",
+        "hour": "小时",
+        "hourly": "每小时",
+        "interval": "自定义间隔",
+        "intervalMinutes": "间隔时长",
+        "invalid": "请填写有效的执行频率。",
+        "minute": "分钟",
+        "once": "一次性",
+        "runAt": "执行时间",
+        "summary": {
+          "daily": "每天 {{time}}",
+          "hourly": "每小时整点",
+          "interval": "每 {{count}} 分钟",
+          "weekdays": "工作日 {{time}}",
+          "weekly": "每{{weekday}} {{time}}"
+        },
+        "time": "时间",
+        "weekday": "星期",
+        "weekdays": {
+          "friday": "周五",
+          "monday": "周一",
+          "saturday": "周六",
+          "sunday": "周日",
+          "thursday": "周四",
+          "tuesday": "周二",
+          "wednesday": "周三"
+        },
+        "weekdaysOnly": "工作日",
+        "weekly": "每周"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "间隔",
@@ -868,7 +913,8 @@
       "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
-      "pending": "等待审批",
+      "pending": "等待确认",
+      "pendingBadge": "待确认",
       "permissionExpired": "权限请求已过期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要更高权限。",
       "suggestion": {
@@ -996,7 +1042,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "复制",
       "regenerate": "重新生成",
       "restart": {
         "button": "重启",
@@ -1008,8 +1053,6 @@
     "authHeader": {
       "title": "授权标头"
     },
-    "authHeaderText": "在授权标头中使用：",
-    "configuration": "配置",
     "description": "通过 OpenAI 和 Anthropic 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
     "documentation": {
       "title": "API 文档"
@@ -1017,13 +1060,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "复制 API 密钥",
-        "description": "用于 API 访问的安全认证令牌",
         "label": "API 密钥",
         "placeholder": "API 密钥将自动生成"
       },
       "port": {
-        "description": "网关的 TCP 端口号 (1000-65535)",
-        "helpText": "停止网关以更改端口",
         "label": "端口"
       },
       "url": {
@@ -1032,9 +1072,8 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API 密钥已复制到剪贴板",
       "apiKeyRegenerated": "API 密钥已重新生成",
-      "notEnabled": "API 网关未启用。",
+      "notEnabled": "请先启动网关，再通过此地址连接。",
       "operationFailed": "API 网关操作失败：",
       "restartError": "重启 API 网关失败：",
       "restartFailed": "API 网关重启失败：",
@@ -1042,8 +1081,7 @@
       "startError": "启动 API 网关失败：",
       "startSuccess": "API 网关启动成功",
       "stopError": "停止 API 网关失败：",
-      "stopSuccess": "API 网关停止成功",
-      "urlCopied": "网关 URL 已复制到剪贴板"
+      "stopSuccess": "API 网关停止成功"
     },
     "status": {
       "running": "运行中",
@@ -1255,7 +1293,7 @@
       "regular_phrases": {
         "add": "添加短语",
         "contentLabel": "内容",
-        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
         "delete": "删除短语",
         "deleteConfirm": "确定要删除这个短语吗？",
         "edit": "编辑短语",
@@ -1423,8 +1461,26 @@
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作，输入 @ 引用话题",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "reference_panel": {
+        "load_failed": "加载引用内容失败",
+        "no_room": "输入框剩余长度不足，无法插入该会话",
+        "session": {
+          "no_results": {
+            "description": "没有名称匹配的会话",
+            "label": "无匹配会话"
+          },
+          "title": "会话"
+        },
+        "topic": {
+          "no_results": {
+            "description": "没有名称匹配的话题",
+            "label": "无匹配话题"
+          },
+          "title": "话题"
+        }
+      },
       "resize_height": "调整输入框高度",
       "resource_panel": {
         "categories": {
@@ -1442,7 +1498,7 @@
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "资源"
+        "title": "文件与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -1584,8 +1640,17 @@
       "token_details": {
         "cache_read": "缓存读取",
         "cache_write": "缓存写入",
+        "cost": "费用",
+        "cost_billed": "供应商计费",
+        "cost_estimated": "本地估算",
+        "end_to_end_throughput": "端到端吞吐",
         "input": "输入",
         "input_breakdown": "输入构成",
+        "lane_approval": "审批",
+        "lane_model": "模型",
+        "lane_other": "其他",
+        "lane_tool": "工具",
+        "model_throughput": "模型生成 TPS",
         "output": "输出",
         "reasoning": "推理",
         "reasoning_time": "推理",
@@ -1594,6 +1659,7 @@
         "text_output": "文本输出",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Token/秒",
+        "total_duration": "端到端耗时",
         "uncached": "未缓存",
         "usage": "Token 使用",
         "waiting_first_token": "等待"
@@ -1867,6 +1933,7 @@
         "this_week": "本周",
         "today": "今天",
         "unknown_assistant": "未关联助手",
+        "unknown_assistant_tip": "这是未关联助手的历史对话分组，并非真实助手。请将对话移动到现有助手后继续使用。",
         "yesterday": "昨天"
       },
       "list": "对话列表",
@@ -2121,7 +2188,7 @@
     "terminal": "终端",
     "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
-    "title": "Code Switch",
+    "title": "编码搭档",
     "tool_parameters": "参数设置",
     "up_to_date": "最新版本",
     "update_options": "更新选项",
@@ -2234,6 +2301,12 @@
     "generate_random_seed": "生成随机种子",
     "get_embedding_dimension": "获取嵌入维度",
     "go_to_settings": "前往设置",
+    "group": {
+      "create": "新建分组",
+      "create_failed": "创建分组失败",
+      "name_placeholder": "请输入分组名称...",
+      "name_required": "请输入分组名称"
+    },
     "help": "帮助",
     "html_preview": "HTML 预览",
     "i_know": "我知道了",
@@ -2261,6 +2334,7 @@
     "open_in": "在 {{name}} 中打开",
     "open_in_new_tab": "在新标签页打开",
     "open_sidebar": "打开侧边栏",
+    "other": "其他",
     "placeholders": {
       "select": {
         "model": "选择模型"
@@ -2274,6 +2348,7 @@
     "provider": "提供商",
     "reasoning_content": "已深度思考",
     "refresh": "刷新",
+    "refresh_failed": "无法刷新列表，正在显示上次加载的内容。",
     "regenerate": "重新生成",
     "remove_image": "移除图片",
     "rename": "重命名",
@@ -2588,7 +2663,8 @@
     "edit": "编辑",
     "empty": {
       "no_match_description": "当前筛选条件下没有文件",
-      "no_match_title": "没有找到匹配的文件"
+      "no_match_title": "没有找到匹配的文件",
+      "title": "暂无文件"
     },
     "empty_trash": "清空回收站",
     "error": {
@@ -2987,7 +3063,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "empty_action": "创建知识库",
-    "empty_description": "你还没有创建任何知识库。创建一个来整理和检索你的文档吧。",
+    "empty_description": "与 AI 一起积累知识",
     "error": {
       "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
@@ -3761,6 +3837,8 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
+      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
     "dialog": {
@@ -3904,18 +3982,6 @@
     "regenerate": {
       "confirm": "重新生成会覆盖当前消息"
     },
-    "reset": {
-      "confirm": {
-        "content": "确定要重置所有数据吗？"
-      },
-      "double": {
-        "confirm": {
-          "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "数据丢失！！！"
-        }
-      },
-      "success": "数据重置成功"
-    },
     "restore": {
       "failed": "恢复失败",
       "success": "恢复成功"
@@ -3960,95 +4026,95 @@
       "aborted": "工具调用已中断",
       "activity": {
         "analyze": "分析",
-        "analyzing": "正在分析",
+        "analyzing": "我来深入分析",
         "archive": "压缩包",
-        "assistantTask": "任务",
+        "assistantTask": "助手任务",
         "availableFeatures": "可用功能",
         "availableResources": "可用资源",
         "branch": "项目版本",
         "build": "构建",
-        "building": "正在构建",
+        "building": "一步步构建",
         "calendar": "日程",
         "check": "检查",
-        "checking": "正在检查",
-        "codeFiles": "程序文件",
-        "codeHostInfo": "在线项目信息",
-        "configFiles": "项目说明和设置文件",
+        "checking": "逐项检查",
+        "codeFiles": "代码文件",
+        "codeHostInfo": "远程仓库信息",
+        "configFiles": "项目说明和配置文件",
         "copy": "复制",
         "copying": "正在复制",
-        "create": "创建",
-        "creating": "正在创建",
+        "create": "新建",
+        "creating": "动手新建",
         "currentFolder": "当前文件夹",
         "data": "数据",
         "delete": "删除",
-        "deleting": "正在删除",
+        "deleting": "谨慎删除",
         "documentFiles": "文档文件",
         "download": "下载",
         "downloading": "正在下载",
         "email": "邮件",
         "environmentInfo": "运行环境",
-        "executeCommand": "执行任务",
-        "executingCommand": "正在执行任务",
+        "executeCommand": "执行",
+        "executingCommand": "认真执行",
         "extensionFailed": "扩展功能执行失败",
         "extract": "解压",
-        "extracting": "正在解压",
+        "extracting": "仔细解压",
         "file": "文件",
         "fileList": "文件列表",
         "folder": "文件夹",
         "handle": "处理",
-        "handling": "正在处理",
+        "handling": "专心处理",
         "imageFiles": "图片文件",
         "install": "安装",
         "installing": "正在安装",
         "matchingFiles": "符合条件的文件",
         "modify": "修改",
-        "modifying": "正在修改",
+        "modifying": "用心修改",
         "move": "移动",
-        "moving": "正在移动",
+        "moving": "妥善移动",
         "open": "打开",
-        "opening": "正在打开",
+        "opening": "打开查看",
         "plan": "执行计划",
-        "projectChanges": "项目变更",
+        "projectChanges": "项目改动",
         "projectChecks": "项目检查",
-        "projectDependencies": "项目所需内容",
+        "projectDependencies": "项目依赖",
         "projectFiles": "项目文件",
-        "projectRootFiles": "项目顶部文件",
+        "projectRootFiles": "项目根目录文件",
         "projectTask": "项目任务",
         "relatedContent": "相关内容",
         "repository": "项目内容",
         "search": "查找",
-        "searching": "正在查找",
+        "searching": "耐心查找",
         "send": "发送",
         "sending": "正在发送",
         "start": "启动",
         "starting": "正在启动",
         "switch": "切换",
-        "switching": "正在切换",
+        "switching": "平稳切换",
         "sync": "同步",
-        "syncing": "正在同步",
+        "syncing": "同步更新",
         "taskId": "任务 {{id}}",
         "taskList": "任务清单",
         "translationFiles": "多语言文件",
         "upload": "上传",
         "uploading": "正在上传",
-        "usedExtension": "已使用扩展功能",
-        "usingExtension": "正在使用扩展功能",
+        "usedExtension": "已调用扩展功能",
+        "usingExtension": "调用扩展功能协助处理",
         "view": "查看",
-        "viewing": "正在查看",
+        "viewing": "仔细查看",
         "webPage": "网页内容",
         "webSearch": "网页内容",
         "workspace": "工作区域",
-        "write": "保存",
-        "writing": "正在保存"
+        "write": "写入",
+        "writing": "认真写入"
       },
       "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
       "collapse": "收起",
-      "completed": "已完成",
+      "completed": "任务已顺利完成",
       "error": "发生错误",
       "groupHeader": "{{count}} 个工具调用",
-      "invoking": "调用中",
+      "invoking": "开始处理",
       "labels": {
         "bash": "执行任务",
         "edit": "编辑",
@@ -4083,10 +4149,10 @@
           "minutes": "{{minutes}} 分钟 {{seconds}} 秒",
           "seconds": "{{seconds}} 秒"
         },
-        "generating": "正在生成回复",
+        "generating": "我在整理回复",
         "preparing": "正在准备回复",
-        "thinking": "正在思考",
-        "usingTools": "正在处理任务"
+        "thinking": "让我认真想一想",
+        "usingTools": "继续推进任务"
       },
       "preview": "预览",
       "processed": "已处理",
@@ -4114,7 +4180,7 @@
         "success": "成功"
       },
       "streaming": "流式传输中",
-      "thinkingHeader": "正在思考",
+      "thinkingHeader": "思路梳理",
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
         "done_one": "{{count}} 项完成",
@@ -4271,6 +4337,7 @@
     },
     "pinned": "已固定",
     "price": {
+      "cache_read": "缓存读取价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
@@ -4886,6 +4953,11 @@
     "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
+    "showcase": {
+      "caption": "选择一个模板作为起点，再在下方把提示词改成你的表达。",
+      "styles_label": "提示词模板",
+      "title": "给你的下一幅杰作，留一个位置。"
+    },
     "style_options": {
       "anime": "动漫",
       "auto": "自动",
@@ -5163,6 +5235,7 @@
       "label": "确定要恢复数据吗？"
     },
     "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待",
+    "messages_paused": "正在恢复备份；完成前已暂停发送新消息。",
     "progress": {
       "completed": "恢复完成",
       "copying_files": "复制文件... {{progress}}%",
@@ -5748,8 +5821,7 @@
       },
       "backup": {
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
-        "skip_file_data_title": "精简备份",
-        "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"
+        "skip_file_data_title": "精简备份"
       },
       "clear_cache": {
         "button": "清除缓存",
@@ -5760,6 +5832,13 @@
       },
       "data": {
         "title": "数据目录"
+      },
+      "data_reset": {
+        "button": "重置",
+        "confirm_content": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
+        "confirm_title": "重置应用数据",
+        "error": "重置数据启动失败",
+        "title": "重置数据"
       },
       "divider": {
         "basic": "基础数据设置",
@@ -6386,6 +6465,7 @@
       "viewErrorDetails": "查看详情"
     },
     "developer": {
+      "client_id": "客户端 ID",
       "enable_developer_mode": "启用开发者模式",
       "help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。更改将在重启应用后生效。",
       "title": "开发者模式"
@@ -6493,10 +6573,6 @@
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
       "label": "常规设置",
-      "reset": {
-        "button": "重置",
-        "title": "重置数据"
-      },
       "restore": {
         "button": "恢复"
       },
@@ -6572,16 +6648,15 @@
       "active": "启用",
       "addError": "添加服务器失败",
       "addServer": {
+        "advanced": "高级设置",
         "create": "快速创建",
+        "createDescription": "填写连接信息后创建，其余配置可稍后在详情页调整。",
         "importFrom": {
           "connectionFailed": "连接失败",
           "dxt": "导入 DXT 包",
           "dxtFile": "DXT 包文件",
           "dxtHelp": "选择包含 MCP 服务器的 .dxt 文件",
           "dxtProcessFailed": "处理 DXT 文件失败",
-          "error": {
-            "multipleServers": "不能从多个服务器导入"
-          },
           "invalid": "无效输入，请检查 JSON 格式",
           "json": "从 JSON 导入",
           "mcpb": "导入 MCPB 包",
@@ -6652,7 +6727,11 @@
         "success": "服务器获取成功"
       },
       "filter": {
-        "label": "筛选"
+        "allStatuses": "全部状态",
+        "allTypes": "全部类型",
+        "builtinOnly": "仅内置",
+        "status": "按状态筛选",
+        "type": "按类型筛选"
       },
       "findMore": "更多 MCP",
       "headers": "请求头",
@@ -6709,6 +6788,7 @@
         "usage": "用法",
         "version": "版本"
       },
+      "pageDescription": "管理 MCP 服务器。启用后，Agent 可以调用其提供的工具与资源。",
       "prompts": {
         "arguments": "参数",
         "availablePrompts": "可用提示",
@@ -7231,7 +7311,7 @@
     "prompts": {
       "add": "添加提示词",
       "contentLabel": "内容",
-      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
       "delete": "删除提示词",
       "deleteConfirm": "删除提示词后将无法恢复，是否继续？",
       "edit": "编辑提示词",
@@ -7668,7 +7748,7 @@
       "add": "添加短语",
       "assistant": "助手短语",
       "contentLabel": "内容",
-      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
       "delete": "删除短语",
       "deleteConfirm": "删除短语后将无法恢复，是否继续？",
       "edit": "编辑短语",
@@ -7679,12 +7759,39 @@
       "titlePlaceholder": "请输入短语标题"
     },
     "scheduledTasks": {
+      "agentCreate": "通过 Agent 创建",
+      "allAgents": "全部 Agent",
+      "allStatuses": "全部状态",
+      "clearFilters": "清除筛选",
+      "createDescription": "设置 Agent 要执行的内容和运行频率。",
+      "createTitle": "新建定时任务",
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
+      "editDescription": "更新 Agent 要执行的内容和运行频率。",
+      "editTitle": "编辑定时任务",
+      "filterAgent": "按 Agent 筛选",
+      "filterStatus": "按状态筛选",
+      "manualCreate": "手动创建",
+      "newTask": "新建",
       "noAgents": "暂无可用的 Agent。请先创建一个 Agent，再添加定时任务。",
       "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
-      "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
+      "noAgentsTitle": "暂无 Agent",
+      "noMatches": "请尝试其他搜索词或筛选条件。",
+      "noMatchesTitle": "没有匹配的任务",
+      "noTasks": "创建一个任务，让 Agent 按计划自动运行。",
+      "noTasksTitle": "暂无定时任务",
+      "notFoundDescription": "该任务可能已被删除，或链接无效。",
+      "notFoundTitle": "未找到任务",
+      "paginationLabel": "定时任务分页",
+      "paginationStatus": "第 {{page}} / {{pageCount}} 页 · 共 {{total}} 个任务",
+      "search": "搜索定时任务",
+      "searchPlaceholder": "搜索任务或 Agent",
       "selectTask": "选择一个任务以查看详情",
-      "title": "定时任务"
+      "title": "定时任务",
+      "validation": {
+        "agent": "请选择 Agent。",
+        "name": "请输入任务名称。",
+        "prompt": "请输入任务提示词。"
+      }
     },
     "shortcuts": {
       "action": "操作",
@@ -7773,6 +7880,7 @@
       "noInstalled": "暂无已安装的技能",
       "noResults": "未找到技能",
       "noSkillFile": "未找到 SKILL.md 文件",
+      "pageDescription": "管理已安装的技能。技能可以扩展 Agent 的能力，随时按需调用。",
       "searchPlaceholder": "发现更多技能...",
       "searchRegistryTitle": "在线搜索技能注册表",
       "searchTitle": "搜索技能",
@@ -8028,6 +8136,108 @@
       "show": "显示托盘图标",
       "title": "托盘"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "活跃天数",
+        "cacheHitRate": "缓存命中率",
+        "cacheObservedTokens": "可观测输入：{{tokens}}",
+        "cacheStartsWithNewRequests": "发送新请求后开始统计",
+        "dailyAverage": "日均",
+        "explicitApiKey": "已选密钥",
+        "lastPeriod": "较上期",
+        "matchedApiKey": "覆盖匹配",
+        "none": "N/A",
+        "peakDay": "高峰日",
+        "providerAuth": "供应商认证",
+        "streak": "最长连续天数：{{days}} 天",
+        "topModel": "用量最高模型",
+        "totalCost": "总成本",
+        "totalRequests": "请求数",
+        "totalTokens": "总 Token 数",
+        "unattributedApiKey": "未归因请求",
+        "unattributedSource": "未归因来源"
+      },
+      "chart": {
+        "bar": "柱状图",
+        "line": "折线图",
+        "pie": "饼图",
+        "stack": "分段"
+      },
+      "currency": "货币",
+      "empty": {
+        "description": "支持的 AI 请求产生用量记录后，这里会显示数据。",
+        "title": "暂无用量"
+      },
+      "explore": {
+        "analysis": "分析",
+        "chart": "图表",
+        "clearDate": "清除日期筛选",
+        "drilldownTitle": "{{date}} 明细",
+        "entries": "请求",
+        "groupBy": "分组",
+        "loadMore": "加载更多",
+        "loading": "加载中...",
+        "metric": "指标",
+        "noBreakdown": "暂无用量分布",
+        "noBreakdownDescription": "尝试扩大时间范围或更换供应商。",
+        "noEntries": "暂无记录",
+        "noEntriesDescription": "尝试扩大时间范围或更换供应商。",
+        "rollup": "汇总",
+        "selectedDate": "选定日期：{{date}}",
+        "shareLabel": "占比",
+        "title": "探索",
+        "top": "Top",
+        "totalEntries_one": "{{count}} 条记录",
+        "totalEntries_other": "{{count}} 条记录"
+      },
+      "groupBy": {
+        "apiKey": "API 密钥",
+        "model": "模型",
+        "provider": "供应商",
+        "source": "助手 / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "{{date}} 的用量",
+        "title": "每日活动"
+      },
+      "metric": {
+        "cost": "成本",
+        "requests": "请求数",
+        "tokens": "Token"
+      },
+      "overview": {
+        "title": "概览"
+      },
+      "rollup": {
+        "daily": "按天",
+        "monthly": "按月",
+        "total": "总计",
+        "weekly": "按周"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} 个请求",
+      "table": {
+        "cost": "成本",
+        "date": "日期",
+        "model": "模型",
+        "source": "来源",
+        "tokens": "Token",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "用量统计",
+      "tooltip": {
+        "cost": "成本 {{value}}",
+        "requests_one": "{{count}} 个请求",
+        "requests_other": "{{count}} 个请求",
+        "tokens": "{{value}} Token"
+      },
+      "window": {
+        "30d": "最近 30 天",
+        "365d": "最近一年",
+        "90d": "最近 90 天"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "更改标题栏样式需要重启应用才能生效，是否现在重启？",
@@ -8058,7 +8268,7 @@
   "title": {
     "apps": "小程序",
     "chat": "对话",
-    "code": "Code Switch",
+    "code": "编码搭档",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",
@@ -8203,6 +8413,7 @@
         "placeholder": "搜索翻译历史"
       },
       "source": "原文",
+      "star": "收藏",
       "success": {
         "add": "已添加到历史",
         "clear": "已清空",

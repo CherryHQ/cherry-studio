@@ -138,7 +138,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     const result = adapter.handleMessage({
       type: 'system',
-      subtype: 'api_retry',
+      subtype: 'hook_started',
       session_id: 'sdk-control',
       uuid: crypto.randomUUID()
     } as any)
@@ -146,12 +146,32 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
     expect(loggerMocks.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Received system message subtype: api_retry'),
+      expect.stringContaining('Received system message subtype: hook_started'),
       expect.anything()
     )
   })
 
-  it('maps thinking token estimates to message metadata', () => {
+  it('drops api_retry silently — the driver intercepts it as an ephemeral runtime event', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID(),
+      attempt: 3,
+      max_retries: 10,
+      retry_delay_ms: 1234,
+      error_status: 500,
+      error: 'server_error'
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  it('maps thinking token estimates to a full cumulative metadata snapshot', () => {
     const { adapter, parts } = createAdapter()
 
     const result = adapter.handleMessage({
@@ -167,9 +187,44 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts).toEqual([
       {
         type: 'message-metadata',
-        messageMetadata: { thoughtsTokens: 100 }
+        messageMetadata: {
+          modelId: 'sonnet',
+          stats: {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+            outputTokenDetails: { reasoningTokens: 100 }
+          }
+        }
       }
     ])
+  })
+
+  it('preserves the latest thinking estimate in final usage metadata', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'thinking_tokens',
+      session_id: 'sdk-thinking',
+      uuid: crypto.randomUUID(),
+      estimated_tokens: 100
+    } as any)
+    adapter.handleMessage(successResult())
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'finish',
+      messageMetadata: {
+        modelId: 'sonnet',
+        stats: {
+          inputTokens: 21,
+          outputTokens: 5,
+          totalTokens: 26,
+          outputTokenDetails: { reasoningTokens: 100 }
+        }
+      }
+    })
   })
 
   it('maps SDK task system messages to hidden task event data parts', () => {
@@ -721,14 +776,17 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect.objectContaining({
         type: 'finish',
         finishReason: 'stop',
+        // v6 semantic: stats.inputTokens = TOTAL input incl. cache (3 + 7 + 11 = 21);
+        // the breakdown lives in inputTokenDetails; totalTokens is the all-in
+        // figure (21 + 5 = 26).
         messageMetadata: expect.objectContaining({
           modelId: 'sonnet',
-          totalTokens: 26,
-          promptTokens: 21,
-          completionTokens: 5,
-          noCacheTokens: 3,
-          cacheReadTokens: 11,
-          cacheWriteTokens: 7
+          stats: expect.objectContaining({
+            inputTokens: 21,
+            outputTokens: 5,
+            totalTokens: 26,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 11, cacheWriteTokens: 7 }
+          })
         })
       })
     ])
@@ -750,6 +808,38 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(sessionIds).toEqual(['sdk-error'])
   })
 
+  it('emits final live usage metadata before throwing on error results', () => {
+    const { adapter, parts } = createAdapter()
+
+    expect(() =>
+      adapter.handleMessage(
+        successResult({
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['boom'],
+          session_id: 'sdk-error'
+        })
+      )
+    ).toThrow('boom')
+
+    // The driver never reaches `emitUsageMetadata` on a throw, so the adapter must flush the final
+    // live token snapshot itself. Invocation-record capture is a separate driver responsibility.
+    expect(parts).toEqual([
+      {
+        type: 'message-metadata',
+        messageMetadata: {
+          modelId: 'sonnet',
+          stats: {
+            inputTokens: 21,
+            outputTokens: 5,
+            totalTokens: 26,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 11, cacheWriteTokens: 7 }
+          }
+        }
+      }
+    ])
+  })
+
   it('emits truncation fallback from buffered text', () => {
     const { adapter, parts } = createAdapter()
     const text = 'x'.repeat(600)
@@ -764,5 +854,100 @@ describe('ClaudeCodeStreamAdapter', () => {
       finishReason: 'length',
       messageMetadata: expect.objectContaining({ modelId: 'sonnet' })
     })
+  })
+
+  it('treats an aborted assistant message as truncation even when the error is not a parse failure', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hi' } })
+    )
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      aborted: true,
+      message: { content: [{ type: 'text', text: 'hi' }] }
+    } as any)
+
+    // Short text and a non-SyntaxError: the string heuristic alone would return false.
+    const handled = adapter.handleTruncationError(new Error('stream closed'))
+
+    expect(handled).toBe(true)
+    expect(parts.at(-1)).toMatchObject({ type: 'finish', finishReason: 'length' })
+  })
+
+  it('does not report truncation for a normal error when no message was aborted', () => {
+    const { adapter } = createAdapter()
+
+    expect(adapter.handleTruncationError(new Error('stream closed'))).toBe(false)
+  })
+
+  it('reports an auto-denied tool call as denied rather than failed', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [{ type: 'tool_use', id: 'tool-9', name: 'Bash', input: { command: 'rm -rf /' } }]
+      }
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'Bash',
+      tool_use_id: 'tool-9',
+      decision_reason_type: 'rule',
+      message: 'Permission to use Bash has been denied.',
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1'
+    } as any)
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-9',
+            content: 'Permission to use Bash has been denied.',
+            is_error: true
+          }
+        ]
+      }
+    } as any)
+
+    // `is_error: true` would otherwise render as a generic tool failure.
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-input-start',
+      'tool-input-delta',
+      'tool-input-available',
+      'tool-output-denied'
+    ])
+    // The chunk schema is strict: only `toolCallId` may accompany the type.
+    expect(parts.at(-1)).toEqual({ type: 'tool-output-denied', toolCallId: 'tool-9' })
+  })
+
+  it('still reports a genuine tool failure as an error', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'tool-10', content: 'boom', is_error: true }]
+      }
+    } as any)
+
+    expect(parts.map((part) => part.type)).toContain('tool-output-error')
+    expect(parts.map((part) => part.type)).not.toContain('tool-output-denied')
   })
 })

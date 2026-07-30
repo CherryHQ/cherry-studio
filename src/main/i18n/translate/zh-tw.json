@@ -56,6 +56,12 @@
   },
   "dialog": {
     "all_files": "所有檔案",
+    "data_reset": {
+      "cancel": "取消",
+      "confirm": "重設並重新啟動",
+      "message": "這將清除聊天、助手、知識庫、檔案和設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
+      "title": "重設應用程式資料"
+    },
     "html_files": "HTML 檔案",
     "open_file": "開啟檔案",
     "pdf_files": "PDF 檔案",

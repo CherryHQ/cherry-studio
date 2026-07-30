@@ -14,6 +14,9 @@ import { normalizeComposerTokenAttrs } from './tokens'
 
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
+/** Upper bound on a serialized draft's text — enforced by every path that grows the composer. */
+export const COMPOSER_INPUT_MAX_LENGTH = 40000
+
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
@@ -202,6 +205,69 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   visitNode(json)
 
   return { text, tokens }
+}
+
+/**
+ * Drops the tokens a persistence layer cannot carry, taking the prompt text each one contributed with
+ * it. `serializeComposerDocument` folds `promptText` into the draft text, so filtering the token alone
+ * strands its sentence as ordinary prose — for a knowledge token that means a restored draft still
+ * telling the model a base is attached after the chip, and with it the scope part, is gone.
+ *
+ * The separator space the editor inserts after a chip is swallowed along with the sentence, so a
+ * pick-only draft collapses back to empty rather than to whitespace.
+ */
+export function excludeComposerDraftTokens(
+  draft: ComposerSerializedDraft,
+  shouldExclude: (token: ComposerSerializedToken) => boolean
+): ComposerSerializedDraft {
+  if (!draft.tokens.some(shouldExclude)) return draft
+
+  // Merged into disjoint ascending ranges so the splice below and `rebase` agree on exactly how much
+  // text was removed before any given offset — overlapping cuts would otherwise be double-counted.
+  const cuts: Array<{ start: number; end: number }> = []
+  draft.tokens
+    .filter(shouldExclude)
+    .map((token) => {
+      const start = Math.min(draft.text.length, Math.max(0, token.textOffset))
+      const promptText = token.promptText ?? ''
+      // The prompt text has moved (the user edited over it), so there is no span we can safely cut —
+      // drop the token and leave the prose alone rather than slicing through what they wrote.
+      if (!promptText || !draft.text.startsWith(promptText, start)) return { start, end: start }
+      const end = start + promptText.length
+      return { start, end: draft.text[end] === ' ' ? end + 1 : end }
+    })
+    .filter((cut) => cut.end > cut.start)
+    .sort((first, second) => first.start - second.start)
+    .forEach((cut) => {
+      const previous = cuts.at(-1)
+      if (previous && cut.start <= previous.end) previous.end = Math.max(previous.end, cut.end)
+      else cuts.push({ ...cut })
+    })
+
+  let text = ''
+  let cursor = 0
+  cuts.forEach((cut) => {
+    text += draft.text.slice(cursor, cut.start)
+    cursor = cut.end
+  })
+  text += draft.text.slice(cursor)
+
+  /** An offset landing inside a removed range collapses to where that range started. */
+  const rebase = (offset: number) => {
+    let removed = 0
+    for (const cut of cuts) {
+      if (cut.start >= offset) break
+      removed += Math.min(offset, cut.end) - cut.start
+    }
+    return offset - removed
+  }
+
+  return {
+    text,
+    tokens: draft.tokens
+      .filter((token) => !shouldExclude(token))
+      .map((token, index) => ({ ...token, index, textOffset: rebase(Math.max(0, token.textOffset)) }))
+  }
 }
 
 type ComposerLineRange = {

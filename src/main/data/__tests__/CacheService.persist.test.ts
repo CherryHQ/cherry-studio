@@ -173,6 +173,38 @@ describe('CacheService persist tier', () => {
     expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(3)
   })
 
+  it('flushes cache.json immediately for backup', async () => {
+    await initService()
+    service.setPersist(PROBE, 8)
+
+    service.flushPersistForBackup()
+
+    expect(fs.existsSync(cacheFile)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(8)
+  })
+
+  it('creates cache.json for backup when no persisted file exists yet', async () => {
+    await initService()
+
+    service.flushPersistForBackup()
+
+    expect(fs.existsSync(cacheFile)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(0)
+  })
+
+  it('throws instead of accepting a stale existing cache.json when the backup flush fails', async () => {
+    fs.writeFileSync(cacheFile, JSON.stringify({ [PROBE]: 1 }), 'utf-8')
+    await initService()
+    service.setPersist(PROBE, 8)
+
+    // A directory at the atomic temp path makes writeFileSync fail while the
+    // prior cache.json remains a perfectly readable (but stale) file.
+    fs.mkdirSync(`${cacheFile}.tmp`)
+
+    expect(() => service.flushPersistForBackup()).toThrow()
+    expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(1)
+  })
+
   it('does not broadcast over IPC when persisting', async () => {
     await initService()
     const { BrowserWindow } = await import('electron')

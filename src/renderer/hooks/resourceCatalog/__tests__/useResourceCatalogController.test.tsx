@@ -154,6 +154,7 @@ describe('useResourceCatalogController', () => {
       },
       description: createValues.description,
       instructions: createValues.prompt,
+      knowledgeBaseIds: createValues.knowledgeBaseIds,
       model: createValues.modelId,
       name: createValues.name,
       planModel: createValues.modelId,
@@ -175,6 +176,20 @@ describe('useResourceCatalogController', () => {
 
     expect(toast.error).toHaveBeenCalledWith('duplicate failed')
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
+  })
+
+  it('stores only the resource key when opening the edit dialog', () => {
+    controllerMocks.resourceLibraryState.resources = [assistantResource]
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    act(() => {
+      result.current.gridProps.onEdit(assistantResource)
+    })
+
+    expect(result.current.dialogs.editDialogTarget).toEqual({
+      kind: 'assistant',
+      id: 'assistant-to-duplicate'
+    })
   })
 
   it('reports assistant export failures without throwing', async () => {

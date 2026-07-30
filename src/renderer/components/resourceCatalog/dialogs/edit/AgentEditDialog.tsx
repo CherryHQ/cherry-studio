@@ -20,6 +20,7 @@ import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -32,6 +33,7 @@ import {
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
 import {
+  CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
   type ClaudeToolCategory,
   claudeUserFacingTools
@@ -54,6 +56,7 @@ import {
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
+  KnowledgeBaseField,
   type ModelLabels,
   PromptVariablesPopover,
   TextInputField,
@@ -62,7 +65,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
-export type AgentEditDialogProps = EditDialogBaseProps<AgentDetail> & {
+export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
 }
 
@@ -75,6 +78,7 @@ type AgentEditFormValues = {
   smallModelId: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  knowledgeBaseIds: string[]
   skillIds: string[]
   disabledTools: string[]
   permissionMode: string
@@ -83,7 +87,7 @@ type AgentEditFormValues = {
   heartbeatInterval: number
 }
 
-type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
+type ToolTab = 'tools.builtin' | 'tools.knowledge' | 'tools.mcp' | 'tools.skills'
 
 const logger = loggerService.withContext('AgentEditDialog')
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
@@ -111,7 +115,7 @@ const CATEGORY_LABEL_FALLBACKS: Record<ClaudeToolCategory, string> = {
 }
 
 function isToolTab(value: string): value is ToolTab {
-  return value === 'tools.builtin' || value === 'tools.mcp' || value === 'tools.skills'
+  return value === 'tools.builtin' || value === 'tools.knowledge' || value === 'tools.mcp' || value === 'tools.skills'
 }
 
 function getLeafTabIds(tabs: EditDialogTab[]) {
@@ -129,6 +133,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     smallModelId: form.smallModel,
     instructions: form.instructions,
     mcps: [...form.mcps],
+    knowledgeBaseIds: [...form.knowledgeBaseIds],
     skillIds: [...form.skillIds],
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
@@ -157,6 +162,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     smallModel: values.smallModelId || '',
     instructions: values.instructions,
     mcps: values.mcps,
+    knowledgeBaseIds: values.knowledgeBaseIds,
     skillIds: values.skillIds,
     disabledTools: values.disabledTools,
     permissionMode: values.permissionMode,
@@ -171,6 +177,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
+  form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
@@ -186,14 +193,7 @@ function createAgentPatcher(form: UseFormReturn<AgentEditFormValues>, resource: 
   }
 }
 
-export function AgentEditDialog({
-  resource,
-  open,
-  onOpenChange,
-  onSaved,
-  modelFilter,
-  initialTab
-}: AgentEditDialogProps) {
+export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, initialTab }: AgentEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -201,7 +201,6 @@ export function AgentEditDialog({
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
-      onSaved={onSaved}
       modelFilter={modelFilter}
       initialTab={initialTab}
     />
@@ -212,10 +211,9 @@ function AgentEditDialogContent({
   resource,
   open,
   onOpenChange,
-  onSaved,
   modelFilter,
   initialTab
-}: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
+}: EditDialogBaseProps & { resource: AgentDetail }) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
@@ -228,6 +226,8 @@ function AgentEditDialogContent({
   const values = form.watch()
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
+  const { bases: knowledgeBases, isLoading: knowledgeBasesLoading } = useKnowledgeBases()
+  const availableKnowledgeBaseIds = useMemo(() => new Set(knowledgeBases.map((base) => base.id)), [knowledgeBases])
   const {
     skills,
     loading: skillsLoading,
@@ -260,6 +260,7 @@ function AgentEditDialogContent({
         label: t('library.config.dialogs.edit.tools_tab'),
         children: [
           { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
+          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
           { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
           { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
         ]
@@ -295,6 +296,19 @@ function AgentEditDialogContent({
   }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading, skillsRefreshing])
 
   useEffect(() => {
+    if (!open || knowledgeBasesLoading) return
+
+    // Keep unrelated local edits while removing bindings that disappeared from
+    // the knowledge-base directory after a delete. Agent projection refreshes
+    // caused by this dialog's own saves must not overwrite newer form edits.
+    const currentIds = form.getValues('knowledgeBaseIds')
+    const convergedIds = currentIds.filter((id) => availableKnowledgeBaseIds.has(id))
+    if (convergedIds.length !== currentIds.length) {
+      form.setValue('knowledgeBaseIds', convergedIds, { shouldDirty: false })
+    }
+  }, [availableKnowledgeBaseIds, form, knowledgeBasesLoading, open])
+
+  useEffect(() => {
     if (leafTabIds.has(activeTab)) return
     setActiveTab('basic')
   }, [activeTab, leafTabIds])
@@ -312,20 +326,12 @@ function AgentEditDialogContent({
     form.clearErrors('root')
     saveFailedRef.current = false
 
-    let updated: Awaited<ReturnType<typeof updateAgent>>
     try {
-      updated = await updateAgent(pending.payload)
+      await updateAgent(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       saveFailedRef.current = true
-      return
-    }
-
-    try {
-      await onSaved(updated)
-    } catch (error) {
-      logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
   }
 
@@ -687,15 +693,22 @@ function AgentToolsFields({
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
   const mcps = form.watch('mcps')
+  const knowledgeBaseIds = form.watch('knowledgeBaseIds')
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
   // (empty = all enabled); approval is governed solely by the permission-mode cards.
+  // The kb_* tools are only injected once a knowledge base is bound (runtime gating),
+  // so hide their toggles here when the agent has none — they would otherwise read as
+  // "on" while doing nothing.
+  const hasKnowledgeScope = knowledgeBaseIds.length > 0
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
-    const tools = claudeUserFacingTools()
+    const tools = claudeUserFacingTools().filter(
+      (tool) => hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.name)
+    )
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
@@ -708,7 +721,7 @@ function AgentToolsFields({
           icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [t])
+  }, [t, hasKnowledgeScope])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]
@@ -744,6 +757,9 @@ function AgentToolsFields({
             </div>
           ))}
         </div>
+      ) : null}
+      {activeToolTab === 'tools.knowledge' ? (
+        <KnowledgeBaseField form={form} portalContainer={portalContainer} />
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
         <McpServerCatalogGrid

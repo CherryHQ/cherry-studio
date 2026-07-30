@@ -25,16 +25,31 @@ jobs:
     runs-on: [self-hosted, windows-signing]
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
+      update_manifest: ${{ steps.get-tag.outputs.update_manifest }}
     steps:
       - name: Get tag name
         id: get-tag
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.inputs.tag }}"
           else
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.release.tag_name }}"
           fi
+
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE="${VERSION#*-}"
+            CHANNEL="${PRERELEASE%%.*}"
+            UPDATE_MANIFEST="${CHANNEL}.yml"
+          else
+            UPDATE_MANIFEST="latest.yml"
+          fi
+
+          {
+            echo "tag=$TAG"
+            echo "update_manifest=$UPDATE_MANIFEST"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check out Git repository
         uses: actions/checkout@v6
@@ -68,21 +83,31 @@ jobs:
         shell: bash
         run: rm -rf node_modules
 
-      - name: Configure Windows package architectures
-        shell: pwsh
+      # This job rebuilds arbitrary historical tags, whose pnpm-workspace.yaml may still say
+      # `cpu: [current]` and would ship a win32-arm64 package with no native modules. pnpm only
+      # reads supportedArchitectures on a fresh install, so a rewrite must drop node_modules —
+      # which the persistent self-hosted runner otherwise carries over between tags.
+      - name: Ensure dual-architecture install
+        shell: bash
         run: |
-          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
-          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
-          $windowsArchitectures = @'
-          supportedArchitectures:
-            os:
-              - current
-            cpu:
-              - current
-              - arm64
-          '@
-          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
-          Set-Content pnpm-workspace.yaml $workspaceConfig
+          node -e '
+            const fs = require("fs")
+            const file = "pnpm-workspace.yaml"
+            const wanted = "supportedArchitectures:\n  os:\n    - current\n  cpu:\n    - x64\n    - arm64\n"
+            const original = fs.readFileSync(file, "utf-8")
+            // Indentation of the list items varies across tags, so match the whole block by its
+            // key and everything indented under it rather than by an exact-shape regex.
+            const patched = /^supportedArchitectures:$/m.test(original)
+              ? original.replace(/^supportedArchitectures:\n(?:[ \t]+.*\n)*/m, wanted)
+              : original + "\n" + wanted
+            if (patched === original) {
+              console.log("pnpm-workspace.yaml already builds both architectures")
+              process.exit(0)
+            }
+            fs.writeFileSync(file, patched)
+            fs.rmSync("node_modules", { recursive: true, force: true })
+            console.log("Patched pnpm-workspace.yaml and removed node_modules")
+          '
 
       - name: Install Dependencies
         shell: bash
@@ -106,9 +131,11 @@ jobs:
 
       - name: List built Windows artifacts
         shell: bash
+        env:
+          UPDATE_MANIFEST: ${{ steps.get-tag.outputs.update_manifest }}
         run: |
           echo "Built Windows artifacts:"
-          ls -la dist/*.exe dist/latest*.yml
+          ls -la dist/*.exe "dist/$UPDATE_MANIFEST"
 
       - name: Upload signed Windows artifacts
         uses: actions/upload-artifact@v7
@@ -116,7 +143,7 @@ jobs:
           name: signed-windows-artifacts
           path: |
             dist/*.exe
-            dist/latest.yml
+            dist/${{ steps.get-tag.outputs.update_manifest }}
           if-no-files-found: error
           retention-days: 1
 
@@ -157,6 +184,8 @@ jobs:
 
       - name: Replace Windows files with signed versions
         shell: bash
+        env:
+          UPDATE_MANIFEST: ${{ needs.build-windows-signed.outputs.update_manifest }}
         run: |
           echo "Replacing Windows files with signed versions..."
 
@@ -165,17 +194,20 @@ jobs:
             echo "ERROR: No signed .exe files found in signed-windows-artifacts/"
             exit 1
           fi
-          if [ ! -f signed-windows-artifacts/latest.yml ]; then
-            echo "ERROR: No signed latest.yml found in signed-windows-artifacts/"
+          if [ ! -f "signed-windows-artifacts/$UPDATE_MANIFEST" ]; then
+            echo "ERROR: No signed $UPDATE_MANIFEST found in signed-windows-artifacts/"
             exit 1
           fi
 
           # Remove unsigned Windows files from downloaded assets
-          rm -f release-assets/*.exe release-assets/latest.yml 2>/dev/null || true
+          rm -f release-assets/*.exe "release-assets/$UPDATE_MANIFEST" 2>/dev/null || true
 
           # Copy signed Windows files with error checking
           cp signed-windows-artifacts/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
-          cp signed-windows-artifacts/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
+          cp "signed-windows-artifacts/$UPDATE_MANIFEST" release-assets/ || {
+            echo "ERROR: Failed to copy $UPDATE_MANIFEST"
+            exit 1
+          }
 
           echo "Final release assets:"
           ls -la release-assets/

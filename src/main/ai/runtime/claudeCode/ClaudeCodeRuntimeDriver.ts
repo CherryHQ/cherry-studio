@@ -4,8 +4,10 @@ import {
   type Options,
   type Query,
   query as createClaudeQuery,
+  type SDKAssistantMessage,
   type SDKCompactBoundaryMessage,
   type SDKMessage,
+  type SDKPartialAssistantMessage,
   type SDKResultMessage,
   type SDKStatusMessage,
   type SDKSystemMessage,
@@ -48,8 +50,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
-  AgentSessionLiveIndex,
-  AgentSessionRuntimeDriver
+  AgentSessionRuntimeDriver,
+  AgentSessionUsageCapture
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
@@ -57,16 +59,176 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { sweepClaudeSessionFiles } from './sessionFileSweep'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
-  prepareClaudeCodeWorkspaceDirectory
+  prepareClaudeCodeWorkspaceDirectory,
+  registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
+import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+
+type InvocationUsageBuckets = {
+  outputTokens?: number
+  noCacheTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+}
+
+type InvocationMetricSnapshot = {
+  timeFirstTokenMs?: number
+  timeCompletionMs?: number
+  timeThinkingMs?: number
+}
+
+type InvocationTiming = {
+  streamStartedAt: number
+  ttftMs?: number
+  thinkingStartedAt?: number
+  thinkingDurationMs?: number
+}
+
+type PendingInvocationUsage = {
+  requestId: string
+  model: string
+  messageAssociation: 'current-turn' | 'stateless'
+  startUsage?: InvocationUsageBuckets
+  assistantUsage?: InvocationUsageBuckets
+  terminalUsage?: InvocationUsageBuckets
+  timing?: InvocationTiming
+  metrics?: InvocationMetricSnapshot
+  completionObserved: boolean
+  isStreamStopped: boolean
+}
+
+type InvocationUsageInput = {
+  input_tokens?: number | null
+  output_tokens?: number | null
+  cache_read_input_tokens?: number | null
+  cache_creation_input_tokens?: number | null
+}
+
+function invocationUsageBuckets(usage: InvocationUsageInput): InvocationUsageBuckets | undefined {
+  const reportedValues = [
+    usage.input_tokens,
+    usage.output_tokens,
+    usage.cache_read_input_tokens,
+    usage.cache_creation_input_tokens
+  ].filter((value): value is number => value != null)
+  if (reportedValues.length === 0 || reportedValues.some((value) => !Number.isFinite(value) || value < 0))
+    return undefined
+
+  return {
+    ...(usage.input_tokens != null ? { noCacheTokens: usage.input_tokens } : {}),
+    ...(usage.output_tokens != null ? { outputTokens: usage.output_tokens } : {}),
+    ...(usage.cache_read_input_tokens != null ? { cacheReadTokens: usage.cache_read_input_tokens } : {}),
+    ...(usage.cache_creation_input_tokens != null ? { cacheWriteTokens: usage.cache_creation_input_tokens } : {})
+  }
+}
+
+function mergeInvocationUsageBuckets(
+  current: InvocationUsageBuckets | undefined,
+  next: InvocationUsageBuckets | undefined
+): InvocationUsageBuckets | undefined {
+  if (!current) return next
+  if (!next) return current
+  return {
+    outputTokens: next.outputTokens ?? current.outputTokens,
+    noCacheTokens: next.noCacheTokens ?? current.noCacheTokens,
+    cacheReadTokens: next.cacheReadTokens ?? current.cacheReadTokens,
+    cacheWriteTokens: next.cacheWriteTokens ?? current.cacheWriteTokens
+  }
+}
+
+function materializeInvocationUsage(buckets: InvocationUsageBuckets | undefined) {
+  if (!buckets) return undefined
+  const noCacheTokens = buckets.noCacheTokens ?? 0
+  const cacheReadTokens = buckets.cacheReadTokens ?? 0
+  const cacheWriteTokens = buckets.cacheWriteTokens ?? 0
+  const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+  const outputTokens = buckets.outputTokens ?? 0
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens
+  }
+}
+
+function pendingInvocationFromAssistant(
+  message: SDKAssistantMessage,
+  messageAssociation: PendingInvocationUsage['messageAssociation']
+): PendingInvocationUsage {
+  const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
+  const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
+  return {
+    requestId: message.message.id,
+    model: message.message.model,
+    messageAssociation,
+    ...(assistantUsage ? { assistantUsage } : {}),
+    completionObserved: isComplete,
+    isStreamStopped: false
+  }
+}
+
+function selectAssistantUsage(
+  current: InvocationUsageBuckets | undefined,
+  next: InvocationUsageBuckets | undefined
+): InvocationUsageBuckets | undefined {
+  if (!next) return current
+  if (!current || (next.outputTokens ?? 0) >= (current.outputTokens ?? 0)) return next
+  return current
+}
+
+function finiteNonnegativeDuration(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function startsThinking(event: SDKPartialAssistantMessage['event']): boolean {
+  return (
+    (event.type === 'content_block_start' && event.content_block.type === 'thinking') ||
+    (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta')
+  )
+}
+
+function hasNonReasoningOutput(event: SDKPartialAssistantMessage['event']): boolean {
+  if (event.type === 'content_block_delta') {
+    return (
+      (event.delta.type === 'text_delta' && event.delta.text.length > 0) ||
+      (event.delta.type === 'input_json_delta' && event.delta.partial_json.length > 0)
+    )
+  }
+  if (event.type !== 'content_block_start') return false
+  return (
+    event.content_block.type === 'tool_use' ||
+    event.content_block.type === 'server_tool_use' ||
+    event.content_block.type === 'mcp_tool_use'
+  )
+}
+
+function mergePendingInvocation(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
+  const startUsage = mergeInvocationUsageBuckets(current.startUsage, next.startUsage)
+  const assistantUsage = selectAssistantUsage(current.assistantUsage, next.assistantUsage)
+  const terminalUsage = mergeInvocationUsageBuckets(current.terminalUsage, next.terminalUsage)
+  const timing = next.timing ?? current.timing
+  const metrics = next.metrics ?? current.metrics
+  return {
+    requestId: current.requestId,
+    model: next.model || current.model,
+    messageAssociation: current.messageAssociation,
+    ...(startUsage ? { startUsage } : {}),
+    ...(assistantUsage ? { assistantUsage } : {}),
+    ...(terminalUsage ? { terminalUsage } : {}),
+    ...(timing ? { timing } : {}),
+    ...(metrics ? { metrics } : {}),
+    completionObserved: current.completionObserved || next.completionObserved,
+    isStreamStopped: current.isStreamStopped || next.isStreamStopped
+  }
+}
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -160,6 +322,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
+  private _usageCapture?: AgentSessionUsageCapture
+  private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
+  private readonly streamInvocationIdsByLane = new Map<string, string>()
+  private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
@@ -167,6 +333,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
+  get usageCapture(): AgentSessionUsageCapture | undefined {
+    return this._usageCapture
+  }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
@@ -179,7 +348,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.resumeToken,
       this.input.modelId,
-      this.input.reasoningEffort ?? 'default'
+      this.input.reasoningEffort ?? 'default',
+      this.input.knowledgeBaseIds
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -199,17 +369,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         : {}),
       abortController: this.abortController
     }
-    const warmQuery = traceEnv
+    const consumedWarmQuery = traceEnv
       ? undefined
       : await application.get('ClaudeCodeWarmQueryManager').consume({
           key: request.key,
           options,
           initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint
+          credentialsFingerprint: request.credentialsFingerprint,
+          usageCapture: request.usageCapture,
+          knowledgeBaseIds: request.knowledgeBaseIds
         })
 
-    this.query = warmQuery
-      ? warmQuery.query(this.sdkInputQueue)
+    // A matching warm process may have selected a different rotated key when
+    // it was started. Its receipt, not the freshly materialized request's,
+    // describes the credential that will actually serve this connection.
+    this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
+    this.query = consumedWarmQuery
+      ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
@@ -220,11 +396,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
+    registerMcpSessionCatalogSync(
+      this.input.sessionId,
+      this.input.agentId,
+      request.connectionConfig?.live.toolPolicy.mcps ?? [],
+      this.mcpToolMetadata
+    )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
       this.steerHolder.onInjected = (inputs) => {
         this.steerBoundaryPending = inputs
+        // Reserve the host continuation synchronously before the hook returns. A gateway-backed
+        // subprocess can issue its next provider request before the later `message_start` reaches
+        // this query loop, so the async `steer-boundary` event is too late for request correlation.
+        this.input.onSteerInjected?.(inputs)
       }
     }
     void this.runQueryLoop()
@@ -252,10 +438,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
-    // The hook can only inject text. Decline attachments so the host owns them immediately and queues
-    // them as the next SDK turn instead of leaving them in session-scoped state until this turn ends.
-    const hasAttachments = input.message.data?.parts?.some((part) => part.type !== 'text') ?? false
-    if (!this.adapter || !this.steerHolder || hasAttachments) return false
+    // The hook can only inject text (`extractSteerText` drops everything else), so accept a steer only
+    // when every part is one we know survives that reduction — fail closed on anything new rather than
+    // silently swallowing it. `data-knowledge-scope` qualifies because the host's fold gate has already
+    // proven the incoming effective scope equals the live turn's, making the part redundant here; a
+    // `file` part does not, so it is declined and the host queues it as the next SDK turn immediately
+    // instead of stranding it in session-scoped state until this turn ends.
+    const isInjectableSteerPart = (part: { type: string }) =>
+      part.type === 'text' || part.type === 'data-knowledge-scope'
+    const canInject = input.message.data?.parts?.every(isInjectableSteerPart) ?? true
+    if (!this.adapter || !this.steerHolder || !canInject) return false
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
@@ -265,6 +457,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -280,12 +473,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
-      input.reasoningEffort ?? 'default'
+      input.reasoningEffort ?? 'default',
+      input.knowledgeBaseIds
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -340,6 +535,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): void {
+    this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
@@ -375,12 +571,53 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
 
         if (!this.adapter) {
-          if (message.type === 'result') {
+          if (message.type === 'stream_event') {
+            this.captureStreamInvocation(message, 'stateless')
+          } else if (message.type === 'assistant') {
+            this.captureAssistantInvocation(message, 'stateless')
+          } else if (message.type === 'result') {
             this.updateResumeToken(message.session_id)
+            if (message.subtype === 'success') {
+              this.commitPendingInvocations()
+            } else {
+              this.settlePendingInvocations()
+            }
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
+          } else {
+            // Background agents and tasks can keep emitting after their turn's result (e.g.
+            // `task_notification`). No turn stream is open to carry their content/control events, so
+            // those are dropped. Assistant usage is captured above as a stateless invocation.
+            logger.debug('Dropping message received with no active turn', {
+              sessionId: this.input.sessionId,
+              type: message.type,
+              subtype: 'subtype' in message ? message.subtype : undefined
+            })
           }
+          continue
+        }
+
+        // A failed API request is backing off before a retry. Surface it as ephemeral session status
+        // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
+        // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
+        //
+        // Deliberately gated on an active turn (below the no-adapter drop): retry status is turn-scoped
+        // (it renders in the active turn's message stream), and only a turn guarantees a clear boundary —
+        // the turn ends with a chunk / turn-complete / error, all of which clear it. A prewarm/turn-less
+        // connection's retry would have no message to attach to and no such boundary (init recovery only
+        // emits a resume-token), so it must not enter the retry state at all.
+        if (message.type === 'system' && message.subtype === 'api_retry') {
+          this.eventQueue.push({
+            type: 'api-retry',
+            retry: {
+              attempt: message.attempt,
+              maxRetries: message.max_retries,
+              retryDelayMs: message.retry_delay_ms,
+              errorStatus: message.error_status,
+              errorCategory: message.error
+            }
+          })
           continue
         }
 
@@ -394,12 +631,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.event.type === 'message_start' &&
           message.parent_tool_use_id == null
         ) {
+          this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
         }
 
-        const result = this.adapter.handleMessage(message)
+        if (message.type === 'stream_event') this.captureStreamInvocation(message, 'current-turn')
+        if (message.type === 'assistant') this.captureAssistantInvocation(message, 'current-turn')
+
+        let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
+        try {
+          result = this.adapter.handleMessage(message)
+        } catch (error) {
+          this.settlePendingInvocations()
+          throw error
+        }
         if (result.type === 'result') {
+          this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
           // turn ended right after the gated tool). Drop the arm — no boundary, no empty A2.
@@ -422,6 +670,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     } catch (error) {
+      this.settlePendingInvocations()
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -441,6 +690,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
+      this.settlePendingInvocations()
       this.query = undefined
       this.eventQueue.close()
     }
@@ -493,28 +743,219 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
     if (!usage) return
-    const v3Usage = convertClaudeCodeUsage(usage)
-    const promptTokens = v3Usage.inputTokens.total ?? 0
-    const completionTokens = v3Usage.outputTokens.total ?? 0
-    const reasoningTokens = v3Usage.outputTokens.reasoning
-    const noCacheTokens = v3Usage.inputTokens.noCache
-    const cacheReadTokens = v3Usage.inputTokens.cacheRead
-    const cacheWriteTokens = v3Usage.inputTokens.cacheWrite
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
         type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: promptTokens + completionTokens,
-          promptTokens,
-          completionTokens,
-          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {}),
-          ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
-          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
-          ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
-        }
+        messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
       }
     })
+  }
+
+  private captureAssistantInvocation(
+    message: SDKAssistantMessage,
+    messageAssociation: PendingInvocationUsage['messageAssociation']
+  ): void {
+    const capture = this._usageCapture
+    if (capture?.owner !== 'agent-sdk') return
+
+    if (this.committedInvocationIds.has(message.message.id)) return
+
+    const next = pendingInvocationFromAssistant(message, messageAssociation)
+    this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
+    if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
+      this.commitInvocationUsage(next.requestId)
+    }
+  }
+
+  private captureStreamInvocation(
+    message: SDKPartialAssistantMessage,
+    messageAssociation: PendingInvocationUsage['messageAssociation']
+  ): void {
+    if (this._usageCapture?.owner !== 'agent-sdk') return
+
+    const lane = this.invocationLane(message.parent_tool_use_id)
+    if (message.event.type === 'message_start') {
+      const sdkMessage = message.event.message
+      const startUsage = invocationUsageBuckets(sdkMessage.usage)
+      const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
+      this.captureInvocationForLane(lane, {
+        requestId: sdkMessage.id,
+        model: sdkMessage.model,
+        messageAssociation,
+        ...(startUsage ? { startUsage } : {}),
+        timing: {
+          streamStartedAt: performance.now(),
+          ...(ttftMs !== undefined ? { ttftMs } : {})
+        },
+        completionObserved: false,
+        isStreamStopped: false
+      })
+      return
+    }
+
+    const requestId = this.streamInvocationIdsByLane.get(lane)
+    if (!requestId) return
+
+    if (message.event.type === 'content_block_start' || message.event.type === 'content_block_delta') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      this.pendingInvocations.set(requestId, this.observeInvocationOutput(current, message))
+      return
+    }
+
+    if (message.event.type === 'message_delta') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      const terminalUsage = invocationUsageBuckets(message.event.usage)
+      const isStreamStopped = message.event.delta.stop_reason !== null
+      const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
+      this.pendingInvocations.set(requestId, {
+        ...finalized,
+        ...(terminalUsage ? { terminalUsage } : {}),
+        completionObserved: finalized.completionObserved || isStreamStopped,
+        isStreamStopped: finalized.isStreamStopped || isStreamStopped
+      })
+      if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
+      return
+    }
+
+    if (message.event.type === 'message_stop') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      this.pendingInvocations.set(requestId, {
+        ...this.finalizeInvocationTiming(current),
+        completionObserved: true,
+        isStreamStopped: true
+      })
+      if (current.terminalUsage || current.assistantUsage) this.commitInvocationUsage(requestId)
+    }
+  }
+
+  private observeInvocationOutput(
+    pending: PendingInvocationUsage,
+    message: SDKPartialAssistantMessage
+  ): PendingInvocationUsage {
+    const timing = pending.timing
+    if (!timing) return pending
+
+    let thinkingStartedAt = timing.thinkingStartedAt
+    let thinkingDurationMs = timing.thinkingDurationMs
+    if (startsThinking(message.event) && thinkingStartedAt === undefined) {
+      thinkingStartedAt = performance.now()
+    }
+    if (thinkingStartedAt !== undefined && thinkingDurationMs === undefined && hasNonReasoningOutput(message.event)) {
+      thinkingDurationMs = Math.max(0, Math.round(performance.now() - thinkingStartedAt))
+    }
+
+    return {
+      ...pending,
+      timing: {
+        ...timing,
+        ...(thinkingStartedAt !== undefined ? { thinkingStartedAt } : {}),
+        ...(thinkingDurationMs !== undefined ? { thinkingDurationMs } : {})
+      }
+    }
+  }
+
+  private finalizeInvocationTiming(pending: PendingInvocationUsage): PendingInvocationUsage {
+    const timing = pending.timing
+    if (!timing) return pending
+
+    const completedAt = performance.now()
+    const timeFirstTokenMs = timing.ttftMs
+    const timeCompletionMs =
+      timeFirstTokenMs !== undefined
+        ? Math.max(timeFirstTokenMs, Math.round(timeFirstTokenMs + completedAt - timing.streamStartedAt))
+        : undefined
+    const timeThinkingMs =
+      timing.thinkingDurationMs ??
+      (timing.thinkingStartedAt !== undefined
+        ? Math.max(0, Math.round(completedAt - timing.thinkingStartedAt))
+        : undefined)
+    const metrics = {
+      ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+      ...(timeCompletionMs !== undefined ? { timeCompletionMs } : {}),
+      ...(timeThinkingMs !== undefined ? { timeThinkingMs } : {})
+    }
+
+    return {
+      ...pending,
+      ...(Object.keys(metrics).length > 0 ? { metrics } : {})
+    }
+  }
+
+  private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
+    if (this.committedInvocationIds.has(next.requestId)) {
+      logger.warn('Claude SDK emitted an invocation after it was already committed', {
+        sessionId: this.input.sessionId,
+        requestId: next.requestId,
+        model: next.model
+      })
+      return
+    }
+
+    const previousRequestId = this.streamInvocationIdsByLane.get(lane)
+    if (previousRequestId && previousRequestId !== next.requestId) {
+      this.commitInvocationUsage(previousRequestId)
+    }
+    this.streamInvocationIdsByLane.set(lane, next.requestId)
+
+    const current = this.pendingInvocations.get(next.requestId)
+    this.pendingInvocations.set(next.requestId, current ? mergePendingInvocation(current, next) : next)
+  }
+
+  private commitPendingInvocations(): void {
+    for (const requestId of [...this.pendingInvocations.keys()]) {
+      this.commitInvocationUsage(requestId)
+    }
+  }
+
+  private settlePendingInvocations(): void {
+    for (const [requestId, pending] of [...this.pendingInvocations.entries()]) {
+      if (pending.completionObserved) {
+        this.commitInvocationUsage(requestId)
+      } else {
+        this.discardInvocationUsage(requestId)
+      }
+    }
+  }
+
+  private discardInvocationUsage(requestId: string): void {
+    if (!this.pendingInvocations.delete(requestId)) return
+    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
+      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
+    }
+  }
+
+  private commitInvocationUsage(requestId: string): void {
+    const pending = this.pendingInvocations.get(requestId)
+    if (!pending) return
+    this.pendingInvocations.delete(requestId)
+    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
+      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
+    }
+    this.committedInvocationIds.add(pending.requestId)
+    const usage = materializeInvocationUsage(
+      mergeInvocationUsageBuckets(
+        mergeInvocationUsageBuckets(pending.startUsage, pending.assistantUsage),
+        pending.terminalUsage
+      )
+    )
+    this.eventQueue.push({
+      type: 'usage',
+      invocation: {
+        requestId: pending.requestId,
+        model: pending.model,
+        messageAssociation: pending.messageAssociation,
+        ...(usage ? { usage } : {}),
+        ...(pending.metrics ? { metrics: pending.metrics } : {})
+      }
+    })
+  }
+
+  private invocationLane(parentToolUseId: string | null | undefined): string {
+    return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
   }
 
   private async emitContextUsage(): Promise<void> {
@@ -797,16 +1238,5 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
     // queries and returns), so no driver-side trace guard is needed here.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
-  }
-
-  async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
-    // A deleted session's prewarmed query can outlive its DB row within the warm TTL, still
-    // holding the workspace cwd and appending its transcript — the whole-directory removals
-    // below (and the host's workspace-dir sweep that follows) are only safe once it is closed.
-    const warmManager = application.get('ClaudeCodeWarmQueryManager')
-    for (const sessionId of warmManager.getWarmAgentSessionIds()) {
-      if (!live.isSessionLive(sessionId)) warmManager.closeAgentSessionWarm(sessionId)
-    }
-    await sweepClaudeSessionFiles(live)
   }
 }

@@ -16,8 +16,7 @@ import { mineruDocumentToMarkdownHandler } from '../mineru/documentToMarkdown/ha
 import { paddleDocumentToMarkdownHandler } from '../paddleocr/documentToMarkdown/handler'
 import type { PreparedRemoteJob } from '../types'
 
-const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo =>
-  FileInfoSchema.parse(input) as FileInfo
+const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo => FileInfoSchema.parse(input)
 
 const FAKE_PDF = createFileInfo({
   path: '/tmp/paper.pdf',

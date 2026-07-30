@@ -5,7 +5,7 @@ import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import type { MessageListRuntime, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -16,7 +16,12 @@ import {
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
+import {
+  useTopicAwaitingApproval,
+  useTopicOverlayHandoffOnTerminal,
+  useTopicStreamStatus
+} from '@renderer/hooks/useTopicStreamStatus'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
@@ -35,7 +40,6 @@ export interface ChatTurnInput {
   text: string
   options?: {
     mentionedModels?: UniqueModelId[]
-    knowledgeBaseIds?: string[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
   }
@@ -51,6 +55,7 @@ interface UseChatRuntimeStateParams {
   /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
   rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
+  assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
@@ -101,13 +106,31 @@ export function useChatRuntimeState({
   activeNodeId,
   rootId,
   messagesCacheMutate,
+  assistant,
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
+  const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
+  const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
+  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
+  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
+    messageListRuntimeRef.current = runtime
+    return () => {
+      if (messageListRuntimeRef.current === runtime) {
+        messageListRuntimeRef.current = null
+      }
+    }
+  }, [])
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
+  }, [])
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
+  }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
   // every terminal render was the user's banned anti-pattern (effect-driven
@@ -216,6 +239,7 @@ export function useChatRuntimeState({
   )
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
+  const seedMessagesCache = cache.seedReservedMessages
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[]) => {
       if (reservedMessages.length > 0) {
@@ -228,9 +252,9 @@ export function useChatRuntimeState({
         }
         setBranchLiveMessages((current) => mergeMessagesById(current, reservedMessages))
       }
-      await cache.seedReservedMessages(reservedMessages)
+      await seedMessagesCache(reservedMessages)
     },
-    [cache.seedReservedMessages]
+    [seedMessagesCache]
   )
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
@@ -257,7 +281,6 @@ export function useChatRuntimeState({
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
       mentionedModelIds: options?.mentionedModels,
-      knowledgeBaseIds: options?.knowledgeBaseIds,
       reasoningEffort: options?.reasoningEffort
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
@@ -356,13 +379,24 @@ export function useChatRuntimeState({
   const { actions: chatWriteActions } = useChatWriteActions({
     topic,
     uiMessages: messages,
+    activeNodeId,
     rootId,
     regenerate,
     setMessages,
     stop,
     refresh,
     cache,
-    seedReservedMessages
+    seedReservedMessages,
+    captureLocalSendScrollEligibility,
+    onLocalSendStarted: turnController.markLocalSendStarted,
+    scrollToBottom,
+    startNewContextBlocked:
+      isHistoryLoading ||
+      isTopicStreamPending ||
+      isTopicAwaitingApproval ||
+      turnController.phase === 'persisting' ||
+      turnController.phase === 'opening',
+    assistant
   })
 
   const sendMessage = useCallback(
@@ -386,7 +420,10 @@ export function useChatRuntimeState({
     streamingLayers,
     shouldRenderHomeComposer,
     chatWriteActions,
+    bindMessageListRuntime,
+    captureLocalSendScrollEligibility,
     sendMessage,
+    localSendGeneration: turnController.localSendGeneration,
     composerContext,
     translationOverlay,
     setTranslationOverlay

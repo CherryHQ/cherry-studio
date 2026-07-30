@@ -17,13 +17,17 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   Input,
+  SearchInput,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
+import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -74,6 +78,10 @@ interface Props {
   onAddGroup: (groupName: string) => Promise<void> | void
   allGroups: Group[]
   toolbarLeading?: ReactNode
+  variant?: 'library' | 'settings'
+  /** Settings variant only: page heading rendered above the search row. */
+  title?: ReactNode
+  description?: ReactNode
 }
 
 function getGridColumnCount(width: number) {
@@ -147,18 +155,19 @@ interface SkillAddActionsProps {
   onSearchMarketplace: () => void
   onSearchSystem?: () => void
   onImportLocal: () => void
+  size?: 'sm' | 'default'
 }
 
-function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }: SkillAddActionsProps) {
+function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal, size = 'sm' }: SkillAddActionsProps) {
   const { t } = useTranslation()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="default" size="sm" className="shrink-0">
-          <Plus size={12} className="lucide-custom" />
+        <Button variant="default" size={size} className="shrink-0">
+          <Plus size={size === 'sm' ? 12 : 16} className="lucide-custom" />
           <span>{t('library.skill_add.add')}</span>
-          <ChevronDown size={12} className="text-primary-foreground/70" />
+          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground/70" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
@@ -201,18 +210,20 @@ export const ResourceGrid: FC<Props> = ({
   onGroupFilter,
   onAddGroup,
   allGroups,
-  toolbarLeading
+  toolbarLeading,
+  variant = 'library',
+  title,
+  description
 }) => {
   const { t } = useTranslation()
+  const isSettings = variant === 'settings'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)
-  const [showAddGroup, setShowAddGroup] = useState(false)
   const [showAllGroups, setShowAllGroups] = useState(false)
-  const [newGroupName, setNewGroupName] = useState('')
-  const [addingGroup, setAddingGroup] = useState(false)
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
@@ -236,24 +247,19 @@ export const ResourceGrid: FC<Props> = ({
     }))
   }, [allGroups, groups, showAllGroups])
 
-  const handleAddGroup = async () => {
-    const trimmed = newGroupName.trim()
-    if (!trimmed || addingGroup) return
-    setAddingGroup(true)
-    try {
-      await onAddGroup(trimmed)
-      setNewGroupName('')
-      setShowAddGroup(false)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
-      toast.error(message)
-      logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
-        name: trimmed
-      })
-    } finally {
-      setAddingGroup(false)
-    }
-  }
+  const handleAddGroup = useCallback(
+    async (name: string) => {
+      try {
+        await onAddGroup(name)
+      } catch (error) {
+        logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
+          name
+        })
+        throw error
+      }
+    },
+    [onAddGroup]
+  )
 
   const handleOpenRenameGroup = useCallback((group: GroupItem) => {
     setRenamingGroup(group)
@@ -308,43 +314,80 @@ export const ResourceGrid: FC<Props> = ({
     }
   }, [activeGroupId, deleteGroup, deleting, deletingGroup, onGroupFilter, t])
 
+  const addActions =
+    activeResourceType === 'assistant' ? (
+      <AssistantAddActions
+        onNew={() => onCreate('assistant')}
+        onImport={onImportAssistant}
+        onOpenLibrary={onOpenAssistantLibrary}
+      />
+    ) : activeResourceType === 'skill' ? (
+      <SkillAddActions
+        onSearchMarketplace={onOpenSkillMarketplace}
+        onSearchSystem={onOpenSystemSkills}
+        onImportLocal={() => onCreate('skill')}
+        size={isSettings ? 'default' : 'sm'}
+      />
+    ) : (
+      <Button
+        variant="default"
+        size={isSettings ? 'default' : 'sm'}
+        onClick={() => onCreate(activeResourceType)}
+        className="shrink-0">
+        <Plus size={isSettings ? 16 : 12} className="lucide-custom" />
+        <span>{t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}</span>
+      </Button>
+    )
+
+  const searchInput = isSettings ? (
+    <SearchInput
+      aria-label={t('library.toolbar.search_placeholder')}
+      placeholder={t('library.toolbar.search_placeholder')}
+      value={search}
+      onChange={(event) => onSearchChange(event.currentTarget.value)}
+      onClear={() => onSearchChange('')}
+      clearLabel={t('common.clear')}
+    />
+  ) : (
+    <ResourceCatalogSearchInput
+      value={search}
+      onValueChange={onSearchChange}
+      placeholder={t('library.toolbar.search_placeholder')}
+      className="max-w-64 flex-1"
+    />
+  )
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col border-border-muted border-b">
-        <div className="flex h-12 shrink-0 items-center gap-2 px-5">
-          {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
-          <ResourceCatalogSearchInput
-            value={search}
-            onValueChange={onSearchChange}
-            placeholder={t('library.toolbar.search_placeholder')}
-            className="max-w-64 flex-1"
-          />
+      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-muted border-b')}>
+        {isSettings ? (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <SettingTitle>
+                  <span>{title}</span>
+                </SettingTitle>
+                {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
+              </div>
+              {addActions}
+            </div>
+            <SettingDivider />
+            <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
+              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
+                {searchInput}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-12 shrink-0 items-center gap-2 px-5">
+            {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
+            {searchInput}
 
-          <div className="flex-1" />
+            <div className="flex-1" />
 
-          <div className="flex shrink-0 items-center gap-2">
-            {activeResourceType === 'assistant' ? (
-              <AssistantAddActions
-                onNew={() => onCreate('assistant')}
-                onImport={onImportAssistant}
-                onOpenLibrary={onOpenAssistantLibrary}
-              />
-            ) : activeResourceType === 'skill' ? (
-              <SkillAddActions
-                onSearchMarketplace={onOpenSkillMarketplace}
-                onSearchSystem={onOpenSystemSkills}
-                onImportLocal={() => onCreate('skill')}
-              />
-            ) : (
-              <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
-                <Plus size={12} className="lucide-custom" />
-                <span>
-                  {t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}
-                </span>
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">{addActions}</div>
           </div>
-        </div>
+        )}
 
         {showGroupToolbar && (
           <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
@@ -397,47 +440,20 @@ export const ResourceGrid: FC<Props> = ({
                 </Button>
               )}
 
-              {showAddGroup ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <Input
-                    autoFocus
-                    maxLength={64}
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleAddGroup()
-                      if (e.key === 'Escape') {
-                        setShowAddGroup(false)
-                        setNewGroupName('')
-                      }
-                    }}
-                    onBlur={() => {
-                      if (!newGroupName.trim() && !addingGroup) setShowAddGroup(false)
-                    }}
-                    disabled={addingGroup}
-                    placeholder={t('library.toolbar.add_group_placeholder')}
-                    className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => void handleAddGroup()}
-                    disabled={addingGroup || !newGroupName.trim()}
-                    className="size-6 text-foreground-muted hover:text-foreground">
-                    <Plus size={12} />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowAddGroup(true)}
-                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
-                  <Plus size={11} /> {t('library.toolbar.group_button')}
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                onClick={() => setCreateGroupDialogOpen(true)}
+                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
+                <Plus size={11} /> {t('library.toolbar.group_button')}
+              </Button>
             </div>
           </div>
         )}
+        <CreateGroupDialog
+          open={createGroupDialogOpen}
+          onCreate={handleAddGroup}
+          onOpenChange={setCreateGroupDialogOpen}
+        />
         <Dialog
           open={Boolean(renamingGroup)}
           onOpenChange={(open) => {
@@ -492,9 +508,12 @@ export const ResourceGrid: FC<Props> = ({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        className={cn(
+          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1',
+          isSettings ? 'py-3' : 'px-5 py-4'
+        )}>
         {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} />
+          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
         ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
@@ -519,7 +538,7 @@ export const ResourceGrid: FC<Props> = ({
   )
 }
 
-function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
+function ResourceGridLoadingState({ columnCount, resourceType }: { columnCount: number; resourceType: ResourceType }) {
   const count = Math.max(columnCount, 1) * 4
 
   return (
@@ -528,7 +547,12 @@ function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
       data-testid="resource-grid-loading"
       style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}>
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
+        <div
+          key={index}
+          className="rounded-lg border border-border-subtle bg-card p-3.5"
+          style={
+            resourceType === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined
+          }>
           <div className="flex items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
             <div className="min-w-0 flex-1 space-y-2">

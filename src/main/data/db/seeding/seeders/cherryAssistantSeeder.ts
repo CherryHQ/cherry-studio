@@ -1,12 +1,11 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { userModelTable } from '@data/db/schemas/userModel'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { count, eq } from 'drizzle-orm'
+import { count } from 'drizzle-orm'
+import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { DbOrTx, DbType, ISeeder } from '../../types'
@@ -45,10 +44,12 @@ export class CherryAssistantSeeder implements ISeeder {
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
         type: 'claude-code',
-        name: CHERRY_ASSISTANT_SEED.name,
+        name: this.getNameForPreferredSystemLanguage(),
         description: '',
         instructions: '',
-        model: this.getCherryAiDefaultModelId(tx),
+        // The managed CherryAI model cannot run the agent runtime. Onboarding
+        // assigns the user's default model when they choose one.
+        model: null,
         configuration: { ...CHERRY_ASSISTANT_SEED.configuration }
       })
 
@@ -75,13 +76,12 @@ export class CherryAssistantSeeder implements ISeeder {
     return sessionCount > 0
   }
 
-  private getCherryAiDefaultModelId(tx: DbOrTx): string | null {
-    const [model] = tx
-      .select({ id: userModelTable.id })
-      .from(userModelTable)
-      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-      .limit(1)
-      .all()
-    return model?.id ?? null
+  private getNameForPreferredSystemLanguage(): string {
+    try {
+      const preferredLanguage = app.getPreferredSystemLanguages()[0]
+      return preferredLanguage?.toLowerCase().startsWith('zh') ? 'Cherry 助理' : CHERRY_ASSISTANT_SEED.name
+    } catch {
+      return CHERRY_ASSISTANT_SEED.name
+    }
   }
 }

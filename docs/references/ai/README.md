@@ -1,8 +1,8 @@
 # AI Reference
 
 This is the entry point for the AI pipeline in Cherry Studio v2 — the
-main-process service that owns every LLM call (chat streams, agent loops,
-translate, summarisation) and the renderer-side transport that connects to it.
+main-process runtimes that own provider calls (AI SDK and direct Agent SDK),
+plus the renderer-side transport that connects to them.
 
 ## Quick navigation
 
@@ -25,6 +25,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
+| [AI Usage Records](./ai-usage-records.md) | Best-effort per-provider-invocation usage/cost analytics: capture ownership, immutable attribution snapshots, message projection, bounded query API, migration, freshness |
 
 ### Renderer-side glue
 

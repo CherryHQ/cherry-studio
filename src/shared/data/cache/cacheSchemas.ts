@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -129,7 +130,7 @@ export type UseCacheSchema = {
   'knowledge.recall.search_queries': Record<string, string[]>
 
   // Notes page state
-  'notes.active_file_path': string | undefined
+  'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -178,7 +179,12 @@ export type UseCacheSchema = {
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
-  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
+  'message.ui.${messageId}': {
+    foldSelected?: boolean
+    multiModelMessageStyle?: string
+    useful?: boolean
+    disclosures?: Record<string, boolean>
+  }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -248,7 +254,10 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  // Runtime-only opt-out shared across windows; resets when the app exits.
+  'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
@@ -279,7 +288,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
   'topic.stream.statuses.${topicId}': null,

@@ -142,9 +142,8 @@ describe('reduceAtBottom', () => {
     })
 
     it('user upward scroll latches out even within the at-bottom tolerance', () => {
-      // Right after a top-pin releases, the viewport still measures within the
-      // effective bottom's tolerance. A small upward user gesture there is an
-      // intent to read — it must not be re-latched into bottom-follow.
+      // Even within the effective bottom's tolerance, a small upward user
+      // gesture is intent to read and must not re-latch bottom-follow.
       const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',

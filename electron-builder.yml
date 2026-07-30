@@ -87,6 +87,9 @@ extraResources:
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -151,52 +154,50 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-beta.1 - V2 Beta Is Here
+    Cherry Studio 2.0.0-rc.2 - Model Routing, Clear Context & v2 Stabilization
 
-    ✨ New Experience
-    - [V2] This is the first public Beta of Cherry Studio V2, with a cleaner look and a simpler workspace
-    - [Tabs] Chats, mini apps, tools, and detached windows now feel more like working in a browser, with tabs you can pin or move out
-    - [Pages] Chat, Settings, Knowledge, Translation, Mini Apps, Launchpad, Code Tools, and Resource Library have all been rebuilt for V2
-    - [Library] Assistants, agents, and skills now live together in one Resource Library, with search, tags, import/export, and clearer detail views
-    - [Migration] V2 includes a guided upgrade flow for your existing settings, chats, agents, knowledge bases, files, models, providers, MCP servers, and preferences
+    ✨ New Features
+    - [Knowledge] Added a Select All control when importing notes into a knowledge base.
+    - [Claude Code] Claude Code provider now offers Claude Opus 5 and Claude Sonnet 5, plus 1M-context variants of Opus 4.6/4.7/4.8/5 and Sonnet 4.6.
+    - [Chat] Home Chat can now start a fresh model context without creating a new conversation. Use Cmd/Ctrl+K or the input QuickPanel; the optional eraser button remains hidden by default and can be enabled from toolbar customization.
 
-    🚀 New Capabilities
-    - [Chat] Branching conversations are easier to follow, and the message area and input box are ready for the new V2 chat experience
-    - [Knowledge] Knowledge bases are more flexible: add URLs and notes, tune chunking, handle folders better, browse long source lists, and import documents through File Processing
-    - [Providers] Provider and model management is easier, with grouped lists, model search, model deletion, clearer validation, and better model details
-    - [Web Search] Web Search now separates keyword search from URL reading, with better defaults and improved access through the Jina China mirror
-    - [Code Tools] Code tools now open from a gallery-style page, with per-tool settings and support for Qoder CLI and Kimi Code
-    - [MCP] MCP servers are easier to discover, install, and manage from the refreshed marketplace
-    - [Translate] Image OCR in Translation now uses the same File Processing flow as the rest of the app
-
-    ⚡ Performance
-    - [Startup] The app does less heavy work at launch, so startup should feel lighter
-    - [Data] Local data now uses the new V2 storage system, making chats, knowledge bases, settings, files, providers, and models more reliable
-    - [Agents] Agent and chat startup no longer has to wait on every MCP server refresh
-    - [Jobs] Image generation, file processing, OCR, indexing, and recovery now run through a smoother background job system
+    🐛 Bug Fixes
+    - [Chat] Fixed chat message toolbar icon buttons (edit, copy, regenerate, delete, save to notes) missing accessible names, so screen readers and keyboard users can now identify them.
+    - [Models] Fixed incorrect model grouping for providers that return flat model IDs.
+    - [Agent] Editing an assistant or agent now keeps the edit dialog open after each automatic save.
+    - [Chat] Fixed message-list flickering and ghosting when reversing direction while dragging the scrollbar thumb.
+    - [MCP] MCP JSON import now supports configurations containing multiple servers.
+    - [Agent] Changing the app language now updates existing agent sessions on their next turn instead of retaining the previous response-language instruction.
+    - [Chat] Fixed drag selection so messages leave the multi-select set when the selection box shrinks.
+    - [Agent] Fixed OpenCode Go and other mixed-endpoint providers returning a 400 error in new Agent Sessions by routing each model through its declared protocol.
+    - [Chat] Conversations and agent sessions without a valid owner are now consistently labeled Unlinked Assistant or Unlinked Agent while preserving their titles.
+    - [MCP] Fixed MCP server environment variables and headers remaining configured after all entries are cleared.
+    - [Notes] Opening an existing note no longer steals focus or jumps the caret to the end of the document; only new (empty) notes automatically focus the editor.
+    - [Migration] Migrated Agent tasks now preserve managed workspace files and relocate available Claude session caches while surfacing unavailable resume data through the normal runtime error.
+    - [Migration] Fixed model endpoint routing after migrating from Cherry Studio v1, including NewAPI-compatible providers.
+    - [Data] Existing v1 clear-context boundaries are preserved during migration when they have not already been discarded by an earlier v2 preview migration.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-beta.1 - V2 Beta 来了
+    Cherry Studio 2.0.0-rc.2 - 模型路由、清除上下文与 v2 稳定化
 
-    ✨ 全新体验
-    - [V2] 这是 Cherry Studio V2 的第一个公开 Beta，界面更清爽，工作区也更顺手
-    - [标签页] 聊天、小程序、工具和独立窗口现在更像浏览器标签页，可以固定，也可以分离出去
-    - [页面] 聊天、设置、知识库、翻译、小程序、启动台、代码工具和资源库都已经按 V2 重新打造
-    - [资源库] 助手、智能体和技能现在集中在一个资源库里管理，支持搜索、标签、导入导出和更清晰的详情页
-    - [迁移] V2 提供引导式升级流程，迁移已有设置、聊天、智能体、知识库、文件、模型、提供商、MCP 服务和偏好设置
+    ✨ 新功能
+    - [知识库] 在向知识库导入笔记时新增“全选”控件。
+    - [Claude Code] Claude Code 服务商现已提供 Claude Opus 5 与 Claude Sonnet 5，以及 Opus 4.6/4.7/4.8/5 和 Sonnet 4.6 的 1M 上下文变体。
+    - [聊天] 主聊天现可在不新建对话的情况下开启全新的模型上下文。使用 Cmd/Ctrl+K 或输入框快捷面板；可选的橡皮擦按钮默认隐藏，可在工具栏自定义中开启。
 
-    🚀 新能力
-    - [聊天] 多分支对话更容易看懂，消息区和输入框也已经为新的 V2 聊天体验打好基础
-    - [知识库] 知识库更灵活了：可以添加 URL 和笔记，调整分块方式，更好地处理文件夹，浏览长数据源列表，并通过文件处理导入文档
-    - [提供商] 提供商和模型管理更顺手，支持分组列表、模型搜索、删除模型、更清晰的校验和更完整的模型信息
-    - [网络搜索] 网络搜索现在区分关键词搜索和 URL 读取，默认配置更清楚，并通过 Jina 国内镜像改善访问体验
-    - [代码工具] 代码工具改成画廊式入口，每个工具都有独立设置，并支持 Qoder CLI 和 Kimi Code
-    - [MCP] MCP 服务可以在改版后的市场里更方便地发现、安装和管理
-    - [翻译] 翻译里的图片 OCR 现在和应用里的文件处理流程保持一致
-
-    ⚡ 性能优化
-    - [启动] 启动时少做重活，打开应用应该更轻快
-    - [数据] 本地数据换到新的 V2 存储系统，聊天、知识库、设置、文件、提供商和模型数据存储会更可靠
-    - [智能体] 智能体和聊天启动时不再需要等待所有 MCP 服务刷新
-    - [任务] 图片生成、文件处理、OCR、索引和恢复流程现在由后台任务系统处理，更顺畅也更稳
+    🐛 问题修复
+    - [聊天] 修复了聊天消息工具栏图标按钮（编辑、复制、重新生成、删除、保存到笔记）缺少无障碍名称的问题，屏幕阅读器与键盘用户现可识别它们。
+    - [模型] 修复了返回扁平模型 ID 的服务商的模型分组错误。
+    - [智能体] 编辑助手或智能体时，每次自动保存后编辑对话框现保持打开。
+    - [聊天] 修复了反向拖动滚动条滑块时消息列表的闪烁与残影问题。
+    - [MCP] MCP JSON 导入现支持包含多个服务器的配置。
+    - [智能体] 更改应用语言后，已有智能体会话在下一轮对话中随即更新，不再沿用旧的回复语言指令。
+    - [聊天] 修复了拖选：当选择框缩小时，消息会移出多选集合。
+    - [智能体] 修复了 OpenCode Go 等混合端点服务商在新智能体会话中返回 400 错误的问题，现按各模型声明的协议进行路由。
+    - [聊天] 没有有效属主的对话与智能体会话现统一标记为“未关联助手”或“未关联智能体”，并保留标题。
+    - [MCP] 修复了 MCP 服务器环境变量与请求头在所有条目清空后仍保留配置的问题。
+    - [笔记] 打开已有笔记不再抢占焦点或将光标跳到文档末尾；仅新建（空白）笔记会自动聚焦编辑器。
+    - [迁移] 迁移后的智能体任务现保留受管工作区文件，并迁移可用的 Claude 会话缓存，不可用的恢复数据通过常规运行时错误展示。
+    - [迁移] 修复了从 Cherry Studio v1 迁移后的模型端点路由，含 NewAPI 兼容服务商。
+    - [数据] 既有 v1 的清除上下文边界在迁移时被保留（未被早期 v2 预览迁移丢弃的情况下）。
     <!--LANG:END-->

@@ -15,6 +15,7 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Message as SharedMessage, type MessageSnapshot, toContentRole } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -289,6 +290,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
       const history = this.buildHistory(userMessage.id)
+      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
@@ -297,7 +299,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           model.id,
           history,
           placeholder.id,
-          req.knowledgeBaseIds,
+          knowledgeBaseIds,
           req.trigger === 'submit-message' ? req.reasoningEffort : undefined
         ),
         rootSpan
@@ -346,6 +348,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (anchor.topicId !== req.topicId) {
       throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
     }
+    const knowledgeBaseIds = anchor.parentId
+      ? getKnowledgeBaseIdsFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
+      : undefined
 
     // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
@@ -384,13 +389,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
+            runtimeTimingSeed: anchor.stats?.runtimeTiming,
             request: this.buildStreamRequest(
               req.topicId,
               assistantId,
               model.id,
               history,
               anchor.id,
-              undefined,
+              knowledgeBaseIds,
               undefined
             ),
             rootSpan
@@ -465,7 +471,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               model.id,
               history,
               placeholder.id,
-              undefined,
+              getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort
             ),
             rootSpan
@@ -488,7 +494,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    */
   private buildHistory(anchorMessageId: string): CherryUIMessage[] {
     const messagePath = messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
+    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    return messagePath.slice(lastClearIndex + 1).map((msg) => ({
       id: msg.id,
       role: toContentRole(msg.role),
       parts: msg.data.parts ?? []
