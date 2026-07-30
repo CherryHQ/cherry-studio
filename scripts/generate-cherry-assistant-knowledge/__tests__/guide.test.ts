@@ -18,6 +18,10 @@ const MARKETPLACE_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-skill-marketplace/SKILL.md'
 )
+const FEEDBACK_PATH = path.join(
+  ROOT_DIR,
+  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-studio-feedback/SKILL.md'
+)
 const SKILLS_MANAGER_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/skills-manager/SKILL.md'
@@ -122,6 +126,34 @@ describe('Cherry Assistant guide', () => {
     expect(marketplace).toContain('调用内置 `skill-creator`')
     expect(marketplace).toContain('不要自行编写 `SKILL.md`')
     expect(marketplace).toContain('回到原始任务')
+  })
+
+  it('bundles a consented and redacted Cherry Studio feedback workflow', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      instructions: Record<'en-US' | 'zh-CN', string>
+      skills: string[]
+    }
+    const feedback = fs.readFileSync(FEEDBACK_PATH, 'utf-8')
+
+    expect(agent.skills).toContain('cherry-studio-feedback')
+    expect(agent.instructions['en-US']).toContain(
+      'Collect or submit Cherry Studio feedback -> `cherry-studio-feedback`'
+    )
+    expect(agent.instructions['en-US']).toContain('File a GitHub Issue -> `issue-reporter`')
+    expect(agent.instructions['zh-CN']).toContain('只收集用户同意的诊断信息')
+    expect(feedback).toContain('mcp__assistant__diagnose({ action: "info" })')
+    expect(feedback).toContain('mcp__assistant__diagnose({ action: "errors", lines: 100 })')
+    expect(feedback).toContain('mcp__assistant-files__save_attachment')
+    expect(feedback).toContain('外部提交前展示最终字段、附件文件名和接收方')
+    expect(feedback).toContain('lark-cli base +form-detail')
+    expect(feedback).toContain('auth status --json --verify')
+    expect(feedback).toContain('返回 `ok == true`')
+    expect(feedback).toContain('匿名反馈包上传')
+    expect(feedback).toContain('不盲目解压整个压缩包')
+    expect(feedback).toContain('“上传错误信息”按钮属于客户端/服务端功能')
+    expect(feedback).not.toContain('cherrystudio.sqlite')
+    expect(feedback).not.toContain('~/Documents/Cherry')
+    expect(feedback).not.toContain('UqjTbBFGWapnOrsJaDgcuyEbnUg')
   })
 
   it('routes document conversion through content reconstruction without promising layout fidelity', () => {

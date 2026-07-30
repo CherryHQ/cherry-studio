@@ -115,6 +115,20 @@
       }
     },
     {
+      "filename": "cherry-studio-feedback",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-studio-feedback",
+        "filename": "cherry-studio-feedback",
+        "name": "cherry-studio-feedback",
+        "description": "收集、脱敏、预览并提交 Cherry Studio BUG、UI/UX 或功能反馈。可在用户同意后调用内置诊断工具整理环境、错误日志、截图和用户导出的 trace，自动提交飞书表单或生成匿名上传 ZIP；也可安全解析反馈 ZIP 为表单字段。用户说“提交反馈”“上报 bug”“收集/上传错误信息”“整理日志/trace”“生成反馈包”，或描述 Cherry Studio 问题并希望记录时触发。明确要求 GitHub Issue 时改用 issue-reporter。",
+        "category": "skills",
+        "type": "skill",
+        "size": 8838,
+        "contentHash": "7fdf2698e3f6e57a2c2da19557375a35eedf70ed83ce2887ebc9c2e4a97ddf9b"
+      }
+    },
+    {
       "filename": "issue-reporter",
       "type": "skill",
       "metadata": {
