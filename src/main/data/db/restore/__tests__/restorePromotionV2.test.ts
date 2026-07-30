@@ -539,7 +539,8 @@ describe('restore promotion v2', () => {
     it('refuses a missing owner summary before any mutation when called without the preboot compatibility shell', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
-      const { ownerSummary: _ownerSummary, ...legacyJournal } = buildJournal()
+      const legacyJournal = { ...buildJournal() }
+      delete legacyJournal.ownerSummary
       writeRestoreJournalV2(legacyJournal)
 
       await expect(runRestorePromotionV2()).rejects.toThrow(/owner readiness summary is missing/)
@@ -552,7 +553,8 @@ describe('restore promotion v2', () => {
     it('lets the preboot shell finish an already-armed pre-release journal through its compatibility projection', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
-      const { ownerSummary: _ownerSummary, ...legacyJournal } = buildJournal()
+      const legacyJournal = { ...buildJournal() }
+      delete legacyJournal.ownerSummary
       writeRestoreJournalV2(legacyJournal)
 
       await runBackupRestoreGate()
