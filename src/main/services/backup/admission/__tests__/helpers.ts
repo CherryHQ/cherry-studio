@@ -4,11 +4,11 @@ import { stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import zlib from 'node:zlib'
 
+import { applyMigrations } from '@data/db/applyMigrations'
 import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 
 import type { BackupManifest, ResourcePayload } from '../../manifest'
 
@@ -125,14 +125,14 @@ export async function dbMeta(dbPath: string): Promise<DbMeta> {
 }
 
 /**
- * Build a fresh DB migrated ONLY through the given migrations folder (chain-only:
- * uses drizzle's raw `migrate`, no custom SQL), so a truncated folder yields a
- * genuine older-chain DB.
+ * Build a fresh DB through the given migrations folder, using the same
+ * foreign-key-safe wrapper as production. A truncated folder therefore yields
+ * a genuine older-chain DB without bypassing migration safety.
  */
 export function buildMigratedDb(destPath: string, migrationsFolder: string): void {
   const sqlite = new Database(destPath)
   try {
-    migrate(drizzle({ client: sqlite, casing: 'snake_case' }), { migrationsFolder })
+    applyMigrations(drizzle({ client: sqlite, casing: 'snake_case' }), migrationsFolder)
   } finally {
     sqlite.close()
   }
