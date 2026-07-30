@@ -174,6 +174,14 @@ function getSteerHolder(sessionId: string): SteerHolder {
 // subprocess never sees, so mid-session tool-policy updates would silently no-op.
 type ToolPolicySnapshot = Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 const toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
+interface McpSessionCatalogState {
+  agentId: string
+  serverIds: Set<string>
+  metadata: Record<string, McpToolDisplayMetadata>
+  refreshSequence: number
+  subscription?: { dispose(): void }
+}
+const mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
 
 async function ensureToolPolicySnapshot(
   sessionId: string,
@@ -198,6 +206,72 @@ function getToolPolicySnapshot(sessionId: string): ToolPolicySnapshot | undefine
 
 export function disposeToolPolicySnapshot(sessionId: string): void {
   toolPolicySnapshots.delete(sessionId)
+  mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
+  mcpSessionCatalogStates.delete(sessionId)
+}
+
+export function registerMcpSessionCatalogSync(
+  sessionId: string,
+  agentId: string,
+  mcpIds: readonly string[],
+  metadata: Record<string, McpToolDisplayMetadata> | undefined
+): void {
+  mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
+  mcpSessionCatalogStates.delete(sessionId)
+  if (!metadata || mcpIds.length === 0) return
+
+  const serverIds = new Set(
+    mcpIds.flatMap((mcpId) => {
+      const server = mcpServerService.findByIdOrName(mcpId)
+      return server ? [server.id] : []
+    })
+  )
+  if (serverIds.size === 0) return
+
+  const state: McpSessionCatalogState = {
+    agentId,
+    serverIds,
+    metadata,
+    refreshSequence: 0
+  }
+  state.subscription = application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
+    if (!state.serverIds.has(serverId)) return
+    void refreshMcpSessionCatalogState(sessionId).catch((error) => {
+      logger.warn('Failed to refresh live MCP session catalog', { sessionId, serverId, error })
+    })
+  })
+  mcpSessionCatalogStates.set(sessionId, state)
+}
+
+async function refreshMcpSessionCatalogState(sessionId: string): Promise<void> {
+  const state = mcpSessionCatalogStates.get(sessionId)
+  if (!state) return
+  const liveAgent = agentService.getAgent(state.agentId)
+  if (!liveAgent) return
+  const sequence = ++state.refreshSequence
+
+  const [policyResult, metadataResult] = await Promise.allSettled([
+    getToolPolicySnapshot(sessionId)?.update(liveAgent),
+    buildMcpToolMetadata(liveAgent)
+  ])
+  if (mcpSessionCatalogStates.get(sessionId) !== state || sequence !== state.refreshSequence) return
+
+  if (policyResult.status === 'rejected') {
+    logger.warn('Failed to refresh MCP tool policy snapshot after catalog update', {
+      sessionId,
+      error: policyResult.reason
+    })
+  }
+  if (metadataResult.status === 'rejected') {
+    logger.warn('Failed to refresh MCP tool metadata after catalog update', {
+      sessionId,
+      error: metadataResult.reason
+    })
+    return
+  }
+
+  for (const key of Object.keys(state.metadata)) delete state.metadata[key]
+  if (metadataResult.value) Object.assign(state.metadata, metadataResult.value)
 }
 
 function extractSteerText(input: AgentRuntimeUserInput): string {
@@ -286,21 +360,16 @@ export async function buildClaudeCodeSessionSettings(
   // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
   const assistantMcpEnabled = isAssistant && linkedChannelSnapshot === null
 
-  // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
-  // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
-  // `warmAgentMcpToolCaches`. The returned handle drives the post-timeout reconciliation below.
-  const mcpWarm = await warmAgentMcpToolCaches(agent)
-
-  // 1. Working directory (session-bound)
+  // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
-
-  // 2. Environment variables
-  const env = await buildEnvironment(provider, agent)
-
-  // 3. Plugins
-  const workspacePlugins = await discoverPlugins(cwd, session.agentId)
+  const mcpWarmPromise = warmAgentMcpToolCaches(agent)
+  const [agentDataPath, env, workspacePlugins] = await Promise.all([
+    ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
+    buildEnvironment(provider, agent),
+    discoverPlugins(cwd, agent.id)
+  ])
+  const mcpWarm = await mcpWarmPromise
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(agentConfig?.builtin_role)
   const plugins = needsPrivateSkillPlugin
     ? [
@@ -339,18 +408,16 @@ export async function buildClaudeCodeSessionSettings(
     options?.knowledgeBaseIds
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
+  if (agent.mcps?.length) mcpToolMetadata ??= {}
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
   // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
   // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
-  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can
-  // see. Those two are one-shot bakes with no invalidation channel of their own, so chain onto the
-  // surviving refresh: rebuild the live session policy snapshot and fill the metadata map in place
-  // (the stream adapter reads this same object by reference on every turn), so both converge with
-  // what the bridge exposes. The agent is re-fetched at fire-time so this late rebuild can't
-  // clobber a policy update applied between build and refresh completion.
+  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can see.
+  // Rebuild the shared policy snapshot and fill this build's metadata object in place when the warm
+  // lands. A real connection separately registers live catalog sync after it owns the settings;
+  // warm-only settings builds never subscribe.
   if (!mcpWarm.completedInTime) {
-    mcpToolMetadata ??= {}
     const metadataRef = mcpToolMetadata
     void mcpWarm.warm
       .then(async () => {
@@ -358,7 +425,9 @@ export async function buildClaudeCodeSessionSettings(
         if (!liveAgent) return
         await getToolPolicySnapshot(session.id)?.update(liveAgent)
         const freshMetadata = await buildMcpToolMetadata(liveAgent)
-        if (freshMetadata) Object.assign(metadataRef, freshMetadata)
+        if (!metadataRef || !freshMetadata) return
+        for (const key of Object.keys(metadataRef)) delete metadataRef[key]
+        Object.assign(metadataRef, freshMetadata)
       })
       .catch((error) => {
         logger.warn('Failed to reconcile MCP tool snapshot after bounded warm timed out', {
@@ -677,11 +746,11 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
  * startup reconcile, never here — so concurrent session builds never race.
  */
 export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
-  const installedSkills = await skillService.list({ agentId })
+  const [installedSkills, workspaceNames] = await Promise.all([
+    skillService.list({ agentId }),
+    skillService.listLocalFolderNames(cwd)
+  ])
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
-
-  const workspaceSkills = await skillService.listLocal(cwd)
-  const workspaceNames = workspaceSkills.map((skill) => skill.filename)
 
   return Array.from(new Set([...enabledNames, ...workspaceNames]))
 }
@@ -1292,16 +1361,16 @@ function addMcpToolMetadataAliases(
 // Session build reads MCP tools from cache-only `listTools` (sync, so a dead server can't stall
 // startup — issue #16242). The approval descriptors + tool-card metadata built below therefore
 // see nothing for a server whose cache is still cold on a first session. Warm the agent's own
-// servers via the single-flighted `warmToolsCache` so those cache-only reads reflect configured
-// tools — bounded by a short cap so a dead/slow server still can't stall session start; on
-// timeout we fall back to the empty cache. The in-flight refresh keeps running past the cap and
+// servers via the single-flighted `warmToolsCache` so fast cache hits can contribute configured
+// tools — bounded by a short cache-hit window so a dead/slow server still can't stall session
+// start; on timeout we fall back to the empty cache. The in-flight refresh keeps running past the cap and
 // then converges BOTH remaining consumers: the caller chains a reconciliation onto `warm` (step 7
 // of the build) that rebuilds the session snapshot + metadata, and the cache write it lands fires
 // `onToolsCacheUpdated`, which the SDK bridge relays as `tools/list_changed` so the SDK re-lists.
 // The warm also carries a liveness duty beyond latency: it is the only path that re-probes a
-// warmed-but-empty cache (see `warmToolsCache`), i.e. the retry that lets a previously-dead
-// server recover at all.
-const MCP_WARM_TIMEOUT_MS = 3_000
+// warmed-but-empty cache after its retry window (see `warmToolsCache`), letting a previously-dead
+// server recover without reconnecting it on every session build.
+const MCP_WARM_TIMEOUT_MS = 100
 
 interface McpWarmResult {
   // False when the bounded race hit the cap with the refresh still in flight.

@@ -10,6 +10,7 @@ import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  getMessageTitle: vi.fn(),
   processMessageContent: vi.fn(),
   submitKnowledgeItems: vi.fn()
 }))
@@ -26,6 +27,10 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: vi.fn()
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: mocks.getMessageTitle
+}))
+
 vi.mock('@renderer/utils/knowledge', () => ({
   CONTENT_TYPES: {
     TEXT: 'text',
@@ -39,7 +44,7 @@ vi.mock('@renderer/utils/knowledge', () => ({
     IMAGES: 'images'
   },
   analyzeMessageContent: (message: MessageExportView & { testFiles?: FileMetadata[] }) => ({
-    text: 0,
+    text: message.parts.some((part) => part.type === 'text') ? 1 : 0,
     code: 0,
     thinking: 0,
     images: 0,
@@ -182,6 +187,7 @@ describe('SaveToKnowledgePopup', () => {
       text: '',
       files: message.testFiles ?? []
     }))
+    mocks.getMessageTitle.mockResolvedValue('All tools are working')
     ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       bases: [{ id: 'base-1', name: 'Knowledge Base', status: 'completed' }]
     })
@@ -266,6 +272,38 @@ describe('SaveToKnowledgePopup', () => {
       }
     ])
     await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+  })
+
+  it('uses the readable message title as the note source', async () => {
+    const message = {
+      ...createMessageWithFiles([]),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'All tools are working' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({ text: 'All tools are working', files: [] })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.getMessageTitle).toHaveBeenCalledWith(message)
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'All tools are working',
+          content: 'All tools are working'
+        }
+      }
+    ])
   })
 
   it('saves resolvable files and warns about failed files', async () => {
