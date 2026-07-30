@@ -426,6 +426,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         <div className="space-y-4">
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
+              autoFocus
               value={state.title}
               onChange={(e) => handleTitleInputChange(e.target.value)}
               placeholder={i18n.t('chat.topics.export.obsidian_title_placeholder')}
