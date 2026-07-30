@@ -12,12 +12,14 @@ Cherry Assistant can read conversation attachments through opaque handles and, a
 
 Confirmed deletion of ordinary workspace files and directories now moves them to the operating-system trash. Cherry Assistant refuses permanent deletion commands, protected roots and critical user/system data, and requests that enable unlawful or destructive abuse.
 
+Cherry Assistant can also collect consented, redacted diagnostics for a Cherry Studio problem, preview the resulting feedback, submit it to the current Feishu feedback form, or create a workspace ZIP for anonymous manual upload. GitHub Issues remain a separate explicit workflow.
+
 Ordinary Agents can also attach ZIP, RAR, 7Z, TAR, GZ, TGZ, BZ2, and XZ archives as tool-readable workspace files.
 
 ## Why this matters to the user
 
-Users can complete document, presentation, spreadsheet, attachment, and recoverable workspace-cleanup tasks inside an Agent session without giving automatic edit mode permission to permanently erase files. Generic Office conversions rebuild content and do not preserve advanced source formatting, macros, animations, or formulas; Cherry-PPT uses its bundled red, enterprise-blue, Young, or CY2K template.
+Users can complete document, presentation, spreadsheet, attachment, recoverable workspace-cleanup, and structured feedback tasks inside an Agent session without giving automatic edit mode permission to permanently erase files or automatically uploading diagnostics. Generic Office conversions rebuild content and do not preserve advanced source formatting, macros, animations, or formulas; Cherry-PPT uses its bundled red, enterprise-blue, Young, or CY2K template.
 
 ## What the user should do
 
-Nothing - the workflows are available automatically. Cherry Assistant still asks before saving attachment bytes, exporting files, moving a workspace item to trash, or installing third-party Skills.
+Nothing - the workflows are available automatically. Cherry Assistant still asks before saving attachment bytes, exporting files, moving a workspace item to trash, collecting local diagnostics, submitting feedback, or installing third-party Skills.
