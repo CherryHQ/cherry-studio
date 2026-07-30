@@ -8,7 +8,7 @@ import { learningExtractionService } from './extraction/LearningExtractionServic
 
 const logger = loggerService.withContext('EnglishLearningService')
 const EXTRACTION_POLL_INTERVAL_MS = 30_000
-const EXTRACTION_POLICY_VERSION = 3
+const EXTRACTION_POLICY_VERSION = 4
 const EXTRACTION_POLICY_VERSION_CACHE_KEY = 'feature.english_learning.extraction_policy_version'
 
 @Injectable('EnglishLearningService')

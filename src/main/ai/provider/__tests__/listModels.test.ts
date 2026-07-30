@@ -185,7 +185,7 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
     })
   }
 
-  it('drops audio/video models (tts/whisper/transcribe/audio/realtime/sora), keeping chat, image, embedding, and moderation', async () => {
+  it('keeps realtime models but drops unsupported audio/video models, keeping chat, image, embedding, and moderation', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         data: [
@@ -199,7 +199,7 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
           { id: 'gpt-4o-mini-tts' },
           { id: 'whisper-1' },
           { id: 'gpt-4o-transcribe' },
-          { id: 'gpt-4o-realtime-preview' },
+          { id: 'gpt-realtime-2.1' },
           { id: 'gpt-4o-audio-preview' },
           { id: 'sora-2' }
         ]
@@ -214,7 +214,8 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
       'gpt-image-1',
       'dall-e-3',
       'text-embedding-3-large',
-      'omni-moderation-latest'
+      'omni-moderation-latest',
+      'gpt-realtime-2.1'
     ])
   })
 
@@ -229,13 +230,13 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
     })
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
-        data: [{ id: 'gpt-4o' }, { id: 'tts-1' }, { id: 'whisper-1' }, { id: 'sora-2' }]
+        data: [{ id: 'gpt-4o' }, { id: 'gpt-realtime-2.1' }, { id: 'tts-1' }, { id: 'whisper-1' }, { id: 'sora-2' }]
       }
     })
 
     const models = await listModels(copiedOpenAIProvider)
 
-    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o', 'gpt-realtime-2.1'])
   })
 })
 
@@ -672,6 +673,36 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
     expect(models[0].capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
     expect(models[0].endpointTypes).toEqual([
       ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ])
+  })
+
+  it('derives the capability for OpenAI-compatible transcription and speech endpoints', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'mimo-v2.5-asr',
+            supported_endpoint_types: ['audio-transcription', 'openai']
+          },
+          {
+            id: 'mimo-v2.5-tts',
+            supported_endpoint_types: ['tts', 'openai']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+    expect(models[0].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ])
+    expect(models[1].capabilities).toContain(MODEL_CAPABILITY.AUDIO_GENERATION)
+    expect(models[1].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
       ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     ])
   })

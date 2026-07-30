@@ -300,6 +300,13 @@
       "description": "Optional preferred configured realtime speech model for speaking practice"
     },
     {
+      "targetKey": "feature.english_learning.model.pronunciation_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Optional preferred configured audio-input chat model for pronunciation diagnosis"
+    },
+    {
       "targetKey": "feature.english_learning.obsidian.enabled",
       "type": "boolean",
       "defaultValue": false,

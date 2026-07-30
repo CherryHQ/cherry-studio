@@ -215,6 +215,30 @@ describe('LearningExtractionService', () => {
     })
   })
 
+  it('keeps a candidate as distinct when semantic deduplication returns invalid JSON', async () => {
+    const service = new LearningExtractionService()
+    const firstSource = createSource('translation-invalid-dedup-1')
+    await service.processSource(firstSource.id, { generateText: vi.fn().mockResolvedValue({ text: validResponse }) })
+    const secondSource = createSource('translation-invalid-dedup-2')
+    const variantResponse = validResponse.replace('lend a hand', 'give me a hand')
+    const generateText = vi
+      .fn()
+      .mockResolvedValueOnce({ text: variantResponse })
+      .mockResolvedValueOnce({ text: 'not json' })
+      .mockResolvedValueOnce({ text: 'still not json' })
+
+    await service.processSource(secondSource.id, { generateText })
+
+    expect(learningSourceService.getById(secondSource.id).status).toBe('ready')
+    expect(dbh.db.select().from(learningUnitTable).all()).toHaveLength(2)
+    expect(dbh.db.select().from(learningUnitDedupDecisionTable).get()).toMatchObject({
+      learningSourceId: secondSource.id,
+      matchedUnitId: null,
+      decision: 'distinct',
+      confidence: 0
+    })
+  })
+
   it('requeues sources left processing by an interrupted app session', () => {
     const source = createSource('translation-interrupted')
     learningSourceService.setStatus(source.id, 'processing')

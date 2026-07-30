@@ -99,6 +99,24 @@ export const AddPracticeAttemptSchema = z.strictObject({
       transcript: z.string().max(16_000).optional(),
       correctedText: z.string().max(16_000).optional(),
       feedback: z.array(z.string().max(2_000)).max(20).optional(),
+      pronunciation: z
+        .strictObject({
+          source: z.enum(['audio', 'transcript_only']),
+          pronunciation: z.string().max(2_000),
+          stress: z.string().max(2_000),
+          intonation: z.string().max(2_000),
+          pace: z.string().max(2_000),
+          wordLevelNotes: z
+            .array(
+              z.strictObject({
+                word: z.string().max(200),
+                issue: z.string().max(2_000),
+                suggestion: z.string().max(2_000)
+              })
+            )
+            .max(20)
+        })
+        .optional(),
       recognitionConfidence: z.number().min(0).max(1).optional(),
       textSimilarity: z.number().min(0).max(1).optional()
     })
@@ -121,6 +139,7 @@ export type FinishPracticeSessionDto = z.infer<typeof FinishPracticeSessionSchem
 
 export const ImportSelectionActionResultSchema = z.strictObject({
   actionId: z.string().trim().min(1).max(128),
+  actionName: z.string().trim().min(1).max(256).optional(),
   selectedText: z.string().trim().min(1).max(16_000),
   outputText: z.string().trim().min(1).max(16_000)
 })

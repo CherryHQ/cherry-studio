@@ -115,6 +115,18 @@ export interface PracticeFeedback {
   transcript?: string
   correctedText?: string
   feedback?: string[]
+  pronunciation?: {
+    source: 'audio' | 'transcript_only'
+    pronunciation: string
+    stress: string
+    intonation: string
+    pace: string
+    wordLevelNotes: Array<{
+      word: string
+      issue: string
+      suggestion: string
+    }>
+  }
   recognitionConfidence?: number
   textSimilarity?: number
 }

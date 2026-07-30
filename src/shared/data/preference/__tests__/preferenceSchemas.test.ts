@@ -53,6 +53,15 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
   })
 
+  it('defaults the English pronunciation diagnosis model to automatic selection', () => {
+    const pronunciationModelDefault: PreferenceSchemas['default']['feature.english_learning.model.pronunciation_id'] =
+      null
+
+    expect(DefaultPreferences.default['feature.english_learning.model.pronunciation_id']).toBe(
+      pronunciationModelDefault
+    )
+  })
+
   it('defaults transparent windows on for new users', () => {
     const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
 

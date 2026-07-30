@@ -218,6 +218,7 @@ describe('ActionGeneral', () => {
       provenance: {
         kind: 'selection-action',
         actionId: 'summary',
+        actionName: 'Summary:',
         selectedText: 'hello'
       }
     })

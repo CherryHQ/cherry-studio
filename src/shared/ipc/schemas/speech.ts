@@ -1,4 +1,5 @@
 import type {
+  RealtimeSessionAnswer,
   ResolvedSpeechCapabilities,
   ScenarioReplyResult,
   SpeechSynthesisResult,
@@ -41,7 +42,11 @@ export const speechRequestSchemas = {
       mode: z.enum(['spoken_recall', 'shadowing']),
       target: z.string().trim().min(1).max(4_000),
       meaning: z.string().trim().max(4_000).optional(),
-      transcript: z.string().trim().min(1).max(8_000)
+      cefr: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).optional(),
+      taskInstruction: z.string().trim().min(1).max(1_000).optional(),
+      transcript: z.string().trim().min(1).max(8_000),
+      audioBase64: z.string().min(1).max(MAX_AUDIO_BASE64_LENGTH).optional(),
+      mediaType: z.string().trim().min(1).max(100).optional()
     }),
     output: z.custom<SpokenEvaluationResult>()
   }),
@@ -62,6 +67,15 @@ export const speechRequestSchemas = {
       transcript: z.string().trim().min(1).max(8_000)
     }),
     output: z.custom<ScenarioReplyResult>()
+  }),
+  'speech.realtime_sdp': defineRoute({
+    input: z.strictObject({
+      sessionId: SessionIdSchema,
+      sdp: z.string().trim().min(1).max(200_000),
+      instructions: z.string().trim().min(1).max(8_000).optional(),
+      voice: z.string().trim().min(1).max(100).optional()
+    }),
+    output: z.custom<RealtimeSessionAnswer>()
   }),
   'speech.cancel': defineRoute({
     input: z.strictObject({ sessionId: SessionIdSchema }),

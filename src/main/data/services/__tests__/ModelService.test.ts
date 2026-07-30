@@ -1072,6 +1072,22 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     expect(model.reasoning).toBeUndefined()
   })
 
+  it('infers speech metadata at read time for existing custom ASR rows', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('mimo', 'Xiaomi MiMo'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('mimo', 'mimo-v2.5-asr', {
+        name: 'mimo-v2.5-asr',
+        capabilities: [],
+        endpointTypes: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'mimo' })
+
+    expect(model.capabilities).toContain(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+    expect(model.endpointTypes).toEqual(['openai-audio-transcription'])
+  })
+
   it('infers a descriptor at create time for a custom model', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
 
@@ -1086,6 +1102,20 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
     expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
+  })
+
+  it('infers speech metadata at create time for custom ASR and TTS models', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('mimo', 'Xiaomi MiMo'))
+
+    const created = modelService.create([
+      { dto: { providerId: 'mimo', modelId: 'mimo-v2.5-asr' } },
+      { dto: { providerId: 'mimo', modelId: 'mimo-v2.5-tts' } }
+    ])
+
+    expect(created[0].capabilities).toContain(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+    expect(created[0].endpointTypes).toEqual(['openai-audio-transcription'])
+    expect(created[1].capabilities).toContain(MODEL_CAPABILITY.AUDIO_GENERATION)
+    expect(created[1].endpointTypes).toEqual(['openai-text-to-speech'])
   })
 })
 

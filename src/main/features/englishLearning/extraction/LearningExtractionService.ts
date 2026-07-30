@@ -236,7 +236,20 @@ export class LearningExtractionService {
     }
 
     const uniqueModelId = this.resolveModelId()
-    const decision = await this.decideSemanticDuplicate(unit, candidates, uniqueModelId, generateText, signal)
+    const decision = await this.decideSemanticDuplicate(unit, candidates, uniqueModelId, generateText, signal).catch(
+      (error) => {
+        logger.warn('Learning semantic deduplication failed; keeping candidate as a distinct unit', {
+          sourceId,
+          candidateEnglish: unit.english,
+          error
+        })
+        return {
+          decision: 'distinct' as const,
+          matchedUnitId: null,
+          confidence: 0
+        }
+      }
+    )
     const matched = candidates.find((candidate) => candidate.id === decision.matchedUnitId)
     if (decision.matchedUnitId && !matched) {
       throw new Error('The learning deduplication model selected an unknown candidate')

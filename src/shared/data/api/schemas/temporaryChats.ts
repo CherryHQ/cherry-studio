@@ -38,6 +38,7 @@ export const TemporaryChatProvenanceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('selection-action'),
     actionId: z.string().trim().min(1).max(128),
+    actionName: z.string().trim().min(1).max(256).optional(),
     selectedText: z.string().trim().min(1)
   })
 ])

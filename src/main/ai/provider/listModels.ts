@@ -418,13 +418,23 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  'audio-speech': ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
+  'audio-transcription': ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION,
+  'audio-translation': ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai-audio-speech': ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
+  'openai-audio-transcription': ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION,
+  'openai-audio-translation': ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  speech: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
+  transcription: ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION,
+  translation: ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION,
+  tts: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH
 }
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
@@ -625,10 +635,12 @@ const gatewayFetcher: ModelFetcher = {
   }
 }
 
-const EXCLUDED_OPENAI_MODEL_KEYWORDS = ['tts', 'whisper', 'transcribe', 'speech', 'audio', 'realtime', 'sora'] as const
+const OPENAI_REALTIME_MODEL_PATTERN = /(?:^|[/:._-])gpt[-_]?realtime(?:$|[/:._-])/i
+const EXCLUDED_OPENAI_MODEL_KEYWORDS = ['tts', 'whisper', 'transcribe', 'speech', 'audio', 'sora'] as const
 
 function isSupportedOpenAIModel(modelId: string): boolean {
   const id = modelId.toLowerCase()
+  if (OPENAI_REALTIME_MODEL_PATTERN.test(id)) return true
   return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
 }
 

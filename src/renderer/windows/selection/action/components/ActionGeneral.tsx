@@ -144,6 +144,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
             provenance: {
               kind: 'selection-action' as const,
               actionId: action.id,
+              actionName: historyTopicName,
               selectedText: action.selectedText
             }
           }

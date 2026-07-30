@@ -40,7 +40,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -85,6 +85,45 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
   }
 
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
+}
+
+const MODEL_ID_BOUNDARY = String.raw`(?:^|[\s._:/-])`
+const MODEL_ID_END_BOUNDARY = String.raw`(?:$|[\s._:/-])`
+const CUSTOM_SPEECH_TO_TEXT_PATTERN = new RegExp(
+  `${MODEL_ID_BOUNDARY}(?:asr|stt|whisper|transcribe|transcriber|transcribing|transcription|speech[-_ ]?to[-_ ]?text|audio[-_ ]?transcription|live[-_ ]?transcribe)${MODEL_ID_END_BOUNDARY}`,
+  'i'
+)
+const CUSTOM_TEXT_TO_SPEECH_PATTERN = new RegExp(
+  `${MODEL_ID_BOUNDARY}(?:tts|text[-_ ]?to[-_ ]?speech|speech[-_ ]?synthesis|voice[-_ ]?generation)${MODEL_ID_END_BOUNDARY}`,
+  'i'
+)
+
+function inferCustomSpeechModelMetadata(
+  modelId: string,
+  name: string | null | undefined,
+  capabilities: readonly ModelCapability[],
+  endpointTypes: readonly EndpointType[] | null | undefined
+): { capabilities: ModelCapability[]; endpointTypes: EndpointType[] | null | undefined } {
+  const searchable = `${modelId} ${name ?? ''}`
+  const capabilitySet = new Set(capabilities)
+  const endpointTypeList = endpointTypes ? [...endpointTypes] : []
+
+  if (CUSTOM_SPEECH_TO_TEXT_PATTERN.test(searchable)) {
+    capabilitySet.add(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+    if (endpointTypeList.length === 0) {
+      endpointTypeList.push(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION)
+    }
+  } else if (CUSTOM_TEXT_TO_SPEECH_PATTERN.test(searchable)) {
+    capabilitySet.add(MODEL_CAPABILITY.AUDIO_GENERATION)
+    if (endpointTypeList.length === 0) {
+      endpointTypeList.push(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)
+    }
+  }
+
+  return {
+    capabilities: [...capabilitySet],
+    endpointTypes: endpointTypeList.length > 0 ? endpointTypeList : endpointTypes ? [...endpointTypes] : endpointTypes
+  }
 }
 
 /**
@@ -268,6 +307,13 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
+  const speechMetadata = inferCustomSpeechModelMetadata(
+    dto.modelId,
+    dto.name,
+    (dto.capabilities ?? []) as ModelCapability[],
+    (dto.endpointTypes ?? null) as EndpointType[] | null
+  )
+
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
@@ -276,10 +322,10 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     name: dto.name ?? dto.modelId,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? []) as ModelCapability[],
+    capabilities: speechMetadata.capabilities,
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
-    endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    endpointTypes: speechMetadata.endpointTypes as EndpointType[] | null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
@@ -517,6 +563,9 @@ class ModelService {
     const capabilityOverrideModelIds = new Set(
       rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
     )
+    const endpointOverrideModelIds = new Set(
+      rows.filter((row) => row.userOverrides?.includes('endpointTypes')).map((row) => row.id)
+    )
     // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
     // imageGeneration is preset-only metadata (not stored on user_model).
     // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
@@ -554,6 +603,30 @@ class ModelService {
             capabilities.length !== model.capabilities.length ||
             capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
           if (changed) updates.capabilities = capabilities
+        }
+        if (!presetModel && (!capabilityOverrideModelIds.has(model.id) || !endpointOverrideModelIds.has(model.id))) {
+          const speechMetadata = inferCustomSpeechModelMetadata(
+            model.apiModelId ?? presetId,
+            model.name,
+            updates.capabilities ?? model.capabilities,
+            model.endpointTypes ?? null
+          )
+          if (!capabilityOverrideModelIds.has(model.id)) {
+            const changed =
+              speechMetadata.capabilities.length !== (updates.capabilities ?? model.capabilities).length ||
+              speechMetadata.capabilities.some(
+                (c: ModelCapability, i: number) => c !== (updates.capabilities ?? model.capabilities)[i]
+              )
+            if (changed) updates.capabilities = speechMetadata.capabilities
+          }
+          if (!endpointOverrideModelIds.has(model.id)) {
+            const currentEndpointTypes = model.endpointTypes ?? null
+            const changed =
+              (speechMetadata.endpointTypes?.length ?? 0) !== (currentEndpointTypes?.length ?? 0) ||
+              (speechMetadata.endpointTypes?.some((endpointType, i) => endpointType !== currentEndpointTypes?.[i]) ??
+                false)
+            if (changed) updates.endpointTypes = speechMetadata.endpointTypes ?? undefined
+          }
         }
         // Reasoning re-enrichment (#16598): stored reasoning is frozen at
         // creation, so recompute the descriptor from the CURRENT registry for

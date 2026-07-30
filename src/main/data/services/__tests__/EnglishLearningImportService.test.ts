@@ -1,6 +1,6 @@
 import { learningSourceTable } from '@data/db/schemas/learningSource'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
-import { englishLearningImportService } from '@data/services/EnglishLearningImportService'
+import { classifySelectionActionKind, englishLearningImportService } from '@data/services/EnglishLearningImportService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -14,6 +14,25 @@ function text(content: string): MessageData {
 
 describe('EnglishLearningImportService', () => {
   const dbh = setupTestDatabase()
+
+  it('classifies personalized polish actions as refine sources by action name', () => {
+    expect(
+      classifySelectionActionKind({
+        actionId: 'custom-polish',
+        actionName: '润色',
+        selectedText: 'This sentence need polish.',
+        outputText: 'This sentence needs polishing.'
+      })
+    ).toBe('selection_refine')
+    expect(
+      classifySelectionActionKind({
+        actionId: 'custom-translate',
+        actionName: '互译',
+        selectedText: '你好',
+        outputText: 'Hello'
+      })
+    ).toBe('selection_action')
+  })
 
   it('backfills every translation revision idempotently in bounded batches', () => {
     dbh.db
@@ -58,13 +77,20 @@ describe('EnglishLearningImportService', () => {
       provenance: { kind: 'selection-action', actionId: 'translate', selectedText: 'Translate this' }
     })
 
-    expect(dbh.db.select().from(learningSourceTable).all()).toHaveLength(2)
+    const customPolishTopic = temporaryChatService.createTopic({ name: '润色' })
+    temporaryChatService.appendMessage(customPolishTopic.id, { role: 'user', data: text('Polish this') })
+    temporaryChatService.appendMessage(customPolishTopic.id, { role: 'assistant', data: text('This reads naturally.') })
+    temporaryChatService.persist(customPolishTopic.id, {
+      provenance: { kind: 'selection-action', actionId: 'custom-polish', selectedText: 'This read natural.' }
+    })
+
+    expect(dbh.db.select().from(learningSourceTable).all()).toHaveLength(3)
     dbh.db.delete(learningSourceTable).run()
     const result = englishLearningImportService.importSelectionActionBatch()
     const rows = dbh.db.select().from(learningSourceTable).all()
 
-    expect(result).toMatchObject({ scanned: 2, registered: 2 })
-    expect(rows).toHaveLength(2)
+    expect(result).toMatchObject({ scanned: 3, registered: 3 })
+    expect(rows).toHaveLength(3)
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -76,6 +102,11 @@ describe('EnglishLearningImportService', () => {
           kind: 'selection_action',
           sourceText: 'Translate this',
           targetText: '翻译结果'
+        }),
+        expect.objectContaining({
+          kind: 'selection_refine',
+          sourceText: 'This read natural.',
+          targetText: 'This reads naturally.'
         })
       ])
     )

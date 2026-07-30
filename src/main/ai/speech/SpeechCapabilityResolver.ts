@@ -3,18 +3,26 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import type { ResolvedSpeechCapabilities, SpeechModelSelection } from '@shared/ai/speech'
 import { type Model, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
-import { isNonChatModel, isSpeechToTextModel, isTextToSpeechModel } from '@shared/utils/model'
+import { isAudioModel, isNonChatModel, isSpeechToTextModel, isTextToSpeechModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
-type SpeechModelKind = 'chat' | 'transcription' | 'synthesis'
+type SpeechModelKind = 'audioEvaluation' | 'chat' | 'realtime' | 'transcription' | 'synthesis'
 
 const preferenceKeys = {
   chat: 'feature.english_learning.model.chat_id',
+  pronunciation: 'feature.english_learning.model.pronunciation_id',
+  realtime: 'feature.english_learning.model.realtime_id',
   transcription: 'feature.english_learning.model.transcription_id',
   synthesis: 'feature.english_learning.model.synthesis_id'
 } as const
 
+const REALTIME_MODEL_PATTERN = /(?:^|[/:._-])gpt[-_]?realtime(?:$|[/:._-])/i
+
 function supports(kind: SpeechModelKind, model: Model): boolean {
+  if (kind === 'audioEvaluation') return !isNonChatModel(model) && isAudioModel(model)
+  if (kind === 'realtime') {
+    return REALTIME_MODEL_PATTERN.test(model.apiModelId ?? model.id) || REALTIME_MODEL_PATTERN.test(model.name)
+  }
   if (kind === 'transcription') return isSpeechToTextModel(model)
   if (kind === 'synthesis') return isTextToSpeechModel(model)
   return !isNonChatModel(model)
@@ -61,9 +69,18 @@ function resolveAny(kind: SpeechModelKind): SpeechModelSelection | null {
 
 function resolveKind(kind: SpeechModelKind): SpeechModelSelection | null {
   const preferences = application.get('PreferenceService')
-  const configured = resolveCandidate(preferences.get(preferenceKeys[kind]), kind)
-  if (configured) return configured
-  if (kind === 'chat') {
+  if (kind !== 'audioEvaluation') {
+    const configured = resolveCandidate(preferences.get(preferenceKeys[kind]), kind)
+    if (configured) return configured
+  }
+  if (kind === 'audioEvaluation') {
+    const configuredPronunciation = resolveCandidate(preferences.get(preferenceKeys.pronunciation), kind)
+    if (configuredPronunciation) return configuredPronunciation
+
+    const configuredChat = resolveCandidate(preferences.get(preferenceKeys.chat), kind)
+    if (configuredChat) return configuredChat
+  }
+  if (kind === 'chat' || kind === 'audioEvaluation') {
     const defaultChat = resolveCandidate(preferences.get('chat.default_model_id'), kind)
     if (defaultChat) return defaultChat
   }
@@ -75,25 +92,31 @@ export class SpeechCapabilityResolver {
     const transcription = resolveKind('transcription')
     const synthesis = resolveKind('synthesis')
     const chat = resolveKind('chat')
-    const gaps: ResolvedSpeechCapabilities['gaps'] = ['realtime_unavailable']
+    const realtime = resolveKind('realtime')
+    const audioEvaluation = resolveKind('audioEvaluation')
+    const gaps: ResolvedSpeechCapabilities['gaps'] = []
 
+    if (!realtime) gaps.push('realtime_unavailable')
     if (!transcription) gaps.push('transcription_unavailable')
     if (!synthesis) gaps.push('synthesis_unavailable')
     if (!chat) gaps.push('chat_unavailable')
+    if (!audioEvaluation) gaps.push('audio_evaluation_unavailable')
 
     return {
       capabilities: {
-        realtime: false,
+        realtime: realtime !== null,
         transcription: transcription !== null,
         synthesis: synthesis !== null,
-        chat: chat !== null
+        chat: chat !== null,
+        audioEvaluation: audioEvaluation !== null
       },
-      tier: transcription && chat ? 'composed' : 'text-only',
+      tier: realtime ? 'realtime' : transcription && chat ? 'composed' : 'text-only',
       models: {
-        realtime: null,
+        realtime,
         transcription,
         synthesis,
-        chat
+        chat,
+        audioEvaluation
       },
       gaps
     }

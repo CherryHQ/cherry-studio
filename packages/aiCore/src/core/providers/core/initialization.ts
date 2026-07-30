@@ -14,9 +14,11 @@ import type { GoogleGenerativeAIProvider, GoogleGenerativeAIProviderSettings } f
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import type { OpenAIProvider, OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAI } from '@ai-sdk/openai'
+import { OpenAISpeechModel, OpenAITranscriptionModel } from '@ai-sdk/openai/internal'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { withoutTrailingSlash, withUserAgentSuffix } from '@ai-sdk/provider-utils'
 import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import { createXai } from '@ai-sdk/xai'
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
@@ -38,6 +40,42 @@ import type { ProviderExtensionConfig } from './ProviderExtension'
 import { ProviderExtension } from './ProviderExtension'
 
 // ==================== Core Extensions ====================
+
+function createOpenAICompatibleWithAudio(settings: OpenAICompatibleProviderSettings): ProviderV3 {
+  const provider = createOpenAICompatible(settings) as ProviderV3
+  const baseURL = withoutTrailingSlash(settings.baseURL)
+  const providerName = settings.name
+  const headers = {
+    ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+    ...settings.headers
+  }
+  const getHeaders = () => withUserAgentSuffix(headers, 'ai-sdk/openai-compatible')
+  const url = ({ path }: { path: string }) => {
+    const requestUrl = new URL(`${baseURL}${path}`)
+    if (settings.queryParams) {
+      requestUrl.search = new URLSearchParams(settings.queryParams).toString()
+    }
+    return requestUrl.toString()
+  }
+
+  provider.transcriptionModel ??= (modelId: string) =>
+    new OpenAITranscriptionModel(modelId, {
+      provider: `${providerName}.transcription`,
+      url,
+      headers: getHeaders,
+      fetch: settings.fetch
+    })
+
+  provider.speechModel ??= (modelId: string) =>
+    new OpenAISpeechModel(modelId, {
+      provider: `${providerName}.speech`,
+      url,
+      headers: getHeaders,
+      fetch: settings.fetch
+    })
+
+  return provider
+}
 
 const AnthropicExtension = ProviderExtension.create({
   name: 'anthropic',
@@ -176,7 +214,7 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
-    return createOpenAICompatible(settings)
+    return createOpenAICompatibleWithAudio(settings)
   },
   createRerankingModel: (modelId, settings) => {
     if (!settings) {

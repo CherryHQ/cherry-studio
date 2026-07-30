@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import { topicProvenanceTable } from '@data/db/schemas/topicProvenance'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import type { RegisterLearningSourceInput } from '@data/services/LearningSourceService'
@@ -51,6 +52,7 @@ export class EnglishLearningImportService {
   registerSelectionAction(input: {
     provenanceId: string
     actionId: string
+    actionName?: string
     selectedText: string
     outputText: string
   }): void {
@@ -58,7 +60,12 @@ export class EnglishLearningImportService {
     if (source) learningSourceService.register(source)
   }
 
-  registerSelectionActionResult(input: { actionId: string; selectedText: string; outputText: string }): void {
+  registerSelectionActionResult(input: {
+    actionId: string
+    actionName?: string
+    selectedText: string
+    outputText: string
+  }): void {
     const sourceRevision = computeSourceRevision([input.actionId, input.selectedText.trim(), input.outputText.trim()])
     const source = this.toSelectionActionInput({
       ...input,
@@ -70,6 +77,7 @@ export class EnglishLearningImportService {
   registerSelectionActionBestEffort(input: {
     provenanceId: string
     actionId: string
+    actionName?: string
     selectedText: string
     outputText: string
   }): void {
@@ -110,19 +118,22 @@ export class EnglishLearningImportService {
     const rows = this.db
       .select({
         provenance: topicProvenanceTable,
+        topicName: topicTable.name,
         messageData: messageTable.data
       })
       .from(topicProvenanceTable)
+      .innerJoin(topicTable, eq(topicTable.id, topicProvenanceTable.topicId))
       .innerJoin(messageTable, eq(messageTable.id, topicProvenanceTable.lastMessageId))
       .where(cursor ? gt(topicProvenanceTable.id, cursor) : undefined)
       .orderBy(asc(topicProvenanceTable.id))
       .limit(limit)
       .all()
-    const inputs = rows.flatMap(({ provenance, messageData }) => {
+    const inputs = rows.flatMap(({ provenance, topicName, messageData }) => {
       if (provenance.data.kind !== 'selection-action') return []
       const input = this.toSelectionActionInput({
         sourceRecordId: provenance.id,
         actionId: provenance.data.actionId,
+        actionName: provenance.data.actionName ?? topicName,
         selectedText: provenance.data.selectedText,
         outputText: extractEnglishLearningMessageText(messageData)
       })
@@ -152,13 +163,19 @@ export class EnglishLearningImportService {
   private toSelectionActionInput(input: {
     sourceRecordId: string
     actionId: string
+    actionName?: string
     selectedText: string
     outputText: string
   }): RegisterLearningSourceInput | null {
     const selectedText = input.selectedText.trim()
     const outputText = input.outputText.trim()
     if (!selectedText || !outputText) return null
-    const kind = input.actionId === 'refine' ? 'selection_refine' : 'selection_action'
+    const kind = classifySelectionActionKind({
+      actionId: input.actionId,
+      actionName: input.actionName,
+      selectedText,
+      outputText
+    })
 
     return {
       kind,
@@ -171,3 +188,16 @@ export class EnglishLearningImportService {
 }
 
 export const englishLearningImportService = new EnglishLearningImportService()
+
+export function classifySelectionActionKind(input: {
+  actionId: string
+  actionName?: string
+  selectedText: string
+  outputText: string
+}): RegisterLearningSourceInput['kind'] {
+  const actionLabel = `${input.actionId} ${input.actionName ?? ''}`.normalize('NFKC').toLowerCase()
+  if (/\b(refine|polish|rewrite|proofread|grammar|improve)\b|润色|改写|优化|校对|纠错|语法/.test(actionLabel)) {
+    return 'selection_refine'
+  }
+  return 'selection_action'
+}

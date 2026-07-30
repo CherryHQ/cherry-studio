@@ -1,6 +1,6 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 
-export type SpeechDeliveryTier = 'composed' | 'text-only'
+export type SpeechDeliveryTier = 'realtime' | 'composed' | 'text-only'
 
 export interface SpeechModelSelection {
   uniqueModelId: UniqueModelId
@@ -14,6 +14,7 @@ export interface SpeechCapabilities {
   transcription: boolean
   synthesis: boolean
   chat: boolean
+  audioEvaluation: boolean
 }
 
 export interface ResolvedSpeechCapabilities {
@@ -24,8 +25,15 @@ export interface ResolvedSpeechCapabilities {
     transcription: SpeechModelSelection | null
     synthesis: SpeechModelSelection | null
     chat: SpeechModelSelection | null
+    audioEvaluation: SpeechModelSelection | null
   }
-  gaps: Array<'realtime_unavailable' | 'transcription_unavailable' | 'synthesis_unavailable' | 'chat_unavailable'>
+  gaps: Array<
+    | 'realtime_unavailable'
+    | 'transcription_unavailable'
+    | 'synthesis_unavailable'
+    | 'chat_unavailable'
+    | 'audio_evaluation_unavailable'
+  >
 }
 
 export interface SpeechTranscriptSegment {
@@ -49,12 +57,26 @@ export interface SpeechSynthesisResult {
   model: SpeechModelSelection
 }
 
+export interface PronunciationDiagnosis {
+  source: 'audio' | 'transcript_only'
+  pronunciation: string
+  stress: string
+  intonation: string
+  pace: string
+  wordLevelNotes: Array<{
+    word: string
+    issue: string
+    suggestion: string
+  }>
+}
+
 export interface SpokenEvaluationResult {
   correctedText: string
   modelAnswer: string
   feedback: string[]
   omissions: string[]
   additions: string[]
+  pronunciation: PronunciationDiagnosis
   textSimilarity: number
   model: SpeechModelSelection
 }
@@ -70,5 +92,10 @@ export interface ScenarioReplyResult {
   usedTargets: string[]
   feedback: string[]
   shouldEnd: boolean
+  model: SpeechModelSelection
+}
+
+export interface RealtimeSessionAnswer {
+  sdp: string
   model: SpeechModelSelection
 }
