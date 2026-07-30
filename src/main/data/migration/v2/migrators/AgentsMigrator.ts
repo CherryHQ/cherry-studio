@@ -152,7 +152,7 @@ export class AgentsMigrator extends BaseMigrator {
     const executeStartedAt = performance.now()
     const claudeConfigStartedAt = performance.now()
     let reportedClaudeConfigProgress = 1
-    this.reportProgress(reportedClaudeConfigProgress, 'Scanning Agent Claude configuration', {
+    this.reportProgress(reportedClaudeConfigProgress, 'Scanning Agent configuration', {
       key: 'migration.progress.agents_claude_config_scanning_start'
     })
     const copiedLegacyClaudeConfig = await copyLegacyClaudeConfig(
@@ -176,7 +176,7 @@ export class AgentsMigrator extends BaseMigrator {
         )
         this.reportProgress(
           reportedClaudeConfigProgress,
-          `Migrating Agent Claude configuration: ${progress.processed}/${progress.total} files`,
+          `Migrating Agent configuration: ${progress.processed}/${progress.total} files`,
           {
             key: `migration.progress.agents_claude_config_${progress.phase}`,
             params: {
@@ -194,7 +194,7 @@ export class AgentsMigrator extends BaseMigrator {
       copied: copiedLegacyClaudeConfig,
       durationMs: Math.round(performance.now() - claudeConfigStartedAt)
     })
-    this.reportProgress(45, 'Prepared Agent Claude configuration', {
+    this.reportProgress(45, 'Prepared Agent configuration', {
       key: 'migration.progress.agents_claude_config'
     })
 
