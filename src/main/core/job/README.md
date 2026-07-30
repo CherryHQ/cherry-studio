@@ -23,7 +23,7 @@ Unified background-job system: typed handlers, DB-driven dispatch, 6-state machi
 job/
 ├── JobManager.ts        # @Injectable lifecycle service: enqueue/enqueueTx, dispatch, schedule registry, GC
 ├── jobRegistry.ts       # Compile-time `interface JobRegistry` — business modules extend via declaration merging
-├── types.ts             # JobHandler, JobContext, EnqueueOptions, JobHandle, cache key prefixes
+├── types.ts             # JobHandler/CooperativeJobHandler, contexts, enqueue/handle types, cache key prefixes
 ├── runtime/
 │   ├── DispatchQueue.ts # Per-queue mutex + concurrency cap (Layer 1)
 │   ├── recovery.ts      # Per-processor declarative recovery (abandon / retry / singleton)
