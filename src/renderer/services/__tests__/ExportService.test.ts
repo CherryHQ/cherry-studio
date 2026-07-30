@@ -226,6 +226,19 @@ function createExportView(parts: any[], role: 'user' | 'assistant' | 'system' = 
   }
 }
 
+function createTopic(partial: Partial<Topic> = {}): Topic {
+  return {
+    id: 'topic_default',
+    name: 'Test Topic',
+    assistantId: 'asst_default',
+    messages: [],
+    createdAt: '',
+    updatedAt: '',
+    type: TopicType.Chat,
+    ...partial
+  }
+}
+
 // --- Global Test Setup ---
 
 // Store mocked messages generated in beforeEach blocks
@@ -531,15 +544,12 @@ describe('ExportService', () => {
       const assistantMsg = createMessage({ role: 'assistant', id: 'a_plain_formatted' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '*Assistant Content Formatted*' }
       ])
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 't_plain_formatted',
         name: 'Formatted Plain Topic',
         assistantId: 'asst_test_formatted',
-        messages: [userMsg, assistantMsg] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        messages: [userMsg, assistantMsg] as any
+      })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
@@ -567,15 +577,12 @@ describe('ExportService', () => {
       const msg2 = createMessage({ role: 'assistant', id: 'm_plain2_formatted' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Msg2 Formatted' }
       ])
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 't_multi_plain_formatted',
         name: 'Multi Plain Formatted',
         assistantId: 'asst_test_multi_formatted',
-        messages: [msg1, msg2] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        messages: [msg1, msg2] as any
+      })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
@@ -594,15 +601,11 @@ describe('ExportService', () => {
     it('logs and toasts when topic markdown generation fails', async () => {
       const exportError = new Error('markdown failed')
       const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 'topic_markdown_failure',
         name: 'Topic Markdown Failure',
-        assistantId: 'asst_test',
-        messages: [] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        assistantId: 'asst_test'
+      })
       ;(getTopicMessages as any).mockRejectedValue(exportError)
 
       await expect(exportTopicToNotes(testTopic, '/notes')).rejects.toThrow(exportError)
@@ -667,15 +670,12 @@ describe('ExportService', () => {
       const msgWithEmpty = createMessage({ role: 'user', id: 'empty_content' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '' }
       ])
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 'topic_empty_content',
         name: 'Topic with empty content',
         assistantId: 'asst_test',
-        messages: [msgWithEmpty] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        messages: [msgWithEmpty] as any
+      })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msgWithEmpty])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
@@ -688,15 +688,12 @@ describe('ExportService', () => {
       const msgWithSpecial = createMessage({ role: 'user', id: 'special_chars' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Content with "quotes" & <tags> and &entities;' }
       ])
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 'topic_special_chars',
         name: 'Topic with "quotes" & symbols',
         assistantId: 'asst_test',
-        messages: [msgWithSpecial] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        messages: [msgWithSpecial] as any
+      })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msgWithSpecial])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
@@ -714,15 +711,12 @@ describe('ExportService', () => {
       const msg2 = createMessage({ role: 'assistant', id: 'tp_a1' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '_World_' }
       ])
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 'topic1_plain',
         name: '# Topic One',
         assistantId: 'asst_test',
-        messages: [msg1, msg2] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        messages: [msg1, msg2] as any
+      })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
@@ -735,15 +729,11 @@ describe('ExportService', () => {
     })
 
     it('should return only topic name if topic has no messages', async () => {
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 'topic_empty_plain',
         name: '## Empty Topic',
-        assistantId: 'asst_test',
-        messages: [] as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        assistantId: 'asst_test'
+      })
       // Mock getTopicMessages to return empty array
       ;(getTopicMessages as any).mockResolvedValue([])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
@@ -754,15 +744,12 @@ describe('ExportService', () => {
     })
 
     it('should return empty string if topicMessages is null', async () => {
-      const testTopic: Topic = {
+      const testTopic = createTopic({
         id: 'topic_null_msgs_plain',
         name: 'Null Messages Topic',
         assistantId: 'asst_test',
-        messages: null as any,
-        createdAt: '',
-        updatedAt: '',
-        type: TopicType.Chat
-      }
+        messages: null as any
+      })
       // Mock getTopicMessages to return empty array for null case
       ;(getTopicMessages as any).mockResolvedValue([])
 
