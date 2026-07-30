@@ -113,6 +113,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
+              autoFocus={currentContent.trim().length === 0}
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
               className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"

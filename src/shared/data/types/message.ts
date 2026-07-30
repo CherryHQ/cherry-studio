@@ -534,6 +534,8 @@ export interface TreeNode {
   parentId: string
   /** Message role — a tree node is never the virtual root, so content roles only */
   role: ContentMessageRole
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */
