@@ -593,7 +593,7 @@ describe('restore preparation', () => {
       expect(stateAtRelaunch).toBe('armed')
     })
 
-    it('reseals hadLive from the drained arm-time topology', async () => {
+    it('reseals hadLive from the arm-time topology', async () => {
       const preview = await prepareFullForArm()
       const prepared = readRestoreJournalV2()
       if (prepared.kind !== 'ok') throw new Error('expected prepared restore')
