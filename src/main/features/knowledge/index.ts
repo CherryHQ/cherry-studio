@@ -8,6 +8,7 @@ export {
 } from './portableProfilePolicy'
 export {
   createKnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreOwnerSummary,
   type KnowledgeRestoreSummary,
   type KnowledgeRestoreSummaryRead,
   readKnowledgeRestoreSummary

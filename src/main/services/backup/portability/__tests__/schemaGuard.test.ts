@@ -171,7 +171,11 @@ describe('patch shapes ↔ production schema', () => {
 
   it('writes only real agent_channel columns', () => {
     const columns = columnNamesOf(agentChannelTable)
-    const { patch } = sanitizeAgentChannelCapability({ config: {}, permissionMode: null })
+    const { patch } = sanitizeAgentChannelCapability({
+      type: 'telegram',
+      config: { bot_token: 'secret' },
+      permissionMode: null
+    })
     for (const column of Object.keys(patch)) {
       expect(columns, column).toContain(column)
     }
@@ -376,14 +380,25 @@ describe('module purity', () => {
    * escape the purity walk by simply not being pure.
    */
   const POLICY_MODULES = ['managedPathRebase.ts', 'preferenceResetPolicy.ts', 'tablePolicy.ts']
-  const OWNER_POLICY_MODULES = [
+  const PORTABLE_DB_OWNER_POLICY_MODULES = [
     path.join(REPO_SRC, 'main/ai/agents/portableProfilePolicy.ts'),
     path.join(REPO_SRC, 'main/ai/channelPortableProfilePolicy.ts'),
     path.join(REPO_SRC, 'main/ai/mcp/portableProfilePolicy.ts')
   ]
+  const OWNER_POLICY_MODULES = [
+    ...PORTABLE_DB_OWNER_POLICY_MODULES,
+    path.join(REPO_SRC, 'main/ai/skills/capturePolicy.ts'),
+    path.join(REPO_SRC, 'main/features/knowledge/capturePolicy.ts'),
+    path.join(REPO_SRC, 'main/features/knowledge/portableProfilePolicy.ts'),
+    path.join(REPO_SRC, 'main/features/knowledge/restorePolicy.ts'),
+    path.join(REPO_SRC, 'main/services/file/portableProfilePolicy.ts')
+  ]
   const EFFECTFUL_MODULES = ['materializeDatabase.ts']
 
-  const shippedFiles = [...POLICY_MODULES.map((name) => path.join(PORTABILITY_DIR, name)), ...OWNER_POLICY_MODULES]
+  const shippedFiles = [
+    ...POLICY_MODULES.map((name) => path.join(PORTABILITY_DIR, name)),
+    ...PORTABLE_DB_OWNER_POLICY_MODULES
+  ]
 
   it('classifies every shipped module as either policy or effectful', () => {
     const actual = fs
@@ -391,7 +406,7 @@ describe('module purity', () => {
       .filter((name) => name.endsWith('.ts'))
       .sort()
     expect(actual).toEqual([...POLICY_MODULES, ...EFFECTFUL_MODULES].sort())
-    for (const file of shippedFiles) expect(fs.existsSync(file)).toBe(true)
+    for (const file of [...shippedFiles, ...OWNER_POLICY_MODULES]) expect(fs.existsSync(file)).toBe(true)
   })
 
   it('performs no filesystem, database, or host-path I/O anywhere in its module graph', () => {

@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import type { RestoreOwnerSummaryBag, RestoreOwnerSummaryReadResult } from '@data/portableProfilePolicy'
 import * as z from 'zod'
 
 const MAX_RESTORED_KNOWLEDGE_BASES = 50_000
@@ -20,10 +21,11 @@ const KnowledgeRestoreSummarySchema = z
 
 export type KnowledgeRestoreSummary = z.infer<typeof KnowledgeRestoreSummarySchema>
 
-export type KnowledgeRestoreSummaryRead =
-  | { readonly kind: 'ok'; readonly summary: KnowledgeRestoreSummary }
-  | { readonly kind: 'missing' }
-  | { readonly kind: 'invalid' }
+export interface KnowledgeRestoreOwnerSummary extends RestoreOwnerSummaryBag {
+  readonly knowledge: KnowledgeRestoreSummary
+}
+
+export type KnowledgeRestoreSummaryRead = RestoreOwnerSummaryReadResult<KnowledgeRestoreSummary>
 
 /**
  * Seal the Knowledge-owned projection of verified restore payloads.
@@ -36,7 +38,7 @@ export function createKnowledgeRestoreOwnerSummary(input: {
   readonly userDataPath: string
   readonly knowledgeRoot: string
   readonly livePaths: readonly string[]
-}): { readonly knowledge: KnowledgeRestoreSummary } {
+}): KnowledgeRestoreOwnerSummary {
   const root = path.resolve(input.knowledgeRoot)
   const baseIds: string[] = []
   const seen = new Set<string>()
@@ -67,7 +69,7 @@ export function createKnowledgeRestoreOwnerSummary(input: {
  * so malformed new-format state never silently falls back to an older reading.
  */
 export function readKnowledgeRestoreSummary(
-  ownerSummary: Readonly<Record<string, unknown>> | undefined,
+  ownerSummary: RestoreOwnerSummaryBag | undefined,
   legacyKnowledgeBaseIds?: readonly string[]
 ): KnowledgeRestoreSummaryRead {
   if (ownerSummary !== undefined) {

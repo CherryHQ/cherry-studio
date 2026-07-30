@@ -61,6 +61,7 @@ export const AgentConfigurationSchema = z
   // survive a round-trip through parse() so they are not silently dropped on the next save.
   .loose()
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+export type AgentConfigurationField = keyof typeof AgentConfigurationSchema.shape
 
 /**
  * Read-side sanitizer for stored configuration JSON.
@@ -74,7 +75,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
  */
 export function sanitizeAgentConfiguration(raw: unknown): {
   data: AgentConfiguration | undefined
-  invalidKeys: string[]
+  invalidKeys: Array<AgentConfigurationField | '<root>'>
 } {
   if (raw == null) return { data: undefined, invalidKeys: [] }
   if (typeof raw !== 'object' || Array.isArray(raw)) {
@@ -84,11 +85,19 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   if (parsed.success) return { data: parsed.data, invalidKeys: [] }
 
   const invalidKeys = Array.from(
-    new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
+    new Set(
+      parsed.error.issues
+        .map((i) => i.path[0])
+        .filter(
+          (field): field is AgentConfigurationField =>
+            typeof field === 'string' && Object.prototype.hasOwnProperty.call(AgentConfigurationSchema.shape, field)
+        )
+    )
   )
+  const invalidKeySet = new Set<string>(invalidKeys)
   const filtered: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!invalidKeys.includes(key)) filtered[key] = value
+    if (!invalidKeySet.has(key)) filtered[key] = value
   }
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
   return {

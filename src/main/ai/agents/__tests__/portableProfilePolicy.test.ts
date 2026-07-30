@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import type { AgentConfigurationField } from '@shared/data/api/schemas/agents'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
+  type PortableAgentPermissionMode,
   sanitizeAgentAutomation,
   sanitizePermissionMode,
   toDisconnectedAgentWorkspaceSegment
@@ -14,6 +16,10 @@ describe('toDisconnectedAgentWorkspaceSegment', () => {
 })
 
 describe('sanitizePermissionMode', () => {
+  it('returns only non-bypassing modes', () => {
+    expectTypeOf(sanitizePermissionMode('plan')).toEqualTypeOf<PortableAgentPermissionMode | null>()
+  })
+
   it('drops bypassPermissions and unknown values', () => {
     expect(sanitizePermissionMode('bypassPermissions')).toBeNull()
     expect(sanitizePermissionMode('superuser')).toBeNull()
@@ -35,6 +41,14 @@ describe('sanitizePermissionMode', () => {
 })
 
 describe('sanitizeAgentAutomation', () => {
+  it('exposes a typed inert patch and typed malformed fields', () => {
+    const result = sanitizeAgentAutomation({ heartbeat_enabled: true })
+    expectTypeOf(result.patch.configuration.heartbeat_enabled).toEqualTypeOf<false>()
+    expectTypeOf(result.patch.configuration.scheduler_enabled).toEqualTypeOf<false>()
+    expectTypeOf(result.patch.configuration.permission_mode).toEqualTypeOf<PortableAgentPermissionMode | undefined>()
+    expectTypeOf(result.malformedFields).toEqualTypeOf<readonly (AgentConfigurationField | '<root>')[]>()
+  })
+
   it('writes both automation flags false even when absent', () => {
     expect(sanitizeAgentAutomation({ avatar: 'x' }).patch.configuration).toMatchObject({
       avatar: 'x',

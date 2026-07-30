@@ -1,21 +1,28 @@
-import { sanitizePermissionMode } from '@main/ai/agents/portableProfilePolicy'
+import type { AgentChannelRow } from '@data/db/schemas/agentChannel'
+import type { PortableProfileSanitization } from '@data/portableProfilePolicy'
+import { type PortableAgentPermissionMode, sanitizePermissionMode } from '@main/ai/agents/portableProfilePolicy'
+import { AgentChannelConfigSchemasByType, AgentChannelTypeSchema } from '@shared/data/api/schemas/agentChannels'
+import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 
 /** Reference-bearing channel values read from an untrusted detached database. */
 export interface AgentChannelCapabilityInput {
+  readonly type: unknown
   readonly config: unknown
   readonly permissionMode: unknown
 }
 
 export interface AgentChannelCapabilityPatch {
   readonly isActive: false
-  readonly activeChatIds: readonly string[]
-  readonly permissionMode: string | null
+  readonly activeChatIds: AgentChannelRow['activeChatIds']
+  readonly permissionMode: PortableAgentPermissionMode | null
 }
 
-export interface AgentChannelCapabilitySanitization {
-  readonly patch: AgentChannelCapabilityPatch
-  readonly malformedFields: readonly string[]
-}
+export type AgentChannelCapabilityMalformedField = keyof AgentChannelCapabilityInput
+
+export type AgentChannelCapabilitySanitization = PortableProfileSanitization<
+  AgentChannelCapabilityPatch,
+  AgentChannelCapabilityMalformedField
+>
 
 /**
  * Restore channel credentials and continuity state as inert configuration.
@@ -27,12 +34,27 @@ export interface AgentChannelCapabilitySanitization {
  * already-inactive row safer.
  */
 export function sanitizeAgentChannelCapability(input: AgentChannelCapabilityInput): AgentChannelCapabilitySanitization {
-  const malformedFields: string[] = []
-  if (typeof input.config !== 'object' || input.config === null || Array.isArray(input.config)) {
+  const malformedFields: AgentChannelCapabilityMalformedField[] = []
+  const type = AgentChannelTypeSchema.safeParse(input.type)
+  if (!type.success) {
+    malformedFields.push('type')
+  } else if (!AgentChannelConfigSchemasByType[type.data].safeParse(input.config).success) {
     malformedFields.push('config')
   }
+  if (
+    input.permissionMode !== null &&
+    input.permissionMode !== undefined &&
+    !AgentPermissionModeSchema.safeParse(input.permissionMode).success
+  ) {
+    malformedFields.push('permissionMode')
+  }
+  const patch = {
+    isActive: false,
+    activeChatIds: [],
+    permissionMode: sanitizePermissionMode(input.permissionMode)
+  } satisfies AgentChannelCapabilityPatch
   return {
-    patch: { isActive: false, activeChatIds: [], permissionMode: sanitizePermissionMode(input.permissionMode) },
+    patch,
     malformedFields
   }
 }
