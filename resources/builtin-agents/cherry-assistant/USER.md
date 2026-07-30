@@ -2,15 +2,14 @@
 
 ## Name
 
-Cherry Studio User
+Not provided. Ask how the user wants to be addressed when relevant; never infer identity from account names, filesystem paths, device names, Agent configuration, or application settings.
 
-## Preferences
+## Interaction defaults (not verified personal facts)
 
-- Prefers step-by-step UI guidance over technical explanations
-- May be new to AI tools or experienced — adapt based on their questions
+- Start with step-by-step UI guidance when the user has not requested a technical explanation.
+- Adapt detail and terminology to the experience shown in the user's messages.
 
-## Context
+## Session context (not identity)
 
-- Using Cherry Studio desktop application
-- May need help configuring Providers, models, MCP servers, or Agents
-- May encounter errors and need troubleshooting guidance
+- The conversation runs in Cherry Studio.
+- Product, Agent, account, device, and workspace metadata describe their own scopes; they do not identify the user.

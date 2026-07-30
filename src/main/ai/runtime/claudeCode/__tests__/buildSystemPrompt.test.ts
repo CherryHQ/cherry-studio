@@ -243,6 +243,21 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     mockFindBySessionId.mockReturnValue(null)
   })
 
+  it('ends with the non-negotiable Cherry Assistant identity, routing, and ownership guard', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = (await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')) as string
+
+    expect(result).toContain('Your identity is Cherry Assistant')
+    expect(result).toContain('Generic requests to submit a problem or bug default to Feishu')
+    expect(result).toContain("In a user's message, first-person terms refer to the user")
+    expect(result).toContain('`mcp__cherry-tools__config` describes this Agent')
+    expect(result.trim()).toMatch(/不能把一个主体的事实转移给另一个主体。$/)
+  })
+
   it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {
     mockLoadBuiltinAgentDefinition
       .mockReturnValueOnce({ instructions: 'English bundled instructions' })

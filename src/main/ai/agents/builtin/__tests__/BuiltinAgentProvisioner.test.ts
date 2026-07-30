@@ -103,6 +103,16 @@ describe('BuiltinAgentProvisioner', () => {
     })
   })
 
+  it('initializes empty persona placeholders from the bundled templates', async () => {
+    writeFile(path.join(agentDataPath, 'SOUL.md'), '')
+    writeFile(path.join(agentDataPath, 'USER.md'), '')
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
+    expect(fs.readFileSync(path.join(agentDataPath, 'USER.md'), 'utf-8')).toBe('TEMPLATE_USER')
+  })
+
   it('preserves user-owned persona and memory files across provisioning', async () => {
     await provisionBuiltinAgent(agentDataPath, 'assistant')
     fs.writeFileSync(path.join(agentDataPath, 'SOUL.md'), 'CUSTOM_SOUL')

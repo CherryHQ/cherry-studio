@@ -1342,6 +1342,44 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
+  it('reasserts the Cherry Assistant identity and ownership contract on every submitted prompt', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const hook = settings.hooks?.UserPromptSubmit?.[0]?.hooks[0]
+    const output = await hook?.(
+      { hook_event_name: 'UserPromptSubmit', prompt: '我的模型和你的模型分别是什么？' } as never,
+      undefined,
+      {} as never
+    )
+
+    expect(output).toMatchObject({
+      continue: true,
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext: expect.stringContaining('用户消息中的“我/我的/我们”指用户')
+      }
+    })
+    expect(output).toMatchObject({
+      hookSpecificOutput: {
+        additionalContext: expect.stringContaining('Agent 配置不能证明用户身份')
+      }
+    })
+  })
+
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
     const session = {
       id: 'session-1',

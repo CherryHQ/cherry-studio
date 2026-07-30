@@ -10,6 +10,7 @@ const TEMPLATE_PATH = path.join(
 )
 const AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/agent.template.json')
 const SOUL_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/SOUL.md')
+const USER_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/USER.md')
 const DOC_WRITER_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-doc-writer/SKILL.md'
@@ -21,6 +22,10 @@ const MARKETPLACE_PATH = path.join(
 const FEEDBACK_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-studio-feedback/SKILL.md'
+)
+const ISSUE_REPORTER_PATH = path.join(
+  ROOT_DIR,
+  'resources/builtin-agents/cherry-assistant/.claude/skills/issue-reporter/SKILL.md'
 )
 const SKILLS_MANAGER_PATH = path.join(
   ROOT_DIR,
@@ -89,6 +94,35 @@ describe('Cherry Assistant guide', () => {
     expect(soul).toContain('rephrase instead of repeating yourself')
   })
 
+  it('keeps the Cherry Assistant identity distinct from its underlying runtime', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      instructions: Record<'en-US' | 'zh-CN', string>
+    }
+    const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
+
+    expect(agent.instructions['en-US']).toContain('Never identify yourself as Claude Code')
+    expect(agent.instructions['zh-CN']).toContain('不得自称 Claude Code')
+    expect(soul).toContain('Never introduce yourself as Claude Code')
+  })
+
+  it('grounds conversational references and tool results to the correct data owner', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      instructions: Record<'en-US' | 'zh-CN', string>
+    }
+    const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
+    const user = fs.readFileSync(USER_PATH, 'utf-8')
+
+    expect(agent.instructions['en-US']).toContain("In a user's message, first-person terms refer to the user")
+    expect(agent.instructions['en-US']).toContain('`mcp__cherry-tools__config` describes this Agent')
+    expect(agent.instructions['en-US']).toContain('Never transfer facts from one entity to another')
+    expect(agent.instructions['zh-CN']).toContain('用户消息中的“我/我的/我们”指用户')
+    expect(agent.instructions['zh-CN']).toContain('Agent 配置不能证明用户身份')
+    expect(agent.instructions['zh-CN']).toContain('不能把一个主体的事实转移给另一个主体')
+    expect(soul).toContain('Reference and ownership grounding')
+    expect(user).toContain('Not provided')
+    expect(user).toContain('not verified personal facts')
+  })
+
   it('refuses destructive abuse and routes ordinary deletion through the operating-system trash', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>
@@ -134,6 +168,7 @@ describe('Cherry Assistant guide', () => {
       skills: string[]
     }
     const feedback = fs.readFileSync(FEEDBACK_PATH, 'utf-8')
+    const issueReporter = fs.readFileSync(ISSUE_REPORTER_PATH, 'utf-8')
 
     expect(agent.skills).toContain('cherry-studio-feedback')
     expect(agent.instructions['en-US']).toContain(
@@ -141,6 +176,7 @@ describe('Cherry Assistant guide', () => {
     )
     expect(agent.instructions['en-US']).toContain('File a GitHub Issue -> `issue-reporter`')
     expect(agent.instructions['zh-CN']).toContain('只收集用户同意的诊断信息')
+    expect(agent.instructions['zh-CN']).toContain('默认提交到飞书')
     expect(feedback).toContain('mcp__assistant__diagnose({ action: "info" })')
     expect(feedback).toContain('mcp__assistant__diagnose({ action: "errors", lines: 100 })')
     expect(feedback).toContain('mcp__assistant-files__save_attachment')
@@ -148,12 +184,16 @@ describe('Cherry Assistant guide', () => {
     expect(feedback).toContain('lark-cli base +form-detail')
     expect(feedback).toContain('auth status --json --verify')
     expect(feedback).toContain('返回 `ok == true`')
+    expect(feedback).toContain('不要安装、升级或重新配置 `lark-cli`')
     expect(feedback).toContain('匿名反馈包上传')
+    expect(feedback).toContain('未明确提及 GitHub 时，不要调用 `gh`')
     expect(feedback).toContain('不盲目解压整个压缩包')
     expect(feedback).toContain('“上传错误信息”按钮属于客户端/服务端功能')
     expect(feedback).not.toContain('cherrystudio.sqlite')
     expect(feedback).not.toContain('~/Documents/Cherry')
     expect(feedback).not.toContain('UqjTbBFGWapnOrsJaDgcuyEbnUg')
+    expect(issueReporter).toContain('只有用户明确要求提交到 GitHub')
+    expect(issueReporter).toContain('不得运行 `gh auth status`')
   })
 
   it('routes document conversion through content reconstruction without promising layout fidelity', () => {
