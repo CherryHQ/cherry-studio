@@ -4,7 +4,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { JobContext, JobHandler } from '@main/core/job/types'
+import type { CooperativeJobContext, CooperativeJobHandler, JobContext } from '@main/core/job/types'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
@@ -54,11 +54,12 @@ type LoadedDocuments = Awaited<ReturnType<typeof loadKnowledgeItemDocuments>>
 
 export function createIndexDocumentsJobHandler(
   knowledgeLockManager: KnowledgeLockManager
-): JobHandler<KnowledgeIndexDocumentsPayload> {
+): CooperativeJobHandler<KnowledgeIndexDocumentsPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
     // embedding API; the item is parked at `failed` and reindexed on demand.
     recovery: 'abandon',
+    quiescence: 'cooperative',
     defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
     defaultConcurrency: 5,
     defaultRetryPolicy: {
@@ -117,6 +118,10 @@ export function createIndexDocumentsJobHandler(
         // (matching the migrator) instead of the item-id virtual placeholder.
         const rebuildInput = await buildRebuildMaterialInput(ctx, base, readableItem, chunked)
 
+        // The base mutation lock and all persistent writes are strictly after
+        // this checkpoint. During backup sealing the already-built vectors stay
+        // in memory and the job parks without holding owner locks.
+        await ctx.quiesceAtSafePoint()
         // The atomic material rebuild and final status flip must stay together under the base mutation lock.
         reportKnowledgeProgress(ctx, 80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
         await writeItemMaterial(ctx, base, rebuildInput, knowledgeLockManager)
@@ -291,7 +296,7 @@ async function chunkItemDocuments(
  * store keys embeddings by that same hash, so every unit resolves its vector.
  */
 async function buildRebuildMaterialInput(
-  ctx: JobContext<KnowledgeIndexDocumentsPayload>,
+  ctx: CooperativeJobContext<KnowledgeIndexDocumentsPayload>,
   base: KnowledgeBase,
   item: IndexableKnowledgeItem,
   chunked: ChunkedKnowledgeContent
@@ -326,6 +331,9 @@ async function buildRebuildMaterialInput(
       cacheService.setShared(progressKey, 0)
       const vectors: number[][] = []
       for (let i = 0; i < missing.length; i += EMBEDDING_PROGRESS_BATCH_SIZE) {
+        // An in-flight provider request is allowed to finish. The next batch
+        // cannot start while backup holds JobManager's quiescence window.
+        await ctx.quiesceAtSafePoint()
         ctx.signal.throwIfAborted()
         const batch = missing.slice(i, i + EMBEDDING_PROGRESS_BATCH_SIZE)
         const batchVectors = await embedKnowledgeTexts(
