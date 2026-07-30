@@ -42,7 +42,6 @@ import { renameOnlySync } from '@main/utils/file'
 import { admitArchive } from './admission/admitArchive'
 import { compactDegradationsForJournal } from './degradationReport'
 import { RestoreStateError } from './errors'
-import { acquireProfileQuiescence } from './exportQuiesce'
 import type { BackupManifestDegradation } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
@@ -330,72 +329,53 @@ export function cancelPreparedRestore(): void {
  * surprise database replacement.
  */
 export async function armPreparedRestore(expectedRestoreId: string): Promise<void> {
-  const hold = await acquireProfileQuiescence({ reason: 'backup restore: arm prepared restore' })
-  let releaseHold = true
-  try {
-    const read = readRestoreJournalV2()
-    if (read.kind !== 'ok') {
-      throw new RestoreStateError(read.kind === 'corrupt' ? 'unreadable' : 'wrong-state', 'no prepared restore to arm')
-    }
-    const journal = read.journal
-    if (journal.state !== 'prepared') {
-      throw new RestoreStateError('wrong-state', `only a prepared restore can be armed (state: ${journal.state})`)
-    }
-    if (journal.restoreId !== expectedRestoreId) {
-      throw new RestoreStateError('wrong-state', 'the prepared restore no longer matches the preview being confirmed')
-    }
-    if (journal.ownerSummary === undefined) {
-      throw new RestoreStateError(
-        'wrong-state',
-        'this preparation predates owner readiness sealing and must be prepared again'
-      )
-    }
-
-    const resourceInstalls = sealResourceInstallEntriesAtArm(
-      journal.resourceInstalls,
-      application.getPath('app.userdata')
+  const read = readRestoreJournalV2()
+  if (read.kind !== 'ok') {
+    throw new RestoreStateError(read.kind === 'corrupt' ? 'unreadable' : 'wrong-state', 'no prepared restore to arm')
+  }
+  const journal = read.journal
+  if (journal.state !== 'prepared') {
+    throw new RestoreStateError('wrong-state', `only a prepared restore can be armed (state: ${journal.state})`)
+  }
+  if (journal.restoreId !== expectedRestoreId) {
+    throw new RestoreStateError('wrong-state', 'the prepared restore no longer matches the preview being confirmed')
+  }
+  if (journal.ownerSummary === undefined) {
+    throw new RestoreStateError(
+      'wrong-state',
+      'this preparation predates owner readiness sealing and must be prepared again'
     )
-    hold.checkpoint('restore-arm-seal')
-    const armed = { ...journal, resourceInstalls: [...resourceInstalls], state: 'armed' as const }
-    try {
-      writeRestoreJournalV2(armed)
-    } catch (error) {
-      const committed = readRestoreJournalV2()
-      if (
-        committed.kind === 'ok' &&
-        committed.journal.restoreId === journal.restoreId &&
-        committed.journal.state === 'armed'
-      ) {
-        releaseHold = false
-        await exitForRestoreJournalRecovery(error)
-      }
-      throw error
-    }
+  }
 
-    // From this point on, reopening admission would permit writes against a
-    // journal that already authorizes preboot promotion.
-    releaseHold = false
-    logger.info('Restore armed; requesting relaunch', { restoreId: journal.restoreId })
-    try {
-      application.relaunch()
-    } catch (error) {
-      try {
-        writeRestoreJournalV2(journal)
-      } catch (rollbackError) {
-        await exitForRestoreJournalRecovery(rollbackError)
-      }
-      releaseHold = true
-      logger.error('Relaunch failed; the arm was rolled back to prepared', error as Error)
-      throw new RestoreStateError('relaunch-failed', (error as Error).message)
-    }
+  const resourceInstalls = sealResourceInstallEntriesAtArm(
+    journal.resourceInstalls,
+    application.getPath('app.userdata')
+  )
+  const armed = { ...journal, resourceInstalls: [...resourceInstalls], state: 'armed' as const }
+  try {
+    writeRestoreJournalV2(armed)
   } catch (error) {
-    if (releaseHold) {
-      try {
-        hold.dispose()
-      } catch (releaseError) {
-        logger.error('Restore arm failed and not every writer hold released', releaseError as Error)
-      }
+    const committed = readRestoreJournalV2()
+    if (
+      committed.kind === 'ok' &&
+      committed.journal.restoreId === journal.restoreId &&
+      committed.journal.state === 'armed'
+    ) {
+      await exitForRestoreJournalRecovery(error)
     }
     throw error
+  }
+
+  logger.info('Restore armed; requesting relaunch', { restoreId: journal.restoreId })
+  try {
+    application.relaunch()
+  } catch (error) {
+    try {
+      writeRestoreJournalV2(journal)
+    } catch (rollbackError) {
+      await exitForRestoreJournalRecovery(rollbackError)
+    }
+    logger.error('Relaunch failed; the arm was rolled back to prepared', error as Error)
+    throw new RestoreStateError('relaunch-failed', (error as Error).message)
   }
 }

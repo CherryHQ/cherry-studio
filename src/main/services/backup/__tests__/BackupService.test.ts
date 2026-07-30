@@ -179,6 +179,17 @@ describe('BackupService', () => {
       expect(order).toEqual(['KnowledgeService', 'BackupService'])
       expect([...order].reverse()).toEqual(['BackupService', 'KnowledgeService'])
     })
+
+    it('keeps restore transitions independent of runtime quiescence and lifecycle shutdown', () => {
+      for (const relativePath of ['../prepareRestore.ts', '../rollbackRestore.ts']) {
+        const source = readFileSync(resolve(__dirname, relativePath), 'utf8')
+
+        expect(source, relativePath).not.toMatch(
+          /exportQuiesce|McpRuntimeService|relaunchAfterShutdown|application\.shutdown/
+        )
+        expect(source, relativePath).toContain('application.relaunch()')
+      }
+    })
   })
 
   describe('status', () => {

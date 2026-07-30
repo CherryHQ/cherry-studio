@@ -6,9 +6,8 @@ import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { forceExitMock, holdDisposeMock, relaunchMock } = vi.hoisted(() => ({
+const { forceExitMock, relaunchMock } = vi.hoisted(() => ({
   forceExitMock: vi.fn(),
-  holdDisposeMock: vi.fn(),
   relaunchMock: vi.fn<() => void>()
 }))
 let userData = ''
@@ -28,15 +27,6 @@ vi.mock('@application', () => ({
     forceExit: forceExitMock,
     relaunch: relaunchMock
   }
-}))
-
-vi.mock('../exportQuiesce', () => ({
-  acquireProfileQuiescence: vi.fn(async () => ({
-    checkpoint: vi.fn(),
-    dispose: holdDisposeMock,
-    signal: new AbortController().signal,
-    waitFor: vi.fn()
-  }))
 }))
 
 vi.mock('@logger', () => ({
@@ -80,7 +70,6 @@ describe('armRestoreRollback', () => {
     userData = mkdtempSync(join(tmpdir(), 'cs-rollback-arm-'))
     writeFileSync(join(userData, `cherrystudio.sqlite.pre-restore-${RESTORE_ID}`), 'PREVIOUS')
     forceExitMock.mockReset()
-    holdDisposeMock.mockReset()
     relaunchMock.mockReset()
   })
 
@@ -249,6 +238,5 @@ describe('armRestoreRollback', () => {
       kind: 'ok',
       journal: { state: 'completed' }
     })
-    expect(holdDisposeMock).toHaveBeenCalledOnce()
   })
 })
