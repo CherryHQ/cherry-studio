@@ -510,6 +510,9 @@ then writes a journal-v2 state machine. Journal primitives, durability invariant
 promotion gate live in
 [`src/main/data/db/restore/`](../../../src/main/data/db/restore/README.md) and
 [`src/main/core/preboot/backupRestoreGate.ts`](../../../src/main/core/preboot/backupRestoreGate.ts).
+The gate stays in `core/preboot` because it owns startup ordering, not Backup business
+semantics. It invokes the generic data-layer state machine before migrations and before any
+database connection; it does not resolve feature or lifecycle services.
 
 ### 6.1 Lifecycle states
 
@@ -535,6 +538,15 @@ Only `armed` enters promotion; only `rollback-armed` enters explicit reverse pro
 Once either action is armed, later writes in the state being displaced are intentionally
 replaced rather than merged.
 
+Restore preparation, arm, and rollback deliberately do **not** reuse export quiescence.
+Preparation mutates only admission-owned staging. Arm/rollback recheck the journal and
+filesystem topology, durably record the direction, and call the existing
+`application.relaunch()` path; they do not pause MCP/AI/Agent/Channel, acquire the profile
+write barrier, or orchestrate Application shutdown. Preboot checks every staged/live/aside
+triple again before the first rename. A race between arm and process exit therefore refuses
+startup when it changes an install fact needed by recovery, rather than expanding restore
+into a cross-service lifecycle protocol.
+
 Every state also carries the **degradation report** — what producing and
 materializing this archive reduced (§4). Before the journal write, raw rows and
 per-resource exclusions are compacted into one true total plus at most three safe
@@ -543,6 +555,15 @@ in memory because the report is shown after the relaunch, once the staging tree
 that produced it is gone; without it a degraded restore would present as a complete
 one. The bounded report stays far below the journal cap even when thousands of
 resources share one exclusion cause.
+
+New journals also carry an opaque `ownerSummary`. Backup obtains each entry from the owner
+after archive admission and requirement reconciliation, before moving admission staging or
+writing `prepared`. `data/db/restore` validates only that the bag is JSON and carries it
+through promotion; it does not interpret Knowledge paths or business IDs. After boot,
+Backup routes an owner's entry back to that owner for readiness/rebuild work. The only path
+inference is a compatibility helper in `backupRestoreGate.ts` for an already-armed
+pre-release v2 journal that predates this field; new writers never call it, and a new-format
+journal missing the summary fails closed.
 
 > **Change from current `origin/main`.** Journal v1 (on main) uses states
 > `staged → promoting → completed|failed|expired` with no `prepared`/`armed` split and a
@@ -775,6 +796,31 @@ capability exists, flag the upstream owner API — never deep-import feature int
 invent a generic contributor framework. Feature modules must not depend upward on
 `BackupService`.
 
+The ownership direction is fixed:
+
+```text
+Backup orchestration → owner pure projection/readiness policy
+Backup orchestration → generic data snapshot/restore → @main/utils/file
+owner policy ─X→ Backup types, manifests, journals, or state machines
+```
+
+Backup may enumerate a detached database and assemble inventory, but it must ask the owner
+to classify owner-specific meaning. Current examples are:
+
+| Owner | Pure policy supplied to Backup |
+|---|---|
+| FileManager/File | Canonical internal blob filename; runtime mutations remain FileManager-owned |
+| Knowledge | Derived-index exclusion, required rebuild material, restore readiness summary |
+| Skill | Canonical library and generated `.claude/skills` projection classification |
+| Agent | Automation deactivation, permission fallback, unavailable workspace projection |
+| Channel | Inactive capability projection and safe malformed-config fallback |
+| MCP | Inactive/trust reset, `dxtPath` removal, safe malformed-field fallback |
+
+These policies expose ordinary owner inputs/outputs and import no Backup types. Backup owns
+the database queries, degradation aggregation, resource-kind mapping, manifest/journal
+state, staging, and transaction errors. A missing owner policy is caught by schema and
+dependency audit tests; it is not deferred to a user's export.
+
 **Resource unit by ownership:**
 
 | Content | Unit |
@@ -883,7 +929,7 @@ scheduling (`enqueueRestoredKnowledgeReindex`).
 **Genuinely new — proved by focused tests before UI:** manifest v2 with
 complete-chain/payload integrity; portable DB sanitizer/materializer and active-capability
 reset; journal-v2 `prepared`/`armed` states and unified file/directory resource-install;
-the shared profile write barrier and fixed quiesce/drain sequence; sealed DB/resource
+the shared profile write barrier and fixed **export-only** quiesce/drain sequence; sealed DB/resource
 baselines with fail-closed source drift; ZIP read-back verification and operation-owned
 crash cleanup; existence inventory, path-overlap/same-filesystem enforcement,
 completed-restore GC protection, and acknowledgement cleanup.
@@ -897,6 +943,8 @@ completed-restore GC protection, and acknowledgement cleanup.
   contracts.
 - Restore-time live snapshot, renderer write-quiesce, and DB fingerprint expiry — replaced
   by the mandatory live preboot WAL checkpoint ([§6.2](#62-live-wal-checkpoint-is-mandatory)).
+- Restore arm/rollback orchestration of runtime pause/drain or lifecycle shutdown. Runtime
+  only seals the durable direction and requests relaunch; data replacement remains preboot.
 - Any incremental backup, cross-database merge, domain stripping, or public contributor
   framework.
 

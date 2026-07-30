@@ -2,7 +2,7 @@
 
 Journal + preboot-promotion primitives for Backup v2's **whole-database replacement** ([backup §6](../../../../../docs/references/backup/README.md#6-journal-v2--promotion)).
 
-The runtime never writes restored rows into the live database. `BackupService` admits an archive, materializes its database into a sealed file under `restore-staging/`, and writes a journal; the preboot gate then swaps that file in by atomic rename during the zero-connection window.
+The runtime never writes restored rows into the live database. `BackupService` admits an archive, materializes its database into a sealed file under `restore-staging/`, and writes a journal; the preboot gate then swaps that file in by atomic rename during the zero-connection window. Feature readiness travels through the journal as an opaque JSON `ownerSummary`; this module persists and returns it but never interprets Knowledge, Skill, Agent, Channel, MCP, or File semantics.
 
 **No barrel** — consumers deep-import specific files (same convention as `src/main/core/preboot/`).
 
@@ -38,6 +38,7 @@ prepared ──armed by the user──▶ armed ──gate passed──▶ promo
 - Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality via `restoreRecovery.ts`, plus the marker-lag probe (a landed commit rename with a lagging or unwritable marker resumes forward).
 - `completed` may become `rollback-armed` only by explicit user action; the gate then restores retained asides and records `rolled-back` before normal services start.
 - Reportable states (`completed` / `rolled-back` / `failed` / `expired`) are kept post-boot; both successful directions hold GC protection until acknowledgement (§6.5).
+- Arming and rollback do not pause/drain runtime services or orchestrate lifecycle shutdown. They validate the journal/topology, write the durable direction, and use the existing relaunch path. Preboot revalidates every install unit before the first rename and fails closed if topology changed.
 
 ## Promotion sequence
 
@@ -54,10 +55,15 @@ prepared ──armed by the user──▶ armed ──gate passed──▶ promo
 |---|---|
 | `restore-journal.json` read/write primitives | this module |
 | Journal state transitions during promotion | `restorePromotionV2.ts` (driven by the gate shell, `src/main/core/preboot/backupRestoreGate.ts`) |
+| Opaque `ownerSummary` JSON validation and transport | this module |
+| `ownerSummary` production and interpretation | the feature owner, called by Backup before preparation and after boot |
 | `restore-staging/` tree content (`feature.backup.restore.staging`) | BackupService before boot, promotion afterwards; explicit rollback reuses it to retain displaced restored resources until acknowledgement |
 | Terminal-journal deletion + aside cleanup | acknowledgement (§6.5) |
 | Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) | kept for forensics alongside terminal journals |
 | Parked pre-release journals (`restore-journal.json.parked-v1`) | `backupRestoreGate.ts` — a journal in the abandoned v1 format is renamed aside unparsed and never executed, so a later pre-release install cannot resume it; nothing it named is deleted |
+| Missing-summary compatibility for already-armed pre-release v2 journals | `backupRestoreGate.ts` only; new writers may not use path inference |
+
+The gate remains in `core/preboot` because its ownership is boot ordering: it runs after the path registry and single-instance lock, but before migrations or any database connection. The actual move/recovery state machine remains in this generic data module. Neither layer acquires feature services. The gate's narrowly named compatibility projection is the only old-journal exception; normal execution never derives a business ID from a resource path here.
 
 ## Writer requirements (preparation side)
 
@@ -68,3 +74,4 @@ Before writing a `prepared` journal:
 3. **`chain` MUST come from `readAppliedChain(staged)`** — never from the app's bundled migration list: drizzle's `migrate()` silently no-ops on an ahead-of-code database, so the bundled list can be a strict subset of what the database actually applied.
 4. **Use userData-relative paths** for `promote` / `aside` (§6.6): `runUserDataRelocation()` copies the whole tree before the gate runs, and relative paths are what let a prepared restore survive it.
 5. **Name the aside per restore.** Recovery decides from `(staged, live, aside)` existence, so a stale aside from an earlier restore mistaken for this one's rollback source is worse than no aside at all.
+6. **Seal feature readiness before the journal.** Backup asks each owner to project readiness from the already admitted inventory before moving admission staging. The journal stores that projection opaquely; an active new-format restore without it fails closed rather than reconstructing feature meaning from paths.

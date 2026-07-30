@@ -41,6 +41,11 @@
  *   / `writeIfUnchanged` instead.
  * - **Do NOT** mutate files a FileEntry references without going through
  *   FileManager (same reason).
+ * - The sole whole-profile exception is journaled preboot restore. With no
+ *   database connection or runtime FileManager alive, `data/db/restore` may
+ *   rename complete, admission-authorized DB/resource units through the
+ *   durability and path-safety primitives below. This does not authorize any
+ *   runtime caller to bypass FileManager.
  * - **OK** to use these for: temp workspaces, module-local storage (Notes,
  *   backups), OAuth token caches, MCP configs — anything outside the
  *   internal-origin storage region.
