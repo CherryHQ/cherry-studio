@@ -292,12 +292,15 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
         <div
           data-testid="powerpoint-file-preview"
           className="relative h-full min-h-0 w-full overflow-hidden bg-background">
+          {/* Must stay in-flow (not `absolute inset-0`): PptxViewer overwrites the
+              container's inline `position`, which would void inset sizing and let the
+              element grow to its content height — killing the scrollbar. */}
           <div
             ref={containerRef}
             data-testid="pptx-viewer-container"
             role="region"
             aria-label={fileName}
-            className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             tabIndex={0}
           />
           {loading ? (
