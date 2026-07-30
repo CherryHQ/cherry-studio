@@ -471,6 +471,7 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
+  const [draftTokenRevision, setDraftTokenRevision] = useState(0)
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -766,8 +767,9 @@ const ChatComposerInner = ({
 
   // Single owner of the global draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
-  // persistable change reduces to a text or files state change (deleting a file token leaves text
-  // unchanged but prunes files via reconcile); knowledge selection is intentionally not cached.
+  // persistable change is observed through text, files, or the editor token revision. The revision
+  // covers token-only edits whose serialized text stays unchanged; knowledge selection is
+  // intentionally excluded by writeChatDraftCache.
   const persistedOnceRef = useRef(false)
   useEffect(() => {
     if (!persistedOnceRef.current) {
@@ -780,7 +782,7 @@ const ChatComposerInner = ({
     }
     if (editingMessage) return
     writeChatDraftCache(text, actionsRef.current.getDraft().tokens, files)
-  }, [actionsRef, editingMessage, files, text])
+  }, [actionsRef, draftTokenRevision, editingMessage, files, text])
 
   const restoreSavedDraft = useCallback(() => {
     const savedDraft = savedDraftBeforeEditingRef.current
@@ -875,7 +877,14 @@ const ChatComposerInner = ({
 
   // Editor→state reconciliation owned by the tools: attachmentTool prunes+dedupes files,
   // knowledgeBaseTool prunes+re-adds knowledge bases (against the injected selectableKnowledgeBases).
-  const handleTokensChange = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
+  const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
+  const handleTokensChange = useCallback(
+    (nextDraftTokens: readonly ComposerSerializedToken[]) => {
+      reconcileTokens(nextDraftTokens)
+      setDraftTokenRevision((revision) => revision + 1)
+    },
+    [reconcileTokens]
+  )
 
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',
