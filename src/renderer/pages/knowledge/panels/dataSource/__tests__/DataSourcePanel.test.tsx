@@ -691,8 +691,9 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
-  it('views chunks in-app on a note row click', () => {
+  it('views the original note content in-app on a note row click, not its chunks', () => {
     const onItemClick = vi.fn()
+    const onViewNoteContent = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
     render(
@@ -702,6 +703,7 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onItemClick={onItemClick}
+        onViewNoteContent={onViewNoteContent}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
       />
@@ -709,7 +711,8 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('会议纪要'))
 
-    expect(onItemClick).toHaveBeenCalledWith('note-1')
+    expect(onViewNoteContent).toHaveBeenCalledWith('note-1')
+    expect(onItemClick).not.toHaveBeenCalled()
     expect(previewSourceMock).not.toHaveBeenCalled()
   })
 

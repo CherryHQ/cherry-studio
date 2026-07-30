@@ -56,6 +56,8 @@ export interface AgentRuntimeConnectInput {
   reasoningEffort?: ReasoningEffortOption
   /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
   knowledgeBaseIds?: readonly string[]
+  /** Whether this connection's turn requests Fast processing. */
+  fastMode?: boolean
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
   /**
@@ -162,6 +164,7 @@ export interface AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the

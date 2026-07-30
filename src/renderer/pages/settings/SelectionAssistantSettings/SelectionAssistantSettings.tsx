@@ -288,7 +288,6 @@ const SelectionAssistantSettings: FC = () => {
                 className="w-25"
                 min={20}
                 max={100}
-                inverted
                 value={[opacityValue]}
                 onValueChange={(value) => setOpacityValue(value[0])}
                 onValueCommit={(value) => setActionWindowOpacity(value[0])}
