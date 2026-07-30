@@ -137,6 +137,16 @@ describe('FilePreview', () => {
     expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
   })
 
+  it('shows an unavailable state when metadata succeeds but the text sniff fails', async () => {
+    vi.mocked(window.api.file.isTextFile).mockRejectedValueOnce(new Error('EACCES'))
+
+    render(<FilePreview filePath={'/tmp/notes.md' as AbsoluteFilePath} />)
+
+    expect(await screen.findByText('file_preview.unavailable.title')).toBeInTheDocument()
+    expect(screen.queryByText('file_preview.unsupported.title')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
+  })
+
   it('falls back to text preview for text content with an unknown extension', async () => {
     vi.mocked(window.api.file.isTextFile).mockResolvedValueOnce(true)
 
