@@ -330,7 +330,7 @@ describe('TopicMessageFlowCanvas', () => {
     expect(onNodeSelect).toHaveBeenCalledWith('assistant-1')
   })
 
-  it('does not select input draft nodes', async () => {
+  it('selects persisted awaiting-input nodes', async () => {
     const onNodeSelect = vi.fn()
 
     render(
@@ -340,19 +340,19 @@ describe('TopicMessageFlowCanvas', () => {
           nodes: [
             ...graph.nodes,
             {
-              id: 'branch-draft:assistant-1',
+              id: 'branch-draft-user',
               type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
               position: { x: 520, y: 240 },
               data: {
                 createdAt: '2026-01-01T00:02:00.000Z',
                 isActive: false,
                 isInactiveBranch: false,
-                isInputDraft: true,
+                isAwaitingInput: true,
                 isOnActivePath: false,
-                messageId: 'branch-draft:assistant-1',
+                messageId: 'branch-draft-user',
                 preview: 'chat.message.flow.status.awaiting_input',
                 role: 'user',
-                status: 'paused'
+                status: 'success'
               }
             }
           ]
@@ -361,9 +361,9 @@ describe('TopicMessageFlowCanvas', () => {
       />
     )
 
-    fireEvent.click(await screen.findByTestId('flow-node-branch-draft:assistant-1'))
+    fireEvent.click(await screen.findByTestId('flow-node-branch-draft-user'))
 
-    expect(onNodeSelect).not.toHaveBeenCalled()
+    expect(onNodeSelect).toHaveBeenCalledWith('branch-draft-user')
   })
 
   it('calls onNodeContextMenu with the right-clicked message id', async () => {

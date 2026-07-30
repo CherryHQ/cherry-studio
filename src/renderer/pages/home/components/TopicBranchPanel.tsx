@@ -11,6 +11,7 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
@@ -28,7 +29,6 @@ interface Props {
   layoutReady?: boolean
   onLocateMessage?: (messageId: string) => void
   onStartBranchDraft?: (messageId: string) => Promise<void> | void
-  onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
 }
 
 const logger = loggerService.withContext('TopicBranchPanel')
@@ -54,8 +54,7 @@ const TopicBranchPanel: FC<Props> = ({
   focusKey,
   layoutReady,
   onLocateMessage,
-  onStartBranchDraft,
-  onCancelBranchDraft
+  onStartBranchDraft
 }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
@@ -72,30 +71,21 @@ const TopicBranchPanel: FC<Props> = ({
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
+  const { trigger: deleteAwaitingInputMessage } = useMutation('DELETE', '/messages/:id', {
+    refresh: [messagesCachePath, treeCachePath]
+  })
 
   const tree = useMemo(
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
     [data, liveState, topicId]
   )
   const graph = useMemo(() => layoutTopicMessageFlowGraph(buildTopicMessageFlowGraph(tree)), [tree])
-  const activeDraftAnchorId = useMemo(() => {
-    if (liveState?.topicId !== topicId) return null
-    return liveState.nodes.find((node) => node.isInputDraft && node.id === liveState.activeNodeId)?.parentId ?? null
-  }, [liveState, topicId])
 
   const handleNodeSelect = useCallback(
     async (messageId: string) => {
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (activeDraftAnchorId) {
-        if (messageId === activeDraftAnchorId) {
-          onCancelBranchDraft?.(activeDraftAnchorId)
-          onLocateMessage?.(messageId)
-          return
-        }
-        onCancelBranchDraft?.()
-      }
-
-      if (!activeDraftAnchorId && selectedNode?.data.isOnActivePath) {
+      if (selectedNode?.data.isAwaitingInput && messageId === graph.activeNodeId) return
+      if (selectedNode?.data.isOnActivePath) {
         onLocateMessage?.(messageId)
         return
       }
@@ -108,13 +98,11 @@ const TopicBranchPanel: FC<Props> = ({
         if (path.length > 0) {
           leafId = path[path.length - 1].id
         }
-        onCancelBranchDraft?.(leafId)
         await setActiveNode({
           params: { id: topicId },
           body: { nodeId: leafId }
         })
         await refetch()
-        onCancelBranchDraft?.()
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
@@ -124,18 +112,13 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.error'))
       }
     },
-    [activeDraftAnchorId, graph.nodes, onCancelBranchDraft, onLocateMessage, refetch, setActiveNode, t, topicId]
+    [graph.activeNodeId, graph.nodes, onLocateMessage, refetch, setActiveNode, t, topicId]
   )
 
   const handleStartNodeBranch = useCallback(
     async (messageId: string) => {
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (
-        selectedNode?.data.role !== 'assistant' ||
-        !selectedNode.data.hasAssistantDescendant ||
-        messageId === graph.activeNodeId ||
-        !onStartBranchDraft
-      ) {
+      if (selectedNode?.data.role !== 'assistant' || !onStartBranchDraft) {
         return
       }
 
@@ -151,7 +134,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.error'))
       }
     },
-    [graph.activeNodeId, graph.nodes, onStartBranchDraft, t, topicId]
+    [graph.nodes, onStartBranchDraft, t, topicId]
   )
 
   const handleCopyBranchToNewTopic = useCallback(
@@ -174,6 +157,32 @@ const TopicBranchPanel: FC<Props> = ({
     [copyBranchToNewTopic, t, topicId]
   )
 
+  const handleDeleteAwaitingInputMessage = useCallback(
+    async (messageId: string) => {
+      const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
+      if (selectedNode?.data.role !== 'user' || !selectedNode.data.isAwaitingInput) {
+        return
+      }
+
+      try {
+        await deleteAwaitingInputMessage({
+          params: { id: messageId },
+          query: { cascade: false, activeNodeStrategy: 'parent', awaitingInputOnly: true }
+        })
+        await refetch()
+        toast.success(t('common.delete_success'))
+      } catch (err) {
+        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
+          logger.warn('deleteAwaitingInputMessage from topic flow on missing message', { messageId, topicId })
+          return
+        }
+        logger.error('Failed to delete awaiting-input message from topic flow', err as Error)
+        toast.error(t('common.delete_failed'))
+      }
+    },
+    [deleteAwaitingInputMessage, graph.nodes, refetch, t, topicId]
+  )
+
   const handleNodeContextMenu = useCallback((messageId: string) => {
     contextMenuMessageIdRef.current = messageId
   }, [])
@@ -185,14 +194,7 @@ const TopicBranchPanel: FC<Props> = ({
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       const canShowStartBranch = !!onStartBranchDraft && selectedNode?.data.role === 'assistant'
-      const canStartBranch =
-        canShowStartBranch && !!selectedNode.data.hasAssistantDescendant && messageId !== graph.activeNodeId
-      const startBranchDisabledReason =
-        canShowStartBranch && !canStartBranch
-          ? messageId === graph.activeNodeId
-            ? t('chat.message.new.branch.disabled.active')
-            : t('chat.message.new.branch.disabled.no_follow_up')
-          : undefined
+      const canDeleteAwaitingInput = selectedNode?.data.role === 'user' && selectedNode.data.isAwaitingInput === true
 
       const actions: ResolvedAction[] = [
         {
@@ -204,8 +206,7 @@ const TopicBranchPanel: FC<Props> = ({
           danger: false,
           availability: {
             visible: canShowStartBranch,
-            enabled: canStartBranch,
-            reason: startBranchDisabledReason
+            enabled: canShowStartBranch
           },
           children: []
         },
@@ -220,6 +221,18 @@ const TopicBranchPanel: FC<Props> = ({
             enabled: true
           },
           children: []
+        },
+        {
+          id: 'topic-flow.delete-awaiting-input',
+          label: t('common.delete'),
+          icon: <DeleteIcon size={14} />,
+          group: 'delete',
+          danger: true,
+          availability: {
+            visible: canDeleteAwaitingInput,
+            enabled: canDeleteAwaitingInput
+          },
+          children: []
         }
       ]
 
@@ -231,10 +244,21 @@ const TopicBranchPanel: FC<Props> = ({
         }
         if (action.id === 'topic-flow.copy-topic') {
           void handleCopyBranchToNewTopic(messageId)
+          return
+        }
+        if (action.id === 'topic-flow.delete-awaiting-input') {
+          void handleDeleteAwaitingInputMessage(messageId)
         }
       })
     },
-    [graph.activeNodeId, graph.nodes, handleCopyBranchToNewTopic, handleStartNodeBranch, onStartBranchDraft, t]
+    [
+      graph.nodes,
+      handleCopyBranchToNewTopic,
+      handleDeleteAwaitingInputMessage,
+      handleStartNodeBranch,
+      onStartBranchDraft,
+      t
+    ]
   )
 
   const handleContextMenuOpenChange = useCallback((open: boolean) => {

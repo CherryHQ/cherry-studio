@@ -12,7 +12,7 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
   parentAnchorId?: string
   /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
   mentionedModels?: UniqueModelId[]
-  /** User message parts to persist/display for submit-message turns. */
+  /** User message parts to persist/display for new or persisted-draft submissions. */
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
@@ -156,6 +156,18 @@ export type AiStreamOpenRequest = {
       fastMode?: boolean
     }
   | {
+      /** Fill a persisted empty branch user node, then create N assistant placeholders. */
+      trigger: 'submit-draft-message'
+      /** Id of the persisted branch-draft user message to fill. */
+      parentAnchorId: string
+      /** Content that replaces the branch draft's empty parts. */
+      userMessageParts: CherryMessagePart[]
+      /** Canonical reasoning selection captured when the composer submitted. */
+      reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this turn. */
+      fastMode?: boolean
+    }
+  | {
       /** Re-run the assistant under an existing user msg. */
       trigger: 'regenerate-message'
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
@@ -259,9 +271,9 @@ export type AiStreamOpenResponse =
       executionIds?: UniqueModelId[]
       /**
        * Authoritative DB id of the user message created for this turn, when the
-       * dispatch created one (submit on a persisted topic; agent session).
-       * Absent for regenerate / continue / temporary topics. The renderer joins
-       * its optimistic user bubble against this.
+       * dispatch created or filled one (submit on a persisted topic, persisted
+       * branch draft, or agent session). Absent for regenerate / continue /
+       * temporary topics. The renderer joins its optimistic user bubble against this.
        */
       userMessageId?: string
       /**

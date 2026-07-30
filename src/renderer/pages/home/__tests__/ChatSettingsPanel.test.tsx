@@ -11,8 +11,7 @@ const renderCounters = vi.hoisted(() => ({
   navbar: 0,
   eventEmit: vi.fn(),
   invalidateCache: vi.fn().mockResolvedValue(undefined),
-  putActiveNode: vi.fn().mockResolvedValue(undefined),
-  readBranchAnchor: vi.fn(),
+  postMessage: vi.fn().mockResolvedValue(undefined),
   setBranchLiveState: vi.fn()
 }))
 
@@ -31,7 +30,7 @@ vi.mock('@data/hooks/useDataApi', async () => ({
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
-    put: renderCounters.putActiveNode
+    post: renderCounters.postMessage
   }
 }))
 
@@ -126,11 +125,9 @@ vi.mock('../components/TopicRightPane', () => {
     Shortcuts: () => <button type="button">branch shortcuts</button>,
     Viewport: ({
       onLocateMessage,
-      onCancelBranchDraft,
       onStartBranchDraft
     }: {
       onLocateMessage?: (messageId: string) => void
-      onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
       onStartBranchDraft?: (messageId: string) => void | Promise<void>
     }) => (
       <div data-testid="topic-right-pane-viewport">
@@ -139,9 +136,6 @@ vi.mock('../components/TopicRightPane', () => {
         </button>
         <button type="button" onClick={() => void onStartBranchDraft?.('assistant-old')}>
           start branch draft
-        </button>
-        <button type="button" onClick={() => onCancelBranchDraft?.('assistant-next')}>
-          cancel branch draft to next
         </button>
       </div>
     )
@@ -156,13 +150,11 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('../ChatContent', () => ({
   default: ({
     onBranchLiveStateChange,
-    getBranchDraftAnchorId,
     onLocateMessageHandled,
     onOpenCitationsPanel,
     locateMessageId
   }: {
     onBranchLiveStateChange?: (state: unknown) => void
-    getBranchDraftAnchorId?: () => string | null
     onLocateMessageHandled?: () => void
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
     locateMessageId?: string
@@ -187,9 +179,6 @@ vi.mock('../ChatContent', () => ({
             })
           }>
           push live branch state
-        </button>
-        <button type="button" onClick={() => renderCounters.readBranchAnchor(getBranchDraftAnchorId?.() ?? null)}>
-          read branch anchor
         </button>
         <div data-testid="chat-main" />
       </>
@@ -229,9 +218,8 @@ describe('Chat panels', () => {
     renderCounters.eventEmit.mockReset()
     renderCounters.invalidateCache.mockReset()
     renderCounters.invalidateCache.mockResolvedValue(undefined)
-    renderCounters.putActiveNode.mockReset()
-    renderCounters.putActiveNode.mockResolvedValue(undefined)
-    renderCounters.readBranchAnchor.mockReset()
+    renderCounters.postMessage.mockReset()
+    renderCounters.postMessage.mockResolvedValue(undefined)
     renderCounters.setBranchLiveState.mockReset()
   })
 
@@ -302,51 +290,19 @@ describe('Chat panels', () => {
     fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
 
     await waitFor(() => {
-      expect(renderCounters.putActiveNode).toHaveBeenCalledWith('/topics/topic-1/active-node', {
-        body: { nodeId: 'assistant-old' }
+      expect(renderCounters.postMessage).toHaveBeenCalledWith('/topics/topic-1/messages', {
+        body: {
+          parentId: 'assistant-old',
+          role: 'user',
+          data: { parts: [], isBranchDraft: true },
+          status: 'success'
+        }
       })
     })
     expect(renderCounters.navbar).toBe(initialNavbarRenders)
     expect(renderCounters.chatContent).toBe(initialChatContentRenders)
-    expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
-      activeNodeId: 'branch-draft:assistant-old',
-      nodes: [
-        expect.objectContaining({
-          id: 'branch-draft:assistant-old',
-          isInputDraft: true,
-          parentId: 'assistant-old',
-          preview: 'chat.message.flow.status.awaiting_input',
-          role: 'user',
-          status: 'paused'
-        })
-      ],
-      topicId: 'topic-1'
-    })
-    expect(renderCounters.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
-    expect(renderCounters.invalidateCache).not.toHaveBeenCalledWith('/topics/topic-1/tree')
+    expect(renderCounters.setBranchLiveState).not.toHaveBeenCalled()
+    expect(renderCounters.invalidateCache).toHaveBeenCalledWith(['/topics/topic-1/messages', '/topics/topic-1/tree'])
     expect(renderCounters.eventEmit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-1' })
-  })
-
-  it('cancels a branch draft into active-only live state and updates the send anchor override', async () => {
-    renderChat(activeTopic)
-
-    fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
-
-    await waitFor(() => {
-      expect(renderCounters.putActiveNode).toHaveBeenCalledWith('/topics/topic-1/active-node', {
-        body: { nodeId: 'assistant-old' }
-      })
-    })
-
-    renderCounters.setBranchLiveState.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'cancel branch draft to next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'read branch anchor' }))
-
-    expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
-      activeNodeId: 'assistant-next',
-      nodes: [],
-      topicId: 'topic-1'
-    })
-    expect(renderCounters.readBranchAnchor).toHaveBeenCalledWith('assistant-next')
   })
 })

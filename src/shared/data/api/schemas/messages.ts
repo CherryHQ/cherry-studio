@@ -143,7 +143,9 @@ export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema
  */
 export const DeleteMessageQuerySchema = z.strictObject({
   cascade: z.boolean().optional(),
-  activeNodeStrategy: ActiveNodeStrategySchema.optional()
+  activeNodeStrategy: ActiveNodeStrategySchema.optional(),
+  /** Reject deletion unless the target is a persisted empty user leaf awaiting branch input. */
+  awaitingInputOnly: z.boolean().optional()
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
@@ -249,6 +251,7 @@ export type MessageSchemas = {
      * - cascade=false: reparents children to grandparent
      * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
+     * - awaitingInputOnly=true: rejects unless the target is an empty branch-input user leaf
      */
     DELETE: {
       params: { id: string }

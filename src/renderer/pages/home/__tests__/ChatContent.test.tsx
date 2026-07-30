@@ -355,13 +355,34 @@ describe('ChatContent', () => {
     expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
   })
 
-  it('uses a branch draft anchor for the next send and clears it after stream open', async () => {
-    const clearBranchDraft = vi.fn()
-    const getBranchDraftAnchorId = vi.fn(() => 'assistant-old')
+  it('fills the active persisted branch draft on the next send and hides its empty bubble', async () => {
+    const branchDraft = {
+      id: 'branch-draft-user',
+      role: 'user',
+      parts: [],
+      metadata: {
+        parentId: 'assistant-old',
+        status: 'success',
+        isBranchDraft: true,
+        createdAt: '2026-01-01T00:00:02.000Z'
+      }
+    } as CherryUIMessage
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('assistant-old', 'assistant'), branchDraft],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: branchDraft.id,
+      rootId: 'root-1',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
 
-    render(
-      <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={getBranchDraftAnchorId} />
-    )
+    render(<ChatContent topic={topic} />)
+
+    expect(screen.getByTestId('messages')).toHaveTextContent('history-user,assistant-old')
+    expect(screen.getByTestId('messages')).not.toHaveTextContent(branchDraft.id)
 
     await act(async () => {
       await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
@@ -371,30 +392,13 @@ describe('ChatContent', () => {
     await waitFor(() => {
       expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
-          parentAnchorId: 'assistant-old',
-          topicId: 'topic-1'
+          trigger: 'submit-draft-message',
+          parentAnchorId: branchDraft.id,
+          topicId: 'topic-1',
+          userMessageParts: [{ type: 'text', text: 'hello' }]
         })
       )
     })
-    expect(getBranchDraftAnchorId).toHaveBeenCalled()
-    expect(clearBranchDraft).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps a branch draft anchor when stream open fails', async () => {
-    const clearBranchDraft = vi.fn()
-    streamOpen.mockRejectedValueOnce(new Error('open failed'))
-
-    render(
-      <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={() => 'assistant-old'} />
-    )
-
-    await act(async () => {
-      await expect(
-        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
-      ).rejects.toThrow('open failed')
-    })
-
-    expect(clearBranchDraft).not.toHaveBeenCalled()
   })
 
   it('resend opens a regenerate stream and seeds reserved messages without waiting for stream terminal', async () => {

@@ -58,8 +58,6 @@ interface UseChatRuntimeStateParams {
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
-  clearBranchDraft?: () => void
-  getBranchDraftAnchorId?: () => string | null
 }
 
 function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
@@ -108,9 +106,7 @@ export function useChatRuntimeState({
   rootId,
   messagesCacheMutate,
   assistant,
-  onBranchLiveStateChange,
-  clearBranchDraft,
-  getBranchDraftAnchorId
+  onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -205,7 +201,21 @@ export function useChatRuntimeState({
     overlay,
     translationOverlay
   )
-  const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
+  const activeBranchDraftMessageId = useMemo(
+    () =>
+      activeNodeId
+        ? (messages.find((message) => message.id === activeNodeId && message.metadata?.isBranchDraft)?.id ?? null)
+        : null,
+    [activeNodeId, messages]
+  )
+  const displayMessages = useMemo(
+    () =>
+      mergeMessagesById(
+        messages.filter((message) => !message.metadata?.isBranchDraft),
+        liveAssistants
+      ),
+    [messages, liveAssistants]
+  )
   const liveMessageIdCandidates = useMemo(
     () =>
       Array.from(
@@ -267,24 +277,38 @@ export function useChatRuntimeState({
   )
   const turnController = useConversationTurnController<
     ChatTurnInput,
-    { topicId: string; parentAnchorId: string | null }
+    { topicId: string; parentAnchorId: string | null; branchDraftMessageId: string | null }
   >({
     scopeKey: topic.id,
     historyAdapter,
     ensureConversation: async () => {
       if (isHistoryLoading) return null
-      const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
-      return { topicId: topic.id, parentAnchorId }
+      return {
+        topicId: topic.id,
+        parentAnchorId: activeNodeId ?? null,
+        branchDraftMessageId: activeBranchDraftMessageId
+      }
     },
-    buildStreamRequest: ({ text, options }, conversation) => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      parentAnchorId: conversation.parentAnchorId ?? undefined,
-      userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-      mentionedModelIds: options?.mentionedModels,
-      reasoningEffort: options?.reasoningEffort,
-      ...(options?.fastMode ? { fastMode: true } : {})
-    }),
+    buildStreamRequest: ({ text, options }, conversation) => {
+      const shared = {
+        topicId: conversation.topicId,
+        userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
+        mentionedModelIds: options?.mentionedModels,
+        reasoningEffort: options?.reasoningEffort,
+        ...(options?.fastMode ? { fastMode: true as const } : {})
+      }
+      return conversation.branchDraftMessageId
+        ? {
+            ...shared,
+            trigger: 'submit-draft-message',
+            parentAnchorId: conversation.branchDraftMessageId
+          }
+        : {
+            ...shared,
+            trigger: 'submit-message',
+            parentAnchorId: conversation.parentAnchorId ?? undefined
+          }
+    },
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 
@@ -404,16 +428,13 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        const ack = await turnController.send({ text, options })
-        if (ack?.mode === 'started') {
-          clearBranchDraft?.()
-        }
+        await turnController.send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [clearBranchDraft, turnController]
+    [turnController]
   )
 
   return {

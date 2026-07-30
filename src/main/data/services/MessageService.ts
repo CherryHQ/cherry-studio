@@ -74,7 +74,15 @@ export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' 
 
 export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
-  userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
+  userMessage:
+    | { mode: 'create'; dto: CreateMessageDto }
+    | { mode: 'existing'; id: string }
+    | {
+        mode: 'branch-draft'
+        id: string
+        data: Omit<MessageData, 'isBranchDraft'>
+        modelId: UniqueModelId
+      }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
@@ -279,6 +287,7 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     // here — guarded above) and 'system' is surfaced as 'assistant' for display.
     role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
     isContextBoundary: hasClearContextPart(message.data.parts) || undefined,
+    isBranchDraft: message.data.isBranchDraft || undefined,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,
@@ -991,6 +1000,20 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   create(topicId: string, dto: CreateMessageDto): Message {
+    if (
+      dto.data.isBranchDraft &&
+      (dto.role !== 'user' ||
+        dto.parentId == null ||
+        dto.setAsActive === false ||
+        (dto.data.parts?.length ?? 0) > 0 ||
+        dto.status !== 'success')
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'create branch draft',
+        'A branch draft must be an active empty successful user message with an explicit parent'
+      )
+    }
+
     return application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
@@ -1026,6 +1049,12 @@ export class MessageService {
         }
         if (parent.topicId !== topicId) {
           throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+        }
+        if (dto.data.isBranchDraft && parent.role !== 'assistant' && parent.role !== 'system') {
+          throw DataApiErrorFactory.invalidOperation(
+            'create branch draft',
+            'A branch draft must be parented by an assistant message'
+          )
         }
         resolvedParentId = dto.parentId
       }
@@ -1075,6 +1104,9 @@ export class MessageService {
    *   supported here — this API is for chat reservation, not general inserts.
    * - `mode: 'existing'`: caller supplies the id of an already-persisted user
    *   message (regenerate scenario).
+   * - `mode: 'branch-draft'`: atomically fills the active persisted empty user
+   *   branch node before inserting placeholders. Invalid or stale draft ids are
+   *   rejected without changing the row.
    *
    * Siblings backfill: if `siblingsGroupId` is provided, any existing children
    * of the user message whose `siblingsGroupId = 0` are backfilled to it. This
@@ -1091,7 +1123,7 @@ export class MessageService {
         throw DataApiErrorFactory.notFound('Topic', input.topicId)
       }
 
-      // 1. Resolve user message — insert new, or fetch existing
+      // 1. Resolve user message — insert new, fetch existing, or fill a branch draft
       let userMessage: Message
       if (input.userMessage.mode === 'create') {
         const dto = input.userMessage.dto
@@ -1127,7 +1159,7 @@ export class MessageService {
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, dto.data)
         userMessage = rowToMessage(row)
-      } else {
+      } else if (input.userMessage.mode === 'existing') {
         const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
         if (!row) {
           throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
@@ -1139,6 +1171,60 @@ export class MessageService {
           )
         }
         userMessage = rowToMessage(row)
+      } else {
+        const [row] = tx
+          .select()
+          .from(messageTable)
+          .where(and(eq(messageTable.id, input.userMessage.id), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
+        }
+        if (row.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'submit branch draft',
+            'Branch draft does not belong to this topic'
+          )
+        }
+        if (
+          row.role !== 'user' ||
+          row.data.isBranchDraft !== true ||
+          (row.data.parts?.length ?? 0) > 0 ||
+          row.status !== 'success' ||
+          topic.activeNodeId !== row.id
+        ) {
+          throw DataApiErrorFactory.invalidOperation(
+            'submit branch draft',
+            'Message is not the active empty branch draft'
+          )
+        }
+        if ((input.userMessage.data.parts?.length ?? 0) === 0) {
+          throw DataApiErrorFactory.invalidOperation('submit branch draft', 'Branch draft content cannot be empty')
+        }
+
+        const [child] = tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, row.id), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (child) {
+          throw DataApiErrorFactory.invalidOperation('submit branch draft', 'Branch draft already has a reply')
+        }
+
+        const [updatedRow] = tx
+          .update(messageTable)
+          .set({
+            data: input.userMessage.data,
+            status: 'success',
+            modelId: input.userMessage.modelId
+          })
+          .where(eq(messageTable.id, row.id))
+          .returning()
+          .all()
+        replaceChatMessageFileRefsTx(tx, updatedRow.id, input.userMessage.data)
+        userMessage = rowToMessage(updatedRow)
       }
 
       // 2. Backfill siblings with groupId=0 under the user message
@@ -1377,6 +1463,7 @@ export class MessageService {
    * @param id - Message ID to delete
    * @param cascade - If true, delete descendants; if false, reparent children (default: false)
    * @param activeNodeStrategy - Strategy for updating activeNodeId if affected (default: 'parent')
+   * @param awaitingInputOnly - Reject unless the target is an empty branch-input user leaf
    * @returns Deletion result including deletedIds, reparentedIds, and newActiveNodeId
    * @throws NOT_FOUND if message doesn't exist
    * @throws INVALID_OPERATION if the target is the topic's virtual root (removable only
@@ -1385,7 +1472,8 @@ export class MessageService {
   delete(
     id: string,
     cascade: boolean = false,
-    activeNodeStrategy: ActiveNodeStrategy = 'parent'
+    activeNodeStrategy: ActiveNodeStrategy = 'parent',
+    awaitingInputOnly: boolean = false
   ): DeleteMessageResponse {
     const db = application.get('DbService').getDb()
 
@@ -1406,6 +1494,27 @@ export class MessageService {
     // of cascade. (role = 'root' and parentId IS NULL are equivalent; either identifies it.)
     if (message.role === 'root' || message.parentId === null) {
       throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
+    }
+
+    if (awaitingInputOnly) {
+      const [liveChild] = db
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
+        .limit(1)
+        .all()
+      const isAwaitingInput =
+        message.role === 'user' &&
+        message.data.isBranchDraft === true &&
+        (message.data.parts?.length ?? 0) === 0 &&
+        liveChild === undefined
+
+      if (!isAwaitingInput) {
+        throw DataApiErrorFactory.invalidOperation(
+          'delete awaiting-input message',
+          'the message is no longer an empty branch-input leaf'
+        )
+      }
     }
 
     // Get all descendant IDs before transaction (for cascade delete)

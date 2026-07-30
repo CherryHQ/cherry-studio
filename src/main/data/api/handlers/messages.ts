@@ -74,7 +74,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
       const q = DeleteMessageQuerySchema.parse(query ?? {})
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
-      return messageService.delete(params.id, cascade, activeNodeStrategy)
+      return messageService.delete(params.id, cascade, activeNodeStrategy, q.awaitingInputOnly ?? false)
     }
   },
 

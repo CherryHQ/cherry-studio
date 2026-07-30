@@ -48,6 +48,22 @@ describe('buildTopicMessageFlowGraph', () => {
     expect(graph.edges.map((edge) => [edge.source, edge.target])).toContainEqual(['user-1', 'clear-1'])
   })
 
+  it('projects a persisted empty branch into an awaiting-input graph node', () => {
+    const tree: TreeResponse = {
+      nodes: [
+        treeNode({ id: 'assistant-1', role: 'assistant', hasChildren: true }),
+        treeNode({ id: 'branch-draft-user', parentId: 'assistant-1', isBranchDraft: true })
+      ],
+      siblingsGroups: [],
+      activeNodeId: 'branch-draft-user',
+      rootId: 'vroot'
+    }
+
+    const graph = buildTopicMessageFlowGraph(tree)
+
+    expect(graph.nodes.find((node) => node.id === 'branch-draft-user')?.data.isAwaitingInput).toBe(true)
+  })
+
   it('builds nodes and edges for a linear tree', () => {
     const tree: TreeResponse = {
       nodes: [

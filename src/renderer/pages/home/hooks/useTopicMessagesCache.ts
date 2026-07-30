@@ -46,7 +46,8 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       parentId: metadata.parentId ?? null,
       role: message.role,
       data: {
-        parts: (message.parts ?? []) as CherryMessagePart[]
+        parts: (message.parts ?? []) as CherryMessagePart[],
+        ...(metadata.isBranchDraft ? { isBranchDraft: true as const } : {})
       },
       searchableText: '',
       status:
@@ -127,6 +128,30 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
           const currentPages = pages?.length
             ? pages
             : [{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }]
+          const reservedById = new Map(reservedItems.map((item) => [item.message.id, item.message]))
+          let replaced = false
+          const replacedPages = currentPages.map((page) => ({
+            ...page,
+            items: page.items.map((item) => {
+              const replacement = reservedById.get(item.message.id)
+              let siblingsReplaced = false
+              const siblingsGroup = item.siblingsGroup?.map((sibling) => {
+                const siblingReplacement = reservedById.get(sibling.id)
+                if (siblingReplacement) {
+                  replaced = true
+                  siblingsReplaced = true
+                }
+                return siblingReplacement ?? sibling
+              })
+              if (replacement) replaced = true
+              if (!replacement && !siblingsReplaced) return item
+              return {
+                ...item,
+                message: replacement ?? item.message,
+                ...(siblingsGroup ? { siblingsGroup } : {})
+              }
+            })
+          }))
           const existingIds = new Set(
             currentPages.flatMap((page) =>
               page.items.flatMap((item) => [
@@ -136,9 +161,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
             )
           )
           const newItems = reservedItems.filter((item) => !existingIds.has(item.message.id))
-          if (newItems.length === 0) return pages
+          if (newItems.length === 0) return replaced ? replacedPages : pages
 
-          const nextPages = currentPages.slice()
+          const nextPages = replacedPages.slice()
           const firstPage = nextPages[0]
           nextPages[0] = {
             ...firstPage,

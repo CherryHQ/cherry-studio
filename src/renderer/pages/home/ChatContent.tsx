@@ -37,8 +37,6 @@ interface Props {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
-  clearBranchDraft?: () => void
-  getBranchDraftAnchorId?: () => string | null
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
@@ -63,8 +61,6 @@ const ChatContent: FC<Props> = ({
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
-  clearBranchDraft,
-  getBranchDraftAnchorId,
   onStartBranchDraft,
   assistantContext,
   providers,
@@ -92,8 +88,6 @@ const ChatContent: FC<Props> = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
-      clearBranchDraft={clearBranchDraft}
-      getBranchDraftAnchorId={getBranchDraftAnchorId}
       onStartBranchDraft={onStartBranchDraft}
       assistantContext={assistantContext}
       providers={providers}
@@ -142,8 +136,6 @@ const ChatContentInner: FC<InnerProps> = ({
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
-  clearBranchDraft,
-  getBranchDraftAnchorId,
   onStartBranchDraft,
   assistantContext,
   providers,
@@ -173,9 +165,7 @@ const ChatContentInner: FC<InnerProps> = ({
     rootId,
     messagesCacheMutate,
     assistant,
-    onBranchLiveStateChange,
-    clearBranchDraft,
-    getBranchDraftAnchorId
+    onBranchLiveStateChange
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 

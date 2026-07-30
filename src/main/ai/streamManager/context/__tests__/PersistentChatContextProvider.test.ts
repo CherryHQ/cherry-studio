@@ -9,6 +9,7 @@ import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
@@ -124,6 +125,47 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'assistant', text: PARTIAL },
       { role: 'user', text: 'actually, change direction' }
     ])
+  })
+
+  it('fills a persisted branch draft instead of creating a second user row', async () => {
+    const draft = messageService.create('topic-1', {
+      role: 'user',
+      parentId: 'a1',
+      data: { parts: [], isBranchDraft: true },
+      status: 'success'
+    })
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-draft-message',
+        topicId: 'topic-1',
+        parentAnchorId: draft.id,
+        userMessageParts: [{ type: 'text', text: 'new branch question' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.userMessageId).toBe(draft.id)
+    expect(prepared.reservedMessages?.[0]).toMatchObject({
+      id: draft.id,
+      role: 'user',
+      parts: [{ type: 'text', text: 'new branch question' }],
+      metadata: { isBranchDraft: undefined }
+    })
+    expect(flatten(prepared.models[0].request.messages!)).toEqual([
+      { role: 'user', text: 'first question' },
+      { role: 'assistant', text: PARTIAL },
+      { role: 'user', text: 'new branch question' }
+    ])
+
+    const userRows = await dbh.db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, 'topic-1'), eq(messageTable.role, 'user')))
+    expect(userRows.map((row) => row.id).sort()).toEqual([draft.id, 'u1'].sort())
+    expect(messageService.getById(draft.id).data.isBranchDraft).toBeUndefined()
+    expect(messageService.getChildrenByParentId(draft.id)).toHaveLength(1)
   })
 
   it('sends only messages after the latest clear marker on the selected branch', async () => {

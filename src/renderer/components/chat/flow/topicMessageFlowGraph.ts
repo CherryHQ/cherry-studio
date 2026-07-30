@@ -8,7 +8,7 @@ type GraphInputNode = Omit<TreeNode, 'parentId'> & {
   parentId: string | null
   siblingsGroupId?: number
   isSiblingBranch: boolean
-  isInputDraft?: boolean
+  isAwaitingInput?: boolean
 }
 
 export function buildTopicMessageFlowGraph(tree: TreeResponse): TopicMessageFlowGraph {
@@ -65,7 +65,8 @@ function flattenTreeNodes(tree: TreeResponse): GraphInputNode[] {
     ...tree.nodes.map((node) => ({
       ...node,
       parentId: node.parentId ?? null,
-      isSiblingBranch: false
+      isSiblingBranch: false,
+      isAwaitingInput: node.isBranchDraft
     })),
     ...tree.siblingsGroups.flatMap((group) => {
       const shouldKeepSiblingsGroupId =
@@ -75,7 +76,8 @@ function flattenTreeNodes(tree: TreeResponse): GraphInputNode[] {
         ...node,
         parentId: group.parentId,
         ...(shouldKeepSiblingsGroupId ? { siblingsGroupId: group.siblingsGroupId } : {}),
-        isSiblingBranch: false
+        isSiblingBranch: false,
+        isAwaitingInput: node.isBranchDraft
       }))
     })
   ]
@@ -206,7 +208,7 @@ function toNodeData(
     isOnActivePath: activePath.has(node.id),
     isInactiveBranch: hasActivePath && !activePath.has(node.id),
     hasAssistantDescendant: hasAssistantDescendantById.get(node.id) ?? false,
-    ...(node.isInputDraft ? { isInputDraft: true } : {})
+    ...(node.isAwaitingInput ? { isAwaitingInput: true } : {})
   }
 
   if (node.siblingsGroupId !== undefined) {

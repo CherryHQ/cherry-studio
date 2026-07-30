@@ -433,15 +433,8 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isLastMessage, t }) => {
+  availability: ({ actions, isAssistantMessage }) => {
     if (!actions.startMessageBranch || !isAssistantMessage) return false
-    if (isLastMessage) {
-      return {
-        visible: true,
-        enabled: false,
-        reason: t('chat.message.new.branch.disabled.latest')
-      }
-    }
     return true
   }
 })

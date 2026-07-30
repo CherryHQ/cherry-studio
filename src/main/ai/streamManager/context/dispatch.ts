@@ -128,10 +128,10 @@ export async function dispatchStreamRequest(
   } else if (
     provider.name === persistentChatContextProvider.name &&
     prepared.models.length === 0 &&
-    req.trigger === 'submit-message'
+    (req.trigger === 'submit-message' || req.trigger === 'submit-draft-message')
   ) {
     // A persistent submit that resolved to zero models without taking the steer branch is a
-    // regression: `send` persists nothing new, returns a success-shaped ack, and answers nothing.
+    // regression: `send` returns a success-shaped ack and answers nothing.
     // Surface it loudly. (Agent-session injects legitimately have empty models — absorbed by the
     // runtime's pendingTurns — so they're excluded by the provider check.)
     logger.error(

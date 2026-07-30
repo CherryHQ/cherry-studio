@@ -184,9 +184,10 @@ describe('TopicMessageFlowNode', () => {
     })
   })
 
-  it('shows input draft status without fetching a real message preview', async () => {
+  it('shows awaiting-input status without fetching an empty message preview', async () => {
     renderNode({
-      isInputDraft: true,
+      isActive: true,
+      isAwaitingInput: true,
       preview: 'chat.message.flow.status.awaiting_input',
       role: 'user',
       status: 'paused'
@@ -197,6 +198,9 @@ describe('TopicMessageFlowNode', () => {
       .closest('[data-message-id="message-1"]')!
 
     expect(node).toHaveTextContent('chat.message.flow.status.awaiting_input')
+    // Awaiting input owns the warning visual contract even while it is the active node.
+    expect(node).toHaveClass('border-warning-border', 'bg-warning-subtle', 'ring-warning/25')
+    expect(node).not.toHaveClass('border-primary', 'ring-primary/20')
 
     fireEvent.mouseEnter(node)
     await advancePreviewDelay()

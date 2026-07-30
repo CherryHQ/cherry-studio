@@ -145,6 +145,11 @@ export interface AssistantTurnOptions {
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /**
+   * Persisted empty user node reserved by “start branch”.
+   * Main clears this marker when the next composer submission fills the row.
+   */
+  isBranchDraft?: true
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
 }
@@ -182,6 +187,8 @@ export interface CherryUIMessageMetadata {
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /** Whether this is the persisted empty user node reserved by “start branch”. */
+  isBranchDraft?: boolean
   /** Main-authoritative request controls frozen with the persisted assistant row. */
   turnOptions?: AssistantTurnOptions
   /**
@@ -386,13 +393,14 @@ export interface SerializedErrorData {
 /**
  * Runtime schema for `MessageData`. `parts` is optional on the TS interface
  * and the DB column, so the runtime check mirrors that: accept any object,
- * reject only if `parts` is present and the wrong shape. Part entry types
- * stay runtime-opaque for now; tighten with per-entry schemas in a follow-up.
+ * then validate the recognized fields when present. Part entry types stay
+ * runtime-opaque for now; tighten with per-entry schemas in a follow-up.
  */
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.isBranchDraft !== undefined && v.isBranchDraft !== true) return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
     if (
@@ -557,6 +565,8 @@ export interface TreeNode {
   role: ContentMessageRole
   /** Derived from the message's hidden `data-clear` part. */
   isContextBoundary?: boolean
+  /** Whether this is a persisted empty user node awaiting composer input. */
+  isBranchDraft?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

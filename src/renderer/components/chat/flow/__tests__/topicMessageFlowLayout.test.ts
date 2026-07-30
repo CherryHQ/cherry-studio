@@ -314,7 +314,7 @@ describe('topicMessageFlowLayout', () => {
     }
   })
 
-  it('keeps existing node positions stable when appending an input draft node', () => {
+  it('keeps persisted empty branches in the same sibling order when one is submitted', () => {
     const nodes = [
       createNode('root', null, {
         createdAt: '2026-05-22T14:16:00.000Z',
@@ -335,43 +335,84 @@ describe('topicMessageFlowLayout', () => {
       createNode('assistant-existing', 'user-existing', {
         createdAt: '2026-05-22T14:17:01.000Z',
         isInactiveBranch: false
+      }),
+      createNode('branch-empty-1', 'assistant-root', {
+        createdAt: '2026-05-22T14:18:00.000Z',
+        isAwaitingInput: true,
+        role: 'user'
+      }),
+      createNode('branch-empty-2', 'assistant-root', {
+        createdAt: '2026-05-22T14:19:00.000Z',
+        isAwaitingInput: true,
+        role: 'user'
+      }),
+      createNode('branch-empty-3', 'assistant-root', {
+        createdAt: '2026-05-22T14:20:00.000Z',
+        isAwaitingInput: true,
+        role: 'user'
       })
     ]
     const edges = [
       createEdge('root', 'assistant-root', { isActivePath: true }),
       createEdge('assistant-root', 'user-existing'),
-      createEdge('user-existing', 'assistant-existing')
+      createEdge('user-existing', 'assistant-existing'),
+      createEdge('assistant-root', 'branch-empty-1'),
+      createEdge('assistant-root', 'branch-empty-2'),
+      createEdge('assistant-root', 'branch-empty-3')
     ]
-    const baseLayout = layoutTopicMessageFlowGraph(
+    const awaitingLayout = layoutTopicMessageFlowGraph(
       createGraph({
         nodes,
         edges,
-        activeNodeId: 'assistant-root'
+        activeNodeId: 'branch-empty-2'
       })
     )
-    const draftLayout = layoutTopicMessageFlowGraph(
+    const filledNodes = nodes.map((node) =>
+      node.id === 'branch-empty-2'
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              isAwaitingInput: false
+            }
+          }
+        : node
+    )
+    const filledLayout = layoutTopicMessageFlowGraph(
       createGraph({
         nodes: [
-          ...nodes,
-          createNode('branch-draft:assistant-root', 'assistant-root', {
-            createdAt: '2026-05-22T14:18:00.000Z',
-            isInputDraft: true,
-            role: 'user',
-            status: 'paused'
+          ...filledNodes,
+          createNode('assistant-new', 'branch-empty-2', {
+            createdAt: '2026-05-22T14:19:01.000Z',
+            isAwaitingInput: false
           })
         ],
-        edges: [...edges, createEdge('assistant-root', 'branch-draft:assistant-root')],
-        activeNodeId: 'assistant-root'
+        edges: [...edges, createEdge('branch-empty-2', 'assistant-new')],
+        activeNodeId: 'assistant-new'
       })
     )
 
-    const basePositions = new Map(baseLayout.nodes.map((node) => [node.id, node.position]))
-    for (const node of draftLayout.nodes.filter((node) => !node.data.isInputDraft)) {
-      expect(node.position).toEqual(basePositions.get(node.id))
-    }
-    expect(getNode(draftLayout.nodes, 'branch-draft:assistant-root').position.x).toBeGreaterThan(
-      getNode(draftLayout.nodes, 'user-existing').position.x
+    const awaitingPositions = new Map(awaitingLayout.nodes.map((node) => [node.id, node.position]))
+    const markerOnlyLayout = layoutTopicMessageFlowGraph(
+      createGraph({
+        nodes: filledNodes,
+        edges,
+        activeNodeId: 'branch-empty-2'
+      })
     )
-    expect(getEdge(draftLayout.edges, 'assistant-root', 'branch-draft:assistant-root').data?.state).toBe('default')
+    for (const node of markerOnlyLayout.nodes) {
+      expect(node.position).toEqual(awaitingPositions.get(node.id))
+    }
+
+    const branchIds = ['user-existing', 'branch-empty-1', 'branch-empty-2', 'branch-empty-3']
+    const getSiblingOrder = (layout: ReturnType<typeof layoutTopicMessageFlowGraph>) =>
+      branchIds
+        .map((id) => getNode(layout.nodes, id))
+        .sort((a, b) => a.position.x - b.position.x)
+        .map((node) => node.id)
+
+    expect(getSiblingOrder(awaitingLayout)).toEqual(branchIds)
+    expect(getSiblingOrder(filledLayout)).toEqual(branchIds)
+    expect(getEdge(filledLayout.edges, 'branch-empty-2', 'assistant-new').data?.state).toBe('default')
   })
 })
