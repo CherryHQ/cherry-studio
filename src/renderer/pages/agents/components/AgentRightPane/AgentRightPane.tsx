@@ -262,6 +262,7 @@ function AgentRightPaneActionsProvider({
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const panelActions = useRightPanelActions()
+  const artifactOpenRequestRef = useRef(0)
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
@@ -275,10 +276,27 @@ function AgentRightPaneActionsProvider({
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
+      const requestId = artifactOpenRequestRef.current + 1
+      artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      if (!selection) return
-      requestFileSelection(selection)
       panelActions.tryOpen('files', { userInitiated: true })
+
+      if (!selection) {
+        requestFileSelection(null)
+        return
+      }
+
+      void window.api.file
+        .isDirectory(getArtifactPaneSelectionPath(selection))
+        .then((isDirectory) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(isDirectory ? null : selection)
+        })
+        .catch(() => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+          requestFileSelection(selection)
+        })
     },
     [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
   )

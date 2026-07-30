@@ -407,10 +407,10 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
-function OpenArtifactButton() {
+function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   const { openArtifactFile } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openArtifactFile('report.md')}>
+    <button type="button" onClick={() => openArtifactFile(path)}>
       open artifact
     </button>
   )
@@ -466,6 +466,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
     fileSessionState.isDirty = false
     fileSessionState.isSaving = false
     fileSessionState.saveError = undefined
@@ -751,7 +752,7 @@ describe('AgentRightPane', () => {
     )
   })
 
-  it('marks direct artifact opening as user initiated', () => {
+  it('marks direct artifact opening as user initiated', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'report.md'
@@ -770,7 +771,34 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+    })
+    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/workspace/report.md')
+  })
+
+  it('opens the files pane without previewing a declared directory', async () => {
+    vi.mocked(window.api.file.isDirectory).mockResolvedValue(true)
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'html in canvas'
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton path="html in canvas" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await waitFor(() => {
+      expect(window.api.file.isDirectory).toHaveBeenCalledWith('/workspace/html in canvas')
+    })
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
   it('replaces the retained flow when another flow is opened', () => {
