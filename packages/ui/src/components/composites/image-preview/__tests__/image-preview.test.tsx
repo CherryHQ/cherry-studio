@@ -129,13 +129,13 @@ describe('ImagePreviewDialog', () => {
 
     render(<Demo />)
 
-    expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
+    expect(screen.getByAltText('One')).toHaveAttribute('src', ITEMS[0].src)
 
     fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
-    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByAltText('Two')).toHaveAttribute('src', ITEMS[1].src)
 
     fireEvent.click(screen.getByRole('button', { name: 'Previous image' }))
-    expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
+    expect(screen.getByAltText('One')).toHaveAttribute('src', ITEMS[0].src)
   })
 
   it('renders all view transform controls', () => {
@@ -168,7 +168,7 @@ describe('ImagePreviewDialog', () => {
       'data-[state=closed]:animate-none',
       'data-[state=open]:animate-none'
     )
-    expect(screen.getByRole('img', { name: 'One' })).not.toHaveClass('transition-transform')
+    expect(screen.getByAltText('One')).not.toHaveClass('transition-transform')
   })
 
   it('reveals the image only after its fitted geometry is ready', () => {
@@ -186,7 +186,7 @@ describe('ImagePreviewDialog', () => {
 
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 
-    const image = screen.getByRole('img', { name: 'One' })
+    const image = screen.getByAltText('One')
     expect(image).toHaveStyle({ visibility: 'hidden' })
 
     Object.defineProperties(image, {
@@ -241,7 +241,7 @@ describe('ImagePreviewDialog', () => {
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 
     const viewport = screen.getByTestId('image-preview-viewport')
-    const image = screen.getByRole('img', { name: 'One' })
+    const image = screen.getByAltText('One')
     fireEvent.wheel(viewport, { clientX: 0, clientY: 0, deltaY: -120 })
 
     expect(image).not.toHaveStyle({
@@ -259,7 +259,7 @@ describe('ImagePreviewDialog', () => {
 
     expect(screen.getByRole('button', { name: LABELS.previous })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: LABELS.next }))
-    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByAltText('Two')).toHaveAttribute('src', ITEMS[1].src)
     expect(screen.getByRole('button', { name: LABELS.next })).toBeDisabled()
   })
 
@@ -268,13 +268,13 @@ describe('ImagePreviewDialog', () => {
       <ImagePreviewDialog open defaultActiveIndex={1} items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />
     )
 
-    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByAltText('Two')).toHaveAttribute('src', ITEMS[1].src)
 
     rerender(
       <ImagePreviewDialog open defaultActiveIndex={1} items={[ITEMS[0]]} labels={LABELS} onOpenChange={vi.fn()} />
     )
 
-    expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
+    expect(screen.getByAltText('One')).toHaveAttribute('src', ITEMS[0].src)
   })
 })
 
@@ -284,10 +284,10 @@ describe('ImagePreviewTrigger', () => {
 
     fireEvent.click(screen.getByRole('img', { name: 'Open preview' }))
 
-    expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
+    expect(screen.getByAltText('One')).toHaveAttribute('src', ITEMS[0].src)
 
     fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
-    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByAltText('Two')).toHaveAttribute('src', ITEMS[1].src)
   })
 
   it('keeps the active image when parent rerenders with inline items', () => {
@@ -298,13 +298,13 @@ describe('ImagePreviewTrigger', () => {
     fireEvent.click(screen.getByRole('img', { name: 'Open preview' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
 
-    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByAltText('Two')).toHaveAttribute('src', ITEMS[1].src)
 
     rerender(
       <ImagePreviewTrigger alt="Open preview" item={ITEMS[0]} items={[...ITEMS]} dialogProps={{ labels: LABELS }} />
     )
 
-    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+    expect(screen.getByAltText('Two')).toHaveAttribute('src', ITEMS[1].src)
   })
 })
 
