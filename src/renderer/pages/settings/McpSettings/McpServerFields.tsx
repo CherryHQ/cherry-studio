@@ -18,10 +18,10 @@ import {
 } from '@cherrystudio/ui'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
-import type { McpServer } from '@shared/data/types/mcpServer'
+import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
 import type React from 'react'
 import { useCallback, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+import type { DefaultValues, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
@@ -100,11 +100,28 @@ export const registryForCommand = (command: string): Registry[] | undefined => {
   return undefined
 }
 
+const getInitialRegistryState = (server?: Pick<McpServer, 'command' | 'registryUrl'>) => {
+  const registry = server?.command ? registryForCommand(server.command) : undefined
+  const isCustom =
+    Boolean(server?.registryUrl) && Boolean(registry) && !registry?.some((reg) => reg.url === server?.registryUrl)
+
+  return {
+    registry,
+    selectedRegistryType: isCustom ? 'custom' : '',
+    customRegistryUrl: isCustom ? (server?.registryUrl ?? '') : ''
+  }
+}
+
 /** Registry picker state shared by the detail page and the quick-create dialog. */
-export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
-  const [registry, setRegistry] = useState<Registry[]>()
-  const [selectedRegistryType, setSelectedRegistryType] = useState('')
-  const [customRegistryUrl, setCustomRegistryUrl] = useState('')
+export function useMcpRegistryState(
+  form: McpForm,
+  onChanged?: () => void,
+  initialServer?: Pick<McpServer, 'command' | 'registryUrl'>
+) {
+  const initialState = getInitialRegistryState(initialServer)
+  const [registry, setRegistry] = useState<Registry[] | undefined>(initialState.registry)
+  const [selectedRegistryType, setSelectedRegistryType] = useState(initialState.selectedRegistryType)
+  const [customRegistryUrl, setCustomRegistryUrl] = useState(initialState.customRegistryUrl)
 
   const handleCommandChange = useCallback(
     (command: string) => {
@@ -122,16 +139,6 @@ export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
     },
     [form, onChanged, registry]
   )
-
-  const syncFromServer = useCallback((server: Pick<McpServer, 'command' | 'registryUrl'>) => {
-    const current = server.command ? registryForCommand(server.command) : undefined
-    setRegistry(current)
-
-    const isCustom =
-      Boolean(server.registryUrl) && Boolean(current) && !current?.some((reg) => reg.url === server.registryUrl)
-    setSelectedRegistryType(isCustom ? 'custom' : '')
-    setCustomRegistryUrl(isCustom ? (server.registryUrl ?? '') : '')
-  }, [])
 
   const reset = useCallback(() => {
     setRegistry(undefined)
@@ -170,7 +177,6 @@ export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
     selectedRegistryType,
     customRegistryUrl,
     handleCommandChange,
-    syncFromServer,
     reset,
     onSelectRegistry,
     onCustomRegistryChange
@@ -178,6 +184,36 @@ export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
 }
 
 export type McpRegistryState = ReturnType<typeof useMcpRegistryState>
+
+/** Maps a persisted MCP server to the edit form's initial values without guessing missing fields. */
+export function toMcpFormDefaultValues(server: McpServer): DefaultValues<McpFormValues> {
+  return {
+    name: server.name,
+    description: server.description ?? '',
+    serverType: server.type,
+    baseUrl: server.baseUrl || '',
+    command: server.command || '',
+    registryUrl: server.registryUrl || '',
+    isActive: server.isActive,
+    longRunning: server.longRunning,
+    timeout: server.timeout,
+    args: server.args ? server.args.join('\n') : '',
+    env: server.env
+      ? Object.entries(server.env)
+          .map(([key, value]) => `${key}=${value}`)
+          .join('\n')
+      : '',
+    headers: server.headers
+      ? Object.entries(server.headers)
+          .map(([key, value]) => `${key}=${value}`)
+          .join('\n')
+      : '',
+    provider: server.provider || '',
+    providerUrl: server.providerUrl || '',
+    logoUrl: server.logoUrl || '',
+    tags: server.tags || []
+  }
+}
 
 /** Maps form values onto the mutable subset of an MCP server. */
 export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
@@ -223,8 +259,8 @@ const codeAreaClassName = 'max-h-40 min-h-21 px-3 py-2 font-mono text-sm leading
 
 interface FieldsProps {
   form: McpForm
-  serverType: McpServer['type']
-  onServerTypeChange: (type: McpServer['type']) => void
+  serverType: McpServerType | undefined
+  onServerTypeChange: (type: McpServerType) => void
   registryState: McpRegistryState
   /** Built-in servers only expose a subset of the fields. */
   isInMemory?: boolean
@@ -267,8 +303,9 @@ export function McpIdentityFields({ form, onServerTypeChange, isInMemory, single
                   required
                   value={field.value}
                   onValueChange={(value) => {
-                    field.onChange(value)
-                    onServerTypeChange(value as McpServer['type'])
+                    const serverType = McpServerTypeSchema.parse(value)
+                    field.onChange(serverType)
+                    onServerTypeChange(serverType)
                   }}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -310,7 +347,7 @@ export function McpIdentityFields({ form, onServerTypeChange, isInMemory, single
 export function McpEndpointField({ form, serverType, registryState, singleColumn }: FieldsProps) {
   const { t } = useTranslation()
 
-  if (serverType === 'inMemory') return null
+  if (!serverType || serverType === 'inMemory') return null
 
   return (
     <McpFieldGroup singleColumn={singleColumn}>

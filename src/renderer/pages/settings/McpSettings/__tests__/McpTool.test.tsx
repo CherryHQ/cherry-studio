@@ -1,6 +1,6 @@
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -20,103 +20,12 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
   McpLogo: (props: any) => <svg data-testid="mcp-logo" {...props} />
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
-  const React = await import('react')
-
-  const passthrough =
-    (tag: string) =>
-    ({ children, ...props }: any) =>
-      React.createElement(tag, props, children)
-
-  const DataTable = ({ columns = [], data = [], rowKey, emptyText, className, rowClassName }: any) => {
-    if (!data.length) {
-      return React.createElement('div', null, emptyText)
-    }
-
-    return React.createElement(
-      'table',
-      { 'data-testid': 'data-table', className },
-      React.createElement(
-        'tbody',
-        null,
-        data.map((row: any) =>
-          React.createElement(
-            'tr',
-            {
-              key: row[rowKey] ?? row.id,
-              className: typeof rowClassName === 'function' ? rowClassName(row) : rowClassName
-            },
-            columns.map((column: any) => {
-              const width = column.meta?.width
-              const maxWidth = column.meta?.maxWidth
-              const style = {
-                ...(width !== undefined ? { width: typeof width === 'number' ? `${width}px` : width } : null),
-                ...(maxWidth !== undefined
-                  ? { maxWidth: typeof maxWidth === 'number' ? `${maxWidth}px` : maxWidth }
-                  : null)
-              }
-
-              return React.createElement(
-                'td',
-                {
-                  key: column.id ?? column.accessorKey,
-                  'data-column-id': column.id ?? column.accessorKey,
-                  className: column.meta?.className,
-                  style
-                },
-                column.cell
-                  ? column.cell({
-                      row: { original: row },
-                      getValue: () => (column.accessorKey ? row[column.accessorKey] : undefined)
-                    })
-                  : column.accessorKey
-                    ? row[column.accessorKey]
-                    : null
-              )
-            })
-          )
-        )
-      )
-    )
-  }
-
-  const Tooltip = ({ children, content, title, fullWidthTrigger = false, className, classNames }: any) => {
-    const wrapperClassName = [
-      'relative z-10',
-      fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',
-      className,
-      classNames?.placeholder
-    ]
-      .filter(Boolean)
-      .join(' ')
-
-    return React.createElement(
-      'div',
-      {
-        className: wrapperClassName,
-        'data-slot': 'tooltip-trigger',
-        ...(content || title ? { 'data-title': content || title } : {})
-      },
-      children
-    )
-  }
-
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
   return {
-    Badge: passthrough('span'),
-    ColFlex: passthrough('div'),
-    DataTable,
-    Flex: passthrough('div'),
-    InfoTooltip: ({ content }: any) => React.createElement('span', { 'data-title': content }),
-    RequiredMark: () => React.createElement('span', null, '*'),
-    Switch: ({ checked, disabled, onCheckedChange, ...props }: any) =>
-      React.createElement('input', {
-        ...props,
-        checked: Boolean(checked),
-        disabled,
-        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked),
-        type: 'checkbox'
-      }),
-    Tooltip
+    ...actual,
+    Markdown: ({ children, className, ...props }: any) =>
+      React.createElement('div', { ...props, className: ['markdown', className].filter(Boolean).join(' ') }, children)
   }
 })
 
@@ -139,7 +48,7 @@ describe('McpToolsSection', () => {
     isActive: true
   }
 
-  it('keeps tooltip-wrapped descriptions inside constrained table cells', () => {
+  it('shows a shortened description preview without duplicating the full text in a tooltip', () => {
     render(
       <McpToolsSection
         tools={[tool]}
@@ -152,21 +61,17 @@ describe('McpToolsSection', () => {
 
     expect(screen.getByText(tool.name)).toHaveClass('truncate')
 
-    const description = screen.getByText(toolDescription)
-    expect(description).toHaveClass('line-clamp-1', 'block', 'w-full', 'min-w-0')
+    const description = screen.getByText(`${toolDescription.slice(0, 40).trimEnd()}…`)
+    expect(description).toHaveClass('line-clamp-1', 'block', 'w-full', 'max-w-72')
+    expect(description.closest('[data-slot="tooltip-trigger"]')).toBeNull()
 
-    const trigger = description.closest('[data-slot="tooltip-trigger"]')
-    expect(trigger).not.toBeNull()
-    expect(trigger).toHaveClass('block', 'w-full', 'min-w-0', 'max-w-full')
-    expect(trigger).not.toHaveClass('inline-block')
+    fireEvent.click(screen.getByRole('button', { name: 'Expand row' }))
 
-    const cell = trigger?.closest('td')
-    expect(cell).not.toBeNull()
-    expect(cell).toHaveStyle({ width: '400px', maxWidth: '400px' })
+    expect(screen.getByText(toolDescription)).toHaveClass('markdown')
   })
 
   it('removes the tools table surface backgrounds', () => {
-    render(
+    const { container } = render(
       <McpToolsSection
         tools={[tool]}
         server={server}
@@ -176,12 +81,89 @@ describe('McpToolsSection', () => {
       />
     )
 
-    const table = screen.getByTestId('data-table')
+    const table = container.querySelector('[data-slot="data-table-shell"]')
     expect(table).toHaveClass('bg-transparent')
     expect(table.className).toContain('[&_[data-slot=table-cell]]:bg-transparent')
     expect(table.className).toContain('[&_[data-slot=table-head]]:bg-transparent')
     expect(table.className).toContain('[&_[data-slot=table-header]]:bg-transparent')
     expect(table.className).toContain('[&_[data-slot=table-header]_[data-slot=table-row]]:bg-transparent')
-    expect(screen.getByRole('row')).toHaveClass('bg-transparent')
+    expect(screen.getByText(tool.name).closest('tr')).toHaveClass('bg-transparent')
+  })
+
+  it('renders the description and nested schema properties in the expanded row', () => {
+    const nestedTool: McpTool = {
+      ...tool,
+      description: 'Supports Markdown content.',
+      inputSchema: {
+        type: 'object',
+        required: ['config'],
+        properties: {
+          config: {
+            type: 'object',
+            description: 'Configuration options',
+            properties: {
+              retries: {
+                type: 'number',
+                description: 'Retry count',
+                enum: [1, true]
+              }
+            }
+          },
+          entries: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: {
+                  type: 'string',
+                  description: 'Entry label'
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    render(
+      <McpToolsSection
+        tools={[nestedTool]}
+        server={server}
+        searchText=""
+        onToggleTool={vi.fn()}
+        onToggleAutoApprove={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand row' }))
+
+    expect(screen.getByRole('heading', { name: 'common.description' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'settings.mcp.tools.inputSchema.label' })).toBeInTheDocument()
+    expect(screen.getByText(nestedTool.description!, { selector: '.markdown' })).toBeInTheDocument()
+
+    const configName = screen.getByText('config')
+    const configNode = configName.closest('[data-schema-property="config"]')
+    expect(configNode).toContainElement(screen.getByText('retries'))
+    expect(configNode).toHaveTextContent('settings.mcp.tools.inputSchema.enum.allowedValues1true')
+
+    const arrayNode = screen.getByText('entries').closest('[data-schema-property="entries"]')
+    expect(arrayNode).toContainElement(screen.getByText('label'))
+  })
+
+  it('keeps description expandable without showing an empty schema section', () => {
+    render(
+      <McpToolsSection
+        tools={[{ ...tool, inputSchema: { type: 'object', properties: {} } }]}
+        server={server}
+        searchText=""
+        onToggleTool={vi.fn()}
+        onToggleAutoApprove={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand row' }))
+
+    expect(screen.getByRole('heading', { name: 'common.description' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'settings.mcp.tools.inputSchema.label' })).not.toBeInTheDocument()
   })
 })

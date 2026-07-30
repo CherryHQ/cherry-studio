@@ -18,7 +18,7 @@ import type { McpTool } from '@renderer/types/tool'
 import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
@@ -30,13 +30,13 @@ import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import {
   buildMcpSchema,
-  MCP_FORM_DEFAULT_VALUES,
   McpEndpointField,
   McpFormGrid,
   type McpFormValues,
   McpIdentityFields,
   McpRuntimeFields,
   McpTransportFields,
+  toMcpFormDefaultValues,
   toMcpServerFields,
   useMcpRegistryState
 } from './McpServerFields'
@@ -59,19 +59,24 @@ const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${se
 // Module-level so the cache-miss fallback keeps a stable reference across renders.
 const EMPTY_MCP_TOOLS: McpTool[] = []
 
-const McpSettings: React.FC = () => {
+interface McpSettingsContentProps {
+  server: McpServer
+  updateMcpServer: ReturnType<typeof useMcpServer>['updateMcpServer']
+  deleteMcpServer: ReturnType<typeof useMcpServer>['deleteMcpServer']
+}
+
+const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer, deleteMcpServer }) => {
   const { t } = useTranslation()
-  const params = useParams({ strict: false })
-  const serverId = params.serverId
-  const { server, isLoading: isServerLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+  const serverId = server.id
+  const [initialFormValues] = useState(() => toMcpFormDefaultValues(server))
 
   const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
-  const [serverType, setServerType] = useState<McpServer['type']>('stdio')
+  const [serverType, setServerType] = useState<McpServerType | undefined>(server.type)
   const form = useForm<McpFormValues>({
     resolver: zodResolver(buildMcpSchema(t)) as any,
-    defaultValues: MCP_FORM_DEFAULT_VALUES
+    defaultValues: initialFormValues
   })
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
@@ -84,8 +89,7 @@ const McpSettings: React.FC = () => {
 
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [resources, setResources] = useState<McpResource[]>([])
-  const registryState = useMcpRegistryState(form, () => setIsFormChanged(true))
-  const { syncFromServer: syncRegistryFromServer } = registryState
+  const registryState = useMcpRegistryState(form, () => setIsFormChanged(true), server)
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
@@ -94,42 +98,6 @@ const McpSettings: React.FC = () => {
   const { theme } = useTheme()
 
   const navigate = useNavigate()
-
-  // Initialize form values whenever the server changes
-  useEffect(() => {
-    if (!server) return
-    const serverType: McpServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
-    setServerType(serverType)
-
-    syncRegistryFromServer(server)
-
-    form.reset({
-      name: server.name,
-      description: server.description ?? '',
-      serverType: serverType,
-      baseUrl: server.baseUrl || '',
-      command: server.command || '',
-      registryUrl: server.registryUrl || '',
-      isActive: server.isActive,
-      longRunning: server.longRunning,
-      timeout: server.timeout,
-      args: server.args ? server.args.join('\n') : '',
-      env: server.env
-        ? Object.entries(server.env)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n')
-        : '',
-      headers: server.headers
-        ? Object.entries(server.headers)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n')
-        : '',
-      provider: server.provider || '',
-      providerUrl: server.providerUrl || '',
-      logoUrl: server.logoUrl || '',
-      tags: server.tags || []
-    })
-  }, [server, form, syncRegistryFromServer])
 
   // Watch for serverType changes
   const watchedServerType = form.watch('serverType')
@@ -245,10 +213,6 @@ const McpSettings: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, server?.isActive])
-
-  useEffect(() => {
-    setIsFormChanged(false)
-  }, [server?.id])
 
   // Save the form data
   const onSave = async () => {
@@ -373,6 +337,7 @@ const McpSettings: React.FC = () => {
         await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
         setServerVersion(null)
       }
+      form.setValue('isActive', active)
     } catch (error: any) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
@@ -427,10 +392,6 @@ const McpSettings: React.FC = () => {
     },
     [server, updateMcpServer]
   )
-
-  if (!server || isServerLoading) {
-    return null
-  }
 
   const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
   const runtimeStatusLabel = {
@@ -656,6 +617,25 @@ const McpSettings: React.FC = () => {
         </Tabs>
       </SettingContainer>
     </Container>
+  )
+}
+
+const McpSettings: React.FC = () => {
+  const params = useParams({ strict: false })
+  const serverId = params.serverId
+  const { server, isLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+
+  if (!server || isLoading) {
+    return null
+  }
+
+  return (
+    <McpSettingsContent
+      key={server.id}
+      server={server}
+      updateMcpServer={updateMcpServer}
+      deleteMcpServer={deleteMcpServer}
+    />
   )
 }
 
