@@ -100,6 +100,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Frontend test design and review |
 | [App Upgrade Config](./references/app-upgrade.md) | Application upgrade configuration |
 | [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |

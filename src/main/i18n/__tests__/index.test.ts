@@ -1,4 +1,4 @@
-import { getAppLanguage, getI18n, t } from '@main/i18n'
+import { getAppLanguage, getI18n, SUPPORTED_LANGUAGES, t } from '@main/i18n'
 import { defaultLanguage } from '@shared/utils/languages'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
@@ -60,12 +60,47 @@ describe('main i18n', () => {
       // Missing everywhere: resolves neither the current language nor the en-US fallback.
       expect(t('does.not.exist')).toBe('does.not.exist')
     })
+
+    it('resolves against an explicit `language` override, ignoring app.language', () => {
+      // The API gateway's docs render one translation per requested language,
+      // independent of the app's own language — this is what makes that possible.
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+      expect(t('dialog.save_file', undefined, 'zh-CN')).toBe('保存文件')
+      expect(t('dialog.save_file')).toBe('Save File')
+    })
   })
 
   describe('getI18n', () => {
     it('returns the { translation } subtree for the current language', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(getI18n().translation.appMenu.about).toBe('About')
+    })
+
+    it('returns the { translation } subtree for an explicit language argument', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+      expect(getI18n('zh-CN').translation.appMenu.about).toBe('关于')
+    })
+  })
+
+  describe('SUPPORTED_LANGUAGES', () => {
+    it('lists every language main carries a catalog for', () => {
+      expect(SUPPORTED_LANGUAGES).toEqual(
+        expect.arrayContaining([
+          'en-US',
+          'zh-CN',
+          'zh-TW',
+          'ja-JP',
+          'ru-RU',
+          'de-DE',
+          'el-GR',
+          'es-ES',
+          'fr-FR',
+          'pt-PT',
+          'ro-RO',
+          'vi-VN'
+        ])
+      )
+      expect(SUPPORTED_LANGUAGES).toHaveLength(12)
     })
   })
 })

@@ -213,10 +213,10 @@ export class AiStreamManager extends BaseService {
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<
     string,
-    Array<{ userMessageId: string; reasoningEffort?: ReasoningEffortOption }>
+    Array<{ userMessageId: string; reasoningEffort?: ReasoningEffortOption; fastMode: boolean }>
   >()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
-   *  agent runtime's `startingNextTurn`. */
+   *  agent runtime's explicit launch state. */
   private readonly startingNextChatTopicIds = new Set<string>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
@@ -691,6 +691,24 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Detach one not-yet-admitted runtime execution without terminalizing its reserved assistant row.
+   * The runtime closes the upstream stream immediately after this call, then waits for the returned
+   * promise before opening the receive-only generation that preempted it.
+   */
+  async suspendUnadmittedRuntimeTurn(topicId: string): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return
+
+    for (const id of stream.listeners.keys()) {
+      if (id.startsWith('persistence:') || id.startsWith('agent-runtime:')) {
+        stream.listeners.delete(id)
+      }
+    }
+
+    await Promise.allSettled([...stream.executions.values()].map((execution) => execution.loopPromise))
+  }
+
+  /**
    * True iff this topic has a stream that `send()` would treat as the inject
    * path (live: pending or streaming). Providers query this in
    * `prepareDispatch` so they can skip placeholder rows / persistence
@@ -738,7 +756,12 @@ export class AiStreamManager extends BaseService {
 
   /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
    *  this landed, start the continuation immediately. Mirrors `AgentSessionRuntimeService.enqueueUserMessage`. */
-  enqueuePendingSteer(topicId: string, userMessageId: string, reasoningEffort?: ReasoningEffortOption): void {
+  enqueuePendingSteer(
+    topicId: string,
+    userMessageId: string,
+    reasoningEffort?: ReasoningEffortOption,
+    fastMode?: boolean
+  ): void {
     // The turn may have settled between `prepareDispatch` and here (the loop's terminal hooks don't
     // hold the dispatch lock), so no hook would fire to chain this steer. Decide from the single
     // authority — the resolved `status` on the still-in-grace stream — not a separate shadow flag:
@@ -750,7 +773,7 @@ export class AiStreamManager extends BaseService {
     //   • aborted / error   → drop; the persisted user row stays for the user to resend.
     const status = this.activeStreams.get(topicId)?.status
     if (status && isLiveStatus(status)) {
-      this.appendPendingSteer(topicId, userMessageId, reasoningEffort)
+      this.appendPendingSteer(topicId, userMessageId, reasoningEffort, fastMode)
       return
     }
     if (status === 'aborted' || status === 'error') {
@@ -761,13 +784,18 @@ export class AiStreamManager extends BaseService {
       })
       return
     }
-    this.appendPendingSteer(topicId, userMessageId, reasoningEffort)
+    this.appendPendingSteer(topicId, userMessageId, reasoningEffort, fastMode)
     if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
   }
 
-  private appendPendingSteer(topicId: string, userMessageId: string, reasoningEffort?: ReasoningEffortOption): void {
+  private appendPendingSteer(
+    topicId: string,
+    userMessageId: string,
+    reasoningEffort?: ReasoningEffortOption,
+    fastMode?: boolean
+  ): void {
     const queue = this.pendingSteers.get(topicId)
-    const item = { userMessageId, reasoningEffort }
+    const item = { userMessageId, reasoningEffort, fastMode: fastMode === true }
     if (queue) queue.push(item)
     else this.pendingSteers.set(topicId, [item])
   }
@@ -854,12 +882,12 @@ export class AiStreamManager extends BaseService {
   // tests invoke them directly to simulate chunk/done/error.
 
   /** Multi-model: chunks carry `sourceModelId` for renderer demux. */
-  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void {
+  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec) return
+    if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
@@ -936,12 +964,12 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
-  async onExecutionDone(topicId: string, modelId: UniqueModelId): Promise<void> {
+  async onExecutionDone(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || exec.status !== 'streaming') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
     exec.status = 'done'
     exec.runtimeTiming.closeOpenToolSpans()
@@ -985,12 +1013,12 @@ export class AiStreamManager extends BaseService {
     }
   }
 
-  async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {
+  async onExecutionPaused(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || exec.status !== 'aborted') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
 
     // A turn torn down while a tool is still `approval-requested` (or any
     // in-flight tool) gets no `tool-output-*` to clear it. Clear the set so the
@@ -1023,12 +1051,17 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution errors. */
-  async onExecutionError(topicId: string, modelId: UniqueModelId, error: SerializedError): Promise<void> {
+  async onExecutionError(
+    topicId: string,
+    modelId: UniqueModelId,
+    error: SerializedError,
+    expectedExecution?: StreamExecution
+  ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec) return
+    if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     exec.status = 'error'
     exec.error = error
@@ -1194,8 +1227,14 @@ export class AiStreamManager extends BaseService {
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
-    const { userMessageId, reasoningEffort } = pending
-    const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId, reasoningEffort }
+    const { userMessageId, reasoningEffort, fastMode } = pending
+    const req: MainDispatchRequest = {
+      trigger: 'steer-continuation',
+      topicId,
+      userMessageId,
+      reasoningEffort,
+      fastMode
+    }
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
     } catch (error) {
@@ -1389,7 +1428,7 @@ export class AiStreamManager extends BaseService {
 
     exec.loopPromise = launchLoop().catch((err) => {
       // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-      return this.onExecutionError(topicId, modelId, serializeError(err))
+      return this.onExecutionError(topicId, modelId, serializeError(err), exec)
     })
 
     return exec
@@ -1416,7 +1455,7 @@ export class AiStreamManager extends BaseService {
       })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
-      await this.onExecutionError(topicId, modelId, serializeError(err))
+      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
     }
 
@@ -1438,7 +1477,7 @@ export class AiStreamManager extends BaseService {
 
     const result = await pipeStreamLoop(stream, signal, {
       onChunk: (chunk) => {
-        this.onChunk(topicId, modelId, chunk)
+        this.onChunk(topicId, modelId, chunk, exec)
         // A tool awaiting human approval emits no chunks while it waits, so the normal (short) idle
         // timeout would kill a legitimate deliberation. Re-arm with the generous approval bound
         // instead of pausing entirely — an unresponsive renderer still can't hang the stream forever.
@@ -1464,7 +1503,7 @@ export class AiStreamManager extends BaseService {
         result.streamErrorText !== undefined && !signal.aborted
           ? errorFromStreamChunk(result.streamErrorText)
           : serializeError(result.threw.error)
-      await this.onExecutionError(topicId, modelId, serialized)
+      await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }
 
@@ -1474,11 +1513,11 @@ export class AiStreamManager extends BaseService {
       // exit. Promote it so the truncated reply is persisted as `paused`, not `success`
       // (onExecutionPaused is a no-op unless status is 'aborted').
       if (exec.status === 'streaming') exec.status = 'aborted'
-      await this.onExecutionPaused(topicId, modelId)
+      await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
-      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText))
+      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else {
-      await this.onExecutionDone(topicId, modelId)
+      await this.onExecutionDone(topicId, modelId, exec)
     }
   }
 

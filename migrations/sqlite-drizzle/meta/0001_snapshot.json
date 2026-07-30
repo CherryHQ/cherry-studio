@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e73b34e2-6e9a-46d4-bb01-276fc2be2599",
+  "id": "ae655987-49e2-4365-8290-be90cf30ed7a",
   "prevId": "ac2ab25f-24eb-420c-b648-7d71ca7c606b",
   "tables": {
     "agent": {
@@ -288,16 +288,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "agent_channel_type_check": {
-          "name": "agent_channel_type_check",
-          "value": "\"agent_channel\".\"type\" IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')"
-        },
-        "agent_channel_permission_mode_check": {
-          "name": "agent_channel_permission_mode_check",
-          "value": "\"agent_channel\".\"permission_mode\" IS NULL OR \"agent_channel\".\"permission_mode\" IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')"
-        }
-      }
+      "checkConstraints": {}
     },
     "agent_channel_task": {
       "name": "agent_channel_task",
@@ -845,13 +836,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "disconnected_path": {
-          "name": "disconnected_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "type": {

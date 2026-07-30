@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "與 OpenAI、Anthropic、Gemini 相容的 Cherry Studio HTTP API，另含 Cherry 專有介面（模型、知識庫）",
+      "language_switcher_label": "文件語言",
+      "operations": {
+        "chat_completions": "建立一次對話補全。請求與回應格式與 OpenAI Chat Completions 一致；設定 `stream: true` 可串流輸出。",
+        "count_tokens": "估算一組 Anthropic 格式訊息所佔用的輸入 token 數量。",
+        "generate_content": "透過 Gemini 的 `generateContent` 方法產生內容。請求與回應格式與 Gemini API 一致；`streamGenerateContent` 走同一路徑。",
+        "get_knowledge_base": "依 ID 取得單一知識庫。",
+        "health": "服務健康狀態、目前時間與版本號。無需驗證。",
+        "info": "API 名稱、版本與主要端點列表。無需驗證。",
+        "list_knowledge_bases": "列出目前 Cherry Studio 實例中的知識庫。",
+        "list_models": "以 OpenAI models 格式列出此閘道可用的模型。",
+        "messages": "建立一則訊息。請求與回應格式與 Anthropic Messages 一致；設定 `stream: true` 可串流輸出。",
+        "responses": "建立一次回應。請求與回應格式與 OpenAI Responses 一致。",
+        "search_knowledge_bases": "在一個或多個知識庫中檢索，回傳相符的文件片段。"
+      },
+      "tags": {
+        "anthropic": "相容 Anthropic 的介面。將 Anthropic SDK 的 base URL 指向本閘道即可使用。",
+        "cherry": "Cherry Studio 自有介面：知識庫、服務資訊與健康檢查。",
+        "gemini": "相容 Gemini 的介面，與上游一樣掛在 `/v1beta` 之下。",
+        "openai": "相容 OpenAI 的介面。將 OpenAI SDK 的 base URL 指向本閘道即可使用。"
+      }
+    }
+  },
   "appMenu": {
     "about": "關於",
     "close": "關閉視窗",

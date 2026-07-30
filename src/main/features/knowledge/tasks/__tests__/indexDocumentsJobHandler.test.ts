@@ -459,7 +459,8 @@ describe('index-documents job handler', () => {
       'kb-1',
       'https://example.com',
       '# Example page\n\nbody text',
-      expect.any(Set)
+      expect.any(Set),
+      'Example Page'
     )
     expect(knowledgeItemUpdateSnapshotRelativePathMock).toHaveBeenCalledWith('url-1', 'url', 'example-page.md')
     // The reader receives the item carrying the freshly captured snapshot path.
@@ -510,7 +511,7 @@ describe('index-documents job handler', () => {
   it('fails the index when a URL fetch returns empty markdown', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1'))
-    fetchKnowledgeWebPageMock.mockResolvedValueOnce('')
+    fetchKnowledgeWebPageMock.mockResolvedValueOnce({ title: 'Empty Page', markdown: '' })
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1', parentJobId: null }))).rejects.toThrow(
       'empty markdown'

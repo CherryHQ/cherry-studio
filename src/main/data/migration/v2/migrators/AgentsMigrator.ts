@@ -55,6 +55,9 @@ import { AGENT_TABLES, type AgentPrefixIdRemap, remapAgentPrefixIds } from './re
 import { type LegacyModelRef, legacyModelToUniqueId } from './transformers/ModelTransformers'
 
 const DERIVED_SESSION_WORKSPACES_KEY = 'agentsMigrator.derivedSessionWorkspaces'
+const LEGACY_SESSION_MESSAGE_BATCH_SIZE = 100
+const LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE = 'agent_session_message_source_cursor'
+const LEGACY_SESSION_MESSAGE_STAGING_TABLE = 'agent_session_message_migration_staging'
 
 type V1ScheduledTaskRow = {
   id: string
@@ -174,7 +177,7 @@ export class AgentsMigrator extends BaseMigrator {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
       const derivedSessionWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
-      const preparedSessionMessages = await prepareLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
+      const stagedSessionMessageCount = await stageLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
         db: ctx.db,
         filesDataDir: ctx.paths.filesDataDir
       })
@@ -201,7 +204,7 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
-      insertPreparedLegacySessionMessages(ctx.db, preparedSessionMessages)
+      insertStagedLegacySessionMessages(ctx.db, stagedSessionMessageCount)
       migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
@@ -224,7 +227,7 @@ export class AgentsMigrator extends BaseMigrator {
       const idRemap = remapAgentPrefixIds(ctx.db)
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
-      const fileSessionPlans = toAgentFileSessionPlans(finalSessionWorkspaces, preparedSessionMessages)
+      const fileSessionPlans = toAgentFileSessionPlans(ctx.db, finalSessionWorkspaces, stagedSessionMessageCount)
       await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
@@ -259,6 +262,13 @@ export class AgentsMigrator extends BaseMigrator {
       }
       logger.error('Agents migration execute failed:', error as Error)
       pendingError = error
+    }
+
+    try {
+      dropLegacySessionMessageStaging(ctx.db)
+    } catch (cleanupError) {
+      logger.error('Failed to drop legacy Agent session message staging tables', cleanupError as Error)
+      pendingError ??= cleanupError
     }
 
     if (isAttached) {
@@ -669,6 +679,7 @@ type DerivedSessionWorkspaces = {
 }
 
 type LegacySessionMessageRow = {
+  sourceSequence: number
   legacyId: string | number | null
   sessionId: string
   role: string | null
@@ -688,6 +699,7 @@ type NormalizedLegacySessionMessage = {
 }
 
 type PreparedLegacySessionMessage = {
+  sourceSequence: number
   id: string
   sessionId: string
   role: MessageRole
@@ -928,18 +940,39 @@ function finalizeSessionWorkspaces(
 }
 
 function toAgentFileSessionPlans(
+  db: DbType,
   derived: DerivedSessionWorkspaces,
-  preparedSessionMessages: PreparedLegacySessionMessage[]
+  stagedSessionMessageCount: number
 ): AgentFileSessionPlan[] {
   const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace]))
   const runtimeResumeTokensBySessionId = new Map<string, Set<string>>()
   const latestRuntimeResumeTokenBySessionId = new Map<string, string>()
-  for (const message of preparedSessionMessages) {
-    if (message.runtimeResumeToken) {
-      const runtimeResumeTokens = runtimeResumeTokensBySessionId.get(message.sessionId) ?? new Set<string>()
-      runtimeResumeTokens.add(message.runtimeResumeToken)
-      runtimeResumeTokensBySessionId.set(message.sessionId, runtimeResumeTokens)
-      latestRuntimeResumeTokenBySessionId.set(message.sessionId, message.runtimeResumeToken)
+
+  if (stagedSessionMessageCount > 0) {
+    let afterSequence = 0
+    while (true) {
+      const rows = db.all<{ sourceSequence: number; sessionId: string; runtimeResumeToken: string }>(
+        sql.raw(
+          `SELECT source_sequence AS sourceSequence,
+                  session_id AS sessionId,
+                  runtime_resume_token AS runtimeResumeToken
+           FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
+           WHERE source_sequence > ${afterSequence}
+             AND runtime_resume_token IS NOT NULL
+             AND runtime_resume_token <> ''
+           ORDER BY source_sequence
+           LIMIT ${LEGACY_SESSION_MESSAGE_BATCH_SIZE}`
+        )
+      )
+      if (rows.length === 0) break
+
+      for (const row of rows) {
+        const runtimeResumeTokens = runtimeResumeTokensBySessionId.get(row.sessionId) ?? new Set<string>()
+        runtimeResumeTokens.add(row.runtimeResumeToken)
+        runtimeResumeTokensBySessionId.set(row.sessionId, runtimeResumeTokens)
+        latestRuntimeResumeTokenBySessionId.set(row.sessionId, row.runtimeResumeToken)
+      }
+      afterSequence = rows.at(-1)!.sourceSequence
     }
   }
 
@@ -968,7 +1001,9 @@ function selectLegacyMessageColumn(
   alias: string,
   fallbackExpr: string
 ): string {
-  return schemaInfo.session_messages.columns.has(column) ? `${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
+  return schemaInfo.session_messages.columns.has(column)
+    ? `messages.${column} AS ${alias}`
+    : `${fallbackExpr} AS ${alias}`
 }
 
 function normalizeLegacyRole(value: string | null): MessageRole {
@@ -1101,11 +1136,107 @@ function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawMo
   return resolved
 }
 
-async function prepareLegacySessionMessages(
+function createLegacySessionMessageStaging(db: DbType, schemaInfo: AgentsSchemaInfo): void {
+  dropLegacySessionMessageStaging(db)
+  // Materialize only ordered source rowids first. The generated sequence is a
+  // stable keyset cursor across async file promotion without copying message
+  // payloads into V8 or paying OFFSET's repeated scan cost.
+  db.run(
+    sql.raw(
+      `CREATE TEMP TABLE ${LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE} (
+         sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+         source_rowid INTEGER NOT NULL UNIQUE
+       )`
+    )
+  )
+  db.run(
+    sql.raw(
+      `CREATE TEMP TABLE ${LEGACY_SESSION_MESSAGE_STAGING_TABLE} (
+         source_sequence INTEGER PRIMARY KEY,
+         id TEXT NOT NULL,
+         session_id TEXT NOT NULL,
+         role TEXT NOT NULL,
+         data TEXT NOT NULL,
+         status TEXT NOT NULL,
+         model_id TEXT,
+         model_snapshot TEXT,
+         stats TEXT,
+         runtime_resume_token TEXT,
+         created_at INTEGER NOT NULL,
+         updated_at INTEGER NOT NULL
+       )`
+    )
+  )
+
+  const orderBy = [
+    schemaInfo.session_messages.columns.has('created_at') ? 'messages.created_at ASC' : null,
+    schemaInfo.session_messages.columns.has('id') ? 'messages.id ASC' : null,
+    'messages.rowid ASC'
+  ]
+    .filter(Boolean)
+    .join(', ')
+  db.run(
+    sql.raw(
+      `INSERT INTO ${LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE} (source_rowid)
+       SELECT messages.rowid
+       FROM agents_legacy.session_messages AS messages
+       WHERE messages.session_id IN (
+         SELECT sessions.id
+         FROM agents_legacy.sessions AS sessions
+         WHERE sessions.agent_id IN (SELECT id FROM agents_legacy.agents)
+       )
+       ORDER BY ${orderBy}`
+    )
+  )
+}
+
+function dropLegacySessionMessageStaging(db: DbType): void {
+  db.run(sql.raw(`DROP TABLE IF EXISTS ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}`))
+  db.run(sql.raw(`DROP TABLE IF EXISTS ${LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE}`))
+}
+
+function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLegacySessionMessage[]): void {
+  if (prepared.length === 0) return
+
+  db.run(sql.raw('SAVEPOINT stage_legacy_agent_session_messages'))
+  try {
+    for (const message of prepared) {
+      db.run(sql`
+        INSERT INTO ${sql.raw(LEGACY_SESSION_MESSAGE_STAGING_TABLE)}
+          (
+            source_sequence, id, session_id, role, data, status, model_id,
+            model_snapshot, stats, runtime_resume_token, created_at, updated_at
+          )
+        VALUES
+          (
+            ${message.sourceSequence},
+            ${message.id},
+            ${message.sessionId},
+            ${message.role},
+            ${JSON.stringify(message.data)},
+            ${message.status},
+            ${message.modelId},
+            ${message.modelSnapshot ? JSON.stringify(message.modelSnapshot) : null},
+            ${message.stats ? JSON.stringify(message.stats) : null},
+            ${message.runtimeResumeToken},
+            ${message.createdAt},
+            ${message.updatedAt}
+          )
+      `)
+    }
+    db.run(sql.raw('RELEASE SAVEPOINT stage_legacy_agent_session_messages'))
+  } catch (error) {
+    db.run(sql.raw('ROLLBACK TO SAVEPOINT stage_legacy_agent_session_messages'))
+    db.run(sql.raw('RELEASE SAVEPOINT stage_legacy_agent_session_messages'))
+    throw error
+  }
+}
+
+async function stageLegacySessionMessages(
   db: DbType,
   schemaInfo: AgentsSchemaInfo,
   deps?: ChatMappingDeps
-): Promise<PreparedLegacySessionMessage[]> {
+): Promise<number> {
   if (
     !schemaInfo.session_messages.exists ||
     !schemaInfo.session_messages.columns.has('session_id') ||
@@ -1113,9 +1244,10 @@ async function prepareLegacySessionMessages(
     !schemaInfo.sessions.columns.has('agent_id') ||
     !schemaInfo.agents.exists
   ) {
-    return []
+    return 0
   }
 
+  createLegacySessionMessageStaging(db, schemaInfo)
   const selectColumns = [
     selectLegacyMessageColumn(schemaInfo, 'id', 'legacyId', 'NULL'),
     selectLegacyMessageColumn(schemaInfo, 'session_id', 'sessionId', 'NULL'),
@@ -1125,84 +1257,148 @@ async function prepareLegacySessionMessages(
     selectLegacyMessageColumn(schemaInfo, 'created_at', 'createdAt', 'NULL'),
     selectLegacyMessageColumn(schemaInfo, 'updated_at', 'updatedAt', 'NULL')
   ]
-  const orderBy = [
-    schemaInfo.session_messages.columns.has('created_at') ? 'created_at ASC' : null,
-    schemaInfo.session_messages.columns.has('id') ? 'id ASC' : null
-  ]
-    .filter(Boolean)
-    .join(', ')
-
-  const rows = db.all<LegacySessionMessageRow>(
-    sql.raw(
-      `SELECT ${selectColumns.join(', ')}
-       FROM agents_legacy.session_messages
-       WHERE session_id IN (
-         SELECT sessions.id
-         FROM agents_legacy.sessions AS sessions
-         WHERE sessions.agent_id IN (SELECT id FROM agents_legacy.agents)
-       )
-       ${orderBy ? `ORDER BY ${orderBy}` : ''}`
-    )
-  )
   const modelCache = new Map<string, string | null>()
-  const prepared: PreparedLegacySessionMessage[] = []
+  let afterSequence = 0
+  let stagedCount = 0
 
-  for (const row of rows) {
-    if (!row.sessionId) continue
-    let normalized: NormalizedLegacySessionMessage
-    try {
-      normalized = await normalizeLegacySessionMessage(row.content, row.role, deps)
-    } catch (error) {
-      normalized = {
-        role: normalizeLegacyRole(row.role),
-        data: { parts: [] },
-        status: 'error',
-        modelId: null,
-        modelSnapshot: null,
-        stats: null
+  while (true) {
+    const rows = db.all<LegacySessionMessageRow>(
+      sql.raw(
+        `SELECT cursor.sequence AS sourceSequence, ${selectColumns.join(', ')}
+         FROM ${LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE} AS cursor
+         INNER JOIN agents_legacy.session_messages AS messages
+           ON messages.rowid = cursor.source_rowid
+         WHERE cursor.sequence > ${afterSequence}
+         ORDER BY cursor.sequence
+         LIMIT ${LEGACY_SESSION_MESSAGE_BATCH_SIZE}`
+      )
+    )
+    if (rows.length === 0) break
+
+    const prepared: PreparedLegacySessionMessage[] = []
+    for (const row of rows) {
+      if (!row.sessionId) continue
+      let normalized: NormalizedLegacySessionMessage
+      try {
+        normalized = await normalizeLegacySessionMessage(row.content, row.role, deps)
+      } catch (error) {
+        normalized = {
+          role: normalizeLegacyRole(row.role),
+          data: { parts: [] },
+          status: 'error',
+          modelId: null,
+          modelSnapshot: null,
+          stats: null
+        }
+        logger.warn('Failed to normalize legacy agent session message', {
+          legacyId: row.legacyId,
+          sessionId: row.sessionId,
+          error
+        })
       }
-      logger.warn('Failed to normalize legacy agent session message', {
-        legacyId: row.legacyId,
+
+      const now = Date.now()
+      const createdAt = legacyTimestampToMs(row.createdAt, now)
+      const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
+      prepared.push({
+        sourceSequence: row.sourceSequence,
+        id: uuidv7(),
         sessionId: row.sessionId,
-        error
+        role: normalized.role,
+        data: normalized.data,
+        status: normalized.status,
+        modelId: resolveUserModelId(db, modelCache, normalized.modelId),
+        modelSnapshot: normalized.modelSnapshot,
+        stats: normalized.stats,
+        runtimeResumeToken: row.agentSessionId,
+        createdAt,
+        updatedAt
       })
     }
 
-    const now = Date.now()
-    const createdAt = legacyTimestampToMs(row.createdAt, now)
-    const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
-    prepared.push({
-      id: uuidv7(),
-      sessionId: row.sessionId,
-      role: normalized.role,
-      data: normalized.data,
-      status: normalized.status,
-      modelId: resolveUserModelId(db, modelCache, normalized.modelId),
-      modelSnapshot: normalized.modelSnapshot,
-      stats: normalized.stats,
-      runtimeResumeToken: row.agentSessionId,
-      createdAt,
-      updatedAt
-    })
+    insertLegacySessionMessageStagingBatch(db, prepared)
+    stagedCount += prepared.length
+    afterSequence = rows.at(-1)!.sourceSequence
   }
 
-  return prepared
+  logger.info('Staged legacy agent session messages in bounded batches', { staged: stagedCount })
+  return stagedCount
 }
 
-function insertPreparedLegacySessionMessages(db: DbType, prepared: PreparedLegacySessionMessage[]): number {
+type StagedLegacySessionMessageRow = {
+  sourceSequence: number
+  id: string
+  sessionId: string
+  role: MessageRole
+  data: string
+  status: MessageStatus
+  modelId: string | null
+  modelSnapshot: string | null
+  stats: string | null
+  runtimeResumeToken: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): number {
+  if (stagedCount === 0) return 0
+
   const sessionAuthors = readSessionAuthors(db)
-  for (const { modelSnapshot, stats, ...message } of prepared) {
-    // Resolve authors only after the target agent/session rows have been inserted.
-    // Message normalization remains outside the transaction, while the immutable
-    // author+model snapshot is assembled synchronously inside it.
-    const author = sessionAuthors.get(message.sessionId)
-    const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
-    db.insert(agentSessionMessageTable)
-      .values({ ...message, messageSnapshot, stats: stats ?? undefined })
-      .run()
+  let afterSequence = 0
+  let imported = 0
+
+  while (true) {
+    const rows = db.all<StagedLegacySessionMessageRow>(
+      sql.raw(
+        `SELECT source_sequence AS sourceSequence,
+                id,
+                session_id AS sessionId,
+                role,
+                data,
+                status,
+                model_id AS modelId,
+                model_snapshot AS modelSnapshot,
+                stats,
+                runtime_resume_token AS runtimeResumeToken,
+                created_at AS createdAt,
+                updated_at AS updatedAt
+         FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
+         WHERE source_sequence > ${afterSequence}
+         ORDER BY source_sequence
+         LIMIT ${LEGACY_SESSION_MESSAGE_BATCH_SIZE}`
+      )
+    )
+    if (rows.length === 0) break
+
+    for (const row of rows) {
+      // Resolve authors only after the target agent/session rows have been inserted.
+      // Message normalization remains outside the transaction, while the immutable
+      // author+model snapshot is assembled synchronously inside it.
+      const author = sessionAuthors.get(row.sessionId)
+      const modelSnapshot = row.modelSnapshot ? (JSON.parse(row.modelSnapshot) as ModelSnapshot) : null
+      const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
+      db.insert(agentSessionMessageTable)
+        .values({
+          id: row.id,
+          sessionId: row.sessionId,
+          role: row.role,
+          data: JSON.parse(row.data) as MessageData,
+          status: row.status,
+          modelId: row.modelId,
+          messageSnapshot,
+          stats: row.stats ? (JSON.parse(row.stats) as MessageStats) : undefined,
+          runtimeResumeToken: row.runtimeResumeToken,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        })
+        .run()
+    }
+    imported += rows.length
+    afterSequence = rows.at(-1)!.sourceSequence
   }
-  logger.info('Imported legacy agent session messages with UUID ids', { imported: prepared.length })
-  return prepared.length
+
+  logger.info('Imported staged legacy agent session messages with UUID ids', { imported })
+  return imported
 }
 
 export async function importLegacySessionMessages(
@@ -1210,7 +1406,12 @@ export async function importLegacySessionMessages(
   schemaInfo: AgentsSchemaInfo,
   deps?: ChatMappingDeps
 ): Promise<number> {
-  return insertPreparedLegacySessionMessages(db, await prepareLegacySessionMessages(db, schemaInfo, deps))
+  try {
+    const stagedCount = await stageLegacySessionMessages(db, schemaInfo, deps)
+    return insertStagedLegacySessionMessages(db, stagedCount)
+  } finally {
+    dropLegacySessionMessageStaging(db)
+  }
 }
 
 /**

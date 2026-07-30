@@ -7,6 +7,7 @@
  */
 
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../types'
@@ -35,7 +36,7 @@ export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transf
 })
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
-export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
@@ -44,6 +45,7 @@ export const AgentConfigurationSchema = z
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
+    reasoning_effort: ReasoningEffortOptionSchema.optional(),
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
@@ -196,7 +198,17 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // Agent update DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
+/**
+ * DTO for updating an existing agent. All fields are optional.
+ *
+ * `configuration` is itself a partial: callers send only the first-level keys
+ * they intend to change, and AgentService shallow-merges them onto the latest
+ * persisted configuration inside the write transaction. Nested values such as
+ * `env_vars` still replace as a whole. An explicitly present `undefined` value
+ * removes that configuration key; omission preserves it.
+ */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  configuration: AgentConfigurationSchema.partial().optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
    * unchanged"; an empty array is a no-op. The server applies each update

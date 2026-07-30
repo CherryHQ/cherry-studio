@@ -35,6 +35,8 @@ export interface PreparedDispatch {
   pendingSteerUserMessageId?: string
   /** Canonical selection captured alongside the pending steer. */
   pendingSteerReasoningEffort?: ReasoningEffortOption
+  /** Fast selection captured alongside the pending steer. */
+  pendingSteerFastMode?: boolean
   /** Persisted user/assistant skeletons created for this dispatch. */
   reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */
