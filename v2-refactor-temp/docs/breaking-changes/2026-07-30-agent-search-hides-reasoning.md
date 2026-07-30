@@ -2,7 +2,7 @@
 title: Agent search results no longer expose hidden reasoning
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17661"
 date: 2026-07-30
 ---
 
