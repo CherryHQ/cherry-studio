@@ -47,7 +47,8 @@ import {
   copyAgentSessionAsPlainText,
   exportAgentSessionAsMarkdown,
   getAgentSessionExportTitle,
-  getAgentSessionMessagesForExport
+  getAgentSessionMessagesForExport,
+  getAgentSessionModelFallbackSnapshot
 } from '@renderer/services/agentSessionExport'
 import {
   exportContentToNotes,
@@ -58,7 +59,6 @@ import {
 } from '@renderer/services/ExportService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import {
@@ -521,9 +521,9 @@ const Sessions = ({
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
   const getSessionExportOptions = useCallback(
     (session: AgentSessionEntity): AgentSessionExportOptions => ({
-      modelFallback: getAgentModelFallbackSnapshot(session.agentId ? agentById.get(session.agentId) : undefined)
+      modelFallback: getAgentSessionModelFallbackSnapshot(session)
     }),
-    [agentById]
+    []
   )
   const agentRankById = useMemo(
     () => new Map(agentsForDisplay.map((agent, index) => [agent.id, index])),
@@ -1888,7 +1888,7 @@ const Sessions = ({
           <AgentSessionImageCaptureHost
             key={requestId}
             activeAgent={activeAgent}
-            modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
+            modelFallback={getAgentSessionModelFallbackSnapshot(session)}
             session={session}
           />
         )

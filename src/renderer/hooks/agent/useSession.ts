@@ -1,10 +1,9 @@
 /**
  * DataApi-backed session queries and mutations.
  *
- * Sessions are pure agent instances — only `id / agentId / name / description /
- * orderKey / timestamps` live here. For config (model / instructions /
- * configuration / ...) call {@link import('./useAgent').useAgent}
- * with `session.agentId`.
+ * Sessions own their primary model and identity metadata. Agent-wide config
+ * (instructions / configuration / ...) is fetched through
+ * {@link import('./useAgent').useAgent} with `session.agentId`.
  */
 
 import {
@@ -44,9 +43,8 @@ export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
 
 /**
- * Fetch a single session by id. Config (model / instructions / ...) lives on
- * the parent agent — fetch via `useAgent(session.agentId)` separately. For
- * mutations call `useUpdateSession()` directly.
+ * Fetch a single session by id. Agent-wide config (instructions / ...) lives
+ * on the parent agent — fetch via `useAgent(session.agentId)` separately.
  */
 export const useSession = (sessionId: string | null) => {
   const {
@@ -350,10 +348,10 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (`name`, `description`, `agentId`). Config fields
- * (model, instructions, configuration, ...) live on the parent agent — use
- * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
- * is changed separately via {@link setSessionWorkspace} (only while empty).
+ * Patch session-level fields (`name`, `description`, `agentId`, `modelId`).
+ * Agent-wide config (instructions, configuration, ...) still lives on the
+ * parent agent. The workspace binding is changed separately via
+ * {@link setSessionWorkspace} (only while empty).
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()

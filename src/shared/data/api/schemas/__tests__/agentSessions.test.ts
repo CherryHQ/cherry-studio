@@ -40,6 +40,16 @@ describe('AgentSession schemas', () => {
     })
   })
 
+  it('accepts a session-owned model id update', () => {
+    expect(
+      UpdateAgentSessionSchema.parse({
+        modelId: 'anthropic::claude-sonnet-4-5'
+      })
+    ).toEqual({
+      modelId: 'anthropic::claude-sonnet-4-5'
+    })
+  })
+
   it('allows blank names for untitled placeholder sessions', () => {
     expect(
       CreateAgentSessionSchema.safeParse({

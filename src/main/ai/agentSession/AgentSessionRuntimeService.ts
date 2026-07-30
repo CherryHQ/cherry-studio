@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -24,7 +25,8 @@ import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
-import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity, UpdateAgentSessionDto } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -111,6 +113,8 @@ type AgentSessionTurn = {
   turnId: string
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
+  agentId: string
+  agentType: string
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
@@ -137,6 +141,8 @@ type SteerContinuationReservation = {
 }
 
 type AgentSessionConnectionTarget = {
+  agentId: string
+  agentType: string
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
@@ -162,6 +168,10 @@ type AgentSessionRuntimeEntry = {
   connecting?: Promise<boolean>
   currentTurn?: AgentSessionTurn
   lastResumeToken?: string
+  /** Agent that owns lastResumeToken. A rebind must never resume the prior agent's subprocess state. */
+  resumeTokenAgentId?: string
+  /** Prevents rehydrating a persisted token after an agent rebind until the new connection emits one. */
+  resumeTokenInvalidated?: boolean
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
   idleTimer?: ReturnType<typeof setTimeout>
   startingNextTurn?: boolean
@@ -253,9 +263,16 @@ export class AgentSessionRuntimeService extends BaseService {
     this.reconcileStalePendingMessages()
 
     this.registerDisposable(
-      agentService.onAgentUpdated(({ agentId, updates, agent }) => {
-        void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
+      agentService.onAgentUpdated(({ agentId, updates }) => {
+        void this.handleAgentUpdated(agentId, updates).catch((error) => {
           logger.warn('Failed to apply live agent policy update', { agentId, error })
+        })
+      })
+    )
+    this.registerDisposable(
+      agentSessionService.onSessionUpdated(({ sessionId, updates, session }) => {
+        void this.handleSessionUpdated(sessionId, updates, session).catch((error) => {
+          logger.warn('Failed to apply live agent session update', { sessionId, error })
         })
       })
     )
@@ -281,6 +298,8 @@ export class AgentSessionRuntimeService extends BaseService {
       turnId,
       assistantMessageId: input.assistantMessageId,
       userMessage,
+      agentId: input.agentId,
+      agentType: input.agentType,
       modelId: input.modelId,
       messageSnapshot,
       reasoningEffort: input.reasoningEffort ?? 'default',
@@ -299,8 +318,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.pendingTurns = []
       existing.topicId = input.topicId
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
-      existing.agentId = input.agentId
-      existing.agentType = input.agentType
+      this.adoptEntryAgentIdentity(existing, input.agentId, input.agentType)
       existing.modelId = input.modelId
       existing.messageSnapshot = messageSnapshot
       existing.status = 'active'
@@ -409,7 +427,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
-      if (!agent?.model) return
+      if (!agent || !session.modelId) return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -431,7 +449,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionTraceId,
         agentId: session.agentId,
         agentType: agent.type,
-        modelId: agent.model,
+        modelId: session.modelId,
         status: 'idle',
         pendingTurns: []
       }
@@ -462,24 +480,47 @@ export class AgentSessionRuntimeService extends BaseService {
    * report 'rebuild'. Inputs that change WITHOUT an agent-updated event (in-session skill toggles,
    * MCP definition edits, workspace switches) have no push at all and are covered by the pull.
    */
-  private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
-    const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
+  private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto): Promise<void> {
+    // `agent.model` is only the default for future sessions. A model-only edit must not retarget
+    // any existing session connection; the remaining agent-owned policy still reconciles live.
+    if (Object.keys(updates).every((key) => key === 'model')) return
+
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
-      if (entry.agentId !== agentId) continue
-
-      // A cleared model (`PATCH { model: null }`) is unroutable, not stale — fully invalidate.
-      if (modelEdited && !agent.model) {
-        this.invalidateModelClearedEntry(entry)
-        continue
-      }
-
-      // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
-      // live turn keeps its captured `turn.modelId` regardless.
-      if (agent.model) entry.modelId = agent.model
+      if (this.connectionTarget(entry).agentId !== agentId) continue
       reconciles.push(this.reconcileEntryConnection(entry))
     }
     await Promise.all(reconciles)
+  }
+
+  private async handleSessionUpdated(
+    sessionId: string,
+    updates: UpdateAgentSessionDto,
+    session: AgentSessionEntity
+  ): Promise<void> {
+    if (
+      !Object.prototype.hasOwnProperty.call(updates, 'modelId') &&
+      !Object.prototype.hasOwnProperty.call(updates, 'agentId')
+    ) {
+      return
+    }
+
+    const entry = this.entries.get(sessionId)
+    if (!entry) return
+    if (!session.agentId || !session.modelId) {
+      this.invalidateUnroutableEntry(entry, 'session-model-cleared')
+      return
+    }
+
+    const agent = agentService.getAgent(session.agentId)
+    if (!agent || (session.agentId !== entry.agentId && !runtimeDriverRegistry.getAgentSessionDriver(agent.type))) {
+      this.invalidateUnroutableEntry(entry, 'session-unroutable')
+      return
+    }
+
+    this.adoptEntryAgentIdentity(entry, session.agentId, agent.type)
+    entry.modelId = session.modelId
+    await this.reconcileEntryConnection(entry)
   }
 
   private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
@@ -513,7 +554,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'invalid':
         // Desired config no longer derivable (agent/session/model rows gone) — same full
         // invalidation as a cleared model.
-        this.invalidateModelClearedEntry(entry)
+        this.invalidateUnroutableEntry(entry, 'session-unroutable')
         return
       case 'failed':
         // Fail closed: a failed live patch may have left the connection enforcing the OLD (looser)
@@ -525,26 +566,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /**
-   * An agent update cleared the model (`PATCH { model: null }` — `AgentEntitySchema.model` is nullable),
-   * so the agent can no longer be routed to any model. Fully invalidate the runtime entry instead of only
-   * closing its connection: pause a live turn so the renderer learns it stopped (the abort then tears the
-   * session down via the turn stream's abort listener), then `closeSession` to settle the turn, drop queued
-   * follow-ups, and close the connection. Removing the entry from the map also self-discards any in-flight
-   * old-model connect (its entry is no longer current, so `connect()` closes the connection it opened
-   * instead of installing it) — a modelless agent must not be left with a stale entry still targeting the
-   * previous model.
-   *
-   * NOTE: deleting the model's `user_model` row also nulls `agent.model` via the FK (`onDelete: 'set null'`),
-   * but that path (`ModelService.delete`/`bulkDelete`) emits no agent update, so it does NOT reach this
-   * update-driven handler. The deleted-model runtime is covered elsewhere instead: a live turn finishes on
-   * its captured model; a queued follow-up is caught by `startNextTurn`'s model re-check before it can start
-   * on the stale model; and a fresh dispatch fails fast in the chat context with "no model configured".
-   */
-  private invalidateModelClearedEntry(entry: AgentSessionRuntimeEntry): void {
+  /** Fully invalidate an entry whose session no longer resolves to a runnable agent/model pair. */
+  private invalidateUnroutableEntry(entry: AgentSessionRuntimeEntry, reason: string): void {
     const turn = entry.currentTurn
     if (turn && !turn.terminalStatus) {
-      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-model-cleared')
+      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, reason)
     }
     this.closeSession(entry.sessionId)
   }
@@ -620,8 +646,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // The gate compares the live turn's frozen model/reasoning/knowledge config with the incoming
     // message: a changed effective connection scope must queue as the NEXT turn instead of being
     // folded into a query already running with different tools.
-    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    const configuredKnowledgeBaseIds = turn ? agentService.getAgent(turn.agentId)?.knowledgeBaseIds : undefined
     const canRedirectOnCurrentConfig =
+      turn?.agentId === entry.agentId &&
+      turn.agentType === entry.agentType &&
       turn?.modelId === entry.modelId &&
       turn.reasoningEffort === reasoningEffort &&
       knowledgeScopeEquals(
@@ -942,6 +970,16 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.entries.get(entry.sessionId) === entry
   }
 
+  private adoptEntryAgentIdentity(entry: AgentSessionRuntimeEntry, agentId: string, agentType: string): void {
+    if (entry.agentId !== agentId || entry.agentType !== agentType) {
+      entry.lastResumeToken = undefined
+      entry.resumeTokenAgentId = undefined
+      entry.resumeTokenInvalidated = true
+    }
+    entry.agentId = agentId
+    entry.agentType = agentType
+  }
+
   /**
    * Model the session's connection should serve right now. A live turn runs on the model captured
    * when it was created — its assistant row, persistence and trace are already stamped with it, so
@@ -950,8 +988,8 @@ export class AgentSessionRuntimeService extends BaseService {
    * live too: at a `steer-boundary` A1a is already terminal while `entry.rolling` stays true and the
    * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
-   * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model with the default reasoning selection.
+   * continuation. Mirrors the live-turn model-switch test. Without a live turn or roll the
+   * connection follows the session's latest model with the default reasoning selection.
    *
    * The turn's knowledge selection is frozen for exactly the same reason and on the same schedule.
    * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
@@ -968,16 +1006,25 @@ export class AgentSessionRuntimeService extends BaseService {
     const live = turn && (!turn.terminalStatus || entry.rolling === true)
     return live
       ? {
+          agentId: turn.agentId,
+          agentType: turn.agentType,
           modelId: turn.modelId,
           reasoningEffort: turn.reasoningEffort,
           knowledgeBaseIds: turn.knowledgeBaseIds
         }
-      : { modelId: entry.modelId, reasoningEffort: 'default', knowledgeBaseIds: [] }
+      : {
+          agentId: entry.agentId,
+          agentType: entry.agentType,
+          modelId: entry.modelId,
+          reasoningEffort: 'default',
+          knowledgeBaseIds: []
+        }
   }
 
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
     const current = this.connectionTarget(entry)
-    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    if (current.agentId !== target.agentId || current.agentType !== target.agentType) return false
+    const configuredKnowledgeBaseIds = agentService.getAgent(current.agentId)?.knowledgeBaseIds
     return (
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
@@ -1057,15 +1104,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async connect(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): Promise<boolean> {
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
-    if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(target.agentType)
+    if (!driver) throw new Error(`Unsupported agent runtime type: ${target.agentType}`)
 
-    this.hydrateResumeToken(entry)
+    this.hydrateResumeToken(entry, target.agentId)
     if (!this.isCurrentEntry(entry)) return false
 
     const connection = await driver.connect({
       sessionId: entry.sessionId,
-      agentId: entry.agentId,
+      agentId: target.agentId,
       modelId: target.modelId,
       reasoningEffort: target.reasoningEffort,
       knowledgeBaseIds: target.knowledgeBaseIds,
@@ -1084,7 +1131,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.usageCapture = connection.usageCapture
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
-    entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+    entry.connectionLoop = this.runConnectionLoop(entry, connection, target).finally(() => {
       if (entry.connection === connection) {
         entry.connection = undefined
       }
@@ -1093,26 +1140,44 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
-    if (entry.lastResumeToken) return
+  private hydrateResumeToken(entry: AgentSessionRuntimeEntry, agentId: string): void {
+    if (entry.lastResumeToken && entry.resumeTokenAgentId === agentId) return
+    if (entry.lastResumeToken && entry.resumeTokenAgentId === undefined) {
+      entry.resumeTokenAgentId = agentId
+      return
+    }
+    if (entry.resumeTokenInvalidated) return
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
-    if (runtimeResumeToken) entry.lastResumeToken = runtimeResumeToken
+    if (runtimeResumeToken) {
+      entry.lastResumeToken = runtimeResumeToken
+      entry.resumeTokenAgentId = agentId
+    }
   }
 
-  private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
+  private async runConnectionLoop(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    target: AgentSessionConnectionTarget
+  ): Promise<void> {
     try {
       for await (const event of connection.events) {
-        this.handleRuntimeEvent(entry, event)
+        this.handleRuntimeEvent(entry, event, target)
       }
     } catch (error) {
       this.handleRuntimeError(entry, error)
     }
   }
 
-  private handleRuntimeEvent(entry: AgentSessionRuntimeEntry, event: AgentRuntimeEvent): void {
+  private handleRuntimeEvent(
+    entry: AgentSessionRuntimeEntry,
+    event: AgentRuntimeEvent,
+    target: AgentSessionConnectionTarget = this.connectionTarget(entry)
+  ): void {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
+        entry.resumeTokenAgentId = target.agentId
+        if (target.agentId === entry.agentId) entry.resumeTokenInvalidated = false
         this.refreshContextUsage(entry)
         break
       case 'chunk': {
@@ -1427,6 +1492,16 @@ export class AgentSessionRuntimeService extends BaseService {
     this.inFlightTurnStarts.set(entry.sessionId, launch)
   }
 
+  private terminateQueuedTurn(entry: AgentSessionRuntimeEntry, error: unknown, closeRuntime: boolean): void {
+    application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
+    entry.pendingTurns = []
+    if (closeRuntime) {
+      this.closeSession(entry.sessionId)
+    } else {
+      this.markTurnTerminal(entry.sessionId, 'error')
+    }
+  }
+
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     // Write-quiesce: suppress before consuming the queue — the follow-up stays in
     // `pendingTurns` (its user row is already persisted, `isSessionBusy` stays true) and
@@ -1435,15 +1510,14 @@ export class AgentSessionRuntimeService extends BaseService {
       this.suppressedTurnStarts.set(entry.sessionId, 'next')
       return
     }
-    const pendingTurn = entry.pendingTurns.shift()
+    const pendingTurn = entry.pendingTurns[0]
     if (!pendingTurn) {
       this.refreshIdleTimer(entry)
       return
     }
-    const { message: nextMessage, reasoningEffort, knowledgeBaseIds } = pendingTurn
 
-    // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
-    // (`onDelete: 'set null'`) without emitting an agent update, so `applyAgentModelUpdate` never ran and
+    // A queued follow-up can outlive the session's model: deleting the model nulls `session.modelId` via
+    // the FK (`onDelete: 'set null'`) without emitting a session update, so the runtime event never ran and
     // `entry.modelId` still caches the deleted model. Re-read the live model before draining — starting the
     // turn here would stamp an assistant row with the stale deleted model and then fail to connect. If the
     // model is gone, surface the failure to the renderer, drop the queue (its rows stay resendable) and
@@ -1451,21 +1525,24 @@ export class AgentSessionRuntimeService extends BaseService {
     // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
-    const liveAgent = agentService.getAgent(entry.agentId)
-    if (!liveAgent?.model) {
-      application
-        .get('AiStreamManager')
-        .terminateHeldTopicStream(
-          entry.topicId,
-          entry.modelId,
-          serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
-        )
-      entry.pendingTurns = []
-      this.markTurnTerminal(entry.sessionId, 'error')
+    let liveSession: AgentSessionEntity
+    try {
+      liveSession = agentSessionService.getById(entry.sessionId)
+    } catch (error) {
+      this.terminateQueuedTurn(entry, error, true)
       return
     }
+    const liveAgent = liveSession.agentId ? agentService.getAgent(liveSession.agentId) : undefined
+    if (!liveSession.modelId || !liveAgent) {
+      this.terminateQueuedTurn(entry, new Error(`Session ${entry.sessionId} has no model configured`), false)
+      return
+    }
+    entry.pendingTurns.shift()
+    const { message: nextMessage, reasoningEffort, knowledgeBaseIds } = pendingTurn
+    this.adoptEntryAgentIdentity(entry, liveAgent.id, liveAgent.type)
+    entry.modelId = liveSession.modelId
 
-    const rootSpan = this.startRuntimeRootSpan(entry)
+    const rootSpan = this.startRuntimeRootSpan(entry, entry.modelId, entry.agentId)
     // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
     // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
     // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
@@ -1473,7 +1550,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
     const frozenSnapshot = entry.pendingSnapshots?.get(nextMessage.id) ?? entry.messageSnapshot
     entry.pendingSnapshots?.delete(nextMessage.id)
-    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
+    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, resolveModelName(entry.modelId))
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -1483,7 +1560,7 @@ export class AgentSessionRuntimeService extends BaseService {
           status: 'pending',
           data: { parts: [] },
           modelId: entry.modelId,
-          messageSnapshot
+          ...(messageSnapshot ? { messageSnapshot } : {})
         }
       })
     } catch (error) {
@@ -1506,6 +1583,8 @@ export class AgentSessionRuntimeService extends BaseService {
       turnId,
       assistantMessageId,
       userMessage: nextMessage,
+      agentId: entry.agentId,
+      agentType: entry.agentType,
       modelId: entry.modelId,
       messageSnapshot,
       reasoningEffort,
@@ -1585,6 +1664,8 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     const reservation = entry.steerContinuationReservation
+    const agentId = entry.currentTurn?.agentId ?? entry.agentId
+    const agentType = entry.currentTurn?.agentType ?? entry.agentType
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
@@ -1606,7 +1687,7 @@ export class AgentSessionRuntimeService extends BaseService {
         : (entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot)
     entry.pendingSnapshots?.delete(steerMessage.id)
 
-    const rootSpan = this.startRuntimeRootSpan(entry, modelId)
+    const rootSpan = this.startRuntimeRootSpan(entry, modelId, agentId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -1640,6 +1721,8 @@ export class AgentSessionRuntimeService extends BaseService {
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
+      agentId,
+      agentType,
       modelId,
       messageSnapshot,
       reasoningEffort,
@@ -1716,7 +1799,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private startRuntimeRootSpan(
     entry: AgentSessionRuntimeEntry,
-    modelId: UniqueModelId = entry.modelId
+    modelId: UniqueModelId = entry.modelId,
+    agentId: string = entry.currentTurn?.agentId ?? entry.agentId
   ): Span | undefined {
     const traceId = entry.sessionTraceId
     if (!traceId) return undefined
@@ -1728,7 +1812,7 @@ export class AgentSessionRuntimeService extends BaseService {
           'cs.trigger': 'submit-message',
           'cs.model_id': modelId,
           'cs.role': 'assistant',
-          'cs.agent_id': entry.agentId,
+          'cs.agent_id': agentId,
           'cs.session_id': entry.sessionId
         }
       },
@@ -1763,7 +1847,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!currentTurn) {
       throw new Error(`Cannot create persistence listener without an active turn: ${entry.sessionId}`)
     }
-    const { assistantMessageId, modelId } = currentTurn
+    const { agentId, assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
     return new PersistenceListener({
       topicId: entry.topicId,
@@ -1772,22 +1856,24 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionId: entry.sessionId,
         assistantMessageId,
         modelId,
-        runtimeResumeToken: () => entry.lastResumeToken,
+        runtimeResumeToken: () =>
+          entry.resumeTokenAgentId === undefined || entry.resumeTokenAgentId === agentId
+            ? entry.lastResumeToken
+            : undefined,
         afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
+          await topicNamingService.maybeRenameAgentSession(agentId, entry.sessionId, userText, finalMessage)
         }
       }),
-      onPersistFailed: (error) =>
-        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
+      onPersistFailed: (error) => application.get('AiStreamManager').broadcastTopicError(entry.topicId, modelId, error)
     })
   }
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
     entry.idleTimer = setTimeout(() => {
-      const { sessionId, agentType, lastResumeToken } = entry
+      const { sessionId, agentId, agentType, lastResumeToken, resumeTokenAgentId } = entry
       this.closeSession(sessionId)
-      if (lastResumeToken) {
+      if (lastResumeToken && (resumeTokenAgentId === undefined || resumeTokenAgentId === agentId)) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
     }, DEFAULT_IDLE_TTL_MS)
@@ -1880,6 +1966,15 @@ function reconcileSnapshotModel(
   if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
   const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
   return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+}
+
+function resolveModelName(modelId: UniqueModelId): string {
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+  try {
+    return modelService.getByKey(providerId, rawModelId).name ?? rawModelId
+  } catch {
+    return rawModelId
+  }
 }
 
 function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {

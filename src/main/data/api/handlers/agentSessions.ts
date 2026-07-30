@@ -1,10 +1,9 @@
 /**
  * Agent session domain API handlers.
  *
- * Sessions are pure agent instances. Cognitive config (model / instructions /
- * mcps / disabledTools / configuration) lives on the parent agent and is
- * fetched separately; the selected workspace is exposed as a normalized
- * session relation.
+ * Sessions own their primary model and workspace. The remaining cognitive
+ * config (instructions / mcps / disabledTools / configuration) lives on the
+ * parent agent and is fetched separately.
  */
 
 import { agentSessionService } from '@data/services/AgentSessionService'

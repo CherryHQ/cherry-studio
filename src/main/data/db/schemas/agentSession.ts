@@ -3,12 +3,14 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
+import { userModelTable } from './userModel'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
   {
     id: uuidPrimaryKey(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),

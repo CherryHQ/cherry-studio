@@ -696,6 +696,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   return {
     id: 'session-a',
     agentId: 'agent-a',
+    modelId: 'provider-a::session-model' as any,
     name: 'Alpha session',
     description: '',
     workspaceId: 'ws-a',
@@ -1869,8 +1870,8 @@ describe('Sessions', () => {
     expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
       expect.objectContaining({
         modelFallback: {
-          id: 'model-a',
-          name: 'Model A',
+          id: 'session-model',
+          name: 'session-model',
           provider: 'provider-a'
         },
         session: expect.objectContaining({ id: 'session-b' })
@@ -1898,8 +1899,8 @@ describe('Sessions', () => {
     expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
       expect.objectContaining({
         modelFallback: {
-          id: 'model-a',
-          name: 'Model A',
+          id: 'session-model',
+          name: 'session-model',
           provider: 'provider-a'
         },
         session: expect.objectContaining({ id: 'session-a' })

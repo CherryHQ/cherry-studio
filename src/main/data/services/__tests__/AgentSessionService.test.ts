@@ -4,6 +4,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api/errors'
@@ -32,6 +34,8 @@ function captureError(fn: () => unknown): unknown {
 describe('AgentSessionService', () => {
   const dbh = setupTestDatabase()
   const root = path.join('/tmp', 'cherry-session-service')
+  const defaultModelId = 'anthropic::claude-sonnet-4-5'
+  const alternateModelId = 'anthropic::claude-opus-4-5'
 
   beforeEach(async () => {
     ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => dbh.db.transaction(fn as never))
@@ -55,6 +59,31 @@ describe('AgentSessionService', () => {
 
   async function createWorkspace(name: string): Promise<AgentWorkspaceEntity> {
     return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath(name)))
+  }
+
+  async function seedAgentModels() {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'anthropic',
+      name: 'Anthropic',
+      orderKey: 'p0'
+    })
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: defaultModelId,
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        presetModelId: 'claude-sonnet-4-5',
+        orderKey: 'm0'
+      },
+      {
+        id: alternateModelId,
+        providerId: 'anthropic',
+        modelId: 'claude-opus-4-5',
+        presetModelId: 'claude-opus-4-5',
+        orderKey: 'm1'
+      }
+    ])
+    await dbh.db.update(agentTable).set({ model: defaultModelId }).where(eq(agentTable.id, 'agent-session-test'))
   }
 
   async function createSession(name: string, workspaceId?: string) {
@@ -323,6 +352,36 @@ describe('AgentSessionService', () => {
       description: 'Updated description',
       isNameManuallyEdited: true
     })
+  })
+
+  it('copies the agent model on create and updates only the target session model', async () => {
+    await seedAgentModels()
+    const first = await createSession('First model session')
+    const second = await createSession('Second model session')
+
+    expect(first.modelId).toBe(defaultModelId)
+    expect(second.modelId).toBe(defaultModelId)
+
+    const updated = agentSessionService.update(first.id, { modelId: alternateModelId })
+
+    expect(updated.modelId).toBe(alternateModelId)
+    expect(agentSessionService.getById(second.id).modelId).toBe(defaultModelId)
+    const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+    expect(agent.model).toBe(defaultModelId)
+  })
+
+  it('rejects an unregistered session model without changing the stored model', async () => {
+    await seedAgentModels()
+    const session = await createSession('Model validation session')
+
+    const error = captureError(() => agentSessionService.update(session.id, { modelId: 'anthropic::missing-model' }))
+
+    expect(error).toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      details: { fieldErrors: { modelId: expect.any(Array) } }
+    })
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row.modelId).toBe(defaultModelId)
   })
 
   it('treats name-only updates as manual session renames', async () => {

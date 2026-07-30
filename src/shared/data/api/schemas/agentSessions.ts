@@ -2,6 +2,7 @@
  * Agent session domain API Schema definitions.
  */
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
@@ -27,6 +28,8 @@ export const SessionNameEntitySchema = z.string().max(255)
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
+  /** Session-owned primary model. Seeded from the agent default when the session is created. */
+  modelId: UniqueModelIdSchema.nullable(),
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */
   name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
@@ -54,7 +57,8 @@ export const UpdateAgentSessionSchema = z.strictObject({
   name: SessionNameEntitySchema.optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional()
+  agentId: z.string().min(1).optional(),
+  modelId: UniqueModelIdSchema.nullable().optional()
 })
 
 export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
