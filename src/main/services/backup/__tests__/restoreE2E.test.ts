@@ -81,6 +81,9 @@ function pathFor(key: string, filename?: string): string {
     'feature.backup.restore.file': join(activeUserData, 'restore-journal.json'),
     'feature.backup.restore.staging': join(activeUserData, 'restore-staging'),
     'feature.backup.restore.aside': join(activeUserData, 'restore-aside'),
+    // Per device on purpose: the secret is what makes "this install produced the
+    // archive" decidable, so the two devices must not share one (§3.1 Layer 1).
+    'feature.backup.attestation.key_file': join(activeUserData, 'backup-attestation.key'),
     'feature.files.data': join(activeUserData, 'Data', 'Files'),
     'feature.knowledgebase.data': join(activeUserData, 'Data', 'KnowledgeBase'),
     'feature.notes.data': join(activeUserData, 'Data', 'Notes'),
@@ -324,10 +327,39 @@ describe('restore, cross-device', () => {
 
     await restoreOnTarget(archive)
 
-    const workspace = query<{ path: string }>(liveDbPath(), 'SELECT path FROM agent_workspace WHERE id = ?', 'w-user')
+    const workspace = query<{ path: string; disconnected_path: string | null }>(
+      liveDbPath(),
+      'SELECT path, disconnected_path FROM agent_workspace WHERE id = ?',
+      'w-user'
+    )
     expect(workspace?.path).toBe(
       join(targetUserData, 'Data', 'Agents', 'system', DISCONNECTED_AGENT_WORKSPACE_DIRECTORY, 'ws-w-user')
     )
+    // The refused location survives as inert metadata, so a reconnect flow can
+    // tell the user where the workspace used to live (§3.1 Layer 3).
+    expect(workspace?.disconnected_path).toBe(join(workDir, 'elsewhere', 'project'))
+  })
+
+  it('keeps an external workspace that really is a directory on this machine', async () => {
+    // Unattested, but the path is absolute, local, same-platform, and there: the
+    // existence probe is what separates this from the case above (§3.1 Layer 2).
+    const custom = join(workDir, 'elsewhere', 'present')
+    mkdirSync(custom, { recursive: true })
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'w-user', name: 'mine', path: custom, type: 'user', orderKey: 'b' })
+      .run()
+    const archive = await exportFrom('workspace-present-outside-roots')
+
+    await restoreOnTarget(archive)
+
+    const workspace = query<{ path: string; disconnected_path: string | null }>(
+      liveDbPath(),
+      'SELECT path, disconnected_path FROM agent_workspace WHERE id = ?',
+      'w-user'
+    )
+    expect(workspace?.path).toBe(custom)
+    expect(workspace?.disconnected_path).toBeNull()
   })
 
   it('rebases the producer’s managed roots onto this device', async () => {
@@ -341,6 +373,39 @@ describe('restore, cross-device', () => {
     // reading and writing outside this device's managed roots.
     expect(note?.root_path).toBe(join(targetUserData, 'Data', 'Notes'))
     expect(workspace?.path).toBe(join(targetUserData, 'Data', 'Agents', 'system', 's-1'))
+  })
+})
+
+describe('restore, same install', () => {
+  it('keeps a custom workspace path verbatim, existence probe or not', async () => {
+    // The archive is attested by this install (§3.1 Layer 1), which is the only
+    // evidence that its absolute paths describe THIS filesystem. The directory is
+    // deliberately never created: an attested path is honoured as the user wrote
+    // it, because a workspace whose folder is temporarily elsewhere (unmounted,
+    // renamed back later) must not be silently unbound from its own backup.
+    const custom = join(workDir, 'elsewhere', 'mine')
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'w-user', name: 'mine', path: custom, type: 'user', orderKey: 'b' })
+      .run()
+    const archive = await exportFrom('same-install')
+
+    // No device switch: the registry keeps describing the producing install.
+    activeUserData = sourceUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    armPreparedRestore(preview.restoreId)
+    await runRestorePromotionV2()
+
+    const workspace = query<{ path: string; disconnected_path: string | null }>(
+      liveDbPath(sourceUserData),
+      'SELECT path, disconnected_path FROM agent_workspace WHERE id = ?',
+      'w-user'
+    )
+    expect(workspace?.path).toBe(custom)
+    expect(workspace?.disconnected_path).toBeNull()
+    // Proof that the attestation is what did it: the same archive on the other
+    // device has no matching secret and loses the path.
+    expect(existsSync(join(sourceUserData, 'backup-attestation.key'))).toBe(true)
   })
 })
 

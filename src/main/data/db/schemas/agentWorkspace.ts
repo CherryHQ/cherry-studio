@@ -12,6 +12,14 @@ export const agentWorkspaceTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     path: text().notNull(),
+    /**
+     * The path this workspace pointed at before a restore refused to honour it
+     * (docs/references/backup/README.md §3.1). INERT METADATA ONLY: it is never
+     * stat'd, opened, or followed — it exists so a reconnect flow can offer the
+     * user the location their workspace used to live at. `null` for every
+     * workspace whose `path` is live.
+     */
+    disconnectedPath: text(),
     type: text().notNull().default(AGENT_WORKSPACE_TYPE.USER),
     ...orderKeyColumns,
     ...createUpdateTimestamps

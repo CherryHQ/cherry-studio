@@ -116,7 +116,7 @@ holds extra paths — target-only files are kept, by product decision.
 | Knowledge raw/source content (derived indexes rebuilt) | BootConfig and target-device startup choices |
 | Paintings and their internal file closure | Caches, logs, model/toolchain downloads, temp data |
 | Managed Notes bodies, including roots with zero sparse `note` state rows | Rebuildable FTS/Knowledge indexes |
-| Agent identity (`SOUL.md`, `USER.md`), memory, and system workspaces | User-selected external workspaces |
+| Agent identity (`SOUL.md`, `USER.md`), memory, and system workspaces | User-selected external workspaces (their *bytes*; a safe binding may survive per §3.1) |
 | Built-in MCP workspace and profile-owned MCP memory graph | MCP OAuth, DXT/package state, and external MCP workspaces |
 | Agent channel credentials/context tokens (restored inactive) | Target-device channel activation |
 | Agent runtime `.claude` config, excluding its generated `skills/` mirror | Copilot safeStorage token |
@@ -149,7 +149,8 @@ rows and never combines two identities.
 | Runtime work proven unsafe to restore (e.g. pending job executions) | **Reset.** Remove per an explicit, tested allow/reset list — the Preference schema has no metadata to discover this automatically, so the list is backup-owned and enumerated by tracing actual readers on the implementation-time `origin/main` schema. |
 | Device/platform-local preference keys | **Reset** to target defaults, from an explicit backup-owned list. |
 | Managed absolute paths under producer roots (`note.rootPath`, managed `agent_workspace.path`, managed paths in structured data) | **Rebase** deterministically onto target roots resolved through `application.getPath()`, using producer managed-root identities recorded in the manifest. |
-| Archive-supplied external absolute paths | **Never auto-activate.** Reset selecting preferences to target defaults; retain the path only as inert metadata when its owner proves no automatic I/O can follow it, otherwise convert/drop the path-bearing derived/reference row under an explicit degradation policy. `agent_workspace.path` cannot meet that proof — the Agents page stats it on mount — so on restore every value that is not a proven target-local managed rebase is replaced by a unique non-existent path under the target workspaces root, keeping the row and its sessions while the workspace reads as unavailable until the user picks a folder again. |
+| Archive-supplied external absolute paths | **Never auto-activate.** Reset selecting preferences to target defaults; retain the path only as inert metadata when its owner proves no automatic I/O can follow it, otherwise convert/drop the path-bearing derived/reference row under an explicit degradation policy. `agent_workspace.path` is the one column that IS resolved automatically (the Agents page stats it on mount), so it earns its value through the three layers below rather than through inertness. |
+| `agent_workspace.path` outside every producer managed root | **Three layers, automatic, no prompt** (`portability/workspacePathPolicy.ts`, `portability/materializeDatabase.ts`). **L1 — same-install attestation:** every export MACs its own final `manifest.json` bytes with a per-install secret (HMAC-SHA256, 32 random bytes at `feature.backup.attestation.key_file`, never inside an archive) and ships it as the optional `attestation.json` entry. If that MAC verifies against the local secret on restore, the archive was written by this very install about this very filesystem, and its external paths are kept **verbatim** — the ordinary "my own backup, same machine" restore, which the old binary policy broke. A missing entry or any verification failure is silently not-attested; it never fails a restore. **L2 — local-volume proof + existence probe:** for an unattested archive, a path must first pass string-only gates (producer platform = target platform; absolute; normalized; on win32 never UNC and the drive letter must equal this install's own drive; not inside any of this device's managed roots), and only then is it probed with a single `lstat` that must find a real directory. **L3 — disconnect:** anything else keeps the existing placeholder mechanism — a unique non-existent path under the target workspaces root — and the original string is parked in the nullable `agent_workspace.disconnected_path` column, which nothing resolves, so a future reconnect flow can offer the user their old location. Degradation reason: `workspace-disconnected`. |
 | Dangerous capabilities — MCP `command`/`dxtPath`/`isActive`/trust state, agent/channel automation, future active/trusted rows | **Reset activation and trust state** so nothing executes a command, opens an external path, or initiates a network side effect without fresh target-side confirmation. Inert configuration is preserved; malformed executable fields fail closed, while malformed agent-channel `config` is reported but preserved behind `is_active = false` and revalidated on explicit activation. |
 | Credentials | **Preserve as profile data, never activate automatically.** Archives already contain them in plaintext. Backup-destination auto-sync flags reset, and integration credentials are consumed only by explicit user actions. The API Gateway key is the exception: it authenticates a target-local listener and is regenerated. |
 | Derived indexes | **Rebuild** after staging/restore where cheaper and safer than transporting runtime state. |
@@ -165,6 +166,22 @@ and owner evidence for its unknown/malformed fallback. `schemaGuard.test.ts` bin
 ledger to the production Drizzle columns and fails if a reviewed surface loses its policy;
 ordinary file bytes that no application reader interprets are not references and remain
 ordinary capture content.
+
+**Why the workspace layers are safe.** The threat an archive-supplied path poses is not the
+path itself — it is what resolving one can do with no user action: a `\\server\share` value
+makes Windows authenticate to an attacker-chosen host (machine-account credential leak), and
+any value can address a volume this app has no business reading. Both are decided from the
+string plus one trusted local anchor, with **no I/O**, and only a path that has already
+passed them is ever `lstat`-ed (`lstat`, so the final component's symlink is not followed).
+Attestation removes the question entirely for the common case: a verifying MAC proves the
+path was written by this install about this filesystem, so keeping it grants no reach the
+install did not already have. A refused path is not softened, only recorded: nothing resolves
+`disconnected_path`, and the placeholder in `path` keeps the uniqueness/collision guarantees
+of `disconnectAgentWorkspaces` untouched. Attestation failure is never an error the archive
+can use to probe for the secret — it degrades silently to L2/L3. The secret is a per-install
+artifact, not user data: Data Reset wipes it (`USER_DATA_WIPE`), so a reset install stops
+recognizing its earlier archives and falls back to L2 — which still keeps every path that is
+really there.
 
 ---
 
@@ -215,18 +232,25 @@ A published archive is a single ZIP named `<name>.cherrybackup`, mode `0600`
 ```text
 <name>.cherrybackup            (zip, level 1, zip64)
 ├── manifest.json              (strict ManifestV2, at root)
+├── attestation.json           (OPTIONAL: HMAC-SHA256 over manifest.json's bytes, §3.1 L1)
 ├── backup.sqlite              (portable DB snapshot)
 └── resources/<payload…>       (each payload's manifest archivePath is under here)
 ```
 
-An archive whose profile owns no resources carries `manifest.json` + `backup.sqlite`
-only — `resources/` is absent, not empty. Before publication, the producer
-`fsync`s the temporary ZIP, reopens it, and applies the same directory, duplicate-entry,
-size, and SHA-256 admission checks to the archive bytes that will be published. Publication
-is **atomic** and strictly **no-clobber**: the producer writes into an
-operation-owned `mkdtemp` directory beside the destination (same filesystem) and commits
-with a single `link()`. It never overwrites or deletes a pre-existing sibling or
-destination, and it only ever removes its own temp tree. When a volume cannot hard-link
+An archive whose profile owns no resources has no `resources/` tree: it carries
+`manifest.json` + `backup.sqlite`, plus optional `attestation.json`. A producer that
+cannot mint its install secret omits the attestation, and admission treats an absent
+or unverifiable entry as "not self-attested" rather than as a defect. The entry is
+bounded to 4 KiB before extraction, carries no path or profile content, and is never
+required to restore.
+
+Before publication, the producer `fsync`s the temporary ZIP, reopens it, and applies
+the same directory, duplicate-entry, size, and SHA-256 admission checks to the exact
+archive bytes that will be published. Publication is **atomic** and strictly
+**no-clobber**: the producer writes into an operation-owned `mkdtemp` directory beside
+the destination (same filesystem) and commits with a single `link()`. It never
+overwrites or deletes a pre-existing sibling or destination, and it only ever removes
+its own temp tree. When a volume cannot hard-link
 (exFAT / some network mounts) publication **fails closed** with a typed
 `HardLinkUnsupportedError` — there is deliberately **no** `copyFile` fallback
 (Node documents `copyFile` as non-atomic), so the frozen atomic contract holds
@@ -405,8 +429,10 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
 
 - Large-file/directory staging checks cancellation incrementally.
 - **The archive entry count is aggregated before the first payload copy.** The staging
-  baseline sums every admitted unit's entries plus the two fixed archive entries
-  (`manifest.json`, `backup.sqlite`) and refuses over the ceiling there; publication
+  baseline sums every admitted unit's entries plus the fixed archive entries
+  (`manifest.json`, `backup.sqlite`, and the optional `attestation.json`, reserved
+  unconditionally so one archive's payload budget never differs from another's) and
+  refuses over the ceiling there; publication
   re-checks the same bound over the finished tree. Units the baseline excluded contribute
   nothing — they never become payloads. Without the preflight the only check would come
   after the whole tree had been copied.

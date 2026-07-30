@@ -8,6 +8,13 @@
       "when": 1785247785125,
       "tag": "0000_orange_jasper_sitwell",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785383879833,
+      "tag": "0001_loving_red_ghost",
+      "breakpoints": true
     }
   ]
 }

@@ -31,6 +31,7 @@ import { sha256FileCancellable } from '../hashing'
 import { classifyManagedPath, type ManagedRootRebaseTable, targetLocalPath } from './managedPathRebase'
 import { CODE_CLI_CONFIGS_KEY, PREFERENCE_RESET_KEYS, sanitizeCodeCliConfigs } from './preferenceResetPolicy'
 import { JOB_SCHEDULE_AUTOMATION_PATCH, resetKnowledgeItemStatus } from './tablePolicy'
+import { classifyExternalWorkspacePath, type WorkspaceProbe } from './workspacePathPolicy'
 
 /**
  * Portable-database materialization (docs/references/backup/README.md §3, §3.1) —
@@ -68,7 +69,18 @@ import { JOB_SCHEDULE_AUTOMATION_PATCH, resetKnowledgeItemStatus } from './table
  */
 export type MaterializeMode =
   | { readonly kind: 'export' }
-  | { readonly kind: 'restore'; readonly rebase: ManagedRootRebaseTable }
+  | {
+      readonly kind: 'restore'
+      readonly rebase: ManagedRootRebaseTable
+      /**
+       * True when admission proved this archive was produced by THIS install
+       * (§3.1 Layer 1). It is the only thing that makes an external absolute
+       * path trustworthy: this install wrote it, about this filesystem.
+       */
+      readonly selfAttested: boolean
+      /** Existence probe for the unattested path (§3.1 Layer 2); injected in tests. */
+      readonly workspaceProbe?: WorkspaceProbe
+    }
 
 export interface MaterializeInputs {
   /** Absolute path to the detached database. Mutated in place. */
@@ -525,43 +537,74 @@ function noteKey(rootPath: string, path: string): string {
 }
 
 /**
- * Rebase `agent_workspace.path` (unique on `path`). A SYSTEM workspace is built
- * under the managed workspaces root, so it rebases; anything else — a
- * user-chosen location on the source device, an unportable value, or a rebase
- * that lost its unique key — is DISCONNECTED: the row keeps its sessions but its
- * path is replaced by a unique, non-existent path under this device's workspaces
- * root (§4).
+ * Rebase `agent_workspace.path` (unique on `path`) under the three-layer policy
+ * of §3.1.
  *
- * Disconnecting rather than keeping the value inert is what makes "never followed"
- * true by construction instead of by review: the Agents page stats a workspace
- * path the moment it mounts, so an archive-controlled string surviving here is a
- * zero-interaction reach (a `\\server\share` path leaks credentials on Windows).
- * Clearing the column is not available — it is NOT NULL and unique — and deleting
- * the row would cascade its sessions and messages away, so a placeholder is the
- * only shape that keeps the user's history and denies the reach at once.
+ * A SYSTEM workspace lives under the managed workspaces root, so it rebases. For
+ * everything else — a folder the user picked themselves on the source device —
+ * the question is whether THIS device may honour the stored string at all, and
+ * the answer has three layers, tried in order:
+ *
+ * 1. the archive is attested as this install's own → keep the path VERBATIM.
+ *    Nothing is being trusted that was not already trusted: this install wrote
+ *    that path, about this filesystem, and the most common restore in existence
+ *    is a user's own backup coming home. Disconnecting it was the bug.
+ * 2. otherwise → {@link classifyExternalWorkspacePath}: prove the path is local
+ *    and normalized from the string alone, then prove a real directory is there.
+ * 3. otherwise → DISCONNECT: the row keeps its sessions, its `path` becomes a
+ *    unique non-existent placeholder under this device's workspaces root, and
+ *    the original string is parked in `disconnected_path` as inert metadata.
+ *
+ * The invariant the layers protect is unchanged: the Agents page stats
+ * `agent_workspace.path` the moment it mounts, so a string that reaches that
+ * column must be one this device has already proven safe to stat. `disconnected_path`
+ * is never stat'd by anyone, which is why parking a refused value there is not a
+ * way back in. Deleting a refused row is still not an option — `agent_session`
+ * cascades from `agent_workspace`, taking the user's sessions and messages with it.
  */
-function rebaseAgentWorkspaces(db: DbOrTx, table: ManagedRootRebaseTable, summary: SummaryBuilder): void {
+function rebaseAgentWorkspaces(
+  db: DbOrTx,
+  mode: Extract<MaterializeMode, { kind: 'restore' }>,
+  summary: SummaryBuilder
+): void {
+  const table = mode.rebase
   const rows = db.select({ id: agentWorkspaceTable.id, path: agentWorkspaceTable.path }).from(agentWorkspaceTable).all()
 
+  // `disconnected_path` describes what THIS restore refused, so whatever the
+  // archive carried in it is stale by definition. Cleared for every row up front;
+  // the rows this restore disconnects get theirs written below.
+  db.update(agentWorkspaceTable)
+    .set({ disconnectedPath: null, updatedAt: preserveUpdatedAt(agentWorkspaceTable.updatedAt) })
+    .run()
+
   const candidates: RebaseCandidate<{ path: string }>[] = []
-  const disconnect = new Set<string>()
+  const disconnect = new Map<string, string>()
   for (const row of rows) {
     const verdict = classifyManagedPath(table, row.path)
-    if (verdict.kind !== 'managed') {
-      if (verdict.kind === 'rejected') summary.degrade('agent_workspace', row.id, 'path-unportable', verdict.reason)
-      else summary.pathsExternal += 1
-      disconnect.add(row.id)
-      // Reserve the key anyway: until this row's placeholder is written it still
-      // owns its stored path, so no rebase may plan to land on it.
-      candidates.push({ id: row.id, currentKey: row.path, nextKey: null, write: { path: row.path } })
+    if (verdict.kind === 'managed') {
+      candidates.push({
+        id: row.id,
+        currentKey: row.path,
+        nextKey: verdict.rebasedPath,
+        write: { path: verdict.rebasedPath }
+      })
       continue
     }
-    candidates.push({
-      id: row.id,
-      currentKey: row.path,
-      nextKey: verdict.rebasedPath,
-      write: { path: verdict.rebasedPath }
-    })
+
+    // Reserve the stored key whatever happens next: the row still owns it until
+    // a placeholder replaces it, so no rebase may plan to land on it.
+    candidates.push({ id: row.id, currentKey: row.path, nextKey: null, write: { path: row.path } })
+
+    if (verdict.kind === 'rejected') {
+      summary.degrade('agent_workspace', row.id, 'path-unportable', verdict.reason)
+      disconnect.set(row.id, verdict.reason)
+      continue
+    }
+
+    summary.pathsExternal += 1
+    if (mode.selfAttested) continue
+    const decision = classifyExternalWorkspacePath(table, row.path, mode.workspaceProbe)
+    if (decision.kind === 'disconnect') disconnect.set(row.id, decision.reason)
   }
 
   const { applied, collided } = resolveRebaseWrites(candidates)
@@ -574,7 +617,7 @@ function rebaseAgentWorkspaces(db: DbOrTx, table: ManagedRootRebaseTable, summar
   summary.pathsRebased += applied.length
   for (const id of collided) {
     summary.degrade('agent_workspace', id, 'path-collision')
-    disconnect.add(id)
+    disconnect.set(id, 'path-collision')
   }
 
   disconnectAgentWorkspaces(db, table, summary, rows, disconnect)
@@ -595,9 +638,10 @@ function disconnectAgentWorkspaces(
   table: ManagedRootRebaseTable,
   summary: SummaryBuilder,
   rows: readonly { id: string; path: string }[],
-  disconnect: ReadonlySet<string>
+  disconnect: ReadonlyMap<string, string>
 ): void {
   if (disconnect.size === 0) return
+  const storedPathOf = new Map(rows.map((row) => [row.id, row.path]))
 
   const taken = new Set(rows.map((row) => row.path))
   const rebased = db.select({ path: agentWorkspaceTable.path }).from(agentWorkspaceTable).all()
@@ -619,16 +663,22 @@ function disconnectAgentWorkspaces(
     return path
   }
 
-  for (const id of [...disconnect].sort()) {
+  for (const id of [...disconnect.keys()].sort()) {
     const segment = toDisconnectedAgentWorkspaceSegment(id)
     let path = placeholder(segment, 0)
     for (let attempt = 1; taken.has(path); attempt++) path = placeholder(segment, attempt)
     taken.add(path)
     db.update(agentWorkspaceTable)
-      .set({ path, updatedAt: preserveUpdatedAt(agentWorkspaceTable.updatedAt) })
+      .set({
+        path,
+        // Inert metadata for a future reconnect flow: the location the user
+        // originally chose, kept out of the column anything resolves.
+        disconnectedPath: storedPathOf.get(id) ?? null,
+        updatedAt: preserveUpdatedAt(agentWorkspaceTable.updatedAt)
+      })
       .where(eq(agentWorkspaceTable.id, id))
       .run()
-    summary.degrade('agent_workspace', id, 'workspace-disconnected')
+    summary.degrade('agent_workspace', id, 'workspace-disconnected', disconnect.get(id))
   }
 }
 
@@ -668,7 +718,7 @@ function applyPolicy(db: DbOrTx, mode: MaterializeMode): MaterializationSummary 
   resetPreferences(db, summary)
   if (mode.kind === 'restore') {
     rebaseNotes(db, mode.rebase, summary)
-    rebaseAgentWorkspaces(db, mode.rebase, summary)
+    rebaseAgentWorkspaces(db, mode, summary)
   }
   return summary.build()
 }
