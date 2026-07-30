@@ -62,7 +62,8 @@ import {
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
-  prepareClaudeCodeWorkspaceDirectory
+  prepareClaudeCodeWorkspaceDirectory,
+  registerMcpSessionCatalogSync
 } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -395,6 +396,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
+    registerMcpSessionCatalogSync(
+      this.input.sessionId,
+      this.input.agentId,
+      request.connectionConfig?.live.toolPolicy.mcps ?? [],
+      this.mcpToolMetadata
+    )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {

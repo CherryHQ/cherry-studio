@@ -121,6 +121,7 @@ import { processCitations } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import {
+  exportMarkdownToObsidian,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -611,6 +612,49 @@ describe('ExportService', () => {
       expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
 
       loggerErrorSpy.mockRestore()
+    })
+  })
+
+  describe('exportMarkdownToObsidian', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    it('returns false and toasts an error when the title is empty', async () => {
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+      const result = await exportMarkdownToObsidian({ vault: 'MyVault', title: '' })
+
+      expect(result).toBe(false)
+      expect(toast.error).toHaveBeenCalledWith('chat.topics.export.obsidian_title_required')
+      expect(openSpy).not.toHaveBeenCalled()
+
+      openSpy.mockRestore()
+    })
+
+    it('returns false and toasts an error when no vault is selected', async () => {
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+      const result = await exportMarkdownToObsidian({ vault: '', title: 'Note' })
+
+      expect(result).toBe(false)
+      expect(toast.error).toHaveBeenCalledWith('chat.topics.export.obsidian_no_vault_selected')
+      expect(openSpy).not.toHaveBeenCalled()
+
+      openSpy.mockRestore()
+    })
+
+    it('returns true and opens Obsidian when the export succeeds', async () => {
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+      const result = await exportMarkdownToObsidian({ vault: 'MyVault', title: 'Note' })
+
+      expect(result).toBe(true)
+      expect(openSpy).toHaveBeenCalledTimes(1)
+      expect(openSpy.mock.calls[0][0]).toContain('obsidian://new')
+      expect(toast.success).toHaveBeenCalledWith('chat.topics.export.obsidian_export_success')
+
+      openSpy.mockRestore()
     })
   })
 

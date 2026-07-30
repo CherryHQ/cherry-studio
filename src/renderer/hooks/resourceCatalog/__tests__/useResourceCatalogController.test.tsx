@@ -178,6 +178,20 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
   })
 
+  it('stores only the resource key when opening the edit dialog', () => {
+    controllerMocks.resourceLibraryState.resources = [assistantResource]
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    act(() => {
+      result.current.gridProps.onEdit(assistantResource)
+    })
+
+    expect(result.current.dialogs.editDialogTarget).toEqual({
+      kind: 'assistant',
+      id: 'assistant-to-duplicate'
+    })
+  })
+
   it('reports assistant export failures without throwing', async () => {
     controllerMocks.saveFile.mockRejectedValueOnce(new Error('export failed'))
     const { result } = renderHook(() => useResourceCatalogController('assistant'))
