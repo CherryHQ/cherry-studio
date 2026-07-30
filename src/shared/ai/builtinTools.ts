@@ -1,4 +1,5 @@
 import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
+import { isHttpUrl } from '@shared/utils/url'
 import * as z from 'zod'
 
 /**
@@ -456,13 +457,18 @@ export const webSearchOutputItemSchema = z.object({
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
 export const webFetchInputSchema = z.object({
-  // Plain strings, not `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
+  // `.refine()` rather than `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
   // `format: "uri"`, which strict OpenAI-compatible providers reject outright — the whole request
   // 400s ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format"), taking every
-  // other tool in the turn down with it. The URL contract lives in the description instead, and
-  // `remoteUrlSafety` parses and validates every URL at fetch time regardless of what the model sent.
+  // other tool in the turn down with it. A refinement is invisible to `toJSONSchema` (no `format`
+  // keyword) yet still runs locally, so the model's tool call is validated before `execute` and a
+  // malformed URL surfaces as a repairable input error instead of a bogus network failure.
+  //
+  // `isHttpUrl` is the same predicate `normalizeWebSearchUrls` enforces service-side, which is the
+  // one validation point every provider shares — the SSRF checks in `remoteUrlSafety` only sit on
+  // the direct-fetch providers, since proxy readers (Jina, Firecrawl, …) never fetch the target here.
   urls: z
-    .array(z.string().trim().min(1))
+    .array(z.string().trim().min(1).refine(isHttpUrl, 'must be an absolute http(s) URL'))
     .min(1)
     .max(20, 'Fetch at most 20 URLs per call')
     .describe(

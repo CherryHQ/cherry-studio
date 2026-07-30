@@ -1,3 +1,4 @@
+import { isHttpUrl } from '@shared/utils/url'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -58,13 +59,42 @@ describe('builtin tool contracts', () => {
     // WebFetchTool runs with `strict: true`. Zod's `.url()` emits `format: "uri"`, which strict
     // OpenAI-compatible providers reject with a 400 that kills the whole request, not just this
     // tool ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format").
-    // URLs are validated at fetch time by remoteUrlSafety instead.
+    // The http(s) contract is carried by a refinement, which `toJSONSchema` cannot express.
     const json = z.toJSONSchema(webFetchInputSchema) as {
       properties?: { urls?: { items?: { format?: unknown } } }
     }
 
     expect(json.properties?.urls?.items?.format).toBeUndefined()
     expect(webFetchInputSchema.safeParse({ urls: ['https://example.com'] }).success).toBe(true)
+  })
+
+  // Dropping `format` must not drop validation: the same schema is what the AI SDK checks a model
+  // tool call against. Without this, `example.com` reaches `normalizeWebSearchUrls`, throws, and
+  // `classifyWebLookupError` reports it as a *retryable network* error — so the model retries the
+  // same bad input instead of being handed a repairable input error.
+  it.each([
+    ['a bare host', 'example.com'],
+    ['a scheme-relative URL', '//example.com'],
+    ['a non-http scheme', 'file:///etc/passwd'],
+    ['a javascript URL', 'javascript:alert(1)'],
+    ['prose', 'not a url']
+  ])('rejects %s in web_fetch input so the error stays an input error', (_label, url) => {
+    expect(webFetchInputSchema.safeParse({ urls: [url] }).success).toBe(false)
+  })
+
+  it('still accepts the http(s) forms the model legitimately sends', () => {
+    const urls = ['http://example.com', 'https://example.com/a?b=1#c', '  https://example.com/pad  ']
+
+    expect(webFetchInputSchema.safeParse({ urls }).success).toBe(true)
+  })
+
+  it('validates web_fetch urls with the same predicate the web search service enforces', () => {
+    // The regression this guards against is the schema and the service disagreeing: whatever the
+    // schema lets through must also survive `normalizeWebSearchUrls`, or the input error resurfaces
+    // downstream as a fetch failure.
+    for (const url of ['example.com', 'file:///etc/passwd', 'https://example.com']) {
+      expect(webFetchInputSchema.safeParse({ urls: [url] }).success).toBe(isHttpUrl(url))
+    }
   })
 
   it('keeps kb_list strict-path fields in `required` so strict providers accept the schema', () => {

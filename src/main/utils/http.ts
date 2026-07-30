@@ -5,14 +5,7 @@ export const defaultAppHeaders = () => {
   }
 }
 
-/**
- * Checks whether a string is a valid HTTP(S) URL.
- */
-export function isValidUrl(url: string): boolean {
-  try {
-    const parsedUrl = new URL(url)
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+// Checks whether a string is a valid HTTP(S) URL. Kept under the existing main-process name, but
+// backed by the shared predicate so the builtin tool input schemas validate against the very same
+// function this process enforces at fetch time — see `isHttpUrl` for why that has to hold.
+export { isHttpUrl as isValidUrl } from '@shared/utils/url'

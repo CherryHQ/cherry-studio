@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { asSchema, safeValidateTypes, type ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { getLastTerminalToolFailure, stopOnTerminalToolFailure } from '@main/ai/runtime/aiSdk/loop/toolLoopTermination'
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { StepResult, ToolSet } from 'ai'
@@ -269,6 +269,44 @@ describe('web_fetch', () => {
     await callFetchExecute({ urls: ['https://example.com'] }, abortSignal)
 
     expect(fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com'] }, { signal: abortSignal })
+  })
+
+  // The schema is what the AI SDK validates a model tool call against, so a malformed URL has to be
+  // rejected *here* — before `execute`. Asserted through the SDK's own validator rather than
+  // `safeParse`, because the property that matters is that the SDK honours the refinement: that is
+  // what raises `InvalidToolInputError` and lets the repair path fix the call. If the URL slipped
+  // through, `normalizeWebSearchUrls` would throw inside the service and `classifyWebLookupError`
+  // would dress a deterministic input error up as a retryable network failure.
+  describe('input validation happens before execute', () => {
+    it.each([
+      ['a bare host', 'example.com'],
+      ['a non-http scheme', 'file:///etc/passwd']
+    ])('rejects %s without ever reaching the service', async (_label, url) => {
+      const validated = await safeValidateTypes({
+        value: { urls: [url] },
+        schema: asSchema(fetchEntry.tool.inputSchema)
+      })
+
+      expect(validated.success).toBe(false)
+      expect(fetchUrls).not.toHaveBeenCalled()
+    })
+
+    it('accepts a well-formed http(s) URL', async () => {
+      const validated = await safeValidateTypes({
+        value: { urls: ['https://example.com'] },
+        schema: asSchema(fetchEntry.tool.inputSchema)
+      })
+
+      expect(validated.success).toBe(true)
+    })
+
+    it('keeps the `uri` format strict providers reject out of the provider-facing schema', () => {
+      const { jsonSchema } = asSchema(fetchEntry.tool.inputSchema) as {
+        jsonSchema: { properties?: { urls?: { items?: { format?: unknown } } } }
+      }
+
+      expect(jsonSchema.properties?.urls?.items?.format).toBeUndefined()
+    })
   })
 
   it('maps WebSearchResponse to indexed output items', async () => {
