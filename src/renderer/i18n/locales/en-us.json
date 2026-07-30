@@ -7005,6 +7005,7 @@
         "display": "Display management",
         "preferences": "Preferences"
       },
+      "hide_app": "Hide {{name}}",
       "open_link_external": {
         "description": "Opens new-window links in your default browser",
         "title": "Open new-window links in browser"
@@ -7017,6 +7018,7 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
+      "show_app": "Show {{name}}",
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },

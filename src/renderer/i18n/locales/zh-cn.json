@@ -7005,6 +7005,7 @@
         "display": "显示管理",
         "preferences": "使用偏好"
       },
+      "hide_app": "隐藏 {{name}}",
       "open_link_external": {
         "description": "新窗口链接用系统默认浏览器打开",
         "title": "在浏览器中打开新窗口链接"
@@ -7017,6 +7018,7 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "show_app": "显示 {{name}}",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },
