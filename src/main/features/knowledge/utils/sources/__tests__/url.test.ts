@@ -22,14 +22,18 @@ vi.mock('@logger', () => ({
 
 const { fetchKnowledgeWebPage } = await import('../url')
 
-function fetchResponse(url: string, content: string) {
+function fetchResponse(url: string, content: string, title: string = url) {
   return {
     query: url,
     providerId: 'jina',
     capability: 'fetchUrls',
     inputs: [url],
-    results: [{ title: url, content, url, sourceInput: url }]
+    results: [{ title, content, url, sourceInput: url }]
   }
+}
+
+function fetchedPage(url: string, markdown: string, title: string = url) {
+  return { title, markdown }
 }
 
 function createDeferred<T>() {
@@ -51,13 +55,13 @@ describe('fetchKnowledgeWebPage', () => {
 
   it('fetches a page and returns markdown content', async () => {
     fetchUrlsUnprocessedMock.mockResolvedValue(
-      fetchResponse('https://example.com', '# Example Page\n\nHello knowledge')
+      fetchResponse('https://example.com', '# Example Page\n\nHello knowledge', 'Example Page')
     )
 
     const controller = new AbortController()
 
-    await expect(fetchKnowledgeWebPage('https://example.com', controller.signal)).resolves.toBe(
-      '# Example Page\n\nHello knowledge'
+    await expect(fetchKnowledgeWebPage('https://example.com', controller.signal)).resolves.toEqual(
+      fetchedPage('https://example.com', '# Example Page\n\nHello knowledge', 'Example Page')
     )
 
     expect(fetchUrlsUnprocessedMock).toHaveBeenCalledWith(
@@ -136,7 +140,13 @@ describe('fetchKnowledgeWebPage', () => {
     deferredResponses[3].resolve(fetchResponse('https://example.com/4', 'page 4'))
     deferredResponses[4].resolve(fetchResponse('https://example.com/5', 'page 5'))
 
-    await expect(Promise.all(requests)).resolves.toEqual(['page 1', 'page 2', 'page 3', 'page 4', 'page 5'])
+    await expect(Promise.all(requests)).resolves.toEqual([
+      fetchedPage('https://example.com/1', 'page 1'),
+      fetchedPage('https://example.com/2', 'page 2'),
+      fetchedPage('https://example.com/3', 'page 3'),
+      fetchedPage('https://example.com/4', 'page 4'),
+      fetchedPage('https://example.com/5', 'page 5')
+    ])
     expect(maxActiveFetches).toBeLessThanOrEqual(3)
   })
 
@@ -176,7 +186,11 @@ describe('fetchKnowledgeWebPage', () => {
     deferredResponses[1].resolve(fetchResponse('https://example.com/2', 'page 2'))
     deferredResponses[2].resolve(fetchResponse('https://example.com/3', 'page 3'))
 
-    await expect(Promise.all(activeRequests)).resolves.toEqual(['page 1', 'page 2', 'page 3'])
+    await expect(Promise.all(activeRequests)).resolves.toEqual([
+      fetchedPage('https://example.com/1', 'page 1'),
+      fetchedPage('https://example.com/2', 'page 2'),
+      fetchedPage('https://example.com/3', 'page 3')
+    ])
     expect(fetchUrlsUnprocessedMock).toHaveBeenCalledTimes(3)
     timeoutSpy.mockRestore()
   })

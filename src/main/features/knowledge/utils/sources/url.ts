@@ -15,6 +15,11 @@ const knowledgeWebFetchQueue = new PQueue({
   interval: KNOWLEDGE_WEB_FETCH_INTERVAL_MS
 })
 
+export interface KnowledgeWebPage {
+  title: string
+  markdown: string
+}
+
 export function sanitizeKnowledgeUrl(rawUrl: string): string {
   try {
     const sanitizedUrl = sanitizeUrl(rawUrl)
@@ -30,7 +35,7 @@ export function sanitizeKnowledgeUrl(rawUrl: string): string {
   }
 }
 
-export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<KnowledgeWebPage> {
   try {
     const safeUrl = sanitizeKnowledgeUrl(url)
 
@@ -54,9 +59,10 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
       throw new Error(`Knowledge web fetch returned no result for ${safeUrl}`)
     }
 
-    const markdown = result.content.trim()
-
-    return markdown
+    return {
+      title: result.title.trim(),
+      markdown: result.content.trim()
+    }
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     logger.error(`Failed to load knowledge web page: ${url}`, normalizedError)
