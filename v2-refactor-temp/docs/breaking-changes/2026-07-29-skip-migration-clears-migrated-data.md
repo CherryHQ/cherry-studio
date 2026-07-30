@@ -8,11 +8,12 @@ date: 2026-07-29
 
 ## What changed
 
-"Skip migration" is now also available on the migration **failure** screen, next
-to Close App and Retry. Skipping no longer just marks migration finished: it
-first clears everything the migration had already written to the new database
-(including scheduled agent tasks) and starts v2 with default data. Original v1
-data and any files already copied during the run are still left on disk.
+The migration **failure** screen now provides a "Use V2 without importing V1
+data" choice under More options. Selecting it no longer just marks migration
+finished: it first clears everything the migration had already written to the
+new database (including scheduled agent tasks) and starts v2 with default data.
+Original v1 data and any files already copied during the run are still left on
+disk.
 
 ## Why this matters to the user
 
@@ -34,8 +35,8 @@ migrated records will be cleared, that v1 data is not deleted, and that
 migration will not be prompted again. It keeps its 10-second countdown before
 the confirm button becomes clickable, and can still be cancelled.
 
-Users who would rather keep their data can choose Retry instead, or download v1
-from the offer that appears after a second failure.
+Users who would rather keep their data can choose Retry instead, or open More
+options and choose Continue using V1 to reach the v1 download page.
 
 ## Notes for release manager
 

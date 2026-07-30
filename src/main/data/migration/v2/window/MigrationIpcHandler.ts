@@ -206,7 +206,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
-  // Open the v1 download page after a retried migration keeps failing
+  // Open the region-appropriate v1 download page when selected from the migration fallback options.
   ipcMain.handle(MigrationIpcChannels.OpenDownloadPage, async (event: IpcMainInvokeEvent, language: unknown) => {
     assertMigrationWindowSender(event)
     try {

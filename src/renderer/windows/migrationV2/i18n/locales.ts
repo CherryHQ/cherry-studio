@@ -25,6 +25,7 @@ export const zhCN = {
       restart: '重启应用',
       retry: '重试',
       close: '关闭应用',
+      continue_v1: '继续使用 V1',
       ignore_migration: '忽略并使用默认值',
       skip_migration: '跳过迁移',
       more_options: '更多选项'
@@ -50,8 +51,13 @@ export const zhCN = {
       failed: '失败'
     },
     diagnostics: {
+      title: '保存问题排查文件',
       save: '保存诊断包',
       saving: '正在保存…',
+      export_description:
+        '诊断包包含迁移错误、系统信息和可用的应用日志。日志可能包含文件路径、错误堆栈、用户内容或凭据；文件只会保存到本地，不会自动上传，请仅发送给 Cherry Studio 支持团队。',
+      open_from_error: '导出此错误的诊断包',
+      saved_title: '诊断包已保存',
       privacy:
         '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
       saved_local: '诊断包已保存到本地且未自动上传，请发送至问题反馈邮箱以协助排查。',
@@ -62,6 +68,14 @@ export const zhCN = {
       copy_failed: '问题反馈邮箱复制失败',
       save_failed: '诊断包保存失败',
       open_folder_failed: '无法打开文件所在位置'
+    },
+    more_options: {
+      description: '请选择接下来的处理方式。无论选择哪一种，旧版原始数据都不会被删除。',
+      diagnostics_title: '保存问题信息',
+      use_v2_title: '直接使用 V2',
+      skip_description: '不导入旧版数据，以默认配置开始使用。',
+      continue_v1_description: '下载并安装 V1，继续使用当前保留的原始数据。',
+      diagnostics_description: '将错误信息和应用日志保存到本地，方便发送给支持团队排查问题。'
     },
     introduction: {
       title: '将数据迁移到新的架构中',
@@ -131,11 +145,11 @@ export const zhCN = {
     },
     error: {
       title: '迁移失败',
-      description: '迁移过程遇到错误，您可以重新尝试或继续使用之前版本（原始数据完好保存）。',
+      description: '迁移未完成，但您的原始数据仍完好保留。',
       error_prefix: '错误信息：',
       unknown: '未知错误',
       v1_fallback: {
-        title: '重试后仍然失败？可以继续使用 V1',
+        title: '下载并继续使用 V1',
         description: '您的原始数据完好保存，下载并安装 V1 版本即可继续使用。',
         download: '下载 V1 版本',
         dismiss: '知道了',
@@ -178,6 +192,7 @@ export const enUS = {
       restart: 'Restart App',
       retry: 'Retry',
       close: 'Close App',
+      continue_v1: 'Continue using V1',
       ignore_migration: 'Ignore and Use Defaults',
       skip_migration: 'Skip migration',
       more_options: 'More options'
@@ -204,8 +219,13 @@ export const enUS = {
       failed: 'Failed'
     },
     diagnostics: {
+      title: 'Save troubleshooting file',
       save: 'Save diagnostic bundle',
       saving: 'Saving…',
+      export_description:
+        'The bundle includes migration errors, system information, and available application logs. Logs may contain file paths, error stacks, user content, or credentials. It is saved locally and never uploaded automatically; share it only with Cherry Studio support.',
+      open_from_error: 'Export a diagnostic bundle for this error',
+      saved_title: 'Diagnostic bundle saved',
       privacy:
         'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
       saved_local:
@@ -218,6 +238,14 @@ export const enUS = {
       copy_failed: 'Failed to copy feedback email',
       save_failed: 'Could not save diagnostic bundle',
       open_folder_failed: 'Could not open file location'
+    },
+    more_options: {
+      description: 'Choose how you want to continue. Your original V1 data will not be deleted either way.',
+      diagnostics_title: 'Save troubleshooting information',
+      use_v2_title: 'Use V2 without importing V1 data',
+      skip_description: 'Start with default settings without importing your V1 data.',
+      continue_v1_description: 'Download and install V1 to keep using your original data.',
+      diagnostics_description: 'Save errors and app logs locally so you can share them with support.'
     },
     introduction: {
       title: 'Migrate Data to New Architecture',
@@ -289,12 +317,11 @@ export const enUS = {
     },
     error: {
       title: 'Migration Failed',
-      description:
-        'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
+      description: 'Migration did not finish, but your original data remains intact.',
       error_prefix: 'Error: ',
       unknown: 'Unknown error',
       v1_fallback: {
-        title: 'Still failing after a retry? You can keep using V1',
+        title: 'Download and Continue Using V1',
         description: 'Your original data is intact. Download and install V1 to keep working.',
         download: 'Download V1',
         dismiss: 'Got it',

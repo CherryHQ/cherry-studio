@@ -1,7 +1,8 @@
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockChildrenProps = { children?: ReactNode }
 type MockPassthroughProps = MockChildrenProps & Record<string, unknown>
@@ -11,11 +12,6 @@ type MockButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   onPress?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
   startContent?: ReactNode
 }
-type MockMenuItemProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  icon?: ReactNode
-  label?: ReactNode
-}
-
 const cleanup = vi.fn()
 const on = vi.fn(() => cleanup)
 const removeAllListeners = vi.fn()
@@ -66,7 +62,8 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement(tag, { ...props, 'data-testid': testId }, children)
 
   return {
-    Accordion: passthrough('div', 'accordion'),
+    Accordion: ({ children }: MockChildrenProps) =>
+      React.createElement('div', { 'data-testid': 'accordion' }, children),
     AccordionContent: passthrough('div', 'accordion-content'),
     AccordionItem: passthrough('div', 'accordion-item'),
     AccordionTrigger: ({ children, ...props }: MockPassthroughProps) =>
@@ -98,12 +95,14 @@ vi.mock('@cherrystudio/ui', () => {
         startContent,
         children
       ),
-    MenuItem: ({ icon, label, onClick, ...props }: MockMenuItemProps) =>
-      React.createElement('button', { ...props, onClick, type: 'button' }, icon, label),
-    MenuList: passthrough('div', 'menu-list'),
-    Popover: ({ children }: MockChildrenProps) => React.createElement('div', { 'data-testid': 'popover' }, children),
-    PopoverContent: passthrough('div', 'popover-content'),
-    PopoverTrigger: ({ children }: MockChildrenProps) => children,
+    Dialog: ({ children, open }: MockChildrenProps & { open?: boolean }) =>
+      open ? React.createElement('div', { 'data-testid': 'dialog' }, children) : null,
+    DialogClose: ({ children }: MockChildrenProps) => children,
+    DialogContent: passthrough('div', 'dialog-content'),
+    DialogDescription: passthrough('p', 'dialog-description'),
+    DialogFooter: passthrough('div', 'dialog-footer'),
+    DialogHeader: passthrough('div', 'dialog-header'),
+    DialogTitle: passthrough('h2', 'dialog-title'),
     Select: ({ children }: MockChildrenProps) => React.createElement('div', { 'data-testid': 'select' }, children),
     SelectContent: passthrough('div', 'select-content'),
     SelectItem: passthrough('div', 'select-item'),
@@ -167,10 +166,27 @@ vi.mock('../components', () => {
           )
         : null,
     Confetti: () => null,
-    MigrationDiagnosticPanel: () =>
-      React.createElement('div', {
-        'data-testid': 'migration-diagnostic-panel'
-      }),
+    MigrationDiagnosticPanel: ({
+      onSaved,
+      savedLogs
+    }: {
+      onSaved?: (logs: 'included' | 'not_included') => void
+      savedLogs?: 'included' | 'not_included'
+    }) =>
+      React.createElement(
+        'div',
+        {
+          'data-saved-logs': savedLogs,
+          'data-testid': 'migration-diagnostic-panel'
+        },
+        onSaved
+          ? React.createElement(
+              'button',
+              { type: 'button', 'data-testid': 'diagnostic-save-success', onClick: () => onSaved('included') },
+              'save-success'
+            )
+          : null
+      ),
     MigrationWindowControls: () => null,
     MigratorProgressList: () => null,
     // Mounted only while open; confirm forwards to onConfirm so tests can drive the skip flow.
@@ -247,6 +263,7 @@ import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     cleanup.mockClear()
     invoke.mockClear()
     on.mockClear()
@@ -289,6 +306,10 @@ describe('MigrationApp', () => {
         removeAllListeners
       }
     }
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('cleans up only its ConfirmClose listener', () => {
@@ -549,17 +570,106 @@ describe('MigrationApp', () => {
     expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
   })
 
-  it.each(['error', 'version_incompatible'])('mounts diagnostics for the %s stage', (stage) => {
+  it('mounts diagnostics directly for the version-incompatible stage', () => {
     migrationHookMock.progress = {
-      currentMessage: stage,
+      currentMessage: 'version_incompatible',
       migrators: [],
       overallProgress: 0,
-      stage
+      stage: 'version_incompatible'
     }
 
     render(<MigrationApp />)
 
     expect(screen.getByTestId('migration-diagnostic-panel')).toBeInTheDocument()
+  })
+
+  it('opens diagnostics after the more-options dialog finishes closing', async () => {
+    vi.useFakeTimers()
+    migrationHookMock.progress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.more_options' }))
+    const diagnosticButton = screen.getByRole('button', { name: 'migration.more_options.diagnostics_title' })
+    const skipButton = screen.getByRole('button', { name: 'migration.more_options.use_v2_title' })
+    expect(diagnosticButton.compareDocumentPosition(skipButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+
+    fireEvent.click(diagnosticButton)
+
+    expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
+    expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(1))
+
+    expect(screen.getByTestId('migration-diagnostic-panel')).toBeInTheDocument()
+    expect(screen.getByText('migration.diagnostics.export_description')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'migration.skip_dialog.cancel' })).not.toBeInTheDocument()
+  })
+
+  it.each(['Enter', ' '])('opens diagnostics from the error details with the %s key', (key) => {
+    migrationHookMock.progress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+
+    render(<MigrationApp />)
+    const errorDetails = screen.getByRole('button', { name: 'migration.diagnostics.open_from_error' })
+
+    fireEvent.keyDown(errorDetails, { key })
+
+    expect(screen.getByText('migration.diagnostics.export_description')).toBeInTheDocument()
+    expect(screen.getByTestId('migration-diagnostic-panel')).toBeInTheDocument()
+  })
+
+  it('opens diagnostics when the error details are clicked', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.open_from_error' }))
+
+    expect(screen.getByText('migration.diagnostics.export_description')).toBeInTheDocument()
+  })
+
+  it('closes the export dialog and opens follow-up options after diagnostics are saved', async () => {
+    vi.useFakeTimers()
+    migrationHookMock.progress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+
+    render(<MigrationApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.more_options' }))
+    fireEvent.click(screen.getByRole('button', { name: 'migration.more_options.diagnostics_title' }))
+
+    await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
+
+    fireEvent.click(screen.getByTestId('diagnostic-save-success'))
+    expect(screen.queryByText('migration.diagnostics.export_description')).not.toBeInTheDocument()
+    expect(screen.queryByText('migration.diagnostics.saved_title')).not.toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
+
+    expect(screen.getByText('migration.diagnostics.saved_title')).toBeInTheDocument()
+    expect(screen.getByTestId('migration-diagnostic-panel')).toHaveAttribute('data-saved-logs', 'included')
+    expect(screen.queryByRole('button', { name: 'migration.diagnostics.done' })).not.toBeInTheDocument()
   })
 
   it.each(['introduction', 'migration', 'completed'])('does not mount diagnostics during the %s stage', (stage) => {
@@ -583,9 +693,13 @@ describe('MigrationApp', () => {
       stage: 'error'
     }
     const dialog = () => screen.queryByTestId('v1-download-dialog')
+    const openDialog = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.more_options' }))
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.continue_v1' }))
+      expect(dialog()).not.toBeInTheDocument()
+      await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
+    }
 
-    // Retry hands the user back to the introduction screen, so "still failing" means a second
-    // error stage — the first failure alone must not push people off the upgrade.
     const failAfterRetry = () => {
       migrationHookMock.progress = errorProgress
       const { rerender } = render(<MigrationApp />)
@@ -598,52 +712,38 @@ describe('MigrationApp', () => {
       rerender(<MigrationApp />)
     }
 
-    it('stays closed on the first failure', () => {
-      migrationHookMock.progress = errorProgress
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
 
+    it('opens when Continue using V1 is selected from more options', async () => {
+      migrationHookMock.progress = errorProgress
       render(<MigrationApp />)
 
       expect(dialog()).not.toBeInTheDocument()
-    })
-
-    // Clicking Retry flips the "has retried" flag while the error screen is still up; the dialog
-    // must wait for the stage to be re-entered instead of popping open under the user's cursor.
-    it('does not open on the retry click itself', () => {
-      migrationHookMock.progress = errorProgress
-      const { rerender } = render(<MigrationApp />)
-
-      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
-      rerender(<MigrationApp />)
-
-      expect(dialog()).not.toBeInTheDocument()
-    })
-
-    it('stays closed while a retried migration is still running', () => {
-      migrationHookMock.progress = errorProgress
-      const { rerender } = render(<MigrationApp />)
-
-      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
-      expect(migrationHookMock.actions.retry).toHaveBeenCalledOnce()
-
-      migrationHookMock.progress = {
-        currentMessage: 'Migrating…',
-        migrators: [],
-        overallProgress: 10,
-        stage: 'migration'
-      }
-      rerender(<MigrationApp />)
-
-      expect(dialog()).not.toBeInTheDocument()
-    })
-
-    it('opens once a retried migration fails again', () => {
-      failAfterRetry()
-
+      await openDialog()
       expect(dialog()).toBeInTheDocument()
     })
 
-    it('closes on dismissal', () => {
+    it('does not open automatically when retry is clicked', () => {
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
+
+      expect(dialog()).not.toBeInTheDocument()
+    })
+
+    it('does not open automatically after a retried migration fails again', () => {
       failAfterRetry()
+
+      expect(dialog()).not.toBeInTheDocument()
+    })
+
+    it('closes on dismissal', async () => {
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      await openDialog()
 
       fireEvent.click(screen.getByTestId('v1-dismiss-button'))
 
@@ -652,8 +752,9 @@ describe('MigrationApp', () => {
 
     it('closes after its download opens the page', async () => {
       migrationHookMock.actions.openDownloadPage.mockResolvedValue(true)
-
-      failAfterRetry()
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      await openDialog()
 
       await act(async () => {
         fireEvent.click(screen.getByTestId('v1-download-button'))
@@ -667,8 +768,9 @@ describe('MigrationApp', () => {
 
     it('stays open when the download page cannot be opened', async () => {
       migrationHookMock.actions.openDownloadPage.mockResolvedValue(false)
-
-      failAfterRetry()
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      await openDialog()
 
       await act(async () => {
         fireEvent.click(screen.getByTestId('v1-download-button'))
@@ -687,29 +789,64 @@ describe('MigrationApp', () => {
       stage: 'error'
     }
     const dialog = () => screen.queryByTestId('skip-migration-dialog')
+    const openDialog = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.more_options' }))
+      fireEvent.click(screen.getByRole('button', { name: 'migration.more_options.use_v2_title' }))
+      expect(dialog()).not.toBeInTheDocument()
+      await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
+    }
 
-    it('orders the actions close / skip / retry and opens the confirm dialog from skip', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    it('prioritizes retry and opens the skip confirmation after more options closes', async () => {
       migrationHookMock.progress = errorProgress
 
       render(<MigrationApp />)
 
-      const [closeButton, skipButton, retryButton] = [
-        'migration.buttons.close',
-        'migration.buttons.skip_migration',
-        'migration.buttons.retry'
-      ].map((name) => screen.getByRole('button', { name }))
-      expect(closeButton.compareDocumentPosition(skipButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      expect(skipButton.compareDocumentPosition(retryButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      const retryButton = screen.getByRole('button', { name: 'migration.buttons.retry' })
+      const moreOptionsButton = screen.getByRole('button', { name: 'migration.buttons.more_options' })
+      expect(retryButton).toHaveClass('w-full')
+      expect(moreOptionsButton).toHaveAttribute('variant', 'outline')
+      expect(moreOptionsButton).toHaveClass('w-full', 'text-muted-foreground')
+      expect(retryButton.compareDocumentPosition(moreOptionsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'migration.buttons.close' })).not.toBeInTheDocument()
 
       expect(dialog()).not.toBeInTheDocument()
+      fireEvent.click(moreOptionsButton)
+      const diagnosticButton = screen.getByRole('button', { name: 'migration.more_options.diagnostics_title' })
+      const skipButton = screen.getByRole('button', { name: 'migration.more_options.use_v2_title' })
+      const continueV1Button = screen.getByRole('button', { name: 'migration.buttons.continue_v1' })
+      const closeButton = screen.getByRole('button', { name: 'migration.buttons.close' })
+      expect(diagnosticButton.compareDocumentPosition(skipButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(skipButton.compareDocumentPosition(continueV1Button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(skipButton).not.toHaveClass('hover:bg-error-subtle')
+      expect(screen.getByText('migration.more_options.use_v2_title')).toHaveClass('text-foreground')
+      expect(skipButton.querySelector('svg')?.parentElement).toHaveClass(
+        'border-border',
+        'bg-muted/40',
+        'text-muted-foreground'
+      )
+      expect(screen.getByText('migration.more_options.skip_description')).toBeInTheDocument()
+      expect(screen.getByText('migration.more_options.continue_v1_description')).toBeInTheDocument()
+      expect(screen.getByText('migration.more_options.diagnostics_description')).toBeInTheDocument()
+      expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+      expect(continueV1Button.compareDocumentPosition(closeButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       fireEvent.click(skipButton)
+      expect(dialog()).not.toBeInTheDocument()
+      await act(async () => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
+      expect(dialog()).not.toBeInTheDocument()
+
+      await act(async () => vi.advanceTimersByTime(1))
+
       expect(dialog()).toBeInTheDocument()
     })
 
     it('confirms through the shared skip action', async () => {
       migrationHookMock.progress = errorProgress
       render(<MigrationApp />)
-      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.skip_migration' }))
+      await openDialog()
 
       await act(async () => {
         fireEvent.click(screen.getByTestId('skip-confirm-button'))
@@ -719,10 +856,20 @@ describe('MigrationApp', () => {
       expect(toastErrorMock).not.toHaveBeenCalled()
     })
 
-    it('dismisses without invoking the skip action', () => {
+    it('closes the app from the more-options footer', () => {
       migrationHookMock.progress = errorProgress
       render(<MigrationApp />)
-      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.skip_migration' }))
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.more_options' }))
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.close' }))
+
+      expect(migrationHookMock.actions.cancel).toHaveBeenCalledOnce()
+    })
+
+    it('dismisses without invoking the skip action', async () => {
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      await openDialog()
 
       fireEvent.click(screen.getByTestId('skip-dismiss-button'))
 
@@ -734,7 +881,7 @@ describe('MigrationApp', () => {
       migrationHookMock.actions.skipMigration.mockRejectedValueOnce(new Error('cleanup failed'))
       migrationHookMock.progress = errorProgress
       render(<MigrationApp />)
-      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.skip_migration' }))
+      await openDialog()
 
       await act(async () => {
         fireEvent.click(screen.getByTestId('skip-confirm-button'))
