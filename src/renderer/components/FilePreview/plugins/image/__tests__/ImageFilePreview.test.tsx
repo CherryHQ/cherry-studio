@@ -41,7 +41,7 @@ describe('image file preview plugin', () => {
   it('renders SVG through a direct file URL instead of the danger-ext directory wrap', async () => {
     render(<FilePreview filePath={'/tmp/art/logo.svg' as AbsoluteFilePath} />)
 
-    const image = await screen.findByRole('img', { name: 'logo.svg' })
+    const image = await screen.findByAltText('logo.svg')
 
     expect(image).toHaveAttribute('src', 'file:///tmp/art/logo.svg')
   })
