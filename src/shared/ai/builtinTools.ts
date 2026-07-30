@@ -467,10 +467,11 @@ export const webFetchInputSchema = z.object({
   // `isHttpUrl` is literally the predicate `normalizeWebSearchUrls` enforces service-side, so the
   // schema and the service agree by construction instead of via two copies of one rule that drift.
   //
-  // It is only a syntax gate, though: `remoteUrlSafety` additionally rejects credentials and
-  // loopback/private hosts that `isHttpUrl` accepts, and it is reached solely by the `fetch`
-  // provider — `jina`, the only other one exposing `fetchUrls`, hands the target to r.jina.ai and
-  // never retrieves it here.
+  // It is only a syntax gate, though. Of the two providers serving `web_fetch`, `fetch` retrieves
+  // the target in this process and so runs it through `remoteUrlSafety`, which additionally rejects
+  // credentials and loopback/private hosts that `isHttpUrl` accepts; `jina` hands the target to
+  // r.jina.ai and never retrieves it here. Passing this schema therefore does not imply a URL is
+  // safe or fetchable.
   urls: z
     .array(z.string().trim().min(1).refine(isHttpUrl, 'must be an absolute http(s) URL'))
     .min(1)
