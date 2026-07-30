@@ -146,6 +146,75 @@ describe('admitArchive', () => {
     await admitted.cleanup()
   })
 
+  /**
+   * Layer 1 of the workspace path policy reaches materialization as a single
+   * boolean (docs/references/backup/README.md §3.1). What admission owes it: the
+   * verifier sees the EXACT manifest bytes on disk, and every negative outcome —
+   * including a broken verifier — is an unattested restore rather than an error.
+   */
+  describe('same-install attestation', () => {
+    async function admitWith(
+      attest: Parameters<typeof publishArchive>[0]['attest'],
+      verifyAttestation?: (manifestBytes: Buffer, entryBytes: Buffer) => boolean
+    ) {
+      const dbPath = await snapshotDbAt()
+      const outPath = path.join(work, 'attested.cherrybackup')
+      await publishArchive({ outPath, manifest: baseManifest(await dbMeta(dbPath)), dbCopyPath: dbPath, attest })
+      return admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder, verifyAttestation })
+    }
+
+    const ENTRY = Buffer.from(JSON.stringify({ algorithm: 'hmac-sha256', mac: '0'.repeat(64) }))
+
+    it('admits an archive that carries none, unattested', async () => {
+      const admitted = await admitWith(undefined, () => {
+        throw new Error('the verifier must not be consulted without an entry')
+      })
+      expect(admitted.selfAttested).toBe(false)
+      await admitted.cleanup()
+    })
+
+    it('reports self-attested and hands the verifier the exact manifest bytes', async () => {
+      let published: Buffer | undefined
+      let verified: Buffer | undefined
+      const admitted = await admitWith(
+        (manifestBytes) => {
+          published = Buffer.from(manifestBytes)
+          return { name: 'attestation.json', bytes: ENTRY }
+        },
+        (manifestBytes, entryBytes) => {
+          verified = manifestBytes
+          return entryBytes.equals(ENTRY)
+        }
+      )
+
+      expect(admitted.selfAttested).toBe(true)
+      // Byte equality, not JSON equality: the MAC covers one encoding only.
+      expect(verified?.equals(published as Buffer)).toBe(true)
+      await admitted.cleanup()
+    })
+
+    it('falls back to unattested when the entry does not verify', async () => {
+      const admitted = await admitWith(
+        () => ({ name: 'attestation.json', bytes: ENTRY }),
+        () => false
+      )
+      expect(admitted.selfAttested).toBe(false)
+      await admitted.cleanup()
+    })
+
+    it('falls back to unattested when the verifier itself fails', async () => {
+      // A broken or unreadable secret may not deny the restore altogether.
+      const admitted = await admitWith(
+        () => ({ name: 'attestation.json', bytes: ENTRY }),
+        () => {
+          throw new Error('key file unreadable')
+        }
+      )
+      expect(admitted.selfAttested).toBe(false)
+      await admitted.cleanup()
+    })
+  })
+
   it('round-trips the executable bit without restoring broader permissions', async () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)

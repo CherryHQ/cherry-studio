@@ -37,6 +37,12 @@ export const USER_DATA_WIPE = [
   'restore-journal.json',
   'restore-staging',
   'restore-aside',
+  // The backup self-attestation secret (docs/references/backup/README.md §3.1):
+  // a reset means a fresh install identity, so archives exported before it stop
+  // counting as self-produced. That costs only verbatim external-path retention
+  // — Layer 2 still keeps the paths that exist — and it makes a corrupted key
+  // file recoverable instead of permanently unattestable.
+  'backup-attestation.key',
   '.claude',
   '.copilot_token',
   'config.json',

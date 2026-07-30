@@ -72,6 +72,60 @@ describe('validateArchiveShape — valid layouts', () => {
   })
 })
 
+/**
+ * The optional same-install attestation entry (docs/references/backup/README.md
+ * §3.1 Layer 1). Its absence is the common case and must stay legal; its
+ * presence must be bounded before anything reads it.
+ */
+describe('validateArchiveShape — attestation entry', () => {
+  const ATTESTATION: RawEntrySpec = {
+    name: 'attestation.json',
+    data: Buffer.from(JSON.stringify({ algorithm: 'hmac-sha256', mac: '0'.repeat(64) }))
+  }
+
+  it('accepts an archive that carries one, and one that carries none', async () => {
+    const zipPath = path.join(dir, 'a.zip')
+    await writeRawZip(zipPath, [MANIFEST, ATTESTATION, DB])
+    const open = await openArchive(zipPath)
+    try {
+      expect(validateArchiveShape(open.entries, CEIL).attestation?.path).toBe('attestation.json')
+    } finally {
+      await open.close()
+    }
+
+    const bare = path.join(dir, 'b.zip')
+    await writeRawZip(bare, [MANIFEST, DB])
+    const openBare = await openArchive(bare)
+    try {
+      expect(validateArchiveShape(openBare.entries, CEIL).attestation).toBeUndefined()
+    } finally {
+      await openBare.close()
+    }
+  })
+
+  it('rejects a second one before the shape is trusted', async () => {
+    // Two identical names lose to the duplicate check first; the layout guard in
+    // `classifyShape` is the backstop behind it.
+    expect(await reasonOf([MANIFEST, ATTESTATION, ATTESTATION, DB])).toBe('entry-collision')
+  })
+
+  it('rejects one whose declared size exceeds its own bound', async () => {
+    // 4 KiB is the attestation's own ceiling, well under the generic entry
+    // ceiling raised here — so this proves the dedicated bound, not that one.
+    const roomy: CatalogCeilings = {
+      ...CEIL,
+      maxEntryUncompressedBytes: 64 * 1024,
+      maxTotalUncompressedBytes: 128 * 1024
+    }
+    expect(
+      await reasonOf(
+        [MANIFEST, { ...ATTESTATION, data: Buffer.alloc(200, 0x61), centralUncompressedSize: 5000 }, DB],
+        roomy
+      )
+    ).toBe('ceiling-entry-bytes')
+  })
+})
+
 describe('validateArchiveShape — hostile names', () => {
   const cases: Array<[string, string]> = [
     ['backslash', 'a\\b'],

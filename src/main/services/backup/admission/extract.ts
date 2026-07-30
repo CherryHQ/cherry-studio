@@ -5,7 +5,8 @@ import type { Readable } from 'node:stream'
 
 import type StreamZip from 'node-stream-zip'
 
-import { DB_ENTRY, MANIFEST_ENTRY } from '../archiveLayout'
+import { ATTESTATION_ENTRY, DB_ENTRY, MANIFEST_ENTRY } from '../archiveLayout'
+import { MAX_ATTESTATION_ENTRY_BYTES } from '../ceilings'
 import { ArchiveAdmissionError, BackupCancelledError, DiskFullError, renderUntrustedName } from '../errors'
 import type { ArchiveShape, NormalizedEntry } from './catalog'
 
@@ -261,6 +262,29 @@ export function extractManifest(
   })
 }
 
+/**
+ * Extract the optional `attestation.json` under its own small cap, sharing the
+ * operation budget. Returns `false` when the archive carries none — the common
+ * case for a foreign archive, and never an error.
+ */
+export async function extractAttestation(
+  zip: InstanceType<typeof StreamZip>,
+  shape: ArchiveShape,
+  stagingDir: string,
+  budget: ExtractionBudget,
+  signal: AbortSignal | undefined
+): Promise<boolean> {
+  if (!shape.attestation) return false
+  await extractEntryToFile(zip, shape.attestation, stagingDir, {
+    absoluteCap: MAX_ATTESTATION_ENTRY_BYTES,
+    budget,
+    overflowReason: 'ceiling-entry-bytes',
+    signal
+  })
+  return true
+}
+
 /** Fixed staged paths, for the orchestrator and post-extraction verification. */
 export const stagedManifestName = MANIFEST_ENTRY
 export const stagedDbName = DB_ENTRY
+export const stagedAttestationName = ATTESTATION_ENTRY

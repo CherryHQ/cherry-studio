@@ -9,7 +9,8 @@ import { ZipArchive } from 'archiver'
 import { archiveDurability } from './archiveDurability'
 import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from './archiveLayout'
 import { verifyArchiveReadback } from './archiveReadback'
-import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES } from './ceilings'
+import type { AttestationEntry } from './attestation'
+import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES, MAX_ATTESTATION_ENTRY_BYTES } from './ceilings'
 import { type DirScanLimits, scanDirectoryUnit } from './dirScan'
 import {
   BackupCancelledError,
@@ -66,8 +67,9 @@ const DEFAULT_PRODUCER_CEILINGS: ProducerCeilings = Object.freeze({
  * output exists. Archive-wide ceilings are then enforced with bigint/safe
  * arithmetic: the DB against the per-entry byte ceiling; `manifest + db +
  * aggregate resource bytes ≤ maxTotalUncompressedBytes`; and resource entries +
- * the 2 fixed entries (`manifest.json`, `backup.sqlite`) ≤ `maxArchiveEntries`
- * (reserved via the scanner's entry budget). The DB SHA-256 is computed with a
+ * the fixed entries (`manifest.json`, `backup.sqlite`, the optional
+ * `attestation.json`) ≤ `maxArchiveEntries` (reserved via the scanner's entry
+ * budget). The DB SHA-256 is computed with a
  * CANCELLABLE stream so a multi-GB verification aborts promptly.
  *
  * ATOMICITY: publication is a single `link()`. A hard-link-hostile volume FAILS
@@ -101,6 +103,13 @@ export interface PublishArchiveInputs {
   readonly dbCopyPath: string
   /** Optional staged resource tree → walked + scanned, then stored under `resources/`. */
   readonly resourcesDir?: string
+  /**
+   * Optional producer of the `attestation.json` entry, invoked with the EXACT
+   * manifest bytes this archive will carry (the MAC is only meaningful over
+   * those bytes, which is why this is a callback rather than an input value).
+   * Returning `undefined` publishes an archive without the entry.
+   */
+  readonly attest?: (manifestBytes: Buffer) => AttestationEntry | undefined
   readonly signal?: AbortSignal
   /** Durable ownership handshake for destination-side crash cleanup. */
   readonly tempObserver?: {
@@ -198,7 +207,7 @@ export async function publishArchiveWithCeilings(
   inputs: PublishArchiveInputs,
   ceilings: ProducerCeilings
 ): Promise<void> {
-  const { outPath, manifest, dbCopyPath, resourcesDir, signal, tempObserver } = inputs
+  const { outPath, manifest, dbCopyPath, resourcesDir, attest, signal, tempObserver } = inputs
 
   // --- Publication-contract validation (everything provable before writing) ---
   const parsed = parseBackupManifest(manifest)
@@ -235,6 +244,18 @@ export async function publishArchiveWithCeilings(
     throw new CeilingExceededError('manifest-bytes', `${manifestBytes.byteLength} > ${ceilings.maxManifestBytes}`)
   }
 
+  // Attest the FINAL bytes, once they can no longer change. A producer that
+  // cannot attest publishes a perfectly valid unattested archive, so this is
+  // never a failure path — but an over-long entry would be a contract violation
+  // by this module, not by the archive, so it throws.
+  const attestation = attest?.(manifestBytes)
+  if (attestation && attestation.bytes.byteLength > MAX_ATTESTATION_ENTRY_BYTES) {
+    throw new CeilingExceededError(
+      'entry-bytes',
+      `attestation is ${attestation.bytes.byteLength} > ${MAX_ATTESTATION_ENTRY_BYTES}`
+    )
+  }
+
   // Walk + scan the (untrusted) staged resource tree through the shared scanner —
   // symlink/special/unportable/collision and per-entry/total ceilings, cancellable,
   // NO Knowledge exclusion (already applied at source staging). The scanner's
@@ -257,8 +278,12 @@ export async function publishArchiveWithCeilings(
   }
 
   // Archive-wide uncompressed-byte ceiling (bigint — no Number overflow):
-  // manifest + db + aggregate resources.
-  const aggregateBytes = BigInt(manifestBytes.byteLength) + BigInt(dbStat.size) + resourceTotalBytes
+  // manifest + attestation + db + aggregate resources.
+  const aggregateBytes =
+    BigInt(manifestBytes.byteLength) +
+    BigInt(attestation?.bytes.byteLength ?? 0) +
+    BigInt(dbStat.size) +
+    resourceTotalBytes
   if (aggregateBytes > BigInt(ceilings.maxTotalUncompressedBytes)) {
     throw new CeilingExceededError('total-bytes', `${aggregateBytes} > ${ceilings.maxTotalUncompressedBytes}`)
   }
@@ -316,6 +341,7 @@ export async function publishArchiveWithCeilings(
 
       archive.pipe(output)
       archive.append(manifestBytes, { name: MANIFEST_ENTRY })
+      if (attestation) archive.append(attestation.bytes, { name: attestation.name })
       archive.file(dbCopyPath, { name: DB_ENTRY })
       if (resourcesDir) archive.directory(resourcesDir, RESOURCES_PREFIX.replace(/\/$/, ''))
       archive.finalize().catch(reject)

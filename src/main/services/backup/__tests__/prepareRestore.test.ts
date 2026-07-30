@@ -94,6 +94,8 @@ describe('restore preparation', () => {
         return join(userData, 'restore-staging')
       case 'feature.backup.restore.aside':
         return join(userData, 'restore-aside')
+      case 'feature.backup.attestation.key_file':
+        return join(userData, 'backup-attestation.key')
       case 'feature.files.data':
         return join(userData, 'Data', 'Files')
       case 'feature.knowledgebase.data':
