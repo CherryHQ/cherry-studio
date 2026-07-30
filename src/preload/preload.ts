@@ -1,6 +1,6 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheEntry, CacheSyncBatchMessage, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
@@ -267,6 +267,13 @@ const api = {
       const listener = (_: any, message: CacheSyncMessage) => callback(message)
       ipcRenderer.on(IpcChannel.Cache_Sync, listener)
       return () => ipcRenderer.off(IpcChannel.Cache_Sync, listener)
+    },
+
+    // Listen for Main-origin batch sync messages. Renderer has no matching send API.
+    onSyncBatch: (callback: (message: CacheSyncBatchMessage) => void) => {
+      const listener = (_: any, message: CacheSyncBatchMessage) => callback(message)
+      ipcRenderer.on(IpcChannel.Cache_SyncBatch, listener)
+      return () => ipcRenderer.off(IpcChannel.Cache_SyncBatch, listener)
     },
 
     // Get all shared cache entries from Main for initialization sync

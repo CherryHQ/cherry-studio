@@ -15,11 +15,13 @@ vi.unmock('@data/CacheService')
 
 const broadcastSync = vi.fn()
 const onSync = vi.fn()
+const onSyncBatch = vi.fn()
 const getAllShared = vi.fn(async () => ({}))
 
 beforeEach(() => {
   broadcastSync.mockClear()
   onSync.mockClear()
+  onSyncBatch.mockClear()
   getAllShared.mockClear()
 
   Object.defineProperty(window, 'api', {
@@ -28,6 +30,7 @@ beforeEach(() => {
       cache: {
         broadcastSync,
         onSync,
+        onSyncBatch,
         getAllShared
       }
     }

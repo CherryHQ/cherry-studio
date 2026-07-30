@@ -15,7 +15,7 @@
  *  - boundaries: the renderer-origin relay path and onStop stay outside the
  *    unified eviction outlet (no double broadcast, no teardown broadcast).
  */
-import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheSyncBatchMessage, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { IpcMainEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -173,6 +173,7 @@ describe('CacheService shared-tier TTL sync', () => {
       // silent TTL-only sync (would happen if the implementation compared
       // against the raw entry instead of the TTL-aware peek).
       expect(send).toHaveBeenCalledTimes(1)
+      expect(send.mock.calls[0][0]).toBe(IpcChannel.Cache_Sync)
       expect(lastMessage()).toEqual({
         type: 'shared',
         key: PROGRESS_KEY,
@@ -180,6 +181,89 @@ describe('CacheService shared-tier TTL sync', () => {
         expireAt: now + 1_000
       })
       expect(cb).toHaveBeenCalledWith({ progress: 100 }, undefined, PROGRESS_KEY)
+    })
+  })
+
+  describe('setSharedMany', () => {
+    it('sends one batch message to each live renderer window', async () => {
+      const { BrowserWindow } = (await import('electron')) as any
+      const firstSend = vi.fn()
+      const secondSend = vi.fn()
+      BrowserWindow.getAllWindows.mockReturnValue([
+        { isDestroyed: () => false, id: 1, webContents: { send: firstSend } },
+        { isDestroyed: () => false, id: 2, webContents: { send: secondSend } },
+        { isDestroyed: () => true, id: 3, webContents: { send: vi.fn() } }
+      ])
+
+      service.setSharedMany([
+        { key: STATE_KEY, value: { id: 'job-1', status: 'pending' }, ttl: TTL },
+        { key: PROGRESS_KEY, value: { progress: 10 }, ttl: TTL }
+      ])
+
+      expect(firstSend).toHaveBeenCalledTimes(1)
+      expect(secondSend).toHaveBeenCalledTimes(1)
+      expect(firstSend.mock.calls[0][0]).toBe(IpcChannel.Cache_SyncBatch)
+      expect(secondSend.mock.calls[0][0]).toBe(IpcChannel.Cache_SyncBatch)
+    })
+
+    it('updates every entry, notifies changed keys, and broadcasts one batch', () => {
+      const order: string[] = []
+      send.mockImplementation(() => order.push('broadcast'))
+      const stateCb = vi.fn(() => order.push('state-notify'))
+      const progressCb = vi.fn(() => order.push('progress-notify'))
+      service.subscribeSharedChange(STATE_KEY, stateCb)
+      service.subscribeSharedChange(PROGRESS_KEY, progressCb)
+
+      service.setSharedMany([
+        { key: STATE_KEY, value: { id: 'job-1', status: 'pending' }, ttl: TTL },
+        { key: PROGRESS_KEY, value: { progress: 10 }, ttl: TTL }
+      ])
+
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send.mock.calls[0][0]).toBe(IpcChannel.Cache_SyncBatch)
+      expect(send.mock.calls[0][1] as CacheSyncBatchMessage).toEqual({
+        type: 'shared',
+        entries: [
+          { key: STATE_KEY, value: { id: 'job-1', status: 'pending' }, expireAt: BASE + TTL },
+          { key: PROGRESS_KEY, value: { progress: 10 }, expireAt: BASE + TTL }
+        ]
+      })
+      expect(service.getShared(STATE_KEY)).toEqual({ id: 'job-1', status: 'pending' })
+      expect(service.getShared(PROGRESS_KEY)).toEqual({ progress: 10 })
+      expect(stateCb).toHaveBeenCalledTimes(1)
+      expect(progressCb).toHaveBeenCalledTimes(1)
+      expect(order).toEqual(['broadcast', 'state-notify', 'progress-notify'])
+    })
+
+    it('omits no-op entries and sends nothing for an empty batch', () => {
+      service.setShared(PROGRESS_KEY, { progress: 10 }, TTL)
+      send.mockClear()
+
+      service.setSharedMany([{ key: PROGRESS_KEY, value: { progress: 10 }, ttl: TTL }])
+      service.setSharedMany([])
+
+      expect(send).not.toHaveBeenCalled()
+    })
+
+    it('rejects duplicate keys before applying any entry', () => {
+      const stateCb = vi.fn()
+      const progressCb = vi.fn()
+      service.subscribeSharedChange(STATE_KEY, stateCb)
+      service.subscribeSharedChange(PROGRESS_KEY, progressCb)
+
+      expect(() =>
+        service.setSharedMany([
+          { key: PROGRESS_KEY, value: { progress: 10 }, ttl: TTL },
+          { key: STATE_KEY, value: { id: 'job-1', status: 'pending' }, ttl: TTL },
+          { key: STATE_KEY, value: { id: 'job-1', status: 'running' }, ttl: TTL }
+        ])
+      ).toThrow(`CacheService.setSharedMany: duplicate key "${STATE_KEY}"`)
+
+      expect(service.getShared(PROGRESS_KEY)).toBeUndefined()
+      expect(service.getShared(STATE_KEY)).toBeUndefined()
+      expect(send).not.toHaveBeenCalled()
+      expect(progressCb).not.toHaveBeenCalled()
+      expect(stateCb).not.toHaveBeenCalled()
     })
   })
 

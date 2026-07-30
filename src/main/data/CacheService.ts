@@ -32,13 +32,23 @@ import type {
   SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
-import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheEntry, CacheSyncBatchMessage, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('CacheService')
+
+export type SharedCacheSetEntry = {
+  [K in SharedCacheKey]: { key: K; value: InferSharedCacheValue<K>; ttl?: number }
+}[SharedCacheKey]
+
+interface SharedCacheSetResult {
+  message: CacheSyncMessage
+  oldValue: unknown
+  notify: boolean
+}
 
 /**
  * Callback signature for cache subscriptions. `concreteKey` is the exact key
@@ -411,6 +421,45 @@ export class CacheService extends BaseService {
    * @param ttl - Time to live in milliseconds (optional)
    */
   setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+    const result = this.applySharedSet(key, value, ttl)
+    if (!result) return
+    this.broadcastSync(result.message)
+    if (result.notify) this.sharedNotifier.notify(key, value, result.oldValue)
+  }
+
+  /** Set multiple shared values and synchronize all effective changes in one IPC message. */
+  setSharedMany(entries: readonly SharedCacheSetEntry[]): void {
+    if (entries.length === 0) return
+
+    const keys = new Set<string>()
+    for (const { key } of entries) {
+      if (keys.has(key)) throw new Error(`CacheService.setSharedMany: duplicate key "${key}"`)
+      keys.add(key)
+    }
+
+    const results: SharedCacheSetResult[] = []
+    for (const entry of entries) {
+      const result = this.applySharedSet(entry.key, entry.value, entry.ttl)
+      if (result) results.push(result)
+    }
+
+    if (results.length === 0) return
+    const messages: CacheSyncBatchMessage['entries'] = results.map(({ message }) => ({
+      key: message.key,
+      value: message.value,
+      expireAt: message.expireAt
+    }))
+    this.broadcastSyncBatch({ type: 'shared', entries: messages })
+    for (const { message, notify, oldValue } of results) {
+      if (notify) this.sharedNotifier.notify(message.key, message.value, oldValue)
+    }
+  }
+
+  private applySharedSet<K extends SharedCacheKey>(
+    key: K,
+    value: InferSharedCacheValue<K>,
+    ttl?: number
+  ): SharedCacheSetResult | null {
     // Pre-write entry state, TTL-aware: an expired entry counts as absent, so
     // re-setting it with the same value is an absent → value transition (full
     // broadcast + notify), never mistaken for a TTL-only refresh.
@@ -428,25 +477,12 @@ export class CacheService extends BaseService {
       // the mirror's copy expire out of sync with Main. TTL-only sync never
       // fires main value-subscribers (matching set() semantics).
       if (oldValue !== undefined && !Object.is(oldEntry?.expireAt, expireAt)) {
-        this.broadcastSync({
-          type: 'shared',
-          key,
-          value,
-          expireAt
-        })
+        return { message: { type: 'shared', key, value, expireAt }, oldValue, notify: false }
       }
-      return
+      return null
     }
 
-    // Broadcast to all renderer windows
-    this.broadcastSync({
-      type: 'shared',
-      key,
-      value,
-      expireAt
-    })
-
-    this.sharedNotifier.notify(key, value, oldValue)
+    return { message: { type: 'shared', key, value, expireAt }, oldValue, notify: true }
   }
 
   /**
@@ -799,10 +835,23 @@ export class CacheService extends BaseService {
    * Broadcast sync message to all renderer windows
    */
   private broadcastSync(message: CacheSyncMessage, senderWindowId?: number): void {
+    this.broadcastToRendererWindows(IpcChannel.Cache_Sync, message, senderWindowId)
+  }
+
+  /** Broadcast a Main-origin batch to every renderer window. */
+  private broadcastSyncBatch(message: CacheSyncBatchMessage): void {
+    this.broadcastToRendererWindows(IpcChannel.Cache_SyncBatch, message)
+  }
+
+  private broadcastToRendererWindows(
+    channel: IpcChannel.Cache_Sync | IpcChannel.Cache_SyncBatch,
+    message: CacheSyncMessage | CacheSyncBatchMessage,
+    senderWindowId?: number
+  ): void {
     const windows = BrowserWindow.getAllWindows()
     for (const window of windows) {
       if (!window.isDestroyed() && window.id !== senderWindowId) {
-        window.webContents.send(IpcChannel.Cache_Sync, message)
+        window.webContents.send(channel, message)
       }
     }
   }

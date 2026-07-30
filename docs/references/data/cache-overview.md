@@ -62,7 +62,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 │   - Shared cache (local copy; init-synced from Main)          │
 │   - Persist cache (localStorage, authoritative)               │
 └──────────────────────────┬────────────────────────────────────┘
-                           │ IPC: Cache_Sync / Cache_GetAllShared
+                           │ IPC: Cache_Sync / Cache_SyncBatch / Cache_GetAllShared
 ┌──────────────────────────▼────────────────────────────────────┐
 │                    CacheService (Main)                        │
 │   - Internal cache (Main-only)                                │
@@ -72,7 +72,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 └───────────────────────────────────────────────────────────────┘
 ```
 
-Both channels are sender-gated by `validateSender` (untrusted `Cache_Sync` messages are dropped, `Cache_GetAllShared` rejects) — see [IpcApi Overview §Security](../ipc/ipc-overview.md#security--two-gates).
+Renderer-origin `Cache_Sync` and `Cache_GetAllShared` calls are sender-gated by `validateSender` (untrusted sync messages are dropped; untrusted reads reject). `Cache_SyncBatch` is Main → Renderer only: preload exposes a listener but no matching renderer send API. See [IpcApi Overview §Security](../ipc/ipc-overview.md#security--two-gates).
 
 ## Process Responsibilities
 
@@ -106,11 +106,13 @@ Both channels are sender-gated by `validateSender` (untrusted `Cache_Sync` messa
 | Method                                               | Tier    | Key type                |
 | ---------------------------------------------------- | ------- | ----------------------- |
 | `get` / `set` / `has` / `delete`                     | Internal | Free-form string        |
-| `getShared` / `setShared` / `hasShared` / `deleteShared` | Shared | Fixed + Template        |
+| `getShared` / `setShared` / `setSharedMany` / `hasShared` / `deleteShared` | Shared | Fixed + Template        |
 | `getPersist` / `setPersist` / `hasPersist` / `deletePersist` | Persist (Main) | Fixed only |
 | `subscribeChange<T>(key, cb)`                        | Internal | Exact key               |
 | `subscribeSharedChange<K>(key, cb)`                  | Shared  | Fixed + Template (fires for every matching concrete instance) |
 | `subscribePersistChange<K>(key, cb)`                 | Persist (Main) | Exact key (main-local)  |
+
+`setSharedMany` requires every concrete key in the batch to be unique; duplicate keys throw before any entry is applied. It applies each entry with the same value/TTL semantics as `setShared`, then sends all effective changes to every renderer window in one `Cache_SyncBatch` message. Single updates continue to use `Cache_Sync`; renderer code can receive batches but cannot send them. Main and renderer subscribers still observe changes per concrete key.
 
 ## See Also
 
