@@ -272,11 +272,16 @@ function scanConceptMatches(
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
-  private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
 
-  private runProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
-    return application.get('ProfileWriteBarrierService').runWrite(`knowledge:${label}`, operation)
+  /**
+   * Serialize one owner-scoped backup cut with the short index/material commit
+   * sections for this base. Embedding and other computation outside that mutex
+   * continues normally.
+   */
+  public withPortableSnapshotBoundary<T>(baseId: string, work: () => T | Promise<T>): Promise<T> {
+    return this.knowledgeLockManager.withBaseMutationLock(baseId, work)
   }
+  private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -302,7 +307,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return this.runProfileWrite('create-base', () => this.createBaseUnderBarrier(dto))
+    return this.createBaseUnderBarrier(dto)
   }
 
   private async createBaseUnderBarrier(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -340,7 +345,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await this.runProfileWrite(`delete-base:${baseId}`, () => this.deleteBaseUnderBarrier(baseId))
+    await this.deleteBaseUnderBarrier(baseId)
   }
 
   private async deleteBaseUnderBarrier(baseId: string): Promise<void> {
@@ -372,7 +377,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    return this.runProfileWrite(`restore-base:${dto.sourceBaseId}`, () => this.restoreBaseUnderBarrier(dto))
+    return this.restoreBaseUnderBarrier(dto)
   }
 
   private async restoreBaseUnderBarrier(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
@@ -458,35 +463,29 @@ export class KnowledgeService extends BaseService {
     items: KnowledgeAddItemInput[],
     conflictStrategy?: KnowledgeAddConflictStrategy
   ): Promise<KnowledgeAddItemsResult> {
-    return this.runProfileWrite(`add-items:${baseId}`, async () => {
-      this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
-      return this.workflowService.addItems(baseId, items, conflictStrategy)
-    })
+    this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
+    return this.workflowService.addItems(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.runProfileWrite(`delete-items:${baseId}`, async () => {
-      const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
-      if (rootItemIds.length === 0) {
-        return
-      }
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    if (rootItemIds.length === 0) {
+      return
+    }
 
-      await this.workflowService.deleteItems(baseId, rootItemIds)
-    })
+    await this.workflowService.deleteItems(baseId, rootItemIds)
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.runProfileWrite(`reindex-items:${baseId}`, async () => {
-      this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
-      const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
-      if (rootItemIds.length === 0) {
-        return
-      }
+    this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    if (rootItemIds.length === 0) {
+      return
+    }
 
-      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
-      await this.workflowService.reindexItems(baseId, rootItemIds)
-    })
+    await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
   /**
@@ -498,9 +497,7 @@ export class KnowledgeService extends BaseService {
    * that `index.sqlite` exists.
    */
   async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
-    return this.runProfileWrite(`reconcile-restored-base:${baseId}`, () =>
-      this.reconcileRestoredBaseFromMaterialUnderBarrier(baseId, restoreId)
-    )
+    return this.reconcileRestoredBaseFromMaterialUnderBarrier(baseId, restoreId)
   }
 
   private async reconcileRestoredBaseFromMaterialUnderBarrier(
@@ -567,9 +564,7 @@ export class KnowledgeService extends BaseService {
 
   /** Stop every still-active indexing job created by one restore-specific rebuild. */
   async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
-    await this.runProfileWrite(`cancel-restored-rebuild:${restoreId}`, () =>
-      this.cancelRestoredMaterialRebuildUnderBarrier(restoreId)
-    )
+    await this.cancelRestoredMaterialRebuildUnderBarrier(restoreId)
   }
 
   private async cancelRestoredMaterialRebuildUnderBarrier(restoreId: string): Promise<void> {
@@ -610,9 +605,7 @@ export class KnowledgeService extends BaseService {
    * to roll back to once it is committed.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return this.runProfileWrite(`enable-embedding-model:${baseId}`, () =>
-      this.enableEmbeddingModelUnderBarrier(baseId, patch)
-    )
+    return this.enableEmbeddingModelUnderBarrier(baseId, patch)
   }
 
   private async enableEmbeddingModelUnderBarrier(

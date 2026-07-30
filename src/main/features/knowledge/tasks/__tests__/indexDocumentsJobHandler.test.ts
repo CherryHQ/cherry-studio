@@ -1,15 +1,15 @@
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { hashEmbeddingText } from '../../vectorstore/indexStore/hashing'
 import type { RebuildMaterialInput } from '../../vectorstore/indexStore/model'
 import {
   captureNoteSnapshotFileMock,
   captureUrlSnapshotFileMock,
-  createAbortedCooperativeCtx as createAbortedCtx,
+  createAbortedCtx,
   createBase,
-  createCooperativeCtx as createCtx,
+  createCtx,
   createFileItem,
   createIndexDocumentsJobHandler,
   createJobSnapshot,
@@ -53,14 +53,6 @@ function lastRebuildInput(): RebuildMaterialInput {
   return rebuildMaterialMock.mock.calls[0][1] as RebuildMaterialInput
 }
 
-function makeGate(): { promise: Promise<void>; release: () => void } {
-  let release!: () => void
-  const promise = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  return { promise, release }
-}
-
 describe('index-documents job handler', () => {
   it('updates statuses, writes vectors, and completes the item', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
@@ -81,7 +73,6 @@ describe('index-documents job handler', () => {
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
-    expect(handler.quiescence).toBe('cooperative')
   })
 
   it('restore mode indexes a completed transported snapshot without transient status rewrites', async () => {
@@ -215,84 +206,6 @@ describe('index-documents job handler', () => {
     // Exactly one deletion for the key across the whole run — the run-start stale
     // clear. The exit path must not delete (a deletion event blanks the badge).
     expect(cacheService.deleteShared.mock.calls.filter(([key]) => key === progressKey)).toHaveLength(1)
-  })
-
-  it('parks before the first paid embedding batch', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
-
-    const gate = makeGate()
-    const ctx = {
-      ...createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }),
-      quiesceAtSafePoint: vi.fn(() => gate.promise)
-    }
-    const execution = handler.execute(ctx)
-
-    await vi.waitFor(() => expect(ctx.quiesceAtSafePoint).toHaveBeenCalledTimes(1))
-    expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
-    expect(rebuildMaterialMock).not.toHaveBeenCalled()
-
-    gate.release()
-    await execution
-    expect(embedKnowledgeTextsMock).toHaveBeenCalled()
-    expect(rebuildMaterialMock).toHaveBeenCalled()
-  })
-
-  it('finishes the current embedding batch, then parks before starting the next one', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ chunkSize: 50, chunkOverlap: 0 }))
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([
-      { text: manyChunksText(), metadata: { source: NOTE_ITEM_ID } }
-    ])
-
-    const betweenBatches = makeGate()
-    let safePointCalls = 0
-    const ctx = {
-      ...createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }),
-      quiesceAtSafePoint: vi.fn(() => {
-        safePointCalls++
-        return safePointCalls === 2 ? betweenBatches.promise : Promise.resolve()
-      })
-    }
-    const execution = handler.execute(ctx)
-
-    await vi.waitFor(() => expect(ctx.quiesceAtSafePoint).toHaveBeenCalledTimes(2))
-    expect(embedKnowledgeTextsMock).toHaveBeenCalledTimes(1)
-    expect(rebuildMaterialMock).not.toHaveBeenCalled()
-
-    betweenBatches.release()
-    await execution
-    expect(embedKnowledgeTextsMock.mock.calls.length).toBeGreaterThan(1)
-    const embeddedBodies = embedKnowledgeTextsMock.mock.calls.flatMap((call) => call[1] as string[])
-    expect(new Set(embeddedBodies).size).toBe(embeddedBodies.length)
-  })
-
-  it('parks before final material mutation without holding the Knowledge base lock', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
-    listExistingEmbeddingHashesMock.mockResolvedValueOnce(new Set(DISTINCT_DOCS.map(hashEmbeddingText)))
-
-    const beforeWrite = makeGate()
-    const ctx = {
-      ...createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }),
-      quiesceAtSafePoint: vi.fn(() => beforeWrite.promise)
-    }
-    const execution = handler.execute(ctx)
-
-    await vi.waitFor(() => expect(ctx.quiesceAtSafePoint).toHaveBeenCalledTimes(1))
-    expect(knowledgeLockManager.withBaseMutationLock).not.toHaveBeenCalled()
-    expect(rebuildMaterialMock).not.toHaveBeenCalled()
-
-    beforeWrite.release()
-    await execution
-    expect(knowledgeLockManager.withBaseMutationLock).toHaveBeenCalledTimes(1)
-    expect(rebuildMaterialMock).toHaveBeenCalled()
   })
 
   it('stops embedding more batches once the job is aborted mid-loop', async () => {

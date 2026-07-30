@@ -73,10 +73,6 @@ export class SkillService {
     this.installer = new SkillInstaller()
   }
 
-  private runProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
-    return application.get('ProfileWriteBarrierService').runWrite(`skill:${label}`, operation)
-  }
-
   // ===========================================================================
   // Public API
   // ===========================================================================
@@ -98,23 +94,19 @@ export class SkillService {
 
   /** Enable or disable a skill for a specific agent. */
   async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
-    return this.runProfileWrite(`toggle:${options.skillId}`, () => {
-      const skill = agentGlobalSkillService.getById(options.skillId)
-      if (!skill) return null
+    const skill = agentGlobalSkillService.getById(options.skillId)
+    if (!skill) return null
 
-      agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
+    agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
 
-      return { ...skill, isEnabled: options.isEnabled }
-    })
+    return { ...skill, isEnabled: options.isEnabled }
   }
 
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
   async enableForAllAgents(skillId: string): Promise<void> {
-    await this.runProfileWrite(`enable-for-all-agents:${skillId}`, () => {
-      const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
+    const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
-      logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
-    })
+    logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
@@ -178,20 +170,18 @@ export class SkillService {
   }
 
   async uninstall(skillId: string): Promise<void> {
-    return this.runProfileWrite(`uninstall:${skillId}`, () =>
-      this.mutationLock.runExclusive(async () => {
-        const skill = agentGlobalSkillService.getById(skillId)
-        if (!skill) {
-          throw new Error(`Skill not found: ${skillId}`)
-        }
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(skillId)
+      if (!skill) {
+        throw new Error(`Skill not found: ${skillId}`)
+      }
 
-        const skillPath = this.getSkillStoragePath(skill.folderName)
-        await this.installer.uninstall(skillPath)
-        await this.unlinkMirror(skill.folderName)
-        agentGlobalSkillService.deleteById(skillId)
-        logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
-      })
-    )
+      const skillPath = this.getSkillStoragePath(skill.folderName)
+      await this.installer.uninstall(skillPath)
+      await this.unlinkMirror(skill.folderName)
+      agentGlobalSkillService.deleteById(skillId)
+      logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
+    })
   }
 
   /**
@@ -587,9 +577,7 @@ export class SkillService {
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
-    return this.runProfileWrite(`install:${source}`, () =>
-      this.mutationLock.runExclusive(() => this.installSkillDirLocked(skillDir, source, sourceUrl, provenance))
-    )
+    return this.mutationLock.runExclusive(() => this.installSkillDirLocked(skillDir, source, sourceUrl, provenance))
   }
 
   private async installSkillDirLocked(
@@ -1032,8 +1020,8 @@ export class SkillService {
     if (this.reconcileInFlight) return this.reconcileInFlight
     // Under the mutation lock so reconcile can't interleave with install / uninstall / builtin
     // sync (which would let it read a stale snapshot and prune a just-installed row).
-    this.reconcileInFlight = this.runProfileWrite('reconcile', () =>
-      this.mutationLock.runExclusive(async () => {
+    this.reconcileInFlight = this.mutationLock
+      .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
         await this.installer.recoverInterruptedInstalls(storageRoot)
         try {
@@ -1044,9 +1032,9 @@ export class SkillService {
         await this.reconcileLibraryToDb()
         await this.reconcileMirror()
       })
-    ).finally(() => {
-      this.reconcileInFlight = null
-    })
+      .finally(() => {
+        this.reconcileInFlight = null
+      })
     return this.reconcileInFlight
   }
 
@@ -1438,9 +1426,7 @@ export class SkillService {
    * for existing and future agents alike — without any `agent_skill` rows.
    */
   async syncBuiltinSkill(folderName: string, sourcePath: string, appVersion: string): Promise<boolean> {
-    return this.runProfileWrite(`sync-builtin:${folderName}`, () =>
-      this.mutationLock.runExclusive(() => this.syncBuiltinSkillUnderBarrier(folderName, sourcePath, appVersion))
-    )
+    return this.mutationLock.runExclusive(() => this.syncBuiltinSkillUnderBarrier(folderName, sourcePath, appVersion))
   }
 
   private async syncBuiltinSkillUnderBarrier(

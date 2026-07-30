@@ -35,14 +35,6 @@ function warmQuery() {
   }
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
-}
-
 describe('ClaudeCodeWarmQueryManager', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -104,6 +96,15 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const withoutAbort = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' } as any)
 
     expect(withAbort).toBe(withoutAbort)
+  })
+
+  it('does not treat mutable sessionStore object state as spawn configuration', () => {
+    const firstStore = { append: vi.fn(), load: vi.fn(), mutableState: ['first'] }
+    const secondStore = { append: vi.fn(), load: vi.fn(), mutableState: ['second'] }
+
+    expect(createClaudeCodeWarmQuerySignature({ model: 'sonnet', sessionStore: firstStore } as any)).toBe(
+      createClaudeCodeWarmQuerySignature({ model: 'sonnet', sessionStore: secondStore } as any)
+    )
   })
 
   it('uses the same signature with or without the session steer holder', () => {
@@ -295,45 +296,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     expect(buildWarmRequestMock).not.toHaveBeenCalled()
     expect(startupMock).not.toHaveBeenCalled()
-  })
-
-  it('defers new prewarms while paused without adding them to the drain wait-set', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery()
-    startupMock.mockResolvedValueOnce(warm)
-    const hold = manager.pause('backup')
-
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
-
-    expect(startupMock).not.toHaveBeenCalled()
-    expect(manager.listActiveWork()).toEqual([])
-    await expect(manager.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
-
-    hold.dispose()
-    await Promise.resolve()
-    expect(startupMock).toHaveBeenCalledTimes(1)
-    const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet' } as any })
-    expect(consumed?.warmQuery).toBe(warm)
-  })
-
-  it('drains a warm startup admitted before pause', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const startup = deferred<ReturnType<typeof warmQuery>>()
-    startupMock.mockReturnValueOnce(startup.promise)
-    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
-    const hold = manager.pause('backup')
-
-    let settled = false
-    const drain = manager.drainInFlight({ timeoutMs: 5_000 }).finally(() => {
-      settled = true
-    })
-    await Promise.resolve()
-    expect(settled).toBe(false)
-    expect(manager.listActiveWork()).toEqual([{ id: 'warm-start:session-1', summary: 'warm query starting' }])
-
-    startup.resolve(warmQuery())
-    await expect(drain).resolves.toEqual({ stragglerIds: [] })
-    hold.dispose()
   })
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of

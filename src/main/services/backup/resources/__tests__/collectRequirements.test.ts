@@ -5,11 +5,16 @@ import { join } from 'node:path'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
-import { DISCONNECTED_AGENT_WORKSPACE_DIRECTORY } from '@main/ai/agents/portableProfilePolicy'
+import {
+  DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
+  encodePortableAgentResumePoint
+} from '@main/ai/agents/portableProfilePolicy'
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,6 +40,7 @@ const ROOTS: ResourceRoots = {
   knowledge: `${USER_DATA}/Data/KnowledgeBase`,
   notes: `${USER_DATA}/Data/Notes`,
   agentData: `${USER_DATA}/Data/Agents`,
+  agentTranscripts: `${USER_DATA}/Data/AgentTranscripts`,
   systemWorkspaces: `${USER_DATA}/Data/Agents/system`,
   skills: `${USER_DATA}/Data/Skills`,
   mcpWorkspace: `${USER_DATA}/Data/Workspace`,
@@ -111,6 +117,7 @@ describe('collectResourceRequirements', () => {
       'knowledge-base': 0,
       'note-root': 0,
       'agent-data': 0,
+      'agent-transcript': 0,
       'agent-workspace': 0,
       skill: 0,
       'mcp-workspace': 0,
@@ -264,6 +271,61 @@ describe('collectResourceRequirements', () => {
     })
   })
 
+  describe('agent transcripts', () => {
+    it('declares one owner snapshot for a portable resume point and ignores raw legacy tokens', () => {
+      dbh.db
+        .insert(agentTable)
+        .values({ id: 'agent-1', type: 'agent', name: 'A', instructions: '', orderKey: 'a' })
+        .run()
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'workspace-1',
+          name: 'system',
+          path: `${ROOTS.systemWorkspaces}/session-1`,
+          type: 'system',
+          orderKey: 'a'
+        })
+        .run()
+      dbh.db
+        .insert(agentSessionTable)
+        .values({
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspaceId: 'workspace-1',
+          name: 'Session',
+          orderKey: 'a'
+        } as never)
+        .run()
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values([
+          {
+            id: 'message-legacy',
+            sessionId: 'session-1',
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [] },
+            runtimeResumeToken: 'sdk-cwd-keyed'
+          },
+          {
+            id: 'message-portable',
+            sessionId: 'session-1',
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [] },
+            runtimeResumeToken: encodePortableAgentResumePoint({
+              sessionId: '33333333-3333-4333-8333-333333333333',
+              resumeSessionAt: '44444444-4444-4444-8444-444444444444'
+            })
+          }
+        ] as never)
+        .run()
+
+      expect(livePathsOf('agent-transcript', collect())).toEqual(['Data/AgentTranscripts/session-1.json'])
+    })
+  })
+
   describe('agent workspaces', () => {
     it('declares a workspace inside the managed root and rejects one outside it', () => {
       dbh.db
@@ -368,7 +430,7 @@ describe('collectResourceRequirements', () => {
       return inventory.requiredContent.get(`Data/KnowledgeBase/${baseId}`)
     }
 
-    it('names the raw material of every completed leaf, indexed artifact first', () => {
+    it('names both source and indexed material for every completed leaf', () => {
       insertKnowledgeBase('kb-1')
       insertItem('kb-1', 'i-file', 'file', { source: 'a.pdf', relativePath: 'a.pdf' })
       insertItem('kb-1', 'i-processed', 'file', {
@@ -379,7 +441,13 @@ describe('collectResourceRequirements', () => {
       insertItem('kb-1', 'i-url', 'url', { source: 'https://x', url: 'https://x', relativePath: 'x.md' })
       insertItem('kb-1', 'i-note', 'note', { source: 'n', content: 'n', relativePath: 'n.md' })
 
-      expect(materialsOf('kb-1', collect())?.slice().sort()).toEqual(['raw/a.pdf', 'raw/b.md', 'raw/n.md', 'raw/x.md'])
+      expect(materialsOf('kb-1', collect())?.slice().sort()).toEqual([
+        'raw/a.pdf',
+        'raw/b.docx',
+        'raw/b.md',
+        'raw/n.md',
+        'raw/x.md'
+      ])
     })
 
     it('names a directory container child but not the container itself', () => {

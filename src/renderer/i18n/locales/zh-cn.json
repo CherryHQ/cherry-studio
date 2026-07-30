@@ -5859,7 +5859,6 @@
           "arm_failed": "无法启动执行恢复所需的重启，未做任何更改。",
           "busy": "另一个备份操作正在进行，请等待其完成。",
           "export_destination": "无法在该位置发布备份。请选择新的文件名或其他磁盘。",
-          "export_quiesce": "无法在 30 秒内等到正在进行的写入结束。请等待对话、Agent、文件写入或工具调用完成后重试。",
           "export_source": "部分源文件发生变化或无法以可移植格式保存。请检查受管文件后重试。",
           "export_source_changed": "受管文件在备份期间发生了变化，本次备份未创建。请等待相关编辑或同步停止后重试。",
           "export_source_changed_path": "“{{path}}”在备份期间发生了变化，本次备份未创建。请等待相关编辑或同步停止后重试。",
@@ -5909,6 +5908,7 @@
             "dangling_reference": "有 {{count}} 个链接指向不存在的目标，未被包含。",
             "external_file_dropped": "已移除 {{count}} 条外部文件引用，因为无法在本机安全打开源设备路径。",
             "external_reference": "有 {{count}} 个链接指向 Cherry Studio 受管资源单元之外，未被包含。",
+            "knowledge_index_rebuild": "有 {{count}} 个知识库搜索索引无法以一致快照运输，将使用已包含的源材料重建。",
             "path_collision": "有 {{count}} 个受管路径在本机发生冲突，已作为非活动元数据保留。",
             "path_unportable": "有 {{count}} 个受管路径无法进行可移植转换，已作为非活动元数据保留。",
             "resource_changed": "创建备份时有 {{count}} 个受管资源单元发生变化。请停止相关活动写入后重新创建备份。",
@@ -5942,7 +5942,9 @@
         },
         "preview": {
           "degradations": "创建该备份时有 {{count}} 项未被包含。",
-          "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。"
+          "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
+          "knowledge_ready": "有 {{count}} 个知识库搜索索引已包含，恢复后可立即使用。",
+          "knowledge_rebuild": "有 {{count}} 个知识库搜索索引需要在恢复后重建。"
         },
         "restore": {
           "arm_button": "恢复并重启",

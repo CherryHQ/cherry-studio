@@ -123,7 +123,6 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -650,10 +649,6 @@ export class FileManager extends BaseService implements IFileManager {
     versionCache: this._versionCache
   }
 
-  private runManagedWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
-    return application.get('ProfileWriteBarrierService').runWrite(`file-manager:${label}`, operation)
-  }
-
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
@@ -704,7 +699,7 @@ export class FileManager extends BaseService implements IFileManager {
       return dispatchHandle(
         handle,
         (entryId) => this.permanentDelete(entryId),
-        (path) => this.runManagedWrite('path-permanent-delete', () => fsRemove(path))
+        (path) => fsRemove(path)
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
@@ -735,7 +730,7 @@ export class FileManager extends BaseService implements IFileManager {
    * - Both clean → `outcome: 'completed'`.
    */
   async runSweep(): Promise<OrphanReport> {
-    return this.runManagedWrite('run-sweep', () => this.runSweepManaged())
+    return this.runSweepManaged()
   }
 
   private async runSweepManaged(): Promise<OrphanReport> {
@@ -838,7 +833,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
-    return this.runManagedWrite('ensure-external-entry', () => internalEnsureExternal(this.deps, params))
+    return internalEnsureExternal(this.deps, params)
   }
 
   // ─── Read ───
@@ -910,49 +905,45 @@ export class FileManager extends BaseService implements IFileManager {
   // ─── Mutation methods ───
 
   async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
-    return this.runManagedWrite('create-internal-entry', () => internalCreateInternal(this.deps, params))
+    return internalCreateInternal(this.deps, params)
   }
 
   async batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchCreateResult> {
-    return this.runManagedWrite('batch-create-internal-entries', () =>
-      aggregateCreate(
-        items,
-        (_, index) => `#${index}`,
-        (p) => this.createInternalEntry(p)
-      )
+    return aggregateCreate(
+      items,
+      (_, index) => `#${index}`,
+      (p) => this.createInternalEntry(p)
     )
   }
 
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
-    return this.runManagedWrite('batch-ensure-external-entries', async () => {
-      // Within-batch path duplicates resolve to the same entry per the public
-      // contract; the second occurrence reuses the just-inserted row. The
-      // in-memory memo keys on the branded `externalPath` directly — no re-parse,
-      // trusting the already-validated `AbsoluteFilePath` param. Byte-identical inputs
-      // dedup here; any canonically-equal-but-byte-different pair still coalesces
-      // one level down (`ensureExternalEntry` canonicalizes and hits the DB
-      // upsert). Both items end up in `succeeded` even though only one DB insert
-      // happens — and each carries its own `sourceRef`, so the caller can still
-      // correlate every input.
-      const seen = new Map<string, FileEntry>()
-      const succeeded: BatchCreateResult['succeeded'] = []
-      const failed: BatchCreateResult['failed'] = []
-      for (const params of items) {
-        const sourceRef = params.externalPath
-        try {
-          const cached = seen.get(params.externalPath)
-          const entry = cached ?? (await this.ensureExternalEntry(params))
-          if (!cached) seen.set(params.externalPath, entry)
-          succeeded.push({ id: entry.id, sourceRef })
-        } catch (err) {
-          // Wire format only carries `.message`; preserve the stack via the
-          // logger side-channel for postmortem.
-          fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef, err })
-          failed.push({ sourceRef, error: (err as Error).message })
-        }
+    // Within-batch path duplicates resolve to the same entry per the public
+    // contract; the second occurrence reuses the just-inserted row. The
+    // in-memory memo keys on the branded `externalPath` directly — no re-parse,
+    // trusting the already-validated `AbsoluteFilePath` param. Byte-identical inputs
+    // dedup here; any canonically-equal-but-byte-different pair still coalesces
+    // one level down (`ensureExternalEntry` canonicalizes and hits the DB
+    // upsert). Both items end up in `succeeded` even though only one DB insert
+    // happens — and each carries its own `sourceRef`, so the caller can still
+    // correlate every input.
+    const seen = new Map<string, FileEntry>()
+    const succeeded: BatchCreateResult['succeeded'] = []
+    const failed: BatchCreateResult['failed'] = []
+    for (const params of items) {
+      const sourceRef = params.externalPath
+      try {
+        const cached = seen.get(params.externalPath)
+        const entry = cached ?? (await this.ensureExternalEntry(params))
+        if (!cached) seen.set(params.externalPath, entry)
+        succeeded.push({ id: entry.id, sourceRef })
+      } catch (err) {
+        // Wire format only carries `.message`; preserve the stack via the
+        // logger side-channel for postmortem.
+        fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef, err })
+        failed.push({ sourceRef, error: (err as Error).message })
       }
-      return { succeeded, failed }
-    })
+    }
+    return { succeeded, failed }
   }
 
   async createReadStream(id: FileEntryId): Promise<Readable> {
@@ -981,7 +972,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async write(id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
-    return this.runManagedWrite('write', () => internalWrite(this.deps, id, data))
+    return internalWrite(this.deps, id, data)
   }
 
   async writeIfUnchanged(
@@ -990,19 +981,11 @@ export class FileManager extends BaseService implements IFileManager {
     expectedVersion: FileVersion,
     expectedContentHash?: string
   ): Promise<FileVersion> {
-    return this.runManagedWrite('write-if-unchanged', () =>
-      internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
-    )
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
-    const lease = await application.get('ProfileWriteBarrierService').acquireWriteLease('file-manager:write-stream')
-    try {
-      return internalCreateWriteStream(this.deps, id, () => lease.dispose())
-    } catch (error) {
-      lease.dispose()
-      throw error
-    }
+    return internalCreateWriteStream(this.deps, id)
   }
 
   /** Alias kept for backwards compatibility; prefer `createWriteStream`. */
@@ -1011,39 +994,39 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async trash(id: FileEntryId): Promise<void> {
-    return this.runManagedWrite('trash', () => internalTrash(this.deps, id))
+    return internalTrash(this.deps, id)
   }
 
   async restore(id: FileEntryId): Promise<FileEntry> {
-    return this.runManagedWrite('restore', () => internalRestore(this.deps, id))
+    return internalRestore(this.deps, id)
   }
 
   async permanentDelete(id: FileEntryId): Promise<void> {
-    return this.runManagedWrite('permanent-delete', () => internalPermanentDelete(this.deps, id))
+    return internalPermanentDelete(this.deps, id)
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return this.runManagedWrite('batch-trash', () => internalBatchTrash(this.deps, ids))
+    return internalBatchTrash(this.deps, ids)
   }
 
   async batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return this.runManagedWrite('batch-restore', () => internalBatchRestore(this.deps, ids))
+    return internalBatchRestore(this.deps, ids)
   }
 
   async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return this.runManagedWrite('batch-permanent-delete', () => internalBatchPermanentDelete(this.deps, ids))
+    return internalBatchPermanentDelete(this.deps, ids)
   }
 
   async emptyTrash(): Promise<BatchMutationResult> {
-    return this.runManagedWrite('empty-trash', () => internalEmptyTrash(this.deps))
+    return internalEmptyTrash(this.deps)
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {
-    return this.runManagedWrite('rename', () => internalRename(this.deps, id, newName))
+    return internalRename(this.deps, id, newName)
   }
 
   async copy(params: { id: FileEntryId; newName?: string }): Promise<FileEntry> {
-    return this.runManagedWrite('copy', () => internalCopy(this.deps, params))
+    return internalCopy(this.deps, params)
   }
 
   async withTempCopy<T>(id: FileEntryId, fn: (tempPath: string) => Promise<T>): Promise<T> {

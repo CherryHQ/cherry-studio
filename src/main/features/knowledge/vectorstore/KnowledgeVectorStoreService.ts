@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
@@ -6,13 +7,28 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
+import Database from 'better-sqlite3'
 
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../utils/storage/pathStorage'
 import { createKnowledgeIndexStoreAtPath } from './indexStore/createIndexStore'
 import type { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
+import { KNOWLEDGE_INDEX_SCHEMA_VERSION } from './indexStore/schema'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
+
+export type KnowledgeIndexSnapshotFailure =
+  | 'missing'
+  | 'snapshot-failed'
+  | 'integrity-check-failed'
+  | 'base-id-mismatch'
+  | 'schema-version-mismatch'
+  | 'material-mismatch'
+  | 'embedding-missing'
+
+export type KnowledgeIndexSnapshotResult =
+  | { readonly status: 'ready'; readonly stagedPath: string }
+  | { readonly status: 'rebuild'; readonly reason: KnowledgeIndexSnapshotFailure }
 
 function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is CompletedKnowledgeBase {
   if (isCompletedKnowledgeBase(base)) {
@@ -75,6 +91,74 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
 
     return this.getIndexStore(base)
+  }
+
+  /**
+   * Produce a single-file SQLite snapshot without pausing indexing.
+   *
+   * `destination` must be an operation-owned, absent path. A cached store uses
+   * its current connection, so commits made through that connection are
+   * reflected according to SQLite's online-backup contract. An unopened store
+   * is backed up through a short-lived read-only connection; concurrent writers
+   * make SQLite restart the copy rather than exposing a torn WAL file.
+   */
+  async snapshotPortableIndex(
+    baseId: string,
+    destination: string,
+    signal?: AbortSignal
+  ): Promise<KnowledgeIndexSnapshotResult> {
+    const sourcePath = getKnowledgeVectorStoreFilePathSync(baseId)
+    try {
+      const source = await fs.promises.lstat(sourcePath)
+      if (source.isSymbolicLink() || !source.isFile()) {
+        return { status: 'rebuild', reason: 'snapshot-failed' }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { status: 'rebuild', reason: 'missing' }
+      }
+      logger.warn('Could not inspect Knowledge index for portable snapshot; raw material will remain rebuildable', {
+        baseId,
+        error
+      })
+      return { status: 'rebuild', reason: 'snapshot-failed' }
+    }
+
+    await fs.promises.mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
+    try {
+      const cached = this.instanceCache.get(baseId)
+      if (cached) {
+        await cached.snapshotTo(destination, signal)
+      } else {
+        const source = new Database(sourcePath, { fileMustExist: true, readonly: true })
+        try {
+          await source.backup(destination, {
+            progress() {
+              if (signal?.aborted) throw signal.reason ?? new Error('Knowledge index snapshot cancelled')
+              return 100
+            }
+          })
+        } finally {
+          source.close()
+        }
+      }
+      if (signal?.aborted) throw signal.reason ?? new Error('Knowledge index snapshot cancelled')
+
+      const failure = this.validatePortableSnapshot(destination, baseId)
+      if (failure) {
+        await fs.promises.rm(destination, { force: true })
+        return { status: 'rebuild', reason: failure }
+      }
+      return { status: 'ready', stagedPath: destination }
+    } catch (error) {
+      await fs.promises.rm(destination, { force: true }).catch(() => {})
+      if (signal?.aborted || ['ENOSPC', 'EDQUOT'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+      logger.warn('Could not snapshot Knowledge index; raw material will remain rebuildable', {
+        baseId,
+        error
+      })
+      return { status: 'rebuild', reason: 'snapshot-failed' }
+    }
   }
 
   /**
@@ -162,6 +246,27 @@ export class KnowledgeVectorStoreService extends BaseService {
         return false
       }
       throw error
+    }
+  }
+
+  private validatePortableSnapshot(
+    snapshotPath: string,
+    baseId: string
+  ): Exclude<KnowledgeIndexSnapshotFailure, 'missing' | 'snapshot-failed'> | undefined {
+    const snapshot = new Database(snapshotPath, { fileMustExist: true, readonly: true })
+    try {
+      const quickCheck = snapshot.pragma('quick_check') as Array<Record<string, unknown>>
+      if (quickCheck.length !== 1 || Object.values(quickCheck[0])[0] !== 'ok') return 'integrity-check-failed'
+      const meta = snapshot
+        .prepare('SELECT base_id AS baseId, schema_version AS schemaVersion FROM meta WHERE id = 1')
+        .get() as { baseId?: unknown; schemaVersion?: unknown } | undefined
+      if (meta?.baseId !== baseId) return 'base-id-mismatch'
+      if (meta.schemaVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) return 'schema-version-mismatch'
+      return undefined
+    } catch {
+      return 'integrity-check-failed'
+    } finally {
+      snapshot.close()
     }
   }
 

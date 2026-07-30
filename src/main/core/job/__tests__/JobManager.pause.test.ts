@@ -22,7 +22,7 @@ import type { DbType } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
-import type { CooperativeJobHandler, JobHandle, JobHandler } from '@main/core/job/types'
+import type { JobHandle, JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -108,30 +108,6 @@ function makeGateHandler(
           resolve()
         })
       })
-      return { ok: true }
-    },
-    onSettled: opts.onSettled
-  }
-}
-
-function makeCooperativeGateHandler(
-  state: { entered: number; leftSafePoint: number },
-  beforeSafePoint: Promise<void>,
-  afterSafePoint: Promise<void> = Promise.resolve(),
-  opts: { cancelTimeoutMs?: number; onSettled?: JobHandler['onSettled'] } = {}
-): CooperativeJobHandler {
-  return {
-    recovery: 'retry',
-    quiescence: 'cooperative',
-    cancelTimeoutMs: opts.cancelTimeoutMs ?? 1000,
-    defaultConcurrency: 2,
-    async execute(ctx) {
-      state.entered++
-      await beforeSafePoint
-      await ctx.quiesceAtSafePoint()
-      state.leftSafePoint++
-      await afterSafePoint
-      ctx.signal.throwIfAborted()
       return { ok: true }
     },
     onSettled: opts.onSettled
@@ -594,166 +570,6 @@ describe('JobManager pause / drainInFlight', () => {
       expect(verdict).toEqual({ stragglerIds: [], startupRecoveryPending: false })
 
       hold.dispose()
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('accepts an opt-in cooperative job parked at the current safe point', async () => {
-      const beforeSafePoint = makeGate()
-      const afterSafePoint = makeGate()
-      const state = { entered: 0, leftSafePoint: 0 }
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [
-          ['pause.cooperative', makeCooperativeGateHandler(state, beforeSafePoint.promise, afterSafePoint.promise)]
-        ]
-      })
-
-      const handle = jobManager.enqueue('pause.cooperative' as never, { message: 'batching' } as never)
-      await pollUntil(() => state.entered === 1)
-
-      const firstHold = jobManager.pause('test: cooperative first holder')
-      const secondHold = jobManager.pause('test: cooperative second holder')
-      beforeSafePoint.release()
-
-      const verdict = await jobManager.drainInFlight({ timeoutMs: 1000 })
-      expect(verdict).toEqual({ stragglerIds: [], startupRecoveryPending: false })
-      expect(internals(jobManager).inFlightExecuted.has(handle.id)).toBe(true)
-      expect(state.leftSafePoint).toBe(0)
-
-      firstHold.dispose()
-      await sleep(30)
-      expect(state.leftSafePoint).toBe(0)
-
-      secondHold.dispose()
-      await pollUntil(() => state.leftSafePoint === 1)
-      afterSafePoint.release()
-      await expect(handle.finished).resolves.toMatchObject({ status: 'completed' })
-
-      await drainTrailingDispatch(jobManager)
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('does not reuse a parked mark from an earlier pause generation', async () => {
-      const firstSafePoint = makeGate()
-      const secondSafePoint = makeGate()
-      const state = { returned: 0 }
-      const handler: CooperativeJobHandler = {
-        recovery: 'retry',
-        quiescence: 'cooperative',
-        async execute(ctx) {
-          await firstSafePoint.promise
-          await ctx.quiesceAtSafePoint()
-          state.returned++
-          await secondSafePoint.promise
-          await ctx.quiesceAtSafePoint()
-          state.returned++
-        }
-      }
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['pause.cooperative-generation', handler]]
-      })
-
-      const handle = jobManager.enqueue('pause.cooperative-generation' as never, { message: 'twice' } as never)
-      await pollUntil(() => jobService.getById(handle.id)?.status === 'running')
-
-      const firstHold = jobManager.pause('test: generation one')
-      firstSafePoint.release()
-      await expect(jobManager.drainInFlight({ timeoutMs: 1000 })).resolves.toEqual({
-        stragglerIds: [],
-        startupRecoveryPending: false
-      })
-      firstHold.dispose()
-      await pollUntil(() => state.returned === 1)
-
-      const secondHold = jobManager.pause('test: generation two')
-      let secondDrainSettled = false
-      const secondDrain = jobManager.drainInFlight({ timeoutMs: 1000 }).then((verdict) => {
-        secondDrainSettled = true
-        return verdict
-      })
-      await sleep(30)
-      expect(secondDrainSettled).toBe(false)
-
-      secondSafePoint.release()
-      await expect(secondDrain).resolves.toEqual({ stragglerIds: [], startupRecoveryPending: false })
-      expect(state.returned).toBe(1)
-
-      secondHold.dispose()
-      await expect(handle.finished).resolves.toMatchObject({ status: 'completed' })
-      expect(state.returned).toBe(2)
-
-      await drainTrailingDispatch(jobManager)
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('still reports a cooperative job that has not reached its safe point', async () => {
-      const beforeSafePoint = makeGate()
-      const state = { entered: 0, leftSafePoint: 0 }
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['pause.cooperative-straggler', makeCooperativeGateHandler(state, beforeSafePoint.promise)]]
-      })
-
-      const handle = jobManager.enqueue('pause.cooperative-straggler' as never, { message: 'slow batch' } as never)
-      await pollUntil(() => state.entered === 1)
-
-      const hold = jobManager.pause('test: cooperative straggler')
-      const verdict = await jobManager.drainInFlight({ timeoutMs: 50 })
-      expect(verdict).toEqual({ stragglerIds: [handle.id], startupRecoveryPending: false })
-
-      beforeSafePoint.release()
-      await expect(jobManager.drainInFlight({ timeoutMs: 1000 })).resolves.toEqual({
-        stragglerIds: [],
-        startupRecoveryPending: false
-      })
-      hold.dispose()
-      await expect(handle.finished).resolves.toMatchObject({ status: 'completed' })
-
-      await drainTrailingDispatch(jobManager)
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('defers cooperative cancellation settlement while the job is parked', async () => {
-      const beforeSafePoint = makeGate()
-      const state = { entered: 0, leftSafePoint: 0 }
-      let settled = false
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [
-          [
-            'pause.cooperative-cancel',
-            makeCooperativeGateHandler(state, beforeSafePoint.promise, Promise.resolve(), {
-              cancelTimeoutMs: 20,
-              onSettled: () => {
-                settled = true
-              }
-            })
-          ]
-        ]
-      })
-
-      const handle = jobManager.enqueue('pause.cooperative-cancel' as never, { message: 'cancel' } as never)
-      await pollUntil(() => state.entered === 1)
-      const hold = jobManager.pause('test: cooperative cancel')
-      beforeSafePoint.release()
-      await expect(jobManager.drainInFlight({ timeoutMs: 1000 })).resolves.toEqual({
-        stragglerIds: [],
-        startupRecoveryPending: false
-      })
-
-      let cancelSettled = false
-      const cancel = jobManager.cancel(handle.id, 'user requested').then((result) => {
-        cancelSettled = true
-        return result
-      })
-      await sleep(50)
-      expect(cancelSettled).toBe(false)
-      expect(settled).toBe(false)
-      expect(jobService.getById(handle.id)?.status).toBe('running')
-
-      hold.dispose()
-      await expect(cancel).resolves.toEqual({ outcome: 'cancelled' })
-      expect(settled).toBe(true)
-      expect(jobService.getById(handle.id)?.status).toBe('cancelled')
-
-      await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
 
@@ -1668,29 +1484,6 @@ describe('JobManager pause / drainInFlight', () => {
   // -------------------------------------------------------------------------
 
   describe('interactions', () => {
-    it('releases a parked cooperative job into shutdown abort without reopening autonomy', async () => {
-      const beforeSafePoint = makeGate()
-      const state = { entered: 0, leftSafePoint: 0 }
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['pause.cooperative-stop', makeCooperativeGateHandler(state, beforeSafePoint.promise)]]
-      })
-
-      const handle = jobManager.enqueue('pause.cooperative-stop' as never, { message: 'shutdown' } as never)
-      await pollUntil(() => state.entered === 1)
-      const hold = jobManager.pause('test: cooperative shutdown')
-      beforeSafePoint.release()
-      await expect(jobManager.drainInFlight({ timeoutMs: 1000 })).resolves.toEqual({
-        stragglerIds: [],
-        startupRecoveryPending: false
-      })
-
-      await jobManager._doStop()
-      expect(jobService.getById(handle.id)?.status).toBe('cancelled')
-      expect(() => hold.dispose()).not.toThrow()
-
-      await scheduler._doStop()
-    })
-
     it('onStop shuts down normally while paused; disposing a hold after shutdown is a no-op', async () => {
       const counter = { count: 0 }
       const gate = makeGate()

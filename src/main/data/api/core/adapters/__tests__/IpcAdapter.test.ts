@@ -47,7 +47,6 @@ const untrustedEvents = {
 
 describe('IpcAdapter', () => {
   let handleRequest: ReturnType<typeof vi.fn>
-  let runWrite: ReturnType<typeof vi.fn>
   let requestHandler: IpcHandler
 
   beforeEach(() => {
@@ -58,8 +57,7 @@ describe('IpcAdapter', () => {
       data: { ok: true },
       metadata: { duration: 1, timestamp: 1 }
     }))
-    runWrite = vi.fn(async (_label: string, operation: () => Promise<unknown>) => operation())
-    new IpcAdapter({ handleRequest } as unknown as ApiServer, runWrite).setup()
+    new IpcAdapter({ handleRequest } as unknown as ApiServer).setup()
 
     const calls = vi.mocked(ipcMain.handle).mock.calls
     const handlerFor = (channel: string) => calls.find((call) => call[0] === channel)![1] as IpcHandler
@@ -72,17 +70,6 @@ describe('IpcAdapter', () => {
 
     expect(handleRequest).toHaveBeenCalledWith(request)
     expect(response).toMatchObject({ id: 'req-1', status: 200, data: { ok: true } })
-    expect(runWrite).not.toHaveBeenCalled()
-  })
-
-  it('runs a trusted non-GET request inside the profile write barrier', async () => {
-    const request = { id: 'req-2', method: 'POST', path: '/topics' }
-    const response = await requestHandler(trustedEvent, request)
-
-    expect(runWrite).toHaveBeenCalledOnce()
-    expect(runWrite).toHaveBeenCalledWith('data-api:POST /topics', expect.any(Function))
-    expect(handleRequest).toHaveBeenCalledWith(request)
-    expect(response).toMatchObject({ id: 'req-2', status: 200, data: { ok: true } })
   })
 
   it('rejects untrusted request senders with 403 before ApiServer is reached', async () => {

@@ -8,7 +8,6 @@ import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } f
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import { sweepStaleExportOperations } from './exportOperation'
-import { EXPORT_QUIESCE_WHEN_READY_SERVICES } from './exportQuiesce'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
 import { readRestoreKnowledgeProgress, readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
@@ -100,10 +99,9 @@ export interface BackupStatus {
  */
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
-// Export resolves the fixed same-phase writer participants, while post-promotion
-// work calls KnowledgeService. Declaring every peer keeps them initialized
-// before export can start and alive until BackupService has stopped.
-@DependsOn([...EXPORT_QUIESCE_WHEN_READY_SERVICES, 'KnowledgeService'])
+// Post-promotion work calls KnowledgeService. The owner must be initialized
+// before BackupService starts and remain alive until BackupService has stopped.
+@DependsOn(['KnowledgeService'])
 export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
   private inFlight: InFlightOperation | null = null
@@ -376,8 +374,10 @@ export class BackupService extends BaseService {
       (knowledgeReadiness?.kind !== 'ok' ||
         knowledgeProgress?.kind !== 'ok' ||
         (!knowledgeProgress.progress.abandoned &&
-          knowledgeReadiness.summary.requiresRebuild &&
-          knowledgeReadiness.summary.baseIds.some((id) => !knowledgeProgress.progress.completedBaseIds.includes(id))))
+          knowledgeReadiness.summary.rebuildBaseIds.length > 0 &&
+          knowledgeReadiness.summary.rebuildBaseIds.some(
+            (id) => !knowledgeProgress.progress.completedBaseIds.includes(id)
+          )))
     return {
       kind: 'journal',
       state: journal.state,

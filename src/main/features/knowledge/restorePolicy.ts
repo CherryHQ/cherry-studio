@@ -18,11 +18,30 @@ const KnowledgeRestoreSummarySchema = z
       .refine((ids) => new Set(ids).size === ids.length, {
         message: 'restored Knowledge base IDs must be unique'
       }),
+    readyBaseIds: z.array(z.string().min(1)).max(MAX_RESTORED_KNOWLEDGE_BASES),
+    rebuildBaseIds: z.array(z.string().min(1)).max(MAX_RESTORED_KNOWLEDGE_BASES),
     requiresRebuild: z.boolean()
   })
-  .refine((summary) => summary.requiresRebuild || summary.baseIds.length === 0, {
-    message: 'a restore that does not require rebuilding cannot name Knowledge bases'
+  .superRefine((summary, ctx) => {
+    const all = new Set(summary.baseIds)
+    const ready = new Set(summary.readyBaseIds)
+    const rebuild = new Set(summary.rebuildBaseIds)
+    if (
+      ready.size !== summary.readyBaseIds.length ||
+      rebuild.size !== summary.rebuildBaseIds.length ||
+      [...ready].some((baseId) => !all.has(baseId) || rebuild.has(baseId)) ||
+      [...rebuild].some((baseId) => !all.has(baseId)) ||
+      ready.size + rebuild.size !== all.size ||
+      summary.requiresRebuild !== rebuild.size > 0
+    ) {
+      ctx.addIssue({ code: 'custom', message: 'Knowledge readiness must partition restored base IDs' })
+    }
   })
+
+const LegacyKnowledgeRestoreSummarySchema = z.strictObject({
+  baseIds: z.array(z.string().min(1)).max(MAX_RESTORED_KNOWLEDGE_BASES),
+  requiresRebuild: z.boolean()
+})
 
 export type KnowledgeRestoreSummary = z.infer<typeof KnowledgeRestoreSummarySchema>
 
@@ -60,14 +79,19 @@ export type KnowledgeRestoreProgressRead = RestoreOwnerProgressReadResult<Knowle
 export function createKnowledgeRestoreOwnerSummary(input: {
   readonly userDataPath: string
   readonly knowledgeRoot: string
-  readonly livePaths: readonly string[]
+  readonly resources: readonly {
+    readonly livePath: string
+    readonly contentPaths: readonly string[]
+  }[]
 }): KnowledgeRestoreOwnerSummary {
   const root = path.resolve(input.knowledgeRoot)
   const baseIds: string[] = []
+  const readyBaseIds: string[] = []
+  const rebuildBaseIds: string[] = []
   const seen = new Set<string>()
 
-  for (const livePath of input.livePaths) {
-    const absolute = path.resolve(input.userDataPath, ...livePath.split('/'))
+  for (const resource of input.resources) {
+    const absolute = path.resolve(input.userDataPath, ...resource.livePath.split('/'))
     if (path.dirname(absolute) !== root) {
       throw new Error('Knowledge restore projection contains a path outside its managed unit root')
     }
@@ -75,12 +99,16 @@ export function createKnowledgeRestoreOwnerSummary(input: {
     if (seen.has(baseId)) continue
     seen.add(baseId)
     baseIds.push(baseId)
+    if (resource.contentPaths.includes('.cherry/index.sqlite')) readyBaseIds.push(baseId)
+    else rebuildBaseIds.push(baseId)
   }
 
   return {
     knowledge: {
       baseIds,
-      requiresRebuild: baseIds.length > 0
+      readyBaseIds,
+      rebuildBaseIds,
+      requiresRebuild: rebuildBaseIds.length > 0
     }
   }
 }
@@ -97,12 +125,25 @@ export function readKnowledgeRestoreSummary(
 ): KnowledgeRestoreSummaryRead {
   if (ownerSummary !== undefined) {
     const parsed = KnowledgeRestoreSummarySchema.safeParse(ownerSummary.knowledge)
-    return parsed.success ? { kind: 'ok', summary: parsed.data } : { kind: 'invalid' }
+    if (parsed.success) return { kind: 'ok', summary: parsed.data }
+    const legacy = LegacyKnowledgeRestoreSummarySchema.safeParse(ownerSummary.knowledge)
+    if (!legacy.success) return { kind: 'invalid' }
+    return {
+      kind: 'ok',
+      summary: {
+        baseIds: legacy.data.baseIds,
+        readyBaseIds: [],
+        rebuildBaseIds: legacy.data.baseIds,
+        requiresRebuild: legacy.data.baseIds.length > 0
+      }
+    }
   }
   if (legacyKnowledgeBaseIds === undefined) return { kind: 'missing' }
 
   const parsed = KnowledgeRestoreSummarySchema.safeParse({
     baseIds: legacyKnowledgeBaseIds,
+    readyBaseIds: [],
+    rebuildBaseIds: legacyKnowledgeBaseIds,
     requiresRebuild: legacyKnowledgeBaseIds.length > 0
   })
   return parsed.success ? { kind: 'ok', summary: parsed.data } : { kind: 'invalid' }
@@ -111,7 +152,7 @@ export function readKnowledgeRestoreSummary(
 function parseKnowledgeRestoreProgress(value: unknown, summary: KnowledgeRestoreSummary): KnowledgeRestoreProgressRead {
   const parsed = KnowledgeRestoreProgressSchema.safeParse(value)
   if (!parsed.success) return { kind: 'invalid' }
-  const allowed = new Set(summary.baseIds)
+  const allowed = new Set(summary.rebuildBaseIds)
   if (parsed.data.completedBaseIds.some((baseId) => !allowed.has(baseId))) {
     return { kind: 'invalid' }
   }
@@ -153,4 +194,8 @@ export function withKnowledgeRestoreProgress(
     throw new Error('Knowledge restore progress is inconsistent with its owner summary')
   }
   return { ...ownerProgress, knowledge: parsed.progress }
+}
+
+export function knowledgeBaseIdsRequiringRebuild(summary: KnowledgeRestoreSummary): readonly string[] {
+  return summary.rebuildBaseIds
 }

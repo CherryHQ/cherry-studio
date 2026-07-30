@@ -34,14 +34,14 @@ import { buildManifestAttestation } from './attestation'
 import { assertDiskHeadroom } from './diskPreflight'
 import { BackupCancelledError, OutputPathExistsError } from './errors'
 import { createExportOperation } from './exportOperation'
-import { captureSealedProfileView } from './exportQuiesce'
 import { BACKUP_FORMAT_VERSION, type BackupManifest, type ManagedRootIdentity } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { REBASABLE_MANAGED_ROOT_KEYS } from './portability/managedPathRebase'
 import type { MaterializationSummary } from './portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from './portability/materializeDatabase'
 import { collectResourceRequirements, resolveResourceRoots } from './resources/collectRequirements'
-import { captureResourceStageBaseline, type ResourceStageBaseline, stageResources } from './resources/stageResources'
+import { createOwnerResourceCapture } from './resources/ownerCapture'
+import { stageResources } from './resources/stageResources'
 
 const logger = loggerService.withContext('backupExport')
 
@@ -118,27 +118,16 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
 
     const userDataPath = application.getPath('app.userdata')
     const resourceRoots = resolveResourceRoots()
-    // The only stop-the-world section: every parent writer drains before the
-    // shared profile gate, MCP drains last, then the detached DB and file-tree
-    // identities are captured from the same write-free view.
-    const sealed = await captureSealedProfileView<
-      ReturnType<typeof collectResourceRequirements>,
-      ResourceStageBaseline
-    >({
-      signal,
-      createSnapshot: () => dbService.createSnapshot(stagedDbPath),
-      inspectSnapshot: () => collectResourceRequirements({ dbPath: stagedDbPath, roots: resourceRoots, userDataPath }),
-      captureBaseline: (snapshotInventory, captureSignal) =>
-        captureResourceStageBaseline({
-          requirements: snapshotInventory.requirements,
-          userDataPath,
-          roots: resourceRoots,
-          requiredContent: snapshotInventory.requiredContent,
-          signal: captureSignal
-        })
+    // SQLite supplies the authoritative point-in-time cut. File resources do
+    // not share a process-wide seal with it: each owner/unit captures its own
+    // independently provable cut after the database requirement set is known.
+    dbService.createSnapshot(stagedDbPath)
+    const snapshotInventory = collectResourceRequirements({
+      dbPath: stagedDbPath,
+      roots: resourceRoots,
+      userDataPath
     })
-    const snapshotRequirements = sealed.snapshot.requirements
-    const resourceBaseline = sealed.baseline
+    const snapshotRequirements = snapshotInventory.requirements
     throwIfAborted(signal)
 
     const materialized = await materializePortableDatabase({ dbPath: stagedDbPath, mode: { kind: 'export' }, signal })
@@ -149,16 +138,15 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       throw new Error('portable database materialization changed the managed resource closure')
     }
 
-    // The baseline was captured right after the database snapshot; staging later
-    // proves every copied unit still has that identity.
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
-    await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceBaseline.totalBytes })
+    const ownerCapture = createOwnerResourceCapture({ detachedDbPath: stagedDbPath, roots: resourceRoots })
     const resources = await stageResources({
       requirements: inventory.requirements,
       userDataPath,
       roots: resourceRoots,
       resourcesDir,
-      baseline: resourceBaseline,
+      requiredContent: inventory.requiredContent,
+      ...ownerCapture,
       signal
     })
     throwIfAborted(signal)

@@ -48,6 +48,7 @@ function roots(): ResourceRoots {
     knowledge: join(userData, 'Data', 'KnowledgeBase'),
     notes: join(userData, 'Data', 'Notes'),
     agentData: join(userData, 'Data', 'Agents'),
+    agentTranscripts: join(userData, 'Data', 'AgentTranscripts'),
     systemWorkspaces: join(userData, 'Data', 'Agents', 'system'),
     skills: join(userData, 'Data', 'Skills'),
     mcpWorkspace: join(userData, 'Data', 'Workspace'),

@@ -104,6 +104,8 @@ describe('restore preparation', () => {
         return join(userData, 'Data', 'Notes')
       case 'feature.agents.data':
         return join(userData, 'Data', 'Agents')
+      case 'feature.agents.transcripts':
+        return join(userData, 'Data', 'AgentTranscripts')
       case 'feature.agents.system_workspaces':
         return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
@@ -166,9 +168,13 @@ describe('restore preparation', () => {
 
       const preview = await prepareRestore({ archivePath })
 
-      // The Knowledge base is present but ships without its index, so it is
-      // reported as rebuildable — never as plain available, and never twice.
-      expect(preview.coverage).toEqual({ available: 7, rebuildable: 1, missing: 0, unverifiable: 0 })
+      // Filesystem existence remains one partition. Knowledge readiness is a
+      // separate owner proof because a present source tree may carry either a
+      // verified index or a rebuild marker.
+      expect(preview.coverage).toEqual({ available: 8, rebuildable: 0, missing: 0, unverifiable: 0 })
+      // This fixture's archive was created before any Knowledge payload
+      // existed, so the target-only directory is not claimed as owner-proven.
+      expect(preview.knowledge).toEqual({ ready: 0, rebuild: 0 })
     })
 
     it('reports resources missing on an empty device without creating any of them', async () => {
@@ -202,7 +208,8 @@ describe('restore preparation', () => {
       // Eight requirements, whatever this device happens to hold; `unverifiable`
       // counts references that are not requirements and stays out of the sum.
       expect(available + rebuildable + missing).toBe(8)
-      expect(rebuildable).toBeGreaterThan(0)
+      expect(rebuildable).toBe(0)
+      expect(preview.knowledge).toEqual({ ready: 0, rebuild: 0 })
     })
 
     it('accepts an archive that informedly excluded an unrebuildable Knowledge base', async () => {
@@ -355,6 +362,10 @@ describe('restore preparation', () => {
         // Every export inventories this device's resources, so "nothing was
         // reduced" only holds once the files the database references exist.
         createTargetResources()
+        // A Knowledge base without a live index correctly produces the
+        // owner-specific rebuild degradation, so omit it from this generic
+        // "no reduction at all" fixture.
+        dbh.db.delete(knowledgeBaseTable).run()
         const clean = join(workDir, 'out', 'clean.cherrybackup')
         await exportArchive({ outPath: clean })
 
@@ -438,6 +449,8 @@ describe('restore preparation', () => {
       expect(read.journal.ownerSummary).toEqual({
         knowledge: {
           baseIds: ['kb-1'],
+          readyBaseIds: [],
+          rebuildBaseIds: ['kb-1'],
           requiresRebuild: true
         }
       })

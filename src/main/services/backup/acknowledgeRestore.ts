@@ -70,7 +70,7 @@ export function abandonKnowledgeRebuild(): AbandonedKnowledgeRebuild {
   if (progress.kind !== 'ok') {
     throw new RestoreStateError('unreadable', 'the restore Knowledge progress is invalid')
   }
-  const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
+  const requiredBaseIds = readiness.summary.rebuildBaseIds
   const completed = new Set(progress.progress.completedBaseIds)
   const pendingBaseIds = requiredBaseIds.filter((id) => !completed.has(id))
   writeRestoreJournalV2({
@@ -194,8 +194,8 @@ export function acknowledgeRestore(): AcknowledgeResult {
       readiness.kind !== 'ok' ||
       progress.kind !== 'ok' ||
       (!progress.progress.abandoned &&
-        readiness.summary.requiresRebuild &&
-        readiness.summary.baseIds.some((id) => !progress.progress.completedBaseIds.includes(id)))
+        readiness.summary.rebuildBaseIds.length > 0 &&
+        readiness.summary.rebuildBaseIds.some((id) => !progress.progress.completedBaseIds.includes(id)))
     if (rebuildPending) {
       // The journal is also the durable retry marker for derived Knowledge work.
       // Clearing it while a base is pending would turn the next shutdown into a

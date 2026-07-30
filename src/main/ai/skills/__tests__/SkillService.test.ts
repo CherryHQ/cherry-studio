@@ -435,10 +435,6 @@ describe('SkillService', () => {
       const result = await skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
 
       expect(result).toMatchObject({ id: SKILL_ID_1, isEnabled: true })
-      expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-        `skill:toggle:${SKILL_ID_1}`,
-        expect.any(Function)
-      )
       const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
       expect(row?.isEnabled).toBe(true)
     })

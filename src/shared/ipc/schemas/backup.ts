@@ -96,14 +96,6 @@ export const BackupDiagnosticPathSchema = z
  */
 export const BackupExportSourceDiagnosticSchema = z.discriminatedUnion('kind', [
   z.strictObject({
-    kind: z.literal('quiesce-timeout'),
-    phase: z
-      .string()
-      .min(1)
-      .max(64)
-      .regex(/^[a-z0-9-]+$/)
-  }),
-  z.strictObject({
     kind: z.literal('source-changed'),
     path: BackupDiagnosticPathSchema.optional()
   }),
@@ -138,6 +130,7 @@ export const BACKUP_DEGRADATION_CODES = [
   'dangling-reference',
   'cyclic-reference',
   'unclassified-reference',
+  'knowledge-index-rebuild',
   'unknown'
 ] as const
 
@@ -173,6 +166,10 @@ const RestorePreviewSchema = z.strictObject({
     replace: z.number().int().nonnegative()
   }),
   degradations: z.array(DegradationSchema),
+  knowledge: z.strictObject({
+    ready: z.number().int().nonnegative(),
+    rebuild: z.number().int().nonnegative()
+  }),
   /** The archive's database was an older chain, migrated forward during preparation. */
   migratedForward: z.boolean()
 })

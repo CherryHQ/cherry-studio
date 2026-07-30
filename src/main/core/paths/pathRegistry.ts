@@ -130,6 +130,7 @@ export function buildPathRegistry() {
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
+    'feature.agents.transcripts': path.join(appUserDataData, 'AgentTranscripts'), // completed-Turn portable SDK transcripts
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 

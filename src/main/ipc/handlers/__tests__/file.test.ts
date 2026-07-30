@@ -65,15 +65,10 @@ const fileManager = {
   batchCreateInternalEntries: vi.fn()
 }
 
-const profileWriteBarrier = {
-  runWrite: vi.fn(async <T>(_label: string, operation: () => T | Promise<T>): Promise<T> => operation())
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'FileManager') return fileManager
-    if (name === 'ProfileWriteBarrierService') return profileWriteBarrier
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -124,10 +119,6 @@ describe('fileHandlers', () => {
     ).resolves.toBe(nextVersion)
 
     expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion)
-    expect(profileWriteBarrier.runWrite).toHaveBeenCalledWith(
-      'file-manager:path-write-if-unchanged',
-      expect.any(Function)
-    )
   })
 
   it('maps path version conflicts to FILE_STALE_VERSION', async () => {

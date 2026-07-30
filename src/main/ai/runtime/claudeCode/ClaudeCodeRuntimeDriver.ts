@@ -60,6 +60,11 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import {
+  decodePortableAgentResumePoint,
+  encodePortableAgentResumePoint,
+  type PortableAgentTranscriptStore
+} from './portableTranscriptStore'
+import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory
@@ -316,6 +321,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
+  private transcriptStore?: PortableAgentTranscriptStore
+  private lastTopLevelAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private sessionTornDown = false
@@ -337,7 +344,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
-    this.resumeToken = input.resumeToken
+    this.resumeToken = decodePortableAgentResumePoint(input.resumeToken)?.sessionId
   }
 
   async start(): Promise<this> {
@@ -354,6 +361,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
+    this.transcriptStore = request.transcriptStore
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -416,6 +424,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.lastTopLevelAssistantUuid = undefined
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
@@ -630,7 +639,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
 
         if (message.type === 'stream_event') this.captureStreamInvocation(message, 'current-turn')
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, 'current-turn')
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, 'current-turn')
+          if (message.parent_tool_use_id === null) this.lastTopLevelAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -640,6 +652,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           throw error
         }
         if (result.type === 'result') {
+          if (message.type === 'result' && message.subtype === 'success') {
+            await this.commitPortableResumePoint(result.sessionId)
+          }
           this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
@@ -731,7 +746,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private updateResumeToken(resumeToken: string): void {
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
-    this.eventQueue.push({ type: 'resume-token', token: resumeToken })
+  }
+
+  private async commitPortableResumePoint(sessionId: string): Promise<void> {
+    const transcriptStore = this.transcriptStore
+    if (!transcriptStore) {
+      throw new Error('Portable Agent transcript store is unavailable')
+    }
+    await transcriptStore.commitTurn(sessionId, this.lastTopLevelAssistantUuid)
+    this.eventQueue.push({
+      type: 'resume-token',
+      token: encodePortableAgentResumePoint({
+        sessionId,
+        ...(this.lastTopLevelAssistantUuid ? { resumeSessionAt: this.lastTopLevelAssistantUuid } : {})
+      })
+    })
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {

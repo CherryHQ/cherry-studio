@@ -156,23 +156,6 @@ export class SourceDriftError extends Error {
   }
 }
 
-/**
- * The profile could not reach a sealed write-free view inside the export
- * deadline. Straggler ids are diagnostic only and intentionally stay out of
- * the user-facing message.
- */
-export class BackupQuiesceError extends Error {
-  readonly phase: string
-  readonly stragglerIds: readonly string[]
-
-  constructor(phase: string, stragglerIds: readonly string[] = []) {
-    super('active profile writes did not quiesce before the backup snapshot deadline')
-    this.name = 'BackupQuiesceError'
-    this.phase = phase
-    this.stragglerIds = [...stragglerIds]
-  }
-}
-
 /** Restore preparation cannot safely rename one admitted resource into place. */
 export class ResourceInstallPlanError extends Error {
   readonly code: string

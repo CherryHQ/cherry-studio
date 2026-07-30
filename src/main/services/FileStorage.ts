@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { decodeTextBufferIfText, isPathInside } from '@main/utils/file'
+import { decodeTextBufferIfText } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -48,27 +48,6 @@ class FileStorage {
 
   private get tempDir(): string {
     return application.getPath('app.temp')
-  }
-
-  private runManagedWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
-    return application.get('ProfileWriteBarrierService').runWrite(`file-storage:${label}`, operation)
-  }
-
-  /**
-   * Admit only mutations that lexically target this profile.
-   *
-   * This deprecated compatibility layer deliberately does not realpath through
-   * symlinks. Canonical managed roots are covered by owner policy; arbitrary
-   * external paths stay outside the backup transaction unless their lexical
-   * source or destination crosses userData.
-   */
-  private runPathWrite<T>(label: string, mutatedPaths: readonly string[], operation: () => T | Promise<T>): Promise<T> {
-    const userData = path.resolve(application.getPath('app.userdata'))
-    const mutatesProfile = mutatedPaths.some((target) => {
-      const resolved = path.resolve(target)
-      return resolved === userData || isPathInside(resolved, userData)
-    })
-    return mutatesProfile ? this.runManagedWrite(label, operation) : Promise.resolve().then(operation)
   }
 
   // @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
@@ -191,47 +170,45 @@ class FileStorage {
   }
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
-    return this.runManagedWrite('upload-file', async () => {
-      const filePath = file.path
-      const duplicateFile = await this.findDuplicateFile(filePath)
+    const filePath = file.path
+    const duplicateFile = await this.findDuplicateFile(filePath)
 
-      if (duplicateFile) {
-        return duplicateFile
-      }
+    if (duplicateFile) {
+      return duplicateFile
+    }
 
-      const uuid = uuidv4()
-      const origin_name = path.basename(file.path)
-      const ext = path.extname(origin_name).toLowerCase()
-      const destPath = path.join(this.storageDir, uuid + ext)
+    const uuid = uuidv4()
+    const origin_name = path.basename(file.path)
+    const ext = path.extname(origin_name).toLowerCase()
+    const destPath = path.join(this.storageDir, uuid + ext)
 
-      logger.info(`[FileStorage] Uploading file: ${filePath}`)
+    logger.info(`[FileStorage] Uploading file: ${filePath}`)
 
-      // 根据文件类型选择处理方式
-      if (imageExts.includes(ext)) {
-        await this.compressImage(filePath, destPath)
-      } else {
-        await fs.promises.copyFile(filePath, destPath)
-      }
+    // 根据文件类型选择处理方式
+    if (imageExts.includes(ext)) {
+      await this.compressImage(filePath, destPath)
+    } else {
+      await fs.promises.copyFile(filePath, destPath)
+    }
 
-      const stats = await fs.promises.stat(destPath)
-      const fileType = await this.getFileType(destPath)
+    const stats = await fs.promises.stat(destPath)
+    const fileType = await this.getFileType(destPath)
 
-      const fileMetadata: FileMetadata = {
-        id: uuid,
-        origin_name,
-        name: uuid + ext,
-        path: destPath,
-        created_at: stats.birthtime.toISOString(),
-        size: stats.size,
-        ext: ext,
-        type: fileType,
-        count: 1
-      }
+    const fileMetadata: FileMetadata = {
+      id: uuid,
+      origin_name,
+      name: uuid + ext,
+      path: destPath,
+      created_at: stats.birthtime.toISOString(),
+      size: stats.size,
+      ext: ext,
+      type: fileType,
+      count: 1
+    }
 
-      logger.debug(`File uploaded: ${fileMetadata}`)
+    logger.debug(`File uploaded: ${fileMetadata}`)
 
-      return fileMetadata
-    })
+    return fileMetadata
   }
 
   public getFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<FileMetadata | null> => {
@@ -257,149 +234,133 @@ class FileStorage {
 
   // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
-    await this.runManagedWrite('delete-file', async () => {
-      if (!fs.existsSync(path.join(this.storageDir, id))) {
-        return
-      }
-      await fs.promises.unlink(path.join(this.storageDir, id))
-    })
+    if (!fs.existsSync(path.join(this.storageDir, id))) {
+      return
+    }
+    await fs.promises.unlink(path.join(this.storageDir, id))
   }
 
   public deleteDir = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
-    await this.runManagedWrite('delete-directory', async () => {
-      if (!fs.existsSync(path.join(this.storageDir, id))) {
-        return
-      }
-      await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
-    })
+    if (!fs.existsSync(path.join(this.storageDir, id))) {
+      return
+    }
+    await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     if (!filePath) return
     const nativePath = normalizeTrashPath(filePath)
-    await this.runPathWrite('delete-external-file', [nativePath], async () => {
-      try {
-        if (!fs.existsSync(nativePath)) {
-          return
-        }
-
-        await shell.trashItem(nativePath)
-        logger.debug(`External file moved to trash successfully: ${nativePath}`)
-      } catch (error) {
-        logger.error('Failed to delete external file:', error as Error)
-        throw error
+    try {
+      if (!fs.existsSync(nativePath)) {
+        return
       }
-    })
+
+      await shell.trashItem(nativePath)
+      logger.debug(`External file moved to trash successfully: ${nativePath}`)
+    } catch (error) {
+      logger.error('Failed to delete external file:', error as Error)
+      throw error
+    }
   }
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     if (!dirPath) return
     const nativePath = normalizeTrashPath(dirPath)
-    await this.runPathWrite('delete-external-directory', [nativePath], async () => {
-      try {
-        if (!fs.existsSync(nativePath)) {
-          return
-        }
-
-        await shell.trashItem(nativePath)
-        logger.debug(`External directory moved to trash successfully: ${nativePath}`)
-      } catch (error) {
-        logger.error('Failed to delete external directory:', error as Error)
-        throw error
+    try {
+      if (!fs.existsSync(nativePath)) {
+        return
       }
-    })
+
+      await shell.trashItem(nativePath)
+      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
+    } catch (error) {
+      logger.error('Failed to delete external directory:', error as Error)
+      throw error
+    }
   }
 
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
-    await this.runPathWrite('move-file', [filePath, newPath], async () => {
-      try {
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`Source file does not exist: ${filePath}`)
-        }
-
-        // 确保目标目录存在
-        const destDir = path.dirname(newPath)
-        if (!fs.existsSync(destDir)) {
-          await fs.promises.mkdir(destDir, { recursive: true })
-        }
-
-        // 移动文件
-        await fs.promises.rename(filePath, newPath)
-        logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
-      } catch (error) {
-        logger.error('Move file failed:', error as Error)
-        throw error
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Source file does not exist: ${filePath}`)
       }
-    })
+
+      // 确保目标目录存在
+      const destDir = path.dirname(newPath)
+      if (!fs.existsSync(destDir)) {
+        await fs.promises.mkdir(destDir, { recursive: true })
+      }
+
+      // 移动文件
+      await fs.promises.rename(filePath, newPath)
+      logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
+    } catch (error) {
+      logger.error('Move file failed:', error as Error)
+      throw error
+    }
   }
 
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
-    await this.runPathWrite('move-directory', [dirPath, newDirPath], async () => {
-      try {
-        if (!fs.existsSync(dirPath)) {
-          throw new Error(`Source directory does not exist: ${dirPath}`)
-        }
-
-        // 确保目标父目录存在
-        const parentDir = path.dirname(newDirPath)
-        if (!fs.existsSync(parentDir)) {
-          await fs.promises.mkdir(parentDir, { recursive: true })
-        }
-
-        // 移动目录
-        await fs.promises.rename(dirPath, newDirPath)
-        logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
-      } catch (error) {
-        logger.error('Move directory failed:', error as Error)
-        throw error
+    try {
+      if (!fs.existsSync(dirPath)) {
+        throw new Error(`Source directory does not exist: ${dirPath}`)
       }
-    })
+
+      // 确保目标父目录存在
+      const parentDir = path.dirname(newDirPath)
+      if (!fs.existsSync(parentDir)) {
+        await fs.promises.mkdir(parentDir, { recursive: true })
+      }
+
+      // 移动目录
+      await fs.promises.rename(dirPath, newDirPath)
+      logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
+    } catch (error) {
+      logger.error('Move directory failed:', error as Error)
+      throw error
+    }
   }
 
   public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
     const newFilePath = path.join(path.dirname(filePath), newName + '.md')
-    await this.runPathWrite('rename-file', [filePath, newFilePath], async () => {
-      try {
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`Source file does not exist: ${filePath}`)
-        }
-
-        // 如果目标文件已存在，抛出错误
-        if (fs.existsSync(newFilePath)) {
-          throw new Error(`Target file already exists: ${newFilePath}`)
-        }
-
-        // 重命名文件
-        await fs.promises.rename(filePath, newFilePath)
-        logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
-      } catch (error) {
-        logger.error('Rename file failed:', error as Error)
-        throw error
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Source file does not exist: ${filePath}`)
       }
-    })
+
+      // 如果目标文件已存在，抛出错误
+      if (fs.existsSync(newFilePath)) {
+        throw new Error(`Target file already exists: ${newFilePath}`)
+      }
+
+      // 重命名文件
+      await fs.promises.rename(filePath, newFilePath)
+      logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
+    } catch (error) {
+      logger.error('Rename file failed:', error as Error)
+      throw error
+    }
   }
 
   public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
     const newDirPath = path.join(path.dirname(dirPath), newName)
-    await this.runPathWrite('rename-directory', [dirPath, newDirPath], async () => {
-      try {
-        if (!fs.existsSync(dirPath)) {
-          throw new Error(`Source directory does not exist: ${dirPath}`)
-        }
-
-        // 如果目标目录已存在，抛出错误
-        if (fs.existsSync(newDirPath)) {
-          throw new Error(`Target directory already exists: ${newDirPath}`)
-        }
-
-        // 重命名目录
-        await fs.promises.rename(dirPath, newDirPath)
-        logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
-      } catch (error) {
-        logger.error('Rename directory failed:', error as Error)
-        throw error
+    try {
+      if (!fs.existsSync(dirPath)) {
+        throw new Error(`Source directory does not exist: ${dirPath}`)
       }
-    })
+
+      // 如果目标目录已存在，抛出错误
+      if (fs.existsSync(newDirPath)) {
+        throw new Error(`Target directory already exists: ${newDirPath}`)
+      }
+
+      // 重命名目录
+      await fs.promises.rename(dirPath, newDirPath)
+      logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
+    } catch (error) {
+      logger.error('Rename directory failed:', error as Error)
+      throw error
+    }
   }
 
   /**
@@ -527,7 +488,7 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
-    await this.runPathWrite('write-file', [filePath], () => fs.promises.writeFile(filePath, data))
+    await fs.promises.writeFile(filePath, data)
   }
 
   public fileNameGuard = async (
@@ -546,16 +507,14 @@ class FileStorage {
   }
 
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
-    return this.runPathWrite('make-directory', [dirPath], async () => {
-      try {
-        logger.debug(`Attempting to create directory: ${dirPath}`)
-        await fs.promises.mkdir(dirPath, { recursive: true })
-        return dirPath
-      } catch (error) {
-        logger.error('Failed to create directory:', error as Error)
-        throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
-      }
-    })
+    try {
+      logger.debug(`Attempting to create directory: ${dirPath}`)
+      await fs.promises.mkdir(dirPath, { recursive: true })
+      return dirPath
+    } catch (error) {
+      logger.error('Failed to create directory:', error as Error)
+      throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
+    }
   }
 
   public base64Image = async (
@@ -595,14 +554,12 @@ class FileStorage {
         bufferSize: buffer.length
       })
 
-      await this.runManagedWrite('save-base64-image', async () => {
-        // 确保目录存在
-        if (!fs.existsSync(this.storageDir)) {
-          fs.mkdirSync(this.storageDir, { recursive: true })
-        }
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
 
-        await fs.promises.writeFile(destPath, buffer)
-      })
+      await fs.promises.writeFile(destPath, buffer)
 
       return {
         id: uuid,
@@ -637,24 +594,22 @@ class FileStorage {
         bufferSize: imageData.length
       })
 
-      const stats = await this.runManagedWrite('save-pasted-image', async () => {
-        // 确保目录存在
-        if (!fs.existsSync(this.storageDir)) {
-          fs.mkdirSync(this.storageDir, { recursive: true })
-        }
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
 
-        // 确保 imageData 是 Buffer
-        const buffer = Buffer.isBuffer(imageData) ? imageData : Buffer.from(imageData)
+      // 确保 imageData 是 Buffer
+      const buffer = Buffer.isBuffer(imageData) ? imageData : Buffer.from(imageData)
 
-        // 如果图片大于1MB，进行压缩处理
-        if (buffer.length > MB) {
-          await this.compressImageBuffer(buffer, destPath, ext)
-        } else {
-          await fs.promises.writeFile(destPath, buffer)
-        }
+      // 如果图片大于1MB，进行压缩处理
+      if (buffer.length > MB) {
+        await this.compressImageBuffer(buffer, destPath, ext)
+      } else {
+        await fs.promises.writeFile(destPath, buffer)
+      }
 
-        return fs.promises.stat(destPath)
-      })
+      const stats = await fs.promises.stat(destPath)
 
       return {
         id: uuid,
@@ -719,10 +674,8 @@ class FileStorage {
   }
 
   public clear = async (): Promise<void> => {
-    await this.runManagedWrite('clear', async () => {
-      await fs.promises.rm(this.storageDir, { recursive: true })
-      await fs.promises.mkdir(this.storageDir, { recursive: true })
-    })
+    await fs.promises.rm(this.storageDir, { recursive: true })
+    await fs.promises.mkdir(this.storageDir, { recursive: true })
   }
 
   public clearTemp = async (): Promise<void> => {
@@ -865,9 +818,7 @@ class FileStorage {
         return null
       }
 
-      await this.runPathWrite('save-file', [result.filePath], () =>
-        fs.promises.writeFile(result.filePath, content, { encoding: 'utf-8' })
-      )
+      await fs.promises.writeFile(result.filePath, content, { encoding: 'utf-8' })
       return result.filePath
     } catch (err: any) {
       logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
@@ -884,9 +835,7 @@ class FileStorage {
       if (!filePath) return false
 
       const parseResult = parseDataUrl(data)
-      await this.runPathWrite('save-image', [filePath], () =>
-        fs.promises.writeFile(filePath, parseResult?.data ?? data, 'base64')
-      )
+      await fs.promises.writeFile(filePath, parseResult?.data ?? data, 'base64')
       return true
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
@@ -953,11 +902,9 @@ class FileStorage {
       const destPath = path.join(this.storageDir, uuid + ext)
 
       const buffer = Buffer.from(await response.arrayBuffer())
-      const stats = await this.runManagedWrite('download-file', async () => {
-        // 将响应内容写入文件
-        await fs.promises.writeFile(destPath, buffer)
-        return fs.promises.stat(destPath)
-      })
+      // 将响应内容写入文件
+      await fs.promises.writeFile(destPath, buffer)
+      const stats = await fs.promises.stat(destPath)
       const fileType = await this.getFileType(destPath)
 
       return {
@@ -1000,24 +947,22 @@ class FileStorage {
 
   // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
-    await this.runPathWrite('copy-file', [destPath], async () => {
-      try {
-        const sourcePath = path.join(this.storageDir, id)
+    try {
+      const sourcePath = path.join(this.storageDir, id)
 
-        // 确保目标目录存在
-        const destDir = path.dirname(destPath)
-        if (!fs.existsSync(destDir)) {
-          await fs.promises.mkdir(destDir, { recursive: true })
-        }
-
-        // 复制文件
-        await fs.promises.copyFile(sourcePath, destPath)
-        logger.debug(`File copied successfully: ${sourcePath} to ${destPath}`)
-      } catch (error) {
-        logger.error('Copy file failed:', error as Error)
-        throw error
+      // 确保目标目录存在
+      const destDir = path.dirname(destPath)
+      if (!fs.existsSync(destDir)) {
+        await fs.promises.mkdir(destDir, { recursive: true })
       }
-    })
+
+      // 复制文件
+      await fs.promises.copyFile(sourcePath, destPath)
+      logger.debug(`File copied successfully: ${sourcePath} to ${destPath}`)
+    } catch (error) {
+      logger.error('Copy file failed:', error as Error)
+      throw error
+    }
   }
 
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
@@ -1025,15 +970,13 @@ class FileStorage {
       const filePath = path.join(this.storageDir, id)
       logger.debug(`Writing file: ${filePath}`)
 
-      await this.runManagedWrite('write-file-with-id', async () => {
-        // 确保目录存在
-        if (!fs.existsSync(this.storageDir)) {
-          logger.debug(`Creating storage directory: ${this.storageDir}`)
-          fs.mkdirSync(this.storageDir, { recursive: true })
-        }
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        logger.debug(`Creating storage directory: ${this.storageDir}`)
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
 
-        await fs.promises.writeFile(filePath, content, 'utf8')
-      })
+      await fs.promises.writeFile(filePath, content, 'utf8')
       logger.debug(`File written successfully: ${filePath}`)
     } catch (error) {
       logger.error('Failed to write file:', error as Error)
@@ -1111,130 +1054,128 @@ class FileStorage {
     skippedFiles: number
     failedFiles: number
   }> => {
-    return this.runPathWrite('batch-upload-markdown', [targetPath], async () => {
-      try {
-        logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
+    try {
+      logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 
-        const basePath = path.resolve(targetPath)
-        const MARKDOWN_EXTS = ['.md', '.markdown']
+      const basePath = path.resolve(targetPath)
+      const MARKDOWN_EXTS = ['.md', '.markdown']
 
-        // Filter markdown files
-        const markdownFiles = filePaths.filter((filePath) => {
-          const ext = path.extname(filePath).toLowerCase()
-          return MARKDOWN_EXTS.includes(ext)
-        })
+      // Filter markdown files
+      const markdownFiles = filePaths.filter((filePath) => {
+        const ext = path.extname(filePath).toLowerCase()
+        return MARKDOWN_EXTS.includes(ext)
+      })
 
-        const skippedFiles = filePaths.length - markdownFiles.length
+      const skippedFiles = filePaths.length - markdownFiles.length
 
-        if (markdownFiles.length === 0) {
-          return { fileCount: 0, folderCount: 0, skippedFiles, failedFiles: 0 }
-        }
-
-        // Collect unique folders needed
-        const foldersSet = new Set<string>()
-        const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
-        let failedFiles = 0
-
-        for (const filePath of markdownFiles) {
-          try {
-            // Get relative path if file is from a directory upload
-            const fileName = path.basename(filePath)
-            const relativePath = path.dirname(filePath)
-
-            // Determine target directory structure
-            let targetDir = basePath
-            const folderParts: string[] = []
-
-            // Extract folder structure from file path for nested uploads
-            // This is a simplified version - in real scenario we'd need the original directory structure
-            if (relativePath && relativePath !== '.') {
-              const parts = relativePath.split(path.sep)
-              // Get the last few parts that represent the folder structure within upload
-              const relevantParts = parts.slice(Math.max(0, parts.length - 3))
-              folderParts.push(...relevantParts)
-            }
-
-            // Build target directory path
-            for (const part of folderParts) {
-              targetDir = path.join(targetDir, part)
-              foldersSet.add(targetDir)
-            }
-
-            // Determine final file name
-            const nameWithoutExt = fileName.endsWith('.md')
-              ? fileName.slice(0, -3)
-              : fileName.endsWith('.markdown')
-                ? fileName.slice(0, -9)
-                : fileName
-
-            const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
-            const finalPath = path.join(targetDir, safeName + '.md')
-
-            fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
-          } catch (error) {
-            failedFiles += 1
-            logger.error('Failed to prepare file operation:', error as Error, { filePath })
-          }
-        }
-
-        // Create folders in order (shallow to deep)
-        const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
-        for (const folder of sortedFolders) {
-          try {
-            if (!fs.existsSync(folder)) {
-              await fs.promises.mkdir(folder, { recursive: true })
-            }
-          } catch (error) {
-            logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
-          }
-        }
-
-        // Process files in batches
-        const BATCH_SIZE = 10 // Higher batch size since we're in Main process
-        let successCount = 0
-
-        for (let i = 0; i < fileOperations.length; i += BATCH_SIZE) {
-          const batch = fileOperations.slice(i, i + BATCH_SIZE)
-
-          const results = await Promise.allSettled(
-            batch.map(async (op) => {
-              // Read from source and write to target in Main process
-              const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
-              await fs.promises.writeFile(op.targetPath, content, 'utf-8')
-              return true
-            })
-          )
-
-          results.forEach((result, index) => {
-            if (result.status === 'fulfilled') {
-              successCount++
-            } else {
-              failedFiles += 1
-              logger.error('Failed to upload file:', result.reason, {
-                file: batch[index].sourcePath
-              })
-            }
-          })
-        }
-
-        logger.info('Batch upload completed', {
-          successCount,
-          folderCount: foldersSet.size,
-          skippedFiles,
-          failedFiles
-        })
-
-        return {
-          fileCount: successCount,
-          folderCount: foldersSet.size,
-          skippedFiles,
-          failedFiles
-        }
-      } catch (error) {
-        logger.error('Batch upload failed:', error as Error)
-        throw error
+      if (markdownFiles.length === 0) {
+        return { fileCount: 0, folderCount: 0, skippedFiles, failedFiles: 0 }
       }
-    })
+
+      // Collect unique folders needed
+      const foldersSet = new Set<string>()
+      const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
+      let failedFiles = 0
+
+      for (const filePath of markdownFiles) {
+        try {
+          // Get relative path if file is from a directory upload
+          const fileName = path.basename(filePath)
+          const relativePath = path.dirname(filePath)
+
+          // Determine target directory structure
+          let targetDir = basePath
+          const folderParts: string[] = []
+
+          // Extract folder structure from file path for nested uploads
+          // This is a simplified version - in real scenario we'd need the original directory structure
+          if (relativePath && relativePath !== '.') {
+            const parts = relativePath.split(path.sep)
+            // Get the last few parts that represent the folder structure within upload
+            const relevantParts = parts.slice(Math.max(0, parts.length - 3))
+            folderParts.push(...relevantParts)
+          }
+
+          // Build target directory path
+          for (const part of folderParts) {
+            targetDir = path.join(targetDir, part)
+            foldersSet.add(targetDir)
+          }
+
+          // Determine final file name
+          const nameWithoutExt = fileName.endsWith('.md')
+            ? fileName.slice(0, -3)
+            : fileName.endsWith('.markdown')
+              ? fileName.slice(0, -9)
+              : fileName
+
+          const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
+          const finalPath = path.join(targetDir, safeName + '.md')
+
+          fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
+        } catch (error) {
+          failedFiles += 1
+          logger.error('Failed to prepare file operation:', error as Error, { filePath })
+        }
+      }
+
+      // Create folders in order (shallow to deep)
+      const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
+      for (const folder of sortedFolders) {
+        try {
+          if (!fs.existsSync(folder)) {
+            await fs.promises.mkdir(folder, { recursive: true })
+          }
+        } catch (error) {
+          logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
+        }
+      }
+
+      // Process files in batches
+      const BATCH_SIZE = 10 // Higher batch size since we're in Main process
+      let successCount = 0
+
+      for (let i = 0; i < fileOperations.length; i += BATCH_SIZE) {
+        const batch = fileOperations.slice(i, i + BATCH_SIZE)
+
+        const results = await Promise.allSettled(
+          batch.map(async (op) => {
+            // Read from source and write to target in Main process
+            const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
+            await fs.promises.writeFile(op.targetPath, content, 'utf-8')
+            return true
+          })
+        )
+
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            successCount++
+          } else {
+            failedFiles += 1
+            logger.error('Failed to upload file:', result.reason, {
+              file: batch[index].sourcePath
+            })
+          }
+        })
+      }
+
+      logger.info('Batch upload completed', {
+        successCount,
+        folderCount: foldersSet.size,
+        skippedFiles,
+        failedFiles
+      })
+
+      return {
+        fileCount: successCount,
+        folderCount: foldersSet.size,
+        skippedFiles,
+        failedFiles
+      }
+    } catch (error) {
+      logger.error('Batch upload failed:', error as Error)
+      throw error
+    }
   }
 }
 

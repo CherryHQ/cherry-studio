@@ -75,7 +75,6 @@ import { DependencyResolver } from '@main/core/lifecycle/DependencyResolver'
 import { Phase } from '@main/core/lifecycle/types'
 
 import { BackupBusyError } from '../errors'
-import { EXPORT_QUIESCE_WHEN_READY_SERVICES } from '../exportQuiesce'
 
 const { BackupService } = await import('../BackupService')
 
@@ -154,20 +153,20 @@ describe('BackupService', () => {
       expect(source).toMatch(/^ {2}BackupService,$/m)
     })
 
-    it('initializes after the path registry is frozen and declares every same-phase participant it resolves', () => {
+    it('initializes after the path registry is frozen and declares its same-phase owner dependency', () => {
       // Journal paths resolve through `application.getPath`, so BeforeReady
       // would be too early. Phase ordering to DbService/PreferenceService is
       // enforced by the container, never by @DependsOn; KnowledgeService is a
       // same-phase peer this service calls, so that one IS declared.
       expect(getPhase(BackupService)).toBe(Phase.WhenReady)
-      expect(getDependencies(BackupService)).toEqual([...EXPORT_QUIESCE_WHEN_READY_SERVICES, 'KnowledgeService'])
+      expect(getDependencies(BackupService)).toEqual(['KnowledgeService'])
     })
 
     it('starts after KnowledgeService and stops before it', () => {
       // Both directions matter and they are the same fact: post-promotion work
       // calls the Knowledge owner while running, and `onStop` joins that pass.
       // The container starts in resolved order and stops in its reverse.
-      const dependencies = [...EXPORT_QUIESCE_WHEN_READY_SERVICES, 'KnowledgeService']
+      const dependencies = ['KnowledgeService']
       const order = new DependencyResolver().resolve([
         ...dependencies.map((name) => ({ name, dependencies: [], priority: 0, phase: Phase.WhenReady })),
         {

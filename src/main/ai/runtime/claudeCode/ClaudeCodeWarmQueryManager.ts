@@ -2,7 +2,7 @@ import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import type { AgentSessionUsageCapture } from '../types'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
@@ -115,9 +115,15 @@ export function createClaudeCodeWarmQuerySignature(
   knowledgeBaseIds: readonly string[] = []
 ): string {
   const stripped = stripCredentialEnvForSignature(stripWarmQueryOptions(options))
-  const signatureSource = stripped.mcpServers
-    ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
-    : stripped
+  // The store instance is scoped by the manager's session key and may contain
+  // mutable in-memory transcript state. It must reach startup(), but object
+  // identity/state is not spawn configuration and cannot participate in the
+  // warm-query signature.
+  const signatureOptions = { ...stripped }
+  delete signatureOptions.sessionStore
+  const signatureSource = signatureOptions.mcpServers
+    ? { ...signatureOptions, mcpServers: sanitizeMcpServersForSignature(signatureOptions.mcpServers) }
+    : signatureOptions
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
@@ -129,17 +135,11 @@ export function createClaudeCodeWarmQuerySignature(
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
-  private readonly pauseHolds = new Set<symbol>()
-  private readonly resumeWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>()
-  private readonly deferredPrewarms = new Map<string, WarmQueryRequest>()
-  private readonly inFlightStartups = new Map<Promise<WarmQuery | undefined>, string>()
-  private stopping = false
 
   // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
   // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
-    await this.waitForResume()
     if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {
       this.closeAll()
       return
@@ -163,14 +163,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   prewarm(request: WarmQueryRequest): void {
-    if (this.stopping) return
-    if (this.isWriteQuiesced) {
-      // Only the newest request for a session matters; starting every superseded warm
-      // process after resume would waste resources and immediately close the older one.
-      this.deferredPrewarms.set(request.key, request)
-      return
-    }
-
     const warmOptions = stripWarmQueryOptions(request.options)
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
@@ -196,11 +188,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
         logger.warn('Claude warm query startup failed', { key: request.key, error })
         return undefined
       }
-    )
-    this.inFlightStartups.set(promise, request.key)
-    void promise.then(
-      () => this.inFlightStartups.delete(promise),
-      () => this.inFlightStartups.delete(promise)
     )
 
     const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
@@ -244,91 +231,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     for (const entry of entries) this.closeEntry(entry)
   }
 
-  get isWriteQuiesced(): boolean {
-    return this.pauseHolds.size > 0
-  }
-
-  pause(reason?: string): Disposable {
-    const token = Symbol(reason ?? 'claude-warm-query-pause')
-    this.pauseHolds.add(token)
-    logger.info('Claude warm-query admission paused', { reason: reason ?? null, holds: this.pauseHolds.size })
-    return {
-      dispose: () => {
-        if (!this.pauseHolds.delete(token)) return
-        logger.info('Claude warm-query pause hold released', {
-          reason: reason ?? null,
-          holds: this.pauseHolds.size
-        })
-        if (this.pauseHolds.size > 0 || this.stopping) return
-
-        const waiters = [...this.resumeWaiters]
-        this.resumeWaiters.clear()
-        for (const waiter of waiters) waiter.resolve()
-
-        const deferred = [...this.deferredPrewarms.values()]
-        this.deferredPrewarms.clear()
-        for (const request of deferred) this.prewarm(request)
-      }
-    }
-  }
-
-  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
-    if (!this.isWriteQuiesced) {
-      logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
-    }
-
-    const seen = new WeakSet<Promise<unknown>>()
-    const pending = new Map<Promise<unknown>, string>()
-    const collect = (): void => {
-      for (const [startupPromise, key] of this.inFlightStartups) {
-        if (seen.has(startupPromise)) continue
-        seen.add(startupPromise)
-        pending.set(startupPromise, `warm-start:${key}`)
-        const remove = () => pending.delete(startupPromise)
-        startupPromise.then(remove, remove)
-      }
-    }
-
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
-    try {
-      for (;;) {
-        collect()
-        if (pending.size === 0) return { stragglerIds: [] }
-        const winner = await Promise.race([
-          Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
-          timeout
-        ])
-        if (winner === 'timeout') {
-          const stragglerIds = [...new Set(pending.values())]
-          logger.warn('Claude warm-query drain timed out', { timeoutMs: opts.timeoutMs, stragglerIds })
-          return { stragglerIds }
-        }
-      }
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
-    }
-  }
-
-  listActiveWork(): Array<{ id: string; summary: string }> {
-    return [...this.inFlightStartups.values()].map((key) => ({
-      id: `warm-start:${key}`,
-      summary: 'warm query starting'
-    }))
-  }
-
-  protected onInit(): void {
-    this.stopping = false
-  }
-
   protected onStop(): void {
-    this.stopping = true
-    this.deferredPrewarms.clear()
-    const waiters = [...this.resumeWaiters]
-    this.resumeWaiters.clear()
-    for (const waiter of waiters) waiter.reject(new Error('ClaudeCodeWarmQueryManager is stopping'))
     this.closeAll()
   }
 
@@ -344,14 +247,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       this.closeEntry(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
-  }
-
-  private waitForResume(): Promise<void> {
-    if (this.stopping) return Promise.reject(new Error('ClaudeCodeWarmQueryManager is stopping'))
-    if (!this.isWriteQuiesced) return Promise.resolve()
-    return new Promise<void>((resolve, reject) => {
-      this.resumeWaiters.add({ resolve, reject })
-    })
   }
 
   private closeEntry(entry: WarmQueryEntry): void {

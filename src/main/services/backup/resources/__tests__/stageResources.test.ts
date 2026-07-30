@@ -14,17 +14,12 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { CeilingExceededError, SourceDriftError } from '../../errors'
+import { CeilingExceededError } from '../../errors'
 import { hashDirectoryUnit, sha256File } from '../../hashing'
 import type { ResourceRequirement } from '../../manifest'
 import { driftHooks } from '../../sourceDrift'
 import type { ResourceRoots } from '../adapters'
-import {
-  captureResourceStageBaseline,
-  measureResourceStageBytes,
-  stageResourceHooks,
-  stageResources
-} from '../stageResources'
+import { type CaptureOwnerResource, stageResources } from '../stageResources'
 
 /**
  * What the Full producer promises about its payloads (§1.7, §5.4): every unit it
@@ -51,8 +46,6 @@ describe('stageResources', () => {
     driftHooks.afterStagePreVerify = async () => {}
     driftHooks.beforeAncestorVerify = async () => {}
     driftHooks.afterAncestorVerify = async () => {}
-    stageResourceHooks.afterBaselineInspect = async () => {}
-    stageResourceHooks.afterBaselineScan = async () => {}
   })
 
   function req(kind: string, resourceType: 'file' | 'directory', livePath: string): ResourceRequirement {
@@ -72,6 +65,7 @@ describe('stageResources', () => {
       knowledge: join(userData, 'Data', 'KnowledgeBase'),
       notes: join(userData, 'Data', 'Notes'),
       agentData: join(userData, 'Data', 'Agents'),
+      agentTranscripts: join(userData, 'Data', 'AgentTranscripts'),
       systemWorkspaces: join(userData, 'Data', 'Agents', 'system'),
       skills: join(userData, 'Data', 'Skills'),
       mcpWorkspace: join(userData, 'Data', 'Workspace'),
@@ -84,23 +78,6 @@ describe('stageResources', () => {
   function stage(requirements: readonly ResourceRequirement[], signal?: AbortSignal, resourceRoots?: ResourceRoots) {
     return stageResources({ requirements, userDataPath: userData, resourcesDir, roots: resourceRoots, signal })
   }
-
-  it('measures file and directory work without creating staging output', async () => {
-    writeSource('Data/Files/blob.pdf', 'FILE')
-    writeSource('Data/KnowledgeBase/kb-1/raw/doc.txt', 'SOURCE')
-    writeSource('Data/KnowledgeBase/kb-1/.cherry/index.sqlite', 'DERIVED')
-
-    const bytes = await measureResourceStageBytes({
-      requirements: [
-        req('file-blob', 'file', 'Data/Files/blob.pdf'),
-        req('knowledge-base', 'directory', 'Data/KnowledgeBase/kb-1')
-      ],
-      userDataPath: userData
-    })
-
-    expect(bytes).toBe('FILE'.length + 'SOURCE'.length)
-    expect(() => readFileSync(resourcesDir)).toThrow()
-  })
 
   it('captures a file unit with the hash of the bytes it staged', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'ATTACHMENT')
@@ -129,40 +106,6 @@ describe('stageResources', () => {
 
     expect(result.payloads).toMatchObject([{ resourceType: 'file', executable: true }])
     expect(statSync(join(resourcesDir, 'Data', 'Files', 'tool.sh')).mode & 0o777).toBe(0o700)
-  })
-
-  it('fails when a directory disappears between root inspection and baseline scan', async () => {
-    writeSource('Data/Notes/a.md', 'A')
-    stageResourceHooks.afterBaselineInspect = async (sourcePath) => {
-      rmSync(sourcePath, { recursive: true, force: true })
-    }
-
-    await expect(stage([req('note-root', 'directory', 'Data/Notes')])).rejects.toBeInstanceOf(SourceDriftError)
-  })
-
-  it('immediately rechecks a directory tree before accepting its baseline', async () => {
-    writeSource('Data/Notes/a.md', 'A')
-    stageResourceHooks.afterBaselineScan = async () => {
-      writeSource('Data/Notes/b.md', 'B')
-    }
-
-    await expect(
-      captureResourceStageBaseline({
-        requirements: [req('note-root', 'directory', 'Data/Notes')],
-        userDataPath: userData
-      })
-    ).rejects.toBeInstanceOf(SourceDriftError)
-  })
-
-  it('fails the whole staging pass when a source changes after the sealed baseline', async () => {
-    const source = writeSource('Data/Files/blob.pdf', 'BEFORE')
-    const requirements = [req('file-blob', 'file', 'Data/Files/blob.pdf')]
-    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
-    writeFileSync(source, 'AFTER')
-
-    await expect(
-      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
-    ).rejects.toBeInstanceOf(SourceDriftError)
   })
 
   it('content-addresses a directory unit with the canonical unit hash', async () => {
@@ -255,23 +198,12 @@ describe('stageResources', () => {
       // The excluded unit's bytes must not be charged to the archive either.
       expect(result.payloads[0].sizeBytes).toBe('FILE'.length)
     })
-
-    it('counts none of an unrebuildable unit toward the staging estimate', async () => {
-      writeSource(`${KB_1}/raw/doc.txt`, 'SOURCE')
-
-      const bytes = await measureResourceStageBytes({
-        requirements: [req('knowledge-base', 'directory', KB_1)],
-        userDataPath: userData,
-        requiredContent: new Map([[KB_1, ['raw/gone.pdf']]])
-      })
-
-      expect(bytes).toBe(0)
-    })
   })
 
   it('uses the agent owner policy to omit the generated skill mirror from runtime config', async () => {
     writeSource('Data/Agents/.claude/settings.json', '{"theme":"dark"}')
     writeSource('Data/Agents/.claude/skills/pdf/SKILL.md', 'DERIVED MIRROR')
+    writeSource('Data/Agents/.claude/projects/workspace/session.jsonl', 'LIVE SDK CACHE')
 
     const result = await stage([req('agent-runtime-config', 'directory', 'Data/Agents/.claude')])
 
@@ -280,6 +212,40 @@ describe('stageResources', () => {
       '{"theme":"dark"}'
     )
     expect(existsSync(join(resourcesDir, 'Data', 'Agents', '.claude', 'skills'))).toBe(false)
+    expect(existsSync(join(resourcesDir, 'Data', 'Agents', '.claude', 'projects'))).toBe(false)
+  })
+
+  it('requires an Agent owner snapshot and stages the committed transcript it supplies', async () => {
+    const source = writeSource('Data/AgentTranscripts/session-1.json', '{"version":1}')
+    const captureOwnerResource: CaptureOwnerResource = async (context) => {
+      mkdirSync(join(context.stagingPath, '..'), { recursive: true })
+      writeFileSync(context.stagingPath, readFileSync(context.sourcePath))
+      return {}
+    }
+
+    const result = await stageResources({
+      requirements: [req('agent-transcript', 'file', 'Data/AgentTranscripts/session-1.json')],
+      userDataPath: userData,
+      resourcesDir,
+      captureOwnerResource
+    })
+
+    expect(readFileSync(source, 'utf8')).toBe('{"version":1}')
+    expect(readFileSync(join(resourcesDir, 'Data', 'AgentTranscripts', 'session-1.json'), 'utf8')).toBe('{"version":1}')
+    expect(result.payloads).toMatchObject([{ kind: 'agent-transcript', resourceType: 'file' }])
+  })
+
+  it('fails closed when a required owner snapshot cannot be materialized', async () => {
+    await expect(
+      stageResources({
+        requirements: [req('agent-transcript', 'file', 'Data/AgentTranscripts/session-1.json')],
+        userDataPath: userData,
+        resourcesDir,
+        captureOwnerResource: async () => {
+          throw new Error('owner snapshot unavailable')
+        }
+      })
+    ).rejects.toThrow('owner snapshot unavailable')
   })
 
   it('discloses a resource that is already gone instead of failing the export', async () => {
@@ -295,16 +261,6 @@ describe('stageResources', () => {
     expect(result.degradations).toEqual([
       { kind: 'resource:file-blob', livePath: 'Data/Files/gone.pdf', reason: 'absent-at-snapshot' }
     ])
-  })
-
-  it('fails if a seal-time degradation becomes a real resource before staging', async () => {
-    const requirements = [req('file-blob', 'file', 'Data/Files/late.pdf')]
-    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
-    writeSource('Data/Files/late.pdf', 'LATE')
-
-    await expect(
-      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
-    ).rejects.toBeInstanceOf(SourceDriftError)
   })
 
   it('omits a symlink standing where a managed directory belongs and discloses the whole unit', async () => {
@@ -395,26 +351,6 @@ describe('stageResources', () => {
     ).toBe('REAL WORKSPACE-LOCAL DIRECTORY')
   })
 
-  it('fails if an omitted reference changes after the sealed baseline', async () => {
-    const first = join(root, 'first.txt')
-    const second = join(root, 'second.txt')
-    writeFileSync(first, 'FIRST')
-    writeFileSync(second, 'SECOND')
-    writeSource('Data/Notes/kept.md', 'KEPT')
-    const link = join(userData, 'Data', 'Notes', 'external.md')
-    symlinkSync(first, link)
-    const requirements = [req('note-root', 'directory', 'Data/Notes')]
-    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
-
-    rmSync(link)
-    symlinkSync(second, link)
-
-    await expect(
-      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
-    ).rejects.toBeInstanceOf(SourceDriftError)
-    expect(existsSync(join(resourcesDir, 'Data', 'Notes'))).toBe(false)
-  })
-
   it('discloses an ordinary file standing where a managed directory belongs', async () => {
     mkdirSync(join(userData, 'Data', 'KnowledgeBase'), { recursive: true })
     writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), 'NOT A BASE')
@@ -424,62 +360,57 @@ describe('stageResources', () => {
     expect(result.degradations[0].reason).toBe('type-mismatch-at-snapshot')
   })
 
-  it('fails when a file changes while it is being staged', async () => {
+  it('degrades a strict unit that keeps changing while it is being staged', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'ORIGINAL')
     driftHooks.afterStagePreVerify = async () => {
       writeFileSync(source, 'REWRITTEN')
     }
 
-    await expect(stage([req('file-blob', 'file', 'Data/Files/blob.pdf')])).rejects.toBeInstanceOf(SourceDriftError)
+    const result = await stage([req('file-blob', 'file', 'Data/Files/blob.pdf')])
+
+    expect(result.payloads).toEqual([])
+    expect(result.degradations).toEqual([
+      { kind: 'resource:file-blob', livePath: 'Data/Files/blob.pdf', reason: 'changed-during-capture' }
+    ])
   })
 
-  it('fails when a directory ancestor disappears during staging', async () => {
+  it('keeps stable partial-tree entries when a sibling ancestor changes during staging', async () => {
     writeSource('Data/Notes/a/1.md', 'ONE')
     writeSource('Data/Notes/b/2.md', 'TWO')
     driftHooks.beforeAncestorVerify = async (_sourceDir, fileRel) => {
       if (fileRel === 'b/2.md') rmSync(join(userData, 'Data', 'Notes'), { recursive: true })
     }
 
-    await expect(stage([req('note-root', 'directory', 'Data/Notes')])).rejects.toBeInstanceOf(SourceDriftError)
-    expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a', '1.md'))).toThrow()
+    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
+
+    expect(readFileSync(join(resourcesDir, 'Data', 'Notes', 'a', '1.md'), 'utf8')).toBe('ONE')
+    expect(result.degradations).toContainEqual({
+      kind: 'resource-entry:note-root',
+      livePath: 'Data/Notes/b/2.md',
+      reason: 'changed-during-capture'
+    })
   })
 
-  it('removes a failed deeply nested unit before propagating source drift', async () => {
+  it('treats files created after the partial-tree cut as the next capture point', async () => {
     writeSource('Data/Files/stable.pdf', 'STABLE')
     writeSource('Data/Agents/system/2026-07-28/session-1/session.json', 'SESSION')
     driftHooks.afterStagePreVerify = async (sourcePath) => {
       if (sourcePath.endsWith('session.json')) writeSource('Data/Agents/system/2026-07-28/session-1/new.json', 'NEW')
     }
 
-    await expect(
-      stage([
-        req('file-blob', 'file', 'Data/Files/stable.pdf'),
-        req('agent-workspace', 'directory', 'Data/Agents/system/2026-07-28/session-1')
-      ])
-    ).rejects.toBeInstanceOf(SourceDriftError)
-
-    expect(existsSync(join(resourcesDir, 'Data', 'Agents'))).toBe(false)
-    expect(existsSync(join(resourcesDir, 'Data', 'Files', 'stable.pdf'))).toBe(true)
-  })
-
-  it('rejects a changed directory instead of publishing the stable prefix alone', async () => {
-    const stable = writeSource('Data/Files/stable.pdf', 'STABLE')
-    writeSource('Data/Notes/a.md', 'A')
-    const requirements = [
+    const result = await stage([
       req('file-blob', 'file', 'Data/Files/stable.pdf'),
-      req('note-root', 'directory', 'Data/Notes')
-    ]
-    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
-    driftHooks.afterStagePreVerify = async (sourcePath) => {
-      if (sourcePath.endsWith('Data/Notes/a.md')) writeSource('Data/Notes/new.md', 'NEW')
-    }
+      req('agent-workspace', 'directory', 'Data/Agents/system/2026-07-28/session-1')
+    ])
 
-    await expect(
-      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
-    ).rejects.toBeInstanceOf(SourceDriftError)
-
-    expect(readFileSync(stable, 'utf8')).toBe('STABLE')
-    expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a.md'))).toThrow()
+    expect(existsSync(join(resourcesDir, 'Data', 'Files', 'stable.pdf'))).toBe(true)
+    expect(
+      readFileSync(join(resourcesDir, 'Data', 'Agents', 'system', '2026-07-28', 'session-1', 'session.json'), 'utf8')
+    ).toBe('SESSION')
+    expect(existsSync(join(resourcesDir, 'Data', 'Agents', 'system', '2026-07-28', 'session-1', 'new.json'))).toBe(
+      false
+    )
+    expect(result.degradations).toEqual([])
   })
 
   it('refuses a payload set whose destinations overlap, before staging anything', async () => {

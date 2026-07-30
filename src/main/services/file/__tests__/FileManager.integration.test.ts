@@ -1,5 +1,4 @@
-import { once } from 'node:events'
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -12,7 +11,6 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { MockMainProfileWriteBarrierServiceUtils } from '@test-mocks/main/ProfileWriteBarrierService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -54,7 +52,6 @@ describe('FileManager (integration)', () => {
   beforeEach(async () => {
     MockMainDbServiceUtils.setDb(dbh.db)
     MockMainCacheServiceUtils.resetMocks()
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-int-'))
     internalRoot = path.join(tmp, 'files-internal')
     await mkdir(internalRoot, { recursive: true })
@@ -338,195 +335,6 @@ describe('FileManager (integration)', () => {
 
     await fm.permanentDelete(created.id)
     await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
-    const labels = vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mock.calls.map(([label]) => label)
-    expect(labels).toEqual(
-      expect.arrayContaining([
-        'file-manager:create-internal-entry',
-        'file-manager:write',
-        'file-manager:trash',
-        'file-manager:restore',
-        'file-manager:permanent-delete'
-      ])
-    )
-  })
-
-  it('INT-4a: waits for profile-write admission before starting a DB + file mutation', async () => {
-    let admit!: () => void
-    const admission = new Promise<void>((resolve) => {
-      admit = resolve
-    })
-    vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mockImplementationOnce(
-      async (_label, operation) => {
-        await admission
-        return operation()
-      }
-    )
-
-    const creating = fm.createInternalEntry({
-      source: 'bytes',
-      data: new Uint8Array([0x01, 0x02]),
-      name: 'queued',
-      ext: 'bin'
-    })
-    await Promise.resolve()
-
-    expect(await readdir(internalRoot)).toEqual([])
-    expect(await dbh.db.select().from(fileEntryTable)).toEqual([])
-
-    admit()
-    await expect(creating).resolves.toMatchObject({ origin: 'internal', name: 'queued', size: 2 })
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'file-manager:create-internal-entry',
-      expect.any(Function)
-    )
-  })
-
-  it('INT-4b: keeps a stream lease through commit and post-commit metadata sync', async () => {
-    const created = await fm.createInternalEntry({
-      source: 'bytes',
-      data: new Uint8Array([0x01]),
-      name: 'stream-finish',
-      ext: 'bin'
-    })
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
-    const dispose = vi.fn()
-    vi.mocked(application.get('ProfileWriteBarrierService').acquireWriteLease).mockResolvedValueOnce({
-      id: 'stream-finish',
-      label: 'file-manager:write-stream',
-      dispose
-    })
-
-    const stream = await fm.createWriteStream(created.id)
-    expect(dispose).not.toHaveBeenCalled()
-    stream.end(Buffer.from([0x10, 0x20, 0x30]))
-    await once(stream, 'finish')
-
-    await vi.waitFor(() => {
-      const refreshed = fm['deps'].fileEntryService.getById(created.id)
-      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
-      expect(refreshed.size).toBe(3)
-      expect(dispose).toHaveBeenCalledOnce()
-    })
-    expect(application.get('ProfileWriteBarrierService').acquireWriteLease).toHaveBeenCalledWith(
-      'file-manager:write-stream'
-    )
-  })
-
-  it('INT-4c: releases a stream lease after abort cleanup settles', async () => {
-    const created = await fm.createInternalEntry({
-      source: 'bytes',
-      data: new Uint8Array([0x01]),
-      name: 'stream-abort',
-      ext: 'bin'
-    })
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
-    const dispose = vi.fn()
-    vi.mocked(application.get('ProfileWriteBarrierService').acquireWriteLease).mockResolvedValueOnce({
-      id: 'stream-abort',
-      label: 'file-manager:write-stream',
-      dispose
-    })
-
-    const stream = await fm.createWriteStream(created.id)
-    await stream.abort()
-
-    expect(dispose).toHaveBeenCalledOnce()
-  })
-
-  it('INT-4d: releases a stream lease after destroy cleanup settles', async () => {
-    const created = await fm.createInternalEntry({
-      source: 'bytes',
-      data: new Uint8Array([0x01]),
-      name: 'stream-destroy',
-      ext: 'bin'
-    })
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
-    const dispose = vi.fn()
-    vi.mocked(application.get('ProfileWriteBarrierService').acquireWriteLease).mockResolvedValueOnce({
-      id: 'stream-destroy',
-      label: 'file-manager:write-stream',
-      dispose
-    })
-
-    const stream = await fm.createWriteStream(created.id)
-    const closed = once(stream, 'close')
-    stream.destroy()
-    await closed
-
-    expect(dispose).toHaveBeenCalledOnce()
-  })
-
-  it('INT-4e: releases a stream lease after an error and tmp cleanup settle', async () => {
-    const created = await fm.createInternalEntry({
-      source: 'bytes',
-      data: new Uint8Array([0x01]),
-      name: 'stream-error',
-      ext: 'bin'
-    })
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
-    const dispose = vi.fn()
-    vi.mocked(application.get('ProfileWriteBarrierService').acquireWriteLease).mockResolvedValueOnce({
-      id: 'stream-error',
-      label: 'file-manager:write-stream',
-      dispose
-    })
-
-    const stream = await fm.createWriteStream(created.id)
-    const error = new Promise<Error>((resolve) => stream.once('error', resolve))
-    const closed = new Promise<void>((resolve) => stream.once('close', resolve))
-    await rm(internalRoot, { recursive: true, force: true })
-    stream.end(Buffer.from([0x10]))
-
-    await expect(error).resolves.toBeInstanceOf(Error)
-    await closed
-    expect(dispose).toHaveBeenCalledOnce()
-  })
-
-  it('INT-4f: releases a stream lease when stream construction fails', async () => {
-    const dispose = vi.fn()
-    vi.mocked(application.get('ProfileWriteBarrierService').acquireWriteLease).mockResolvedValueOnce({
-      id: 'stream-construction-error',
-      label: 'file-manager:write-stream',
-      dispose
-    })
-
-    await expect(fm.createWriteStream('019606a0-0000-7000-8000-00000000dead' as FileEntryId)).rejects.toThrow(
-      /not found/i
-    )
-    expect(dispose).toHaveBeenCalledOnce()
-  })
-
-  it('INT-4g: owns compound entry mutations at the FileManager boundary', async () => {
-    const source = await fm.createInternalEntry({
-      source: 'bytes',
-      data: new Uint8Array([0x01, 0x02]),
-      name: 'compound-source',
-      ext: 'bin'
-    })
-    MockMainProfileWriteBarrierServiceUtils.resetMocks()
-
-    await fm.rename(source.id, 'compound-renamed')
-    const copied = await fm.copy({ id: source.id, newName: 'compound-copy' })
-    const expected = await fm.getVersion(source.id)
-    await fm.writeIfUnchanged(source.id, new Uint8Array([0x03, 0x04]), expected)
-    await fm.batchTrash([source.id, copied.id])
-    await fm.batchRestore([source.id, copied.id])
-    await fm.batchPermanentDelete([copied.id])
-    await fm.trash(source.id)
-    await fm.emptyTrash()
-
-    const labels = vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mock.calls.map(([label]) => label)
-    expect(labels).toEqual(
-      expect.arrayContaining([
-        'file-manager:rename',
-        'file-manager:copy',
-        'file-manager:write-if-unchanged',
-        'file-manager:batch-trash',
-        'file-manager:batch-restore',
-        'file-manager:batch-permanent-delete',
-        'file-manager:empty-trash'
-      ])
-    )
   })
 
   it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {
@@ -635,10 +443,6 @@ describe('FileManager (integration)', () => {
 
     const { stat } = await import('node:fs/promises')
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'file-manager:run-sweep',
-      expect.any(Function)
-    )
   })
 
   it('INT-12: runSweep prunes dangling temp refs and reports orphan entries (DB sweep branch)', async () => {
@@ -761,10 +565,6 @@ describe('FileManager (integration)', () => {
     // The failed item must NOT leave an entry behind.
     const rows = await dbh.db.select().from(fileEntryTable)
     expect(rows).toHaveLength(2)
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'file-manager:batch-create-internal-entries',
-      expect.any(Function)
-    )
   })
 
   it('INT-15b: batchEnsureExternalEntries dedupes within-batch duplicate paths and aggregates per-item failures', async () => {
@@ -790,10 +590,6 @@ describe('FileManager (integration)', () => {
     // The DB must contain exactly one external row for `same`.
     const rows = await dbh.db.select().from(fileEntryTable)
     expect(rows.filter((r) => r.externalPath === same)).toHaveLength(1)
-    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
-      'file-manager:batch-ensure-external-entries',
-      expect.any(Function)
-    )
   })
 
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {

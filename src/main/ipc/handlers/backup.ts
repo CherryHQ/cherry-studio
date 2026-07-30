@@ -10,7 +10,6 @@ import {
   BackupCancelledError,
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
-  BackupQuiesceError,
   CeilingExceededError,
   DiskFullError,
   HardLinkUnsupportedError,
@@ -163,10 +162,6 @@ function exportSourceIpcError(error: unknown): IpcError | undefined {
       ...(sourcePath ? { path: sourcePath } : {})
     }
     message = 'backup source changed during export'
-  } else if (error instanceof BackupQuiesceError) {
-    const phase = /^[a-z0-9-]{1,64}$/.test(error.phase) ? error.phase : 'unknown'
-    diagnostic = { kind: 'quiesce-timeout', phase }
-    message = 'backup export could not reach a sealed profile view'
   } else if (error instanceof NonRegularSourceError) {
     const sourcePath = profileRelativePath(error.sourcePath)
     diagnostic = { kind: 'non-regular', ...(sourcePath ? { path: sourcePath } : {}) }
@@ -385,6 +380,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
         coverage: { ...preview.coverage },
         resources: { ...preview.resources },
         degradations: presentDegradations(preview.degradations),
+        knowledge: { ...preview.knowledge },
         migratedForward: preview.migratedForward
       }
     }

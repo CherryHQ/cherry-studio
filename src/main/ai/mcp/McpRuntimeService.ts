@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -7,16 +6,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
-import {
-  BaseService,
-  DependsOn,
-  type Disposable,
-  Emitter,
-  type Event,
-  Injectable,
-  Phase,
-  ServicePhase
-} from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv } from '@main/utils/commandResolver'
@@ -216,10 +206,6 @@ export class McpRuntimeService extends BaseService {
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
-  private readonly pauseHolds = new Set<symbol>()
-  private readonly resumeWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>()
-  private readonly runtimeAdmission = new AsyncLocalStorage<boolean>()
-  private readonly inFlightRuntimeWork = new Map<Promise<unknown>, string>()
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
 
@@ -242,95 +228,12 @@ export class McpRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.stopping = true
-    const waiters = [...this.resumeWaiters]
-    this.resumeWaiters.clear()
-    for (const waiter of waiters) waiter.reject(new Error('MCP runtime is stopping'))
     this.abortActiveToolCalls()
     await this.waitForPendingClients()
     await this.closeAllClients()
     this.pendingClients.clear()
     this.clients.clear()
     this.serverLogs.clear()
-  }
-
-  get isWriteQuiesced(): boolean {
-    return this.pauseHolds.size > 0
-  }
-
-  pause(reason?: string): Disposable {
-    const token = Symbol(reason ?? 'mcp-runtime-pause')
-    this.pauseHolds.add(token)
-    logger.info('MCP runtime admission paused', { reason: reason ?? null, holds: this.pauseHolds.size })
-    return {
-      dispose: () => {
-        if (!this.pauseHolds.delete(token)) return
-        logger.info('MCP runtime pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
-        if (this.pauseHolds.size > 0 || this.stopping) return
-        const waiters = [...this.resumeWaiters]
-        this.resumeWaiters.clear()
-        for (const waiter of waiters) waiter.resolve()
-      }
-    }
-  }
-
-  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
-    if (!this.isWriteQuiesced) {
-      logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
-    }
-
-    const seen = new WeakSet<Promise<unknown>>()
-    const pending = new Map<Promise<unknown>, string>()
-    const collect = (): void => {
-      for (const [operation, label] of this.inFlightRuntimeWork) {
-        if (seen.has(operation)) continue
-        seen.add(operation)
-        pending.set(operation, label)
-        const remove = () => pending.delete(operation)
-        operation.then(remove, remove)
-      }
-      for (const [serverKey, initialization] of this.pendingClients) {
-        if (seen.has(initialization)) continue
-        seen.add(initialization)
-        const id = this.serverIdFromKey(serverKey)
-        pending.set(initialization, `client-init:${id}`)
-        const remove = () => pending.delete(initialization)
-        initialization.then(remove, remove)
-      }
-    }
-
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
-    try {
-      for (;;) {
-        collect()
-        if (pending.size === 0) return { stragglerIds: [] }
-        const winner = await Promise.race([
-          Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
-          timeout
-        ])
-        if (winner === 'timeout') {
-          const stragglerIds = [...new Set(pending.values())]
-          logger.warn('MCP runtime drain timed out', { timeoutMs: opts.timeoutMs, stragglerIds })
-          return { stragglerIds }
-        }
-      }
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
-    }
-  }
-
-  listActiveWork(): Array<{ id: string; summary: string }> {
-    const work: Array<{ id: string; summary: string }> = []
-    for (const label of new Set(this.inFlightRuntimeWork.values())) {
-      work.push({ id: label, summary: 'MCP runtime work in flight' })
-    }
-    for (const serverKey of this.pendingClients.keys()) {
-      const id = `client-init:${this.serverIdFromKey(serverKey)}`
-      if (!work.some((item) => item.id === id)) work.push({ id, summary: 'MCP client initializing' })
-    }
-    return work
   }
 
   private getServerById(serverId: string): McpServer {
@@ -405,15 +308,6 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  private serverIdFromKey(serverKey: string): string {
-    try {
-      const id = (JSON.parse(serverKey) as { id?: unknown }).id
-      return typeof id === 'string' && id.length > 0 ? id : 'unknown'
-    } catch {
-      return 'unknown'
-    }
-  }
-
   private emitServerLog(server: McpServer, entry: McpServerLogEntry) {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
@@ -431,52 +325,12 @@ export class McpRuntimeService extends BaseService {
     serverId: string,
     operation: (client: Client, server: McpServer) => Promise<T>
   ): Promise<T> {
-    return this.runRuntimeWork(`client-operation:${serverId}`, async () => {
-      const server = this.getServerById(serverId)
-      const client = await this.getOrCreateClient(server)
-      return operation(client, server)
-    })
+    const server = this.getServerById(serverId)
+    const client = await this.getOrCreateClient(server)
+    return operation(client, server)
   }
 
-  private runRuntimeWork<T>(label: string, work: () => Promise<T>): Promise<T> {
-    // A tool call admitted before pause may initialize a client after the gate closes.
-    // Preserve that admission across async boundaries so it can finish and the drain
-    // does not deadlock waiting on work that is itself queued behind the pause.
-    if (this.runtimeAdmission.getStore()) return work()
-
-    return this.admitRuntimeWork(label, work)
-  }
-
-  private async admitRuntimeWork<T>(label: string, work: () => Promise<T>): Promise<T> {
-    for (;;) {
-      await this.waitForRuntimeResume()
-      if (this.isWriteQuiesced) continue
-
-      const operation = this.runtimeAdmission.run(true, () => Promise.resolve().then(work))
-      this.inFlightRuntimeWork.set(operation, label)
-      try {
-        return await operation
-      } finally {
-        this.inFlightRuntimeWork.delete(operation)
-      }
-    }
-  }
-
-  private waitForRuntimeResume(): Promise<void> {
-    if (this.stopping || this.isStopped || this.isDestroyed) {
-      return Promise.reject(new Error('MCP runtime is stopping'))
-    }
-    if (!this.isWriteQuiesced) return Promise.resolve()
-    return new Promise<void>((resolve, reject) => {
-      this.resumeWaiters.add({ resolve, reject })
-    })
-  }
-
-  private getOrCreateClient(server: McpServer): Promise<Client> {
-    return this.runRuntimeWork(`client:${server.id}`, () => this.getOrCreateClientAdmitted(server))
-  }
-
-  private async getOrCreateClientAdmitted(server: McpServer): Promise<Client> {
+  private async getOrCreateClient(server: McpServer): Promise<Client> {
     if (this.stopping || this.isStopped || this.isDestroyed) {
       throw new Error('MCP runtime is stopping')
     }
@@ -1093,11 +947,7 @@ export class McpRuntimeService extends BaseService {
     await Promise.all(serverKeys.map((key) => this.closeClient(key)))
   }
 
-  stopServer(serverId: string): Promise<void> {
-    return this.runRuntimeWork(`server-stop:${serverId}`, () => this.stopServerAdmitted(serverId))
-  }
-
-  private async stopServerAdmitted(serverId: string): Promise<void> {
+  async stopServer(serverId: string) {
     const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Stopping server`)
     this.emitServerLog(server, {
@@ -1114,11 +964,7 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  removeServer(serverId: string): Promise<void> {
-    return this.runRuntimeWork(`server-remove:${serverId}`, () => this.removeServerAdmitted(serverId))
-  }
-
-  private async removeServerAdmitted(serverId: string): Promise<void> {
+  async removeServer(serverId: string) {
     const server = this.getServerById(serverId)
     try {
       await this.closeClientsForServer(server.id)
@@ -1163,11 +1009,7 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  restartServer(serverId: string): Promise<void> {
-    return this.runRuntimeWork(`server-restart:${serverId}`, () => this.restartServerAdmitted(serverId))
-  }
-
-  private async restartServerAdmitted(serverId: string): Promise<void> {
+  async restartServer(serverId: string) {
     const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Restarting server`)
     this.emitServerLog(server, {
@@ -1195,11 +1037,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * Check connectivity for an MCP server
    */
-  public checkMcpConnectivity(serverId: string): Promise<boolean> {
-    return this.runRuntimeWork(`connectivity:${serverId}`, () => this.checkMcpConnectivityAdmitted(serverId))
-  }
-
-  private async checkMcpConnectivityAdmitted(serverId: string): Promise<boolean> {
+  public async checkMcpConnectivity(serverId: string): Promise<boolean> {
     const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Checking connectivity`)
     try {
@@ -1241,15 +1079,8 @@ export class McpRuntimeService extends BaseService {
     return this.callToolByServer({ server, name, args, callId })
   }
 
-  public callToolByServer(input: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
-    const toolCallId = input.callId || uuidv4()
-    return this.runRuntimeWork(`tool:${input.server.id}`, () => this.callToolByServerAdmitted(input, toolCallId))
-  }
-
-  private async callToolByServerAdmitted(
-    { server, name, args }: RuntimeCallToolArgs,
-    toolCallId: string
-  ): Promise<McpCallToolResponse> {
+  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
+    const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     this.activeToolCalls.set(toolCallId, abortController)
 
@@ -1345,11 +1176,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * List prompts available on an MCP server with caching
    */
-  public listPrompts(serverId: string): Promise<McpPrompt[]> {
-    return this.runRuntimeWork(`list-prompts:${serverId}`, () => this.listPromptsAdmitted(serverId))
-  }
-
-  private async listPromptsAdmitted(serverId: string): Promise<McpPrompt[]> {
+  public async listPrompts(serverId: string): Promise<McpPrompt[]> {
     const server = this.getServerById(serverId)
     const cachedListPrompts = withCache<[McpServer], McpPrompt[]>(
       this.listPromptsImpl.bind(this),
@@ -1381,11 +1208,7 @@ export class McpRuntimeService extends BaseService {
    * Get a specific prompt from an MCP server with caching
    */
   @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
-  public getPrompt(input: { serverId: string; name: string; args?: Record<string, any> }): Promise<GetPromptResult> {
-    return this.runRuntimeWork(`get-prompt:${input.serverId}`, () => this.getPromptAdmitted(input))
-  }
-
-  private async getPromptAdmitted({
+  public async getPrompt({
     serverId,
     name,
     args
@@ -1435,11 +1258,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * List resources available on an MCP server with caching
    */
-  public listResources(serverId: string): Promise<McpResource[]> {
-    return this.runRuntimeWork(`list-resources:${serverId}`, () => this.listResourcesAdmitted(serverId))
-  }
-
-  private async listResourcesAdmitted(serverId: string): Promise<McpResource[]> {
+  public async listResources(serverId: string): Promise<McpResource[]> {
     const server = this.getServerById(serverId)
     const cachedListResources = withCache<[McpServer], McpResource[]>(
       this.listResourcesImpl.bind(this),
@@ -1489,17 +1308,7 @@ export class McpRuntimeService extends BaseService {
    * Get a specific resource from an MCP server with caching
    */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
-  public getResource(input: { serverId: string; uri: string }): Promise<GetResourceResponse> {
-    return this.runRuntimeWork(`get-resource:${input.serverId}`, () => this.getResourceAdmitted(input))
-  }
-
-  private async getResourceAdmitted({
-    serverId,
-    uri
-  }: {
-    serverId: string
-    uri: string
-  }): Promise<GetResourceResponse> {
+  public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
     const server = this.getServerById(serverId)
     const cachedGetResource = withCache<[McpServer, string], GetResourceResponse>(
       this.getResourceImpl.bind(this),
@@ -1530,11 +1339,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get the server version information
    */
-  public getServerVersion(serverId: string): Promise<string | null> {
-    return this.runRuntimeWork(`server-version:${serverId}`, () => this.getServerVersionAdmitted(serverId))
-  }
-
-  private async getServerVersionAdmitted(serverId: string): Promise<string | null> {
+  public async getServerVersion(serverId: string): Promise<string | null> {
     const server = this.getServerById(serverId)
     try {
       getServerLogger(server).debug(`Getting server version`)

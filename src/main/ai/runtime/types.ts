@@ -97,6 +97,7 @@ export type AgentRuntimeEvent =
         }
       }
     }
+  /** Owner-committed SDK session id plus the last completed assistant boundary. */
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them

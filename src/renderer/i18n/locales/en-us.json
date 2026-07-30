@@ -5859,7 +5859,6 @@
           "arm_failed": "The restart that performs the restore could not be started. Nothing was changed.",
           "busy": "Another backup operation is still running. Wait for it to finish.",
           "export_destination": "The backup cannot be published at that location. Pick a new filename or another drive.",
-          "export_quiesce": "Ongoing writes did not finish within 30 seconds. Wait for chats, agents, file writes, or tool calls to finish, then try again.",
           "export_source": "Some source files changed or cannot be stored portably. Check the managed files and try the backup again.",
           "export_source_changed": "A managed file changed during the backup, so no backup was created. Wait for editing or syncing to stop, then try again.",
           "export_source_changed_path": "\"{{path}}\" changed during the backup, so no backup was created. Wait for editing or syncing to stop, then try again.",
@@ -5909,6 +5908,7 @@
             "dangling_reference": "{{count}} link(s) pointed to missing targets and were not included.",
             "external_file_dropped": "{{count}} external file references were removed because source-device paths cannot be opened safely here.",
             "external_reference": "{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
+            "knowledge_index_rebuild": "{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
             "path_collision": "{{count}} managed paths collided on this device and were kept as inactive metadata.",
             "path_unportable": "{{count}} managed paths could not be moved portably and were kept as inactive metadata.",
             "resource_changed": "{{count}} managed resource unit(s) changed while the backup was being created. Stop related active writes, then make a fresh backup.",
@@ -5942,7 +5942,9 @@
         },
         "preview": {
           "degradations": "{{count}} item(s) were not included when this backup was made.",
-          "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it."
+          "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
+          "knowledge_ready": "{{count}} knowledge search index(es) are included and can be used immediately after restore.",
+          "knowledge_rebuild": "{{count}} knowledge search index(es) need to be rebuilt after restore."
         },
         "restore": {
           "arm_button": "Restore and restart",

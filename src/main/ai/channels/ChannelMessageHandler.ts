@@ -58,9 +58,6 @@ export class ChannelMessageHandler {
   private readonly activeAbortControllers = new Map<string, AbortController>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
-  /** Intake received after the gate closed waits here. It is deliberately outside the
-   *  drain wait-set: these messages belong to the post-snapshot epoch. */
-  private readonly resumeWaiters = new Set<() => void>()
   /** Flushed batches whose agent-turn admission hasn't landed yet — `drainInFlight`'s wait-set.
    *  Resolved (idempotently) once `startAgentSessionRun` returned/threw, or on any
    *  `processIncoming` early return; NOT held open for the full turn (post-admission stream
@@ -72,8 +69,8 @@ export class ChannelMessageHandler {
   // Contract shared with JobManager / AiStreamManager / AgentSessionRuntimeService
   // (issues #16849/#16850). Every adapter acks at the transport layer on receipt,
   // so a buffered batch is the only copy of its messages — pause() therefore
-  // FLUSHES the buffers immediately (never cancels), while messages arriving after
-  // the gate closes wait for the final hold to be released.
+  // FLUSHES the buffers immediately (never cancels), and messages arriving while
+  // quiesced are dropped with a warning (they'd die with the relaunch anyway).
 
   /** True while any write-quiesce hold is live. */
   get isWriteQuiesced(): boolean {
@@ -83,8 +80,8 @@ export class ChannelMessageHandler {
   /**
    * Stop channel intake and immediately flush the buffered debounce batches (not waiting out
    * the 8 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
-   * writers. No resume() — dispose your own hold. Intake received after the gate closes is
-   * retained in memory and admitted only after the final hold is released.
+   * writers. No resume() — dispose your own hold. There is no release compensation: intake
+   * dropped while quiesced is not replayable.
    *
    * ORCHESTRATION CONTRACT: flush only SCHEDULES each batch's admission (`processIncoming` runs on
    * the per-chat queue microtask); `pause()` returning does NOT mean the batches admitted. The
@@ -102,31 +99,8 @@ export class ChannelMessageHandler {
       dispose: () => {
         if (!this.pauseHolds.delete(token)) return
         logger.info('Channel intake pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
-        if (this.pauseHolds.size > 0) return
-        const waiters = [...this.resumeWaiters]
-        this.resumeWaiters.clear()
-        for (const resume of waiters) resume()
       }
     }
-  }
-
-  /**
-   * Run work only while the intake gate is open. The callback is invoked synchronously
-   * after the open-state check, so a new pause cannot land between the check and the
-   * caller's first synchronous admission step.
-   */
-  runWhenResumed<T>(work: () => T | Promise<T>): Promise<T> {
-    if (!this.isWriteQuiesced) {
-      try {
-        return Promise.resolve(work())
-      } catch (error) {
-        return Promise.reject(error)
-      }
-    }
-
-    return new Promise<void>((resolve) => {
-      this.resumeWaiters.add(resolve)
-    }).then(() => this.runWhenResumed(work))
   }
 
   /**
@@ -191,10 +165,16 @@ export class ChannelMessageHandler {
   }
 
   handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
-    return this.runWhenResumed(() => this.acceptIncoming(adapter, message))
-  }
-
-  private acceptIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+    // Write-quiesce intake gate. Resolve (don't reject) — a rejection would trigger the
+    // adapters' misleading "an error occurred" reply for a deliberate drop.
+    if (this.isWriteQuiesced) {
+      logger.warn('Channel message dropped: intake is write-quiesced (backup restore in progress)', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        chatId: message.chatId
+      })
+      return Promise.resolve()
+    }
     const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}`
 
     return new Promise<void>((resolve, reject) => {
@@ -480,11 +460,18 @@ export class ChannelMessageHandler {
     }
   }
 
-  handleCommand(adapter: ChannelAdapter, command: ChannelCommandEvent): Promise<void> {
-    return this.runWhenResumed(() => this.processCommand(adapter, command))
-  }
-
-  private async processCommand(adapter: ChannelAdapter, command: ChannelCommandEvent): Promise<void> {
+  async handleCommand(adapter: ChannelAdapter, command: ChannelCommandEvent): Promise<void> {
+    // Write-quiesce intake gate — commands write too (`/new` creates session+channel rows,
+    // `/compact` runs a full turn). Resolve, don't reject (see `handleIncoming`).
+    if (this.isWriteQuiesced) {
+      logger.warn('Channel command dropped: intake is write-quiesced (backup restore in progress)', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        chatId: command.chatId,
+        command: command.command
+      })
+      return
+    }
     const { agentId } = adapter
     const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
     try {

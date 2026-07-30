@@ -38,7 +38,6 @@ import {
   BackupCancelledError,
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
-  BackupQuiesceError,
   CeilingExceededError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
@@ -294,11 +293,6 @@ describe('backupHandlers', () => {
         { kind: 'source-changed', path: 'Data/Notes' }
       ],
       [
-        'quiesce timeout',
-        new BackupQuiesceError('profile-write-barrier', ['profile-write-1']),
-        { kind: 'quiesce-timeout', phase: 'profile-write-barrier' }
-      ],
-      [
         'symlink or special file',
         new NonRegularSourceError('/profile/Data/Notes/link'),
         { kind: 'non-regular', path: 'Data/Notes/link' }
@@ -354,15 +348,10 @@ describe('backupHandlers', () => {
       expect(JSON.stringify((error as IpcError).toJSON())).not.toContain('/Users/private')
     })
 
-    it('bounds internal quiesce and ceiling labels before sending them over IPC', async () => {
+    it('bounds internal ceiling labels before sending them over IPC', async () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
-      service.export
-        .mockRejectedValueOnce(new BackupQuiesceError('/Users/private', []))
-        .mockRejectedValueOnce(new CeilingExceededError('/Users/private', 'too large'))
+      service.export.mockRejectedValueOnce(new CeilingExceededError('/Users/private', 'too large'))
 
-      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
-        data: { kind: 'quiesce-timeout', phase: 'unknown' }
-      })
       await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
         data: { kind: 'limit-exceeded', limit: 'unknown' }
       })
@@ -382,6 +371,7 @@ describe('backupHandlers', () => {
       coverage: { available: 2, missing: 1, unverifiable: 0 },
       resources: { install: 1, replace: 1 },
       degradations: [],
+      knowledge: { ready: 1, rebuild: 0 },
       migratedForward: true
     }
 
