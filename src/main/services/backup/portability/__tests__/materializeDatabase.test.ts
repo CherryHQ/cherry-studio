@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -24,12 +24,13 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isPathContainedIn, prepareManagedRootRebase } from '../managedPathRebase'
+import { type BackupPlatform, isPathContainedIn, prepareManagedRootRebase } from '../managedPathRebase'
 import {
   type MaterializeMode,
   materializePortableDatabase,
   summarizeMaterializationDegradations
 } from '../materializeDatabase'
+import type { WorkspaceProbe } from '../workspacePathPolicy'
 
 /**
  * Real-database proof for portable materialization (Phase 1c-ii). Every fixture
@@ -43,21 +44,43 @@ const PRODUCER_WORKSPACES = '/producer/Library/CherryStudio/Data/agents/workspac
 const TARGET_NOTES = '/target/home/cherry/Data/Notes'
 const TARGET_WORKSPACES = '/target/home/cherry/Data/agents/workspaces'
 
-function restoreMode(overrides?: { readonly notes?: string; readonly workspaces?: string }): MaterializeMode {
+interface RestoreModeOverrides {
+  readonly notes?: string
+  readonly workspaces?: string
+  /** §3.1 Layer 1: the archive was proven to be this install's own. */
+  readonly selfAttested?: boolean
+  /** §3.1 Layer 2's one filesystem question; the real `lstat` probe by default. */
+  readonly workspaceProbe?: WorkspaceProbe
+  readonly producerPlatform?: BackupPlatform
+  readonly targetPlatform?: BackupPlatform
+  readonly producerRoots?: readonly { key: 'feature.notes.data' | 'feature.agents.system_workspaces'; path: string }[]
+}
+
+function restoreMode(overrides?: RestoreModeOverrides): MaterializeMode {
   const prepared = prepareManagedRootRebase({
-    producerPlatform: 'linux',
-    producerRoots: [
+    producerPlatform: overrides?.producerPlatform ?? 'linux',
+    producerRoots: overrides?.producerRoots ?? [
       { key: 'feature.notes.data', path: PRODUCER_NOTES },
       { key: 'feature.agents.system_workspaces', path: PRODUCER_WORKSPACES }
     ],
-    targetPlatform: 'linux',
+    targetPlatform: overrides?.targetPlatform ?? 'linux',
     targetRoots: {
       'feature.notes.data': overrides?.notes ?? TARGET_NOTES,
       'feature.agents.system_workspaces': overrides?.workspaces ?? TARGET_WORKSPACES
     }
   })
   if (!prepared.ok) throw new Error(`fixture rebase table invalid: ${prepared.error.code}`)
-  return { kind: 'restore', rebase: prepared.table }
+  return {
+    kind: 'restore',
+    rebase: prepared.table,
+    selfAttested: overrides?.selfAttested ?? false,
+    workspaceProbe: overrides?.workspaceProbe
+  }
+}
+
+/** A probe with a fixed answer, for cases whose point is the decision, not the disk. */
+function probing(answer: boolean): WorkspaceProbe {
+  return { isRealDirectory: () => answer }
 }
 
 const EXPORT_MODE: MaterializeMode = { kind: 'export' }
@@ -483,7 +506,9 @@ describe('materializePortableDatabase', () => {
       expect(result.summary.pathsRebased).toBe(2)
       expect(result.summary.pathsExternal).toBe(2)
       expect(result.summary.degradations).toEqual([
-        { table: 'agent_workspace', rowId: 'w-user', reason: 'workspace-disconnected', detail: undefined }
+        // Unattested archive, and nothing is at the producer's path on this
+        // device — so Layer 2's probe is what refuses it.
+        { table: 'agent_workspace', rowId: 'w-user', reason: 'workspace-disconnected', detail: 'absent' }
       ])
 
       const state = inspect(dbPath, (db) => ({
@@ -579,8 +604,10 @@ describe('materializePortableDatabase', () => {
       expect(result.summary.pathsRebased).toBe(0)
       expect(result.summary.degradations).toEqual([
         { table: 'agent_workspace', rowId: 'w-a-system', reason: 'path-collision', detail: undefined },
-        { table: 'agent_workspace', rowId: 'w-a-system', reason: 'workspace-disconnected', detail: undefined },
-        { table: 'agent_workspace', rowId: 'w-b-user', reason: 'workspace-disconnected', detail: undefined }
+        { table: 'agent_workspace', rowId: 'w-a-system', reason: 'workspace-disconnected', detail: 'path-collision' },
+        // The squatter is not merely in the way: it names a location inside THIS
+        // device's managed workspaces root, which no external binding may claim.
+        { table: 'agent_workspace', rowId: 'w-b-user', reason: 'workspace-disconnected', detail: 'target-managed' }
       ])
       const state = inspect(dbPath, (db) => ({
         workspaces: db
@@ -637,7 +664,7 @@ describe('materializePortableDatabase', () => {
       ).toBe(5)
     })
 
-    it('leaves no trace of the producer strings anywhere in the restored database', async () => {
+    it('leaves the producer strings nowhere but the one column nothing resolves', async () => {
       const secrets = ['\\\\attacker\\share\\loot', '/producer/private/notebook']
       insertWorkspace('w-unc', secrets[0], 'user')
       insertWorkspace('w-home', secrets[1], 'user')
@@ -646,7 +673,9 @@ describe('materializePortableDatabase', () => {
       await materializePortableDatabase({ dbPath, mode: restoreMode() })
 
       // Scan every readable column of every ordinary table, not just the one the
-      // policy edits: a copy surviving anywhere is a string the UI could pick up.
+      // policy edits: a copy surviving anywhere OTHER than `disconnected_path`
+      // is a string something could resolve. `disconnected_path` is the single
+      // deliberate exception — inert metadata for a reconnect flow, never stat'd.
       // (Freed pages may still hold the old bytes; only reachable values matter.)
       const hits = inspect(dbPath, (_db, sqlite) => {
         const tables = sqlite
@@ -667,7 +696,10 @@ describe('materializePortableDatabase', () => {
             .map((column) => `${name}.${column.name}`)
         )
       })
-      expect(hits).toEqual([])
+      expect(hits).toEqual(['agent_workspace.disconnected_path'])
+      // And the column that IS resolved holds neither string.
+      const paths = storedPaths(dbPath)
+      expect(paths.some((path) => secrets.includes(path))).toBe(false)
     })
 
     it('keeps placeholders unique when the archive squats on one', async () => {
@@ -679,6 +711,163 @@ describe('materializePortableDatabase', () => {
       await materializePortableDatabase({ dbPath, mode: restoreMode() })
 
       expect(storedPaths(dbPath)).toEqual([disconnectedPath('w-a'), `${disconnectedPath('w-b')}-1`])
+    })
+
+    /** What the row kept as inert reconnect metadata, per id. */
+    function disconnectedPaths(dbPath: string): Record<string, string | null> {
+      return Object.fromEntries(
+        inspect(dbPath, (db) =>
+          db
+            .select({ id: agentWorkspaceTable.id, disconnectedPath: agentWorkspaceTable.disconnectedPath })
+            .from(agentWorkspaceTable)
+            .all()
+        ).map((row) => [row.id, row.disconnectedPath])
+      )
+    }
+
+    /**
+     * The three layers of §3.1. The case that matters most is the first one: a
+     * user restoring their own backup on their own machine, which the previous
+     * binary managed/external policy silently disconnected.
+     */
+    describe('the three-layer policy', () => {
+      it('keeps a custom workspace path verbatim when the archive is this install’s own', async () => {
+        insertWorkspace('w-user', '/producer/code/project', 'user')
+
+        const dbPath = snapshot()
+        // Attested, and the probe would have said no — proving Layer 1 alone is
+        // what keeps the path, with no filesystem question asked at all.
+        const result = await materializePortableDatabase({
+          dbPath,
+          mode: restoreMode({ selfAttested: true, workspaceProbe: probing(false) })
+        })
+
+        expect(storedPaths(dbPath)).toEqual(['/producer/code/project'])
+        expect(disconnectedPaths(dbPath)).toEqual({ 'w-user': null })
+        expect(result.summary.degradations).toEqual([])
+        expect(result.summary.pathsExternal).toBe(1)
+      })
+
+      it('still refuses a malformed path in an attested archive', async () => {
+        // Attestation proves origin, not that a value is usable: a row that is
+        // not an absolute path has nothing to keep.
+        insertWorkspace('w-bad', 'not/absolute', 'user')
+
+        const dbPath = snapshot()
+        const result = await materializePortableDatabase({ dbPath, mode: restoreMode({ selfAttested: true }) })
+
+        expect(storedPaths(dbPath)).toEqual([disconnectedPath('w-bad')])
+        expect(disconnectedPaths(dbPath)).toEqual({ 'w-bad': 'not/absolute' })
+        expect(result.summary.degradations).toEqual([
+          { table: 'agent_workspace', rowId: 'w-bad', reason: 'path-unportable', detail: 'not-absolute' },
+          { table: 'agent_workspace', rowId: 'w-bad', reason: 'workspace-disconnected', detail: 'not-absolute' }
+        ])
+      })
+
+      it('keeps an unattested path when the directory really is there, locally', async () => {
+        // No attestation: the path has to earn its place, and this one does —
+        // same platform, absolute, local, and a real directory on this machine.
+        const real = join(workDir, 'user-picked-project')
+        mkdirSync(real)
+        insertWorkspace('w-user', real, 'user')
+
+        const dbPath = snapshot()
+        const result = await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+        expect(storedPaths(dbPath)).toEqual([real])
+        expect(disconnectedPaths(dbPath)).toEqual({ 'w-user': null })
+        expect(result.summary.degradations).toEqual([])
+      })
+
+      it('disconnects an unattested path that is not on this device, keeping the original', async () => {
+        insertWorkspace('w-user', '/producer/code/project', 'user')
+
+        const dbPath = snapshot()
+        const result = await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+        expect(storedPaths(dbPath)).toEqual([disconnectedPath('w-user')])
+        expect(disconnectedPaths(dbPath)).toEqual({ 'w-user': '/producer/code/project' })
+        expect(result.summary.degradations).toEqual([
+          { table: 'agent_workspace', rowId: 'w-user', reason: 'workspace-disconnected', detail: 'absent' }
+        ])
+      })
+
+      it('disconnects a win32 UNC path without ever probing it', async () => {
+        insertWorkspace('w-unc', '\\\\attacker\\share\\loot', 'user')
+        let probed = 0
+        const probe: WorkspaceProbe = {
+          isRealDirectory: () => {
+            probed += 1
+            return true
+          }
+        }
+
+        const dbPath = snapshot()
+        const result = await materializePortableDatabase({
+          dbPath,
+          mode: restoreMode({
+            producerPlatform: 'win32',
+            targetPlatform: 'win32',
+            producerRoots: [
+              { key: 'feature.notes.data', path: 'C:\\Producer\\Notes' },
+              { key: 'feature.agents.system_workspaces', path: 'C:\\Producer\\Agents\\system' }
+            ],
+            notes: 'C:\\Target\\Notes',
+            workspaces: 'C:\\Target\\Agents\\system',
+            workspaceProbe: probe
+          })
+        })
+
+        // Not one stat: on Windows, resolving this string is the attack.
+        expect(probed).toBe(0)
+        expect(storedPaths(dbPath)).toEqual(['C:\\Target\\Agents\\system\\disconnected-workspaces\\ws-w-unc'])
+        expect(disconnectedPaths(dbPath)).toEqual({ 'w-unc': '\\\\attacker\\share\\loot' })
+        expect(result.summary.degradations).toEqual([
+          { table: 'agent_workspace', rowId: 'w-unc', reason: 'workspace-disconnected', detail: 'network-path' }
+        ])
+      })
+
+      it('disconnects a path written for the other platform', async () => {
+        // A perfectly well-formed WINDOWS path, restored onto POSIX: absolute for
+        // its producer, meaningless here.
+        insertWorkspace('w-user', 'C:\\Users\\me\\code', 'user')
+
+        const dbPath = snapshot()
+        const result = await materializePortableDatabase({
+          dbPath,
+          mode: restoreMode({
+            producerPlatform: 'win32',
+            targetPlatform: 'linux',
+            producerRoots: [
+              { key: 'feature.notes.data', path: 'C:\\Producer\\Notes' },
+              { key: 'feature.agents.system_workspaces', path: 'C:\\Producer\\Agents\\system' }
+            ],
+            // A probe that says yes, to prove the string gate is what decides.
+            workspaceProbe: probing(true)
+          })
+        })
+
+        expect(storedPaths(dbPath)).toEqual([disconnectedPath('w-user')])
+        expect(result.summary.degradations).toEqual([
+          { table: 'agent_workspace', rowId: 'w-user', reason: 'workspace-disconnected', detail: 'platform-mismatch' }
+        ])
+      })
+
+      it('clears stale reconnect metadata the archive carried', async () => {
+        // A previously-restored database is a perfectly ordinary export source,
+        // and its `disconnected_path` describes a device this restore knows
+        // nothing about.
+        insertWorkspace('w-kept', join(workDir, 'kept'), 'user')
+        mkdirSync(join(workDir, 'kept'))
+        dbh.sqlite
+          .prepare('UPDATE agent_workspace SET disconnected_path = ? WHERE id = ?')
+          .run('/stale/elsewhere', 'w-kept')
+
+        const dbPath = snapshot()
+        await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+        expect(disconnectedPaths(dbPath)).toEqual({ 'w-kept': null })
+      })
     })
 
     it('never touches workspace paths on the export side', async () => {

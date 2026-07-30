@@ -393,7 +393,13 @@ describe('module purity', () => {
     path.join(REPO_SRC, 'main/features/knowledge/restorePolicy.ts'),
     path.join(REPO_SRC, 'main/services/file/portableProfilePolicy.ts')
   ]
-  const EFFECTFUL_MODULES = ['materializeDatabase.ts']
+  /**
+   * `workspacePathPolicy.ts` is effectful on purpose: its decision is pure (and is
+   * exercised as such through `gateExternalWorkspacePath`), but the last step of
+   * that decision is an `lstat` existence probe, so the module cannot join the
+   * purity walk.
+   */
+  const EFFECTFUL_MODULES = ['materializeDatabase.ts', 'workspacePathPolicy.ts']
 
   const shippedFiles = [
     ...POLICY_MODULES.map((name) => path.join(PORTABILITY_DIR, name)),
