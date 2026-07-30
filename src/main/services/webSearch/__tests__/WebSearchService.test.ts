@@ -379,6 +379,43 @@ describe('WebSearchService', () => {
     ])
   })
 
+  it('returns unprocessed fetch results without blacklist filtering or cutoff', async () => {
+    setWebSearchPreferences({
+      runtimeConfig: {
+        excludeDomains: ['https://blocked.example/*'],
+        compression: {
+          method: 'cutoff',
+          cutoffLimit: 5
+        }
+      }
+    })
+    createWebSearchProviderMock.mockReturnValue({
+      fetchUrls: vi.fn().mockResolvedValue(
+        response('jina', 'fetchUrls', 'https://blocked.example/post', [
+          {
+            title: 'Blocked',
+            content: 'complete knowledge content',
+            url: 'https://blocked.example/post'
+          }
+        ])
+      )
+    })
+
+    const result = await webSearchService.fetchUrlsUnprocessed({
+      providerId: 'jina',
+      urls: ['https://blocked.example/post']
+    })
+
+    expect(result.results).toEqual([
+      {
+        title: 'Blocked',
+        content: 'complete knowledge content',
+        url: 'https://blocked.example/post',
+        sourceInput: 'https://blocked.example/post'
+      }
+    ])
+  })
+
   it('uses the fetch URL default provider and validates URL inputs', async () => {
     const fetchUrls = vi.fn().mockImplementation((input: string) =>
       Promise.resolve(
