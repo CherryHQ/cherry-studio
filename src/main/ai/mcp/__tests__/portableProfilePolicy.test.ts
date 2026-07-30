@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { type McpServerCapabilityInput, sanitizeMcpServerCapability } from '../portableProfilePolicy'
+import {
+  type McpServerCapabilityInput,
+  type McpServerCapabilityMalformedField,
+  sanitizeMcpServerCapability
+} from '../portableProfilePolicy'
 
 function input(overrides: Partial<McpServerCapabilityInput> = {}): McpServerCapabilityInput {
   return {
@@ -15,6 +19,14 @@ function input(overrides: Partial<McpServerCapabilityInput> = {}): McpServerCapa
 }
 
 describe('sanitizeMcpServerCapability', () => {
+  it('exposes a schema-compatible inert patch and typed malformed fields', () => {
+    const result = sanitizeMcpServerCapability(input())
+    expectTypeOf(result.patch.isActive).toEqualTypeOf<false>()
+    expectTypeOf(result.patch.isTrusted).toEqualTypeOf<null>()
+    expectTypeOf(result.patch.dxtPath).toEqualTypeOf<null>()
+    expectTypeOf(result.malformedFields).toEqualTypeOf<readonly McpServerCapabilityMalformedField[]>()
+  })
+
   it('deactivates, clears target trust, and drops the device-local DXT path', () => {
     expect(sanitizeMcpServerCapability(input())).toEqual({
       patch: { isActive: false, isTrusted: null, trustedAt: null, dxtPath: null },

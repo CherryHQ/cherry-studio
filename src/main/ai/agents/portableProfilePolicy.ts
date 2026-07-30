@@ -1,17 +1,37 @@
-import { AgentPermissionModeSchema, sanitizeAgentConfiguration } from '@shared/data/api/schemas/agents'
+import type { PortableProfileSanitization } from '@data/portableProfilePolicy'
+import {
+  type AgentConfiguration,
+  type AgentConfigurationField,
+  type AgentPermissionMode,
+  AgentPermissionModeSchema,
+  sanitizeAgentConfiguration
+} from '@shared/data/api/schemas/agents'
 
 /**
  * Restore keeps agent configuration as data, but it must not carry automation
  * or producer-device permission bypasses into an active target profile.
  */
-export interface AgentAutomationPatch {
-  readonly configuration: Record<string, unknown>
+export type PortableAgentPermissionMode = Exclude<AgentPermissionMode, 'bypassPermissions'>
+
+export type PortableAgentConfiguration = Omit<
+  AgentConfiguration,
+  'heartbeat_enabled' | 'scheduler_enabled' | 'permission_mode'
+> & {
+  heartbeat_enabled: false
+  scheduler_enabled: false
+  permission_mode?: PortableAgentPermissionMode
 }
 
-export interface AgentAutomationSanitization {
-  readonly patch: AgentAutomationPatch
-  readonly malformedFields: readonly string[]
+export interface AgentAutomationPatch {
+  readonly configuration: PortableAgentConfiguration
 }
+
+export type AgentAutomationMalformedField = AgentConfigurationField | '<root>'
+
+export type AgentAutomationSanitization = PortableProfileSanitization<
+  AgentAutomationPatch,
+  AgentAutomationMalformedField
+>
 
 /** Target-local parent for workspace rows that cannot retain their source binding. */
 export const DISCONNECTED_AGENT_WORKSPACE_DIRECTORY = 'disconnected-workspaces'
@@ -28,10 +48,9 @@ export function toDisconnectedAgentWorkspaceSegment(id: string): string {
  * Keep a known, non-bypassing permission mode. Unknown values and
  * `bypassPermissions` fall back to the target default.
  */
-export function sanitizePermissionMode(value: unknown): string | null {
-  if (value === 'bypassPermissions') return null
+export function sanitizePermissionMode(value: unknown): PortableAgentPermissionMode | null {
   const parsed = AgentPermissionModeSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
+  return parsed.success && parsed.data !== 'bypassPermissions' ? parsed.data : null
 }
 
 /**
@@ -43,16 +62,14 @@ export function sanitizePermissionMode(value: unknown): string | null {
  */
 export function sanitizeAgentAutomation(raw: unknown): AgentAutomationSanitization {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
-  const configuration: Record<string, unknown> = { ...data }
-
-  configuration.heartbeat_enabled = false
-  configuration.scheduler_enabled = false
-
-  if (configuration.permission_mode !== undefined) {
-    const mode = sanitizePermissionMode(configuration.permission_mode)
-    if (mode === null) delete configuration.permission_mode
-    else configuration.permission_mode = mode
+  const { permission_mode: permissionMode, ...preserved } = data ?? {}
+  const configuration: PortableAgentConfiguration = {
+    ...preserved,
+    heartbeat_enabled: false,
+    scheduler_enabled: false
   }
+  const mode = sanitizePermissionMode(permissionMode)
+  if (mode !== null) configuration.permission_mode = mode
 
   return { patch: { configuration }, malformedFields: invalidKeys }
 }

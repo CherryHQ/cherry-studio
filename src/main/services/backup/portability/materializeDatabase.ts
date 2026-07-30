@@ -370,7 +370,7 @@ function resetAgents(db: DbOrTx, summary: SummaryBuilder): void {
   for (const row of rows) {
     const { patch, malformedFields } = sanitizeAgentAutomation(decodeJsonColumn(row.configuration))
     db.update(agentTable)
-      .set({ configuration: patch.configuration, updatedAt: preserveUpdatedAt(agentTable.updatedAt) })
+      .set({ ...patch, updatedAt: preserveUpdatedAt(agentTable.updatedAt) })
       .where(eq(agentTable.id, row.id))
       .run()
     if (malformedFields.length > 0) {
@@ -384,6 +384,7 @@ function resetAgentChannels(db: DbOrTx, summary: SummaryBuilder): void {
   const rows = db
     .select({
       id: agentChannelTable.id,
+      type: agentChannelTable.type,
       config: jsonTextOf(agentChannelTable.config),
       permissionMode: agentChannelTable.permissionMode
     })
@@ -392,14 +393,13 @@ function resetAgentChannels(db: DbOrTx, summary: SummaryBuilder): void {
 
   for (const row of rows) {
     const { patch, malformedFields } = sanitizeAgentChannelCapability({
+      type: row.type,
       config: decodeJsonColumn(row.config),
       permissionMode: row.permissionMode
     })
     db.update(agentChannelTable)
       .set({
-        isActive: patch.isActive,
-        activeChatIds: [...patch.activeChatIds],
-        permissionMode: patch.permissionMode,
+        ...patch,
         updatedAt: preserveUpdatedAt(agentChannelTable.updatedAt)
       })
       .where(eq(agentChannelTable.id, row.id))
