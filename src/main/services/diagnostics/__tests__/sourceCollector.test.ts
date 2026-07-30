@@ -15,6 +15,8 @@ import {
 } from '../sourceCollector'
 import type { DiagnosticWarning, SourceCandidate } from '../types'
 
+const ALL_SOURCES = { includeLogs: true, includeTraces: true } as const
+
 describe('diagnostic source collection', () => {
   let workDir: string
   let logsDir: string
@@ -62,7 +64,7 @@ describe('diagnostic source collection', () => {
     await writeFile(path.join(topicDir, 'trace*one'), `${oldTrace}${recentTrace}`)
 
     const range = { fromMs: now - 86_400_000, toMs: now }
-    const collection = await collectDiagnosticSources(range)
+    const collection = await collectDiagnosticSources(range, ALL_SOURCES)
 
     expect(collection.logs).toHaveLength(2)
     expect(collection.traces).toHaveLength(1)
@@ -83,7 +85,7 @@ describe('diagnostic source collection', () => {
     const source = path.join(logsDir, 'app.2026-07-30.log')
     await writeFile(source, `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`)
     const range = { fromMs: now - 86_400_000, toMs: now }
-    const collection = await collectDiagnosticSources(range)
+    const collection = await collectDiagnosticSources(range, ALL_SOURCES)
 
     await rename(source, `${source}.old`)
     await writeFile(source, `${JSON.stringify({ timestamp: new Date(now - 2_000).toISOString() })}\n`)
@@ -102,7 +104,7 @@ describe('diagnostic source collection', () => {
     await utimes(source, oldTime, oldTime)
 
     const range = { fromMs: now - 86_400_000, toMs: now }
-    const collection = await collectDiagnosticSources(range)
+    const collection = await collectDiagnosticSources(range, ALL_SOURCES)
 
     expect(collection.logs).toHaveLength(1)
     const stagedPath = path.join(tempDir, 'mtime-filtered.jsonl') as AbsoluteFilePath
@@ -122,7 +124,7 @@ describe('diagnostic source collection', () => {
     const oldTime = new Date(now - 30 * 86_400_000)
     await utimes(tracePath, oldTime, oldTime)
 
-    const collection = await collectDiagnosticSources({ fromMs: now - 86_400_000, toMs: now })
+    const collection = await collectDiagnosticSources({ fromMs: now - 86_400_000, toMs: now }, ALL_SOURCES)
 
     expect(collection.logs).toEqual([])
     expect(collection.traces).toEqual([])
@@ -135,7 +137,7 @@ describe('diagnostic source collection', () => {
     const inspectedLine = `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`
     await writeFile(source, inspectedLine)
     const range = { fromMs: now - 86_400_000, toMs: now }
-    const collection = await collectDiagnosticSources(range)
+    const collection = await collectDiagnosticSources(range, ALL_SOURCES)
 
     await appendFile(source, `${JSON.stringify({ timestamp: new Date(now - 500).toISOString() })}\n`)
 
@@ -151,7 +153,7 @@ describe('diagnostic source collection', () => {
     const rewrittenLine = `${JSON.stringify({ message: 'later', timestamp: new Date(now - 1_000).toISOString() })}\n`
     await writeFile(source, inspectedLine)
     const range = { fromMs: now - 86_400_000, toMs: now }
-    const collection = await collectDiagnosticSources(range)
+    const collection = await collectDiagnosticSources(range, ALL_SOURCES)
 
     await writeFile(source, rewrittenLine)
     const future = new Date(now + 5_000)
@@ -224,7 +226,7 @@ describe('diagnostic source collection', () => {
     await mkdir(topicDir)
     await symlink(path.join(outsideTopic, 'trace'), path.join(topicDir, 'linked-trace'))
 
-    const collection = await collectDiagnosticSources({ fromMs: now - 86_400_000, toMs: now })
+    const collection = await collectDiagnosticSources({ fromMs: now - 86_400_000, toMs: now }, ALL_SOURCES)
 
     expect(collection.logs).toEqual([])
     expect(collection.traces).toEqual([])

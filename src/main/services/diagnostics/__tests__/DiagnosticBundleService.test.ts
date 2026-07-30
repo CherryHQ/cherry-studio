@@ -145,11 +145,15 @@ describe('DiagnosticBundleService', () => {
   })
 
   it('exports only the manifest when logs and traces are disabled', async () => {
+    await Promise.all([rm(logsDir, { recursive: true }), rm(tracesDir, { recursive: true })])
+    await Promise.all([writeFile(logsDir, 'not a directory'), writeFile(tracesDir, 'not a directory')])
     const service = new DiagnosticBundleService()
 
     const result = await service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
 
     expect(result.status).toBe('saved')
+    if (result.status !== 'saved') throw new Error('Expected saved result')
+    expect(result.hasWarnings).toBe(false)
     const zip = await readZip(destination)
     expect(zip.entries).toEqual(['diagnostics.json'])
     const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())

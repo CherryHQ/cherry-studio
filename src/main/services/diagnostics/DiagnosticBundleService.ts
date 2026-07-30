@@ -213,16 +213,12 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
   }
 }
 
-function selectedCandidates(collection: Awaited<ReturnType<typeof collectDiagnosticSources>>, input: ExportInput) {
-  return [...(input.includeLogs ? collection.logs : []), ...(input.includeTraces ? collection.traces : [])]
-}
-
 export class DiagnosticBundleService {
   private inFlightExport: Promise<ExportResult> | null = null
 
   async inspect(rangeName: DiagnosticRange): Promise<InspectResult> {
     const range = toTimeRange(rangeName, Date.now())
-    const collection = await collectDiagnosticSources(range)
+    const collection = await collectDiagnosticSources(range, { includeLogs: true, includeTraces: true })
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
 
     return {
@@ -273,8 +269,8 @@ export class DiagnosticBundleService {
     const destination = AbsoluteFilePathSchema.parse(filePath)
     await assertDestinationOutsideSources(destination)
     const range = toTimeRange(input.range, Date.now())
-    const collection = await collectDiagnosticSources(range)
-    const enabledCandidates = selectedCandidates(collection, input)
+    const collection = await collectDiagnosticSources(range, input)
+    const enabledCandidates = [...collection.logs, ...collection.traces]
     const destinationIdentity = await probeDestination(destination)
     if (enabledCandidates.some((candidate) => isSamePhysicalFile(destinationIdentity, candidate))) {
       throw new Error('Diagnostic bundle destination matches a source file')

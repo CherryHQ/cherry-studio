@@ -35,7 +35,10 @@ const RANGE_TRANSLATION_KEYS = Object.fromEntries(
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
 type SavedResult = Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'saved' }>
-type DialogStatus = 'idle' | 'saving' | 'saved'
+type ExportState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'saving' }
+  | { readonly result: SavedResult; readonly status: 'saved' }
 
 interface DiagnosticBundleDialogProps {
   readonly appVersion: string
@@ -62,14 +65,13 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const [inspectError, setInspectError] = useState(false)
   const [isInspecting, setIsInspecting] = useState(false)
   const [copyEmailFallback, setCopyEmailFallback] = useState(false)
-  const [status, setStatus] = useState<DialogStatus>('idle')
-  const [savedResult, setSavedResult] = useState<SavedResult | null>(null)
-  const inspectRequestId = useRef(0)
+  const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
   const revealButtonRef = useRef<HTMLButtonElement>(null)
+  const status = exportState.status
+  const savedResult = exportState.status === 'saved' ? exportState.result : null
 
   useEffect(() => {
     if (open) return
-    inspectRequestId.current += 1
     setRange('24h')
     setIncludeLogs(true)
     setIncludeTraces(true)
@@ -79,29 +81,31 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
     setInspectError(false)
     setIsInspecting(false)
     setCopyEmailFallback(false)
-    setStatus('idle')
-    setSavedResult(null)
+    setExportState({ status: 'idle' })
   }, [open])
 
   useEffect(() => {
     if (!open) return
-    const requestId = ++inspectRequestId.current
+    let active = true
     setIsInspecting(true)
     setInspectError(false)
     void ipcApi
       .request('diagnostics.bundle.inspect', { range })
       .then((result) => {
-        if (inspectRequestId.current === requestId) setInspectResult(result)
+        if (active) setInspectResult(result)
       })
       .catch((error) => {
-        if (inspectRequestId.current !== requestId) return
+        if (!active) return
         logger.error('Failed to inspect diagnostic bundle sources', error as Error)
         setInspectResult(null)
         setInspectError(true)
       })
       .finally(() => {
-        if (inspectRequestId.current === requestId) setIsInspecting(false)
+        if (active) setIsInspecting(false)
       })
+    return () => {
+      active = false
+    }
   }, [open, range])
 
   useEffect(() => {
@@ -136,7 +140,6 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && status === 'saving') return
     if (!nextOpen) {
-      inspectRequestId.current += 1
       setIsConfirmationOpen(false)
       setConsent(false)
     }
@@ -146,7 +149,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const performExport = async () => {
     if (!canExport) return
     if (includesSensitiveData) setConsent(false)
-    setStatus('saving')
+    setExportState({ status: 'saving' })
     try {
       const result = await ipcApi.request('diagnostics.bundle.export', {
         includeLogs: effectiveIncludeLogs,
@@ -154,19 +157,18 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
         range
       })
       if (result.status === 'canceled') {
-        setStatus('idle')
+        setExportState({ status: 'idle' })
         return
       }
       if (result.status === 'busy') {
-        setStatus('idle')
+        setExportState({ status: 'idle' })
         toast.error(t('settings.about.diagnostics.errors.busy'))
         return
       }
-      setSavedResult(result)
-      setStatus('saved')
+      setExportState({ result, status: 'saved' })
     } catch (error) {
       logger.error('Failed to export diagnostic bundle', error as Error)
-      setStatus('idle')
+      setExportState({ status: 'idle' })
       toast.error(t('settings.about.diagnostics.errors.export_failed'))
     }
   }

@@ -40,6 +40,13 @@ interface ScanResult {
   readonly malformedLineCount: number
 }
 
+interface SourceSelection {
+  readonly includeLogs: boolean
+  readonly includeTraces: boolean
+}
+
+type ClassifiedLine = 'malformed' | { readonly data: Buffer; readonly timestamp: number } | undefined
+
 export class SourceChangedError extends Error {
   constructor() {
     super('Diagnostic source changed while it was being exported')
@@ -136,6 +143,15 @@ function isInRange(timestamp: number, range: DiagnosticTimeRange): boolean {
   return timestamp >= range.fromMs && timestamp <= range.toMs
 }
 
+function classifyLine(line: RawLine, kind: DiagnosticSourceKind, range: DiagnosticTimeRange): ClassifiedLine {
+  if (line.tooLarge || !line.data) return 'malformed'
+  const timestamp = parseLineTimestamp(line.data, kind)
+  if (timestamp === 'empty') return undefined
+  if (timestamp === undefined) return 'malformed'
+  if (!isInRange(timestamp, range)) return undefined
+  return { data: line.data, timestamp }
+}
+
 function logMayOverlapRange(fileName: string, range: DiagnosticTimeRange): boolean {
   const match = LOG_NAME.exec(fileName)
   if (!match) return false
@@ -159,19 +175,14 @@ async function scanSnapshot(
   let malformedLineCount = 0
 
   for await (const line of readRawLines(snapshot)) {
-    if (line.tooLarge || !line.data) {
+    const classified = classifyLine(line, kind, range)
+    if (classified === 'malformed') {
       malformedLineCount += 1
       continue
     }
-    const timestamp = parseLineTimestamp(line.data, kind)
-    if (timestamp === 'empty') continue
-    if (timestamp === undefined) {
-      malformedLineCount += 1
-      continue
-    }
-    if (!isInRange(timestamp, range)) continue
-    eligibleBytes += line.data.length
-    latestAt = Math.max(latestAt, timestamp)
+    if (!classified) continue
+    eligibleBytes += classified.data.length
+    latestAt = Math.max(latestAt, classified.timestamp)
   }
 
   return { eligibleBytes, latestAt, malformedLineCount }
@@ -282,10 +293,13 @@ async function discoverTraces(
   return candidates
 }
 
-export async function collectDiagnosticSources(range: DiagnosticTimeRange): Promise<SourceCollection> {
+export async function collectDiagnosticSources(
+  range: DiagnosticTimeRange,
+  selection: SourceSelection
+): Promise<SourceCollection> {
   const warnings = new Set<DiagnosticWarning>()
-  const logs = await discoverLogs(range, warnings)
-  const traces = await discoverTraces(range, warnings)
+  const logs = selection.includeLogs ? await discoverLogs(range, warnings) : []
+  const traces = selection.includeTraces ? await discoverTraces(range, warnings) : []
   return { logs, traces, warnings }
 }
 
@@ -371,19 +385,14 @@ export async function stageSourceCandidate(
     if (!canStageSnapshot(candidate, snapshot)) throw new SourceChangedError()
 
     for await (const line of readRawLines(snapshot, candidate.identity.size)) {
-      if (line.tooLarge || !line.data) {
+      const classified = classifyLine(line, candidate.kind, range)
+      if (classified === 'malformed') {
         malformedLineCount += 1
         continue
       }
-      const timestamp = parseLineTimestamp(line.data, candidate.kind)
-      if (timestamp === 'empty') continue
-      if (timestamp === undefined) {
-        malformedLineCount += 1
-        continue
-      }
-      if (!isInRange(timestamp, range)) continue
-      bytes += line.data.length
-      if (!writer.write(line.data)) await once(writer, 'drain')
+      if (!classified) continue
+      bytes += classified.data.length
+      if (!writer.write(classified.data)) await once(writer, 'drain')
     }
     if (bytes !== candidate.eligibleBytes || malformedLineCount !== candidate.malformedLineCount) {
       throw new SourceChangedError()
