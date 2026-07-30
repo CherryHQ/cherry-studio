@@ -23,6 +23,7 @@ const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
+const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
@@ -33,6 +34,12 @@ vi.mock('@application', () => ({
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     getById: (...args: unknown[]) => mockAssistantGetById(...args)
+  }
+}))
+
+vi.mock('@data/services/JobService', () => ({
+  jobService: {
+    addFileRefsTx: (...args: unknown[]) => mockAddFileRefsTx(...args)
   }
 }))
 
@@ -1193,6 +1200,10 @@ describe('imageInputEntryParams', () => {
 })
 
 describe('AiService.generateImage — custom async transport (job path)', () => {
+  beforeEach(() => {
+    mockAddFileRefsTx.mockReset()
+  })
+
   // Force the job branch by resolving to a custom-transport provider id; real
   // hasImageTransport('ppio', …) routes through generateImageViaJob before
   // buildAgentParamsFor can select and rotate a serving key.
@@ -1258,8 +1269,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         seed: 9,
         // native n/size/seed travel as payload fields; the knobs ride the bag
         providerParams: { negativePrompt: 'blurry', numInferenceSteps: 30, guidanceScale: 4.5, promptExtend: true }
-      }),
-      expect.anything()
+      })
     )
   })
 
@@ -1309,8 +1319,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
           isSync: false,
           mode: 'edit'
         }
-      }),
-      expect.anything()
+      })
     )
   })
 
@@ -1393,10 +1402,11 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       snapshot: {},
       finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
     })
+    const tx = {}
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry }
       if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
-      if (name === 'DbService') return { withWriteTx: (fn: any) => fn({}) }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn(tx) }
       return undefined
     })
 
@@ -1421,8 +1431,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         inputFileIds: ['in-1'],
         maskFileId: 'mask-1',
         source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
-      }),
-      expect.anything()
+      })
     )
     expect(result).toEqual({ files: outputFiles })
     // No FileManager ref holds the temp input copy — it must be classified
@@ -1431,22 +1440,13 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(createInternalEntry).toHaveBeenCalledWith(
       expect.objectContaining({ cleanupPolicy: 'delete_when_unreferenced' })
     )
-    // Every input must be declared on the enqueue so JobManager pins it for the
-    // job's lifetime; a cleanup pass must not reclaim one while the job is still
-    // queued or running. The mask rides the same guarantee under its own role —
-    // omitting it would make the mask entry reclaimable mid-job with the input
-    // row still covering. `sourceId` is deliberately absent: the job id does not
-    // exist yet, and stamping it is JobManager's job (see its own test).
-    expect(enqueue).toHaveBeenCalledWith(
-      'image-generation.generate',
-      expect.anything(),
-      expect.objectContaining({
-        fileRefs: [
-          { fileEntryId: 'in-1', role: 'input' },
-          { fileEntryId: 'mask-1', role: 'mask' }
-        ]
-      })
-    )
+    // AiService owns the image job's scratch-input resource semantics. It uses
+    // the handle id returned by enqueueTx and writes both roles through
+    // JobService in the exact same transaction.
+    expect(mockAddFileRefsTx).toHaveBeenCalledWith(tx, [
+      { fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' },
+      { fileEntryId: 'mask-1', sourceId: 'job-1', role: 'mask' }
+    ])
   })
 
   it('never stamps the caller output policy on the temp input / mask copies', async () => {
@@ -1489,8 +1489,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     // The caller's policy still governs the outputs the handler persists.
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
-      expect.objectContaining({ cleanupPolicy: 'manual' }),
-      expect.anything()
+      expect.objectContaining({ cleanupPolicy: 'manual' })
     )
   })
 
@@ -1533,21 +1532,21 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const service = createService()
     stubResolution(service)
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
-    // The ref write now lives inside `enqueueTx`, so a ref failure surfaces as an
-    // enqueue failure — and the whole transaction rolls back, job row included.
-    // That atomicity is JobManager's contract and is tested there against a real
-    // tx; what AiService owes is this: when the enqueue does not complete, the
-    // temp input copies it created beforehand are reclaimed rather than stranded.
+    const enqueueTx = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: new Promise(() => {})
+    })
+    mockAddFileRefsTx.mockImplementationOnce(() => {
+      throw new Error('ref insert boom')
+    })
+    // AiService composes the ref write with enqueueTx inside withWriteTx. If
+    // the resource-owner write fails, the transaction throws and the setup
+    // catch must reclaim the scratch copy created before the transaction.
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager')
         return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
-      if (name === 'JobManager')
-        return {
-          enqueueTx: () => {
-            throw new Error('ref insert boom')
-          },
-          cancel: vi.fn()
-        }
+      if (name === 'JobManager') return { enqueueTx, cancel: vi.fn() }
       if (name === 'DbService') return { withWriteTx: (fn: any) => fn({}) }
       return undefined
     })

@@ -1,7 +1,6 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
 import type { JobError, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
 import type { CatchUpPolicy, RetryPolicy, Trigger } from '@shared/data/api/schemas/jobs'
-import type { jobRoles } from '@shared/data/types/file'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 
@@ -138,18 +137,6 @@ export interface JobCancelResult {
   outcome: JobCancelOutcome
 }
 
-/**
- * A file entry this job reads, to be pinned for the job's lifetime.
- *
- * No `sourceId`: the job id does not exist until the row is inserted, so
- * JobManager stamps it. That is the whole reason this rides the enqueue rather
- * than being written by the caller afterwards.
- */
-export interface JobFileRefInput {
-  readonly fileEntryId: string
-  readonly role: (typeof jobRoles)[number]
-}
-
 export interface EnqueueOptions {
   queue?: string
   priority?: number
@@ -162,27 +149,6 @@ export interface EnqueueOptions {
   timeoutMs?: number
   maxAttempts?: number
   metadata?: Record<string, unknown>
-  /**
-   * File entries the job's payload reads, pinned by `job_file_ref` rows written
-   * in the same transaction as the job row.
-   *
-   * Why the job system knows about this at all: it already does. The FK cascades
-   * on `job.id`, and `pruneTerminalKeepLatestPerType` — a JobManager concern — is
-   * what releases the refs. Both ends of their lifetime are already owned here;
-   * writing them anywhere else leaves the middle to a caller's discipline.
-   *
-   * `enqueueTx` only. Without a transaction the row and its refs cannot land
-   * together, so `enqueue` rejects this option rather than writing them
-   * separately and hoping.
-   *
-   * TODO(declarative refs): callers should not assemble this at all. The payload
-   * already carries the ids (`inputFileIds` / `maskFileId`); what is missing is a
-   * way for a handler to *declare* which of its payload fields are file refs, so
-   * JobManager derives the rows itself and this option disappears. Passing them
-   * explicitly is the interim step — it moves the write to its owner without yet
-   * removing the caller's obligation to remember it.
-   */
-  fileRefs?: readonly JobFileRefInput[]
 }
 
 export interface JobScheduleRegistrationInput<K extends JobType = JobType> {

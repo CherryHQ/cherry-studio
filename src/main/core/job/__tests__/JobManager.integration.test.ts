@@ -23,8 +23,6 @@
  */
 
 import { application } from '@application'
-import { fileEntryTable } from '@data/db/schemas/file'
-import { jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -170,26 +168,6 @@ async function teardownManager(scheduler: SchedulerService, jobManager: JobManag
   // Surface shutdown errors — a regression in _doStop should fail the suite.
   await jobManager._doStop()
   await scheduler._doStop()
-}
-
-/** A minimal internal file_entry row so job_file_ref's FK resolves. */
-async function seedFileEntry(db: DbType, id: string): Promise<string> {
-  const now = Date.now()
-  db.insert(fileEntryTable)
-    .values({
-      id,
-      origin: 'internal',
-      name: 'input',
-      ext: 'png',
-      size: 1,
-      externalPath: null,
-      cleanupPolicy: 'delete_when_unreferenced',
-      deletedAt: null,
-      createdAt: now,
-      updatedAt: now
-    })
-    .run()
-  return id
 }
 
 describe('JobManager integration', () => {
@@ -989,94 +967,6 @@ describe('JobManager integration', () => {
       expect(jobService.count({ queue: 'biz' })).toBe(1)
 
       await drainAllQueues(jobManager)
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('writes the declared fileRefs against the new job id, in the same transaction', async () => {
-      // The refs are what keep a job's `delete_when_unreferenced` inputs alive:
-      // their ids live only in `job.input` JSON, invisible to the cleanup
-      // anti-join. `sourceId` cannot come from the caller — the job id does not
-      // exist until the insert — so JobManager stamps it here.
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['tx.refs', makeSlowHandler('abandon') as JobHandler]]
-      })
-      const db = MockMainDbServiceExport.dbService.getDb() as DbType
-      const entryA = await seedFileEntry(db, '019606a0-0000-7000-8000-00000000fa01')
-      const entryB = await seedFileEntry(db, '019606a0-0000-7000-8000-00000000fa02')
-
-      let handle!: JobHandle
-      db.transaction(
-        (tx) => {
-          handle = jobManager.enqueueTx(tx, 'tx.refs' as never, { message: 'with-refs' } as never, {
-            fileRefs: [
-              { fileEntryId: entryA, role: 'input' },
-              { fileEntryId: entryB, role: 'mask' }
-            ]
-          })
-        },
-        { behavior: 'immediate' }
-      )
-
-      const refs = db.select().from(jobFileRefTable).where(eq(jobFileRefTable.sourceId, handle.id)).all()
-      expect(refs.map((r) => [r.fileEntryId, r.role]).sort()).toEqual(
-        [
-          [entryA, 'input'],
-          [entryB, 'mask']
-        ].sort()
-      )
-
-      await handle.finished
-      await drainAllQueues(jobManager)
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('rolls the refs back with the job row when the caller transaction fails', async () => {
-      // The pairing has to be structural, not remembered: a job row that
-      // committed without its refs would run against inputs the cleanup pass
-      // believes are unreferenced and may reclaim mid-run.
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['tx.refs.rollback', makeSlowHandler('abandon') as JobHandler]]
-      })
-      const db = MockMainDbServiceExport.dbService.getDb() as DbType
-      const entry = await seedFileEntry(db, '019606a0-0000-7000-8000-00000000fb01')
-
-      let jobId = ''
-      expect(() =>
-        db.transaction(
-          (tx) => {
-            const handle = jobManager.enqueueTx(tx, 'tx.refs.rollback' as never, { message: 'doomed' } as never, {
-              fileRefs: [{ fileEntryId: entry, role: 'input' }]
-            })
-            jobId = handle.id
-            throw new Error('business-write-failed')
-          },
-          { behavior: 'immediate' }
-        )
-      ).toThrow('business-write-failed')
-
-      await new Promise((r) => setTimeout(r, 0))
-
-      expect(jobService.getById(jobId)).toBeNull()
-      expect(db.select().from(jobFileRefTable).where(eq(jobFileRefTable.sourceId, jobId)).all()).toEqual([])
-
-      await drainAllQueues(jobManager)
-      await teardownManager(scheduler, jobManager)
-    })
-
-    it('refuses fileRefs on the non-transactional enqueue', async () => {
-      // Without a transaction the row and its refs cannot land together.
-      // Refusing beats silently dropping them: unpinned inputs are reclaimed an
-      // hour later and the job then fails mid-run on a missing file.
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['tx.refs.notx', makeSlowHandler('abandon') as JobHandler]]
-      })
-
-      expect(() =>
-        jobManager.enqueue('tx.refs.notx' as never, { message: 'no tx' } as never, {
-          fileRefs: [{ fileEntryId: '019606a0-0000-7000-8000-00000000fc01', role: 'input' }]
-        })
-      ).toThrow(/enqueueTx/)
-
       await teardownManager(scheduler, jobManager)
     })
 

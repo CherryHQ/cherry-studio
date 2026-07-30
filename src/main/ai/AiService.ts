@@ -15,6 +15,7 @@ import {
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
+import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
@@ -788,21 +789,22 @@ export class AiService extends BaseService {
         providerParams,
         cleanupPolicy: request.cleanupPolicy
       }
-      // Enqueue the job AND register a job→file ref for every input it reads in a
-      // single transaction. Why the refs are needed at all (the anti-join cannot see
-      // the ids in `job.input` JSON) lives with `EnqueueOptions.fileRefs`. Declaring
-      // them on the enqueue rather than writing them afterwards is what makes the
-      // pairing structural: JobManager owns both ends of a ref's lifetime — the job
-      // row it hangs off, and the terminal-row prune that cascades it away — so it
-      // writes the middle too, inside the same transaction as the row.
-      handle = application.get('DbService').withWriteTx((tx) =>
-        jobManager.enqueueTx(tx, 'image-generation.generate', payload, {
-          fileRefs: [
-            ...(inputFileIds ?? []).map((fileEntryId) => ({ fileEntryId, role: 'input' as const })),
-            ...(maskFileId ? [{ fileEntryId: maskFileId, role: 'mask' as const }] : [])
-          ]
-        })
-      )
+      // Image generation owns the resource contract for its scratch inputs:
+      // their ids live in `job.input` JSON, which the file cleanup anti-join
+      // cannot see. Persist the job and its file refs in one transaction so a
+      // queued/running job never observes an input reclaimed as unreferenced.
+      handle = application.get('DbService').withWriteTx((tx) => {
+        const jobHandle = jobManager.enqueueTx(tx, 'image-generation.generate', payload)
+        jobService.addFileRefsTx(tx, [
+          ...(inputFileIds ?? []).map((fileEntryId) => ({
+            fileEntryId,
+            sourceId: jobHandle.id,
+            role: 'input' as const
+          })),
+          ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
+        ])
+        return jobHandle
+      })
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
