@@ -216,7 +216,7 @@ export class AiStreamManager extends BaseService {
     Array<{ userMessageId: string; reasoningEffort?: ReasoningEffortOption }>
   >()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
-   *  agent runtime's `startingNextTurn`. */
+   *  agent runtime's explicit launch state. */
   private readonly startingNextChatTopicIds = new Set<string>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */

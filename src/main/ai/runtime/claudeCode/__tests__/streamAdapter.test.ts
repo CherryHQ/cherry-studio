@@ -1514,9 +1514,8 @@ describe('ClaudeCodeStreamAdapter', () => {
         'background-work-state',
         'background-tasks',
         'background-task-event',
-        'autonomous-generation-state',
-        'receive-only-turn',
-        'autonomous-generation-state'
+        'autonomous-turn-state',
+        'autonomous-turn-state'
       ])
       expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
 
@@ -1653,10 +1652,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'woke up' } })
       )
 
-      expect(statusEvents).toEqual([
-        { type: 'autonomous-generation-state', active: true },
-        { type: 'receive-only-turn' }
-      ])
+      expect(statusEvents).toEqual([{ type: 'autonomous-turn-state', state: 'started' }])
       expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'woke up')).toBe(true)
       expect(adapter.isTurnActive).toBe(true)
     })
@@ -1671,9 +1667,8 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       expect(result).toMatchObject({ type: 'result', sessionId: 'resume-wake' })
       expect(statusEvents).toEqual([
-        { type: 'autonomous-generation-state', active: true },
-        { type: 'receive-only-turn' },
-        { type: 'autonomous-generation-state', active: false }
+        { type: 'autonomous-turn-state', state: 'started' },
+        { type: 'autonomous-turn-state', state: 'finished' }
       ])
       expect(loggerMocks.warn).not.toHaveBeenCalledWith(
         'Received a result message with no active turn; dropping turn-complete',
@@ -1705,7 +1700,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         })
       ])
       expect(parts).toEqual([])
-      expect(statusEvents).not.toContainEqual({ type: 'receive-only-turn' })
+      expect(statusEvents).not.toContainEqual({ type: 'autonomous-turn-state', state: 'started' })
     })
 
     it('holds init metadata until a turn opens, since it is turn content', () => {

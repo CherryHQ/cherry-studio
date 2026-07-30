@@ -31,7 +31,6 @@ import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/c
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
@@ -687,8 +686,6 @@ const AgentComposerInner = ({
     customizePanelItem
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
-  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
-  const hasBackgroundTasks = backgroundTasks.length > 0
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
@@ -1132,7 +1129,7 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: sessionTopicId,
-    isFulfilled: sessionFulfilled && !hasBackgroundTasks,
+    isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
@@ -1172,7 +1169,7 @@ const AgentComposerInner = ({
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items.
-      if (isStreaming || hasBackgroundTasks) {
+      if (isStreaming) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1205,7 +1202,6 @@ const AgentComposerInner = ({
       draftCacheKey,
       enqueueFollowup,
       files,
-      hasBackgroundTasks,
       isStreaming,
       model,
       sendDisabled,

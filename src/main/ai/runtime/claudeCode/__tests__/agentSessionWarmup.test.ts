@@ -826,6 +826,42 @@ describe('deriveConnectionConfig', () => {
     const second = await deriveSignature()
 
     expect(second.rebuildSignature).toBe(first.rebuildSignature)
+    expect(second.rebuildFactFingerprints).toEqual(first.rebuildFactFingerprints)
+  })
+
+  it('does not rebuild when only the usage pricing capture time changes', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      pricing: {
+        input: { perMillionTokens: 1, currency: 'USD' as const },
+        output: { perMillionTokens: 2, currency: 'USD' as const }
+      }
+    }))
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-07-30T00:00:00.000Z'))
+      const first = await deriveSignature()
+      vi.setSystemTime(new Date('2026-07-30T00:01:00.000Z'))
+      const second = await deriveSignature()
+
+      expect(second.rebuildSignature).toBe(first.rebuildSignature)
+      expect(second.rebuildFactFingerprints.route).toBe(first.rebuildFactFingerprints.route)
+
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: `${modelId}-api`,
+        pricing: {
+          input: { perMillionTokens: 3, currency: 'USD' as const },
+          output: { perMillionTokens: 2, currency: 'USD' as const }
+        }
+      }))
+      const repriced = await deriveSignature()
+
+      expect(repriced.rebuildFactFingerprints.route).not.toBe(second.rebuildFactFingerprints.route)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('changes the rebuild signature when direct-provider extra headers change', async () => {
@@ -853,6 +889,11 @@ describe('deriveConnectionConfig', () => {
     const chinese = await deriveSignature()
 
     expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)
+    expect(
+      Object.keys(english.rebuildFactFingerprints).filter(
+        (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['language'])
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

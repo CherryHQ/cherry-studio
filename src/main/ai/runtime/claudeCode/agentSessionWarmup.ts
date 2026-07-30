@@ -162,6 +162,22 @@ function buildUsageModels(
   }))
 }
 
+function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
+  return {
+    ...routeFacts,
+    usageModels: routeFacts.usageModels.map((usageModel) => ({
+      ...usageModel,
+      pricingSnapshot: usageModel.pricingSnapshot
+        ? {
+            ...usageModel.pricingSnapshot,
+            // This records when usage attribution was materialized, not a spawn-time routing fact.
+            capturedAt: undefined
+          }
+        : null
+    }))
+  }
+}
+
 /**
  * Normalized tool-policy facts — the immediately enforceable side of {@link ConnectionConfig}.
  * Permission mode and newly disabled tools can be applied to a running connection; `disabledTools`
@@ -198,6 +214,8 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
  */
 export interface ConnectionConfig {
   rebuildSignature: string
+  /** Per-field hashes used only to identify which spawn-frozen facts caused a rebuild. */
+  rebuildFactFingerprints: Readonly<Record<string, string>>
   live: {
     toolPolicy: ToolPolicyFacts
   }
@@ -291,7 +309,7 @@ async function deriveConnectionConfigFromSnapshot(
   const rebuildFacts = {
     modelId: uniqueModelId,
     reasoningEffort,
-    route: routeFacts,
+    route: buildRebuildRouteFacts(routeFacts),
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,
@@ -305,9 +323,18 @@ async function deriveConnectionConfigFromSnapshot(
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     linkedChannelId
   }
+  const rebuildFactFingerprints = Object.fromEntries(
+    Object.entries(rebuildFacts).map(([name, value]) => [
+      name,
+      createHash('sha256')
+        .update(JSON.stringify(value) ?? 'undefined')
+        .digest('hex')
+    ])
+  )
 
   return {
     rebuildSignature: createHash('sha256').update(JSON.stringify(rebuildFacts)).digest('hex'),
+    rebuildFactFingerprints,
     live: {
       toolPolicy: {
         permissionMode: agent.configuration?.permission_mode ?? null,

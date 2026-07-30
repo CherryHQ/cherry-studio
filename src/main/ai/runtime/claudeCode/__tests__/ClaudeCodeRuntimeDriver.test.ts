@@ -70,6 +70,7 @@ vi.mock('../streamAdapter', async (importActual) => ({
     readonly finalizeOpenParts = vi.fn()
     // Mirrors the real adapter: session-scoped, content only flows inside a turn.
     private turnActive = false
+    private autonomous = false
     private pendingInit: any
 
     constructor(private readonly options: any) {
@@ -108,8 +109,8 @@ vi.mock('../streamAdapter', async (importActual) => ({
         }
         const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
         if (!isContent) return { type: 'continue' }
-        this.options.statusSink.emit({ type: 'autonomous-generation-state', active: true })
-        this.options.statusSink.emit({ type: 'receive-only-turn' })
+        this.autonomous = true
+        this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
         this.beginTurn()
       }
       if (message.type === 'truncate-now') {
@@ -198,6 +199,10 @@ vi.mock('../streamAdapter', async (importActual) => ({
         this.options.onSessionId(message.session_id)
         this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
         this.turnActive = false
+        if (this.autonomous) {
+          this.autonomous = false
+          this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
+        }
         if (message.subtype !== 'success') throw new Error('runtime failed')
         return { type: 'result', sessionId: message.session_id, message }
       }
@@ -2451,11 +2456,20 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   describe('reconcile', () => {
-    function makeConfig(overrides: { signature?: string; permissionMode?: string | null; disabledTools?: string[] }) {
+    function makeConfig(overrides: {
+      signature?: string
+      factFingerprints?: Record<string, string>
+      permissionMode?: string | null
+      disabledTools?: string[]
+    }) {
       return {
         ok: true as const,
         config: {
           rebuildSignature: overrides.signature ?? 'sig-1',
+          rebuildFactFingerprints: overrides.factFingerprints ?? {
+            modelId: 'model-hash-1',
+            skills: 'skills-hash-1'
+          },
           live: {
             toolPolicy: {
               permissionMode: overrides.permissionMode ?? null,
@@ -2531,11 +2545,23 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const { connection, query } = await connectWithSnapshot()
 
       // One agent edit changed both a baked input (signature) and the permission mode.
-      mocks.deriveConfig.mockResolvedValue(makeConfig({ signature: 'sig-2', permissionMode: 'plan' }))
+      mocks.deriveConfig.mockResolvedValue(
+        makeConfig({
+          signature: 'sig-2',
+          factFingerprints: { modelId: 'model-hash-1', skills: 'skills-hash-2' },
+          permissionMode: 'plan'
+        })
+      )
 
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
       // The tighten must not be deferred behind the rebuild a live turn may postpone.
       expect(query.setPermissionMode).toHaveBeenCalledWith('plan')
+      expect(mockMainLoggerService.info).toHaveBeenCalledWith('Connection configuration requires rebuild', {
+        sessionId: 'session-1',
+        changedFacts: ['skills'],
+        baselineSignature: 'sig-1',
+        freshSignature: 'sig-2'
+      })
     })
 
     it('fails closed when the live patch cannot be applied', async () => {

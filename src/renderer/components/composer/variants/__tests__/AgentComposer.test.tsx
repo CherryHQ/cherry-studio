@@ -3370,7 +3370,7 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
-  it('queues a follow-up while background tasks remain after the foreground stream ends', () => {
+  it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
       { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
@@ -3388,32 +3388,26 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(getQueueDock()).toBeTruthy()
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(getQueueDock()).toBeFalsy()
   })
 
-  it('drains a background-period follow-up only after every background task ends', async () => {
+  it('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
     ])
-    const props = {
+    const props = (isStreaming: boolean) => ({
       agentId: 'agent-1',
       sessionId: 'session-1',
       sendMessage: mocks.sendMessage,
       stop: mocks.stop,
-      isStreaming: false
-    }
-    const { rerender } = render(<AgentComposer {...props} />)
+      isStreaming
+    })
+    const { rerender } = render(<AgentComposer {...props(true)} />)
 
     fireEvent.click(screen.getByText('send'))
     mocks.topicFulfilled = true
-    rerender(<AgentComposer {...props} />)
-
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(mocks.markTopicSeen).not.toHaveBeenCalled()
-
-    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [])
-    rerender(<AgentComposer {...props} />)
+    rerender(<AgentComposer {...props(false)} />)
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
     expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)

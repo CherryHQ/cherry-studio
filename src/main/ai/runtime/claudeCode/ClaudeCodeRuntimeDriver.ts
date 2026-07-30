@@ -63,6 +63,17 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
+function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
+  const baselineFacts = baseline.rebuildFactFingerprints
+  const freshFacts = fresh.rebuildFactFingerprints
+  if (!baselineFacts || !freshFacts) return ['unknown']
+
+  const changedFacts = [...new Set([...Object.keys(baselineFacts), ...Object.keys(freshFacts)])]
+    .filter((name) => baselineFacts[name] !== freshFacts[name])
+    .sort()
+  return changedFacts.length > 0 ? changedFacts : ['unknown']
+}
+
 type InvocationUsageBuckets = {
   outputTokens?: number
   noCacheTokens?: number
@@ -502,7 +513,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       patched = true
     }
 
-    if (baseline.rebuildSignature !== fresh.rebuildSignature) return 'rebuild'
+    if (baseline.rebuildSignature !== fresh.rebuildSignature) {
+      logger.info('Connection configuration requires rebuild', {
+        sessionId: this.input.sessionId,
+        changedFacts: getChangedRebuildFacts(baseline, fresh),
+        baselineSignature: baseline.rebuildSignature.slice(0, 12),
+        freshSignature: fresh.rebuildSignature.slice(0, 12)
+      })
+      return 'rebuild'
+    }
     return patched ? 'patched' : 'current'
   }
 

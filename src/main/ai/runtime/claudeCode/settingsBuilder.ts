@@ -758,9 +758,10 @@ async function buildToolPermissions(
     // headless interactive-tool denial at fire time. Mirrored by `interactiveToolPermissionHook` so
     // the denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
     // this branch stays so an interactive follow-up on a warm connection can reach the approval path.
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     if (
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
-      application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
+      interactionState.userResponse === 'unavailable'
     ) {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
@@ -781,8 +782,7 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    const runtimeService = application.get('AgentSessionRuntimeService')
-    const hasLiveTurnStream = runtimeService.hasLiveTurnStream(session.id)
+    const hasLiveTurnStream = interactionState.userResponse === 'stream'
     const isBackgroundAgent = typeof opts.agentID === 'string' && opts.agentID.length > 0
     const requiresUserResponse =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
@@ -803,7 +803,7 @@ async function buildToolPermissions(
       (!hasLiveTurnStream && !requiresUserResponse) ||
       (requiresUserResponse &&
         (!hasLiveTurnStream || isBackgroundAgent) &&
-        !runtimeService.canRequestUserInteraction(session.id))
+        interactionState.userResponse === 'unavailable')
     ) {
       logger.warn('Approval requested outside a live interactive turn — denying', {
         toolName,
@@ -889,7 +889,7 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
 
-    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -916,7 +916,8 @@ async function buildToolPermissions(
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const action = typeof toolInput?.action === 'string' ? toolInput.action : ''
     if (!HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+      return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -937,7 +938,8 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'mcp__skills__install_skill') return {}
     if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+      return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',

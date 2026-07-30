@@ -230,8 +230,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         // Default to a live interactive turn so the approval path is exercised; the out-of-turn and
         // headless gates are asserted by tests that override this.
         return {
-          isCurrentTurnHeadless: () => false,
-          hasLiveTurnStream: () => true,
+          getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
@@ -658,11 +657,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('denies interactive no-responder tools at tool fire time for the current headless turn', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -684,18 +683,18 @@ describe('buildClaudeCodeSessionSettings', () => {
           'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
       })
     }
-    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
   })
 
   it('denies interactive no-responder tools via PreToolUse so the gate fires under bypassPermissions', async () => {
     // The SDK skips `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits), so the
     // per-turn denial must also run as a PreToolUse hook (which fires in every permission mode) or a
     // headless bypass run could reach AskUserQuestion / EnterPlanMode and stall on a prompt no one answers.
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -719,15 +718,15 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
     }
-    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
   })
 
   it('forces AskUserQuestion through approval without denying other interactive tools', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => false)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -765,11 +764,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -815,11 +814,14 @@ describe('buildClaudeCodeSessionSettings', () => {
   ])(
     'applies SDK skill-install permission semantics ($permissionMode, headless=$headless)',
     async ({ permissionMode, headless, shouldDeny }) => {
-      const isCurrentTurnHeadless = vi.fn(() => headless)
+      const getInteractionState = vi.fn(() => ({
+        currentTurn: headless ? 'headless' : 'interactive',
+        userResponse: headless ? 'unavailable' : 'stream'
+      }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-        if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
         throw new Error(`Unexpected application.get(${name})`)
       })
       mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -863,11 +865,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('uses the live permission mode when a warm session switches to bypassPermissions', async () => {
     let permissionMode = 'default'
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -905,11 +907,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps AskUserQuestion pending when the current permission mode auto-approves tools', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => false)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.getAgent.mockReturnValue({
@@ -952,7 +954,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     } as never)
     void pending
 
-    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
     expect(settings.permissionMode).toBe('bypassPermissions')
     expect(mocks.approvalRegister).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1403,16 +1405,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('still denies a main-agent approval requested after its turn ended', async () => {
-      const hasLiveTurnStream = vi.fn(() => false)
+      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return {
-            isCurrentTurnHeadless: () => false,
-            hasLiveTurnStream,
-            canRequestUserInteraction: () => true
-          }
+          return { getInteractionState }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -1430,23 +1428,19 @@ describe('buildClaudeCodeSessionSettings', () => {
         message:
           'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
       })
-      expect(hasLiveTurnStream).toHaveBeenCalledWith('warm-e')
+      expect(getInteractionState).toHaveBeenCalledWith('warm-e')
       // Nothing was emitted or registered, so no promise is left for a responder that will never come.
       expect(emit).not.toHaveBeenCalled()
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
     it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
-      const hasLiveTurnStream = vi.fn(() => false)
+      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return {
-            isCurrentTurnHeadless: () => false,
-            hasLiveTurnStream,
-            canRequestUserInteraction: () => true
-          }
+          return { getInteractionState }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -1459,7 +1453,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           agentID: 'subagent-1'
         } as never)
       ).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: '/outside/file' } })
-      expect(hasLiveTurnStream).toHaveBeenCalledWith('warm-bg-auto')
+      expect(getInteractionState).toHaveBeenCalledWith('warm-bg-auto')
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
@@ -1469,9 +1463,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            isCurrentTurnHeadless: () => false,
-            hasLiveTurnStream: () => true,
-            canRequestUserInteraction: () => true
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -1494,9 +1486,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            isCurrentTurnHeadless: () => false,
-            hasLiveTurnStream: () => false,
-            canRequestUserInteraction: () => true
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -1532,15 +1522,54 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
     })
 
+    it('emits an independent AskUserQuestion interaction for an interactive background wake', () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const input = {
+        questions: [{ question: 'Continue with the migration?', options: [{ label: 'Continue' }], multiSelect: false }]
+      }
+
+      return buildClaudeCodeSessionSettings(sessionWith('warm-wake-question'), {} as never).then((settings) => {
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+        void settings.canUseTool!('AskUserQuestion', input, {
+          signal: { aborted: false },
+          toolUseID: 'tu-wake-question'
+        } as never)
+
+        expect(mocks.approvalRegister).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'warm-wake-question',
+            toolCallId: 'tu-wake-question',
+            presentation: 'message'
+          })
+        )
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolCallId: 'tu-wake-question',
+            toolName: 'AskUserQuestion',
+            input,
+            presentation: 'message'
+          })
+        )
+      })
+    })
+
     it('keeps a background AskUserQuestion independent from a concurrently live main turn', () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            isCurrentTurnHeadless: () => false,
-            hasLiveTurnStream: () => true,
-            canRequestUserInteraction: () => true
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -1577,7 +1606,9 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return { isCurrentTurnHeadless: () => false, hasLiveTurnStream: () => false }
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+          }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })

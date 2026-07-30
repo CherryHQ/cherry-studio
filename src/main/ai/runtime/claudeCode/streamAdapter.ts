@@ -128,8 +128,7 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'api-retry'
       | 'background-task-event'
       | 'background-flow-chunk'
-      | 'autonomous-generation-state'
-      | 'receive-only-turn'
+      | 'autonomous-turn-state'
   }
 >
 
@@ -555,8 +554,7 @@ export class ClaudeCodeStreamAdapter {
       }
       // Parentless content with no turn open is Claude waking the main agent after background work.
       // Translate that SDK protocol into the runtime-neutral receive-only contract.
-      this.statusSink.emit({ type: 'autonomous-generation-state', active: true })
-      this.statusSink.emit({ type: 'receive-only-turn' })
+      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
       this.beginTurn()
       this.autonomousTurn = true
     }
@@ -580,7 +578,7 @@ export class ClaudeCodeStreamAdapter {
         this.turnActive = false
         if (this.autonomousTurn) {
           this.autonomousTurn = false
-          this.statusSink.emit({ type: 'autonomous-generation-state', active: false })
+          this.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
         }
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
@@ -1397,7 +1395,12 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
-    if (message.state !== 'idle' || !this.backgroundWorkReleasePending) return
+    if (message.state !== 'idle') return
+    // Idle means held-back results and the background-agent loop have drained, so no detached flow
+    // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
+    // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
+    if (!this.turnActive) this.flowContexts.length = 0
+    if (!this.backgroundWorkReleasePending) return
     this.backgroundWorkReleasePending = false
     this.statusSink.emit({ type: 'background-work-state', active: false })
   }

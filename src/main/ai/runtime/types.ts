@@ -148,12 +148,10 @@ export type AgentRuntimeEvent =
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
-  /** Whether the runtime currently owns an autonomous generation on this connection. While active,
-   *  the host keeps the connection alive and queues user turns instead of admitting them. */
-  | { type: 'autonomous-generation-state'; active: boolean }
-  /** Runtime-generated content started without a host-admitted user turn. The host opens a
-   *  receive-only turn to carry that content into the transcript without sending another prompt. */
-  | { type: 'receive-only-turn' }
+  /** Runtime-generated content started without a host-admitted user turn. `started` atomically
+   *  transfers generation ownership and asks the host to open a receive-only transcript turn;
+   *  `finished` releases ownership after the SDK result, independently from turn completion. */
+  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
   | { type: 'error'; error: unknown }
 
 /**

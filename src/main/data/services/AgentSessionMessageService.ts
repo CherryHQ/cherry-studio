@@ -77,6 +77,15 @@ type SaveAgentSessionMessageParams = {
   message: CreateAgentSessionMessageDto
 }
 
+type SaveAgentSessionMessageOptions =
+  | { db: DbOrTx; publishDataChange?: never }
+  | { db?: undefined; publishDataChange?: boolean }
+
+type SavedAgentSessionMessage = {
+  entity: AgentSessionMessageEntity
+  dataChange: 'membership' | 'projection'
+}
+
 export class AgentSessionMessageService {
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
@@ -352,7 +361,7 @@ export class AgentSessionMessageService {
     db: DbOrTx,
     params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
-  ): AgentSessionMessageEntity {
+  ): SavedAgentSessionMessage {
     const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
@@ -394,18 +403,21 @@ export class AgentSessionMessageService {
         defaultHandlersFor('Message', String(existingRow.id))
       )
 
-      return this.rowToEntity({
-        ...existingRow,
-        role: message.role,
-        status,
-        data: message.data,
-        searchableText: existingRow.searchableText,
-        modelId,
-        messageSnapshot,
-        stats,
-        runtimeResumeToken: runtimeResumeTokenToPersist,
-        updatedAt: updatedAtMs
-      })
+      return {
+        entity: this.rowToEntity({
+          ...existingRow,
+          role: message.role,
+          status,
+          data: message.data,
+          searchableText: existingRow.searchableText,
+          modelId,
+          messageSnapshot,
+          stats,
+          runtimeResumeToken: runtimeResumeTokenToPersist,
+          updatedAt: updatedAtMs
+        }),
+        dataChange: 'projection'
+      }
     }
 
     const insertData: InsertSessionMessageRow = {
@@ -423,27 +435,40 @@ export class AgentSessionMessageService {
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
-    return this.rowToEntity(saved)
+    return { entity: this.rowToEntity(saved), dataChange: 'membership' }
   }
 
   private saveMessageTx(
     db: DbOrTx,
     params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
-  ): AgentSessionMessageEntity {
-    const saved = this.upsertMessage(db, params, timestampMs)
+  ): SavedAgentSessionMessage {
+    const result = this.upsertMessage(db, params, timestampMs)
     agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
-    return saved
+    return result
   }
 
-  saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
+  saveMessage(
+    params: SaveAgentSessionMessageParams,
+    options: SaveAgentSessionMessageOptions = {}
+  ): AgentSessionMessageEntity {
+    const { db, publishDataChange } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs)
-    const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
-    if (saved.role === 'assistant') {
-      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: saved.id })
+    if (db) return this.saveMessageTx(db, params, timestampMs).entity
+    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (result.entity.role === 'assistant') {
+      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
-    return saved
+    if (publishDataChange) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: result.dataChange,
+          entityIds: [result.entity.id]
+        }
+      ])
+    }
+    return result.entity
   }
 
   saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
@@ -453,7 +478,7 @@ export class AgentSessionMessageService {
       const timestampMs = Date.now()
       const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
+        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs).entity)
       }
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
       return result
@@ -466,29 +491,7 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  /**
-   * Persist an approval request that is not attached to a live stream, then notify mounted agent
-   * session transcripts to re-read it. Normal streaming writes deliberately keep using
-   * {@link saveMessage} so partial chunks do not trigger DataApi refetches.
-   */
-  saveToolApprovalMessage(params: SaveAgentSessionMessageParams): AgentSessionMessageEntity {
-    const saved = this.saveMessage(params)
-    notifyDataApiDataChange([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'membership',
-        entityIds: [saved.id]
-      }
-    ])
-    return saved
-  }
-
-  /**
-   * Patch background-agent flow parts onto their original assistant row after the spawning turn has
-   * settled. Live snapshots use Shared Cache; this terminal write makes the completed FlowTab
-   * transcript durable without creating a duplicate assistant message.
-   */
-  saveBackgroundFlowParts(
+  replaceMessageParts(
     sessionId: string,
     messageId: string,
     parts: AgentSessionMessageEntity['data']['parts']
