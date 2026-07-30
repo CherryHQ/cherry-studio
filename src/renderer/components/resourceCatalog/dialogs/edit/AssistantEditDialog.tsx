@@ -18,10 +18,11 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
-import { useGroups } from '@renderer/hooks/useGroups'
+import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
@@ -184,12 +185,14 @@ function AssistantEditDialogContent({
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
+  const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
     const baseline = initialAssistantFormState(resource)
@@ -220,12 +223,17 @@ function AssistantEditDialogContent({
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
     wasOpenRef.current = open
+    if (!open) {
+      setCreateGroupDialogOpen(false)
+      return
+    }
     if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
+    setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
     // A fresh open is a fresh editing session — a stale failure from a prior
     // session (this instance can outlive one close, see the exit-animation
@@ -286,6 +294,23 @@ function AssistantEditDialogContent({
   // Route the settings-navigate close through handleOpenChange so it flushes too.
   const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
+  const handleCreateGroup = async (name: string) => {
+    try {
+      const group = await createGroup(name)
+      form.setValue('groupId', group.id, { shouldDirty: true, shouldTouch: true })
+    } catch (error) {
+      logger.error(
+        'Failed to create assistant group from edit dialog',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          assistantId: resource.id,
+          name
+        }
+      )
+      throw error
+    }
+  }
+
   return (
     <EditDialogShell
       activeTab={activeTab}
@@ -311,6 +336,7 @@ function AssistantEditDialogContent({
             groupsError={groupsError}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
+            onCreateGroup={() => setCreateGroupDialogOpen(true)}
             onSettingsNavigate={closeBeforeAction}
           />
         </TabsContent>
@@ -340,6 +366,11 @@ function AssistantEditDialogContent({
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
         </TabsContent>
+        <CreateGroupDialog
+          open={createGroupDialogOpen}
+          onCreate={handleCreateGroup}
+          onOpenChange={setCreateGroupDialogOpen}
+        />
       </>
     </EditDialogShell>
   )
@@ -356,6 +387,7 @@ function AssistantBasicFields({
   groupsError,
   emojiPickerOpen,
   setEmojiPickerOpen,
+  onCreateGroup,
   onSettingsNavigate
 }: {
   form: UseFormReturn<AssistantEditFormValues>
@@ -368,6 +400,7 @@ function AssistantBasicFields({
   groupsError: ReturnType<typeof useGroups>['error']
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  onCreateGroup: () => void
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
@@ -429,6 +462,7 @@ function AssistantBasicFields({
                 isLoading={groupsLoading}
                 error={groupsError}
                 portalContainer={portalContainer}
+                onCreateGroup={onCreateGroup}
               />
               <FormMessage />
             </FormItem>
