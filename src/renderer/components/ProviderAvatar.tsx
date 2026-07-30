@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { getIconWebpUrl, resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getFirstCharacter } from '@renderer/utils/naming'
-import { generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
+import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import React from 'react'
 
@@ -67,11 +67,13 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // (unknown id) is not a URL — fall through to the initial-character fallback below.
   if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
-      <Avatar className={className} style={{ width: size, height: size, ...style }}>
+      <Avatar
+        className={cn(builtinWebpUrl && 'items-center justify-center', className)}
+        style={{ width: size, height: size, ...style }}>
         <AvatarImage
           alt=""
           src={effectiveLogo}
-          className={builtinWebpUrl ? 'm-auto bg-background object-contain' : 'object-cover'}
+          className={builtinWebpUrl ? 'bg-background object-contain' : 'object-cover'}
           draggable={false}
           style={builtinWebpUrl ? iconStyle : undefined}
         />
