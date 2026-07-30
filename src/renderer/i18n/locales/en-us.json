@@ -4153,10 +4153,25 @@
         "preparing": "Preparing response",
         "preparing_phrases": {
           "answer_on_the_way": "A good answer is on the way",
+          "answer_puzzle": "The answer puzzle is taking shape",
+          "answer_warming_up": "The answer is warming up backstage",
+          "brain_cells_huddle": "Calling a quick brain-cell huddle",
+          "brewing_solid_answer": "Brewing up a solid answer",
           "catching_inspiration": "Catching a spark",
+          "changing_angle": "Looking at it from another angle",
           "connecting_clues": "Connecting the clues",
+          "finding_right_words": "Finding just the right words",
           "gears_turning": "The gears are turning",
-          "ideas_bubbling": "Ideas are bubbling up"
+          "ideas_bubbling": "Ideas are bubbling up",
+          "ideas_lining_up": "The ideas are lining up",
+          "inspiration_radar": "The inspiration radar is on",
+          "mental_notebook": "Flipping through the mental notebook",
+          "mining_ideas": "Mining the idea pile for gold",
+          "mulling_it_over": "Mulling it over for a moment",
+          "polishing_answer": "Polishing the answer to a shine",
+          "serving_fresh_answer": "Serving up a fresh answer soon",
+          "sparking_ideas": "Giving the ideas a little spark",
+          "thought_around_corner": "The thought is just around the corner"
         },
         "thinking": "Let me think this through",
         "usingTools": "Making progress"
