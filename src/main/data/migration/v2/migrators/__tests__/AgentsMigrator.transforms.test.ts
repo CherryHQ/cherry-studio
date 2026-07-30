@@ -10,7 +10,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
@@ -173,6 +173,47 @@ describe('importLegacySessionMessages', () => {
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
     expect(row.runtimeResumeToken).toBe('sdk-1')
+  })
+
+  it('reads and imports legacy messages in bounded pages', async () => {
+    await seedSession('s-paged')
+    const allSpy = vi.spyOn(dbh.db, 'all')
+
+    const imported = await importLegacyRows(
+      Array.from({ length: 101 }, (_, index) => ({
+        id: index + 1,
+        sessionId: 's-paged',
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        content: { parts: [{ type: 'text', text: `message ${index + 1}` }] },
+        createdAt: `2026-01-01T00:00:${String(index % 60).padStart(2, '0')}.000Z`
+      }))
+    )
+
+    const sourcePageSizes = allSpy.mock.calls.flatMap(([statement], index) => {
+      const query = (
+        statement as unknown as {
+          queryChunks: Array<{ value?: string[] }>
+        }
+      ).queryChunks[0]?.value?.[0]
+      if (typeof query !== 'string' || !query.includes('agent_session_message_source_cursor AS cursor')) {
+        return []
+      }
+      const result = allSpy.mock.results[index]
+      if (!result || result.type !== 'return' || !Array.isArray(result.value)) {
+        throw new Error('Expected a synchronous legacy session-message page')
+      }
+      return [result.value.length]
+    })
+    allSpy.mockRestore()
+
+    expect(imported).toBe(101)
+    expect(sourcePageSizes).toEqual([100, 1, 0])
+    const [{ count }] = dbh.db
+      .select({ count: sql<number>`count(*)` })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-paged'))
+      .all()
+    expect(count).toBe(101)
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {

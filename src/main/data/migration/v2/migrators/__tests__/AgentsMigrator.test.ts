@@ -219,9 +219,8 @@ describe('AgentsMigrator', () => {
     // PRAGMA toggling. Import phase: ATTACH → BEGIN → [INSERTs] → COMMIT
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('BEGIN')
-    // run tail after import COMMIT: remapAgentPrefixIds creates and removes its
-    // temporary mapping tables inside a second BEGIN → COMMIT, then execute()
-    // emits DETACH.
+    // run tail after import COMMIT: remapAgentPrefixIds emits BEGIN → COMMIT (no old-prefix
+    // IDs here, so no UPDATEs), then execute() drops message staging and emits DETACH.
     const beginIndexes = outer.flatMap((statement, index) => (statement === 'BEGIN' ? [index] : []))
     const commitIndexes = outer.flatMap((statement, index) => (statement === 'COMMIT' ? [index] : []))
     expect(beginIndexes).toHaveLength(2)
@@ -229,9 +228,8 @@ describe('AgentsMigrator', () => {
     expect(beginIndexes[0]).toBeLessThan(commitIndexes[0])
     expect(commitIndexes[0]).toBeLessThan(beginIndexes[1])
     expect(beginIndexes[1]).toBeLessThan(commitIndexes[1])
-    expect(outer.at(-4)).toBe('DROP TABLE agent_session_id_remap')
-    expect(outer.at(-3)).toBe('DROP TABLE agent_id_remap')
-    expect(outer.at(-2)).toBe('COMMIT')
+    expect(outer.at(-3)).toBe('DROP TABLE IF EXISTS agent_session_message_migration_staging')
+    expect(outer.at(-2)).toBe('DROP TABLE IF EXISTS agent_session_message_source_cursor')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
     // Session-workspace staging runs first inside the import transaction, emitted
     // via run() before the table INSERTs.
