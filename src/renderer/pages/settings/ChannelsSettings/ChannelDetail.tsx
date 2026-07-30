@@ -192,9 +192,15 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
+  const lastChannelRef = useRef<ChannelData | null>(channel)
   // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const { data: workspaces } = useQuery('/agent-workspaces')
+
+  if (channel) {
+    lastChannelRef.current = channel
+  }
+  const renderedChannel = channel ?? (!open ? lastChannelRef.current : null)
 
   useEffect(() => {
     if (channel) {
@@ -248,15 +254,15 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     [channel, onSave]
   )
 
-  const FormComponent = channel ? getFormForType(channel.type) : null
+  const FormComponent = renderedChannel ? getFormForType(renderedChannel.type) : null
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent closeOnOverlayClick={false} className="max-w-125">
-        {channel && (
+        {renderedChannel && (
           <>
             <DialogHeader>
-              <DialogTitle>{channel.name}</DialogTitle>
+              <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <div>
@@ -301,7 +307,11 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                 </div>
               </div>
               {FormComponent && (
-                <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
+                <FormComponent
+                  channel={renderedChannel}
+                  onConfigChange={handleUpdate}
+                  onRemove={() => channel && onDelete(channel.id)}
+                />
               )}
             </div>
           </>

@@ -122,6 +122,26 @@ describe('WeChatAdapter', () => {
     )
   })
 
+  it('reports exhausted QR codes as expired to the renderer', async () => {
+    mockBot.login.mockRejectedValue(
+      new Error('QR login failed after 3 expired QR codes. Use config tool to reconnect.')
+    )
+    const adapter = createAdapter()
+
+    await expect(adapter.connect()).rejects.toThrow('expired QR codes')
+
+    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'channel.wechat.qr_login',
+      {
+        channelId: 'ch-1',
+        url: '',
+        status: 'expired',
+        userId: undefined
+      }
+    )
+  })
+
   it('disconnect() stops the bot', async () => {
     const adapter = createAdapter()
     await adapter.connect()

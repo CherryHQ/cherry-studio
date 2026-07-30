@@ -393,7 +393,7 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   )
 }
 
-type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'disconnected' | 'error'
+type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ channel, onConfigChange, onRemove }) => {
   const { t } = useTranslation()
@@ -418,6 +418,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
       if (data.userId) setLoginUserId(data.userId)
     } else if (data.status === 'expired') {
       setQrUrl(null)
+      setStatus('expired')
     } else if (data.status === 'disconnected') {
       setStatus('disconnected')
       setLoginUserId(null)
@@ -444,6 +445,12 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-error" />
               <span className="text-error text-xs">{t('agent.channels.wechat.disconnected')}</span>
+            </>
+          )}
+          {status === 'expired' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.wechat.qrExpired')}</span>
             </>
           )}
           {status === 'error' && (

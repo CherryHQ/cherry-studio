@@ -50,7 +50,10 @@ class WeChatAdapter extends ChannelAdapter {
 
     const credentials = await bot.login({ signal }).catch((error) => {
       if (!signal.aborted) {
-        this.sendQrToRenderer('', 'error')
+        const isExpired =
+          error instanceof Error &&
+          error.message === 'QR login failed after 3 expired QR codes. Use config tool to reconnect.'
+        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
       }
       throw error
     })
