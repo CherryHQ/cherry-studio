@@ -1,5 +1,6 @@
 import type * as NodeFs from 'node:fs'
 import type * as NodeOs from 'node:os'
+import type * as NodePath from 'node:path'
 import path from 'node:path'
 
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
@@ -10,6 +11,17 @@ import type * as PathStorage from '../../../pathStorage'
 const copyFileIntoKnowledgeBaseAtMock = vi.hoisted(() =>
   vi.fn(async (_baseId: string, _externalPath: string, relativePath: string) => relativePath)
 )
+
+vi.mock('node:path', async () => {
+  const actual = await vi.importActual<typeof NodePath>('node:path')
+  const mocked = {
+    ...actual,
+    resolve: vi.fn((...paths: string[]) => actual.resolve(...paths)),
+    basename: vi.fn((filePath: string, suffix?: string) => actual.basename(filePath, suffix)),
+    parse: vi.fn((filePath: string) => actual.parse(filePath))
+  }
+  return { ...mocked, default: mocked }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -27,6 +39,13 @@ vi.mock('../../../pathStorage', async () => {
 const { chooseDirectoryPathPrefix, expandDirectoryOwnerToTree } = await import('../directory')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
 const realOs = await vi.importActual<typeof NodeOs>('node:os')
+const realPath = await vi.importActual<typeof NodePath>('node:path')
+
+afterEach(() => {
+  vi.mocked(path.resolve).mockImplementation(realPath.resolve)
+  vi.mocked(path.basename).mockImplementation(realPath.basename)
+  vi.mocked(path.parse).mockImplementation(realPath.parse)
+})
 
 function createTempRoot() {
   return realFs.mkdtempSync(path.join(realOs.tmpdir(), 'knowledge-directory-expand-'))
@@ -66,6 +85,28 @@ describe('chooseDirectoryPathPrefix', () => {
     // not a file extension, so the suffix must land after it (`report.v2_1`).
     expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/report.v2'), new Set(['report.v2']))).toBe(
       'report.v2_1'
+    )
+  })
+
+  it('uses a stable non-empty prefix for the POSIX filesystem root', () => {
+    vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
+    vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
+    vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
+
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/'), new Set())).toBe('root')
+  })
+
+  it('uses the drive name as the prefix for a Windows drive root', () => {
+    vi.mocked(path.resolve).mockImplementation(realPath.win32.resolve)
+    vi.mocked(path.basename).mockImplementation(realPath.win32.basename)
+    vi.mocked(path.parse).mockImplementation(realPath.win32.parse)
+
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('C:\\'), new Set())).toBe('C')
+  })
+
+  it('rejects the reserved .cherry prefix before it can be persisted', () => {
+    expect(() => chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/.cherry'), new Set())).toThrow(
+      'Knowledge relative path is reserved: .cherry'
     )
   })
 

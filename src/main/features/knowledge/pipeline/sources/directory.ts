@@ -5,7 +5,7 @@ import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
+import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
@@ -146,11 +146,15 @@ export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevel
   // The original folder to scan lives in `source` (shared by every item type). `path`
   // was retired in favour of a `relativePath` written back from `pathPrefix`.
   const resolvedPath = path.resolve(owner.data.source)
-  return nextFreeKnowledgeRelativePath(
-    path.basename(resolvedPath),
+  const rootName = path.parse(resolvedPath).root.replace(/[:\\/]+/g, '')
+  const sourceName = path.basename(resolvedPath) || rootName || 'root'
+  const pathPrefix = nextFreeKnowledgeRelativePath(
+    sourceName,
     (candidate) => !reservedTopLevelNames.has(candidate),
     false // a directory basename is not a filename — keep any trailing ".ext" intact
   )
+  assertSafeKnowledgeRelativePath(pathPrefix)
+  return pathPrefix
 }
 
 /**
