@@ -1,5 +1,4 @@
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
@@ -25,6 +24,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -74,7 +74,6 @@ const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
-  const invalidateCache = useInvalidateCache()
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
@@ -88,6 +87,13 @@ const Chat: FC<Props> = (props) => {
   const showConversation = Boolean(activeTopic && !centerSurface)
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
+  const branchDraftRefreshPaths = React.useMemo<ConcreteApiPaths[]>(
+    () => (activeTopicId ? [`/topics/${activeTopicId}/messages`, `/topics/${activeTopicId}/tree`] : []),
+    [activeTopicId]
+  )
+  const { trigger: createBranchDraft } = useMutation('POST', '/topics/:topicId/branch-drafts', {
+    refresh: branchDraftRefreshPaths
+  })
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
@@ -210,19 +216,14 @@ const Chat: FC<Props> = (props) => {
     async (anchorMessageId: string) => {
       if (!activeTopicId) return
 
-      await dataApiService.post(`/topics/${activeTopicId}/messages`, {
-        body: {
-          parentId: anchorMessageId,
-          role: 'user',
-          data: { parts: [], isBranchDraft: true },
-          status: 'success'
-        }
+      await createBranchDraft({
+        params: { topicId: activeTopicId },
+        body: { parentId: anchorMessageId }
       })
 
-      await invalidateCache([`/topics/${activeTopicId}/messages`, `/topics/${activeTopicId}/tree`])
       void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
     },
-    [activeTopicId, invalidateCache]
+    [activeTopicId, createBranchDraft]
   )
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {

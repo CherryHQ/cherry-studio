@@ -25,7 +25,11 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import {
+  type CherryMessagePart,
+  type CherryUIMessage,
+  isRenderableConversationMessage
+} from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -209,11 +213,7 @@ export function useChatRuntimeState({
     [activeNodeId, messages]
   )
   const displayMessages = useMemo(
-    () =>
-      mergeMessagesById(
-        messages.filter((message) => !message.metadata?.isBranchDraft),
-        liveAssistants
-      ),
+    () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
     [messages, liveAssistants]
   )
   const liveMessageIdCandidates = useMemo(

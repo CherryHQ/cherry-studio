@@ -6,7 +6,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest, AiToolResultResponse } from '@shared/ai/transport'
+import type { AiToolResultResponse } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -115,7 +115,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    return application.get('AiStreamManager').dispatch(subscriber, request)
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)

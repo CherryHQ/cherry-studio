@@ -3,28 +3,10 @@ import {
   type CherryMessagePart,
   type CherryUIMessage,
   type Message as SharedMessage,
-  toContentRole
+  sharedMessageToUIMessage
 } from '@shared/data/types/message'
 
-export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage {
-  return {
-    id: shared.id,
-    role: toContentRole(shared.role),
-    parts: (shared.data?.parts ?? []) as CherryUIMessage['parts'],
-    metadata: {
-      parentId: shared.parentId,
-      siblingsGroupId: shared.siblingsGroupId || undefined,
-      modelId: shared.modelId ?? undefined,
-      messageSnapshot: shared.messageSnapshot ?? undefined,
-      status: shared.status,
-      isBranchDraft: shared.data.isBranchDraft || undefined,
-      turnOptions: shared.data.turnOptions,
-      createdAt: shared.createdAt,
-      stats: shared.stats ?? undefined,
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
-    }
-  }
-}
+export { sharedMessageToUIMessage } from '@shared/data/types/message'
 
 export function uiMessagesToPartsMap(messages: CherryUIMessage[]): Record<string, CherryMessagePart[]> {
   const map: Record<string, CherryMessagePart[]> = {}

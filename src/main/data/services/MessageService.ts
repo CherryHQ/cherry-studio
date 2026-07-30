@@ -32,6 +32,7 @@ import {
   coerceSearchRole,
   type Message,
   type MessageData,
+  type MessageDataInput,
   type MessageRuntimeStatsInput,
   type MessageStats,
   type SiblingsGroup,
@@ -80,13 +81,15 @@ export interface CreateUserMessageWithPlaceholdersInput {
     | {
         mode: 'branch-draft'
         id: string
-        data: Omit<MessageData, 'isBranchDraft'>
+        data: MessageDataInput
         modelId: UniqueModelId
       }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
 }
+
+type InternalCreateMessageDto = Omit<CreateMessageDto, 'data'> & { data: MessageData }
 
 export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
@@ -317,6 +320,15 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
+  private assertBranchDraftMarkerAbsent(data: MessageData, operation: string): asserts data is MessageDataInput {
+    if (Object.prototype.hasOwnProperty.call(data, 'isBranchDraft')) {
+      throw DataApiErrorFactory.invalidOperation(
+        operation,
+        'isBranchDraft is storage-owned and only available through dedicated branch-draft operations'
+      )
+    }
+  }
+
   purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return
@@ -902,7 +914,9 @@ export class MessageService {
    * - First-turn messages hang off the topic's virtual root, so editing / resending
    *   the first user turn creates an ordinary sibling under that root — no special case.
    */
-  createSibling(sourceId: string, data: MessageData): Message {
+  createSibling(sourceId: string, data: MessageDataInput): Message {
+    this.assertBranchDraftMarkerAbsent(data, 'create sibling message')
+
     return application.get('DbService').withWriteTx((tx) => {
       const [source] = tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1).all()
       if (!source) {
@@ -915,6 +929,12 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation(
           'create sibling of the virtual root',
           'the virtual root has no siblings'
+        )
+      }
+      if (source.data.isBranchDraft === true) {
+        throw DataApiErrorFactory.invalidOperation(
+          'create sibling message',
+          'a branch draft can only be filled or deleted through its dedicated operations'
         )
       }
 
@@ -1000,6 +1020,21 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   create(topicId: string, dto: CreateMessageDto): Message {
+    this.assertBranchDraftMarkerAbsent(dto.data, 'create message')
+    return this.createMessage(topicId, dto)
+  }
+
+  /** Create the only valid persisted branch-draft shape. */
+  createBranchDraft(topicId: string, parentId: string): Message {
+    return this.createMessage(topicId, {
+      parentId,
+      role: 'user',
+      data: { parts: [], isBranchDraft: true },
+      status: 'success'
+    })
+  }
+
+  private createMessage(topicId: string, dto: InternalCreateMessageDto): Message {
     if (
       dto.data.isBranchDraft &&
       (dto.role !== 'user' ||
@@ -1053,7 +1088,7 @@ export class MessageService {
         if (dto.data.isBranchDraft && parent.role !== 'assistant' && parent.role !== 'system') {
           throw DataApiErrorFactory.invalidOperation(
             'create branch draft',
-            'A branch draft must be parented by an assistant message'
+            'A branch draft must be parented by an assistant or system message'
           )
         }
         resolvedParentId = dto.parentId
@@ -1127,6 +1162,7 @@ export class MessageService {
       let userMessage: Message
       if (input.userMessage.mode === 'create') {
         const dto = input.userMessage.dto
+        this.assertBranchDraftMarkerAbsent(dto.data, 'reserve user message')
         let resolvedParentId: string | null
 
         if (dto.parentId === undefined || dto.parentId === null) {
@@ -1172,6 +1208,7 @@ export class MessageService {
         }
         userMessage = rowToMessage(row)
       } else {
+        this.assertBranchDraftMarkerAbsent(input.userMessage.data, 'submit branch draft')
         const [row] = tx
           .select()
           .from(messageTable)
@@ -1238,6 +1275,7 @@ export class MessageService {
       // 3. Insert placeholders (preserving input order)
       const placeholders: Message[] = []
       for (const p of input.placeholders) {
+        this.assertBranchDraftMarkerAbsent(p.data, 'reserve assistant placeholder')
         const [row] = tx
           .insert(messageTable)
           .values({
@@ -1280,6 +1318,10 @@ export class MessageService {
    * Cycle check is performed outside transaction as a read-only safety check.
    */
   update(id: string, dto: UpdateMessageDto): Message {
+    if (dto.data !== undefined) {
+      this.assertBranchDraftMarkerAbsent(dto.data, 'update message')
+    }
+
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
@@ -1299,6 +1341,12 @@ export class MessageService {
       }
 
       const existing = rowToMessage(existingRow)
+      if (existing.data.isBranchDraft === true) {
+        throw DataApiErrorFactory.invalidOperation(
+          'update branch draft',
+          'a branch draft can only be filled or deleted through its dedicated operations'
+        )
+      }
 
       // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
       // structural backstop, these give clean errors):
@@ -1356,11 +1404,12 @@ export class MessageService {
   finalizeAssistantMessage(
     id: string,
     input: {
-      data: MessageData
+      data: MessageDataInput
       status: Extract<Message['status'], 'success' | 'paused' | 'error'>
       runtimeStats?: MessageRuntimeStatsInput
     }
   ): Message {
+    this.assertBranchDraftMarkerAbsent(input.data, 'finalize assistant message')
     application.get('DbService').withWriteTx((tx) => {
       const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
       if (!row) throw DataApiErrorFactory.notFound('Message', id)
@@ -1475,56 +1524,51 @@ export class MessageService {
     activeNodeStrategy: ActiveNodeStrategy = 'parent',
     awaitingInputOnly: boolean = false
   ): DeleteMessageResponse {
-    const db = application.get('DbService').getDb()
-
-    // Get the message
-    const message = this.getById(id)
-
-    // Get topic to check activeNodeId
-    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, message.topicId)).limit(1).all()
-
-    if (!topic) {
-      throw DataApiErrorFactory.notFound('Topic', message.topicId)
-    }
-
-    // The virtual root is structural — deleting it would orphan first-turn children
-    // (unique-index violation) or leave a rootless topic (getRootMessageIdTx then throws
-    // on the next create). It is removable only via topic deletion (FK cascade). "Clear
-    // all messages" must delete the root's *children*, not the root. Reject it regardless
-    // of cascade. (role = 'root' and parentId IS NULL are equivalent; either identifies it.)
-    if (message.role === 'root' || message.parentId === null) {
-      throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
-    }
-
-    if (awaitingInputOnly) {
-      const [liveChild] = db
-        .select({ id: messageTable.id })
+    return application.get('DbService').withWriteTx((tx) => {
+      const [messageRow] = tx
+        .select()
         .from(messageTable)
-        .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
+        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
         .limit(1)
         .all()
-      const isAwaitingInput =
-        message.role === 'user' &&
-        message.data.isBranchDraft === true &&
-        (message.data.parts?.length ?? 0) === 0 &&
-        liveChild === undefined
-
-      if (!isAwaitingInput) {
-        throw DataApiErrorFactory.invalidOperation(
-          'delete awaiting-input message',
-          'the message is no longer an empty branch-input leaf'
-        )
+      if (!messageRow) {
+        throw DataApiErrorFactory.notFound('Message', id)
       }
-    }
+      const message = rowToMessage(messageRow)
 
-    // Get all descendant IDs before transaction (for cascade delete)
-    let descendantIds: string[] = []
-    if (cascade) {
-      descendantIds = this.getDescendantIds(id)
-    }
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, message.topicId)).limit(1).all()
+      if (!topic) {
+        throw DataApiErrorFactory.notFound('Topic', message.topicId)
+      }
 
-    // Use transaction for atomic delete + activeNodeId update
-    return application.get('DbService').withWriteTx((tx) => {
+      // The virtual root is structural — deleting it would orphan first-turn children
+      // or leave a rootless topic. It is removable only via topic deletion (FK cascade).
+      if (message.role === 'root' || message.parentId === null) {
+        throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
+      }
+
+      if (awaitingInputOnly) {
+        const [liveChild] = tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .all()
+        const isAwaitingInput =
+          message.role === 'user' &&
+          message.data.isBranchDraft === true &&
+          (message.data.parts?.length ?? 0) === 0 &&
+          liveChild === undefined
+
+        if (!isAwaitingInput) {
+          throw DataApiErrorFactory.invalidOperation(
+            'delete awaiting-input message',
+            'the message is no longer an empty branch-input leaf'
+          )
+        }
+      }
+
+      const descendantIds = cascade ? this.getDescendantIdsTx(tx, id) : []
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
@@ -1677,10 +1721,12 @@ export class MessageService {
    * Get all descendant IDs of a message
    */
   private getDescendantIds(id: string): string[] {
-    const db = application.get('DbService').getDb()
+    return this.getDescendantIdsTx(application.get('DbService').getDb(), id)
+  }
 
+  private getDescendantIdsTx(tx: DbOrTx, id: string): string[] {
     // Use recursive query to get all descendants
-    const result = db.all<{ id: string }>(sql`
+    const result = tx.all<{ id: string }>(sql`
       WITH RECURSIVE descendants AS (
         SELECT id FROM message WHERE parent_id = ${id} AND deleted_at IS NULL
         UNION ALL

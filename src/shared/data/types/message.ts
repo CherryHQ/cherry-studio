@@ -154,6 +154,13 @@ export interface MessageData {
   turnOptions?: AssistantTurnOptions
 }
 
+/**
+ * Message content accepted from general-purpose write APIs.
+ * `isBranchDraft` is storage-owned state and can only be created or consumed
+ * through MessageService's dedicated branch-draft operations.
+ */
+export type MessageDataInput = Omit<MessageData, 'isBranchDraft'>
+
 // ── Cherry-specific UI message types ────────────────────────────────
 
 /**
@@ -215,6 +222,11 @@ export interface CherryUIMessageMetadata {
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
 export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes>
+
+/** Persisted branch drafts are structural tree nodes, not renderable conversation bubbles. */
+export function isRenderableConversationMessage(message: CherryUIMessage): boolean {
+  return message.metadata?.isBranchDraft !== true
+}
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>
@@ -414,6 +426,14 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   return true
 })
 
+export const MessageDataInputSchema = z.custom<MessageDataInput>(
+  (value) =>
+    MessageDataSchema.safeParse(value).success &&
+    typeof value === 'object' &&
+    value !== null &&
+    !Object.prototype.hasOwnProperty.call(value, 'isBranchDraft')
+)
+
 // ============================================================================
 // Snapshot Types (immutable records captured at message creation time)
 // ============================================================================
@@ -547,6 +567,27 @@ export const MessageSchema = z.strictObject({
   updatedAt: z.iso.datetime()
 })
 export type Message = z.infer<typeof MessageSchema>
+
+/** Canonical persisted-message projection shared by main and renderer consumers. */
+export function sharedMessageToUIMessage(message: Message): CherryUIMessage {
+  return {
+    id: message.id,
+    role: toContentRole(message.role),
+    parts: (message.data.parts ?? []) as CherryUIMessage['parts'],
+    metadata: {
+      parentId: message.parentId,
+      siblingsGroupId: message.siblingsGroupId || undefined,
+      modelId: message.modelId ?? undefined,
+      messageSnapshot: message.messageSnapshot ?? undefined,
+      status: message.status,
+      isBranchDraft: message.data.isBranchDraft || undefined,
+      turnOptions: message.data.turnOptions,
+      createdAt: message.createdAt,
+      stats: message.stats ?? undefined,
+      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+    }
+  }
+}
 
 // ============================================================================
 // Tree Structure Types

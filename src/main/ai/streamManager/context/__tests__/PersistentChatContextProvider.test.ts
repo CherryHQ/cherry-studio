@@ -128,12 +128,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   })
 
   it('fills a persisted branch draft instead of creating a second user row', async () => {
-    const draft = messageService.create('topic-1', {
-      role: 'user',
-      parentId: 'a1',
-      data: { parts: [], isBranchDraft: true },
-      status: 'success'
-    })
+    const draft = messageService.createBranchDraft('topic-1', 'a1')
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),

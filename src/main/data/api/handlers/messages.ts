@@ -10,6 +10,7 @@
 import { messageService } from '@data/services/MessageService'
 import {
   BranchMessagesQuerySchema,
+  CreateBranchDraftSchema,
   CreateMessageSchema,
   DeleteMessageQuerySchema,
   type MessageSchemas,
@@ -18,7 +19,7 @@ import {
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
-import { MessageDataSchema } from '@shared/data/types/message'
+import { MessageDataInputSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/topics/:topicId/tree': {
@@ -53,6 +54,13 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     }
   },
 
+  '/topics/:topicId/branch-drafts': {
+    POST: async ({ params, body }) => {
+      const parsed = CreateBranchDraftSchema.parse(body)
+      return messageService.createBranchDraft(params.topicId, parsed.parentId)
+    }
+  },
+
   '/topics/:topicId/path': {
     GET: async ({ params, query }) => {
       const q = PathThroughQuerySchema.parse(query ?? {})
@@ -80,7 +88,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
 
   '/messages/:id/siblings': {
     POST: async ({ params, body }) => {
-      const parsed = MessageDataSchema.parse(body)
+      const parsed = MessageDataInputSchema.parse(body)
       return messageService.createSibling(params.id, parsed)
     }
   }

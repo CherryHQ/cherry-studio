@@ -6,10 +6,10 @@
  */
 
 import type { CursorPaginationParams } from '@shared/data/api/types'
-import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
+import type { BranchMessagesResponse, Message, MessageDataInput, TreeResponse } from '@shared/data/types/message'
 import {
   ContentMessageRoleSchema,
-  MessageDataSchema,
+  MessageDataInputSchema,
   MessageSnapshotSchema,
   MessageStatusSchema
 } from '@shared/data/types/message'
@@ -43,7 +43,7 @@ export const CreateMessageSchema = z.strictObject({
   /** Message role — content roles only; the virtual root is created internally, not via this DTO */
   role: ContentMessageRoleSchema,
   /** Message content */
-  data: MessageDataSchema,
+  data: MessageDataInputSchema,
   /** Message status */
   status: MessageStatusSchema.optional(),
   /** Siblings group ID (0 = normal, >0 = multi-model group) */
@@ -62,7 +62,7 @@ export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
  */
 export const UpdateMessageSchema = z.strictObject({
   /** Updated message content */
-  data: MessageDataSchema.optional(),
+  data: MessageDataInputSchema.optional(),
   /** Move message to new parent */
   parentId: z.string().nullable().optional(),
   /** Change siblings group */
@@ -71,6 +71,12 @@ export const UpdateMessageSchema = z.strictObject({
   status: MessageStatusSchema.optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
+
+/** Start a persisted empty branch below an assistant/system message. */
+export const CreateBranchDraftSchema = z.strictObject({
+  parentId: z.string().min(1)
+})
+export type CreateBranchDraftDto = z.infer<typeof CreateBranchDraftSchema>
 
 /**
  * Strategy for updating activeNodeId when the active message is deleted
@@ -209,6 +215,14 @@ export type MessageSchemas = {
     }
   }
 
+  '/topics/:topicId/branch-drafts': {
+    POST: {
+      params: { topicId: string }
+      body: CreateBranchDraftDto
+      response: Message
+    }
+  }
+
   /**
    * Read-only path query passing through a given node.
    *
@@ -276,7 +290,7 @@ export type MessageSchemas = {
   '/messages/:id/siblings': {
     POST: {
       params: { id: string }
-      body: MessageData
+      body: MessageDataInput
       response: Message
     }
   }

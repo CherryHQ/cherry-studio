@@ -1,6 +1,7 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
+  AiStreamOpenRequest,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolResultRequest,
@@ -203,7 +204,7 @@ export const aiRequestSchemas = {
           fastMode: z.boolean().optional()
         })
       ])
-    ),
+    ) satisfies z.ZodType<AiStreamOpenRequest>,
     output: z.custom<AiStreamOpenResponse>()
   }),
   'ai.stream.attach': defineRoute({

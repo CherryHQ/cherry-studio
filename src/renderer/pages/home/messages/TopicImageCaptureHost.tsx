@@ -6,7 +6,11 @@ import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageI
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { projectBranchMessagesToUI } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
-import type { BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
+import {
+  type BranchMessagesResponse,
+  type CherryUIMessage,
+  isRenderableConversationMessage
+} from '@shared/data/types/message'
 import { memo, useCallback } from 'react'
 
 import { useHomeMessageListProviderValue } from './homeMessageListAdapter'
@@ -33,7 +37,7 @@ export async function getTopicImageCaptureMessages(topicId: string): Promise<Che
     cursor = response.nextCursor
   } while (cursor)
 
-  return projectBranchMessagesToUI(pages.reverse().flat())
+  return projectBranchMessagesToUI(pages.reverse().flat()).filter(isRenderableConversationMessage)
 }
 
 const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => {

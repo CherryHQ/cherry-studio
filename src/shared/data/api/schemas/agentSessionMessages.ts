@@ -4,7 +4,7 @@
 
 import {
   ContentMessageRoleSchema,
-  MessageDataSchema,
+  MessageDataInputSchema,
   MessageSnapshotSchema,
   MessageStatsSchema,
   MessageStatusSchema
@@ -38,7 +38,7 @@ export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesL
 
 const AgentSessionMessageBaseSchema = z.strictObject({
   role: ContentMessageRoleSchema,
-  data: MessageDataSchema,
+  data: MessageDataInputSchema,
   status: MessageStatusSchema,
   modelId: z.string().nullable(),
   messageSnapshot: MessageSnapshotSchema.nullable(),
@@ -65,7 +65,7 @@ export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pic
   .extend({
     id: z.string().optional(),
     role: ContentMessageRoleSchema,
-    data: MessageDataSchema,
+    data: MessageDataInputSchema,
     status: MessageStatusSchema.optional()
   })
 export type CreateAgentSessionMessageDto = z.infer<typeof CreateAgentSessionMessageSchema>

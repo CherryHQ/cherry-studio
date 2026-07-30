@@ -47,8 +47,10 @@ the indexed root *lookup* key.
 
 Starting a branch below an assistant creates a real empty `role = 'user'` leaf with
 `data.isBranchDraft = true` and makes it the topic's active node. The conversation list
-hides this content-less row, while `getTree` projects the marker so the flow canvas can
-render and select it as an awaiting-input node.
+hides this content-less row in both the live view and image capture, while `getTree`
+projects the marker so the flow canvas can render and select it as an awaiting-input node.
+General message write DTOs do not expose the storage-owned marker; the row is created only
+through `POST /topics/:topicId/branch-drafts` → `MessageService.createBranchDraft`.
 
 The next composer submission uses the draft row's id instead of creating another user
 row. `MessageService.createUserMessageWithPlaceholders` validates that the row is still
@@ -63,7 +65,7 @@ creates the assistant placeholders in one write transaction.
 | Every content message has a non-null parent | **DB CHECK** `message_root_parent_check` `((role = 'root') = (parent_id IS NULL))` — a content row (`role != 'root'`) with a null parent is rejected at the storage layer, not by convention. First-turn content messages get `parentId = <virtual root>`. |
 | `role = 'root'` ⇔ `parentId IS NULL` | Same **DB CHECK** `message_root_parent_check`. `createRootMessageTx` (runtime) / `ChatMigrator` (migration) are the sole *writers* of the root row, but the biconditional itself is enforced structurally. |
 | `activeNodeId` is never the virtual root | `NULL` for an empty topic, otherwise a content message; read paths drop the root from the active path. |
-| A branch draft is an active empty user leaf below an assistant/system message | `MessageService.create` validates draft creation; `createUserMessageWithPlaceholders(mode = 'branch-draft')` revalidates active ownership, empty content, status, and absence of live children before consuming it. |
+| A branch draft is an active empty user leaf below an assistant/system message | Generic write DTOs reject the marker; `MessageService.createBranchDraft` validates dedicated creation, and `createUserMessageWithPlaceholders(mode = 'branch-draft')` revalidates active ownership, empty content, status, and absence of live children before consuming it. |
 | Deleting an awaiting-input node must never delete a message that was filled meanwhile | Canvas requests `DELETE /messages/:id?awaitingInputOnly=true`; `MessageService.delete` revalidates the persisted marker, empty parts, user role, and absence of live children before deleting it. |
 | The virtual root is deletable only via topic deletion | `delete()` hard-rejects it (see below); the topic FK `ON DELETE CASCADE` is the only path that removes it. |
 

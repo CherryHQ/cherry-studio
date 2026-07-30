@@ -16,6 +16,7 @@ import {
   type AssistantTurnOptions,
   type Message as SharedMessage,
   type MessageSnapshot,
+  sharedMessageToUIMessage,
   toContentRole
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -119,22 +120,12 @@ function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
 }
 
 function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
+  const projected = sharedMessageToUIMessage(message)
   return {
-    id: message.id,
-    role: toContentRole(message.role),
-    parts: message.data.parts ?? [],
+    ...projected,
     metadata: {
-      parentId: message.parentId,
-      siblingsGroupId: message.siblingsGroupId || undefined,
-      modelId: message.modelId ?? undefined,
-      messageSnapshot: message.messageSnapshot ?? undefined,
-      status: message.status,
-      isBranchDraft: message.data.isBranchDraft || undefined,
-      turnOptions: message.data.turnOptions,
-      createdAt: message.createdAt,
-      stats: message.stats ?? undefined,
-      isActiveBranch: true,
-      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+      ...projected.metadata,
+      isActiveBranch: true
     }
   } satisfies CherryUIMessage
 }

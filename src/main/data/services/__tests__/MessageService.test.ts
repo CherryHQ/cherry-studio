@@ -1539,12 +1539,7 @@ describe('MessageService', () => {
         data: mainText('answer'),
         status: 'success'
       })
-      const emptyUser = messageService.create('topic-delete-empty-branch', {
-        parentId: assistant.id,
-        role: 'user',
-        data: { parts: [], isBranchDraft: true },
-        status: 'success'
-      })
+      const emptyUser = messageService.createBranchDraft('topic-delete-empty-branch', assistant.id)
 
       const result = messageService.delete(emptyUser.id, false, 'parent', true)
 
@@ -1571,13 +1566,24 @@ describe('MessageService', () => {
         data: mainText('answer'),
         status: 'success'
       })
-      const emptyUser = messageService.create('topic-delete-filled-branch', {
-        parentId: assistant.id,
-        role: 'user',
-        data: { parts: [], isBranchDraft: true },
-        status: 'success'
+      const emptyUser = messageService.createBranchDraft('topic-delete-filled-branch', assistant.id)
+      messageService.createUserMessageWithPlaceholders({
+        topicId: 'topic-delete-filled-branch',
+        userMessage: {
+          mode: 'branch-draft',
+          id: emptyUser.id,
+          data: mainText('filled question'),
+          modelId: createUniqueModelId('provider-a', 'model-A')
+        },
+        placeholders: [
+          {
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'pending',
+            modelId: createUniqueModelId('provider-a', 'model-A')
+          }
+        ]
       })
-      messageService.update(emptyUser.id, { data: mainText('filled question') })
 
       let err: unknown
       try {
@@ -2072,17 +2078,13 @@ describe('MessageService', () => {
           data: mainText('answer'),
           status: 'success'
         })
-        const draft = messageService.create('topic-1', {
-          role: 'user',
-          parentId: anchor.id,
-          data: { parts: [], isBranchDraft: true },
-          status: 'success'
-        })
+        const draft = messageService.createBranchDraft('topic-1', anchor.id)
         const modelId = createUniqueModelId('provider-a', 'model-A')
 
         expect(
           messageService.getTree('topic-1', { depth: -1 }).nodes.find((node) => node.id === draft.id)
         ).toMatchObject({ isBranchDraft: true })
+        expect(() => messageService.update(draft.id, { data: mainText('bypass dedicated fill') })).toThrow()
 
         const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
           topicId: 'topic-1',
@@ -2109,6 +2111,19 @@ describe('MessageService', () => {
 
         const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
         expect(topic.activeNodeId).toBe(placeholders[0].id)
+      })
+
+      it('rejects the storage-owned draft marker through the generic create operation', async () => {
+        await seedTopic()
+
+        expect(() =>
+          messageService.create('topic-1', {
+            role: 'user',
+            parentId: null,
+            data: { parts: [], isBranchDraft: true } as never,
+            status: 'success'
+          })
+        ).toThrow()
       })
 
       it('rejects a normal user message without leaking a placeholder', async () => {

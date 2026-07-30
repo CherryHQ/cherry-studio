@@ -61,35 +61,3 @@ describe('ai.agent.create IPC schema', () => {
     })
   })
 })
-
-describe('ai.stream.open IPC schema', () => {
-  const openStream = aiRequestSchemas['ai.stream.open'].input
-
-  it('accepts a persisted branch-draft submission with its existing user message id', () => {
-    expect(
-      openStream.safeParse({
-        trigger: 'submit-draft-message',
-        topicId: 'topic-1',
-        parentAnchorId: 'draft-user-1',
-        userMessageParts: [{ type: 'text', text: 'new branch question' }]
-      }).success
-    ).toBe(true)
-  })
-
-  it('requires both the persisted draft id and replacement parts', () => {
-    expect(
-      openStream.safeParse({
-        trigger: 'submit-draft-message',
-        topicId: 'topic-1',
-        userMessageParts: [{ type: 'text', text: 'new branch question' }]
-      }).success
-    ).toBe(false)
-    expect(
-      openStream.safeParse({
-        trigger: 'submit-draft-message',
-        topicId: 'topic-1',
-        parentAnchorId: 'draft-user-1'
-      }).success
-    ).toBe(false)
-  })
-})

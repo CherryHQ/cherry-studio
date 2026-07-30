@@ -10,8 +10,7 @@ const renderCounters = vi.hoisted(() => ({
   chatContent: 0,
   navbar: 0,
   eventEmit: vi.fn(),
-  invalidateCache: vi.fn().mockResolvedValue(undefined),
-  postMessage: vi.fn().mockResolvedValue(undefined),
+  createBranchDraft: vi.fn().mockResolvedValue(undefined),
   setBranchLiveState: vi.fn()
 }))
 
@@ -23,16 +22,17 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@data/hooks/useDataApi', async () => ({
-  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
-  useInvalidateCache: () => renderCounters.invalidateCache
-}))
-
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    post: renderCounters.postMessage
+vi.mock('@data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+  return {
+    ...MockUseDataApi,
+    useMutation: () => ({
+      trigger: renderCounters.createBranchDraft,
+      isLoading: false,
+      error: undefined
+    })
   }
-}))
+})
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
@@ -216,10 +216,8 @@ describe('Chat panels', () => {
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
-    renderCounters.invalidateCache.mockReset()
-    renderCounters.invalidateCache.mockResolvedValue(undefined)
-    renderCounters.postMessage.mockReset()
-    renderCounters.postMessage.mockResolvedValue(undefined)
+    renderCounters.createBranchDraft.mockReset()
+    renderCounters.createBranchDraft.mockResolvedValue(undefined)
     renderCounters.setBranchLiveState.mockReset()
   })
 
@@ -290,19 +288,14 @@ describe('Chat panels', () => {
     fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
 
     await waitFor(() => {
-      expect(renderCounters.postMessage).toHaveBeenCalledWith('/topics/topic-1/messages', {
-        body: {
-          parentId: 'assistant-old',
-          role: 'user',
-          data: { parts: [], isBranchDraft: true },
-          status: 'success'
-        }
+      expect(renderCounters.createBranchDraft).toHaveBeenCalledWith({
+        params: { topicId: 'topic-1' },
+        body: { parentId: 'assistant-old' }
       })
     })
     expect(renderCounters.navbar).toBe(initialNavbarRenders)
     expect(renderCounters.chatContent).toBe(initialChatContentRenders)
     expect(renderCounters.setBranchLiveState).not.toHaveBeenCalled()
-    expect(renderCounters.invalidateCache).toHaveBeenCalledWith(['/topics/topic-1/messages', '/topics/topic-1/tree'])
     expect(renderCounters.eventEmit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-1' })
   })
 })
