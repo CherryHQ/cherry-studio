@@ -348,6 +348,7 @@ export default function AddModelFormPanel({
             showEndpointType={mode === 'endpoint-types'}
             showRequiredIndicator
             layout="horizontal"
+            modelIdAutoFocus
             modelIdInputRef={modelIdInputRef}
             modelIdError={
               modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined

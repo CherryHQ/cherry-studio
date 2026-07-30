@@ -9,6 +9,7 @@ type ResourceCatalogSearchInputProps = {
   value: string
   onValueChange: (value: string) => void
   placeholder: string
+  autoFocus?: boolean
   className?: string
 }
 
@@ -16,6 +17,7 @@ export function ResourceCatalogSearchInput({
   value,
   onValueChange,
   placeholder,
+  autoFocus,
   className
 }: ResourceCatalogSearchInputProps) {
   const { t } = useTranslation()
@@ -33,6 +35,7 @@ export function ResourceCatalogSearchInput({
     <div className={cn('relative', className)}>
       <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-tertiary" />
       <Input
+        autoFocus={autoFocus}
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
