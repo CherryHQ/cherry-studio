@@ -447,6 +447,7 @@
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Вчера"
       },
       "label_one": "Сессия",
@@ -682,6 +683,14 @@
       }
     },
     "sidebar_title": "Агенты",
+    "speed": {
+      "effort": "[to be translated]:Effort",
+      "fast": "[to be translated]:Fast",
+      "faster": "[to be translated]:Faster",
+      "label": "[to be translated]:Speed",
+      "smarter": "[to be translated]:Smarter",
+      "title": "[to be translated]:Response settings"
+    },
     "tasks": {
       "add": "Добавить задачу",
       "cancel": "Отмена",
@@ -1945,6 +1954,7 @@
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_assistant": "Несвязанный помощник",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Вчера"
       },
       "list": "Список топиков",
@@ -2312,6 +2322,12 @@
     "generate_random_seed": "Сгенерировать случайное зерно",
     "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
+    "group": {
+      "create": "[to be translated]:New Group",
+      "create_failed": "[to be translated]:Failed to create group",
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required"
+    },
     "help": "Помощь",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
@@ -3835,6 +3851,7 @@
     },
     "citation": "{{count}} цитат",
     "citations": "Содержание цитат",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Скопировано!",
     "copy": {
       "failed": "Не удалось скопировать",
@@ -6676,9 +6693,6 @@
           "dxtFile": "DXT-пакет",
           "dxtHelp": "Выберите .dxt файл, содержащий MCP сервер",
           "dxtProcessFailed": "Не удалось обработать DXT-файл",
-          "error": {
-            "multipleServers": "Невозможно импортировать с нескольких серверов"
-          },
           "invalid": "Неверный ввод, проверьте формат JSON",
           "json": "Импорт из JSON",
           "mcpb": "Импортировать пакет MCPB",

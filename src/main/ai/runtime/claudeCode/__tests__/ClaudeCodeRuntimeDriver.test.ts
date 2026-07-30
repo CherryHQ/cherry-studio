@@ -60,163 +60,176 @@ vi.mock('../settingsBuilder', async (importActual) => ({
   registerMcpSessionCatalogSync: mocks.registerMcpSessionCatalogSync
 }))
 
-vi.mock('../streamAdapter', async (importActual) => ({
-  // Keep the real `v3UsageToStats` projection; only stub the SDK-dependent bits.
-  ...(await importActual<typeof StreamAdapterModule>()),
-  convertClaudeCodeUsage: (usage: any) => ({
-    inputTokens: {
-      total:
-        (usage?.input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0),
-      noCache: usage?.input_tokens ?? 0,
-      cacheRead: usage?.cache_read_input_tokens ?? 0,
-      cacheWrite: usage?.cache_creation_input_tokens ?? 0
-    },
-    outputTokens: { total: usage?.output_tokens ?? 0, text: undefined, reasoning: undefined }
-  }),
-  ClaudeCodeStreamAdapter: class {
-    readonly finalizeOpenParts = vi.fn()
-    // Mirrors the real adapter: session-scoped, content only flows inside a turn.
-    private turnActive = false
-    private autonomous = false
-    private pendingInit: any
+vi.mock('../streamAdapter', async (importActual) => {
+  const actualStreamAdapter = await importActual<typeof StreamAdapterModule>()
+  // Keep the real `v3UsageToStats` projection (and error class); only stub the SDK-dependent bits.
+  return {
+    ...actualStreamAdapter,
+    convertClaudeCodeUsage: (usage: any) => ({
+      inputTokens: {
+        total:
+          (usage?.input_tokens ?? 0) +
+          (usage?.cache_creation_input_tokens ?? 0) +
+          (usage?.cache_read_input_tokens ?? 0),
+        noCache: usage?.input_tokens ?? 0,
+        cacheRead: usage?.cache_read_input_tokens ?? 0,
+        cacheWrite: usage?.cache_creation_input_tokens ?? 0
+      },
+      outputTokens: { total: usage?.output_tokens ?? 0, text: undefined, reasoning: undefined }
+    }),
+    ClaudeCodeStreamAdapter: class {
+      readonly finalizeOpenParts = vi.fn()
+      // Mirrors the real adapter: session-scoped, content only flows inside a turn.
+      private turnActive = false
+      private autonomous = false
+      private pendingInit: any
 
-    constructor(private readonly options: any) {
-      mocks.adapterInstances.push(this)
-    }
-
-    get isTurnActive() {
-      return this.turnActive
-    }
-
-    beginTurn() {
-      this.turnActive = true
-      if (this.pendingInit) {
-        this.pendingInit = undefined
-        this.emitInitMetadata()
+      constructor(private readonly options: any) {
+        mocks.adapterInstances.push(this)
       }
-    }
 
-    private emitInitMetadata() {
-      this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
-    }
+      get isTurnActive() {
+        return this.turnActive
+      }
 
-    handleTruncationError(error: any) {
-      if (!String(error?.message ?? '').includes('truncat')) return false
-      this.turnActive = false
-      this.options.sink.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
-      this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
-      return true
-    }
+      beginTurn() {
+        this.turnActive = true
+        if (this.pendingInit) {
+          this.pendingInit = undefined
+          this.emitInitMetadata()
+        }
+      }
 
-    handleMessage(message: any) {
-      if (message.type !== 'system' && message.type !== 'tool_progress' && !this.turnActive) {
-        if (message.type === 'result') {
+      private emitInitMetadata() {
+        this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
+      }
+
+      handleTruncationError(error: any) {
+        if (!String(error?.message ?? '').includes('truncat')) return false
+        this.turnActive = false
+        this.options.sink.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
+        this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
+        return true
+      }
+
+      handleMessage(message: any) {
+        if (message.type !== 'system' && message.type !== 'tool_progress' && !this.turnActive) {
+          if (message.type === 'result') {
+            this.options.onSessionId(message.session_id)
+            return { type: 'continue' }
+          }
+          const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
+          if (!isContent) return { type: 'continue' }
+          this.autonomous = true
+          this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+          this.beginTurn()
+        }
+        if (message.type === 'truncate-now') {
+          throw new Error('Claude Code SDK output ended unexpectedly; truncated response')
+        }
+        if (message.type === 'system' && message.subtype === 'init') {
           this.options.onSessionId(message.session_id)
+          if (!this.turnActive) this.pendingInit = message
+          else this.emitInitMetadata()
           return { type: 'continue' }
         }
-        const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
-        if (!isContent) return { type: 'continue' }
-        this.autonomous = true
-        this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
-        this.beginTurn()
-      }
-      if (message.type === 'truncate-now') {
-        throw new Error('Claude Code SDK output ended unexpectedly; truncated response')
-      }
-      if (message.type === 'system' && message.subtype === 'init') {
-        this.options.onSessionId(message.session_id)
-        if (!this.turnActive) this.pendingInit = message
-        else this.emitInitMetadata()
-        return { type: 'continue' }
-      }
-      if (message.type === 'system' && message.subtype === 'api_retry') {
-        if (this.turnActive)
-          this.options.statusSink.emit({
-            type: 'api-retry',
-            retry: {
-              attempt: message.attempt,
-              maxRetries: message.max_retries,
-              retryDelayMs: message.retry_delay_ms,
-              errorStatus: message.error_status,
-              errorCategory: message.error
-            }
-          })
-        return { type: 'continue' }
-      }
-      if (message.type === 'tool_progress') {
-        if (message.subagent_retry && this.turnActive)
-          this.options.statusSink.emit({
-            type: 'api-retry',
-            retry: {
-              attempt: message.subagent_retry.attempt,
-              maxRetries: message.subagent_retry.max_retries,
-              retryDelayMs: message.subagent_retry.retry_delay_ms,
-              errorStatus: message.subagent_retry.error_status,
-              errorCategory: message.subagent_retry.error_category,
-              ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
-            }
-          })
-        return { type: 'continue' }
-      }
-      if (message.type === 'system' && message.subtype === 'status') {
-        if (message.status === 'compacting') this.options.statusSink.emit({ type: 'compaction-start' })
-        else if (message.compact_result === 'failed' || message.compact_error)
-          this.options.statusSink.emit({
-            type: 'compaction-error',
-            error: message.compact_error ?? 'Compaction failed'
-          })
-        else if (message.compact_result === 'success') this.options.statusSink.emit({ type: 'compaction-complete' })
-        return { type: 'continue' }
-      }
-      if (message.type === 'system' && message.subtype === 'compact_boundary') {
-        const metadata = message.compact_metadata
-        this.options.statusSink.emit({
-          type: 'compaction-complete',
-          anchor: {
-            trigger: metadata.trigger,
-            completedAt: new Date().toISOString(),
-            preTokens: metadata.pre_tokens,
-            ...(metadata.post_tokens !== undefined ? { postTokens: metadata.post_tokens } : {}),
-            ...(metadata.duration_ms !== undefined ? { durationMs: metadata.duration_ms } : {})
-          }
-        })
-        return { type: 'continue' }
-      }
-      if (message.type === 'system' && message.subtype === 'commands_changed') {
-        this.options.statusSink.emit({ type: 'supported-commands', commands: message.commands })
-        return { type: 'continue' }
-      }
-      if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
-        this.options.statusSink.emit({
-          type: 'background-tasks',
-          tasks: message.tasks.map((task: any) => ({
-            id: task.task_id,
-            type: task.task_type,
-            description: task.description
-          }))
-        })
-        this.options.statusSink.emit({ type: 'background-work-state', active: message.tasks.length > 0 })
-        return { type: 'continue' }
-      }
-      if (message.type === 'stream_event') {
-        this.options.sink.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
-        return { type: 'continue' }
-      }
-      if (message.type === 'result') {
-        this.options.onSessionId(message.session_id)
-        this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
-        this.turnActive = false
-        if (this.autonomous) {
-          this.autonomous = false
-          this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
+        if (message.type === 'system' && message.subtype === 'api_retry') {
+          if (this.turnActive)
+            this.options.statusSink.emit({
+              type: 'api-retry',
+              retry: {
+                attempt: message.attempt,
+                maxRetries: message.max_retries,
+                retryDelayMs: message.retry_delay_ms,
+                errorStatus: message.error_status,
+                errorCategory: message.error
+              }
+            })
+          return { type: 'continue' }
         }
-        if (message.subtype !== 'success') throw new Error('runtime failed')
-        return { type: 'result', sessionId: message.session_id, message }
+        if (message.type === 'tool_progress') {
+          if (message.subagent_retry && this.turnActive)
+            this.options.statusSink.emit({
+              type: 'api-retry',
+              retry: {
+                attempt: message.subagent_retry.attempt,
+                maxRetries: message.subagent_retry.max_retries,
+                retryDelayMs: message.subagent_retry.retry_delay_ms,
+                errorStatus: message.subagent_retry.error_status,
+                errorCategory: message.subagent_retry.error_category,
+                ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
+              }
+            })
+          return { type: 'continue' }
+        }
+        if (message.type === 'system' && message.subtype === 'status') {
+          if (message.status === 'compacting') this.options.statusSink.emit({ type: 'compaction-start' })
+          else if (message.compact_result === 'failed' || message.compact_error)
+            this.options.statusSink.emit({
+              type: 'compaction-error',
+              error: message.compact_error ?? 'Compaction failed'
+            })
+          else if (message.compact_result === 'success') this.options.statusSink.emit({ type: 'compaction-complete' })
+          return { type: 'continue' }
+        }
+        if (message.type === 'system' && message.subtype === 'compact_boundary') {
+          const metadata = message.compact_metadata
+          this.options.statusSink.emit({
+            type: 'compaction-complete',
+            anchor: {
+              trigger: metadata.trigger,
+              completedAt: new Date().toISOString(),
+              preTokens: metadata.pre_tokens,
+              ...(metadata.post_tokens !== undefined ? { postTokens: metadata.post_tokens } : {}),
+              ...(metadata.duration_ms !== undefined ? { durationMs: metadata.duration_ms } : {})
+            }
+          })
+          return { type: 'continue' }
+        }
+        if (message.type === 'system' && message.subtype === 'commands_changed') {
+          this.options.statusSink.emit({ type: 'supported-commands', commands: message.commands })
+          return { type: 'continue' }
+        }
+        if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
+          this.options.statusSink.emit({
+            type: 'background-tasks',
+            tasks: message.tasks.map((task: any) => ({
+              id: task.task_id,
+              type: task.task_type,
+              description: task.description
+            }))
+          })
+          this.options.statusSink.emit({ type: 'background-work-state', active: message.tasks.length > 0 })
+          return { type: 'continue' }
+        }
+        if (message.type === 'stream_event') {
+          this.options.sink.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
+          return { type: 'continue' }
+        }
+        if (message.type === 'result') {
+          this.options.onSessionId(message.session_id)
+          this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
+          if (message.subtype !== 'success') {
+            // Mirrors the real adapter: a typed ClaudeCodeResultError, thrown before the turn flag
+            // flips (the real flip happens after handleResultMessage returns, which a throw skips).
+            throw new actualStreamAdapter.ClaudeCodeResultError(
+              message.errors?.join('; ') || 'runtime failed',
+              message.subtype,
+              message.errors ?? []
+            )
+          }
+          this.turnActive = false
+          if (this.autonomous) {
+            this.autonomous = false
+            this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
+          }
+          return { type: 'result', sessionId: message.session_id, message }
+        }
+        return { type: 'continue' }
       }
-      return { type: 'continue' }
     }
   }
-}))
+})
 
 const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
 
@@ -2079,6 +2092,107 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     // Turn completes cleanly — no `error` event surfaced for the dropped stream.
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    void connection.close()
+  })
+
+  it('degrades a stale resume token by re-spawning without it and replaying the pending message', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', resume: 'stale-token' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // The CLI dies immediately: the persisted token resolves to no local conversation.
+    staleQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    })
+
+    // A second spawn happens WITHOUT the resume token, on a fresh input queue carrying the same
+    // user message with its per-message resume cleared.
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
+    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined })
+    const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
+    expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
+
+    // The recovered conversation reports a NEW session id and completes the SAME turn — no error
+    // event reaches the host, so the stale token self-heals on the next persisted assistant row.
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-1' })
+    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-1', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).not.toContain('error')
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-1' }))
+    // The transcript tells the user the prior conversation was lost and this reply starts fresh.
+    expect(seen).toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
+    )
+    void connection.close()
+  })
+
+  it('surfaces the error normally when the retry without a resume token also fails', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    const staleResult = {
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    }
+    staleQueue.push(staleResult)
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    // The retry fails too (different launch problem) — one retry only, then the normal error path.
+    freshQueue.push({ ...staleResult, errors: ['spawn failed'] })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'error' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).toContain('error')
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
     void connection.close()
   })
 

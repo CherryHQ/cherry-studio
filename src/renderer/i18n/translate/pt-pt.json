@@ -447,6 +447,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Ontem"
       },
       "label_one": "Sessão",
@@ -682,6 +683,14 @@
       }
     },
     "sidebar_title": "Agentes",
+    "speed": {
+      "effort": "[to be translated]:Effort",
+      "fast": "[to be translated]:Fast",
+      "faster": "[to be translated]:Faster",
+      "label": "[to be translated]:Speed",
+      "smarter": "[to be translated]:Smarter",
+      "title": "[to be translated]:Response settings"
+    },
     "tasks": {
       "add": "Adicionar tarefa",
       "cancel": "Cancelar",
@@ -1945,6 +1954,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Ontem"
       },
       "list": "Lista de tópicos",
@@ -2312,6 +2322,12 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "group": {
+      "create": "[to be translated]:New Group",
+      "create_failed": "[to be translated]:Failed to create group",
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required"
+    },
     "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
@@ -3835,6 +3851,7 @@
     },
     "citation": "{{count}} conteúdo(s) citado(s)",
     "citations": "Citações",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiado",
     "copy": {
       "failed": "Cópia falhou",
@@ -6676,9 +6693,6 @@
           "dxtFile": "Arquivo do pacote DXT",
           "dxtHelp": "Selecione um arquivo .dxt que contenha o servidor MCP",
           "dxtProcessFailed": "Falha ao processar o arquivo DXT",
-          "error": {
-            "multipleServers": "Não é possível importar de vários servidores"
-          },
           "invalid": "Entrada inválida, verifique o formato JSON",
           "json": "Importar do JSON",
           "mcpb": "Importar Pacote MCPB",

@@ -59,7 +59,7 @@ import {
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
+import { ClaudeCodeResultError, ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -77,6 +77,19 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
     .trimStart()
 
   return /^\/fast(?:\s|$)/i.test(text)
+}
+
+/**
+ * The CLI reported that the resume target does not exist — deleted by its transcript cleanup, a
+ * different CLAUDE_CONFIG_DIR, or a copied database. The SDK carries no typed reason for this, so
+ * the discriminator is the CLI's error string, matched against the result's raw `errors` entries.
+ */
+function isConversationNotFoundFailure(error: unknown): boolean {
+  return (
+    error instanceof ClaudeCodeResultError &&
+    error.subtype === 'error_during_execution' &&
+    error.errors.some((entry) => /no conversation found with session id/i.test(entry))
+  )
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -328,9 +341,13 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
 
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private readonly sdkInputQueue = new SdkInputQueue()
+  private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
+  private spawnOptions?: Options
+  private lastSdkUserMessage?: SDKUserMessage
+  private staleResumeRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -406,6 +423,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
+    this.spawnOptions = options
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -458,11 +476,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     this.adapter?.beginTurn()
 
-    this.sdkInputQueue.push(
-      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-        supportsImages: resolveModelImageSupport(this.input.modelId)
-      })
-    )
+    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsImages: resolveModelImageSupport(this.input.modelId)
+    })
+    this.lastSdkUserMessage = sdkMessage
+    this.sdkInputQueue.push(sdkMessage)
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -649,6 +667,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     } catch (error) {
       this.settlePendingInvocations()
+      if (this.tryRecoverFromStaleResume(error)) {
+        // `await` is load-bearing: without it the finally below closes the event queue while the
+        // recovered loop is still streaming.
+        return await this.runQueryLoop()
+      }
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -671,6 +694,42 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.query = undefined
       this.eventQueue.close()
     }
+  }
+
+  /**
+   * A stale persisted resume token kills the CLI before it does any work ("No conversation found").
+   * Degrade instead of failing the turn: re-spawn once WITHOUT the resume token on a fresh input
+   * queue (the dead query's iterator still holds the old one), and replay the pending user message
+   * so the turn continues on a new conversation. The recovered init reports a new session id, which
+   * the host persists on the next assistant row — the stale token heals itself after one good turn.
+   * Context from the lost conversation is gone; that is the accepted cost of the degradation.
+   */
+  private tryRecoverFromStaleResume(error: unknown): boolean {
+    if (this.staleResumeRetried || !this.resumeToken || !this.spawnOptions) return false
+    if (!isConversationNotFoundFailure(error) || this.abortController.signal.aborted) return false
+    this.staleResumeRetried = true
+
+    logger.warn('Persisted resume token no longer resolves to a CLI conversation; retrying without it', {
+      sessionId: this.input.sessionId,
+      staleResumeToken: this.resumeToken
+    })
+    this.resumeToken = undefined
+    // Tell the user, in the transcript itself, that the prior conversation could not be found and
+    // the reply below starts fresh. Persisted with the recovered turn like any other data part.
+    this.eventQueue.push({
+      type: 'chunk',
+      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
+    })
+    this.sdkInputQueue.close()
+    this.sdkInputQueue = new SdkInputQueue()
+    if (this.lastSdkUserMessage) {
+      this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: '' })
+    }
+    this.query = createClaudeQuery({
+      prompt: this.sdkInputQueue,
+      options: { ...this.spawnOptions, resume: undefined }
+    })
+    return true
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {

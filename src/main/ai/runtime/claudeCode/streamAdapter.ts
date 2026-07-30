@@ -47,6 +47,24 @@ import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
+/**
+ * A non-success `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so
+ * consumers narrow with `instanceof` and read structure — never by parsing the message prose
+ * (the SDK provides no error class of its own for result failures).
+ */
+export class ClaudeCodeResultError extends Error {
+  readonly exitCode = 1
+  constructor(
+    message: string,
+    readonly subtype: Extract<SDKResultMessage, { is_error: boolean }>['subtype'],
+    /** The result's raw error strings — match against these, not the joined `message`. */
+    readonly errors: readonly string[]
+  ) {
+    super(message)
+    this.name = 'ClaudeCodeResultError'
+  }
+}
+
 const MIN_TRUNCATION_LENGTH = 512
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
@@ -1140,7 +1158,7 @@ export class ClaudeCodeStreamAdapter {
         messageMetadata: this.buildMessageMetadata(ctx.usage)
       })
       const errorMsg = message.errors.join('; ') || `Claude Code error: ${message.subtype}`
-      throw Object.assign(new Error(errorMsg), { exitCode: 1, subtype: message.subtype })
+      throw new ClaudeCodeResultError(errorMsg, message.subtype, message.errors)
     }
 
     const structuredOutput = message.structured_output

@@ -99,6 +99,9 @@ export interface KnowledgeScopePartData {
 /** Context boundary marker. Hidden from both the transcript and the model. */
 export type ClearPartData = Record<string, never>
 
+/** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
+export type ConversationResetPartData = Record<string, never>
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
@@ -119,6 +122,7 @@ export type CherryDataPartTypes = {
   video: VideoPartData
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
+  'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData

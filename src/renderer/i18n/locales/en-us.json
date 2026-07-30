@@ -3851,6 +3851,7 @@
     },
     "citation": "{{count}} citations",
     "citations": "References",
+    "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",
     "copy": {
       "failed": "Copy failed",
