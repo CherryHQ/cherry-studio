@@ -2301,6 +2301,12 @@
     "generate_random_seed": "Generate random seed",
     "get_embedding_dimension": "Get embedding dimension",
     "go_to_settings": "Go to settings",
+    "group": {
+      "create": "New Group",
+      "create_failed": "Failed to create group",
+      "name_placeholder": "Enter group name...",
+      "name_required": "Group name is required"
+    },
     "help": "Help",
     "html_preview": "HTML Preview",
     "i_know": "I know",
