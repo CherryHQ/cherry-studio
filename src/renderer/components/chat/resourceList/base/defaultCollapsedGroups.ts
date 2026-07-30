@@ -26,6 +26,11 @@ export function resolveDefaultCollapsedGroupIds<T>({
  * new group should default to collapsed too instead of popping open. If any existing group is still
  * expanded, the new group is left alone (expands as normal).
  *
+ * `previousGroupIds` is the set of groups already observed (accumulated across renders by the
+ * caller), not merely the last snapshot. A group counts as "new" only if it was never observed
+ * before, so a group that was only temporarily absent — pinned away, or not yet paged in during a
+ * progressive load — is not mistaken for a freshly created one when it reappears.
+ *
  * Pure helper so both the conversation (Topics) and work (Sessions) modules share identical logic
  * and it can be unit-tested. Returns the next collapsed-id array, or `null` when nothing changes.
  */
@@ -42,15 +47,15 @@ export function resolveCollapsedIdsForNewGroups({
   const newGroupIds = currentGroupIds.filter((id) => !previousSet.has(id))
   if (newGroupIds.length === 0) return null
 
-  const newGroupIdSet = new Set(newGroupIds)
-  const existingGroupIds = currentGroupIds.filter((id) => !newGroupIdSet.has(id))
-  // Only follow the "all collapsed" state when there is at least one pre-existing group to compare
-  // against — never collapse groups on the very first population of the list.
-  if (existingGroupIds.length === 0) return null
+  // Never collapse on the very first population — there is no pre-existing state to mirror.
+  if (previousGroupIds.length === 0) return null
 
+  // Determine "all collapsed" from every previously observed group, not just the ones that survived
+  // into the current snapshot: an expanded group that disappears in the same update (e.g. its last
+  // topic moves to another assistant) still means the user was not in a fully-collapsed state.
   const collapsedIdSet = new Set(collapsedIds)
-  const allExistingCollapsed = existingGroupIds.every((id) => collapsedIdSet.has(id))
-  if (!allExistingCollapsed) return null
+  const allPreviousCollapsed = previousGroupIds.every((id) => collapsedIdSet.has(id))
+  if (!allPreviousCollapsed) return null
 
   const idsToCollapse = newGroupIds.filter((id) => !collapsedIdSet.has(id))
   if (idsToCollapse.length === 0) return null

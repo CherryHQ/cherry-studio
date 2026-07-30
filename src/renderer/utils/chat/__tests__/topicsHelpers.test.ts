@@ -10,6 +10,7 @@ import {
   buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
+  getTopicAssistantDisplayGroupId,
   getTopicTimeBucket,
   groupTopicByPinned,
   moveAssistantGroupAfterDrop,
@@ -273,6 +274,24 @@ describe('Topics helpers', () => {
       id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
       label: 'Unlinked Assistant'
     })
+  })
+
+  // Regression (zhangjiadi A1): an orphan topic (non-null but deleted assistantId) renders under the
+  // shared `topic:assistant:unknown` group, while `getTopicAssistantDisplayGroupId` reconstructs a
+  // per-assistant id. Consumers that must match the rendered group id (e.g. the collapse-all
+  // inference) have to derive it from the resolver, not from `getTopicAssistantDisplayGroupId`.
+  it('renders an orphan topic under the unknown group, diverging from getTopicAssistantDisplayGroupId', () => {
+    const groupTopic = createTopicDisplayGroupResolver({
+      assistantById: new Map([['assistant-1', { id: 'assistant-1', name: 'Research' }]]),
+      defaultAssistant: { name: 'Default Assistant' },
+      labels: TOPIC_GROUP_LABELS,
+      mode: 'assistant'
+    })
+    const orphan = createTopic({ id: 'orphan', assistantId: 'deleted-assistant' })
+
+    expect(groupTopic(orphan)?.id).toBe(TOPIC_UNLINKED_ASSISTANT_GROUP_ID)
+    expect(getTopicAssistantDisplayGroupId(orphan)).toBe('topic:assistant:deleted-assistant')
+    expect(getTopicAssistantDisplayGroupId(orphan)).not.toBe(groupTopic(orphan)?.id)
   })
 
   it('sorts assistant display groups by pinned, assistant rank, then unknown while preserving group order', () => {

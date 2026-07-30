@@ -91,4 +91,29 @@ describe('resolveCollapsedIdsForNewGroups', () => {
       })
     ).toBeNull()
   })
+
+  // Regression (ousugo P1): an expanded group that disappears in the same update (its last topic
+  // moves to a new assistant) must still count against the "all collapsed" check — the reference is
+  // every previously observed group, not just the ones that survived into the current snapshot.
+  it('does NOT collapse the new group when a disappearing group was still expanded', () => {
+    expect(
+      resolveCollapsedIdsForNewGroups({
+        collapsedIds: ['a'],
+        currentGroupIds: ['a', 'c'],
+        previousGroupIds: ['a', 'b']
+      })
+    ).toBeNull()
+  })
+
+  // Regression (zhangjiadi A1 / ousugo P2): a group that was only temporarily absent (pinned away, or
+  // not yet paged in) is already in the observed set, so its reappearance is not a new group.
+  it('returns null when a previously observed group reappears', () => {
+    expect(
+      resolveCollapsedIdsForNewGroups({
+        collapsedIds: ['a'],
+        currentGroupIds: ['a', 'b'],
+        previousGroupIds: ['a', 'b']
+      })
+    ).toBeNull()
+  })
 })

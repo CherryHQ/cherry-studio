@@ -708,12 +708,18 @@ const Sessions = ({
   // state), collapse the new group too instead of letting it pop open. Scoped to agent mode: its
   // collapsed-set ids match `sessionGroupBy` output directly (workdir mode remaps ids, so it is left
   // to the default behaviour). null = user has never interacted → default-all-collapsed logic covers it.
-  const previousAgentGroupIdsRef = useRef<readonly string[] | null>(null)
+  // The ref accumulates every observed group id (never forgetting one that is temporarily absent, e.g.
+  // its last session pinned away) and is seeded only from a fully loaded snapshot so progressive
+  // cold-start pages are not mistaken for new groups.
+  const observedAgentGroupIdsRef = useRef<Set<string> | null>(null)
   useEffect(() => {
     if (isRightPanel || displayMode !== 'agent' || sessionExpansionAgent === null) {
-      previousAgentGroupIdsRef.current = null
+      observedAgentGroupIdsRef.current = null
       return
     }
+    // Only reason about "new" groups once the list is fully loaded; while the load-all source is
+    // still paging, a later page can surface a pre-existing group that must not be treated as new.
+    if (isLoadingAll || !isFullyLoaded) return
 
     const currentGroupIds = Array.from(
       new Set(
@@ -723,9 +729,16 @@ const Sessions = ({
           .filter((id): id is string => typeof id === 'string')
       )
     )
-    const previousGroupIds = previousAgentGroupIdsRef.current
-    previousAgentGroupIdsRef.current = currentGroupIds
-    if (previousGroupIds === null) return
+
+    const observed = observedAgentGroupIdsRef.current
+    if (observed === null) {
+      // Seed the observed history from the first fully loaded snapshot; never collapse on it.
+      observedAgentGroupIdsRef.current = new Set(currentGroupIds)
+      return
+    }
+
+    const previousGroupIds = Array.from(observed)
+    for (const id of currentGroupIds) observed.add(id)
 
     const nextCollapsedIds = resolveCollapsedIdsForNewGroups({
       collapsedIds: sessionExpansionAgent,
@@ -736,6 +749,8 @@ const Sessions = ({
   }, [
     displayMode,
     filteredGroupedSessions,
+    isFullyLoaded,
+    isLoadingAll,
     isRightPanel,
     sessionExpansionAgent,
     sessionGroupBy,

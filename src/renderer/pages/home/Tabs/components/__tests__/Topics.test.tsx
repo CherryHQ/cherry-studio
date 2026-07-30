@@ -2299,6 +2299,199 @@ describe('Topics', () => {
     ])
   })
 
+  it('collapses a newly added assistant group when every existing assistant group is collapsed', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [createApiTopic({ id: 'topic-a', assistantId: 'assistant-1', orderKey: 'a' })] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList()
+    // The first fully loaded snapshot only seeds the observed history — nothing is collapsed yet.
+    expect(getTopicGroupExpansionCache().assistant).toEqual(['topic:assistant:assistant-1'])
+
+    // A new assistant group appears while the only pre-existing group stays collapsed.
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-c', name: 'Beta topic', assistantId: 'assistant-2', orderKey: 'b' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    rerenderTopicList()
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual([
+      'topic:assistant:assistant-1',
+      'topic:assistant:assistant-2'
+    ])
+  })
+
+  it('does not collapse an existing assistant group surfaced by a later cold-start page', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    // assistant-1 is collapsed; assistant-2 is expanded (absent from the collapsed set).
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+    // First page is still loading (hasNext) and only carries assistant-1.
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [createApiTopic({ id: 'topic-a', assistantId: 'assistant-1', orderKey: 'a' })] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: true,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList()
+
+    // A later page surfaces the pre-existing (expanded) assistant-2 once the load completes.
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-c', name: 'Beta topic', assistantId: 'assistant-2', orderKey: 'b' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    rerenderTopicList()
+
+    // assistant-2 was expanded before; a paging artefact must not persist it as collapsed.
+    expect(getTopicGroupExpansionCache().assistant).toEqual(['topic:assistant:assistant-1'])
+  })
+
+  it('collapses a newly added assistant group when the collapsed existing group contains an orphan topic', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: [TOPIC_UNLINKED_ASSISTANT_GROUP_ID]
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [createApiTopic({ id: 'topic-orphan', assistantId: 'deleted-assistant', orderKey: 'a' })] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList()
+
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-orphan', assistantId: 'deleted-assistant', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-c', name: 'Beta topic', assistantId: 'assistant-2', orderKey: 'b' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    rerenderTopicList()
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual([
+      TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+      'topic:assistant:assistant-2'
+    ])
+  })
+
+  it('does not re-collapse an assistant group after its last topic is pinned then unpinned', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+    const defaultUseQuery = mockUseQuery.getMockImplementation()!
+    let topicPins: Pin[] = []
+    mockUseQuery.mockImplementation((path, options) => {
+      const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+      if (path === '/pins' && entityType === 'topic') {
+        return {
+          data: topicPins,
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return defaultUseQuery(path, options)
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-c', name: 'Beta topic', assistantId: 'assistant-2', orderKey: 'b' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList()
+
+    topicPins = [createTopicPin({ id: 'pin-topic-c', entityId: 'topic-c' })]
+    rerenderTopicList()
+    topicPins = []
+    rerenderTopicList()
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual(['topic:assistant:assistant-1'])
+  })
+
   it('re-selects the active topic from an assistant group while history records are active', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
