@@ -693,7 +693,8 @@ describe('restore preparation', () => {
       const preview = await prepareRestore({ archivePath })
       const read = readRestoreJournalV2()
       if (read.kind !== 'ok') throw new Error('expected a prepared restore')
-      const { ownerSummary: _ownerSummary, ...legacyPrepared } = read.journal
+      const legacyPrepared = { ...read.journal }
+      delete legacyPrepared.ownerSummary
       writeRestoreJournalV2(legacyPrepared)
 
       await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/predates owner readiness sealing/)
