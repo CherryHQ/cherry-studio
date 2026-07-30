@@ -48,7 +48,12 @@ class WeChatAdapter extends ChannelAdapter {
     // Abort guard — if disconnect() was called before login completes
     if (signal.aborted) return
 
-    const credentials = await bot.login({ signal })
+    const credentials = await bot.login({ signal }).catch((error) => {
+      if (!signal.aborted) {
+        this.sendQrToRenderer('', 'error')
+      }
+      throw error
+    })
     if (signal.aborted) return
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
@@ -122,7 +127,7 @@ class WeChatAdapter extends ChannelAdapter {
 
   private sendQrToRenderer(
     url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
     userId?: string
   ): void {
     application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.wechat.qr_login', {
