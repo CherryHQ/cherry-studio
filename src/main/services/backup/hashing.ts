@@ -56,6 +56,8 @@ export interface DirectoryUnitFile {
 export interface DirectoryUnitHash {
   readonly hash: string
   readonly files: readonly DirectoryUnitFile[]
+  /** Directory + file entries in this unit, used for the archive-wide ceiling. */
+  readonly entryCount: number
 }
 
 export interface HashDirectoryUnitOptions {
@@ -142,5 +144,5 @@ export async function hashDirectoryUnit(
     }
     files.push({ relPath: entry.relPath, size: entry.size, executable })
   }
-  return { hash: hash.digest('hex'), files }
+  return { hash: hash.digest('hex'), files, entryCount: scan.entryCount }
 }

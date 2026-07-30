@@ -29,6 +29,8 @@ export type BackupPreset = (typeof BACKUP_PRESETS)[number]
 export const RESOURCE_DEGRADATION_REASONS = [
   'absent-at-snapshot',
   'type-mismatch-at-snapshot',
+  'changed-during-capture',
+  /** Read compatibility for archives produced before owner-scoped capture. */
   'changed-after-snapshot',
   'non-regular-source',
   'unportable-source',
@@ -37,7 +39,8 @@ export const RESOURCE_DEGRADATION_REASONS = [
   'external-reference',
   'dangling-reference',
   'cyclic-reference',
-  'unclassified-reference'
+  'unclassified-reference',
+  'knowledge-index-rebuild-required'
 ] as const
 export type ResourceDegradationReason = (typeof RESOURCE_DEGRADATION_REASONS)[number]
 

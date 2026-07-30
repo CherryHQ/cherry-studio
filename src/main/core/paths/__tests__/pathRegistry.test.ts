@@ -48,6 +48,7 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.claude.root']).toBe(claudeRoot)
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
+    expect(registry['feature.agents.transcripts']).toBe(path.join('/mock/userData', 'Data', 'AgentTranscripts'))
   })
 
   it('keeps conditional Code Mate skill templates in read-only app resources', () => {

@@ -73,7 +73,6 @@ const mocks = vi.hoisted(() => ({
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
-  profileRunWrite: vi.fn(async <T>(_label: string, operation: () => T | Promise<T>): Promise<T> => operation()),
   rtkRewrite: vi.fn(),
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
@@ -181,7 +180,6 @@ vi.mock('@application', () => ({
     // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) => {
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
-      if (name === 'ProfileWriteBarrierService') return { runWrite: mocks.profileRunWrite }
       if (name === 'AgentSessionRuntimeService') {
         try {
           return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }

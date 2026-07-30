@@ -23,29 +23,14 @@ const logger = loggerService.withContext('ChannelManager')
 @DependsOn(['WindowManager'])
 export class ChannelManager extends BaseService {
   private readonly runtimes = new Map<string, ChannelRuntime>()
-  private readonly adapterRuntimeHolds = new Map<
-    symbol,
-    { reason?: string; adapterHolds: Map<ChannelAdapter, Disposable> }
-  >()
-  private readonly adapterRuntimeResumeWaiters = new Set<{
-    resolve: () => void
-    reject: (error: Error) => void
-  }>()
-  private readonly inFlightAdapterManagerWork = new Map<Promise<unknown>, string>()
-  private stopping = false
   private readonly channelLogs = new ChannelLogBuffer()
   private acceptingConnections = false
 
   protected async onReady(): Promise<void> {
-    this.stopping = false
     await this.start()
   }
 
   protected async onStop(): Promise<void> {
-    this.stopping = true
-    const waiters = [...this.adapterRuntimeResumeWaiters]
-    this.adapterRuntimeResumeWaiters.clear()
-    for (const waiter of waiters) waiter.reject(new Error('ChannelManager is stopping'))
     await this.stop()
   }
 
@@ -59,59 +44,6 @@ export class ChannelManager extends BaseService {
 
   listActiveWork(): Array<{ id: string; summary: string }> {
     return channelMessageHandler.listActiveWork()
-  }
-
-  /** Pause adapter lifecycle and profile-write work after channel intake has drained. */
-  pauseAdapterRuntime(reason?: string): Disposable {
-    const token = Symbol(reason ?? 'channel-adapter-runtime-pause')
-    const adapterHolds = new Map<ChannelAdapter, Disposable>()
-    for (const adapter of this.liveAdapters()) {
-      adapterHolds.set(adapter, adapter.pauseRuntime(reason))
-    }
-    this.adapterRuntimeHolds.set(token, { reason, adapterHolds })
-    logger.info('Channel adapter runtime paused', { reason: reason ?? null, holds: this.adapterRuntimeHolds.size })
-
-    return {
-      dispose: () => {
-        const hold = this.adapterRuntimeHolds.get(token)
-        if (!hold) return
-        this.adapterRuntimeHolds.delete(token)
-        for (const adapterHold of hold.adapterHolds.values()) adapterHold.dispose()
-        logger.info('Channel adapter runtime pause hold released', {
-          reason: reason ?? null,
-          holds: this.adapterRuntimeHolds.size
-        })
-        if (this.adapterRuntimeHolds.size > 0 || this.stopping) return
-        const waiters = [...this.adapterRuntimeResumeWaiters]
-        this.adapterRuntimeResumeWaiters.clear()
-        for (const waiter of waiters) waiter.resolve()
-      }
-    }
-  }
-
-  async drainAdapterRuntimeInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
-    const startedAt = Date.now()
-    const managerDrain = this.drainManagerRuntimeWork(opts)
-    const adapterDrains = this.liveAdapters().map(async (adapter) => {
-      const elapsed = Date.now() - startedAt
-      const verdict = await adapter.drainRuntimeInFlight({ timeoutMs: Math.max(0, opts.timeoutMs - elapsed) })
-      return verdict.stragglerIds.map((id) => `adapter:${adapter.channelId}:${id}`)
-    })
-    const [managerVerdict, ...adapterVerdicts] = await Promise.all([managerDrain, ...adapterDrains])
-    return { stragglerIds: [...managerVerdict.stragglerIds, ...adapterVerdicts.flat()] }
-  }
-
-  listActiveAdapterWork(): Array<{ id: string; summary: string }> {
-    const work: Array<{ id: string; summary: string }> = []
-    for (const label of new Set(this.inFlightAdapterManagerWork.values())) {
-      work.push({ id: label, summary: 'channel manager runtime work in flight' })
-    }
-    for (const adapter of this.liveAdapters()) {
-      for (const item of adapter.listActiveRuntimeWork()) {
-        work.push({ id: `adapter:${adapter.channelId}:${item.id}`, summary: item.summary })
-      }
-    }
-    return work
   }
 
   async start(): Promise<void> {
@@ -197,13 +129,7 @@ export class ChannelManager extends BaseService {
 
     const runtime = new ChannelRuntime(channelId, {
       readDesired: (id) => this.readDesired(id),
-      loadAdapter: async (channel, agentId) => {
-        const adapter = await loadChannelAdapter(channel, agentId)
-        for (const hold of this.adapterRuntimeHolds.values()) {
-          hold.adapterHolds.set(adapter, adapter.pauseRuntime(hold.reason))
-        }
-        return adapter
-      },
+      loadAdapter: loadChannelAdapter,
       onMessage: (adapter, event) => this.handleMessage(adapter, event),
       onCommand: (adapter, event) => this.handleCommand(adapter, event),
       onCredentials: (agentId, id, credentials) => this.saveCredentials(agentId, id, credentials),
@@ -242,54 +168,56 @@ export class ChannelManager extends BaseService {
   }
 
   private handleMessage(adapter: ChannelAdapter, event: ChannelMessageEvent): void {
-    // Defer the activeChatIds write and message admission together: the intake drain joins
-    // this callback and the profile barrier owns the DB mutation, so neither straddles the gate.
-    channelMessageHandler
-      .runWhenResumed(async () => {
-        await this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
-        return channelMessageHandler.handleIncoming(adapter, event)
+    if (channelMessageHandler.isWriteQuiesced) {
+      logger.warn('Channel message dropped: intake is write-quiesced', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId
       })
-      .catch((error) => {
-        logger.error('Unhandled error in message handler', {
-          agentId: adapter.agentId,
-          channelId: adapter.channelId,
-          error: error instanceof Error ? error.message : String(error)
+      return
+    }
+    this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
+    channelMessageHandler.handleIncoming(adapter, event).catch((error) => {
+      logger.error('Unhandled error in message handler', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      adapter
+        .sendMessage(event.chatId, t('common.channel_message_processing_error'), {
+          replyToMessageId: event.messageId,
+          ...(event.replyInThread && { replyInThread: true })
         })
-        adapter
-          .sendMessage(event.chatId, t('common.channel_message_processing_error'), {
-            replyToMessageId: event.messageId,
-            ...(event.replyInThread && { replyInThread: true })
-          })
-          .catch(() => undefined)
-      })
+        .catch(() => undefined)
+    })
   }
 
   private handleCommand(adapter: ChannelAdapter, event: ChannelCommandEvent): void {
-    channelMessageHandler
-      .runWhenResumed(async () => {
-        await this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
-        return channelMessageHandler.handleCommand(adapter, event)
+    if (channelMessageHandler.isWriteQuiesced) {
+      logger.warn('Channel command dropped: intake is write-quiesced', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId
       })
-      .catch((error) => {
-        logger.error('Unhandled error in command handler', {
-          agentId: adapter.agentId,
-          channelId: adapter.channelId,
-          error: error instanceof Error ? error.message : String(error)
+      return
+    }
+    this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
+    channelMessageHandler.handleCommand(adapter, event).catch((error) => {
+      logger.error('Unhandled error in command handler', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      adapter
+        .sendMessage(event.chatId, t('common.channel_command_processing_error'), {
+          replyToMessageId: event.messageId,
+          ...(event.replyInThread && { replyInThread: true })
         })
-        adapter
-          .sendMessage(event.chatId, t('common.channel_command_processing_error'), {
-            replyToMessageId: event.messageId,
-            ...(event.replyInThread && { replyInThread: true })
-          })
-          .catch(() => undefined)
-      })
+        .catch(() => undefined)
+    })
   }
 
-  private async persistDynamicChatId(channelId: string, chatId: string): Promise<void> {
+  private persistDynamicChatId(channelId: string, chatId: string): void {
     try {
-      await application
-        .get('ProfileWriteBarrierService')
-        .runWrite(`channel:active-chat:${channelId}`, () => channelService.addActiveChatId(channelId, chatId))
+      channelService.addActiveChatId(channelId, chatId)
     } catch (error) {
       logger.warn('Failed to persist activeChatId', {
         channelId,
@@ -300,81 +228,20 @@ export class ChannelManager extends BaseService {
   }
 
   private saveCredentials(agentId: string, channelId: string, credentials: { appId: string; appSecret: string }): void {
-    this.runAdapterManagerWork(`credentials:${channelId}`, () =>
-      application.get('ProfileWriteBarrierService').runWrite(`channel:credentials:${channelId}`, () => {
-        const channel = channelService.getChannel(channelId)
-        if (!channel || channel.agentId !== agentId) return false
-        const config = channel.config as ChannelConfig & Record<string, unknown>
-        channelService.updateChannel(channelId, {
-          config: { ...config, app_id: credentials.appId, app_secret: credentials.appSecret }
-        })
-        return true
-      })
-    )
-      .then(async (updated) => {
-        if (!updated) return
-        logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
-        await this.waitForAdapterRuntimeResume()
-        this.requestReconcile(channelId)
-      })
-      .catch((error) => {
-        logger.error('Failed to save channel credentials', {
-          agentId,
-          channelId,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      })
-  }
-
-  private liveAdapters(): ChannelAdapter[] {
-    return [...this.runtimes.values()]
-      .map((runtime) => runtime.adapter)
-      .filter((adapter): adapter is ChannelAdapter => adapter !== undefined)
-  }
-
-  private runAdapterManagerWork<T>(label: string, work: () => Promise<T> | T): Promise<T> {
-    if (this.adapterRuntimeHolds.size > 0) {
-      return this.waitForAdapterRuntimeResume().then(() => this.runAdapterManagerWork(label, work))
-    }
-
-    const operation = Promise.resolve().then(work)
-    this.inFlightAdapterManagerWork.set(operation, label)
-    void operation.then(
-      () => this.inFlightAdapterManagerWork.delete(operation),
-      () => this.inFlightAdapterManagerWork.delete(operation)
-    )
-    return operation
-  }
-
-  private waitForAdapterRuntimeResume(): Promise<void> {
-    if (this.stopping) return Promise.reject(new Error('ChannelManager is stopping'))
-    if (this.adapterRuntimeHolds.size === 0) return Promise.resolve()
-    return new Promise<void>((resolve, reject) => {
-      this.adapterRuntimeResumeWaiters.add({ resolve, reject })
-    })
-  }
-
-  private async drainManagerRuntimeWork(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
-    const snapshot = [...this.inFlightAdapterManagerWork.entries()]
-    if (snapshot.length === 0) return { stragglerIds: [] }
-
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
     try {
-      const winner = await Promise.race([
-        Promise.allSettled(snapshot.map(([operation]) => operation)).then(() => 'done' as const),
-        timeout
-      ])
-      if (winner === 'done') return { stragglerIds: [] }
-      return {
-        stragglerIds: snapshot
-          .filter(([operation]) => this.inFlightAdapterManagerWork.has(operation))
-          .map(([, label]) => label)
-      }
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+      const channel = channelService.getChannel(channelId)
+      if (!channel || channel.agentId !== agentId) return
+      const config = channel.config as ChannelConfig & Record<string, unknown>
+      channelService.updateChannel(channelId, {
+        config: { ...config, app_id: credentials.appId, app_secret: credentials.appSecret }
+      })
+      this.requestReconcile(channelId)
+    } catch (error) {
+      logger.error('Failed to save channel credentials', {
+        agentId,
+        channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

@@ -23,7 +23,6 @@
  * @see {@link IpcAdapter} For IPC communication bridge
  */
 
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
@@ -38,7 +37,7 @@ const logger = loggerService.withContext('DataApiService')
  */
 @Injectable('DataApiService')
 @ServicePhase(Phase.BeforeReady)
-@DependsOn(['DbService', 'ProfileWriteBarrierService'])
+@DependsOn(['DbService'])
 export class DataApiService extends BaseService {
   private apiServer: ApiServer
   private ipcAdapter: IpcAdapter
@@ -47,9 +46,7 @@ export class DataApiService extends BaseService {
     super()
     // Initialize ApiServer with handlers
     this.apiServer = ApiServer.initialize(apiHandlers)
-    this.ipcAdapter = new IpcAdapter(this.apiServer, (label, operation) =>
-      application.get('ProfileWriteBarrierService').runWrite(label, operation)
-    )
+    this.ipcAdapter = new IpcAdapter(this.apiServer)
   }
 
   protected async onInit(): Promise<void> {

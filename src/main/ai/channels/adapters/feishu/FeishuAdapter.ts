@@ -175,7 +175,7 @@ class FeishuAdapter extends ChannelAdapter {
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.appSecret) {
-      await this.startRegistrationInBackground(signal)
+      this.startRegistrationInBackground(signal)
       return
     }
 
@@ -257,11 +257,11 @@ class FeishuAdapter extends ChannelAdapter {
     this.log.info('Feishu bot connected (WebSocket)')
   }
 
-  private startRegistrationInBackground(signal: AbortSignal): Promise<void> {
+  private startRegistrationInBackground(signal: AbortSignal): void {
     this.log.info('Starting Feishu app registration flow (background)', { domain: this.domain })
     this.sendQrToRenderer('', 'pending')
 
-    return registrationBegin(this.domain)
+    registrationBegin(this.domain)
       .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
         if (signal.aborted) return
         this.emit('qr', verificationUri)

@@ -17,7 +17,7 @@ export interface ChannelRuntimeHooks {
   onMessage: (adapter: ChannelAdapter, event: ChannelMessageEvent) => void
   onCommand: (adapter: ChannelAdapter, event: ChannelCommandEvent) => void
   onCredentials: (agentId: string, channelId: string, credentials: { appId: string; appSecret: string }) => void
-  onDynamicChatId: (channelId: string, chatId: string) => void | Promise<void>
+  onDynamicChatId: (channelId: string, chatId: string) => void
   onLog: (entry: ChannelLogEntry) => void
   onStatus: (status: ChannelStatusEvent) => void
   onError: (channelId: string, error: unknown) => void
@@ -103,10 +103,10 @@ export class ChannelRuntime {
     })
   }
 
-  trackDynamicChatId(adapter: ChannelAdapter, chatId: string): void | Promise<void> {
+  trackDynamicChatId(adapter: ChannelAdapter, chatId: string): void {
     const ownership = this.ownership
     if (!ownership || ownership.adapter !== adapter || !this.isCurrent(ownership)) return
-    return this.trackChatId(ownership, chatId)
+    this.trackChatId(ownership, chatId)
   }
 
   async dispose(): Promise<void> {
@@ -206,10 +206,10 @@ export class ChannelRuntime {
     })
   }
 
-  private trackChatId(ownership: AdapterOwnership, chatId: string): void | Promise<void> {
+  private trackChatId(ownership: AdapterOwnership, chatId: string): void {
     if (!ownership.dynamicChatIds || ownership.adapter.notifyChatIds.includes(chatId)) return
     ownership.adapter.notifyChatIds.push(chatId)
-    return this.hooks.onDynamicChatId(this.channelId, chatId)
+    this.hooks.onDynamicChatId(this.channelId, chatId)
   }
 
   private isCurrent(ownership: AdapterOwnership): boolean {

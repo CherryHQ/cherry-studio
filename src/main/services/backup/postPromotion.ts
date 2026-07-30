@@ -54,7 +54,7 @@ export async function runPostPromotionWork(shouldContinue: () => boolean): Promi
   if (progress.kind !== 'ok') {
     throw new Error('Restore Knowledge progress is invalid')
   }
-  const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
+  const requiredBaseIds = readiness.summary.rebuildBaseIds
   if (progress.progress.abandoned) {
     return { ran: true, enqueuedBaseIds: [], pending: false }
   }
@@ -106,7 +106,7 @@ function persistKnowledgeCompletion(restoreId: string, completedBaseIds: readonl
   if (progress.kind !== 'ok') {
     throw new Error('Restore Knowledge progress is invalid')
   }
-  const requiredBaseIds = readiness.summary.requiresRebuild ? readiness.summary.baseIds : []
+  const requiredBaseIds = readiness.summary.rebuildBaseIds
   const allowed = new Set(requiredBaseIds)
   const merged = new Set(progress.progress.completedBaseIds)
   for (const id of completedBaseIds) {

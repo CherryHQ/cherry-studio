@@ -51,6 +51,11 @@ import {
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import {
+  decodePortableAgentResumePoint,
+  getPortableAgentTranscriptStore,
+  type PortableAgentTranscriptStore
+} from './portableTranscriptStore'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -67,6 +72,7 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   settings: ClaudeCodeSettings
   sdkModelId: string
   usageCapture: AgentSessionUsageCapture
+  transcriptStore: PortableAgentTranscriptStore
 }
 
 interface RuntimeModelRef {
@@ -521,8 +527,11 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
-  const resumeSessionId =
-    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const resumePoint = decodePortableAgentResumePoint(
+    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
+  )
+  const resumeSessionId = resumePoint?.sessionId
+  const transcriptStore = getPortableAgentTranscriptStore(session.id)
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
@@ -546,6 +555,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     route,
     fastModeTransport
   )
+  settings.sessionStore = transcriptStore
+  settings.sessionStoreFlush = 'eager'
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
@@ -575,6 +586,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     settings,
     effectiveResume: resumeSessionId ?? settings.resume
   })
+  if (resumePoint?.resumeSessionAt) options.resumeSessionAt = resumePoint.resumeSessionAt
 
   if (options.includePartialMessages === undefined) {
     options.includePartialMessages = true
@@ -590,6 +602,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
     sdkModelId,
+    transcriptStore,
     usageCapture: route.usageCapture
   }
 }

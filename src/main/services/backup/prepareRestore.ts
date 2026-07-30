@@ -76,6 +76,8 @@ export interface RestorePreview {
   readonly resources: { readonly install: number; readonly replace: number }
   /** What materialization reduced, so a degraded restore never looks complete. */
   readonly degradations: readonly BackupManifestDegradation[]
+  /** Knowledge owner readiness proven from admitted payload contents. */
+  readonly knowledge: { readonly ready: number; readonly rebuild: number }
   /** True when the archive's database was an older chain migrated forward. */
   readonly migratedForward: boolean
 }
@@ -181,7 +183,9 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     const ownerSummary = createKnowledgeRestoreOwnerSummary({
       userDataPath,
       knowledgeRoot: roots.knowledge,
-      livePaths: resources.filter((resource) => resource.kind === 'knowledge-base').map((resource) => resource.livePath)
+      resources: resources
+        .filter((resource) => resource.kind === 'knowledge-base')
+        .map((resource) => ({ livePath: resource.livePath, contentPaths: resource.contentPaths }))
     })
     const { coverage } = measureResourceCoverage({ inventory, userDataPath })
 
@@ -257,6 +261,10 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       coverage,
       resources: { install: plan.install, replace: plan.replace },
       degradations,
+      knowledge: {
+        ready: ownerSummary.knowledge.readyBaseIds.length,
+        rebuild: ownerSummary.knowledge.rebuildBaseIds.length
+      },
       migratedForward: admitted.migratedForward
     }
     try {
