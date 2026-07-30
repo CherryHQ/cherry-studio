@@ -8,6 +8,7 @@ import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } f
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import { sweepStaleExportOperations } from './exportOperation'
+import { EXPORT_QUIESCE_WHEN_READY_SERVICES } from './exportQuiesce'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
 import { readRestoreKnowledgeProgress, readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
@@ -99,11 +100,10 @@ export interface BackupStatus {
  */
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
-// Post-promotion rebuild and abandonment call `KnowledgeService` directly
-// (§6.7), so it must be initialized before this service starts scheduling and —
-// because the container stops dependents first — must still be alive while
-// `onStop` joins the pass that is talking to it.
-@DependsOn(['KnowledgeService'])
+// Export resolves the fixed same-phase writer participants, while post-promotion
+// work calls KnowledgeService. Declaring every peer keeps them initialized
+// before export can start and alive until BackupService has stopped.
+@DependsOn([...EXPORT_QUIESCE_WHEN_READY_SERVICES, 'KnowledgeService'])
 export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
   private inFlight: InFlightOperation | null = null
