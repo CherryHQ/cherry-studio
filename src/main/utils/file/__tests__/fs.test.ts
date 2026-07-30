@@ -276,13 +276,20 @@ describe('readChunk', () => {
     await writeFile(file, new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]))
 
     const handle = await open(file, 'r')
-    const fileHandlePrototype = Object.getPrototypeOf(handle)
+    const fileHandlePrototype = Object.getPrototypeOf(handle) as {
+      read: (
+        buffer: Uint8Array,
+        bufferOffset: number,
+        length: number,
+        position: number
+      ) => Promise<{ bytesRead: number; buffer: Uint8Array }>
+    }
     const originalRead = fileHandlePrototype.read
     await handle.close()
     const shortReadLengths = [2, 1, 2]
 
     const readSpy = vi.spyOn(fileHandlePrototype, 'read').mockImplementation(function (
-      this: typeof handle,
+      this: unknown,
       buffer: Uint8Array,
       bufferOffset: number,
       length: number,
