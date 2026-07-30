@@ -32,8 +32,12 @@ resolves migration storage through the live application path registry.
   then the Agent-level path, then the v1 managed default.
 - A managed default becomes a Session-specific system workspace. External user
   workspaces remain in place.
-- Legacy message blocks become v2 message parts. Inline base64 images are
-  materialized before the synchronous Agent import transaction begins.
+- Legacy `session_messages` are read through a stable SQLite cursor in batches
+  and normalized into a temporary SQLite staging table. Legacy message blocks
+  become v2 message parts, and inline base64 images are materialized before the
+  synchronous Agent import transaction begins. The transaction then drains the
+  staging table in batches, so source JSON and transformed parts are never all
+  retained in the V8 heap at once.
 - Agent and per-Agent Session ordering is converted to fractional order keys.
 - Scheduled-task trigger fields become JobManager trigger objects. Legacy task
   run logs are intentionally not migrated.
@@ -41,7 +45,8 @@ resolves migration storage through the live application path registry.
   dropped and logged.
 
 The main `BEGIN`/`COMMIT` region contains only synchronous better-sqlite3 work.
-Filesystem probing and message-file materialization complete before `BEGIN`.
+Filesystem probing, message-file materialization, and temporary message
+staging complete before `BEGIN`.
 
 ## Filesystem split
 

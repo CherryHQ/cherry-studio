@@ -192,10 +192,11 @@ describe('AgentsMigrator', () => {
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('BEGIN')
     // run tail after import COMMIT: remapAgentPrefixIds emits BEGIN → COMMIT (no old-prefix
-    // IDs here, so no UPDATEs), then execute() emits DETACH.
+    // IDs here, so no UPDATEs), then execute() drops message staging and emits DETACH.
+    expect(outer.at(-5)).toBe('BEGIN')
     expect(outer.at(-4)).toBe('COMMIT')
-    expect(outer.at(-3)).toBe('BEGIN')
-    expect(outer.at(-2)).toBe('COMMIT')
+    expect(outer.at(-3)).toBe('DROP TABLE IF EXISTS agent_session_message_migration_staging')
+    expect(outer.at(-2)).toBe('DROP TABLE IF EXISTS agent_session_message_source_cursor')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
     // Session-workspace staging runs first inside the import transaction, emitted
     // via run() before the table INSERTs.
