@@ -58,7 +58,7 @@ import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
-export type AssistantEditDialogProps = EditDialogBaseProps<AssistantEditDialogResource> & {
+export type AssistantEditDialogProps = EditDialogBaseProps & {
   resource: AssistantEditDialogResource | null
 }
 
@@ -158,7 +158,6 @@ export function AssistantEditDialog({
   resource,
   open,
   onOpenChange,
-  onSaved,
   modelFilter,
   initialTab
 }: AssistantEditDialogProps) {
@@ -169,7 +168,6 @@ export function AssistantEditDialog({
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
-      onSaved={onSaved}
       modelFilter={modelFilter}
       initialTab={initialTab}
     />
@@ -180,10 +178,9 @@ function AssistantEditDialogContent({
   resource,
   open,
   onOpenChange,
-  onSaved,
   modelFilter,
   initialTab
-}: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
+}: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
@@ -249,20 +246,12 @@ function AssistantEditDialogContent({
     form.clearErrors('root')
     failedSaveKeyRef.current = null
 
-    let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
-      updated = await updateAssistant(pending.payload)
+      await updateAssistant(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
-      return
-    }
-
-    try {
-      await onSaved(updated)
-    } catch (error) {
-      logger.warn('Failed to run assistant edit dialog post-save callback', { error, assistantId: resource.id })
     }
   }
 
