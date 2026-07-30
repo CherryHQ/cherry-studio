@@ -670,6 +670,14 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "effort": "Effort",
+      "fast": "Fast",
+      "faster": "Faster",
+      "label": "Speed",
+      "smarter": "Smarter",
+      "title": "Response settings"
+    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -1558,6 +1566,7 @@
         },
         "open_file": "Open File",
         "open_file_error": "Failed to open file: {{path}}",
+        "open_with": "Open with",
         "reveal_in_finder": "Reveal in Finder"
       },
       "topics": " Conversations ",
@@ -5746,6 +5755,7 @@
         "button": "Releases",
         "title": "Release Notes"
       },
+      "repository": "GitHub Repository",
       "social": {
         "title": "Social Accounts"
       },
@@ -6605,7 +6615,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
+        "content_disable": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
+        "content_enable": "Enabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
         "title": "Restart Required"
       },
       "title": "Disable Hardware Acceleration"
@@ -6813,6 +6824,15 @@
       "providers": "Providers",
       "registry": "Package Registry",
       "registryDefault": "Default",
+      "registryOptions": {
+        "custom": "Custom",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
       "requiresConfig": "Requires Configuration",
       "resources": {
@@ -6988,6 +7008,7 @@
         "display": "Display management",
         "preferences": "Preferences"
       },
+      "hide_app": "Hide {{name}}",
       "open_link_external": {
         "description": "Opens new-window links in your default browser",
         "title": "Open new-window links in browser"
@@ -7000,6 +7021,7 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
+      "show_app": "Show {{name}}",
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },

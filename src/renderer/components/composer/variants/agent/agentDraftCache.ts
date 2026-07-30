@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { LocalSkill } from '@shared/types/skill'
 
 import { excludeComposerDraftTokens } from '../../composerDraft'
@@ -45,11 +46,11 @@ export function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[])
 }
 
 /**
- * Token kinds retained in the live Agent composer draft. Knowledge remains here so the current
- * session can serialize and edit its chip; the persistence boundary below removes it.
+ * Input tokens retained in the live Agent composer draft. Files stay owned by attachment state;
+ * the persistence boundary below additionally removes session-scoped knowledge.
  */
-export function getAgentManagedDraftTokens(tokens: readonly ComposerSerializedToken[]) {
-  return tokens.filter((token) => token.kind === 'skill' || token.kind === 'knowledge')
+export function getAgentDraftTokens(tokens: readonly ComposerSerializedToken[]) {
+  return tokens.filter((token) => token.kind !== 'file' && isComposerInputTokenKind(token.kind))
 }
 
 /** Knowledge selection is session-scoped, while this cache is agent-scoped. */
@@ -57,7 +58,7 @@ export function getCacheableAgentDraft(draft: ComposerSerializedDraft): AgentCom
   const withoutKnowledge = excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')
   return {
     text: withoutKnowledge.text,
-    tokens: getCachedSkillTokens(withoutKnowledge.tokens)
+    tokens: getAgentDraftTokens(withoutKnowledge.tokens)
   }
 }
 

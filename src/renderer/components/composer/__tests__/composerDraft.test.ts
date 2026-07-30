@@ -408,6 +408,44 @@ describe('composer draft serialization', () => {
     })
   })
 
+  it('serializes and restores link tokens with the original URL', () => {
+    const url = 'https://www.example.com/docs'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              promptText: url
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(url)
+    expect(createComposerDocumentContent(url, createComposerMessageSnapshot(draft))).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              promptText: url
+            })
+          ]
+        }
+      ]
+    })
+  })
+
   it('does not persist non-file composer token payload objects', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
