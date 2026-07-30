@@ -9,7 +9,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
@@ -841,6 +841,10 @@ describe('KnowledgeItemService', () => {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
       return row
     }
+
+    it('exposes only deleting through the transaction-scoped API', () => {
+      expectTypeOf<Parameters<KnowledgeItemService['setSubtreeStatusTx']>[3]>().toEqualTypeOf<'deleting'>()
+    })
 
     it('does not overwrite deleting items when marking a subtree failed', async () => {
       await seedItem({

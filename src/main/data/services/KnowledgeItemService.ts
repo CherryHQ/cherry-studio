@@ -367,20 +367,16 @@ export class KnowledgeItemService {
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): string[] {
     if (status === 'failed') {
-      return this.setSubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
     }
-    return this.setSubtreeStatusTx(this.db, baseId, rootIds, status)
+    return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
 
-  setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting', update?: never): string[]
-  setSubtreeStatusTx(
-    tx: DbOrTx,
-    baseId: string,
-    rootIds: string[],
-    status: 'failed',
-    update: FailedKnowledgeItemStatusUpdate
-  ): string[]
-  setSubtreeStatusTx(
+  setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {
+    return this.applySubtreeStatusTx(tx, baseId, rootIds, status)
+  }
+
+  private applySubtreeStatusTx(
     tx: DbOrTx,
     baseId: string,
     rootIds: string[],
