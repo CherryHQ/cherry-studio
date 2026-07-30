@@ -142,12 +142,14 @@ export async function provisionBuiltinAgent(
   if (!definition) return undefined
 
   try {
-    // Copy SOUL.md, USER.md, and memory/ only if they don't already exist (first-time provision)
-    // Never overwrite — user may have customized their persona or accumulated memories
+    // Populate missing or zero-byte persona placeholders on first provision.
+    // Never overwrite non-empty files — the user may have customized their persona.
     for (const soulFile of ['SOUL.md', 'USER.md']) {
       const srcFile = path.join(templateDir, soulFile)
       const destFile = path.join(agentDataPath, soulFile)
-      if (fs.existsSync(srcFile) && !fs.existsSync(destFile)) {
+      const destStat = fs.existsSync(destFile) ? fs.lstatSync(destFile) : undefined
+      const shouldInitialize = !destStat || (destStat.isFile() && destStat.size === 0)
+      if (fs.existsSync(srcFile) && shouldInitialize) {
         fs.copyFileSync(srcFile, destFile)
       }
     }

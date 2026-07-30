@@ -1,9 +1,13 @@
 ---
 name: issue-reporter
-description: 帮助用户提交 Bug Report 或 Feature Request。支持 GitHub Issue（有账户）和本地存档（无账户）两种模式。当诊断发现是代码 Bug 时主动提议，或当用户说"帮我提 issue"、"这是个 bug"、"我想要这个功能"、"submit a bug"、"feature request"时触发。
+description: 只在用户明确要求提交 GitHub Issue、GitHub Bug Report 或 GitHub Feature Request 时使用。用户只说“提交问题”“提交反馈”“上报 bug”“这是个 bug”或描述功能建议但未点名 GitHub 时不得触发，必须改用 cherry-studio-feedback 并默认提交飞书。
 ---
 
 # Issue Reporter
+
+## 触发边界
+
+只有用户明确要求提交到 GitHub，才能继续本流程。不得从“提交问题”“反馈”“bug”或“功能建议”推断 GitHub；未明确点名 GitHub 时立即转交 `cherry-studio-feedback`，不得运行 `gh auth status`、搜索仓库或发起任何 GitHub 操作。
 
 ## 检测 GitHub 登录
 

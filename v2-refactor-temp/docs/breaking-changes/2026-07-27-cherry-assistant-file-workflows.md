@@ -12,7 +12,7 @@ Cherry Assistant can read conversation attachments through opaque handles and, a
 
 Confirmed deletion of ordinary workspace files and directories now moves them to the operating-system trash. Cherry Assistant refuses permanent deletion commands, protected roots and critical user/system data, and requests that enable unlawful or destructive abuse.
 
-Cherry Assistant can also collect consented, redacted diagnostics for a Cherry Studio problem, preview the resulting feedback, submit it to the current Feishu feedback form, or create a workspace ZIP for anonymous manual upload. GitHub Issues remain a separate explicit workflow.
+Cherry Assistant consistently presents itself as Cherry Assistant rather than its underlying runtime. It can also collect consented, redacted diagnostics for a Cherry Studio problem, preview the resulting feedback, submit it to the current Feishu feedback form, or create a workspace ZIP for anonymous manual upload. Feishu is the default for unspecified feedback submissions; GitHub Issues remain a separate workflow used only when explicitly requested.
 
 Ordinary Agents can also attach ZIP, RAR, 7Z, TAR, GZ, TGZ, BZ2, and XZ archives as tool-readable workspace files.
 

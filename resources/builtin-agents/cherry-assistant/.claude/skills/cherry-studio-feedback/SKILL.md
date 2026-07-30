@@ -1,6 +1,6 @@
 ---
 name: cherry-studio-feedback
-description: 收集、脱敏、预览并提交 Cherry Studio BUG、UI/UX 或功能反馈。可在用户同意后调用内置诊断工具整理环境、错误日志、截图和用户导出的 trace，自动提交飞书表单或生成匿名上传 ZIP；也可安全解析反馈 ZIP 为表单字段。用户说“提交反馈”“上报 bug”“收集/上传错误信息”“整理日志/trace”“生成反馈包”，或描述 Cherry Studio 问题并希望记录时触发。明确要求 GitHub Issue 时改用 issue-reporter。
+description: 收集、脱敏、预览并提交 Cherry Studio BUG、UI/UX 或功能反馈，默认提交到飞书。可在用户同意后调用内置诊断工具整理环境、错误日志、截图和用户导出的 trace，自动提交飞书表单或生成匿名上传 ZIP；也可安全解析反馈 ZIP 为表单字段。用户说“提交问题”“提交反馈”“上报 bug”“收集/上传错误信息”“整理日志/trace”“生成反馈包”，或描述 Cherry Studio 问题并希望记录时触发。只有明确要求 GitHub Issue 时才改用 issue-reporter。
 ---
 
 # Cherry Studio Feedback
@@ -12,6 +12,8 @@ description: 收集、脱敏、预览并提交 Cherry Studio BUG、UI/UX 或功�
 1. **即时沟通**：用户只想把材料发到群里或交给同事时，走“手动交接”。不要读取或上传本地数据。
 2. **结构化反馈**：用户要整理、提交或生成反馈包时，走“自动收集”。这是默认路径。
 3. **GitHub Issue**：用户明确要求 GitHub Issue 时，立即转交 `issue-reporter`，不要重复提交飞书。
+
+“提交问题”“帮我提交一下”“上报这个 bug”等未指定平台的表达，都默认使用飞书结构化反馈。未明确提及 GitHub 时，不要调用 `gh`、检查 GitHub 登录、搜索 Issue 或询问用户是否改投 GitHub。
 
 会话中的“上传错误信息”按钮属于客户端/服务端功能，不由本 Skill 模拟。用户提出该按钮需求时，将它作为功能建议收集。
 
@@ -163,6 +165,8 @@ lark-cli base +form-detail --share-token shrcnsTvZpUji5ZKAPSMwzZuWHb --as user -
 1. 保留已生成的 workspace ZIP。
 2. 给出匿名反馈包上传链接。
 3. 告诉用户上传哪个文件，并明确说明仍需用户在网页中点击提交。
+
+不要安装、升级或重新配置 `lark-cli` 来挽救一次反馈提交；命令缺失、版本不兼容或返回结构不符合预期时，立即使用上述 ZIP + 匿名上传降级路径。
 
 ## 提交预览
 
