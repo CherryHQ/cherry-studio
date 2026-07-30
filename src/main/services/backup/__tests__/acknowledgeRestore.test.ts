@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -47,7 +47,7 @@ function journal(overrides: Record<string, unknown> = {}): RestoreJournalV2 {
     createdAt: '2026-07-27T00:00:00.000Z',
     state: 'completed',
     step: 'integrity-ok',
-    summary: { knowledgeBaseIds: [] },
+    ownerSummary: { knowledge: { baseIds: [], requiresRebuild: false } },
     db: {
       promote: `restore-staging/${RID}/backup.sqlite`,
       aside: asideRel,
@@ -247,7 +247,7 @@ describe('acknowledgeRestore', () => {
 
   it('keeps the durable retry marker until every restored Knowledge base is rebuilt', () => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
-    writeRestoreJournalV2(journal({ summary: { knowledgeBaseIds: ['kb-1'] } }))
+    writeRestoreJournalV2(journal({ ownerSummary: { knowledge: { baseIds: ['kb-1'], requiresRebuild: true } } }))
 
     expect(() => acknowledgeRestore()).toThrow(/knowledge index is still rebuilding/)
     expect(existsSync(join(userData, asideRel))).toBe(true)
@@ -255,8 +255,8 @@ describe('acknowledgeRestore', () => {
 
     writeRestoreJournalV2(
       journal({
-        summary: { knowledgeBaseIds: ['kb-1'] },
-        knowledgeRebuild: { completedBaseIds: ['kb-1'] }
+        ownerSummary: { knowledge: { baseIds: ['kb-1'], requiresRebuild: true } },
+        ownerProgress: { knowledge: { completedBaseIds: ['kb-1'] } }
       })
     )
     expect(acknowledgeRestore().acknowledged).toBe(true)
@@ -264,16 +264,39 @@ describe('acknowledgeRestore', () => {
 
   it('durably records an explicit rebuild give-up and then releases rollback material', () => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
-    writeRestoreJournalV2(journal({ summary: { knowledgeBaseIds: ['kb-1', 'kb-2'] } }))
+    writeRestoreJournalV2(
+      journal({
+        ownerSummary: { knowledge: { baseIds: ['kb-1', 'kb-2'], requiresRebuild: true } },
+        ownerProgress: { futureOwner: { cursor: 3 } }
+      })
+    )
 
     expect(abandonKnowledgeRebuild()).toEqual({ restoreId: RID, pendingBaseIds: ['kb-1', 'kb-2'] })
     const read = readRestoreJournalV2()
     expect(read).toMatchObject({
       kind: 'ok',
-      journal: { knowledgeRebuild: { completedBaseIds: [], abandoned: true } }
+      journal: {
+        ownerProgress: {
+          futureOwner: { cursor: 3 },
+          knowledge: { completedBaseIds: [], abandoned: true }
+        }
+      }
     })
     expect(acknowledgeRestore().acknowledged).toBe(true)
     expect(existsSync(join(userData, asideRel))).toBe(false)
+  })
+
+  it('fails closed on malformed current Knowledge progress instead of using valid legacy progress', () => {
+    writeRestoreJournalV2(
+      journal({
+        ownerSummary: { knowledge: { baseIds: ['kb-1'], requiresRebuild: true } },
+        ownerProgress: { knowledge: { completedBaseIds: ['outside-summary'] } },
+        knowledgeRebuild: { completedBaseIds: ['kb-1'] }
+      })
+    )
+
+    expect(() => acknowledgeRestore()).toThrow(/still rebuilding/)
+    expect(hasPendingRestore()).toBe(true)
   })
 
   /**
@@ -306,7 +329,7 @@ describe('acknowledgeRestore', () => {
       expect(existsSync(join(userData, asideRel))).toBe(false)
       expect(hasPendingRestore()).toBe(true)
 
-      rmSync(join(userData, 'restore-staging'))
+      unlinkSync(join(userData, 'restore-staging'))
       expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })
       expect(readRestoreJournalV2().kind).toBe('none')
       rmSync(external, { recursive: true, force: true })

@@ -29,3 +29,13 @@ export type RestoreOwnerSummaryReadResult<TSummary> =
   | { readonly kind: 'ok'; readonly summary: TSummary }
   | { readonly kind: 'missing' }
   | { readonly kind: 'invalid' }
+
+/** Opaque per-owner progress transported by the restore journal. */
+export interface RestoreOwnerProgressBag {
+  readonly [owner: string]: PortableProfileJsonValue
+}
+
+/** Common result of interpreting one owner's progress entry. */
+export type RestoreOwnerProgressReadResult<TProgress> =
+  | { readonly kind: 'ok'; readonly progress: TProgress }
+  | { readonly kind: 'invalid' }

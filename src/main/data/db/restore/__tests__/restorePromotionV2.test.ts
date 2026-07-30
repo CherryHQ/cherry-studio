@@ -21,7 +21,7 @@ import type * as ResourceInstallModule from '@data/db/restore/resourceInstallV2'
 import { hasPendingRestore } from '@data/db/restore/restoreGuard'
 import type * as RestoreJournalModule from '@data/db/restore/restoreJournalV2'
 import type { PromotionStepV2, RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { parkedFailedDbRelPathV2, readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import {
   isLiveDbStrandedV2,
   isRestoreRecoveryPendingV2,
@@ -149,6 +149,7 @@ const stagedRel = `restore-staging/${RID}/backup.sqlite`
 const stagedPath = () => join(userData, stagedRel)
 const stagingDir = () => join(userData, 'restore-staging', RID)
 const journalPath = () => join(userData, 'restore-journal.json')
+const parkedPath = () => join(userData, parkedFailedDbRelPathV2(RID))
 
 /**
  * A migrated database carrying a marker row.
@@ -212,6 +213,7 @@ interface JournalOverrides {
   step?: PromotionStepV2
   chain?: Array<{ folderMillis: number; hash: string }>
   resourceInstalls?: RestoreJournalV2['resourceInstalls']
+  ownerProgress?: RestoreJournalV2['ownerProgress']
 }
 
 function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
@@ -236,7 +238,8 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
         baseIds: knowledgeBaseIds,
         requiresRebuild: knowledgeBaseIds.length > 0
       }
-    }
+    },
+    ...(overrides.ownerProgress === undefined ? {} : { ownerProgress: overrides.ownerProgress })
   }
   const state = overrides.state ?? 'armed'
   if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
@@ -490,12 +493,12 @@ describe('restore promotion v2', () => {
 
     it('refuses the boot and retries the same rollback when the rolled-back journal cannot be written', async () => {
       makeDb(livePath(), 'old')
-      makeDb(join(userData, 'Data', `restore-failed-${RID}.sqlite`), 'new')
+      makeDb(parkedPath(), 'new')
       makeStagedDb()
       writeRestoreJournalV2(
         buildJournal({
           state: 'rollback-armed',
-          chain: chainOf(join(userData, 'Data', `restore-failed-${RID}.sqlite`))
+          chain: chainOf(parkedPath())
         })
       )
       const before = recoveryEvidence()
@@ -511,7 +514,7 @@ describe('restore promotion v2', () => {
 
       expect(journalState()).toBe('rolled-back')
       expect(readMarker(livePath())).toBe('old')
-      expect(readMarker(join(userData, 'Data', `restore-failed-${RID}.sqlite`))).toBe('new')
+      expect(readMarker(parkedPath())).toBe('new')
     })
 
     it('writes the expiry of an unarmed preparation before dropping its staging tree', async () => {
@@ -658,7 +661,7 @@ describe('restore promotion v2', () => {
       expect(journalState()).toBe('failed')
       expect(readMarker(livePath())).toBe('old')
       expect(existsSync(asidePath())).toBe(false)
-      expect(existsSync(join(userData, 'Data', `restore-failed-${RID}.sqlite`))).toBe(true)
+      expect(existsSync(parkedPath())).toBe(true)
     })
 
     it('does not reverse a committed database before the reverting marker is durable', async () => {
@@ -688,7 +691,7 @@ describe('restore promotion v2', () => {
 
       expect(journalState()).toBe('reverting')
       expect(readMarker(livePath())).toBe('old')
-      expect(readFileSync(join(userData, 'Data', `restore-failed-${RID}.sqlite`), 'utf8')).toBe('not a database')
+      expect(readFileSync(parkedPath(), 'utf8')).toBe('not a database')
       expect(hasPendingRestore()).toBe(true)
 
       failJournalWrite.when = null
@@ -700,16 +703,19 @@ describe('restore promotion v2', () => {
   })
 
   describe('explicit rollback of a completed restore', () => {
-    const parkedPath = () => join(userData, 'Data', `restore-failed-${RID}.sqlite`)
-
     it('moves the previous database back and retains the displaced restored database', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
-      writeRestoreJournalV2(buildJournal())
+      const ownerProgress = {
+        knowledge: { completedBaseIds: [] },
+        futureOwner: { cursor: 9 }
+      }
+      writeRestoreJournalV2(buildJournal({ ownerProgress }))
       await runRestorePromotionV2()
       const completed = readRestoreJournalV2()
       if (completed.kind !== 'ok' || completed.journal.state !== 'completed')
         throw new Error('promotion did not complete')
+      expect(completed.journal.ownerProgress).toEqual(ownerProgress)
       const restored = new Database(livePath())
       restored
         .prepare("INSERT INTO app_state (key, value, created_at, updated_at) VALUES ('post-restore', '1', 0, 0)")
@@ -726,6 +732,8 @@ describe('restore promotion v2', () => {
       expect(hasRow(livePath(), 'post-restore')).toBe(false)
       expect(existsSync(asidePath())).toBe(false)
       expect(hasPendingRestore()).toBe(true)
+      const rolledBack = readRestoreJournalV2()
+      expect(rolledBack).toMatchObject({ kind: 'ok', journal: { state: 'rolled-back', ownerProgress } })
     })
 
     it('resumes after the restored database was parked but before the previous database returned', async () => {
@@ -1030,7 +1038,7 @@ describe('restore promotion v2', () => {
       expect(readUnitDir(unit.live)).toBe('TARGET')
       expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
       expect(unitExists(unit.aside)).toBe(false)
-      expect(readMarker(join(userData, 'Data', `restore-failed-${RID}.sqlite`))).toBe('new')
+      expect(readMarker(parkedPath())).toBe('new')
     })
 
     it('rolls the resources back out when the promotion fails after the commit', async () => {
