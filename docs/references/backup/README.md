@@ -159,13 +159,14 @@ rows and never combines two identities.
 materialization, never a row merge. A byte-equivalent business DB payload MUST result for
 the same source snapshot.
 
-`PORTABLE_DB_POLICIES` also carries a reviewed reference ledger for every path, URL,
-workspace selector, and reference-bearing JSON surface the app may dereference. Each entry
-declares one target-safe disposition — preserve inert, rebase, reset, deactivate, or drop —
-and owner evidence for its unknown/malformed fallback. `schemaGuard.test.ts` binds that
-ledger to the production Drizzle columns and fails if a reviewed surface loses its policy;
-ordinary file bytes that no application reader interprets are not references and remain
-ordinary capture content.
+`PORTABLE_DB_POLICIES` also carries the declared ledger of automatic or device-bound
+references whose target-safe disposition is part of materialization — preserve inert,
+rebase, reset, deactivate, or drop — plus owner evidence for unknown/malformed fallbacks.
+`schemaGuard.test.ts` binds those declarations to production Drizzle columns. It separately
+tracks known user-triggered/display-only provider and Mini App references so they stay
+visible to review without falsely claiming that materialization rewrites every path, URL,
+or JSON field. Ordinary file bytes that no application reader interprets remain ordinary
+capture content.
 
 **Why the workspace layers are safe.** The threat an archive-supplied path poses is not the
 path itself — it is what resolving one can do with no user action: a `\\server\share` value
@@ -474,7 +475,17 @@ writers without force-killing admitted work.
 The deprecated `FileStorage` singleton is not a lifecycle participant and the export
 transaction never resolves or depends on it; its remaining legacy mutation entry points
 use the shared barrier only as a temporary compatibility guard until those IPC routes are
-removed.
+removed. Fixed internal blob mutations always enter it. Arbitrary legacy path mutations do
+so only when a lexical mutation target equals or sits beneath `app.userdata`; external-only
+destinations run directly, move/rename classify both endpoints, and copy classifies only its
+destination. The save dialog is outside admission, and this deprecated shim deliberately
+does not realpath through external symlinks.
+
+`BackupService` declares the six WhenReady services in this fixed orchestration as lifecycle
+dependencies (`ChannelManager`, `AiStreamManager`, `AgentSessionRuntimeService`,
+`JobManager`, `ClaudeCodeWarmQueryManager`, and `McpRuntimeService`). The BeforeReady
+`ProfileWriteBarrierService` is intentionally governed by phase ordering rather than an
+invalid cross-phase dependency.
 
 One 30-second monotonic deadline governs sealing:
 
@@ -590,6 +601,14 @@ Backup routes an owner's entry back to that owner for readiness/rebuild work. Th
 inference is a compatibility helper in `backupRestoreGate.ts` for an already-armed
 pre-release v2 journal that predates this field; new writers never call it, and a new-format
 journal missing the summary fails closed.
+
+Per-owner derived-work state uses a second opaque JSON bag, `ownerProgress`.
+`data/db/restore` only validates and transports the bag across promotion, rollback, and
+terminal states. Knowledge owns the schema of `ownerProgress.knowledge`, verifies completed
+IDs against its sealed summary, and preserves other owners' entries on every update. The
+pre-release `knowledgeRebuild` field remains read-only compatibility: it is consulted only
+when the entire new bag is absent, never as fallback for a malformed current entry, and new
+journals do not write it.
 
 > **Change from current `origin/main`.** Journal v1 (on main) uses states
 > `staged → promoting → completed|failed|expired` with no `prepared`/`armed` split and a
@@ -933,6 +952,11 @@ the UI.
   window, including the Main window that hosts Data Settings), schema validation,
   `IpcError` mapping, and delegation to `BackupService`. Backup has no dedicated window.
   See [IPC Reference](../ipc/README.md).
+- **Existing destination adapters** (Local backup, WebDAV, Nutstore, and S3) retain their
+  transport/list/rotation IPC but delegate archive export, admission, and arming to
+  `BackupService`. They never write another journal shape or run a second capture
+  transaction; a legacy `.zip` filename may therefore contain the same v2 archive bytes as
+  a manually named `.cherrybackup`.
 - **Error boundary is path-free.** What crosses to the renderer is a fixed code, a fixed
   sentence chosen at the boundary, and whitelisted numbers/closed enums — never an
   underlying message, an absolute path, an archive-controlled name, or a journal read
@@ -964,7 +988,7 @@ evidence of *what* the system must do, never ancestry to inherit.
 | Orphan sweep | `src/main/services/file/internal/orphanSweep.ts` |
 | Its `hasPendingRestore()` stand-aside guard | `src/main/data/db/restore/restoreGuard.ts` |
 | Preboot userData relocation (runs before the restore gate) | `src/main/core/preboot/userDataLocation.ts` |
-| v1 whole-store replacement semantics (evidence only) | `src/main/services/LegacyBackupManager.ts` |
+| Existing local/WebDAV/S3 transport compatibility and the separate LAN handoff | `src/main/services/LegacyBackupManager.ts` |
 
 **Selectively ported from #17206 after removing all merge assumptions** (these do **not**
 exist on `origin/main` today — do not claim otherwise): ZIP assembly, atomic `0600`
