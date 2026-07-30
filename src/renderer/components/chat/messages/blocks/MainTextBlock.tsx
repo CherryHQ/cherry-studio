@@ -5,6 +5,7 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
@@ -44,21 +45,12 @@ const composerTokenIcon: Partial<
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
 
-const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
-  'file',
-  'folder',
-  'knowledge',
-  'quote',
-  'reference',
-  'skill'
-])
-
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
-  return COMPOSER_TOKEN_BACKED_KINDS.has(token.kind)
+  return isComposerInputTokenKind(token.kind)
 }
 
 function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
