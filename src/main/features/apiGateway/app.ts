@@ -46,14 +46,26 @@ const v1Routes = new Elysia({ prefix: '/v1' })
   .use(modelsRoutes)
   .use(knowledgeRoutes)
 
+/** Where the gateway listens; used to render an absolute OpenAPI server URL. */
+interface BuildAppOptions {
+  host?: string
+  port?: number
+}
+
 /**
  * Build the Elysia application (Node adapter). Assembles CORS, OpenAPI docs,
  * request logging + `X-Request-ID`, error handling, public info routes, and the
  * protected API route plugins.
  *
+ * `host`/`port` default to the `feature.api_gateway.*` preference defaults so the
+ * integration tests can call `buildApp()` with no arguments; `server.ts` passes
+ * the live preference values. They populate the OpenAPI `servers` URL so Scalar
+ * renders copyable absolute curl examples (e.g. `curl http://127.0.0.1:23333/health`)
+ * instead of relative paths.
+ *
  * Exported for both the runtime server (`server.ts`) and the integration tests.
  */
-export function buildApp() {
+export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions = {}) {
   const app = new Elysia({ adapter: node() })
     .use(
       cors({
@@ -80,7 +92,10 @@ export function buildApp() {
             version: '1.0.0',
             description:
               'OpenAI- and Anthropic-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)'
-          }
+          },
+          // Absolute base URL so Scalar renders copyable curl examples with the
+          // full address instead of relative paths (e.g. `curl /health`).
+          servers: [{ url: `http://${host}:${port}` }]
         }
       })
     )
