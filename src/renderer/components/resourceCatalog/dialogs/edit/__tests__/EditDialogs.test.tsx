@@ -941,7 +941,6 @@ describe('edit dialogs', () => {
           }
         }}
         onOpenChange={vi.fn()}
-        onSaved={vi.fn()}
       />
     )
 
