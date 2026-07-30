@@ -441,6 +441,12 @@
       "list": {
         "title": "任務"
       },
+      "model_switch_confirm": {
+        "confirm": "切換模型",
+        "description": "不同的模型可能會以不同的方式理解和處理上下文。切換模型可能會影響後續回應的連續性或品質。您確定要繼續嗎？",
+        "skip_for_app_run": "在我退出應用程式之前不要再詢問",
+        "title": "切換至「{{model}}」？"
+      },
       "new": "新任務",
       "pin": {
         "title": "固定任務"
@@ -1633,17 +1639,17 @@
       "token_details": {
         "cache_read": "快取讀取",
         "cache_write": "快取寫入",
-        "cost": "[to be translated]:Cost",
-        "cost_billed": "[to be translated]:Billed by provider",
-        "cost_estimated": "[to be translated]:Estimated",
-        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
+        "cost": "成本",
+        "cost_billed": "由服務提供者開立帳單",
+        "cost_estimated": "預計",
+        "end_to_end_throughput": "端到端吞吐量",
         "input": "輸入",
         "input_breakdown": "輸入分解",
-        "lane_approval": "[to be translated]:Approval",
-        "lane_model": "[to be translated]:Model",
-        "lane_other": "[to be translated]:Other",
-        "lane_tool": "[to be translated]:Tool",
-        "model_throughput": "[to be translated]:Model generation TPS",
+        "lane_approval": "核准",
+        "lane_model": "模型",
+        "lane_other": "其他",
+        "lane_tool": "工具",
+        "model_throughput": "模型生成 TPS",
         "output": "輸出",
         "reasoning": "推理",
         "reasoning_time": "推理",
@@ -1652,7 +1658,7 @@
         "text_output": "文字輸出",
         "tokens": "{{value}} 代幣",
         "tokens_per_second_value": "{{value}} Tokens/s",
-        "total_duration": "[to be translated]:End-to-end duration",
+        "total_duration": "端到端持續時間",
         "uncached": "未快取",
         "usage": "Token 使用量",
         "waiting_first_token": "等待"
@@ -2320,7 +2326,7 @@
     "open_in": "在 {{name}} 中開啟",
     "open_in_new_tab": "在新分頁中開啟",
     "open_sidebar": "開啟側邊欄",
-    "other": "[to be translated]:Other",
+    "other": "其他",
     "placeholders": {
       "select": {
         "model": "選擇模型"
@@ -4323,7 +4329,7 @@
     },
     "pinned": "已固定",
     "price": {
-      "cache_read": "[to be translated]:Cache Read Price",
+      "cache_read": "快取讀取價格",
       "cost": "花費",
       "currency": "幣種",
       "custom": "自訂",
@@ -5220,6 +5226,7 @@
       "label": "確定要復原資料嗎？"
     },
     "content": "復原操作將使用備份資料覆蓋目前所有應用程式資料。請注意，復原過程可能需要一些時間，感謝您的耐心等待",
+    "messages_paused": "正在進行備份還原；新訊息已暫停，直到還原完成。",
     "progress": {
       "completed": "復原完成",
       "copying_files": "複製檔案... {{progress}}%",
@@ -8118,104 +8125,104 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "cacheHitRate": "[to be translated]:Cache hit rate",
-        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
-        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "dailyAverage": "[to be translated]:Daily average",
-        "explicitApiKey": "[to be translated]:Selected key",
-        "lastPeriod": "[to be translated]:vs last period",
-        "matchedApiKey": "[to be translated]:Matched override",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "providerAuth": "[to be translated]:Provider auth",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalRequests": "[to be translated]:Requests",
-        "totalTokens": "[to be translated]:Total tokens",
-        "unattributedApiKey": "[to be translated]:Unattributed request",
-        "unattributedSource": "[to be translated]:Unattributed source"
+        "activeDays": "活躍天數",
+        "cacheHitRate": "快取命中率",
+        "cacheObservedTokens": "可觀察輸入：{{tokens}}",
+        "cacheStartsWithNewRequests": "開始新的請求",
+        "dailyAverage": "每日平均",
+        "explicitApiKey": "選定的按鍵",
+        "lastPeriod": "與上期相比",
+        "matchedApiKey": "符合的覆寫",
+        "none": "N/A",
+        "peakDay": "高峰日",
+        "providerAuth": "提供者驗證",
+        "streak": "最長連續天數：{{days}} 天",
+        "topModel": "頂級名模",
+        "totalCost": "總成本",
+        "totalRequests": "請求",
+        "totalTokens": "總計權杖數",
+        "unattributedApiKey": "未歸因的請求",
+        "unattributedSource": "未註明來源"
       },
       "chart": {
-        "bar": "[to be translated]:Bar",
-        "line": "[to be translated]:Line",
-        "pie": "[to be translated]:Pie",
-        "stack": "[to be translated]:Stack"
+        "bar": "酒吧",
+        "line": "行",
+        "pie": "派",
+        "stack": "堆疊"
       },
-      "currency": "[to be translated]:Currency",
+      "currency": "貨幣",
       "empty": {
-        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
-        "title": "[to be translated]:No usage yet"
+        "description": "使用量會在支援的 AI 請求建立使用量記錄後顯示。",
+        "title": "尚未使用"
       },
       "explore": {
-        "analysis": "[to be translated]:Analysis",
-        "chart": "[to be translated]:Chart",
-        "clearDate": "[to be translated]:Clear date filter",
-        "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "[to be translated]:Requests",
-        "groupBy": "[to be translated]:Group by",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "metric": "[to be translated]:Metric",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "rollup": "[to be translated]:Rollup",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "shareLabel": "[to be translated]:Share",
-        "title": "[to be translated]:Explore",
-        "top": "[to be translated]:Top",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
-        "totalEntries_other": "[to be translated]:{{count}} entries"
+        "analysis": "分析",
+        "chart": "圖表",
+        "clearDate": "清除日期篩選",
+        "drilldownTitle": "{{date}} 向下鑽取",
+        "entries": "請求",
+        "groupBy": "分組依據",
+        "loadMore": "載入更多",
+        "loading": "載入中...",
+        "metric": "指標",
+        "noBreakdown": "沒有故障數據",
+        "noBreakdownDescription": "嘗試更廣泛的時間範圍或不同的供應商。",
+        "noEntries": "無項目",
+        "noEntriesDescription": "嘗試更廣泛的時間範圍或不同的提供者。",
+        "rollup": "匯總",
+        "selectedDate": "選擇的日期：{{date}}",
+        "shareLabel": "分享",
+        "title": "探索",
+        "top": "頂部",
+        "totalEntries_one": "{{count}} 條目",
+        "totalEntries_other": "{{count}} 個項目"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "source": "[to be translated]:Assistant / Agent"
+        "apiKey": "API 金鑰",
+        "model": "模型",
+        "provider": "提供者",
+        "source": "助理 / 代理"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "{{date}} 的使用情況",
+        "title": "每日活動"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "requests": "[to be translated]:Requests",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "成本",
+        "requests": "請求",
+        "tokens": "代幣"
       },
       "overview": {
-        "title": "[to be translated]:Overview"
+        "title": "概述"
       },
       "rollup": {
-        "daily": "[to be translated]:Daily",
-        "monthly": "[to be translated]:Monthly",
-        "total": "[to be translated]:Total",
-        "weekly": "[to be translated]:Weekly"
+        "daily": "每日",
+        "monthly": "每月",
+        "total": "總計",
+        "weekly": "每週"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "summary": "{{window}} / {{tokens}} 權杖 / {{requests}} 請求",
       "table": {
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "model": "[to be translated]:Model",
-        "source": "[to be translated]:Source",
-        "tokens": "[to be translated]:Tokens",
-        "tps": "[to be translated]:TPS",
-        "tpsValue": "[to be translated]:{{value}} tok/s",
-        "ttft": "[to be translated]:TTFT"
+        "cost": "成本",
+        "date": "日期",
+        "model": "模型",
+        "source": "來源",
+        "tokens": "代幣",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "[to be translated]:Usage Analytics",
+      "title": "使用分析",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
-        "requests_other": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "花費 {{value}}",
+        "requests_one": "{{count}} 個請求",
+        "requests_other": "{{count}} 個請求",
+        "tokens": "{{value}} 個 token"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days"
+        "30d": "過去30天",
+        "365d": "去年",
+        "90d": "過去90天"
       }
     },
     "use_system_title_bar": {
@@ -8393,6 +8400,7 @@
         "placeholder": "搜尋翻譯歷史"
       },
       "source": "原文",
+      "star": "最愛",
       "success": {
         "add": "已儲存至紀錄",
         "clear": "歷史紀錄已清除",
