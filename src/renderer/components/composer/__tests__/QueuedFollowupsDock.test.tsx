@@ -37,6 +37,26 @@ const items = [
   { id: '2', draft: { text: 'second', tokens: [] }, payload: { text: 'second', userMessageParts: [] } }
 ] as any
 
+const knowledgePrompt = 'The user attached knowledge base "Notes" (id: kb-1) — use that id with the kb_* tools.'
+
+const knowledgeItem = {
+  id: 'knowledge',
+  draft: {
+    text: `${knowledgePrompt} what is in it?`,
+    tokens: [
+      {
+        id: 'knowledge:kb-1',
+        kind: 'knowledge',
+        label: 'Notes',
+        promptText: knowledgePrompt,
+        index: 0,
+        textOffset: 0
+      }
+    ]
+  },
+  payload: { text: `${knowledgePrompt} what is in it?`, userMessageParts: [] }
+} as any
+
 describe('QueuedFollowupsDock', () => {
   it('renders queued items with token chips and fires the per-item + pause callbacks', () => {
     const onSteer = vi.fn()
@@ -169,5 +189,24 @@ describe('QueuedFollowupsDock', () => {
       />
     )
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('hides a knowledge token prompt while keeping the user text and chip', () => {
+    const { container } = render(
+      <QueuedFollowupsDock
+        items={[knowledgeItem]}
+        paused={false}
+        onTogglePause={vi.fn()}
+        onSteer={vi.fn()}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    expect(container).toHaveTextContent('what is in it?')
+    expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toHaveTextContent('Notes')
+    expect(container).not.toHaveTextContent(knowledgePrompt)
+    expect(container).not.toHaveTextContent('kb-1')
   })
 })

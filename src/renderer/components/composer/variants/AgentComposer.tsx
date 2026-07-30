@@ -81,8 +81,7 @@ import {
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
-  getCacheableDraftTokens,
-  getCachedKnowledgeBases,
+  getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
@@ -341,19 +340,13 @@ const AgentComposerRoot = ({
   const initialState = useMemo(
     () => ({
       mentionedModels: [],
-      // Seeded synchronously, like files: the cached draft restores its knowledge chips, and the
-      // surface's managed-token sync strips any chip the selection does not already contain.
-      selectedKnowledgeBases: getCachedKnowledgeBases(readAgentDraftCache(getAgentDraftCacheKey(agentId))),
+      selectedKnowledgeBases: [],
       files: [] as ComposerAttachment[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    // `sessionId` is load-bearing despite not appearing above: the provider below is keyed by agent +
-    // session and seeds this object once per mount, so it must be re-read in the same render that
-    // changes the key — otherwise the remounted provider replays the previous session's selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentId, sessionId]
+    []
   )
 
   if (!session) return null
@@ -722,12 +715,12 @@ const AgentComposerInner = ({
   }, [model])
 
   const setText = useCallback(
-    (nextText: string, options: { persist?: boolean } = {}) => {
+    (nextText: string, options: { persist?: boolean; tokens?: readonly ComposerSerializedToken[] } = {}) => {
       clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
       if (options.persist ?? true) {
-        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+        writeAgentDraftCache(draftCacheKey, nextText, options.tokens ?? draftTokensRef.current)
       }
     },
     [clearTimeoutTimer, draftCacheKey]
@@ -737,7 +730,7 @@ const AgentComposerInner = ({
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextDraftTokens = getCacheableDraftTokens(historyDraft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
@@ -776,9 +769,11 @@ const AgentComposerInner = ({
     (nextText: string) => {
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
-      setText(nextText)
+      // Controlled token sync updates text without firing onTokensChange, so this editor-originated
+      // path must persist the live token snapshot rather than the potentially stale draftTokensRef.
+      setText(nextText, { tokens: actionsRef.current.getDraft().tokens })
     },
-    [resetHistoryIndex, setText]
+    [actionsRef, resetHistoryIndex, setText]
   )
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
@@ -1001,7 +996,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getCacheableDraftTokens(draftTokens)
+      const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
@@ -1129,11 +1124,11 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
-  // skill subset and managed file/knowledge/skill state before dropping it from the queue.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
+  // state and the managed file/knowledge/skill selections before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getCacheableDraftTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)

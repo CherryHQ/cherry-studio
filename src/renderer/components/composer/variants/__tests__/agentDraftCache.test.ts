@@ -1,11 +1,11 @@
 import { cacheService } from '@data/CacheService'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedToken } from '../../tokens'
 import {
   getAgentDraftCacheKey,
-  getCachedKnowledgeBases,
+  getAgentDraftTokens,
+  getCacheableAgentDraft,
   getCachedSkillTokens,
   readAgentDraftCache,
   writeAgentDraftCache
@@ -18,7 +18,7 @@ vi.mock('@data/CacheService', () => ({
   }
 }))
 
-const base = { id: 'kb-1', name: 'Notes' } as KnowledgeBase
+const base = { id: 'kb-1', name: 'Notes' }
 
 const skillToken: ComposerSerializedToken = {
   id: 'skill:review',
@@ -107,7 +107,23 @@ describe('agentDraftCache', () => {
     vi.mocked(cacheService.setCasual).mockReset()
   })
 
-  it('round-trips every active non-file input token so its prompt text keeps its chip', () => {
+  it('keeps every active non-file input token in the live Agent draft', () => {
+    expect(
+      getAgentDraftTokens([
+        skillToken,
+        knowledgeToken,
+        fileToken,
+        linkToken,
+        folderToken,
+        referenceToken,
+        quoteToken,
+        promptVariableToken,
+        legacyCommandToken
+      ])
+    ).toEqual([skillToken, knowledgeToken, linkToken, folderToken, referenceToken, quoteToken, promptVariableToken])
+  })
+
+  it('round-trips every agent-cacheable input token so its prompt text keeps its chip', () => {
     writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), 'text', [
       skillToken,
       knowledgeToken,
@@ -123,12 +139,11 @@ describe('agentDraftCache', () => {
     const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
     const expectedTokens = [
       skillToken,
-      knowledgeToken,
-      linkToken,
-      folderToken,
-      referenceToken,
-      quoteToken,
-      promptVariableToken
+      { ...linkToken, index: 2 },
+      { ...folderToken, index: 3 },
+      { ...referenceToken, index: 4 },
+      { ...quoteToken, index: 5 },
+      { ...promptVariableToken, index: 6 }
     ]
     expect(written).toEqual({ text: 'text', tokens: expectedTokens })
 
@@ -136,29 +151,50 @@ describe('agentDraftCache', () => {
     expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1')).tokens).toEqual(expectedTokens)
   })
 
-  it('rebuilds the knowledge selection from the cached token payload', () => {
-    // Read synchronously at mount, so it must not depend on the knowledge-base query having resolved.
-    const text = `prefix ${knowledgeToken.promptText}`
-    expect(
-      getCachedKnowledgeBases({ text, tokens: [skillToken, { ...knowledgeToken, textOffset: 7 }, fileToken] })
-    ).toEqual([base])
+  it('drops a knowledge token together with its prompt while preserving and rebasing a skill token', () => {
+    const knowledgeFirst = { ...knowledgeToken, index: 0, textOffset: 0 }
+    const skillAfterKnowledge = {
+      ...skillToken,
+      index: 1,
+      textOffset: knowledgeToken.promptText!.length + 1
+    }
+    const text = `${knowledgeToken.promptText} ${skillToken.promptText} keep this`
+
+    expect(getCacheableAgentDraft({ text, tokens: [knowledgeFirst, skillAfterKnowledge, fileToken] })).toEqual({
+      text: `${skillToken.promptText} keep this`,
+      tokens: [{ ...skillToken, index: 0, textOffset: 0 }]
+    })
   })
 
-  it('ignores a knowledge token whose sentence is no longer at its offset', () => {
-    // A managed-token strip suppresses onTokensChange but still fires onTextChange, so the cache can
-    // hold a token naming a chip whose sentence is already gone. Re-seeding from it would resurrect a
-    // pick the user watched disappear.
-    expect(getCachedKnowledgeBases({ text: 'the sentence was edited away', tokens: [knowledgeToken] })).toEqual([])
+  it('excises knowledge tokens on both cache writes and reads', () => {
+    const text = `${knowledgeToken.promptText} keep this`
+    const token = { ...knowledgeToken, index: 0, textOffset: 0 }
+
+    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), text, [token, skillToken])
+
+    expect(cacheService.setCasual).toHaveBeenCalledWith(
+      'agent-session-draft-agent-1',
+      { text: 'keep this', tokens: [{ ...skillToken, index: 0, textOffset: 0 }] },
+      expect.any(Number)
+    )
+
+    vi.mocked(cacheService.getCasual).mockReturnValue({ text, tokens: [token, skillToken] })
+    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1'))).toEqual({
+      text: 'keep this',
+      tokens: [{ ...skillToken, index: 0, textOffset: 0 }]
+    })
+  })
+
+  it('collapses a knowledge-only draft to empty', () => {
+    expect(
+      getCacheableAgentDraft({
+        text: `${knowledgeToken.promptText} `,
+        tokens: [{ ...knowledgeToken, index: 0, textOffset: 0 }]
+      })
+    ).toEqual({ text: '', tokens: [] })
   })
 
   it('keeps the skill subset separate from the persisted token set', () => {
     expect(getCachedSkillTokens([skillToken, knowledgeToken])).toEqual([skillToken])
-  })
-
-  it('ignores a knowledge token whose payload is not a knowledge base', () => {
-    const text = `prefix ${knowledgeToken.promptText}`
-    expect(getCachedKnowledgeBases({ text, tokens: [{ ...knowledgeToken, textOffset: 7, payload: 'nope' }] })).toEqual(
-      []
-    )
   })
 })

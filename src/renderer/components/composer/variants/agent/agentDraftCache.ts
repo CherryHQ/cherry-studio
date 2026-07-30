@@ -1,9 +1,9 @@
 import { cacheService } from '@data/CacheService'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { LocalSkill } from '@shared/types/skill'
 
-import type { ComposerSerializedToken } from '../../tokens'
+import { excludeComposerDraftTokens } from '../../composerDraft'
+import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
@@ -45,39 +45,21 @@ export function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[])
   return tokens.filter((token) => token.kind === 'skill')
 }
 
-function isKnowledgeBase(value: unknown): value is KnowledgeBase {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string'
-}
-
 /**
- * Rebuilds the knowledge selection a cached draft's chips stand for, mirroring
- * `getSkillFromCachedToken`. Read synchronously at mount rather than mapped through the
- * knowledge-base query, so the pick exists before the surface's managed-token sync would strip a
- * restored chip as unselected.
- *
- * A token whose sentence is no longer at its recorded offset is stale and must not seed anything: a
- * managed-token strip suppresses `onTokensChange` but still fires `onTextChange`, so the draft can be
- * persisted with the sentence already gone while the token list still names the chip. Re-seeding from
- * that would resurrect a pick the user watched disappear, and `createComposerDocumentContent` refuses
- * to rebuild the chip at the stale offset anyway, so the sentence would land wherever the caret is.
+ * Input tokens retained in the live Agent composer draft. Files stay owned by attachment state;
+ * the persistence boundary below additionally removes session-scoped knowledge.
  */
-export function getCachedKnowledgeBases(draft: AgentComposerDraftCache): KnowledgeBase[] {
-  return draft.tokens.flatMap((token) =>
-    token.kind === 'knowledge' &&
-    isKnowledgeBase(token.payload) &&
-    (!token.promptText || draft.text.startsWith(token.promptText, token.textOffset))
-      ? [token.payload]
-      : []
-  )
-}
-
-/**
- * Input tokens ride the cached draft unless their source of truth is external attachment state.
- * Dropping a prompt-backed token while persisting the text strands that sentence as chip-less prose.
- * File tokens remain excluded because the file tool owns their attachment lifecycle.
- */
-export function getCacheableDraftTokens(tokens: readonly ComposerSerializedToken[]) {
+export function getAgentDraftTokens(tokens: readonly ComposerSerializedToken[]) {
   return tokens.filter((token) => token.kind !== 'file' && isComposerInputTokenKind(token.kind))
+}
+
+/** Knowledge selection is session-scoped, while this cache is agent-scoped. */
+export function getCacheableAgentDraft(draft: ComposerSerializedDraft): AgentComposerDraftCache {
+  const withoutKnowledge = excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')
+  return {
+    text: withoutKnowledge.text,
+    tokens: getAgentDraftTokens(withoutKnowledge.tokens)
+  }
 }
 
 export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
@@ -87,19 +69,10 @@ export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
     return { text: '', tokens: [] }
   }
 
-  return {
-    text: cached.text,
-    tokens: getCacheableDraftTokens(cached.tokens)
-  }
+  return getCacheableAgentDraft({ text: cached.text, tokens: cached.tokens })
 }
 
 export function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
-  cacheService.setCasual<AgentComposerDraftCache>(
-    cacheKey,
-    {
-      text,
-      tokens: getCacheableDraftTokens(tokens)
-    },
-    DRAFT_CACHE_TTL
-  )
+  const cacheableDraft = getCacheableAgentDraft({ text, tokens: [...tokens] })
+  cacheService.setCasual<AgentComposerDraftCache>(cacheKey, cacheableDraft, DRAFT_CACHE_TTL)
 }
