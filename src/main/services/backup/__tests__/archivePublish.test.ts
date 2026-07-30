@@ -393,20 +393,21 @@ describe('publishArchive — archive-wide ceilings', () => {
     expect(await ownedTempRemains()).toBe(false)
   })
 
-  it('reserves the 2 fixed entries when applying maxArchiveEntries (over rejects, exact-at passes)', async () => {
-    // resourcesDir has 2 structural dirs + 1 file. Over: max=4 → resource budget 2 → reject.
+  it('reserves the 3 fixed entries when applying maxArchiveEntries (over rejects, exact-at passes)', async () => {
+    // resourcesDir has 2 structural dirs + 1 file. Over: max=5 → resource budget 2 → reject.
     await expect(
       publishArchiveWithCeilings(
         { outPath, manifest: fullManifest(true), dbCopyPath, resourcesDir },
-        { ...BASE_CEILINGS, maxArchiveEntries: 4 }
+        { ...BASE_CEILINGS, maxArchiveEntries: 5 }
       )
     ).rejects.toBeInstanceOf(CeilingExceededError)
     expect(existsSync(outPath)).toBe(false)
 
-    // Exact-at: max=5 → budget 3 → dirs + file + 2 fixed entries fit.
+    // Exact-at: max=6 → budget 3 → dirs + file + the 3 fixed entries fit (the
+    // optional attestation slot is reserved whether or not it is written).
     await publishArchiveWithCeilings(
       { outPath, manifest: fullManifest(true), dbCopyPath, resourcesDir },
-      { ...BASE_CEILINGS, maxArchiveEntries: 5 }
+      { ...BASE_CEILINGS, maxArchiveEntries: 6 }
     )
     expect(existsSync(outPath)).toBe(true)
   })

@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import type { AppliedMigration } from '@data/db/restore/appliedChain'
 import { OwnedPathIdentityError, type PathIdentity, probePath, removeOwnedDirectory } from '@main/utils/file'
 
+import { verifyManifestAttestation } from '../attestation'
 import { BACKUP_CEILINGS } from '../ceilings'
 import type { DirScanLimits } from '../dirScan'
 import { assertDiskHeadroom } from '../diskPreflight'
@@ -17,9 +18,11 @@ import { type CatalogCeilings, openArchive, validateArchiveShape } from './catal
 import { admitStagedDatabase } from './chain'
 import {
   createStagingDir,
+  extractAttestation,
   ExtractionBudget,
   extractManifest,
   extractPayload,
+  stagedAttestationName,
   stagedDbName,
   stagedManifestName,
   stagedPathOf
@@ -80,6 +83,13 @@ export interface AdmitArchiveInputs {
   readonly signal?: AbortSignal
   /** Narrowed ceilings for tests; defaults to the frozen {@link BACKUP_CEILINGS}. */
   readonly ceilings?: AdmissionCeilings
+  /**
+   * Same-install attestation check, injected so this module stays free of the
+   * path registry and of the secret itself. Defaults to the production verifier;
+   * a `false` result (including one from a throwing verifier) simply means the
+   * archive is not self-attested.
+   */
+  readonly verifyAttestation?: (manifestBytes: Buffer, entryBytes: Buffer) => boolean
 }
 
 /** Sealed admission result. Every path is absolute and under the owned {@link stagingDir}. */
@@ -88,6 +98,13 @@ export interface AdmittedArchive {
   readonly stagingDir: string
   /** The parsed ORIGINAL manifest — never mutated by migrate-forward. */
   readonly manifest: BackupManifest
+  /**
+   * True when the archive carried a valid attestation of its own manifest bytes
+   * by THIS install (§3.1 Layer 1). It is the only evidence that the absolute
+   * paths inside were written by this install about its own filesystem; false is
+   * the default for every foreign, older, or tampered archive.
+   */
+  readonly selfAttested: boolean
   /** Sealed FINAL DB metadata (recomputed after any migrate-forward + WAL seal). */
   readonly db: { readonly path: string; readonly sizeBytes: number; readonly hash: string }
   /** True when the staged DB was a strict prefix migrated forward to the bundled chain. */
@@ -149,7 +166,18 @@ async function safeRemoveOwned(stagingDir: string, identity: PathIdentity): Prom
   }
 }
 
-async function readAndParseManifest(stagingDir: string): Promise<BackupManifest> {
+/**
+ * The parsed manifest plus the EXACT bytes it was parsed from. The bytes are
+ * what an attestation covers, so they must be the ones on disk rather than a
+ * re-serialization of the parsed object (JSON has many byte encodings of one
+ * value, and only one of them is attested).
+ */
+interface ReadManifest {
+  readonly manifest: BackupManifest
+  readonly bytes: Buffer
+}
+
+async function readAndParseManifest(stagingDir: string): Promise<ReadManifest> {
   const bytes = await readFile(stagedPathOf(stagingDir, stagedManifestName))
   let json: unknown
   try {
@@ -171,7 +199,31 @@ async function readAndParseManifest(stagingDir: string): Promise<BackupManifest>
     // Constant detail: the Zod error can echo attacker-controlled manifest values.
     throw new ArchiveAdmissionError('manifest-invalid', 'manifest.json failed strict schema validation')
   }
-  return parsed.manifest
+  return { manifest: parsed.manifest, bytes }
+}
+
+/**
+ * Decide the one bit Layer 1 is entitled to: did THIS install produce this
+ * archive?
+ *
+ * Every failure collapses to `false`. That is deliberate — an archive must not
+ * be able to turn a missing secret, an unreadable key file, or a malformed entry
+ * into a distinguishable error, and an unattested restore is already safe by the
+ * Layer 2/3 policy.
+ */
+async function checkSelfAttestation(
+  stagingDir: string,
+  manifestBytes: Buffer,
+  extracted: boolean,
+  verify: (manifestBytes: Buffer, entryBytes: Buffer) => boolean
+): Promise<boolean> {
+  if (!extracted) return false
+  try {
+    const entryBytes = await readFile(stagedPathOf(stagingDir, stagedAttestationName))
+    return verify(manifestBytes, entryBytes)
+  } catch {
+    return false
+  }
 }
 
 export async function admitArchive(inputs: AdmitArchiveInputs): Promise<AdmittedArchive> {
@@ -204,7 +256,14 @@ export async function admitArchive(inputs: AdmitArchiveInputs): Promise<Admitted
     // Manifest first (bounded, shared budget), so payload layout can be classified
     // before the resource bytes are extracted.
     await extractManifest(open.zip, shape, stagingDir, ceilings.maxManifestBytes, budget, signal)
-    const manifest = await readAndParseManifest(stagingDir)
+    const { manifest, bytes: manifestBytes } = await readAndParseManifest(stagingDir)
+    const attestationExtracted = await extractAttestation(open.zip, shape, stagingDir, budget, signal)
+    const selfAttested = await checkSelfAttestation(
+      stagingDir,
+      manifestBytes,
+      attestationExtracted,
+      inputs.verifyAttestation ?? verifyManifestAttestation
+    )
     const units = classifyPayloadLayout(shape, manifest)
 
     await extractPayload(open.zip, shape, stagingDir, ceilings.maxEntryUncompressedBytes, budget, signal)
@@ -229,6 +288,7 @@ export async function admitArchive(inputs: AdmitArchiveInputs): Promise<Admitted
     return {
       stagingDir: sealedDir,
       manifest,
+      selfAttested,
       db: { path: dbPath, sizeBytes: dbAdmission.sizeBytes, hash: dbAdmission.hash },
       migratedForward: dbAdmission.migratedForward,
       finalChain: dbAdmission.finalChain,

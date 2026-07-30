@@ -1,7 +1,8 @@
 import { isSafeRelativeSubpath, portableCollisionKey, toRelativeSegments } from '@main/utils/relativePath'
 import StreamZip from 'node-stream-zip'
 
-import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from '../archiveLayout'
+import { ATTESTATION_ENTRY, DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from '../archiveLayout'
+import { MAX_ATTESTATION_ENTRY_BYTES } from '../ceilings'
 import { ArchiveAdmissionError, renderUntrustedName } from '../errors'
 
 /**
@@ -70,6 +71,11 @@ export interface NormalizedEntry {
  */
 export interface ArchiveShape {
   readonly manifest: NormalizedEntry
+  /**
+   * The optional same-install attestation entry. Absent for every archive that
+   * carries none, which is a legal shape — see {@link ATTESTATION_ENTRY}.
+   */
+  readonly attestation?: NormalizedEntry
   readonly db: NormalizedEntry
   readonly resourceFiles: readonly NormalizedEntry[]
   readonly resourceDirs: readonly NormalizedEntry[]
@@ -333,6 +339,7 @@ function classifyShape(
   declaredTotalBytes: number
 ): ArchiveShape {
   let manifest: NormalizedEntry | undefined
+  let attestation: NormalizedEntry | undefined
   let db: NormalizedEntry | undefined
   const resourceFiles: NormalizedEntry[] = []
   const resourceDirs: NormalizedEntry[] = []
@@ -353,6 +360,19 @@ function classifyShape(
       manifest = entry
       continue
     }
+    if (entry.path === ATTESTATION_ENTRY) {
+      if (attestation) throw new ArchiveAdmissionError('layout', 'more than one attestation.json')
+      // Bound the entry HERE, on its declared size, so a multi-GB "attestation"
+      // is refused on metadata alone rather than during extraction.
+      if (entry.uncompressedSize > MAX_ATTESTATION_ENTRY_BYTES) {
+        throw new ArchiveAdmissionError(
+          'ceiling-entry-bytes',
+          `attestation.json: ${entry.uncompressedSize} > ${MAX_ATTESTATION_ENTRY_BYTES}`
+        )
+      }
+      attestation = entry
+      continue
+    }
     if (entry.path === DB_ENTRY) {
       if (db) throw new ArchiveAdmissionError('layout', 'more than one backup.sqlite')
       db = entry
@@ -362,7 +382,7 @@ function classifyShape(
       resourceFiles.push(entry)
       continue
     }
-    // A regular file that is neither of the two fixed entries nor under
+    // A regular file that is none of the fixed root entries nor under
     // `resources/` has no place in the layout.
     throw new ArchiveAdmissionError('layout', `misplaced archive file: ${renderUntrustedName(entry.path)}`)
   }
@@ -379,5 +399,5 @@ function classifyShape(
     )
   }
 
-  return { manifest, db, resourceFiles, resourceDirs, declaredTotalBytes }
+  return { manifest, attestation, db, resourceFiles, resourceDirs, declaredTotalBytes }
 }

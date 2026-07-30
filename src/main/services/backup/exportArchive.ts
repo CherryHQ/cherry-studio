@@ -31,6 +31,7 @@ import { readAppliedChain } from '@data/db/restore/appliedChain'
 import { loggerService } from '@logger'
 
 import { publishArchive } from './archivePublish'
+import { buildManifestAttestation } from './attestation'
 import { assertDiskHeadroom } from './diskPreflight'
 import { BackupCancelledError, OutputPathExistsError } from './errors'
 import { createExportOperation } from './exportOperation'
@@ -193,6 +194,10 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       dbCopyPath: stagedDbPath,
       resourcesDir: resources.staged ? resourcesDir : undefined,
       tempObserver: operation.publishObserver,
+      // Lets a restore on THIS install recognize its own archive and keep the
+      // user's own workspace paths verbatim (§3.1). Absent on any install that
+      // cannot mint a secret, which only costs that recognition.
+      attest: buildManifestAttestation,
       signal
     })
 
