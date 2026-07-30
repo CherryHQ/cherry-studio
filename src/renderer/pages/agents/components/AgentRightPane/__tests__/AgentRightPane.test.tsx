@@ -781,6 +781,43 @@ describe('AgentRightPane', () => {
     expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/workspace/report.md' })
   })
 
+  it('ignores a stale artifact metadata resolution after the workspace switches', async () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace-a',
+      filePath: 'report.md'
+    })
+    type FileMetadataResult = Awaited<ReturnType<typeof window.api.file.getMetadata>>
+    let resolveMetadata: (metadata: FileMetadataResult) => void = () => {}
+    vi.mocked(window.api.file.getMetadata).mockImplementationOnce(
+      () =>
+        new Promise<FileMetadataResult>((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+    const renderPane = (workspacePath: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath={workspacePath}
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane('/workspace-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    rerender(renderPane('/workspace-b'))
+
+    await act(async () => {
+      resolveMetadata({ kind: 'file', type: 'text', size: 1, createdAt: 1, modifiedAt: 1, mime: 'text/plain' })
+    })
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+  })
+
   it('opens the files pane without previewing a declared directory', async () => {
     vi.mocked(window.api.file.getMetadata).mockResolvedValue({
       kind: 'directory',
