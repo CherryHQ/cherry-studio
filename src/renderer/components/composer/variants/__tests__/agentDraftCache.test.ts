@@ -57,26 +57,83 @@ const linkToken: ComposerSerializedToken = {
   textOffset: 0
 }
 
+const folderToken: ComposerSerializedToken = {
+  id: 'folder:/tmp/project',
+  kind: 'folder',
+  label: 'project',
+  promptText: '/tmp/project',
+  index: 4,
+  textOffset: 0
+}
+
+const referenceToken: ComposerSerializedToken = {
+  id: 'reference:session:1',
+  kind: 'reference',
+  label: 'Related session',
+  promptText: '<referenced-conversation>content</referenced-conversation>',
+  index: 5,
+  textOffset: 0
+}
+
+const quoteToken: ComposerSerializedToken = {
+  id: 'quote:1',
+  kind: 'quote',
+  label: 'Quote',
+  promptText: 'quoted text',
+  index: 6,
+  textOffset: 0
+}
+
+const promptVariableToken: ComposerSerializedToken = {
+  id: 'prompt-variable:0:city',
+  kind: 'promptVariable',
+  label: '上海',
+  promptText: '上海',
+  index: 7,
+  textOffset: 0
+}
+
+const legacyCommandToken: ComposerSerializedToken = {
+  id: 'command:legacy',
+  kind: 'command',
+  label: 'Legacy command',
+  index: 8,
+  textOffset: 0
+}
+
 describe('agentDraftCache', () => {
   beforeEach(() => {
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.setCasual).mockReset()
   })
 
-  it('round-trips knowledge tokens so their prompt text keeps its chip', () => {
-    // Dropping the token while persisting the text would strand the sentence as chip-less prose that
-    // tells the model a base is attached while the send path scopes nothing.
-    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), 'text', [skillToken, knowledgeToken, fileToken, linkToken])
-
-    const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
-    expect(written).toEqual({ text: 'text', tokens: [skillToken, knowledgeToken, linkToken] })
-
-    vi.mocked(cacheService.getCasual).mockReturnValue(written)
-    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1')).tokens).toEqual([
+  it('round-trips every active non-file input token so its prompt text keeps its chip', () => {
+    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), 'text', [
       skillToken,
       knowledgeToken,
-      linkToken
+      fileToken,
+      linkToken,
+      folderToken,
+      referenceToken,
+      quoteToken,
+      promptVariableToken,
+      legacyCommandToken
     ])
+
+    const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
+    const expectedTokens = [
+      skillToken,
+      knowledgeToken,
+      linkToken,
+      folderToken,
+      referenceToken,
+      quoteToken,
+      promptVariableToken
+    ]
+    expect(written).toEqual({ text: 'text', tokens: expectedTokens })
+
+    vi.mocked(cacheService.getCasual).mockReturnValue(written)
+    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1')).tokens).toEqual(expectedTokens)
   })
 
   it('rebuilds the knowledge selection from the cached token payload', () => {

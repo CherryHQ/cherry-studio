@@ -1,10 +1,7 @@
 import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
-import {
-  CHAT_INPUT_TOKEN_KINDS,
-  type ChatInputTokenKind,
-  type ChatTokenView
-} from '@renderer/components/composer/chatTokenView'
+import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import { cn } from '@renderer/utils/style'
 import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -22,11 +19,9 @@ interface QueuedFollowupsDockProps {
   onReorder: (nextItems: FollowupQueueItem[]) => void
 }
 
-const DISPLAY_TOKEN_KINDS = new Set<string>(CHAT_INPUT_TOKEN_KINDS)
-
 /** Read-only chips for a queued draft's composer tokens (file / skill / knowledge / quote …). */
 function DraftTokenChips({ item, hasText }: { item: FollowupQueueItem; hasText: boolean }) {
-  const tokens = (item.draft?.tokens ?? []).filter((token) => DISPLAY_TOKEN_KINDS.has(token.kind))
+  const tokens = (item.draft?.tokens ?? []).filter((token) => isComposerInputTokenKind(token.kind))
   if (tokens.length === 0) return null
   return (
     <div className={cn('flex flex-wrap gap-1', hasText && 'mt-1')}>
@@ -64,7 +59,7 @@ function QueuedFollowupRow({
 }) {
   const { t } = useTranslation()
   const previewText = item.draft
-    ? excludeComposerDraftTokens(item.draft, (token) => DISPLAY_TOKEN_KINDS.has(token.kind)).text.trim()
+    ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
     : item.payload.text
 
   return (

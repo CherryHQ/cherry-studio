@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { LocalSkill } from '@shared/types/skill'
 
@@ -71,12 +72,12 @@ export function getCachedKnowledgeBases(draft: AgentComposerDraftCache): Knowled
 }
 
 /**
- * The token kinds that ride the cached draft. All fold a `promptText` into the draft text, so
- * persisting the text while dropping the token would strand that sentence as chip-less prose —
- * for a knowledge pick, prose telling the model a base is attached that nothing scopes.
+ * Input tokens ride the cached draft unless their source of truth is external attachment state.
+ * Dropping a prompt-backed token while persisting the text strands that sentence as chip-less prose.
+ * File tokens remain excluded because the file tool owns their attachment lifecycle.
  */
 export function getCacheableDraftTokens(tokens: readonly ComposerSerializedToken[]) {
-  return tokens.filter((token) => token.kind === 'skill' || token.kind === 'knowledge' || token.kind === 'link')
+  return tokens.filter((token) => token.kind !== 'file' && isComposerInputTokenKind(token.kind))
 }
 
 export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {

@@ -109,25 +109,15 @@ function resolvePrivateClipboardToken(
     }
   }
 
-  if (
-    token.kind === 'link' ||
-    token.kind === 'folder' ||
-    token.kind === 'reference' ||
-    token.kind === 'quote' ||
-    token.kind === 'promptVariable'
-  ) {
-    return {
-      token: {
-        id: token.id,
-        kind: token.kind,
-        label: token.label,
-        ...(token.description && { description: token.description }),
-        ...(token.promptText && { promptText: token.promptText })
-      }
+  return {
+    token: {
+      id: token.id,
+      kind: token.kind,
+      label: token.label,
+      ...(token.description && { description: token.description }),
+      ...(token.promptText && { promptText: token.promptText })
     }
   }
-
-  return null
 }
 
 export function getComposerClipboardPasteOverride(

@@ -3423,12 +3423,18 @@ describe('AgentComposer', () => {
         ])
       })
     )
-    expect(mocks.surfaceProps?.draftTokens).toEqual([expect.objectContaining({ id: 'skill:pdf', kind: 'skill' })])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
+      expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' })
+    ])
     expect(cacheService.setCasual).toHaveBeenCalledWith(
       'agent-session-draft-agent-1',
       {
         text: 'queued agent draft',
-        tokens: [expect.objectContaining({ id: 'skill:pdf', kind: 'skill' })]
+        tokens: [
+          expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
+          expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' })
+        ]
       },
       86400000
     )
