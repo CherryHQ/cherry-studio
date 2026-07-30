@@ -81,7 +81,7 @@ import {
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
-  getAgentManagedDraftTokens,
+  getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
@@ -773,7 +773,7 @@ const AgentComposerInner = ({
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(historyDraft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
@@ -1112,7 +1112,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(draftTokens)
+      const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
@@ -1244,11 +1244,11 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
-  // skill subset and managed file/knowledge/skill state before dropping it from the queue.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
+  // state and the managed file/knowledge/skill selections before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)

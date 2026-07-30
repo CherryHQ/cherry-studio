@@ -2750,6 +2750,39 @@ describe('ChatComposer', () => {
     })
   })
 
+  it('persists token-only draft changes when the serialized text stays unchanged', async () => {
+    const url = 'https://example.com'
+    const linkToken = {
+      id: 'link:https://example.com/',
+      kind: 'link',
+      label: 'example.com',
+      promptText: url,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange(url)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(url))
+    vi.mocked(cacheService.setCasual).mockClear()
+
+    mocks.getDraft.mockReturnValue({ text: url, tokens: [linkToken] })
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([linkToken])
+    })
+
+    await waitFor(() => {
+      expect(cacheService.setCasual).toHaveBeenCalledWith(
+        'inputbar-draft',
+        { text: url, tokens: [linkToken], files: [] },
+        expect.any(Number)
+      )
+    })
+  })
+
   it('clears the cached draft after a successful send', async () => {
     const onSend = vi.fn().mockResolvedValue(undefined)
 
