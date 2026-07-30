@@ -51,6 +51,12 @@ overrides:
   '@img/sharp-linux-x64': '0.34.5'
   '@img/sharp-win32-x64': '0.34.5'
   '@napi-rs/canvas': '0.1.97'
+  # system-ocr 1.1.0's macOS 26 structured-document sidecar can recurse
+  # indefinitely through Vision list containers. Keep the 1.1.0 wrapper and
+  # Windows bindings, but use the legacy Accurate macOS implementation until
+  # upstream adds cycle/depth guards.
+  '@napi-rs/system-ocr-darwin-arm64': '1.0.2'
+  '@napi-rs/system-ocr-darwin-x64': '1.0.2'
   '@ai-sdk/provider-utils': '4.0.40'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and

@@ -28,6 +28,8 @@ type RunCapabilityRequest = {
   inputs: string[]
 }
 
+type PostProcessingMode = 'configured' | 'none'
+
 type PreparedWebSearchContext = {
   inputs: string[]
   runtimeConfig: WebSearchExecutionConfig
@@ -87,7 +89,8 @@ export class WebSearchService extends BaseService {
   private async buildFinalResponse(
     context: PreparedWebSearchContext,
     searchResults: PromiseSettledResult<WebSearchResponse>[],
-    httpOptions?: RequestInit
+    httpOptions: RequestInit | undefined,
+    postProcessingMode: PostProcessingMode
   ): Promise<WebSearchResponse> {
     const abortedSearch = searchResults.find(
       (item): item is PromiseRejectedResult => item.status === 'rejected' && isAbortError(item.reason)
@@ -126,6 +129,10 @@ export class WebSearchService extends BaseService {
       results: successfulSearches.flatMap((item) => item.value.results)
     }
 
+    if (postProcessingMode === 'none') {
+      return mergedResponse
+    }
+
     const filteredResponse = filterWebSearchResponseWithBlacklist(mergedResponse, context.runtimeConfig.excludeDomains)
     const postProcessed = await postProcessWebSearchResponse(filteredResponse, context.runtimeConfig)
 
@@ -133,13 +140,17 @@ export class WebSearchService extends BaseService {
   }
 
   @TraceMethod({ spanName: 'WebSearch', tag: 'WebSearch' })
-  private async runCapability(request: RunCapabilityRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  private async runCapability(
+    request: RunCapabilityRequest,
+    httpOptions?: RequestInit,
+    postProcessingMode: PostProcessingMode = 'configured'
+  ): Promise<WebSearchResponse> {
     let context: PreparedWebSearchContext | undefined
 
     try {
       context = await this.prepareContext(request)
       const searchResults = await this.executeCapability(context, httpOptions)
-      return await this.buildFinalResponse(context, searchResults, httpOptions)
+      return await this.buildFinalResponse(context, searchResults, httpOptions, postProcessingMode)
     } catch (error) {
       if (!isAbortError(error) || !httpOptions?.signal?.aborted) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
@@ -171,6 +182,22 @@ export class WebSearchService extends BaseService {
         inputs: normalizeWebSearchUrls(request.urls)
       },
       httpOptions
+    )
+  }
+
+  /** Fetch provider-normalized content without Agent-facing blacklist or compression processing. */
+  async fetchUrlsUnprocessed(
+    request: WebSearchFetchUrlsRequest,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
+    return this.runCapability(
+      {
+        providerId: request.providerId,
+        capability: 'fetchUrls',
+        inputs: normalizeWebSearchUrls(request.urls)
+      },
+      httpOptions,
+      'none'
     )
   }
 }

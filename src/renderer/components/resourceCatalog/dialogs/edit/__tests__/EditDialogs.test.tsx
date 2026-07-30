@@ -1,7 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -11,6 +11,7 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 
 const {
   agentTools,
+  createGroupMock,
   fetchGenerateMock,
   installedSkillsState,
   ipcRequestMock,
@@ -51,6 +52,7 @@ const {
     { id: 'WebSearch', name: 'WebSearch', description: 'Search web', origin: 'builtin', approval: 'prompt' },
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
+  createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   installedSkillsState: {
     current: {
@@ -236,6 +238,9 @@ vi.mock('@renderer/hooks/useGroups', () => ({
         updatedAt: '2024-01-01T00:00:00.000Z'
       }
     ]
+  }),
+  useGroupMutations: () => ({
+    createGroup: createGroupMock
   })
 }))
 
@@ -294,6 +299,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
           'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
+          'common.add': 'Add',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
           'common.close': 'Close',
@@ -301,6 +307,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.description': 'Description',
           'common.edit': 'Edit',
           'common.help': 'Help',
+          'common.group.create': 'New Group',
+          'common.group.create_failed': 'Failed to create group',
+          'common.group.name_placeholder': 'Enter group name...',
+          'common.group.name_required': 'Group name is required',
           'common.loading': 'Loading',
           'common.model': 'Model',
           'common.name': 'Name',
@@ -591,6 +601,14 @@ beforeEach(() => {
     return { trigger: vi.fn(), isLoading: false, error: undefined }
   })
   updateAssistantMock.mockResolvedValue({ ...ASSISTANT, name: 'Updated Assistant' })
+  createGroupMock.mockResolvedValue({
+    id: 'group-created',
+    entityType: 'assistant',
+    name: 'created',
+    orderKey: 'a2',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z'
+  })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   fetchGenerateMock.mockResolvedValue('Generated prompt')
   knowledgeBasesState.current = [
@@ -723,6 +741,26 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('creates and selects an assistant group from the group field', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    openGroupSelect()
+    fireEvent.click(await screen.findByRole('option', { name: 'New Group' }))
+
+    const createDialog = screen.getByRole('dialog', { name: 'New Group' })
+    fireEvent.change(within(createDialog).getByLabelText('Name'), { target: { value: '  created  ' } })
+    fireEvent.click(within(createDialog).getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(createGroupMock).toHaveBeenCalledWith('created'))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: 'group-created'
+        })
+      })
+    )
+  })
+
   it('clears the assistant group from the single-select group field', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -738,13 +776,13 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('limits assistant group editing to existing groups', async () => {
+  it('keeps assistant grouping single-select while exposing the shared create action', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     openGroupSelect()
     expect(screen.queryByPlaceholderText('Search groups')).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'No group' })).not.toBeInTheDocument()
-    expect(screen.queryByText('new-group')).not.toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'New Group' })).toBeInTheDocument()
   })
 
   it('closes the group selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
@@ -787,6 +825,92 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
+
+    rerender(
+      <AgentEditDialog
+        {...props}
+        resource={{
+          ...AGENT,
+          configuration: { ...AGENT.configuration, permission_mode: 'plan' }
+        }}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Locally renamed' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { name: 'Locally renamed' }
+      })
+    )
+  })
+
+  it('advances the agent form baseline before a queued follow-up save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Second edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { description: 'Second edit' }
+    })
+  })
+
+  it('preserves skill baseline initialization while an unrelated save is pending', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(<AgentEditDialog {...props} />)
+    selectTab('技能')
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: false }] }
+    })
   })
 
   it('polishes agent instructions and auto-saves the polished value', async () => {
@@ -1002,11 +1126,7 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body).toEqual(
-      expect.objectContaining({
-        configuration: expect.not.objectContaining({ max_turns: expect.anything() })
-      })
-    )
+    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },

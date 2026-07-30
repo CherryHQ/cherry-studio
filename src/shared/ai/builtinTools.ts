@@ -1,4 +1,5 @@
 import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
+import { isHttpUrl } from '@shared/utils/url'
 import * as z from 'zod'
 
 /**
@@ -456,11 +457,28 @@ export const webSearchOutputItemSchema = z.object({
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
 export const webFetchInputSchema = z.object({
+  // `.refine()` rather than `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
+  // `format: "uri"`, which strict OpenAI-compatible providers reject outright — the whole request
+  // 400s ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format"), taking every
+  // other tool in the turn down with it. A refinement is invisible to `toJSONSchema` (no `format`
+  // keyword) yet still runs locally, so the model's tool call is validated before `execute` and a
+  // malformed URL surfaces as a repairable input error instead of a bogus network failure.
+  //
+  // `isHttpUrl` is literally the predicate `normalizeWebSearchUrls` enforces service-side, so the
+  // schema and the service agree by construction instead of via two copies of one rule that drift.
+  //
+  // It is only a syntax gate, though. Of the two providers serving `web_fetch`, `fetch` retrieves
+  // the target in this process and so runs it through `remoteUrlSafety`, which additionally rejects
+  // credentials and loopback/private hosts that `isHttpUrl` accepts; `jina` hands the target to
+  // r.jina.ai and never retrieves it here. Passing this schema therefore does not imply a URL is
+  // safe or fetchable.
   urls: z
-    .array(z.string().trim().url('URL must be valid'))
+    .array(z.string().trim().min(1).refine(isHttpUrl, 'must be an absolute http(s) URL'))
     .min(1)
     .max(20, 'Fetch at most 20 URLs per call')
-    .describe('Absolute web page URLs to fetch and summarize. Use web_search first when you do not know the URL.')
+    .describe(
+      'Absolute http(s) web page URLs to fetch and summarize. Use web_search first when you do not know the URL.'
+    )
 })
 
 export const webFetchOutputSchema = webSearchOutputSchema

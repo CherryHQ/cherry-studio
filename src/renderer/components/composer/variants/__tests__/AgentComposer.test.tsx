@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   selectedKnowledgeBases: [] as KnowledgeBase[],
   knowledgeBases: [] as KnowledgeBase[],
   agentKnowledgeBaseIds: [] as string[],
+  agentConfiguration: {} as AgentConfiguration,
   agentLookupId: undefined as string | null | undefined,
   modelLookupId: undefined as UniqueModelId | null | undefined,
   modelResult: undefined as Model | undefined,
@@ -44,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
+  updateAgent: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -388,11 +391,11 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
         modelName: 'Claude Sonnet 4.5',
         instructions: 'Follow instructions',
         knowledgeBaseIds: mocks.agentKnowledgeBaseIds,
-        configuration: {}
+        configuration: mocks.agentConfiguration
       }
     }
   },
-  useUpdateAgent: () => ({ updateModel: mocks.updateModel })
+  useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
@@ -716,6 +719,7 @@ describe('AgentComposer', () => {
     mocks.selectedKnowledgeBases = []
     mocks.knowledgeBases = []
     mocks.agentKnowledgeBaseIds = []
+    mocks.agentConfiguration = {}
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
     mocks.modelResult = model
@@ -772,6 +776,11 @@ describe('AgentComposer', () => {
     }
     mocks.updateModel.mockReset()
     mocks.updateModel.mockResolvedValue({})
+    mocks.updateAgent.mockReset()
+    mocks.updateAgent.mockImplementation(async (form) => {
+      mocks.agentConfiguration = { ...mocks.agentConfiguration, ...form.configuration }
+      return { configuration: mocks.agentConfiguration }
+    })
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
@@ -1075,6 +1084,40 @@ describe('AgentComposer', () => {
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
   })
 
+  it('loads and persists the agent reasoning effort without replacing other configuration', () => {
+    mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('low'))
+
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'low' }
+      },
+      { showSuccessToast: false }
+    )
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
+  })
+
   it('updates the agent model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
@@ -1093,9 +1136,66 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
-      showSuccessToast: false
-    })
+    expect(mocks.updateModel).toHaveBeenCalledWith(
+      {
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-opus-4'
+      },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('carries a local reasoning edit into a model update only while that edit is pending', () => {
+    mocks.updateAgent.mockImplementationOnce(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.updateModel).toHaveBeenCalledWith(
+      {
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-opus-4',
+        reasoningEffort: 'high'
+      },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('does not mistake an in-flight model update for a pending reasoning edit', () => {
+    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select model 2'))
+    fireEvent.click(screen.getByText('select reasoning model'))
+
+    expect(mocks.updateModel).toHaveBeenLastCalledWith(
+      {
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-reasoning'
+      },
+      { showSuccessToast: false }
+    )
   })
 
   it('reconciles the session reasoning selection after the model update succeeds', async () => {
@@ -1119,6 +1219,13 @@ describe('AgentComposer', () => {
   })
 
   it('keeps the session reasoning selection when the model update fails', async () => {
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
     mocks.updateModel.mockResolvedValueOnce(undefined)
 
     render(
@@ -1143,6 +1250,13 @@ describe('AgentComposer', () => {
   })
 
   it('reconciles from the latest reasoning selection when it changes while the model update is pending', async () => {
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
     let finishModelUpdate!: (value: object) => void
     mocks.updateModel.mockImplementationOnce(
       () =>
@@ -1169,6 +1283,43 @@ describe('AgentComposer', () => {
     await act(async () => finishModelUpdate({}))
 
     expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
+  })
+
+  it('reveals an external canonical reasoning update after the pending mutation settles', async () => {
+    const reasoningUpdate = createDeferred<{ configuration: AgentConfiguration }>()
+    mocks.agentConfiguration = { reasoning_effort: 'low' }
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    }
+    mocks.updateAgent.mockReturnValueOnce(reasoningUpdate.promise)
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+
+    const { rerender } = render(<AgentComposer {...props} />)
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    mocks.agentConfiguration = { reasoning_effort: 'medium' }
+    rerender(<AgentComposer {...props} />)
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    await act(async () => {
+      reasoningUpdate.resolve({ configuration: { reasoning_effort: 'high' } })
+      await reasoningUpdate.promise
+    })
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('medium')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {
@@ -2627,15 +2778,17 @@ describe('AgentComposer', () => {
     ])
   })
 
-  it('restores a cached knowledge chip together with the selection its prompt text needs', () => {
-    // The cached text carries the sentence the chip contributed. The pick has to come back with it —
-    // seeded synchronously from the token payload — or the surface's managed-token sync drops the chip
-    // as unselected and the sentence survives as prose claiming a base that nothing scopes.
+  it('drops a cached knowledge chip together with its prompt text', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
     vi.mocked(cacheService.getCasual).mockReturnValue({
       text: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.',
-      tokens: [cachedToken]
+      tokens: [
+        {
+          ...cachedToken,
+          promptText: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+        }
+      ]
     })
 
     render(
@@ -2648,16 +2801,15 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
-    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
-    expect(mocks.surfaceProps?.tokens).toContainEqual(
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).not.toContainEqual(
       expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
     )
   })
 
-  it('persists a knowledge chip into the agent draft cache alongside its sentence', () => {
-    // The write side of the round-trip: the text handed to the cache already contains the sentence the
-    // chip contributed, so persisting the text while dropping the token is what strands it as prose.
+  it('excludes a knowledge chip and its prompt text from the agent draft cache', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
 
     render(
@@ -2670,19 +2822,90 @@ describe('AgentComposer', () => {
       />
     )
 
-    const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+    const cachedToken = { ...knowledgeBaseToken(knowledgeBaseOne), promptText }
     act(() => {
+      mocks.surfaceProps?.onTextChange(`${promptText} keep this`)
       mocks.surfaceProps?.onTokensChange?.([cachedToken])
     })
 
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
       'agent-session-draft-agent-1',
-      expect.objectContaining({ tokens: [cachedToken] }),
+      { text: 'keep this', tokens: [] },
       expect.any(Number)
     )
   })
 
-  it('drops a cached knowledge pick the agent no longer configures', () => {
+  it('clears knowledge state on a same-agent session switch while preserving text and skills', async () => {
+    let cachedDraft: unknown = ''
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1' ? cachedDraft : ''
+    )
+    vi.mocked(cacheService.setCasual).mockImplementation((key: string, value: unknown) => {
+      if (key === 'agent-session-draft-agent-1') cachedDraft = value
+    })
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    mocks.agentKnowledgeBaseIds = [knowledgeBaseOne.id]
+    mocks.availableSkills = [pdfSkill]
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+    const text = `${knowledgePrompt} ${pdfSkillToken.promptText} keep this`
+    mocks.getDraft.mockReturnValue({
+      text,
+      tokens: [
+        { ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt },
+        {
+          ...pdfSkillToken,
+          index: 1,
+          textOffset: knowledgePrompt.length + 1
+        }
+      ]
+    })
+    act(() => {
+      mocks.surfaceProps?.onTextChange(text)
+    })
+
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-2"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(`${pdfSkillToken.promptText} keep this`))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([{ ...pdfSkillToken, index: 0, textOffset: 0 }])
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).not.toContainEqual(
+      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
+    )
+  })
+
+  it('does not restore a cached knowledge pick', () => {
     mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
     mocks.agentKnowledgeBaseIds = [knowledgeBaseTwo.id]
     vi.mocked(cacheService.getCasual).mockReturnValue({

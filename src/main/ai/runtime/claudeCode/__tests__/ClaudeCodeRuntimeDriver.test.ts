@@ -2,6 +2,7 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
+  registerMcpSessionCatalogSync: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -51,6 +53,11 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
+}))
+
+vi.mock('../settingsBuilder', async (importActual) => ({
+  ...(await importActual<typeof SettingsBuilderModule>()),
+  registerMcpSessionCatalogSync: mocks.registerMcpSessionCatalogSync
 }))
 
 vi.mock('../streamAdapter', async (importActual) => ({
@@ -383,6 +390,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     void connection.close()
+  })
+
+  it('binds MCP catalog synchronization to the live connection settings', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const metadata = {}
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: ['srv-a'] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpToolMetadata: metadata },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledWith('session-1', 'agent-1', ['srv-a'], metadata)
+    await connection.close()
   })
 
   it('sends supported image attachments as native Claude SDK image blocks', async () => {
