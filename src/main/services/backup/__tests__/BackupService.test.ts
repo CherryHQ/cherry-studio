@@ -75,6 +75,7 @@ import { DependencyResolver } from '@main/core/lifecycle/DependencyResolver'
 import { Phase } from '@main/core/lifecycle/types'
 
 import { BackupBusyError } from '../errors'
+import { EXPORT_QUIESCE_WHEN_READY_SERVICES } from '../exportQuiesce'
 
 const { BackupService } = await import('../BackupService')
 
@@ -153,21 +154,22 @@ describe('BackupService', () => {
       expect(source).toMatch(/^ {2}BackupService,$/m)
     })
 
-    it('initializes after the path registry is frozen and depends only on the Knowledge owner', () => {
+    it('initializes after the path registry is frozen and declares every same-phase participant it resolves', () => {
       // Journal paths resolve through `application.getPath`, so BeforeReady
       // would be too early. Phase ordering to DbService/PreferenceService is
       // enforced by the container, never by @DependsOn; KnowledgeService is a
       // same-phase peer this service calls, so that one IS declared.
       expect(getPhase(BackupService)).toBe(Phase.WhenReady)
-      expect(getDependencies(BackupService)).toEqual(['KnowledgeService'])
+      expect(getDependencies(BackupService)).toEqual([...EXPORT_QUIESCE_WHEN_READY_SERVICES, 'KnowledgeService'])
     })
 
     it('starts after KnowledgeService and stops before it', () => {
       // Both directions matter and they are the same fact: post-promotion work
       // calls the Knowledge owner while running, and `onStop` joins that pass.
       // The container starts in resolved order and stops in its reverse.
+      const dependencies = [...EXPORT_QUIESCE_WHEN_READY_SERVICES, 'KnowledgeService']
       const order = new DependencyResolver().resolve([
-        { name: 'KnowledgeService', dependencies: [], priority: 0, phase: Phase.WhenReady },
+        ...dependencies.map((name) => ({ name, dependencies: [], priority: 0, phase: Phase.WhenReady })),
         {
           name: 'BackupService',
           dependencies: getDependencies(BackupService),
@@ -176,8 +178,11 @@ describe('BackupService', () => {
         }
       ])
 
-      expect(order).toEqual(['KnowledgeService', 'BackupService'])
-      expect([...order].reverse()).toEqual(['BackupService', 'KnowledgeService'])
+      expect(order.at(-1)).toBe('BackupService')
+      expect([...order].reverse().at(0)).toBe('BackupService')
+      for (const dependency of dependencies) {
+        expect(order.indexOf(dependency)).toBeLessThan(order.indexOf('BackupService'))
+      }
     })
 
     it('keeps restore transitions independent of runtime quiescence and lifecycle shutdown', () => {
@@ -228,15 +233,21 @@ describe('BackupService', () => {
       const completed = {
         ...preparedJournal(),
         state: 'completed' as const,
-        summary: { knowledgeBaseIds: ['kb-1'] }
+        ownerSummary: { knowledge: { baseIds: ['kb-1'], requiresRebuild: true } }
       }
       writeRestoreJournalV2(completed)
       expect(service.getStatus().restore).toMatchObject({ knowledgeRebuildPending: true })
 
-      writeRestoreJournalV2({ ...completed, knowledgeRebuild: { completedBaseIds: ['kb-1'] } })
+      writeRestoreJournalV2({
+        ...completed,
+        ownerProgress: { knowledge: { completedBaseIds: ['kb-1'] } }
+      })
       expect(service.getStatus().restore).not.toHaveProperty('knowledgeRebuildPending')
 
-      writeRestoreJournalV2({ ...completed, knowledgeRebuild: { completedBaseIds: [], abandoned: true } })
+      writeRestoreJournalV2({
+        ...completed,
+        ownerProgress: { knowledge: { completedBaseIds: [], abandoned: true } }
+      })
       expect(service.getStatus().restore).not.toHaveProperty('knowledgeRebuildPending')
     })
 
