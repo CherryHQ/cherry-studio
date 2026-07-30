@@ -15,18 +15,32 @@ type ShellTab = {
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const updateTab = vi.fn()
+const openTab = vi.fn()
+const openMiniAppKeepAlive = vi.fn()
 
 async function renderSubWindowAppShell({
   isPageTitledRoute = () => false,
-  tabs = defaultTabs
+  tabs = defaultTabs,
+  initData = null
 }: {
   isPageTitledRoute?: (url: string) => boolean
   tabs?: ShellTab[]
+  initData?: unknown
 } = {}) {
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
-    useWindowInitData: () => null
+    useWindowInitData: () => initData
+  }))
+  vi.doMock('@renderer/hooks/useMiniAppPopup', () => ({
+    useMiniAppPopup: () => ({ openMiniAppKeepAlive }),
+    // Mirrors the real converter's transient-app convention.
+    toTransientMiniApp: (input: Record<string, unknown>) => ({
+      ...input,
+      presetMiniAppId: null,
+      status: 'enabled',
+      orderKey: ''
+    })
   }))
   vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
@@ -37,7 +51,7 @@ async function renderSubWindowAppShell({
       updateTab,
       addTab: vi.fn(),
       reorderTabs: vi.fn(),
-      openTab: vi.fn(),
+      openTab,
       pinTab: vi.fn(),
       unpinTab: vi.fn()
     })
@@ -114,5 +128,44 @@ describe('SubWindowAppShell', () => {
       expect(updateTab).toHaveBeenCalledWith('home', { url: '/app/chat?topicId=current-topic' })
     })
     expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+  })
+
+  // The keep-alive pool is per-window, so a transient mini app (OpenClaw's dashboard and
+  // friends) is unknown here until the detach payload seeds it — otherwise the route
+  // resolves to nothing and the window renders "app not found".
+  it('seeds the keep-alive pool from a detached transient mini app', async () => {
+    await renderSubWindowAppShell({
+      initData: {
+        tabId: 'tab-openclaw',
+        url: '/app/mini-app/openclaw-dashboard',
+        title: 'OpenClaw',
+        type: 'route',
+        miniApp: {
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790#token=secret',
+          logo: 'openclaw'
+        }
+      }
+    })
+
+    await waitFor(() => {
+      expect(openMiniAppKeepAlive).toHaveBeenCalledWith(
+        expect.objectContaining({ appId: 'openclaw-dashboard', url: 'http://127.0.0.1:18790#token=secret' })
+      )
+    })
+    expect(openTab).toHaveBeenCalledWith(
+      '/app/mini-app/openclaw-dashboard',
+      expect.objectContaining({ forceNew: true })
+    )
+  })
+
+  it('does not touch the keep-alive pool for an ordinary detached tab', async () => {
+    await renderSubWindowAppShell({
+      initData: { tabId: 'tab-chat', url: '/app/chat', title: 'Chat', type: 'route' }
+    })
+
+    await waitFor(() => expect(openTab).toHaveBeenCalled())
+    expect(openMiniAppKeepAlive).not.toHaveBeenCalled()
   })
 })

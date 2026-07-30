@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { cacheService } from '@renderer/data/CacheService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -6,12 +7,15 @@ import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
+import { type TransientMiniApp, TransientMiniAppSchema } from '@shared/data/types/miniApp'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('TabsProvider')
+
+const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 
 const DEFAULT_TAB: Tab = {
   id: 'home',
@@ -20,6 +24,24 @@ const DEFAULT_TAB: Tab = {
   title: '',
   lastAccessTime: Date.now(),
   isDormant: false
+}
+
+/**
+ * A mini-app tab's route carries only the app id; the app itself is resolved from the
+ * keep-alive cache, which is Memory-tier and therefore private to this window. A detached
+ * window would find nothing there, so hand the descriptor over with the tab. Read
+ * imperatively at detach time rather than mirrored into `tab.metadata`: the descriptor
+ * holds a live URL (the OpenClaw dashboard embeds the gateway auth token) and tab metadata
+ * is persisted to localStorage.
+ */
+function transientMiniAppForTab(tab: Tab): TransientMiniApp | undefined {
+  const app = cacheService
+    .get('mini_app.opened_keep_alive')
+    ?.find((candidate) => tab.url === `${MINI_APP_ROUTE_PREFIX}${candidate.appId}`)
+  if (!app) return undefined
+  // Parsed, not spread: keeps the payload to the declared fields and lets a
+  // malformed cache entry degrade to a normal detach instead of failing it.
+  return TransientMiniAppSchema.safeParse(app).data
 }
 
 function createLaunchpadFallbackTab(): Tab {
@@ -528,10 +550,13 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
 
+      const miniApp = transientMiniAppForTab(tab)
+
       // Send IPC message to create new window
       void ipcApi.request('tab.detach', {
         ...tab,
-        url: resolveSidebarAppTabEntryUrl(tab)
+        url: resolveSidebarAppTabEntryUrl(tab),
+        ...(miniApp && { miniApp })
       })
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs

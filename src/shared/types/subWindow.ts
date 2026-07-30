@@ -1,4 +1,5 @@
 import type { TabType } from '../data/cache/cacheValueTypes'
+import type { TransientMiniApp } from '../data/types/miniApp'
 import type { TabInstanceMetadata } from './tabInstanceMetadata'
 
 /**
@@ -22,4 +23,11 @@ export type SubWindowInitData = {
   type?: TabType
   isPinned?: boolean
   metadata?: TabInstanceMetadata
+  /**
+   * Seed for a detached transient mini-app tab. Carried as a one-shot payload
+   * rather than tab metadata on purpose: the URL can hold a session secret (the
+   * OpenClaw dashboard embeds the gateway auth token), and tab metadata is
+   * persisted to localStorage in the main window.
+   */
+  miniApp?: TransientMiniApp
 }

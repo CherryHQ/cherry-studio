@@ -6,6 +6,7 @@ import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { TransientMiniApp } from '@shared/data/types/miniApp'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -145,11 +146,12 @@ export class SubWindowService extends BaseService {
     type?: string
     isPinned?: boolean
     metadata?: Record<string, unknown>
+    miniApp?: TransientMiniApp
     x?: number
     y?: number
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, icon, type, isPinned, metadata, x, y } = payload
+    const { id: tabId, url, title, icon, type, isPinned, metadata, miniApp, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
     const tabInstanceMetadata = normalizeTabInstanceMetadata(metadata)
@@ -161,7 +163,8 @@ export class SubWindowService extends BaseService {
       ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
       isPinned,
-      ...(tabInstanceMetadata && { metadata: tabInstanceMetadata })
+      ...(tabInstanceMetadata && { metadata: tabInstanceMetadata }),
+      ...(miniApp && { miniApp })
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).

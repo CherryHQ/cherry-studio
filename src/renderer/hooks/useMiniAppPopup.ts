@@ -22,7 +22,12 @@ type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniAppId' | 'status' | 'orde
   appId: string
 }
 
-function toMiniApp(input: MiniAppInput): MiniApp {
+/**
+ * Rebuild a keep-alive entry from a raw descriptor. Exported for the detached
+ * sub-window, which seeds its own pool from the detach payload and must apply the
+ * same transient-app convention as the window it was torn off from.
+ */
+export function toTransientMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
@@ -281,7 +286,7 @@ export const useMiniAppPopup = () => {
         return
       }
 
-      const app = toMiniApp(config)
+      const app = toTransientMiniApp(config)
       const list = keepAliveRef.current
       const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
       if (!wasCached) {

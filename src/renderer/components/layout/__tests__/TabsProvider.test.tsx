@@ -110,9 +110,40 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
+// Detach reads the mini-app keep-alive pool imperatively; default to empty so only the
+// detach tests below populate it.
+let keepAliveMiniAppsValue: unknown[] = []
+vi.mock('@renderer/data/CacheService', () => ({
+  cacheService: {
+    get: (key: string) => (key === 'mini_app.opened_keep_alive' ? keepAliveMiniAppsValue : undefined)
+  }
+}))
+
 import { useTabsContext } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
+
+// Opens a mini-app tab and detaches it, mirroring "drag the tab out into its own window".
+function MiniAppDetacher({ appId }: { appId: string }) {
+  const { openTab, detachTab } = useTabsContext()
+  const tabIdRef = useRef<string | null>(null)
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          tabIdRef.current = openTab(`/app/mini-app/${appId}`, { title: 'OpenClaw', icon: 'openclaw' })
+        }}>
+        Open mini app
+      </button>
+      <button type="button" onClick={() => tabIdRef.current && detachTab(tabIdRef.current)}>
+        Detach
+      </button>
+    </>
+  )
+}
 
 function TabTitleWriter() {
   const { tabs, updateTab } = useTabsContext()
@@ -289,11 +320,70 @@ beforeEach(() => {
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
+  keepAliveMiniAppsValue = []
 })
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+describe('TabsProvider detach', () => {
+  // The keep-alive pool is Memory-tier (per-window), so a transient mini app opened via
+  // openSmartMiniApp exists nowhere the detached window can read. Without the descriptor
+  // riding along, `/app/mini-app/<id>` resolves to nothing there and the new window renders
+  // "app not found".
+  it('carries the transient mini-app descriptor with the detach payload', async () => {
+    keepAliveMiniAppsValue = [
+      {
+        appId: 'openclaw-dashboard',
+        presetMiniAppId: null,
+        status: 'enabled',
+        orderKey: '',
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790#token=secret',
+        logo: 'openclaw'
+      }
+    ]
+
+    render(
+      <TabsProvider includePinnedTabs={false}>
+        <MiniAppDetacher appId="openclaw-dashboard" />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByText('Open mini app'))
+    fireEvent.click(screen.getByText('Detach'))
+
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('tab.detach', expect.anything()))
+    const [, payload] = vi.mocked(ipcApi.request).mock.calls[0]
+    expect(payload).toMatchObject({
+      url: '/app/mini-app/openclaw-dashboard',
+      miniApp: {
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790#token=secret',
+        logo: 'openclaw'
+      }
+    })
+    // Pool bookkeeping is the receiving window's to decide, so it stays out of the payload.
+    expect(payload).not.toHaveProperty('miniApp.status')
+    expect(payload).not.toHaveProperty('miniApp.orderKey')
+  })
+
+  it('omits the descriptor when the pool holds no entry for the tab', async () => {
+    render(
+      <TabsProvider includePinnedTabs={false}>
+        <MiniAppDetacher appId="openclaw-dashboard" />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByText('Open mini app'))
+    fireEvent.click(screen.getByText('Detach'))
+
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('tab.detach', expect.anything()))
+    expect(vi.mocked(ipcApi.request).mock.calls[0][1]).not.toHaveProperty('miniApp')
+  })
 })
 
 describe('TabsProvider', () => {
