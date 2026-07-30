@@ -3421,7 +3421,7 @@
             "hint": "启用后限制回复长度"
           },
           "max_tool_calls": {
-            "hint": "启用后限制工具调用轮次"
+            "hint": "启用后限制工具调用轮次；关闭时使用默认的 20 轮上限"
           },
           "model": {
             "hint": "覆盖该助手使用的全局默认模型"
@@ -3448,7 +3448,8 @@
         "group_placeholder": "选择分组",
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
-        "max_tool_calls": "最大工具调用次数",
+        "max_tool_calls": "最大工具调用轮次",
+        "max_tool_calls_default": "默认（{{count}} 轮）",
         "mcp_mode": "MCP 模式",
         "model": "默认模型",
         "model_clear": "清空",
@@ -3464,8 +3465,7 @@
         "tags": "标签",
         "temperature": "模型温度",
         "title": "基础设置",
-        "top_p": "Top-P",
-        "unlimited": "不限"
+        "top_p": "Top-P"
       },
       "breadcrumb": "资源库",
       "dialogs": {
