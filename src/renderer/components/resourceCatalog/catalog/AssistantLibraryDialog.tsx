@@ -206,7 +206,6 @@ export function AssistantLibraryDialog({
             <div className="relative w-52 shrink-0">
               <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
               <Input
-                autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('library.toolbar.search_placeholder')}

@@ -160,7 +160,6 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
               })}
             />
             <ResourceCatalogSearchInput
-              autoFocus
               value={query}
               onValueChange={handleSearchChange}
               placeholder={t('library.skill_marketplace.search_placeholder')}
