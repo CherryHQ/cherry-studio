@@ -214,6 +214,9 @@ describe('ChannelDetail', () => {
     const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
     fireEvent.click(editButton)
 
+    const nameInput = await screen.findByDisplayValue('Telegram channel')
+    expect(nameInput).toHaveFocus()
+
     fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgent'))
 
     await waitFor(() => {

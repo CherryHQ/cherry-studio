@@ -77,7 +77,6 @@ function DialogContent({
   showCloseButton = true,
   motion = 'directional',
   overlayClassName,
-  onOpenAutoFocus,
   onPointerDown,
   size = 'default',
   ref,
@@ -129,12 +128,6 @@ function DialogContent({
           dialogContentSizeClass[size],
           className
         )}
-        onOpenAutoFocus={composeEventHandlers(onOpenAutoFocus, (event) => {
-          event.preventDefault()
-          if (event.currentTarget instanceof HTMLElement) {
-            event.currentTarget.focus({ preventScroll: true })
-          }
-        })}
         onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
           checkForDefaultPrevented: false
         })}
