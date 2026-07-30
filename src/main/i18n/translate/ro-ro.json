@@ -62,6 +62,10 @@
       "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
       "title": "Resetarea datelor aplicației"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",
     "pdf_files": "Fișiere PDF",

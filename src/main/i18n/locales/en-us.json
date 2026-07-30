@@ -62,6 +62,10 @@
       "message": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
       "title": "Reset App Data"
     },
+    "diagnostic_bundle": {
+      "title": "Save diagnostic bundle",
+      "zip_filter": "ZIP archive"
+    },
     "html_files": "HTML Files",
     "open_file": "Open File",
     "pdf_files": "PDF Files",

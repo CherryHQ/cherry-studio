@@ -62,6 +62,10 @@
       "message": "Chats, Assistenten, Wissensdatenbanken, Dateien und Einstellungen werden gelöscht. Anschließend wird die App neu gestartet. Diese Aktion kann nicht rückgängig gemacht werden. Möchten Sie fortfahren?",
       "title": "App-Daten zurücksetzen"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",
     "pdf_files": "PDF-Dateien",

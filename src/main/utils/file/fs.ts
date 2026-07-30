@@ -30,6 +30,7 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  type FileHandle,
   lstat as fsLstat,
   mkdir as fsMkdirPromise,
   open as fsOpen,
@@ -41,7 +42,7 @@ import {
   unlink
 } from 'node:fs/promises'
 import path from 'node:path'
-import { Writable } from 'node:stream'
+import { Readable, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
@@ -305,6 +306,52 @@ export async function atomicWriteFile(
  */
 export interface AtomicWriteStream extends Writable {
   abort(): Promise<void>
+}
+
+export interface ReadableFileSnapshot {
+  readonly dev: number
+  readonly ino: number
+  readonly modifiedAt: number
+  readonly size: number
+  createReadStream(bytes?: number): Readable
+  close(): Promise<void>
+}
+
+/**
+ * Open a link-aware, fixed-length snapshot of a regular file. The returned
+ * stream reads through the already-open handle and never follows a later path
+ * replacement.
+ */
+export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
+  const pathStat = await fsLstat(target)
+  if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
+
+  const handle: FileHandle = await fsOpen(target, 'r')
+  try {
+    const handleStat = await handle.stat()
+    if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
+      throw new Error('Snapshot source changed before it could be opened')
+    }
+    const size = handleStat.size
+    return {
+      dev: handleStat.dev,
+      ino: handleStat.ino,
+      modifiedAt: Math.floor(handleStat.mtimeMs),
+      size,
+      createReadStream: (bytes = size) => {
+        if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > size) {
+          throw new RangeError('Snapshot read length is outside the opened file')
+        }
+        return bytes === 0
+          ? Readable.from(Buffer.alloc(0))
+          : handle.createReadStream({ start: 0, end: bytes - 1, autoClose: false })
+      },
+      close: () => handle.close()
+    }
+  } catch (error) {
+    await handle.close().catch(() => undefined)
+    throw error
+  }
 }
 
 class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {

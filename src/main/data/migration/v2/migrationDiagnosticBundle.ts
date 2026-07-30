@@ -1,14 +1,13 @@
 import { type FileHandle, lstat, open, readdir, stat } from 'node:fs/promises'
 import { release } from 'node:os'
 import path from 'node:path'
-import { type Readable, Transform } from 'node:stream'
+import type { Readable } from 'node:stream'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { createAtomicWriteStream } from '@main/utils/file'
+import { type AtomicZipEntry, FixedLengthReadError, writeAtomicZip } from '@main/utils/file'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { ZipArchive } from 'archiver'
 import { app } from 'electron'
 
 import { isValidLocalDate } from './utils/localDate'
@@ -53,12 +52,6 @@ type FileIdentity =
   | ({ readonly status: 'present' } & PresentFileIdentity)
   | { readonly status: 'missing' }
   | { readonly status: 'unverifiable' }
-
-class LogReadFailure extends Error {
-  constructor(cause: unknown) {
-    super('Failed to read a fixed log snapshot', { cause })
-  }
-}
 
 function validateDestination(value: string): AbsoluteFilePath | undefined {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return undefined
@@ -144,86 +137,21 @@ async function canWriteDestination(
   return !sourceIdentities.some((sourceIdentity) => hasSameIdentity(currentIdentity, sourceIdentity))
 }
 
-function exactLengthStream(expectedBytes: number, onFailure: (error: Error) => void): Transform {
-  let bytesRead = 0
-  const fail = (message: string, callback: (error?: Error | null) => void) => {
-    const error = new LogReadFailure(new Error(message))
-    onFailure(error)
-    callback(error)
-  }
-  return new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      bytesRead += chunk.length
-      if (bytesRead > expectedBytes) {
-        fail('Log stream exceeded its fixed snapshot', callback)
-      } else {
-        callback(null, chunk)
-      }
-    },
-    flush(callback) {
-      if (bytesRead !== expectedBytes) {
-        fail('Log stream ended before its fixed snapshot', callback)
-      } else {
-        callback()
-      }
-    }
-  })
-}
-
 async function writeZip(
   destination: AbsoluteFilePath,
   metadata: string,
   snapshots: LogSnapshot[],
   createLogReadStream: (handle: FileHandle, snapshotBytes: number) => Readable
 ): Promise<void> {
-  const output = createAtomicWriteStream(destination)
-  const archive = new ZipArchive({ zlib: { level: 1 } })
-  const activeStreams = new Set<Readable>()
-  let rejectCompletion: (error: unknown) => void = () => undefined
-  const completion = new Promise<void>((resolve, reject) => {
-    rejectCompletion = reject
-    output.once('finish', resolve)
-    output.once('error', reject)
-    archive.once('error', reject)
-    archive.once('warning', reject)
-  })
-  const failLogRead = (error: Error): LogReadFailure => {
-    const failure = error instanceof LogReadFailure ? error : new LogReadFailure(error)
-    rejectCompletion(failure)
-    return failure
-  }
-
-  try {
-    archive.pipe(output)
-    archive.append(metadata, { name: 'migration-diagnostics.json' })
-    for (const snapshot of snapshots) {
-      if (snapshot.snapshotBytes === 0) {
-        archive.append(Buffer.alloc(0), { name: `logs/${snapshot.fileName}` })
-        continue
-      }
-      let source: Readable
-      try {
-        source = createLogReadStream(snapshot.handle, snapshot.snapshotBytes)
-      } catch (error) {
-        throw new LogReadFailure(error)
-      }
-      const counted = exactLengthStream(snapshot.snapshotBytes, failLogRead)
-      activeStreams.add(source)
-      activeStreams.add(counted)
-      source.once('error', (error) => {
-        counted.destroy(failLogRead(error))
-      })
-      counted.once('error', failLogRead)
-      source.pipe(counted)
-      archive.append(counted, { name: `logs/${snapshot.fileName}` })
-    }
-    await Promise.all([archive.finalize(), completion])
-  } catch (error) {
-    for (const stream of activeStreams) stream.destroy()
-    archive.abort()
-    if (!output.closed) await output.abort().catch(() => undefined)
-    throw error
-  }
+  const entries: AtomicZipEntry[] = [
+    { name: 'migration-diagnostics.json', data: metadata },
+    ...snapshots.map((snapshot) => ({
+      name: `logs/${snapshot.fileName}`,
+      expectedBytes: snapshot.snapshotBytes,
+      createReadStream: () => createLogReadStream(snapshot.handle, snapshot.snapshotBytes)
+    }))
+  ]
+  await writeAtomicZip(destination, entries)
 }
 
 export async function saveMigrationDiagnosticBundle(
@@ -286,7 +214,7 @@ export async function saveMigrationDiagnosticBundle(
       await writeZip(destination, metadata, snapshots, createLogReadStream)
       return 'included'
     } catch (error) {
-      if (!(error instanceof LogReadFailure)) throw error
+      if (!(error instanceof FixedLengthReadError)) throw error
       if (!(await canWriteDestination(destination, destinationIdentity, sourceIdentities))) return false
       await writeZip(destination, metadata, [], createLogReadStream)
       return 'not_included'

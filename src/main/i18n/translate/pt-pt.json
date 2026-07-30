@@ -62,6 +62,10 @@
       "message": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
       "title": "Repor os dados da aplicação"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Arquivos HTML",
     "open_file": "Abrir Arquivo",
     "pdf_files": "Arquivos PDF",

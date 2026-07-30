@@ -62,6 +62,10 @@
       "message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
       "title": "アプリデータをリセット"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "HTMLファイル",
     "open_file": "ファイルを開く",
     "pdf_files": "PDFファイル",
