@@ -148,6 +148,16 @@ export function useAgentMessageListProviderValue({
   const navigate = useNavigate()
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const preparingPhrases = useMemo(
+    () => [
+      t('message.tools.placeholder.preparing_phrases.ideas_bubbling'),
+      t('message.tools.placeholder.preparing_phrases.gears_turning'),
+      t('message.tools.placeholder.preparing_phrases.catching_inspiration'),
+      t('message.tools.placeholder.preparing_phrases.connecting_clues'),
+      t('message.tools.placeholder.preparing_phrases.answer_on_the_way')
+    ],
+    [t]
+  )
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -460,9 +470,10 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      preparingPhrases
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, headerCapabilities.userProfile, preparingPhrases, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

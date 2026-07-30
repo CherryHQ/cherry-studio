@@ -281,6 +281,13 @@ describe('useAgentMessageListProviderValue', () => {
       isMultiSelectMode: true,
       selectedMessageIds: ['user-1']
     })
+    expect(value?.meta.preparingPhrases).toEqual([
+      '思路正在冒泡',
+      '脑内齿轮转起来了',
+      '灵感捕捉中',
+      '正在把线索串起来',
+      '好答案正在路上'
+    ])
     expect(useMessageExportActionsMock).toHaveBeenCalledWith({
       topicName: 'Agent session'
     })

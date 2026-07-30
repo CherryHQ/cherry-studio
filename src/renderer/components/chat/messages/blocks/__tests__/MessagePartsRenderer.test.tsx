@@ -332,8 +332,13 @@ vi.mock('../TranslationBlock', () => ({
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
 vi.mock('../PlaceholderBlock', () => ({
   __esModule: true,
-  default: ({ createdAt, status }: any) => (
-    <div data-testid="mock-placeholder" data-created-at={createdAt} data-status={status} />
+  default: ({ createdAt, preparingPhrases, status }: any) => (
+    <div
+      data-testid="mock-placeholder"
+      data-created-at={createdAt}
+      data-preparing-phrases={preparingPhrases?.join('|')}
+      data-status={status}
+    />
   ),
   formatPlaceholderElapsed: () => '1 second',
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
@@ -356,7 +361,8 @@ const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  metaOverrides: Partial<MessageListProviderValue['meta']> = {}
 ) => {
   const value: MessageListProviderValue = {
     state: {
@@ -376,7 +382,7 @@ const renderPartsTree = (
       })
     },
     actions,
-    meta: { selectionLayer: false }
+    meta: { selectionLayer: false, ...metaOverrides }
   }
 
   return (
@@ -392,8 +398,9 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
-) => render(renderPartsTree(parts, message, actions, renderConfig))
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  metaOverrides: Partial<MessageListProviderValue['meta']> = {}
+) => render(renderPartsTree(parts, message, actions, renderConfig, metaOverrides))
 
 function activateTurn(status?: string): void {
   mockIsActiveTurnTarget.mockReturnValue(true)
@@ -491,6 +498,18 @@ describe('MessagePartsRenderer', () => {
       renderParts([], msg({ status: 'pending' }))
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'preparing')
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-created-at', '2026-01-01T00:00:00Z')
+    })
+
+    it('forwards provider preparing phrases to the active placeholder', () => {
+      const preparingPhrases = ['Ideas are bubbling up', 'The gears are turning']
+
+      activateTurn()
+      renderParts([], msg({ status: 'pending' }), {}, defaultMessageRenderConfig, { preparingPhrases })
+
+      expect(screen.getByTestId('mock-placeholder')).toHaveAttribute(
+        'data-preparing-phrases',
+        preparingPhrases.join('|')
+      )
     })
 
     it('lets the provider activeTurnStatus renderer replace the processing placeholder', () => {

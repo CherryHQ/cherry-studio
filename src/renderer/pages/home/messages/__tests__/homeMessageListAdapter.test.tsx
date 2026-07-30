@@ -215,7 +215,16 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) =>
+      (
+        ({
+          'message.tools.placeholder.preparing_phrases.answer_on_the_way': '好答案正在路上',
+          'message.tools.placeholder.preparing_phrases.catching_inspiration': '灵感捕捉中',
+          'message.tools.placeholder.preparing_phrases.connecting_clues': '正在把线索串起来',
+          'message.tools.placeholder.preparing_phrases.gears_turning': '脑内齿轮转起来了',
+          'message.tools.placeholder.preparing_phrases.ideas_bubbling': '思路正在冒泡'
+        }) as Record<string, string>
+      )[key] ?? key
   })
 }))
 
@@ -320,6 +329,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     expect(value?.state.localSendGeneration).toBe(3)
+    expect(value?.meta.preparingPhrases).toEqual([
+      '思路正在冒泡',
+      '脑内齿轮转起来了',
+      '灵感捕捉中',
+      '正在把线索串起来',
+      '好答案正在路上'
+    ])
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {

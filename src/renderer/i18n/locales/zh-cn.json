@@ -4151,6 +4151,13 @@
         },
         "generating": "我在整理回复",
         "preparing": "正在准备回复",
+        "preparing_phrases": {
+          "answer_on_the_way": "好答案正在路上",
+          "catching_inspiration": "灵感捕捉中",
+          "connecting_clues": "正在把线索串起来",
+          "gears_turning": "脑内齿轮转起来了",
+          "ideas_bubbling": "思路正在冒泡"
+        },
         "thinking": "让我认真想一想",
         "usingTools": "继续推进任务"
       },

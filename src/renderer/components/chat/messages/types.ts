@@ -383,6 +383,7 @@ export interface MessageListMeta {
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
   imageExportFileName?: string
+  preparingPhrases?: readonly string[]
 }
 
 export interface MessageListProviderValue {

@@ -105,6 +105,16 @@ export function useHomeMessageListProviderValue({
   const navigate = useNavigate()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
+  const preparingPhrases = useMemo(
+    () => [
+      t('message.tools.placeholder.preparing_phrases.ideas_bubbling'),
+      t('message.tools.placeholder.preparing_phrases.gears_turning'),
+      t('message.tools.placeholder.preparing_phrases.catching_inspiration'),
+      t('message.tools.placeholder.preparing_phrases.connecting_clues'),
+      t('message.tools.placeholder.preparing_phrases.answer_on_the_way')
+    ],
+    [t]
+  )
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
@@ -884,9 +894,10 @@ export function useHomeMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      preparingPhrases
     }),
-    [headerCapabilities.userProfile, topic.name]
+    [headerCapabilities.userProfile, preparingPhrases, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

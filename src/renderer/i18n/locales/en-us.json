@@ -4151,6 +4151,13 @@
         },
         "generating": "Writing up a reply",
         "preparing": "Preparing response",
+        "preparing_phrases": {
+          "answer_on_the_way": "A good answer is on the way",
+          "catching_inspiration": "Catching a spark",
+          "connecting_clues": "Connecting the clues",
+          "gears_turning": "The gears are turning",
+          "ideas_bubbling": "Ideas are bubbling up"
+        },
         "thinking": "Let me think this through",
         "usingTools": "Making progress"
       },

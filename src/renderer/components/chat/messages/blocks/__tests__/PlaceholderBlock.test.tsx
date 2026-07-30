@@ -47,8 +47,35 @@ describe('PlaceholderBlock', () => {
     expect(container.querySelector('svg')).toBeNull()
   })
 
+  it('selects the same preparing phrase when the same reply remounts', () => {
+    const createdAt = '2026-07-29T17:45:00.000Z'
+    const preparingPhrases = ['Ideas are bubbling up', 'The gears are turning', 'Catching a spark']
+    const first = render(<PlaceholderBlock isProcessing createdAt={createdAt} preparingPhrases={preparingPhrases} />)
+    const selectedPhrase = screen.getByTestId('message-status-text').textContent
+
+    expect(preparingPhrases).toContain(selectedPhrase)
+
+    first.unmount()
+    render(<PlaceholderBlock isProcessing createdAt={createdAt} preparingPhrases={preparingPhrases} />)
+
+    expect(screen.getByTestId('message-status-text')).toHaveTextContent(selectedPhrase ?? '')
+  })
+
+  it('falls back to the default preparing label when no phrases are provided', () => {
+    render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} preparingPhrases={[]} />)
+
+    expect(screen.getByTestId('message-status-text')).toHaveTextContent('Preparing response')
+  })
+
   it('shows the requested generation stage', () => {
-    render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} status="thinking" />)
+    render(
+      <PlaceholderBlock
+        isProcessing
+        createdAt={new Date().toISOString()}
+        preparingPhrases={['Dynamic preparing phrase']}
+        status="thinking"
+      />
+    )
 
     expect(screen.getByTestId('message-status-text')).toHaveTextContent('Thinking')
   })
