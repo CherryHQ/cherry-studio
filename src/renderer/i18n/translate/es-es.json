@@ -434,6 +434,7 @@
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_agent": "Agente desconocido",
+        "unknown_agent_tip": "Este es un grupo de sesión histórico sin un agente, no un agente real. Es solo de visualización y no puede continuar ejecutándose.",
         "yesterday": "Ayer"
       },
       "label_one": "Sesión",
@@ -1932,6 +1933,7 @@
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_assistant": "Asistente No Vinculado",
+        "unknown_assistant_tip": "Este es un grupo de conversación histórico sin asistente, no un asistente real. Mueva la conversación a un asistente existente para continuar.",
         "yesterday": "Ayer"
       },
       "list": "Lista de temas",
@@ -6648,9 +6650,6 @@
           "dxtFile": "Archivo de paquete DXT",
           "dxtHelp": "Selecciona un archivo .dxt que contenga un servidor MCP",
           "dxtProcessFailed": "Error al procesar el archivo DXT",
-          "error": {
-            "multipleServers": "No se puede importar desde múltiples servidores"
-          },
           "invalid": "Entrada no válida, verifica el formato JSON",
           "json": "Importar desde JSON",
           "mcpb": "Importar paquete MCPB",

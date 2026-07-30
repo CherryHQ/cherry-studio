@@ -434,6 +434,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
+        "unknown_agent_tip": "Đây là một nhóm phiên lịch sử không có agent, không phải là agent thực tế. Nó chỉ có thể xem và không thể tiếp tục chạy.",
         "yesterday": "Hôm qua"
       },
       "label_one": "Phiên",
@@ -1932,6 +1933,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
+        "unknown_assistant_tip": "Đây là một nhóm trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Di chuyển cuộc trò chuyện đến trợ lý hiện có để tiếp tục.",
         "yesterday": "Hôm qua"
       },
       "list": "Daftar Topik",
@@ -6648,9 +6650,6 @@
           "dxtFile": "Tệp gói DXT",
           "dxtHelp": "Chọn một tệp .dxt chứa gói máy chủ MCP",
           "dxtProcessFailed": "Không thể xử lý tệp DXT",
-          "error": {
-            "multipleServers": "Không thể nhập từ nhiều máy chủ"
-          },
           "invalid": "Đầu vào không hợp lệ, vui lòng kiểm tra định dạng JSON",
           "json": "Nhập từ JSON",
           "mcpb": "Nhập gói MCPB",
