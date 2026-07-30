@@ -501,11 +501,11 @@ describe('backupHandlers', () => {
   })
 
   /**
-   * The boundary's job is to say WHICH failure happened and nothing else. Every
-   * class below is thrown twice, from two different absolute paths with two
-   * different underlying sentences, and the assertion is that the two serialized
-   * payloads are byte-identical — a substring search for one leaked path would
-   * pass for a message that leaks a different one.
+   * The boundary may expose only the failure class and a bounded closed
+   * diagnostic. Every class below is thrown twice, from two different absolute
+   * paths with two different underlying sentences, and the assertion is that the
+   * two serialized payloads are byte-identical — a substring search for one
+   * leaked path would pass for a message that leaks a different one.
    */
   describe('error hygiene', () => {
     async function payload(fault: unknown) {
@@ -523,6 +523,7 @@ describe('backupHandlers', () => {
       [
         'storage',
         backupErrorCodes.STORAGE_UNAVAILABLE,
+        undefined,
         [
           new InsufficientDiskSpaceError({ needed: 10, available: 1, path: '/Users/ann/Library/CherryStudio' }),
           new InsufficientDiskSpaceError({ needed: 77, available: 3, path: 'D:\\profiles\\bob\\cherry' })
@@ -531,6 +532,7 @@ describe('backupHandlers', () => {
       [
         'export source',
         backupErrorCodes.EXPORT_SOURCE,
+        { kind: 'source-changed' },
         [
           new SourceDriftError('/Users/ann/Notes/secret plan.md', 'mtime'),
           new SourceDriftError('/home/bob/kb/private.pdf', 'size')
@@ -539,6 +541,7 @@ describe('backupHandlers', () => {
       [
         'export destination',
         backupErrorCodes.EXPORT_DESTINATION,
+        undefined,
         [
           new OutputPathExistsError('/Users/ann/Desktop/a.cherrybackup'),
           new HardLinkUnsupportedError('/mnt/n/b.cherrybackup')
@@ -547,16 +550,21 @@ describe('backupHandlers', () => {
       [
         'journal',
         backupErrorCodes.JOURNAL_UNREADABLE,
+        undefined,
         [
           new RestoreStateError('unreadable', 'ENOENT /Users/ann/Library/CherryStudio/restore-journal.json'),
           new RestoreStateError('unreadable', 'invalid json at /home/bob/.config/cherry/restore-journal.json')
         ]
       ]
-    ])('says only which %s failure happened', async (_label, code, [first, second]) => {
+    ])('says only which %s failure happened', async (_label, code, data, [first, second]) => {
       const one = await payload(first)
       const two = await payload(second)
 
-      expect(one).toEqual({ code, message: expect.any(String) })
+      expect(one).toEqual({
+        code,
+        message: expect.any(String),
+        ...(data === undefined ? {} : { data })
+      })
       expect(two).toEqual(one)
     })
 
