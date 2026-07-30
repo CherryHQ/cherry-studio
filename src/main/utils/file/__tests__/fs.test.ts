@@ -1,10 +1,10 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   atomicWriteFile,
@@ -269,6 +269,44 @@ describe('readChunk', () => {
     const chunk = await readChunk(file as AbsoluteFilePath, 2, 3)
 
     expect(Array.from(chunk)).toEqual([2, 3, 4])
+  })
+
+  it('continues reading while advancing buffer and file positions across non-EOF short reads', async () => {
+    const file = path.join(tmp, 'bytes.bin')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]))
+
+    const handle = await open(file, 'r')
+    const fileHandlePrototype = Object.getPrototypeOf(handle)
+    const originalRead = fileHandlePrototype.read
+    await handle.close()
+    const shortReadLengths = [2, 1, 2]
+
+    const readSpy = vi.spyOn(fileHandlePrototype, 'read').mockImplementation(function (
+      this: typeof handle,
+      buffer: Uint8Array,
+      bufferOffset: number,
+      length: number,
+      position: number
+    ) {
+      return originalRead.call(
+        this,
+        buffer,
+        bufferOffset,
+        Math.min(length, shortReadLengths.shift() ?? length),
+        position
+      )
+    })
+
+    try {
+      const chunk = await readChunk(file as AbsoluteFilePath, 10, 5)
+
+      expect(Array.from(chunk)).toEqual([10, 11, 12, 13, 14])
+      expect(readSpy).toHaveBeenNthCalledWith(1, expect.any(Uint8Array), 0, 5, 10)
+      expect(readSpy).toHaveBeenNthCalledWith(2, expect.any(Uint8Array), 2, 3, 12)
+      expect(readSpy).toHaveBeenNthCalledWith(3, expect.any(Uint8Array), 3, 2, 13)
+    } finally {
+      readSpy.mockRestore()
+    }
   })
 
   it('returns a tightly-backed short read at EOF', async () => {
