@@ -81,6 +81,25 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
   })
 
+  it('falls back to the native image when OCR finds no text', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('   ')
+    resolveMock.mockImplementation(async (p) => p)
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(1)
+    expect(resolveMock).toHaveBeenCalled()
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the native image when OCR is unconfigured or fails', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    resolveMock.mockImplementation(async (p) => p)
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(1)
+    expect(resolveMock).toHaveBeenCalled()
+  })
+
   it('inlines extracted text for office docs', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     extractMock.mockResolvedValueOnce('word body')
@@ -164,10 +183,10 @@ describe('prepareChatMessages — routing', () => {
     expect(text).not.toContain('read_file')
   })
 
-  it('degrades a failed attachment to a note instead of rejecting the whole request', async () => {
-    // Default-config trigger: non-vision image + OCR not configured → ocr throws.
+  it('degrades to a note when both OCR and the native image fallback fail', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    resolveMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
   })

@@ -66,9 +66,9 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
- * strip media the model can't accept → convert, dropping incomplete tool calls that
- * would otherwise dangle without a result → merge adjacent same-role turns left by
- * drops → placeholder any turn that still converted to empty content. See #16195.
+ * strip unsupported audio/video → convert, dropping incomplete tool calls that would
+ * otherwise dangle without a result → merge adjacent same-role turns left by drops →
+ * placeholder any turn that still converted to empty content. See #16195.
  */
 export async function toModelMessages(
   messages: UIMessage[],

@@ -1,13 +1,15 @@
 /**
- * Capability-aware message shaping: drop media a model can't accept before it
- * reaches the provider.
+ * Capability-aware message shaping: drop audio/video a model can't accept before
+ * it reaches the provider. Images are not gated here — attachment routing already
+ * OCRs them for non-vision models, and an image part that survives routing is a
+ * deliberate native fallback (OCR found no text) that must reach the provider.
  *
  * Modality support is **model-intrinsic** (a model is vision/video/audio-capable
  * regardless of which `@ai-sdk/*` adapter or endpoint it routes through), so this
  * keys on model predicates — unlike message *shape* (alternation etc.), which is
- * adapter-determined. The renderer already gates *new* attachments by capability,
- * but history is replayed from the DB unfiltered, so switching to a non-vision
- * model and continuing would otherwise send unsupported media → provider error.
+ * adapter-determined. The renderer already gates new audio/video attachments by
+ * capability, but history is replayed from the DB unfiltered, so switching models
+ * would otherwise send unsupported audio/video → provider error.
  */
 
 import type { Model } from '@shared/data/types/model'
@@ -27,24 +29,23 @@ export function resolveMediaCapabilities(model: Model): MediaCapabilities {
   return { image: isVisionModel(model), video: isVideoModel(model), audio: isAudioModel(model) }
 }
 
-type GatedModality = keyof MediaCapabilities
+type GatedModality = 'video' | 'audio'
 
-/** image/video/audio are capability-gated; other types (pdf, text, …) are not. */
+/** Only video/audio are capability-gated; images and other files are forwarded. */
 function gatedModality(mediaType: string): GatedModality | undefined {
-  if (mediaType.startsWith('image/')) return 'image'
   if (mediaType.startsWith('video/')) return 'video'
   if (mediaType.startsWith('audio/')) return 'audio'
   return undefined
 }
 
 /**
- * Replace `file` parts whose modality the model can't accept with a text note.
+ * Replace audio/video `file` parts the model can't accept with a text note.
  *
  * Replacing in place (vs. dropping) keeps the turn non-empty and tells the model
  * an attachment was there, without depending on the coalesce/empty-assistant
- * rules to clean up after a deletion. Non image/video/audio files (e.g. PDFs) are
- * left untouched — their handling is a separate concern. Operates on UIMessages
- * before conversion.
+ * rules to clean up after a deletion. Images and other files (e.g. PDFs) are left
+ * untouched — their handling is a separate concern. Operates on UIMessages before
+ * conversion.
  */
 export function stripUnsupportedMedia<T extends UIMessage = UIMessage>(messages: T[], caps: MediaCapabilities): T[] {
   return messages.map((message) => {
