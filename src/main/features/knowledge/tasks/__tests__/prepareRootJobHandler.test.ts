@@ -57,6 +57,46 @@ describe('prepare-root job handler', () => {
     })
   })
 
+  it('clears stale directory copy progress before retrying the scan', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    MockMainCacheServiceExport.cacheService.setShared('knowledge.item.directory_copy_progress.dir-1', 100)
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(MockMainCacheServiceExport.cacheService.deleteShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1'
+    )
+    expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
+      undefined
+    )
+  })
+
+  it('reports copy progress only when the integer percentage changes', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
+      onDirectoryCopyProgress?.({ currentFile: 1, totalFiles: 200, percent: 1 })
+      onDirectoryCopyProgress?.({ currentFile: 2, totalFiles: 200, percent: 1 })
+      onDirectoryCopyProgress?.({ currentFile: 3, totalFiles: 200, percent: 2 })
+      return []
+    })
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+
+    await handler.execute(ctx)
+
+    expect(ctx.reportProgress).toHaveBeenCalledWith(1, {
+      stage: 'copying',
+      currentFile: 3,
+      totalFiles: 200
+    })
+    expect(ctx.reportProgress).not.toHaveBeenCalledWith(1, {
+      stage: 'copying',
+      currentFile: 2,
+      totalFiles: 200
+    })
+  })
+
   it('clears stale expansion vectors before deleting rows', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     const activeChild = createNoteItem('active-note', 'dir-1')

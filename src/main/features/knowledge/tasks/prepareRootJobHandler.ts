@@ -16,14 +16,11 @@ import { isIndexableKnowledgeItem } from '../utils/items'
 import { prepareKnowledgeItem } from '../utils/sources/prepare'
 import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
+import { directoryCopyProgressCacheKey } from './utils/directoryCopyProgress'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 const DIRECTORY_COPY_PROGRESS_LINGER_TTL_MS = 60_000
-
-function directoryCopyProgressCacheKey(itemId: string): `knowledge.item.directory_copy_progress.${string}` {
-  return `knowledge.item.directory_copy_progress.${itemId}`
-}
 
 export function createPrepareRootJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
@@ -61,10 +58,13 @@ export function createPrepareRootJobHandler(
       ctx.signal.throwIfAborted()
       reportKnowledgeProgress(ctx, 0, { stage: 'scanning' })
       cacheService.deleteShared(progressKey)
+      let lastCopyPercent: number | null = null
 
       try {
         // Source expansion creates child items, so it runs under the base mutation lock.
         const leafItems = await scanRootItem(ctx, knowledgeLockManager, (progress) => {
+          if (progress.percent === lastCopyPercent) return
+          lastCopyPercent = progress.percent
           cacheService.setShared(progressKey, progress.percent)
           reportKnowledgeProgress(ctx, Math.round(progress.percent / 2), {
             stage: 'copying',
