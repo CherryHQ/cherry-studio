@@ -157,8 +157,8 @@ lark-cli base +form-detail --share-token shrcnsTvZpUji5ZKAPSMwzZuWHb --as user -
 1. 从 `form-detail` 的实时返回取得 `base_token`。
 2. 使用 workspace 相对路径构造 `fields` 和 `attachments`；附件不能放进 `fields`。
 3. 展示最终预览并取得明确确认。
-4. 调用 `lark-cli base +form-submit --share-token ... --base-token ... --as user --json ...`。没有附件时省略 `--base-token` 和 `attachments`。
-5. 仅在命令退出码为 0 且返回 `ok == true` 时报告成功。不要添加不存在的 `--yes` 参数。
+4. 调用 `lark-cli base +form-submit --share-token ... --base-token ... --as user --json ... --yes`。没有附件时省略 `--base-token` 和 `attachments`。这里的 `--yes` 只跳过 CLI 的重复终端确认，不能替代上一步的用户明确确认。
+5. 仅在命令退出码为 0 且返回 `ok == true` 时报告成功。
 
 登录不可用、权限不足或提交失败时，不强制用户登录：
 

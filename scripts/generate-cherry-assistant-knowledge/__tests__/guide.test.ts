@@ -183,6 +183,8 @@ describe('Cherry Assistant guide', () => {
     expect(feedback).toContain('外部提交前展示最终字段、附件文件名和接收方')
     expect(feedback).toContain('lark-cli base +form-detail')
     expect(feedback).toContain('auth status --json --verify')
+    expect(feedback).toContain('--as user --json ... --yes')
+    expect(feedback).not.toContain('不存在的 `--yes`')
     expect(feedback).toContain('返回 `ok == true`')
     expect(feedback).toContain('不要安装、升级或重新配置 `lark-cli`')
     expect(feedback).toContain('匿名反馈包上传')

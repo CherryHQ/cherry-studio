@@ -124,8 +124,8 @@
         "description": "收集、脱敏、预览并提交 Cherry Studio BUG、UI/UX 或功能反馈，默认提交到飞书。可在用户同意后调用内置诊断工具整理环境、错误日志、截图和用户导出的 trace，自动提交飞书表单或生成匿名上传 ZIP；也可安全解析反馈 ZIP 为表单字段。用户说“提交问题”“提交反馈”“上报 bug”“收集/上传错误信息”“整理日志/trace”“生成反馈包”，或描述 Cherry Studio 问题并希望记录时触发。只有明确要求 GitHub Issue 时才改用 issue-reporter。",
         "category": "skills",
         "type": "skill",
-        "size": 9344,
-        "contentHash": "48d2c2e333b4df2f3a85fb14339a5dc330f33b1513c891d9ec233e8f1cbb2761"
+        "size": 9409,
+        "contentHash": "fc9a0cf300883ae81332b83c3735e13b8ca8928a2c77b6eddb91464d3da2c6bd"
       }
     },
     {
