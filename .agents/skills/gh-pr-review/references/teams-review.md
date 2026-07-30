@@ -4,8 +4,16 @@ You are the **coordinator**. Dispatch reviewer, verifier, and fixer agents with
 the runtime-provided subagent coordination tools. Never modify source files
 directly. Read code only for arbitration, diagnosis, and fix verification.
 
+Independent subagent capability is a hard prerequisite. Before entering this
+flow, confirm the runtime can launch at least one reviewer and then a fresh
+verifier with isolated context. Parallel execution is optional. If it has no
+subagent capability, stop following this file and route to `local-review.md`
+with `LIMITED_SINGLE_AGENT = true`; coordinator self-verification cannot
+replace the reviewer–verifier mechanism.
+
 Never pause to ask the user anything — the flow runs start to finish and ends
-with Report. Fixing happens only when the invocation explicitly authorized it
+with Report, except when the interactive Product Demand gate requires a product
+decision. Fixing happens only when the invocation explicitly authorized it
 (`AUTHORIZED_FIX`); all other invocations are report-only.
 
 The reviewer–verifier adversarial pair is the core quality mechanism: reviewers
@@ -21,6 +29,8 @@ share conversation history.
   fixing (`fix` modifier or equivalent user wording); commit and range
   targets are always report-only. When false, skip Phase 4 entirely —
   every confirmed issue is reported, none is fixed.
+- `HAS_SUBAGENTS`: must be `true`. If false or absent because the runtime
+  cannot launch subagents, return to the route above instead of continuing.
 
 ## References
 
@@ -41,15 +51,19 @@ Report-only (default): Scope → Product gate → Review → Filter → Report
 ```
 
 The **Product gate** is stage 1 of `SKILL.md` § Review Stages, run by the
-coordinator before dispatching any reviewer: skip silently when the change
-has no product impact; interactive → summarize the product effect, ask for
-the product decision, and abort the entire review (no reviewers dispatched)
-if the direction is rejected; automated → decide nothing and carry the
-product-impact summary into the Report. Reviewers then cover stages 2–5.
+coordinator before dispatching any reviewer: inspect the semantics actually
+expressed or constrained, then skip silently only when the change has no
+product impact. Interactive is the default: summarize the product effect, ask
+the current user for the product decision, and abort the entire review (no
+reviewers dispatched) if the direction is rejected. Use record-only automated
+behavior only when the invocation or workflow explicitly identifies an
+automated run; then decide nothing and carry the product-impact summary into
+the Report. Reviewers cover stages 2–5.
 
 - **Filter** routes low-risk issues to Fix/Validate (authorized fix only);
-  medium- and high-risk issues go straight to Report with their proposed fix
-  — multiple possible implementations are surfaced, never silently picked.
+  medium- and high-risk issues go straight to Report with feasible options,
+  key trade-offs, and an optional reviewer recommendation — multiple
+  reasonable implementations are surfaced, never silently chosen.
   If nothing is fixable, skip directly to Report.
 
 ---
@@ -137,7 +151,7 @@ has:
 - Status: `reported` | `fixed` | `failed`
 - Risk: low | medium | high
 - File: file path:line
-- Proposed fix (medium/high risk only)
+- Fix options, trade-offs, and optional recommendation (medium/high risk only)
 
 ---
 
@@ -154,17 +168,9 @@ Do not prescribe tool names, agent types, or parameters the runtime does not
 expose. Keep reviewer and verifier contexts separate; pass tasks through the
 runtime's spawn/delegate interface and collect their returned reports.
 
-**Module merging**: if the total diff is ≤1000 changed lines AND ≤20 files,
-merge all modules into a single reviewer. The overhead of multiple agents
-(startup, coordination, forwarding) outweighs the parallelism benefit at
-this scale.
-
 Launch reviewers concurrently when the runtime supports parallel subagents.
 If it cannot run subagents in parallel, launch the same agents sequentially —
-phases, prompts, and reviewer/verifier context separation are unchanged. If
-the runtime has no subagent capability at all, perform the phases yourself in
-order, replacing the verifier with an explicit adversarial self-verification
-pass over every finding before Phase 3.
+phases, prompts, and reviewer/verifier context separation are unchanged.
 
 ### Reviewer prompt
 
@@ -276,15 +282,16 @@ Remove cross-reviewer duplicates (same location, same topic).
 Consult `judgment-matrix.md` for risk level assessment, worth-fixing criteria,
 handling by risk level, and special rules.
 
-**Fix approach** (Medium/High only): specify the chosen approach and reasoning.
-Record in the issue's `Proposed` field. Low risk: single obvious fix, no guidance.
-Every proposed fix must sit at the defect's altitude per
+**Fix guidance** (Medium/High only): record the feasible at-altitude options,
+their key trade-offs, and an optional reviewer recommendation with reasoning.
+Never record any option as already chosen. Low risk has a single obvious fix
+and needs no extra guidance. Every option must sit at the defect's altitude per
 `cherry-review-guidance.md` § Fix Recommendation Policy: minimal correction
 for local bugs, root-cause fix for structural symptoms, architecture-conformant
 relocation for boundary/entity-leakage issues. A below-altitude patch (side
 table, metadata flag, extra special case, symptom-only fix for a structural
 cause) must not enter the auto-fix queue; report the issue with the
-at-altitude fix as the recorded proposal instead.
+at-altitude options instead.
 
 ### 3.4 Route
 
@@ -293,7 +300,7 @@ All confirmed issues are recorded with risk level.
 | Condition | → |
 |-----------|---|
 | Low risk, `AUTHORIZED_FIX` = true | auto-fix queue |
-| Medium or high risk, or `AUTHORIZED_FIX` = false | `reported` (with proposed fix) |
+| Medium or high risk, or `AUTHORIZED_FIX` = false | `reported` (with fix guidance) |
 
 - Cross-module impact: if a fix requires updates outside the fixer's module,
   add it to the current fix queue and assign to the appropriate fixer.
@@ -398,8 +405,9 @@ Summary:
   explicitly marked as awaiting a product decision — never as approved
 - Consumer review decisions per surface (feat-shaped changes only)
 - Issues found / fixed (authorized fix only) / reported / failed
-- Reported issues listed with risk, `file:line`, and the proposed
-  at-altitude fix (`cherry-review-guidance.md` § Fix Recommendation Policy)
+- Reported issues listed with risk, `file:line`, and at-altitude fix guidance
+  (`cherry-review-guidance.md` § Fix Recommendation Policy); Medium/High
+  guidance includes options, trade-offs, and an optional recommendation
 - Local validation results (`pnpm lint` / `pnpm test` / `pnpm format`) when
   fixes were applied
 - Rolled-back issues and reasons
@@ -412,4 +420,5 @@ Summary:
 
 Review all confirmed issues from this session. If any represent a recurring
 pattern not covered by the current checklist, read `checklist-evolution.md` and
-follow its steps.
+record valid candidates as `proposed` in the report. A regular review never
+accepts, inserts, or claims to persist checklist rules.

@@ -1,9 +1,11 @@
 # Local Review
 
-Single-agent review for small local changes (routed here by `SKILL.md` when
-the diff is ≤ 1000 changed lines and ≤ 20 files). Reviews the diff and
-reports confirmed issues with proposed fixes; edits code only when the
-invocation explicitly authorized fixing. Never asks the user questions.
+Single-agent review for small changes, or as the explicit fallback when a
+runtime cannot launch independent subagents. The canonical size calculation
+lives in `SKILL.md` § Route. Reviews the diff and reports confirmed issues with
+fix guidance; edits code only when the invocation explicitly authorized fixing.
+The interactive Product Demand gate is the only point that may ask the user a
+question.
 
 ## Input from SKILL.md
 
@@ -12,6 +14,8 @@ invocation explicitly authorized fixing. Never asks the user questions.
 - `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
   fixing (`fix` modifier or equivalent user wording). Commit and range
   targets are always report-only regardless of the flag.
+- `LIMITED_SINGLE_AGENT`: `true` only when a non-small scope was routed here
+  because the runtime has no subagent capability. Default `false`.
 
 ## References
 
@@ -117,19 +121,23 @@ If no issues remain after filtering → report "no issues found" and exit.
 
 Do not ask the user which issues to fix.
 
-- **`AUTHORIZED_FIX` = false** (default): report all issues with their
-  proposed at-altitude fixes; edit nothing.
+- **`AUTHORIZED_FIX` = false** (default): report all issues with at-altitude
+  fix guidance; edit nothing.
 - **`AUTHORIZED_FIX` = true**: auto-fix **low-risk** issues only (a single
   reasonable fix exists), keeping every fix at the defect's altitude per
   `cherry-review-guidance.md` § Fix Recommendation Policy. Medium- and
-  high-risk issues are reported with the proposed fix — multiple possible
-  implementations must be surfaced, never silently picked.
+  high-risk issues report feasible options, key trade-offs, and an optional
+  reviewer recommendation — multiple reasonable implementations must be
+  surfaced, never silently chosen.
 
 Present a summary of what was reviewed, the issues fixed (authorized fix
-only), and the issues reported with their proposed fixes. In an automated
-session with product impact, include the Product Demand summary — impact,
-direction, and points needing human confirmation — explicitly marked as
-awaiting a product decision, never as approved.
+only), and the reported issues with their fix guidance. If
+`LIMITED_SINGLE_AGENT = true`, explicitly state that the scope was non-small
+but the runtime had no subagent capability, so the review was single-agent and
+did not include independent adversarial verification. In an automated session
+with product impact, include the Product Demand summary — impact, direction,
+and points needing human confirmation — explicitly marked as awaiting a
+product decision, never as approved.
 
 Validation: when fixes were applied, the session is a coding task — run
 `pnpm lint`, `pnpm test`, and `pnpm format`, and report their results; a
@@ -143,4 +151,5 @@ existing CI covers the reviewed commit and the result is static review only.
 
 Review all confirmed issues from this session. If any represent a recurring
 pattern not covered by the current checklist, read `checklist-evolution.md` and
-follow its steps.
+record valid candidates as `proposed` in the report. A regular review never
+accepts, inserts, or claims to persist checklist rules.

@@ -16,14 +16,16 @@ low or high risk depending on scope and impact.
 | Mode | Low risk | Medium risk | High risk |
 |------|----------|-------------|-----------|
 | Report-only (default — any target) | Report | Report | Report |
-| Authorized fix (explicit `fix` invocation, local targets) | Auto-fix | Report with proposed fix | Report with proposed fix |
+| Authorized fix (explicit `fix` invocation, local targets) | Auto-fix | Report options and trade-offs | Report options and trade-offs |
 
 Authority comes from the invocation, never from the target type or reviewer
-confidence. Medium risk means multiple reasonable fixes exist — reporting the
-chosen proposal without applying it keeps the interpretation choice with the
-user. Never ask mid-flow which issues to fix. **Test-baseline rule**: fixes
-that would change test baselines (screenshot comparisons, golden files) are
-never auto-applied — report them instead, regardless of risk level.
+confidence. Medium and high risk can have multiple reasonable fixes: surface
+the feasible options and key trade-offs, optionally identify a reviewer
+recommendation, and leave the implementation choice with the user. Never
+present an option as already chosen, and never ask mid-flow which issues to
+fix. **Test-baseline rule**: fixes that would change test baselines (screenshot
+comparisons, golden files) are never auto-applied — report them instead,
+regardless of risk level.
 
 **Legacy-data rule on `main`**: Redux is removed, and Dexie/ElectronStore are
 throwaway v1 stacks. Do not repair or extend them. When the diff introduces new

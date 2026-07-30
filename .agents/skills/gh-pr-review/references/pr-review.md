@@ -10,6 +10,9 @@ is critical for review accuracy.
   publishing the review (`submit` modifier or equivalent user wording).
   Default `false` — findings are reported to the user; nothing is written to
   GitHub.
+- `HAS_SUBAGENTS`: runtime capability determined by `SKILL.md` § Route. It is
+  `true` only when independent reviewer and verifier agents can be launched;
+  parallel execution is not required.
 
 ## References
 
@@ -113,39 +116,56 @@ gh pr checks {number} --repo {OWNER_REPO}
 Record failing, pending, and successful checks as the review's validation
 signal. Do not replace CI with local lint, test, or format runs.
 
+Only after the worktree, `PR_BODY`, existing review comments, and CI state have
+all been collected, calculate `CHANGED_LINES`, `CHANGED_FILES`, binary status,
+and `SMALL_SCOPE` from the complete merge-base diff using the canonical
+definition in `SKILL.md` § Route. Do not use GitHub's summary counts or a
+module-merge heuristic as a substitute.
+
 ---
 
 ## Step 3: Review
 
-Run the multi-agent reviewer–verifier mechanism from
-`references/teams-review.md` inside the worktree: partition the diff into
-review modules per its Phase 1 "Module partition" (including the small-diff
-merge rule), then execute its Phase 2 — reviewers, then the adversarial
-verifier — with `REVIEW_DIR` as every agent's explicit working tree. Skip
-teams-review's Filter and Fix/Validate phases entirely: a PR review reports and
-submits comments; it never edits code. Use `judgment-matrix.md` only to decide
-whether each confirmed issue is worth reporting.
+Select exactly one review engine:
 
-Coordinator duties around the agent phases:
+- `SMALL_SCOPE = true` → `references/local-review.md`.
+- `SMALL_SCOPE = false` and `HAS_SUBAGENTS = true` →
+  `references/teams-review.md`.
+- `SMALL_SCOPE = false` and `HAS_SUBAGENTS = false` →
+  `references/local-review.md` with `LIMITED_SINGLE_AGENT = true`.
+
+Run the selected engine inside `REVIEW_DIR` with `AUTHORIZED_FIX = false`; PR
+review never edits code. For local-review, reuse the already collected scope
+and run its Review and Filter steps. For teams-review, partition the scope per
+its Phase 1 "Module partition", then run Phase 2 and the de-dup, existence, and
+risk assessment portions of Phase 3. Do not enter teams-review at all when
+`HAS_SUBAGENTS = false`: coordinator self-verification is not a substitute for
+an independent reviewer–verifier pair. PR wrapper Step 4 owns final report and
+submission packaging for either engine.
+
+Coordinator duties around the selected engine:
 
 0. Run the **Product Demand gate** (`SKILL.md` § Review Stages, stage 1)
-   before dispatching reviewers, using `PR_BODY` and the diff. Skip silently
-   when the PR has no product impact. Reviewing someone else's PR is normally
-   an automated-style run for this gate — do not decide the product direction
-   on the author's or user's behalf; summarize impact, direction, and open
-   product questions in the Step 4 report (and, when submitting, in the review
-   body) as points needing human confirmation. Ask the user for a product
-   decision only when the session is interactive **and** they own that
-   decision; a rejected direction stops the review before any code findings
-   are produced.
+   before implementation review, using `PR_BODY` and the diff. First inspect
+   the actual semantics; skip silently only when they have no product impact.
+   Interactive mode is the default regardless of PR authorship or decision
+   ownership: explain the semantic effect and ask the current user for the
+   product decision. A rejected direction stops the review before code findings
+   are produced. Use record-only automated behavior only when the invocation
+   prompt or workflow context explicitly identifies an automated run; then
+   carry impact, direction, and open product questions into the Step 4 report
+   and, when submitting, the review body as awaiting human confirmation.
+   This coordinator gate satisfies stage 1 for the selected engine; do not run
+   it a second time inside local-review or teams-review.
 1. Read `PR_BODY` to understand the stated motivation and include it in
-   reviewer prompts. Verify the implementation actually achieves what the
+   the review context. Verify the implementation actually achieves what the
    author describes.
-2. Reviewer prompts follow teams-review's rules — checklists verbatim,
-   `cherry-review-guidance.md`, and the mandatory baseline docs (read from the
-   worktree's `docs/references/`), reviewing architecture-first.
-3. When `PR_COMMENTS` exist, dispatch the PR-comment reviewer to check whether
-   previously raised issues have been fixed.
+2. Apply the selected engine's checklist and reference-loading rules, including
+   `cherry-review-guidance.md` and mandatory baseline docs read from the
+   worktree, reviewing architecture-first.
+3. When `PR_COMMENTS` exist, verify whether previously raised issues have been
+   fixed. In teams-review this uses its additional PR-comment reviewer; in
+   local-review the single reviewer performs the check directly.
 4. After verification, de-duplicate confirmed issues against existing PR
    comments.
 
@@ -173,6 +193,12 @@ Present results to user:
 - Summary: one paragraph describing the purpose and scope of the change.
 - Overall assessment: code quality evaluation and key improvement directions.
 - Issue list (or "no issues found" if clean).
+- When `LIMITED_SINGLE_AGENT = true`: explicitly disclose that a non-small PR
+  received single-agent review without independent adversarial verification
+  because the runtime has no subagent capability.
+- Checklist candidates: include any valid recurring-pattern candidates as
+  `proposed`; regular PR review never accepts, inserts, or claims to persist
+  checklist rules.
 
 If no issues → report that the review found no issues and stop. Do not submit
 an approval and do not merge; only run these when the user explicitly asks
@@ -189,10 +215,12 @@ gh pr merge {number} --squash --delete-branch
 If issues found → present them to the user in the following format:
 
 ```
-{N}. [{priority}] {file}:{line} — {description of the problem and suggested fix}
+{N}. [{priority}] {file}:{line} — {description and fix guidance}
 ```
 
 Where `{priority}` is the checklist item ID (e.g., A2, B1, C7).
+For Medium/High risk, fix guidance lists feasible options, key trade-offs, and
+an optional reviewer recommendation; it never presents an option as chosen.
 
 - **`AUTHORIZED_SUBMIT` = false** (default): stop here — no GitHub writes.
   If the user then asks to submit, that grants authorization; continue below.
