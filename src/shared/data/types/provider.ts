@@ -12,7 +12,7 @@
  */
 
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { CURRENCY, ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import { CURRENCY, ENDPOINT_TYPE, FastModeTransportSchema, objectValues } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -310,6 +310,8 @@ export const ProviderSchema = z.object({
    * from the wire payload. Never inferred for custom providers.
    */
   reportedCostCurrency: z.enum(objectValues(CURRENCY)).optional(),
+  /** Provider-owned transport for Fast requests. Effective availability is model-specific. */
+  fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */

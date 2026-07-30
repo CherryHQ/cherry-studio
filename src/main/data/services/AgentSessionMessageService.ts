@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
@@ -11,6 +12,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
@@ -29,6 +31,7 @@ import {
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
+import { isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -72,6 +75,15 @@ type SaveAgentSessionMessageParams = {
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto
+}
+
+type SaveAgentSessionMessageOptions =
+  | { db: DbOrTx; publishDataChange?: never }
+  | { db?: undefined; publishDataChange?: boolean }
+
+type SavedAgentSessionMessage = {
+  entity: AgentSessionMessageEntity
+  dataChange: 'membership' | 'projection'
 }
 
 export class AgentSessionMessageService {
@@ -349,7 +361,7 @@ export class AgentSessionMessageService {
     db: DbOrTx,
     params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
-  ): AgentSessionMessageEntity {
+  ): SavedAgentSessionMessage {
     const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
@@ -391,18 +403,21 @@ export class AgentSessionMessageService {
         defaultHandlersFor('Message', String(existingRow.id))
       )
 
-      return this.rowToEntity({
-        ...existingRow,
-        role: message.role,
-        status,
-        data: message.data,
-        searchableText: existingRow.searchableText,
-        modelId,
-        messageSnapshot,
-        stats,
-        runtimeResumeToken: runtimeResumeTokenToPersist,
-        updatedAt: updatedAtMs
-      })
+      return {
+        entity: this.rowToEntity({
+          ...existingRow,
+          role: message.role,
+          status,
+          data: message.data,
+          searchableText: existingRow.searchableText,
+          modelId,
+          messageSnapshot,
+          stats,
+          runtimeResumeToken: runtimeResumeTokenToPersist,
+          updatedAt: updatedAtMs
+        }),
+        dataChange: 'projection'
+      }
     }
 
     const insertData: InsertSessionMessageRow = {
@@ -420,27 +435,40 @@ export class AgentSessionMessageService {
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
-    return this.rowToEntity(saved)
+    return { entity: this.rowToEntity(saved), dataChange: 'membership' }
   }
 
   private saveMessageTx(
     db: DbOrTx,
     params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
-  ): AgentSessionMessageEntity {
-    const saved = this.upsertMessage(db, params, timestampMs)
+  ): SavedAgentSessionMessage {
+    const result = this.upsertMessage(db, params, timestampMs)
     agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
-    return saved
+    return result
   }
 
-  saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
+  saveMessage(
+    params: SaveAgentSessionMessageParams,
+    options: SaveAgentSessionMessageOptions = {}
+  ): AgentSessionMessageEntity {
+    const { db, publishDataChange } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs)
-    const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
-    if (saved.role === 'assistant') {
-      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: saved.id })
+    if (db) return this.saveMessageTx(db, params, timestampMs).entity
+    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (result.entity.role === 'assistant') {
+      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
-    return saved
+    if (publishDataChange) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: result.dataChange,
+          entityIds: [result.entity.id]
+        }
+      ])
+    }
+    return result.entity
   }
 
   saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
@@ -450,7 +478,7 @@ export class AgentSessionMessageService {
       const timestampMs = Date.now()
       const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
+        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs).entity)
       }
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
       return result
@@ -461,6 +489,78 @@ export class AgentSessionMessageService {
       }
     }
     return saved
+  }
+
+  replaceMessageParts(
+    sessionId: string,
+    messageId: string,
+    parts: AgentSessionMessageEntity['data']['parts']
+  ): AgentSessionMessageEntity {
+    const saved = application.get('DbService').withWriteTx((tx) => {
+      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
+
+      const updatedAt = Date.now()
+      const [updated] = tx
+        .update(sessionMessagesTable)
+        .set({ data: { ...existingRow.data, parts }, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .returning()
+        .all()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return this.rowToEntity(updated)
+    })
+
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [messageId]
+      }
+    ])
+    return saved
+  }
+
+  /**
+   * Atomically settle one persisted agent-session approval card. The SDK callback is resolved only
+   * after this returns true, so a displayed question cannot resume its agent while remaining stuck
+   * as `approval-requested` in history.
+   */
+  applyToolApprovalDecision(sessionId: string, messageId: string, decision: ApprovalDecision): boolean {
+    const applied = application.get('DbService').withWriteTx((tx) => {
+      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existingRow) return false
+
+      const existing = this.rowToEntity(existingRow)
+      const parts = existing.data.parts ?? []
+      const hasPendingApproval = parts.some(
+        (part) =>
+          isToolUIPart(part) &&
+          part.state === 'approval-requested' &&
+          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+      )
+      if (!hasPendingApproval) return false
+
+      const updatedAt = Date.now()
+      const nextParts = applyApprovalDecisions(parts, [decision])
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...existing.data, parts: nextParts }, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return true
+    })
+
+    if (applied) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          entityIds: [messageId]
+        }
+      ])
+    }
+    return applied
   }
 }
 

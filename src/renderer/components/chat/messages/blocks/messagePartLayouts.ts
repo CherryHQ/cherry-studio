@@ -48,7 +48,8 @@ const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
   'data-code',
   'data-compact',
   'data-translation',
-  'data-compaction-anchor'
+  'data-compaction-anchor',
+  'data-conversation-reset'
 ])
 
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
@@ -231,7 +232,7 @@ export function findOpenTextTailIndex(entries: readonly PartEntry[]): number | n
 export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (!SUBSTANTIVE_ANSWER_PART_TYPES.has(partType)) return false
-  if (partType === 'data-compaction-anchor') return true
+  if (partType === 'data-compaction-anchor' || partType === 'data-conversation-reset') return true
   if (partType === 'text') return !!(part as { text?: string }).text?.trim() || hasVisibleComposerToken(part)
   return !!(part as { data?: { content?: string } }).data?.content?.trim()
 }

@@ -4,12 +4,37 @@ import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyFastModeToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
   mergeCustomProviderParameters
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
+
+describe('applyFastModeToProviderOptions', () => {
+  const provider = {
+    fastMode: { transport: 'openai-priority' }
+  } satisfies Pick<Provider, 'fastMode'>
+  const model = {
+    id: 'openai-codex::gpt-5-6-sol',
+    providerId: 'openai-codex',
+    name: 'GPT-5.6 Sol',
+    capabilities: [],
+    supportsStreaming: true,
+    supportsFastMode: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
+
+  it('maps Fast to priority only for an eligible provider-model pair', () => {
+    expect(applyFastModeToProviderOptions(provider, model, { openai: { reasoningEffort: 'high' } }, true)).toEqual({
+      openai: { reasoningEffort: 'high', serviceTier: 'priority' }
+    })
+    expect(applyFastModeToProviderOptions(provider, { ...model, supportsFastMode: false }, {}, true)).toEqual({})
+    expect(applyFastModeToProviderOptions(provider, model, {}, false)).toEqual({})
+  })
+})
 
 describe('extractAiSdkStandardParams', () => {
   it('routes AI-SDK standard params to standardParams, others to providerParams', () => {

@@ -6,12 +6,14 @@ import {
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/composer/quoteToken'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { ipcApi } from '@renderer/ipc'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, FileText, Folder, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -27,6 +29,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
+import { parseComposerLink } from '../linkToken'
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
@@ -41,6 +44,7 @@ const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <ToolCase className={tokenIconClassName} />,
+  link: <Link2 className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
   folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
@@ -81,6 +85,13 @@ interface FileComposerTokenProps extends ComposerTokenProps {
 interface ActiveComposerTokenProps extends ComposerTokenProps {
   icon: ReactNode
   colorClassName?: string
+  interactionProps?: {
+    role: 'link'
+    tabIndex: number
+    'aria-label': string
+    onClick: MouseEventHandler<HTMLSpanElement>
+    onKeyDown: (event: ReactKeyboardEvent<HTMLSpanElement>) => void
+  }
 }
 
 function InlineTokenRemoveButton({
@@ -189,7 +200,8 @@ function renderActiveComposerTokenElement({
   onRemove,
   removeLabel,
   icon,
-  colorClassName = 'text-primary'
+  colorClassName = 'text-primary',
+  interactionProps
 }: ActiveComposerTokenProps) {
   const title = token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
 
@@ -205,7 +217,8 @@ function renderActiveComposerTokenElement({
       )}
       title={title}
       data-composer-token-kind={token.kind}
-      onMouseDown={onMouseDown}>
+      onMouseDown={onMouseDown}
+      {...interactionProps}>
       <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
         <InlineTokenIconSlot
           icon={token.icon ? token.icon : icon}
@@ -227,6 +240,55 @@ export function SkillComposerToken(props: ComposerTokenProps) {
   return renderActiveComposerTokenElement({
     ...props,
     icon: tokenIconByKind.skill
+  })
+}
+
+export function LinkComposerToken(props: ComposerTokenProps) {
+  const link = parseComposerLink(props.token.promptText ?? props.token.description)
+  if (!link) {
+    return renderActiveComposerTokenElement({
+      ...props,
+      icon: tokenIconByKind.link
+    })
+  }
+
+  const openLink = () => {
+    void ipcApi.request('system.shell.open_website', link.url)
+  }
+  const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
+    stopTokenActionEvent(event)
+    openLink()
+  }
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    openLink()
+  }
+
+  return renderActiveComposerTokenElement({
+    ...props,
+    className: cn(
+      'cursor-pointer rounded-[4px] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+      props.className
+    ),
+    icon: props.readOnly ? (
+      <span
+        className="inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-[4px] [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!"
+        data-composer-link-favicon="">
+        <Favicon hostname={link.hostname} alt="" />
+      </span>
+    ) : (
+      tokenIconByKind.link
+    ),
+    children: <span className="min-w-0 truncate">{link.label}</span>,
+    interactionProps: {
+      role: 'link',
+      tabIndex: 0,
+      'aria-label': link.url,
+      onClick: handleClick,
+      onKeyDown: handleKeyDown
+    }
   })
 }
 
@@ -814,6 +876,7 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
 
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
+  link: LinkComposerToken,
   file: FileComposerToken,
   folder: FolderComposerToken,
   knowledge: KnowledgeComposerToken,
