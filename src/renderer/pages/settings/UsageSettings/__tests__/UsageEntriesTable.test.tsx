@@ -144,4 +144,58 @@ describe('UsageEntriesTable', () => {
       expect(cell).toHaveClass('whitespace-nowrap', 'text-right', 'tabular-nums')
     }
   })
+
+  it('uses the request modality as the display source for unattributed entries', () => {
+    const entries = (
+      [
+        { modality: 'language', modelName: 'Language model' },
+        { modality: 'embedding', modelName: 'Embedding model' },
+        { modality: 'image', modelName: 'Image model' },
+        { modality: 'rerank', modelName: 'Rerank model' }
+      ] as const
+    ).map((overrides, index) => ({
+      ...entry,
+      ...overrides,
+      id: `019c0800-0000-7000-8000-${String(index + 2).padStart(12, '0')}`,
+      requestId: `request-${index + 2}`,
+      sourceType: null,
+      sourceId: null,
+      sourceName: null,
+      sourceIcon: null,
+      messageKind: null,
+      messageId: null,
+      imageCount: overrides.modality === 'image' ? 1 : null
+    })) satisfies AiUsageRecordEntry[]
+
+    render(
+      <UsageEntriesTable
+        entries={entries}
+        entryTotal={entries.length}
+        isLoading={false}
+        isRefreshing={false}
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={vi.fn()}
+        onLoadNext={vi.fn()}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('Jul 28, 2026')}
+        timeFormatter={formatter('16:23')}
+      />
+    )
+
+    for (const { modelName, expectedSource } of [
+      { modelName: 'Language model', expectedSource: /Language|语言/ },
+      { modelName: 'Embedding model', expectedSource: /Embedding|嵌入/ },
+      { modelName: 'Image model', expectedSource: /Image|图片/ },
+      { modelName: 'Rerank model', expectedSource: /Reranker|重排/ }
+    ]) {
+      const row = screen.getByText(modelName).closest('tr')
+      expect(row).not.toBeNull()
+      expect(within(row!.cells[1]).getByText(expectedSource)).toBeInTheDocument()
+      expect(within(row!).queryByTestId('source-label')).not.toBeInTheDocument()
+    }
+
+    expect(screen.queryByText(/Unattributed source|未归因来源/)).not.toBeInTheDocument()
+  })
 })

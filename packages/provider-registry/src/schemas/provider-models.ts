@@ -82,6 +82,8 @@ export const ProviderModelOverrideSchema = z.object({
   pricing: ModelPricingSchema.partial().optional(),
   /** Exact reasoning behavior keyed by the endpoint used for this provider-model pair. */
   reasoningContracts: z.partialRecord(ReasoningEndpointTypeSchema, ProviderModelReasoningContractSchema).optional(),
+  /** Whether this exact provider-model pair supports the provider's Fast transport. */
+  supportsFastMode: z.boolean().optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)

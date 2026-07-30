@@ -2,6 +2,7 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -24,7 +25,7 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@shared/utils/model'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
+import { isSupportFastMode, isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
@@ -37,6 +38,25 @@ import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './r
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
+
+export function applyFastModeToProviderOptions(
+  provider: Pick<Provider, 'fastMode'>,
+  model: Pick<Model, 'supportsFastMode'>,
+  providerOptions: ProviderOptions,
+  fastMode: boolean
+): ProviderOptions {
+  if (!fastMode || !isSupportFastMode(provider, model) || provider.fastMode.transport !== 'openai-priority') {
+    return providerOptions
+  }
+
+  return {
+    ...providerOptions,
+    openai: {
+      ...providerOptions.openai,
+      serviceTier: 'priority'
+    }
+  }
+}
 
 type GroqProvider = Provider & { id: 'groq' }
 type NonGroqProvider = Provider & { id: Exclude<string, 'groq'> }
