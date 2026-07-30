@@ -1,6 +1,6 @@
 export { ClaudeCodeRuntimeDriver } from './ClaudeCodeRuntimeDriver'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
-export { assertPortableAgentTranscriptSnapshot } from './portableTranscriptStore'
+export { encodeClaudeProjectDir, stagePortableAgentTranscript } from './portableTranscript'
 export { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 export type { ClaudeCodeStreamAdapterOptions, ClaudeCodeStreamAdapterResult } from './streamAdapter'
 export { ClaudeCodeStreamAdapter } from './streamAdapter'

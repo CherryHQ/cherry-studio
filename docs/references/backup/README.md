@@ -175,7 +175,7 @@ source will stop changing afterwards.
 | `knowledge-base` | `Data/KnowledgeBase/<baseId>` | strict + owner snapshot | raw material plus ready index or rebuild marker |
 | `note-root` | `Data/Notes` | partial | managed note tree |
 | `agent-data` | `Data/Agents/<agentId>` | strict | identity and memory |
-| `agent-transcript` | `Data/AgentTranscripts/<sessionId>.json` | owner snapshot | last successful native resume prefix |
+| `agent-transcript` | `Data/AgentTranscripts/<sessionId>.jsonl` | owner snapshot | last successful native resume prefix |
 | `agent-workspace` | managed system workspace | partial | stable workspace entries |
 | `skill` | `Data/Skills/<name>` | strict | canonical Skill library |
 | `mcp-workspace` | `Data/Workspace` | partial | built-in workspace only |
@@ -298,23 +298,33 @@ a reason to discard every healthy index by default.
 
 ### 6.1 Native Agent resume point
 
-The Claude SDK’s live transcript cache is keyed by workspace and may contain a
-partially written Turn. Backup does not transport that cache.
+The Claude SDK owns the live transcript: an append-only JSONL under the
+cwd-keyed `.claude/projects/<encoded cwd>/<sdkSessionId>.jsonl`. Cherry adds no
+runtime mirror; the only per-Turn runtime artifact is the versioned resume
+point (SDK session ID plus last top-level assistant UUID) stored in the main
+database after a successful result.
 
-Cherry’s Agent transcript owner:
+At export, the Agent transcript owner produces the `owner-snapshot`:
 
-1. lets the SDK append entries to an in-memory store;
-2. commits a portable transcript only after a successful result;
-3. truncates it through the last top-level assistant message UUID;
-4. atomically writes `Data/AgentTranscripts/<sessionId>.json`;
-5. stores a versioned resume point containing the SDK session ID and assistant
-   UUID in the main database.
+1. reads the resume point and workspace from the detached database;
+2. locates the SDK JSONL (encoded-cwd path first, then a `projects/` scan by
+   the unique session-id filename, so export never depends on the encoding);
+3. cuts the file through the retained assistant UUID — entries appended after
+   the database snapshot, including a torn tail the subprocess is still
+   writing, belong to the next backup and are discarded;
+4. stages the cut as `Data/AgentTranscripts/<sessionId>.jsonl`.
+
+Only the main transcript ships; `subagents/` sidecar files are runtime detail
+a resumed session can live without. Restore installs the canonical file and,
+on the session’s first warmup, projects it to
+`projects/<encoded new cwd>/<sdkSessionId>.jsonl` so the SDK finds it under
+the rebased workspace. A failed projection degrades resume to a fresh session
+and never blocks the connection.
 
 Export keeps the database token only when the matching transcript is an
-`owner-snapshot` requirement. Restore rebases the workspace independently and
-the session store exposes the committed prefix under the new workspace key.
-Raw pre-feature SDK tokens are reset during portable DB materialization, so an
-archive cannot advertise a resume point whose transcript it did not carry.
+`owner-snapshot` requirement. Raw pre-feature SDK tokens are reset during
+portable DB materialization, so an archive cannot advertise a resume point
+whose transcript it did not carry.
 
 Agent workspace capture remains `partial-tree`; the workspace cut and completed
 Turn cut are deliberately independent.
@@ -340,8 +350,9 @@ same name, and targets exactly `Data/Skills/<name>`. A real workspace-local
 `.claude/skills/<name>` directory is ordinary workspace content. External,
 misnamed, or nested links follow the normal external-reference rules.
 
-The cwd-keyed `.claude/projects/**` runtime cache is also excluded; portable
-Agent transcript ownership replaces it for resume continuity.
+The cwd-keyed `.claude/projects/**` runtime cache is also excluded from the
+`agent-runtime-config` unit; the per-session `owner-snapshot` cut (§6.1) is
+what transports resume continuity.
 
 ## 7. Archive verification and publication
 

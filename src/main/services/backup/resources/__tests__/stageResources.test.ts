@@ -216,7 +216,7 @@ describe('stageResources', () => {
   })
 
   it('requires an Agent owner snapshot and stages the committed transcript it supplies', async () => {
-    const source = writeSource('Data/AgentTranscripts/session-1.json', '{"version":1}')
+    const source = writeSource('Data/AgentTranscripts/session-1.jsonl', '{"version":1}')
     const captureOwnerResource: CaptureOwnerResource = async (context) => {
       mkdirSync(join(context.stagingPath, '..'), { recursive: true })
       writeFileSync(context.stagingPath, readFileSync(context.sourcePath))
@@ -224,21 +224,23 @@ describe('stageResources', () => {
     }
 
     const result = await stageResources({
-      requirements: [req('agent-transcript', 'file', 'Data/AgentTranscripts/session-1.json')],
+      requirements: [req('agent-transcript', 'file', 'Data/AgentTranscripts/session-1.jsonl')],
       userDataPath: userData,
       resourcesDir,
       captureOwnerResource
     })
 
     expect(readFileSync(source, 'utf8')).toBe('{"version":1}')
-    expect(readFileSync(join(resourcesDir, 'Data', 'AgentTranscripts', 'session-1.json'), 'utf8')).toBe('{"version":1}')
+    expect(readFileSync(join(resourcesDir, 'Data', 'AgentTranscripts', 'session-1.jsonl'), 'utf8')).toBe(
+      '{"version":1}'
+    )
     expect(result.payloads).toMatchObject([{ kind: 'agent-transcript', resourceType: 'file' }])
   })
 
   it('fails closed when a required owner snapshot cannot be materialized', async () => {
     await expect(
       stageResources({
-        requirements: [req('agent-transcript', 'file', 'Data/AgentTranscripts/session-1.json')],
+        requirements: [req('agent-transcript', 'file', 'Data/AgentTranscripts/session-1.jsonl')],
         userDataPath: userData,
         resourcesDir,
         captureOwnerResource: async () => {

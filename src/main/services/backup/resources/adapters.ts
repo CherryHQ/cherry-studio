@@ -425,7 +425,7 @@ const agentTranscriptAdapter: BackupResourceAdapter = {
       const livePath = managedLivePath(
         ctx,
         ctx.roots.agentTranscripts,
-        path.join(ctx.roots.agentTranscripts, `${sessionId}.json`)
+        path.join(ctx.roots.agentTranscripts, `${sessionId}.jsonl`)
       )
       if (livePath === null) {
         unverifiable++

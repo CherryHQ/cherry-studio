@@ -33,6 +33,7 @@ import {
   DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
   encodePortableAgentResumePoint
 } from '@main/ai/agents/portableProfilePolicy'
+import { encodeClaudeProjectDir } from '@main/ai/runtime/claudeCode'
 import { createKnowledgeIndexStoreAtPath } from '@main/features/knowledge/vectorstore/indexStore/createIndexStore'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
@@ -208,20 +209,20 @@ function writeSourceResource(relative: string, content: string): void {
   writeFileSync(target, content)
 }
 
+/**
+ * The SDK-owned live JSONL, including a post-boundary entry and a torn tail the
+ * subprocess is "still writing" — capture must cut at the committed boundary.
+ */
 function seedSourceAgentTranscript(): void {
+  const workspacePath = join(sourceUserData, 'Data', 'Agents', 'system', 's-1')
   writeSourceResource(
-    join('Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.json`),
-    JSON.stringify({
-      version: 1,
-      sessions: {
-        [SDK_SESSION_ID]: {
-          '': [
-            { type: 'user', uuid: '77777777-7777-4777-8777-777777777777' },
-            { type: 'assistant', uuid: SDK_ASSISTANT_BOUNDARY }
-          ]
-        }
-      }
-    })
+    join('Data', 'Agents', '.claude', 'projects', encodeClaudeProjectDir(workspacePath), `${SDK_SESSION_ID}.jsonl`),
+    [
+      JSON.stringify({ type: 'user', uuid: '77777777-7777-4777-8777-777777777777' }),
+      JSON.stringify({ type: 'assistant', uuid: SDK_ASSISTANT_BOUNDARY }),
+      JSON.stringify({ type: 'user', uuid: '99999999-9999-4999-8999-999999999999' }),
+      '{"type":"assistant","uuid":"torn'
+    ].join('\n')
   )
 }
 
@@ -499,10 +500,16 @@ describe('Full restore, empty target device', () => {
     expect(readFileSync(join(targetUserData, 'Data', 'Agents', 'system', 's-1', 'session.json'), 'utf8')).toBe(
       'SOURCE-WS'
     )
-    const restoredTranscript = JSON.parse(
-      readFileSync(join(targetUserData, 'Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.json`), 'utf8')
-    ) as { sessions: Record<string, Record<string, Array<{ uuid?: string }>>> }
-    expect(restoredTranscript.sessions[SDK_SESSION_ID]?.['']?.at(-1)?.uuid).toBe(SDK_ASSISTANT_BOUNDARY)
+    const restoredTranscript = readFileSync(
+      join(targetUserData, 'Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.jsonl`),
+      'utf8'
+    )
+    const transcriptEntries = restoredTranscript
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { uuid?: string })
+    expect(transcriptEntries).toHaveLength(2)
+    expect(transcriptEntries.at(-1)?.uuid).toBe(SDK_ASSISTANT_BOUNDARY)
     expect(
       query<{ runtime_resume_token: string }>(
         liveDbPath(),
@@ -690,21 +697,15 @@ describe('Full restore, empty target device', () => {
 
 describe('Full export with owner-scoped resource cuts', () => {
   it('refuses to publish a portable resume token without its matching completed-Turn prefix', async () => {
+    const workspacePath = join(sourceUserData, 'Data', 'Agents', 'system', 's-1')
     writeSourceResource(
-      join('Data', 'AgentTranscripts', `${AGENT_SESSION_ID}.json`),
-      JSON.stringify({
-        version: 1,
-        sessions: {
-          [SDK_SESSION_ID]: {
-            '': [{ type: 'assistant', uuid: '88888888-8888-4888-8888-888888888888' }]
-          }
-        }
-      })
+      join('Data', 'Agents', '.claude', 'projects', encodeClaudeProjectDir(workspacePath), `${SDK_SESSION_ID}.jsonl`),
+      `${JSON.stringify({ type: 'assistant', uuid: '88888888-8888-4888-8888-888888888888' })}\n`
     )
     const archive = join(workDir, 'out', 'dangling-agent-resume.cherrybackup')
 
     await expect(exportArchive({ outPath: archive })).rejects.toThrow(
-      'Portable Agent transcript does not end at its retained Turn boundary'
+      'Agent transcript does not contain its retained Turn boundary'
     )
     expect(existsSync(archive)).toBe(false)
   })
@@ -742,7 +743,9 @@ describe('Full restore, same device with content already there', () => {
 
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.resources).toEqual({ install: 0, replace: 11 })
+    // The canonical transcript file exists only after a restore — the producer
+    // keeps it inside the SDK projects tree — so that one unit installs fresh.
+    expect(preview.resources).toEqual({ install: 1, replace: 10 })
     await armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 

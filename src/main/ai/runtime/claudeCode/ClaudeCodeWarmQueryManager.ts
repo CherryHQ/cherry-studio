@@ -115,15 +115,9 @@ export function createClaudeCodeWarmQuerySignature(
   knowledgeBaseIds: readonly string[] = []
 ): string {
   const stripped = stripCredentialEnvForSignature(stripWarmQueryOptions(options))
-  // The store instance is scoped by the manager's session key and may contain
-  // mutable in-memory transcript state. It must reach startup(), but object
-  // identity/state is not spawn configuration and cannot participate in the
-  // warm-query signature.
-  const signatureOptions = { ...stripped }
-  delete signatureOptions.sessionStore
-  const signatureSource = signatureOptions.mcpServers
-    ? { ...signatureOptions, mcpServers: sanitizeMcpServersForSignature(signatureOptions.mcpServers) }
-    : signatureOptions
+  const signatureSource = stripped.mcpServers
+    ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
+    : stripped
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,

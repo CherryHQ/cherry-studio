@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
-  transcriptStore: { commitTurn: vi.fn().mockResolvedValue(undefined) },
   adapterInstances: [] as any[]
 }))
 
@@ -179,8 +178,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: {},
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
     mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
@@ -207,7 +205,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'consume-key', masked: 'con-***' },
@@ -768,7 +765,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('publishes a portable resume point only after the successful Turn transcript is committed', async () => {
+  it('publishes a portable resume point carrying the last top-level assistant boundary', async () => {
     const queryQueue = createAsyncQueue<any>()
     const contextUsage = {
       categories: [],
@@ -834,7 +831,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'resume-token', token: expect.stringMatching(/^cherry-agent-resume-v1:/) }
     })
-    expect(mocks.transcriptStore.commitTurn).toHaveBeenCalledWith(SDK_RESULT_SESSION_ID, SDK_ASSISTANT_BOUNDARY_ID)
     await expect(events.next()).resolves.toMatchObject({
       value: {
         type: 'chunk',
@@ -867,7 +863,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1032,7 +1027,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1108,7 +1102,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'LongCat-2.0',
       initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1223,7 +1216,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1328,7 +1320,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore,
       usageCapture: {
         owner: 'agent-sdk',
         credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
@@ -1662,8 +1653,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         options: { model: 'sonnet' },
         settings: { toolPolicySnapshot: snapshot },
         sdkModelId: 'sonnet-sdk',
-        initializeTimeoutMs: 100,
-        transcriptStore: mocks.transcriptStore
+        initializeTimeoutMs: 100
       })
       const queryQueue = createAsyncQueue<any>()
       const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode }
@@ -1887,8 +1877,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -1943,8 +1932,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -1996,8 +1984,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const onSteerInjected = vi.fn()
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -2046,8 +2033,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -2086,8 +2072,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { approvalEmitter },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -2128,8 +2113,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { approvalEmitter },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -2175,8 +2159,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       options: { model: 'sonnet' },
       settings: { approvalEmitter, steerHolder },
       sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100,
-      transcriptStore: mocks.transcriptStore
+      initializeTimeoutMs: 100
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',

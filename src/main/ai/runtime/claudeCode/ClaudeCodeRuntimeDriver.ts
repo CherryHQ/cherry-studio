@@ -22,6 +22,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { decodePortableAgentResumePoint, encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -59,11 +60,6 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import {
-  decodePortableAgentResumePoint,
-  encodePortableAgentResumePoint,
-  type PortableAgentTranscriptStore
-} from './portableTranscriptStore'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -321,7 +317,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
-  private transcriptStore?: PortableAgentTranscriptStore
   private lastTopLevelAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
@@ -361,7 +356,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
-    this.transcriptStore = request.transcriptStore
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -653,7 +647,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         if (result.type === 'result') {
           if (message.type === 'result' && message.subtype === 'success') {
-            await this.commitPortableResumePoint(result.sessionId)
+            this.emitPortableResumePoint(result.sessionId)
           }
           this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
@@ -748,12 +742,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = resumeToken
   }
 
-  private async commitPortableResumePoint(sessionId: string): Promise<void> {
-    const transcriptStore = this.transcriptStore
-    if (!transcriptStore) {
-      throw new Error('Portable Agent transcript store is unavailable')
-    }
-    await transcriptStore.commitTurn(sessionId, this.lastTopLevelAssistantUuid)
+  private emitPortableResumePoint(sessionId: string): void {
     this.eventQueue.push({
       type: 'resume-token',
       token: encodePortableAgentResumePoint({

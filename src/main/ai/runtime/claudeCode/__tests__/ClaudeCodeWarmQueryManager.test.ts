@@ -98,15 +98,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(withAbort).toBe(withoutAbort)
   })
 
-  it('does not treat mutable sessionStore object state as spawn configuration', () => {
-    const firstStore = { append: vi.fn(), load: vi.fn(), mutableState: ['first'] }
-    const secondStore = { append: vi.fn(), load: vi.fn(), mutableState: ['second'] }
-
-    expect(createClaudeCodeWarmQuerySignature({ model: 'sonnet', sessionStore: firstStore } as any)).toBe(
-      createClaudeCodeWarmQuerySignature({ model: 'sonnet', sessionStore: secondStore } as any)
-    )
-  })
-
   it('uses the same signature with or without the session steer holder', () => {
     const withHolder = createClaudeCodeWarmQuerySignature({
       model: 'sonnet',
