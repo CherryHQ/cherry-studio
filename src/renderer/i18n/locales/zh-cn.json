@@ -1566,6 +1566,7 @@
         },
         "open_file": "打开文件",
         "open_file_error": "无法打开文件: {{path}}",
+        "open_with": "打开方式",
         "reveal_in_finder": "在文件管理器中显示"
       },
       "topics": "对话",
@@ -3420,7 +3421,7 @@
             "hint": "启用后限制回复长度"
           },
           "max_tool_calls": {
-            "hint": "启用后限制工具调用轮次"
+            "hint": "启用后限制工具调用轮次；关闭时使用默认的 20 轮上限"
           },
           "model": {
             "hint": "覆盖该助手使用的全局默认模型"
@@ -3447,7 +3448,8 @@
         "group_placeholder": "选择分组",
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
-        "max_tool_calls": "最大工具调用次数",
+        "max_tool_calls": "最大工具调用轮次",
+        "max_tool_calls_default": "默认（{{count}} 轮）",
         "mcp_mode": "MCP 模式",
         "model": "默认模型",
         "model_clear": "清空",
@@ -3463,8 +3465,7 @@
         "tags": "标签",
         "temperature": "模型温度",
         "title": "基础设置",
-        "top_p": "Top-P",
-        "unlimited": "不限"
+        "top_p": "Top-P"
       },
       "breadcrumb": "资源库",
       "dialogs": {
@@ -5754,6 +5755,7 @@
         "button": "查看",
         "title": "更新日志"
       },
+      "repository": "GitHub 仓库",
       "social": {
         "title": "社交账号"
       },
@@ -6613,7 +6615,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？",
+        "content_disable": "禁用硬件加速需要重启应用才能生效，是否现在重启？",
+        "content_enable": "启用硬件加速需要重启应用才能生效，是否现在重启？",
         "title": "需要重启应用"
       },
       "title": "禁用硬件加速"
@@ -6821,6 +6824,15 @@
       "providers": "提供商",
       "registry": "包管理源",
       "registryDefault": "默认",
+      "registryOptions": {
+        "custom": "自定义",
+        "npmTaobao": "淘宝 NPM Mirror",
+        "pipAliyun": "阿里云",
+        "pipHuawei": "华为云",
+        "pipTencent": "腾讯云",
+        "pipTsinghua": "清华大学",
+        "pipUstc": "中国科学技术大学"
+      },
       "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题",
       "requiresConfig": "需要配置",
       "resources": {
@@ -6996,6 +7008,7 @@
         "display": "显示管理",
         "preferences": "使用偏好"
       },
+      "hide_app": "隐藏 {{name}}",
       "open_link_external": {
         "description": "新窗口链接用系统默认浏览器打开",
         "title": "在浏览器中打开新窗口链接"
@@ -7008,6 +7021,7 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "show_app": "显示 {{name}}",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },

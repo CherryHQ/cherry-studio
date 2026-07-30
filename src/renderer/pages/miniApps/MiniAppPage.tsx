@@ -1,8 +1,10 @@
+import { cacheService } from '@data/CacheService'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -38,14 +40,21 @@ const MiniAppPage: FC = () => {
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
 
+  // Last-resort source for a transient app (no database row, opened via openSmartMiniApp):
+  // shared across windows and independent of any window's keep-alive LRU, so it survives
+  // both detaching this tab into a new window and eviction in the window it came from.
+  const transientDescriptor = useSharedCacheValue(`mini_app.transient_descriptor.${appId ?? ''}` as const)
+
   // Find the app from all available apps (including transient ones in the keep-alive list)
   const app = useMemo((): MiniApp | null => {
     if (!appId) return null
     const found = allApps.find((a) => a.appId === appId)
     if (found) return found
     // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
-    return openedKeepAliveMiniApps.find((a) => a.appId === appId) ?? null
-  }, [appId, allApps, openedKeepAliveMiniApps])
+    const cached = openedKeepAliveMiniApps.find((a) => a.appId === appId)
+    if (cached) return cached
+    return transientDescriptor ? toTransientMiniApp(transientDescriptor) : null
+  }, [appId, allApps, openedKeepAliveMiniApps, transientDescriptor])
 
   const displayName = useMemo(() => {
     if (!app) return null
@@ -94,6 +103,16 @@ const MiniAppPage: FC = () => {
   // loading mask flashes over a still-alive webview every time the user
   // switches back to the mini-app, looking like a reload.
   const [isReady, setIsReady] = useState<boolean>(() => (appId ? getWebviewLoaded(appId) : false))
+
+  // The shared cache syncs from Main asynchronously and does not block renderer startup,
+  // so in a window that just opened — exactly the detached-tab case — the descriptor is
+  // not readable on the first render. Hold the not-found verdict until it is, or the
+  // window flashes "app not found" before resolving. Mirrors useApiGateway.
+  const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
+  useEffect(() => {
+    if (sharedCacheReady) return
+    return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
+  }, [sharedCacheReady])
   const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
 
   // Get the webview element from the pool (avoid re-running on openedKeepAliveMiniApps.length changes)
@@ -184,12 +203,17 @@ const MiniAppPage: FC = () => {
   }
 
   // appId in the URL doesn't match any known app — render a not-found state
-  // instead of redirecting away, so the user sees what happened.
+  // instead of redirecting away, so the user sees what happened. A transient app
+  // can still arrive with the shared-cache hydration, so keep loading until then.
   if (!app) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <div className="text-[14px] text-foreground-secondary">{t('miniApp.error.not_found')}</div>
+          {sharedCacheReady ? (
+            <div className="text-[14px] text-foreground-secondary">{t('miniApp.error.not_found')}</div>
+          ) : (
+            <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} />
+          )}
         </div>
       </div>
     )
