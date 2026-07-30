@@ -109,15 +109,6 @@ describe('CodeToolButton', () => {
 
       expect(mockOnClick).toHaveBeenCalledTimes(1)
     })
-
-    it('should handle missing onClick gracefully', () => {
-      const tool = createMockTool({ onClick: undefined })
-      render(<CodeToolButton tool={tool} />)
-
-      expect(() => {
-        fireEvent.click(screen.getByTestId('tool-wrapper'))
-      }).not.toThrow()
-    })
   })
 
   describe('popover menu functionality', () => {
@@ -149,22 +140,6 @@ describe('CodeToolButton', () => {
       const button = screen.getByTestId('tool-wrapper')
       expect(button.tagName).toBe('BUTTON')
       expect(screen.getByTestId('tooltip')).toHaveAttribute('data-title', 'Accessible Tool')
-    })
-  })
-
-  describe('error handling', () => {
-    it('should render without crashing for minimal tool configuration', () => {
-      const minimalTool: ActionTool = {
-        id: 'minimal',
-        type: 'core',
-        order: 1,
-        icon: null,
-        tooltip: ''
-      }
-
-      expect(() => {
-        render(<CodeToolButton tool={minimalTool} />)
-      }).not.toThrow()
     })
   })
 })

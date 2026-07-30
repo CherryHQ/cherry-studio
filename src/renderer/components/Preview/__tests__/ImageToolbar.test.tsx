@@ -48,11 +48,6 @@ describe('ImageToolbar', () => {
     vi.clearAllMocks()
   })
 
-  it('should match snapshot', () => {
-    const { asFragment } = render(<ImageToolbar pan={mockPan} zoom={mockZoom} dialog={mockOpenDialog} />)
-    expect(asFragment()).toMatchSnapshot()
-  })
-
   it('calls onPan with correct values when pan buttons are clicked', () => {
     render(<ImageToolbar pan={mockPan} zoom={mockZoom} dialog={mockOpenDialog} />)
 

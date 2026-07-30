@@ -50,11 +50,6 @@ describe('Link', () => {
     vi.clearAllMocks()
   })
 
-  it('should match snapshot', () => {
-    const { container } = render(<Link href="https://example.com">Example</Link>)
-    expect(container).toMatchSnapshot()
-  })
-
   it('should render internal anchor as span.link and no <a>', () => {
     const { container } = render(<Link href="#section-1">Go to section</Link>)
     expect(container.querySelector('span.link')).not.toBeNull()

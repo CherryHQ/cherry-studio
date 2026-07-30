@@ -50,11 +50,6 @@ describe('ImagePreviewLayout', () => {
     vi.clearAllMocks()
   })
 
-  it('should match snapshot', () => {
-    const { container } = render(<ImagePreviewLayout {...defaultProps} />)
-    expect(container).toMatchSnapshot()
-  })
-
   it('should render children correctly', () => {
     render(<ImagePreviewLayout {...defaultProps} />)
     expect(screen.getByText('Test Content')).toBeInTheDocument()

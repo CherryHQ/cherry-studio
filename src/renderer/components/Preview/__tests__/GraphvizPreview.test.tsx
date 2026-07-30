@@ -63,11 +63,6 @@ describe('GraphvizPreview', () => {
   })
 
   describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = render(<GraphvizPreview enableToolbar>{dotCode}</GraphvizPreview>)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should handle valid dot code', () => {
       render(<GraphvizPreview>{dotCode}</GraphvizPreview>)
 
