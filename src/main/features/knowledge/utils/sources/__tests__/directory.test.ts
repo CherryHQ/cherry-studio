@@ -210,6 +210,41 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
+  it('reports copied files against the supported-file total', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'workspace')
+    const nestedDir = path.join(rootDir, 'guides')
+    realFs.mkdirSync(nestedDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
+    realFs.writeFileSync(path.join(nestedDir, 'guide.txt'), 'guide')
+    realFs.writeFileSync(path.join(rootDir, 'app.exe'), 'binary')
+    const onCopyProgress = vi.fn()
+
+    await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: { source: rootDir },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      new Set(),
+      createSignal(),
+      onCopyProgress
+    )
+
+    expect(onCopyProgress.mock.calls.map(([progress]) => progress)).toEqual([
+      { currentFile: 0, totalFiles: 2, percent: 0 },
+      { currentFile: 1, totalFiles: 2, percent: 50 },
+      { currentFile: 2, totalFiles: 2, percent: 100 }
+    ])
+  })
+
   it('gives same-basename files in different subdirectories distinct relative paths', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'project')

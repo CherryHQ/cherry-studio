@@ -1,3 +1,4 @@
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -32,6 +33,28 @@ describe('prepare-root job handler', () => {
     expect(prepareKnowledgeItemMock).toHaveBeenCalledWith(expect.objectContaining({ baseId: 'kb-1' }))
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')
+  })
+
+  it('publishes directory copy progress by item id', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
+      onDirectoryCopyProgress?.({ currentFile: 2, totalFiles: 4, percent: 50 })
+      return []
+    })
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+
+    await handler.execute(ctx)
+
+    expect(MockMainCacheServiceExport.cacheService.setShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1',
+      50
+    )
+    expect(ctx.reportProgress).toHaveBeenCalledWith(25, {
+      stage: 'copying',
+      currentFile: 2,
+      totalFiles: 4
+    })
   })
 
   it('clears stale expansion vectors before deleting rows', async () => {

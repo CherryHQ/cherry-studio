@@ -42,16 +42,24 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
   return ` ${progress}%`
 }
 
+const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
+  const { t } = useTranslation()
+  const progress = useSharedCacheValue(`knowledge.item.directory_copy_progress.${itemId}` as const)
+  if (progress == null) {
+    return t('knowledge.data_source.status.pending')
+  }
+  return t('knowledge.data_source.status.copying', { percent: progress })
+}
+
 const KnowledgeItemStatusBadge = ({
   failureReason,
   status,
-  embeddingProgress
+  statusText
 }: {
   failureReason: string | null
   status: DataSourceStatusViewModel
-  embeddingProgress: ReactNode
+  statusText: ReactNode
 }) => {
-  const { t } = useTranslation()
   const icon =
     status.icon === 'loader' ? (
       <LoaderCircle className={cn('size-3 animate-spin', status.textClassName)} />
@@ -71,10 +79,7 @@ const KnowledgeItemStatusBadge = ({
       tabIndex={failureReason ? 0 : undefined}
       aria-label={failureReason ?? undefined}>
       {icon}
-      <span>
-        {t(status.labelKey)}
-        {embeddingProgress}
-      </span>
+      <span>{statusText}</span>
     </span>
   )
 
@@ -244,7 +249,16 @@ const KnowledgeItemRow = ({
           <KnowledgeItemStatusBadge
             status={status}
             failureReason={failureReason}
-            embeddingProgress={item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+            statusText={
+              item.type === 'directory' && item.status === 'preparing' ? (
+                <KnowledgeDirectoryCopyStatus itemId={item.id} />
+              ) : (
+                <>
+                  {t(status.labelKey)}
+                  {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+                </>
+              )
+            }
           />
         </div>
         <div role="gridcell" className="truncate text-foreground-muted text-xs">
