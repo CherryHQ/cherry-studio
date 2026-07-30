@@ -45,6 +45,8 @@ interface KnowledgePageContextValue {
   selectedBase: KnowledgeBase | undefined
   selectedBaseId: string
   selectedItemId: string | null
+  /** Which detail view the selected item opens into: its original content or its indexed chunks. */
+  selectedItemView: 'content' | 'chunks'
   filePreview: KnowledgeFilePreviewTarget | null
   baseNavigationVersion: number
   activeTab: KnowledgeTabKey
@@ -71,6 +73,7 @@ interface KnowledgePageContextValue {
   selectBase: (baseId: string) => void
   setActiveTab: (tab: KnowledgeTabKey) => void
   openItemChunks: (itemId: string) => void
+  openItemContent: (itemId: string) => void
   closeItemChunks: () => void
   openFilePreview: (target: KnowledgeFilePreviewTarget) => void
   closeFilePreview: () => void
@@ -115,6 +118,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { deleteGroup } = useDeleteKnowledgeGroup()
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [selectedItemView, setSelectedItemView] = useState<'content' | 'chunks'>('content')
   const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
   const [previewNavigationVersion, setPreviewNavigationVersion] = useState(0)
   const [baseNavigationVersion, setBaseNavigationVersion] = useState(0)
@@ -233,6 +237,12 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   }, [])
 
   const openItemChunks = useCallback((itemId: string) => {
+    setSelectedItemView('chunks')
+    setSelectedItemId(itemId)
+  }, [])
+
+  const openItemContent = useCallback((itemId: string) => {
+    setSelectedItemView('content')
     setSelectedItemId(itemId)
   }, [])
 
@@ -447,6 +457,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedItemId,
+      selectedItemView,
       filePreview,
       baseNavigationVersion,
       activeTab,
@@ -473,6 +484,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectBase,
       setActiveTab: handleSetActiveTab,
       openItemChunks,
+      openItemContent,
       closeItemChunks,
       openFilePreview,
       closeFilePreview: resetFilePreview,
@@ -546,6 +558,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       closeItemChunks,
       openFilePreview,
       openItemChunks,
+      openItemContent,
       openCreateBaseDialog,
       openCreateGroupDialog,
       openRenameBaseDialog,
@@ -557,6 +570,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedItemId,
+      selectedItemView,
       submitCreateGroup,
       submitRenameBase,
       submitRenameGroup
