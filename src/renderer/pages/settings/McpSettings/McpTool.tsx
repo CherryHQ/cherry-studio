@@ -120,14 +120,14 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
           </Flex>
           {itemType && <Badge className={`shrink-0 ${getTypeBadgeClass(type)}`}>{itemType}</Badge>}
           {description && (
-            <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-sm leading-5">
+            <span className="wrap-break-word min-w-0 flex-1 text-muted-foreground text-sm leading-5">
               {description}
             </span>
           )}
         </Flex>
         {property.enum && (
           <div className="mt-1 ml-42 flex flex-wrap items-center gap-1.5">
-            <span className="text-foreground-secondary text-sm">
+            <span className="text-muted-foreground text-sm">
               {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
             </span>
             {property.enum.map((enumValue, index) => (
@@ -143,7 +143,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
           renderSchemaProperties(property.properties, property.required, depth + 1)}
         {depth < MAX_NESTING_DEPTH && type === 'array' && itemsType === 'object' && items?.properties && (
           <div className="mt-2">
-            <span className="text-foreground-secondary text-sm italic">items:</span>
+            <span className="text-muted-foreground text-sm italic">items:</span>
             {renderSchemaProperties(items.properties, items.required, depth + 1)}
           </div>
         )}
@@ -183,7 +183,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
             <Markdown
               id={`mcp-tool-description-${tool.id}`}
               footnoteLabel={t('common.footnotes')}
-              className="font-normal text-foreground-secondary text-sm">
+              className="font-normal text-muted-foreground text-sm">
               {tool.description}
             </Markdown>
           </div>
@@ -214,18 +214,23 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     {
       id: 'name',
       header: () => <span className="font-medium">{t('settings.mcp.tools.availableTools')}</span>,
-      meta: { width: 400, maxWidth: 400 },
+      meta: { width: 400, maxWidth: 400, className: 'overflow-hidden' },
       cell: ({ row }) => {
         const tool = row.original
 
         return (
-          <ColFlex className="gap-1">
-            <Flex className="items-center gap-1">
+          <ColFlex className="min-w-0 gap-1 overflow-hidden">
+            <Flex className="min-w-0 items-center gap-1">
               <span className="truncate text-foreground text-sm" title={tool.name}>
                 {tool.name}
               </span>
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
+            {tool.description && (
+              <p className="m-0 line-clamp-1 w-full min-w-0 max-w-full overflow-hidden text-[13px] text-muted-foreground leading-5">
+                {tool.description}
+              </p>
+            )}
           </ColFlex>
         )
       }
@@ -275,6 +280,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         const properties = getToolSchemaProperties(tool)
         return Boolean(tool.description) || Boolean(properties && Object.keys(properties).length)
       }}
+      tableLayout="fixed"
       className="bg-transparent [&_[data-slot=table-cell]]:bg-transparent [&_[data-slot=table-head]]:bg-transparent [&_[data-slot=table-header]]:bg-transparent [&_[data-slot=table-header]_[data-slot=table-row]]:bg-transparent"
       rowClassName="bg-transparent"
     />

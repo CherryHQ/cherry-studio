@@ -56,7 +56,7 @@ describe('McpToolsSection', () => {
     isActive: true
   }
 
-  it('shows the description only in the expanded row', () => {
+  it('shows a one-line description preview and the full expanded description', () => {
     render(
       <McpToolsSection
         tools={[tool]}
@@ -68,11 +68,16 @@ describe('McpToolsSection', () => {
     )
 
     expect(screen.getByText(tool.name)).toHaveClass('truncate')
-    expect(screen.queryByText(toolDescription)).not.toBeInTheDocument()
+    // The CSS clamp is the maintained layout contract; no JavaScript truncation may split a grapheme.
+    const descriptionPreview = screen.getByText(toolDescription)
+    expect(descriptionPreview).toHaveClass('line-clamp-1', 'overflow-hidden', 'text-muted-foreground')
+    expect(descriptionPreview).not.toHaveClass('block')
+    expect(descriptionPreview.closest('td')).toHaveClass('overflow-hidden')
+    expect(descriptionPreview.closest('table')).toHaveStyle({ tableLayout: 'fixed' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand row' }))
 
-    expect(screen.getByText(toolDescription)).toHaveClass('markdown')
+    expect(screen.getByText(toolDescription, { selector: '.markdown' })).toHaveClass('markdown')
   })
 
   it('removes the tools table surface backgrounds', () => {
