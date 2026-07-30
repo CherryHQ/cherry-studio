@@ -283,7 +283,6 @@ describe('Topics helpers', () => {
   it('renders an orphan topic under the unknown group, diverging from getTopicAssistantDisplayGroupId', () => {
     const groupTopic = createTopicDisplayGroupResolver({
       assistantById: new Map([['assistant-1', { id: 'assistant-1', name: 'Research' }]]),
-      defaultAssistant: { name: 'Default Assistant' },
       labels: TOPIC_GROUP_LABELS,
       mode: 'assistant'
     })
