@@ -434,6 +434,7 @@
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
+        "unknown_agent_tip": "Acesta este un grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
         "yesterday": "Ieri"
       },
       "label_one": "Sesiune",
@@ -1932,6 +1933,7 @@
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_assistant": "Asistent Deconectat",
+        "unknown_assistant_tip": "Acesta este un grup de conversații istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua.",
         "yesterday": "Ieri"
       },
       "list": "Listă subiecte",
@@ -6648,9 +6650,6 @@
           "dxtFile": "Fișier pachet DXT",
           "dxtHelp": "Selectează un fișier .dxt care conține un pachet de server MCP",
           "dxtProcessFailed": "Procesarea fișierului DXT a eșuat",
-          "error": {
-            "multipleServers": "Nu se poate importa din mai multe servere"
-          },
           "invalid": "Intrare invalidă, te rugăm să verifici formatul JSON",
           "json": "Importă din JSON",
           "mcpb": "Importă pachetul MCPB",
