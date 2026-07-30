@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
-            "title": "ファイル編集を自動承認"
+            "description": "ファイルを自由に編集します。コマンドの実行前に確認します。",
+            "title": "編集を自動承認"
+          },
+          "auto": {
+            "description": "通常の確認なしで実行します。安全チェックが危険な操作をブロックします。",
+            "title": "自動で承認"
           },
           "bypassPermissions": {
-            "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
-            "title": "権限チェックをバイパス",
+            "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
+            "title": "フルアクセス",
             "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "description": "通常の権限チェックが適用されます。",
-            "title": "デフォルト（続行する前に確認）"
+            "description": "ファイルの編集やコマンドの実行前に確認します。",
+            "title": "実行前に確認"
           },
           "helper": "エージェントがツール使用の承認を処理する方法を指定",
           "placeholder": "権限モードを選択",
           "plan": {
-            "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
-            "title": "計画モード（近日公開）"
+            "description": "ファイルを編集せずに計画します。読み取り専用または検査済みのコマンドのみ実行されます。",
+            "title": "計画のみ"
           },
           "title": "権限モード"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "無効なJSON形式",
         "max_tokens": "最大トークン",
         "max_tool_calls": "最大ツール呼び出し",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "デフォルト（{{count}} ラウンド）",
         "mcp_mode": "MCPモード",
         "model": "デフォルトモデル",
         "model_clear": "クリア",

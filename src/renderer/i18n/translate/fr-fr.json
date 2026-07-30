@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Les modifications de fichiers et les opérations sur le système de fichiers sont automatiquement approuvées.",
-            "title": "Accepter automatiquement les modifications de fichiers"
+            "description": "Modifie les fichiers librement. Demande avant les commandes.",
+            "title": "Accepter les modifications automatiquement"
+          },
+          "auto": {
+            "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
+            "title": "Approuver pour moi"
           },
           "bypassPermissions": {
-            "description": "Toutes les demandes de permission sont ignorées — à utiliser avec prudence.",
-            "title": "Contourner les vérifications de permission",
+            "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
+            "title": "Accès complet",
             "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "Changer le mode d'autorisation ?"
           },
           "default": {
-            "description": "Les vérifications d'autorisation normales s'appliquent.",
-            "title": "Par défaut (demander avant de continuer)"
+            "description": "Demande avant de modifier des fichiers ou d'exécuter des commandes.",
+            "title": "Demander avant d'agir"
           },
           "helper": "Spécifie comment l'agent gère l'autorisation d'utilisation des outils",
           "placeholder": "Sélectionner le mode de permission",
           "plan": {
-            "description": "Claude ne peut utiliser que des outils en lecture seule et présente un plan avant l'exécution.",
-            "title": "Mode de planification (à venir)"
+            "description": "Planifie sans modifier de fichiers. Seules les commandes en lecture seule ou vérifiées sont exécutées.",
+            "title": "Planification seule"
           },
           "title": "Mode de permission"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "Format JSON invalide",
         "max_tokens": "Jetons max",
         "max_tool_calls": "Appels d'outil max",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "Par défaut ({{count}} tours)",
         "mcp_mode": "Mode MCP",
         "model": "Modèle par défaut",
         "model_clear": "Clair",

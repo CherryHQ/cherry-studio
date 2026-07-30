@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
+import { permissionModeCards } from '@renderer/utils/agent'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -21,14 +23,6 @@ import { useTranslation } from 'react-i18next'
 import type { ChannelData } from './channelTypes'
 
 // --------------- Permission mode ---------------
-
-const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode | ''; labelKey: string }> = [
-  { value: '', labelKey: 'agent.channels.security.inheritFromAgent' },
-  { value: 'default', labelKey: 'agent.settings.tooling.permissionMode.default.title' },
-  { value: 'acceptEdits', labelKey: 'agent.settings.tooling.permissionMode.acceptEdits.title' },
-  { value: 'bypassPermissions', labelKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title' },
-  { value: 'plan', labelKey: 'agent.settings.tooling.permissionMode.plan.title' }
-]
 
 const INHERIT_PERMISSION_MODE_VALUE = '__inherit'
 
@@ -80,9 +74,13 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {PERMISSION_MODE_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value || 'inherit'} value={opt.value || INHERIT_PERMISSION_MODE_VALUE}>
-              {t(opt.labelKey)}
+          <SelectItem value={INHERIT_PERMISSION_MODE_VALUE}>{t('agent.channels.security.inheritFromAgent')}</SelectItem>
+          {permissionModeCards.map((card) => (
+            <SelectItem key={card.mode} value={card.mode}>
+              <div className="flex items-center gap-2">
+                <PermissionModeIcon mode={card.mode} size={14} />
+                <PermissionModeOptionLabel card={card} t={t} withDescription={false} />
+              </div>
             </SelectItem>
           ))}
         </SelectContent>

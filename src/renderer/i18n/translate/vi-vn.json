@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Có thể đọc và chỉnh sửa tập tin tự do. Hỏi trước khi chạy lệnh.",
-            "title": "Chế độ tự động chỉnh sửa"
+            "description": "Chỉnh sửa tệp tự do. Hỏi trước khi chạy lệnh.",
+            "title": "Tự động chấp nhận chỉnh sửa"
+          },
+          "auto": {
+            "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
+            "title": "Phê duyệt thay tôi"
           },
           "bypassPermissions": {
-            "description": "Có thể làm mọi thứ mà không cần hỏi. Dùng một cách thận trọng.",
-            "title": "Chế độ Tự động Hoàn toàn",
+            "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
+            "title": "Toàn quyền truy cập",
             "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt."
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "Thay đổi chế độ quyền?"
           },
           "default": {
-            "description": "Có thể đọc tập tin tự do. Hỏi trước khi chỉnh sửa hoặc chạy lệnh.",
-            "title": "Chế độ Thường"
+            "description": "Hỏi trước khi chỉnh sửa tệp hoặc chạy lệnh.",
+            "title": "Hỏi trước khi thực hiện"
           },
           "helper": "Chọn cách tác nhân xử lý việc phê duyệt công cụ.",
           "placeholder": "Chọn chế độ quyền",
           "plan": {
-            "description": "Chỉ có thể đọc tệp và lập kế hoạch. Không thể chỉnh sửa tệp hoặc chạy lệnh.",
-            "title": "Chế độ Kế hoạch"
+            "description": "Lập kế hoạch mà không chỉnh sửa tệp. Chỉ chạy các lệnh chỉ đọc hoặc đã được kiểm duyệt.",
+            "title": "Chỉ lập kế hoạch"
           },
           "title": "Chế độ quyền"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "Mặc định ({{count}} vòng)",
         "mcp_mode": "Chế độ MCP",
         "model": "Mô hình mặc định",
         "model_clear": "Rõ ràng",

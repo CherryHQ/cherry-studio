@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Editările de fișiere și operațiunile sistemului de fișiere sunt aprobate automat.",
-            "title": "Acceptă automat editările de fișiere"
+            "description": "Editează fișiere liber. Întreabă înainte de comenzi.",
+            "title": "Acceptă editările automat"
+          },
+          "auto": {
+            "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
+            "title": "Aprobă în locul meu"
           },
           "bypassPermissions": {
-            "description": "Toate solicitările de permisiune sunt omise — folosește cu precauție.",
-            "title": "Omite verificările de permisiune",
+            "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
+            "title": "Acces complet",
             "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "Schimbi modul de permisiune?"
           },
           "default": {
-            "description": "Instrumentele doar-pentru-citire sunt pre-aprobate; orice altceva necesită încă permisiune.",
-            "title": "Implicit (întreabă înainte de a continua)"
+            "description": "Întreabă înainte de a edita fișiere sau de a rula comenzi.",
+            "title": "Întreabă înainte de a acționa"
           },
           "helper": "Alege cum gestionează agentul aprobările pentru instrumente.",
           "placeholder": "Selectează modul de permisiune",
           "plan": {
-            "description": "Partajează setul implicit de instrumente doar-pentru-citire, dar prezintă un plan înainte de execuție.",
-            "title": "Mod de planificare"
+            "description": "Planifică fără a edita fișiere. Rulează doar comenzi de tip citire sau verificate.",
+            "title": "Doar planificare"
           },
           "title": "Mod de permisiune"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "Format JSON invalid",
         "max_tokens": "Tokeni maximi",
         "max_tool_calls": "Apeluri maxime de instrumente",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "Implicit ({{count}} runde)",
         "mcp_mode": "Modul MCP",
         "model": "Model implicit",
         "model_clear": "Clar",

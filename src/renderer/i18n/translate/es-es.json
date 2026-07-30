@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Las ediciones de archivos y las operaciones del sistema de archivos se aprueban automáticamente.",
-            "title": "Aceptar automáticamente las ediciones de archivos"
+            "description": "Edita archivos libremente. Pregunta antes de los comandos.",
+            "title": "Aceptar ediciones automáticamente"
+          },
+          "auto": {
+            "description": "Se ejecuta sin preguntas rutinarias. Una comprobación de seguridad bloquea las acciones arriesgadas.",
+            "title": "Aprobar por mí"
           },
           "bypassPermissions": {
-            "description": "Todos los mensajes de permiso se omiten — úsalo con precaución.",
-            "title": "Omitir verificaciones de permisos",
+            "description": "Omite las comprobaciones de permisos. Puede eliminar archivos y usar la red.",
+            "title": "Acceso completo",
             "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "¿Cambiar modo de permisos?"
           },
           "default": {
-            "description": "Se aplican los controles de permisos normales.",
-            "title": "Predeterminado (preguntar antes de continuar)"
+            "description": "Pregunta antes de editar archivos o ejecutar comandos.",
+            "title": "Preguntar antes de actuar"
           },
           "helper": "Especifica cómo el agente maneja la autorización de uso de herramientas",
           "placeholder": "Seleccionar modo de permisos",
           "plan": {
-            "description": "Claude solo puede usar herramientas de solo lectura y presenta un plan antes de ejecutarlo.",
-            "title": "Modo de planificación (próximamente)"
+            "description": "Planifica sin editar archivos. Solo se ejecutan comandos de solo lectura o verificados.",
+            "title": "Solo planificar"
           },
           "title": "Modo de permisos"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Llamadas máximas de herramientas",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "Predeterminado ({{count}} rondas)",
         "mcp_mode": "Modo MCP",
         "model": "Modelo predeterminado",
         "model_clear": "Claro",

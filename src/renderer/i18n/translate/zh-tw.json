@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "檔案編輯與檔案系統操作會自動核准。",
-            "title": "自動接受檔案編輯"
+            "description": "可自由編輯檔案，執行命令前詢問。",
+            "title": "自動接受編輯"
+          },
+          "auto": {
+            "description": "無需逐次批准，安全檢查會攔截風險操作。",
+            "title": "智慧批准"
           },
           "bypassPermissions": {
-            "description": "所有權限提示都會被略過，請務必謹慎使用。",
-            "title": "略過所有權限檢查",
+            "description": "略過權限檢查，可刪除檔案、存取網路。",
+            "title": "完全存取",
             "warning": "警告：所有工具都會在無核准情況下執行。"
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "確認切換權限模式？"
           },
           "default": {
-            "description": "唯讀工具會自動預先授權，其它操作仍需核准。",
-            "title": "預設（繼續前先詢問）"
+            "description": "編輯檔案或執行命令前詢問。",
+            "title": "逐次確認"
           },
           "helper": "指定助手如何處理工具使用授權",
           "placeholder": "選擇權限模式",
           "plan": {
-            "description": "沿用預設的唯讀工具集，並會在執行前先呈現計畫。",
-            "title": "規劃模式"
+            "description": "只規劃、不編輯檔案，僅執行唯讀或審查通過的命令。",
+            "title": "僅規劃"
           },
           "title": "權限模式"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "預設（{{count}} 輪）",
         "mcp_mode": "MCP 模式",
         "model": "預設模型",
         "model_clear": "清除",

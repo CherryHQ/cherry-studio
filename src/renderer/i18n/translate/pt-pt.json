@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
-            "title": "Aceitar automaticamente edições de arquivos"
+            "description": "Edita ficheiros livremente. Pergunta antes dos comandos.",
+            "title": "Aceitar edições automaticamente"
+          },
+          "auto": {
+            "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "title": "Aprovar por mim"
           },
           "bypassPermissions": {
-            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
-            "title": "Ignorar verificações de permissão",
+            "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
+            "title": "Acesso total",
             "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "Alterar modo de permissão?"
           },
           "default": {
-            "description": "Verificações normais de permissão aplicam-se.",
-            "title": "Padrão (perguntar antes de continuar)"
+            "description": "Pergunta antes de editar ficheiros ou executar comandos.",
+            "title": "Perguntar antes de agir"
           },
           "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
           "placeholder": "Selecionar modo de permissões",
           "plan": {
-            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
-            "title": "Modo de planejamento (em breve)"
+            "description": "Planeia sem editar ficheiros. Só são executados comandos de leitura ou verificados.",
+            "title": "Apenas planear"
           },
           "title": "Modo de permissões"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Máximo de chamadas de ferramentas",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "Predefinição ({{count}} rondas)",
         "mcp_mode": "Modo MCP",
         "model": "Modelo padrão",
         "model_clear": "Claro",

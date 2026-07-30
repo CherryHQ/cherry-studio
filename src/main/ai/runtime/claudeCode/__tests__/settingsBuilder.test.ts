@@ -820,9 +820,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   it.each([
     { permissionMode: 'default', headless: false, shouldDeny: false },
     { permissionMode: 'acceptEdits', headless: false, shouldDeny: false },
+    { permissionMode: 'auto', headless: false, shouldDeny: false },
     { permissionMode: 'bypassPermissions', headless: false, shouldDeny: false },
     { permissionMode: 'default', headless: true, shouldDeny: true },
     { permissionMode: 'acceptEdits', headless: true, shouldDeny: true },
+    { permissionMode: 'auto', headless: true, shouldDeny: true },
     { permissionMode: 'bypassPermissions', headless: true, shouldDeny: false }
   ])(
     'applies SDK skill-install permission semantics ($permissionMode, headless=$headless)',

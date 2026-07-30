@@ -628,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
-            "title": "Dateibearbeitungen automatisch akzeptieren"
+            "description": "Bearbeitet Dateien frei. Fragt vor Befehlen.",
+            "title": "Bearbeitungen automatisch annehmen"
+          },
+          "auto": {
+            "description": "Läuft ohne routinemäßige Rückfragen. Eine Sicherheitsprüfung blockiert riskante Aktionen.",
+            "title": "Für mich genehmigen"
           },
           "bypassPermissions": {
-            "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
-            "title": "Alle Berechtigungsprüfungen überspringen",
+            "description": "Überspringt Berechtigungsprüfungen. Kann Dateien löschen und das Netzwerk nutzen.",
+            "title": "Vollzugriff",
             "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
           },
           "confirmChange": {
@@ -641,14 +645,14 @@
             "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
-            "title": "Standard (vor Fortsetzung fragen)"
+            "description": "Fragt vor dem Bearbeiten von Dateien oder dem Ausführen von Befehlen.",
+            "title": "Vor Aktionen fragen"
           },
           "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
           "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
-            "title": "Planungsmodus"
+            "description": "Plant, ohne Dateien zu bearbeiten. Es laufen nur schreibgeschützte oder geprüfte Befehle.",
+            "title": "Nur planen"
           },
           "title": "Berechtigungsmodus"
         },
@@ -3463,7 +3467,7 @@
         "json_invalid": "Ungültiges JSON-Format",
         "max_tokens": "Maximale Token",
         "max_tool_calls": "Maximale Tool-Aufrufe",
-        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
+        "max_tool_calls_default": "Standard ({{count}} Runden)",
         "mcp_mode": "MCP-Modus",
         "model": "Standardmodell",
         "model_clear": "Klar",
