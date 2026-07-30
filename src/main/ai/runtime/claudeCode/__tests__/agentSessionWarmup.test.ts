@@ -828,6 +828,24 @@ describe('deriveConnectionConfig', () => {
     expect(second.rebuildSignature).toBe(first.rebuildSignature)
   })
 
+  it('includes the connection-scoped agent identity in the rebuild signature', async () => {
+    mocks.getAgent.mockImplementation((agentId: string) => ({
+      id: agentId,
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    }))
+
+    const first = await deriveConnectionConfig('session-1', undefined, 'default', [], 'agent-1')
+    const rebound = await deriveConnectionConfig('session-1', undefined, 'default', [], 'agent-2')
+
+    expect(first.ok).toBe(true)
+    expect(rebound.ok).toBe(true)
+    if (!first.ok || !rebound.ok) throw new Error('expected ok derive')
+    expect(rebound.config.rebuildSignature).not.toBe(first.config.rebuildSignature)
+  })
+
   it('changes the rebuild signature when the app language changes', async () => {
     const english = await deriveSignature()
 

@@ -349,7 +349,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.resumeToken,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.agentId
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -455,6 +456,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async reconcile(input: {
+    agentId?: string
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
@@ -471,16 +473,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async reconcileOnce(input: {
+    agentId?: string
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
+    const agentId = input.agentId ?? this.input.agentId
+    if (agentId !== this.input.agentId) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      agentId
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig

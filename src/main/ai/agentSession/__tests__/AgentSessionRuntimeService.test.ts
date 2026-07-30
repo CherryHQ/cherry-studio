@@ -1133,7 +1133,60 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
     // The next turn (idle entry, no live turn) targets the edited model again.
     expect((service as any).connectionTarget({ ...getEntry(service), currentTurn: undefined })).toEqual({
+      agentId: 'agent-1',
+      agentType: 'test-runtime',
       modelId: switchedModelId,
+      reasoningEffort: 'default',
+      knowledgeBaseIds: []
+    })
+
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('connects a turn created before an agent rebind with its captured agent (rebind-before-open-stream)', async () => {
+    const connection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    mocks.getAgent.mockImplementation((agentId: string) => ({
+      id: agentId,
+      type: 'test-runtime',
+      model: baseTurnInput.modelId
+    }))
+
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { agentId: 'agent-2' },
+      { id: 'session-1', agentId: 'agent-2', modelId: baseTurnInput.modelId }
+    )
+
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-1' }))
+    expect((service as any).connectionTarget({ ...getEntry(service), currentTurn: undefined })).toEqual({
+      agentId: 'agent-2',
+      agentType: 'test-runtime',
+      modelId: baseTurnInput.modelId,
       reasoningEffort: 'default',
       knowledgeBaseIds: []
     })
@@ -1331,6 +1384,8 @@ describe('AgentSessionRuntimeService', () => {
     // (which is also what makes wholesale `configuration` replaces resync a cleared permission_mode:
     // the derive reads the post-update agent row, not the DTO's key presence).
     expect(connection.reconcile).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      agentType: 'test-runtime',
       modelId: baseTurnInput.modelId,
       reasoningEffort: 'default',
       knowledgeBaseIds: []
@@ -1384,6 +1439,72 @@ describe('AgentSessionRuntimeService', () => {
       { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [] }
     ])
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
+  })
+
+  it('keeps a live turn on its captured agent and rebuilds queued follow-ups onto the rebound agent', async () => {
+    const oldConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      redirect: vi.fn().mockReturnValue(true),
+      reconcile: vi.fn().mockResolvedValueOnce('current').mockResolvedValueOnce('rebuild')
+    }
+    const newConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connect = vi.fn().mockResolvedValue(newConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    mocks.getAgent.mockImplementation((agentId: string) => ({
+      id: agentId,
+      type: 'test-runtime',
+      model: baseTurnInput.modelId
+    }))
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-2',
+      modelId: baseTurnInput.modelId
+    })
+
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = oldConnection
+
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { agentId: 'agent-2' },
+      { id: 'session-1', agentId: 'agent-2', modelId: baseTurnInput.modelId }
+    )
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    expect(oldConnection.reconcile).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ agentId: 'agent-1', agentType: 'test-runtime' })
+    )
+    expect(oldConnection.redirect).not.toHaveBeenCalled()
+    expect(entry.pendingTurns).toHaveLength(1)
+
+    entry.currentTurn.terminalStatus = 'success'
+    await (service as any).startNextTurn(entry)
+    expect(entry.currentTurn).toMatchObject({ agentId: 'agent-2', agentType: 'test-runtime' })
+
+    await expect((service as any).ensureConnection(entry)).resolves.toBe(true)
+    expect(oldConnection.reconcile).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ agentId: 'agent-2', agentType: 'test-runtime' })
+    )
+    expect(oldConnection.close).toHaveBeenCalledOnce()
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-2' }))
+    expect(entry.connection).toBe(newConnection)
   })
 
   it('fails closed and logs when a push reconcile throws', async () => {
@@ -1579,6 +1700,8 @@ describe('AgentSessionRuntimeService', () => {
         expect(secondConnection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-2') }))
       )
       expect(firstConnection.reconcile).toHaveBeenCalledWith({
+        agentId: 'agent-1',
+        agentType: 'test-runtime',
         modelId: baseTurnInput.modelId,
         reasoningEffort: 'default',
         knowledgeBaseIds: []
@@ -1908,6 +2031,57 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       await service.primeConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
+    })
+
+    it('discards an in-flight prewarm when the session is rebound and installs the new agent connection', async () => {
+      const firstConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const secondConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const firstConnect = createDeferred<any>()
+      const connect = vi.fn().mockReturnValueOnce(firstConnect.promise).mockResolvedValueOnce(secondConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getAgent.mockImplementation((agentId: string) => ({
+        id: agentId,
+        type: 'test-runtime',
+        model: baseTurnInput.modelId
+      }))
+
+      const service = new AgentSessionRuntimeService()
+      const priming = service.primeConnection('session-1')
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+
+      mocks.getSessionById.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-2',
+        modelId: baseTurnInput.modelId
+      })
+      await (service as any).handleSessionUpdated(
+        'session-1',
+        { agentId: 'agent-2' },
+        { id: 'session-1', agentId: 'agent-2', modelId: baseTurnInput.modelId }
+      )
+      firstConnect.resolve(firstConnection)
+
+      await priming
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenNthCalledWith(1, expect.objectContaining({ agentId: 'agent-1' }))
+      expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ agentId: 'agent-2' }))
+      expect(getEntry(service).connection).toBe(secondConnection)
     })
 
     it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
@@ -3350,6 +3524,27 @@ describe('AgentSessionRuntimeService', () => {
     )
     expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(getEntry(service).pendingTurns).toEqual([])
+  })
+
+  it('terminates the held stream and closes the runtime when a queued session was deleted', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
+    mocks.getSessionById.mockImplementation(() => {
+      throw new Error('Agent session not found: session-1')
+    })
+
+    await (service as any).startNextTurn(entry)
+
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      baseTurnInput.modelId,
+      expect.anything()
+    )
+    expect(getEntry(service)).toBeUndefined()
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {

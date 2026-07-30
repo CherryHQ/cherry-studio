@@ -159,6 +159,8 @@ export interface AgentRuntimeConnection {
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
+    /** Agent identity the connection must serve; omitted only by legacy tests/callers. */
+    agentId?: string
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]

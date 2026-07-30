@@ -370,6 +370,20 @@ describe('AgentSessionService', () => {
     expect(agent.model).toBe(defaultModelId)
   })
 
+  it('rejects an unregistered session model without changing the stored model', async () => {
+    await seedAgentModels()
+    const session = await createSession('Model validation session')
+
+    const error = captureError(() => agentSessionService.update(session.id, { modelId: 'anthropic::missing-model' }))
+
+    expect(error).toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      details: { fieldErrors: { modelId: expect.any(Array) } }
+    })
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row.modelId).toBe(defaultModelId)
+  })
+
   it('treats name-only updates as manual session renames', async () => {
     const session = await createSession('Before name-only update')
 

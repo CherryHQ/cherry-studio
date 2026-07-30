@@ -58,7 +58,7 @@ describe('agentSessionExport', () => {
     vi.mocked(dataApiService.get).mockReset()
   })
 
-  it('resolves the export model from snapshot → row modelId → live agent fallback, in that order', async () => {
+  it('resolves the export model from snapshot → row modelId → session model fallback, in that order', async () => {
     vi.mocked(dataApiService.get).mockResolvedValueOnce({
       items: [
         createSessionMessage({ id: 'assistant-without-snapshot', role: 'assistant' }),
@@ -78,7 +78,12 @@ describe('agentSessionExport', () => {
     })
 
     const messages = await getAgentSessionMessagesForExport(
-      { id: 'session-a', agentId: 'agent-a', name: 'Session A' },
+      {
+        id: 'session-a',
+        agentId: 'agent-a',
+        name: 'Session A',
+        modelId: 'session-provider::session-model' as any
+      },
       {
         modelFallback: {
           id: 'fallback-model',
@@ -89,11 +94,11 @@ describe('agentSessionExport', () => {
     )
 
     const modelByMessageId = new Map(messages.map((message) => [message.id, message.model]))
-    // No snapshot and no modelId → live agent fallback.
+    // No snapshot and no row modelId → the session model, never the agent default fallback.
     expect(modelByMessageId.get('assistant-without-snapshot')).toEqual({
-      id: 'fallback-model',
-      name: 'Fallback Model',
-      provider: 'fallback-provider',
+      id: 'session-model',
+      name: 'session-model',
+      provider: 'session-provider',
       group: ''
     })
     // No snapshot but a stored modelId → the row's own frozen model, not the live fallback.

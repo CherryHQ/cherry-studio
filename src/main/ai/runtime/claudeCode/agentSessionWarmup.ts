@@ -186,13 +186,14 @@ export async function deriveConnectionConfig(
   sessionId: string,
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  connectionAgentId?: string
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return unroutable
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(connectionAgentId ?? session.agentId)
   if (!agent || !session.modelId) return unroutable
   try {
     return {
@@ -250,6 +251,7 @@ async function deriveConnectionConfigFromSnapshot(
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const rebuildFacts = {
+    agentId: agent.id,
     modelId: uniqueModelId,
     reasoningEffort,
     route: routeFacts,
@@ -316,12 +318,14 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Canonical reasoning selection frozen when the turn was submitted. */
   reasoningEffort: ReasoningEffortOption = 'default',
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** Agent identity frozen with the connection target; defaults to the session's current binding. */
+  connectionAgentId?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(connectionAgentId ?? session.agentId)
   if (!agent || !session.modelId) return undefined
   const linkedChannelSnapshot = agentChannelService.findBySessionId(session.id)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)

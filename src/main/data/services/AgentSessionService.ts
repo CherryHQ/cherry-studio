@@ -9,6 +9,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -358,6 +359,12 @@ export class AgentSessionService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
+            throw DataApiErrorFactory.validation(
+              { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
+              `Session modelId '${dto.modelId}' is not registered — add the model first or pass null`
+            )
+          }
           if (dto.agentId !== undefined) {
             const agent = this.assertAgentExistsTx(tx, dto.agentId)
             // Rebinding an empty placeholder to another agent adopts that agent's default.
