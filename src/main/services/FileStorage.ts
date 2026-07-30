@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { decodeTextBufferIfText } from '@main/utils/file'
+import { decodeTextBufferIfText, isPathInside } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -19,7 +19,6 @@ import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
-import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
 import * as path from 'path'
@@ -53,6 +52,23 @@ class FileStorage {
 
   private runManagedWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
     return application.get('ProfileWriteBarrierService').runWrite(`file-storage:${label}`, operation)
+  }
+
+  /**
+   * Admit only mutations that lexically target this profile.
+   *
+   * This deprecated compatibility layer deliberately does not realpath through
+   * symlinks. Canonical managed roots are covered by owner policy; arbitrary
+   * external paths stay outside the backup transaction unless their lexical
+   * source or destination crosses userData.
+   */
+  private runPathWrite<T>(label: string, mutatedPaths: readonly string[], operation: () => T | Promise<T>): Promise<T> {
+    const userData = path.resolve(application.getPath('app.userdata'))
+    const mutatesProfile = mutatedPaths.some((target) => {
+      const resolved = path.resolve(target)
+      return resolved === userData || isPathInside(resolved, userData)
+    })
+    return mutatesProfile ? this.runManagedWrite(label, operation) : Promise.resolve().then(operation)
   }
 
   // @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
@@ -259,11 +275,10 @@ class FileStorage {
   }
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
-    await this.runManagedWrite('delete-external-file', async () => {
+    if (!filePath) return
+    const nativePath = normalizeTrashPath(filePath)
+    await this.runPathWrite('delete-external-file', [nativePath], async () => {
       try {
-        if (!filePath) return
-
-        const nativePath = normalizeTrashPath(filePath)
         if (!fs.existsSync(nativePath)) {
           return
         }
@@ -278,11 +293,10 @@ class FileStorage {
   }
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
-    await this.runManagedWrite('delete-external-directory', async () => {
+    if (!dirPath) return
+    const nativePath = normalizeTrashPath(dirPath)
+    await this.runPathWrite('delete-external-directory', [nativePath], async () => {
       try {
-        if (!dirPath) return
-
-        const nativePath = normalizeTrashPath(dirPath)
         if (!fs.existsSync(nativePath)) {
           return
         }
@@ -297,7 +311,7 @@ class FileStorage {
   }
 
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
-    await this.runManagedWrite('move-file', async () => {
+    await this.runPathWrite('move-file', [filePath, newPath], async () => {
       try {
         if (!fs.existsSync(filePath)) {
           throw new Error(`Source file does not exist: ${filePath}`)
@@ -320,7 +334,7 @@ class FileStorage {
   }
 
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
-    await this.runManagedWrite('move-directory', async () => {
+    await this.runPathWrite('move-directory', [dirPath, newDirPath], async () => {
       try {
         if (!fs.existsSync(dirPath)) {
           throw new Error(`Source directory does not exist: ${dirPath}`)
@@ -343,14 +357,12 @@ class FileStorage {
   }
 
   public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
-    await this.runManagedWrite('rename-file', async () => {
+    const newFilePath = path.join(path.dirname(filePath), newName + '.md')
+    await this.runPathWrite('rename-file', [filePath, newFilePath], async () => {
       try {
         if (!fs.existsSync(filePath)) {
           throw new Error(`Source file does not exist: ${filePath}`)
         }
-
-        const dirPath = path.dirname(filePath)
-        const newFilePath = path.join(dirPath, newName + '.md')
 
         // 如果目标文件已存在，抛出错误
         if (fs.existsSync(newFilePath)) {
@@ -368,14 +380,12 @@ class FileStorage {
   }
 
   public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
-    await this.runManagedWrite('rename-directory', async () => {
+    const newDirPath = path.join(path.dirname(dirPath), newName)
+    await this.runPathWrite('rename-directory', [dirPath, newDirPath], async () => {
       try {
         if (!fs.existsSync(dirPath)) {
           throw new Error(`Source directory does not exist: ${dirPath}`)
         }
-
-        const parentDir = path.dirname(dirPath)
-        const newDirPath = path.join(parentDir, newName)
 
         // 如果目标目录已存在，抛出错误
         if (fs.existsSync(newDirPath)) {
@@ -517,7 +527,7 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
-    await this.runManagedWrite('write-file', () => fs.promises.writeFile(filePath, data))
+    await this.runPathWrite('write-file', [filePath], () => fs.promises.writeFile(filePath, data))
   }
 
   public fileNameGuard = async (
@@ -536,7 +546,7 @@ class FileStorage {
   }
 
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
-    return this.runManagedWrite('make-directory', async () => {
+    return this.runPathWrite('make-directory', [dirPath], async () => {
       try {
         logger.debug(`Attempting to create directory: ${dirPath}`)
         await fs.promises.mkdir(dirPath, { recursive: true })
@@ -844,46 +854,44 @@ class FileStorage {
     content: string,
     options?: SaveDialogOptions
   ): Promise<string | null> => {
-    return this.runManagedWrite('save-file', async () => {
-      try {
-        const result: SaveDialogReturnValue = await dialog.showSaveDialog({
-          title: t('dialog.save_file'),
-          defaultPath: fileName,
-          ...options
-        })
+    try {
+      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+        title: t('dialog.save_file'),
+        defaultPath: fileName,
+        ...options
+      })
 
-        if (result.canceled || !result.filePath) {
-          return null
-        }
-
-        writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-
-        return result.filePath
-      } catch (err: any) {
-        logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
-        return Promise.reject('An error occurred saving the file: ' + err?.message)
+      if (result.canceled || !result.filePath) {
+        return null
       }
-    })
+
+      await this.runPathWrite('save-file', [result.filePath], () =>
+        fs.promises.writeFile(result.filePath, content, { encoding: 'utf-8' })
+      )
+      return result.filePath
+    } catch (err: any) {
+      logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
+      return Promise.reject('An error occurred saving the file: ' + err?.message)
+    }
   }
 
   public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
-    return this.runManagedWrite('save-image', async () => {
-      try {
-        const filePath = dialog.showSaveDialogSync({
-          defaultPath: `${name}.png`,
-          filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
-        })
+    try {
+      const filePath = dialog.showSaveDialogSync({
+        defaultPath: `${name}.png`,
+        filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
+      })
+      if (!filePath) return false
 
-        if (filePath) {
-          const parseResult = parseDataUrl(data)
-          fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
-          return true
-        }
-      } catch (error) {
-        logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
-      }
+      const parseResult = parseDataUrl(data)
+      await this.runPathWrite('save-image', [filePath], () =>
+        fs.promises.writeFile(filePath, parseResult?.data ?? data, 'base64')
+      )
+      return true
+    } catch (error) {
+      logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
       return false
-    })
+    }
   }
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
@@ -992,7 +1000,7 @@ class FileStorage {
 
   // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
-    await this.runManagedWrite('copy-file', async () => {
+    await this.runPathWrite('copy-file', [destPath], async () => {
       try {
         const sourcePath = path.join(this.storageDir, id)
 
@@ -1103,7 +1111,7 @@ class FileStorage {
     skippedFiles: number
     failedFiles: number
   }> => {
-    return this.runManagedWrite('batch-upload-markdown', async () => {
+    return this.runPathWrite('batch-upload-markdown', [targetPath], async () => {
       try {
         logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 

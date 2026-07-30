@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 
 import { application } from '@application'
 import { MockMainProfileWriteBarrierServiceUtils } from '@test-mocks/main/ProfileWriteBarrierService'
+import type { SaveDialogReturnValue } from 'electron'
 import { dialog, shell } from 'electron'
 import * as fs from 'fs'
 import iconv from 'iconv-lite'
@@ -61,13 +62,43 @@ describe('FileStorage', () => {
       })
       const writeFile = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue()
 
-      const writing = fileStorage.writeFile(event, '/profile/notes/note.md', 'content')
+      const writing = fileStorage.writeFile(event, '/mock/app.userdata/notes/note.md', 'content')
       await Promise.resolve()
 
       expect(writeFile).not.toHaveBeenCalled()
       resume()
       await writing
-      expect(writeFile).toHaveBeenCalledWith('/profile/notes/note.md', 'content')
+      expect(writeFile).toHaveBeenCalledWith('/mock/app.userdata/notes/note.md', 'content')
+    })
+
+    it('does not admit a write whose target is entirely outside userData', async () => {
+      const writeFile = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue()
+
+      await fileStorage.writeFile(event, '/external/notes/note.md', 'content')
+
+      expect(writeFile).toHaveBeenCalledWith('/external/notes/note.md', 'content')
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
+    })
+
+    it('admits a move when either mutation endpoint crosses userData', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.spyOn(fs.promises, 'rename').mockResolvedValue()
+
+      await fileStorage.moveFile(event, '/external/note.md', '/mock/app.userdata/notes/note.md')
+
+      expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
+        'file-storage:move-file',
+        expect.any(Function)
+      )
+    })
+
+    it('classifies copy by its destination rather than its read-only source', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.spyOn(fs.promises, 'copyFile').mockResolvedValue()
+
+      await fileStorage.copyFile(event, 'blob-id.md', '/external/export.md')
+
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
     })
   })
 
@@ -75,11 +106,59 @@ describe('FileStorage', () => {
     it('returns null (does not throw) when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
     })
 
     it('returns null when the dialog resolves without a file path', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' } as never)
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
+    })
+
+    it('does not hold profile admission while waiting for the save dialog', async () => {
+      let resolveDialog!: (value: SaveDialogReturnValue) => void
+      vi.mocked(dialog.showSaveDialog).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveDialog = resolve
+          })
+      )
+      vi.spyOn(fs.promises, 'writeFile').mockResolvedValue()
+
+      const saving = fileStorage.save(event, 'note.md', 'content')
+      await Promise.resolve()
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
+
+      resolveDialog({ canceled: false, filePath: '/mock/app.userdata/export.md' })
+      await expect(saving).resolves.toBe('/mock/app.userdata/export.md')
+      expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
+        'file-storage:save-file',
+        expect.any(Function)
+      )
+    })
+
+    it('opens the image dialog before admitting the selected profile write', async () => {
+      const events: string[] = []
+      const showSaveDialogSync = vi.fn(() => {
+        events.push('dialog')
+        return '/mock/app.userdata/image.png'
+      })
+      Object.defineProperty(dialog, 'showSaveDialogSync', {
+        configurable: true,
+        value: showSaveDialogSync
+      })
+      vi.mocked(application.get('ProfileWriteBarrierService').runWrite).mockImplementation(async (_label, work) => {
+        events.push('admit')
+        return work()
+      })
+      vi.spyOn(fs.promises, 'writeFile').mockImplementation(async () => {
+        events.push('write')
+      })
+
+      await expect(fileStorage.saveImage(event, 'image', 'aW1n')).resolves.toBe(true)
+
+      expect(events).toEqual(['dialog', 'admit', 'write'])
+      Reflect.deleteProperty(dialog, 'showSaveDialogSync')
     })
   })
 
@@ -163,6 +242,7 @@ describe('FileStorage', () => {
       await fileStorage.deleteExternalFile(event, portablePath)
 
       expect(shell.trashItem).toHaveBeenCalledWith(tmpFile)
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
     })
 
     it('normalizes Windows paths without relying on the test host platform', async () => {
@@ -178,6 +258,18 @@ describe('FileStorage', () => {
       await fileStorage.deleteExternalFile(event, '')
 
       expect(shell.trashItem).not.toHaveBeenCalled()
+      expect(application.get('ProfileWriteBarrierService').runWrite).not.toHaveBeenCalled()
+    })
+
+    it('admits a lexical userData target before moving it to trash', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+
+      await fileStorage.deleteExternalFile(event, '/mock/app.userdata/notes/note.md')
+
+      expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
+        'file-storage:delete-external-file',
+        expect.any(Function)
+      )
     })
   })
 
