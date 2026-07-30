@@ -37,6 +37,11 @@ const bundledGitMock = vi.hoisted(() => ({
   getBundledGitPath: vi.fn(),
   getBundledGitDir: vi.fn()
 }))
+// Windows resolves the terminal executable itself instead of leaning on a
+// shell; default to echoing back a System32 path for whatever is asked.
+const commandResolverMock = vi.hoisted(() => ({
+  findExecutable: vi.fn((name: string): string | null => `C:\\Windows\\System32\\${name}.exe`)
+}))
 const childProcessMock = vi.hoisted(() => ({
   exec: vi.fn(),
   execFile: vi.fn(),
@@ -66,6 +71,10 @@ vi.mock('@main/utils/processRunner', () => ({
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: shellEnvMock.getShellEnv,
   getRawShellEnv: shellEnvMock.getRawShellEnv
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  findExecutable: commandResolverMock.findExecutable
 }))
 
 vi.mock('@main/utils/bundledGit', () => ({
@@ -664,9 +673,9 @@ describe('CodeCliService', () => {
 
         const launch = vi.mocked(spawn).mock.calls.at(-1)
         expect(launch).toBeDefined()
-        expect(launch![0]).toBe('cmd')
+        expect(launch![0]).toBe('C:\\Windows\\System32\\cmd.exe')
         expect(launch![1]).toEqual(['/c', batPath])
-        expect(launch![2]).toMatchObject({ shell: true, detached: true })
+        expect(launch![2]).toMatchObject({ detached: true })
       } finally {
         vi.useRealTimers()
       }
@@ -733,6 +742,85 @@ describe('CodeCliService', () => {
         // The user's own mise settings pass through untouched; Cherry's isolated
         // MISE_DATA_DIR must never redirect a system CLI's shims.
         expect(spawnEnv.MISE_DATA_DIR).toBe('C:\\Users\\me\\mise-data')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps cmd metacharacters in a PATH segment out of the set lines', async () => {
+      // Regression: `set "Path=…"` quotes the value, and cmd.exe does not
+      // process carets inside quotes — caret-escaping `&` left the caret in
+      // PATH and killed the segment. A directory named `Dell & Co` is legal.
+      shellEnvMock.getRawShellEnv.mockResolvedValue({ Path: 'C:\\Dell & Co;C:\\Windows\\System32' })
+
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const batContent = vi.mocked(fs.writeFileSync).mock.calls.at(-1)![1] as string
+        const pathLine = batContent.split('\r\n').find((line) => line.startsWith('set "Path='))
+        expect(pathLine).toBe('set "Path=/mock/binary-data/shims;C:\\Dell & Co;C:\\Windows\\System32"')
+        // One `set` per line: a full PATH plus the MISE_* block would otherwise
+        // risk cmd.exe's per-line length limit.
+        expect(batContent).not.toContain('" && set "')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('resolves the terminal executable so Node quotes a launcher path with spaces', async () => {
+      // Regression: `shell: true` makes Node concatenate argv without quoting
+      // (DEP0190), so a bat under `C:\Users\First Last\…` was split at the
+      // space. Resolving the terminal ourselves lets us spawn without a shell.
+      commandResolverMock.findExecutable.mockReturnValueOnce('C:\\Windows\\System32\\cmd.exe')
+
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\First Last\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const launch = vi.mocked(spawn).mock.calls.at(-1)!
+        expect(launch[0]).toBe('C:\\Windows\\System32\\cmd.exe')
+        expect(launch[2]).toMatchObject({ shell: false })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('reports a failure when the terminal executable cannot be resolved', async () => {
+      commandResolverMock.findExecutable.mockReturnValueOnce(null)
+
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result).toMatchObject({
+          success: false,
+          message: expect.stringContaining('Terminal executable not found')
+        })
+        expect(spawn).not.toHaveBeenCalled()
       } finally {
         vi.useRealTimers()
       }

@@ -7,6 +7,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isMac, isWin } from '@main/core/platform'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
+import { findExecutable } from '@main/utils/commandResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
@@ -452,46 +453,68 @@ export class CodeCliService extends BaseService {
     let terminalCommand: string
     let terminalArgs: string[]
 
-    // Build environment variable prefix (based on platform)
-    const buildEnvPrefix = (isWindows: boolean) => {
+    const logLaunchEnv = () => {
+      logger.info('Setting environment variables:', Object.keys(env))
+      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
+    }
+
+    /**
+     * One `set "KEY=value"` per line for the launcher .bat.
+     *
+     * Separate lines rather than one `&&` chain: a full Windows PATH plus the
+     * MISE_* block can exceed cmd.exe's ~8k per-line limit.
+     */
+    const buildWindowsEnvLines = (): string[] => {
+      if (Object.keys(env).length === 0) {
+        logger.info('No environment variables to set')
+        return []
+      }
+      logLaunchEnv()
+      return Object.entries(env).flatMap(([key, value]) => {
+        if (!isBatchQuotableEnvValue(value)) {
+          // Only a `"` or a newline can end the quoted value and turn the rest
+          // of the line into commands, and nothing Cherry sets here carries
+          // one. Drop it instead of inventing an escape cmd would not undo —
+          // the value still reaches the terminal through the spawn env.
+          logger.warn(`Skipping env var whose value cannot be quoted in the launch script: ${key}`)
+          return []
+        }
+        return [`set "${key}=${escapeBatchQuotedValue(value)}"`]
+      })
+    }
+
+    // Build the environment variable prefix for the POSIX shells (Windows
+    // assembles its own lines above).
+    const buildEnvPrefix = () => {
       if (Object.keys(env).length === 0) {
         logger.info('No environment variables to set')
         return ''
       }
 
-      logger.info('Setting environment variables:', Object.keys(env))
-      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
+      logLaunchEnv()
 
-      if (isWindows) {
-        // Windows uses set command
-        // Escape all cmd.exe metacharacters in env values to prevent command injection
-        return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
-          .join(' && ')
-      } else {
-        // Unix-like systems use export command
-        const validEntries = Object.entries(env).filter(([key, value]) => {
-          if (!key || key.trim() === '') {
-            return false
-          }
-          if (value === undefined || value === null) {
-            return false
-          }
-          return true
+      // Unix-like systems use export command
+      const validEntries = Object.entries(env).filter(([key, value]) => {
+        if (!key || key.trim() === '') {
+          return false
+        }
+        if (value === undefined || value === null) {
+          return false
+        }
+        return true
+      })
+
+      const envCommands = validEntries
+        .map(([key, value]) => {
+          const exportCmd = `export ${key}=${posixQuote(String(value))}`
+          logger.debug(`Setting env var: ${key}=<redacted>`)
+          return exportCmd
         })
-
-        const envCommands = validEntries
-          .map(([key, value]) => {
-            const exportCmd = `export ${key}=${posixQuote(String(value))}`
-            logger.debug(`Setting env var: ${key}=<redacted>`)
-            return exportCmd
-          })
-          .join(' && ')
-        const clearAmbientMise = usesCherryExecutionEnv
-          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
-          : ''
-        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
-      }
+        .join(' && ')
+      const clearAmbientMise = usesCherryExecutionEnv
+        ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
+        : ''
+      return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
     }
 
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
@@ -553,7 +576,7 @@ export class CodeCliService extends BaseService {
     switch (platform) {
       case 'darwin': {
         // macOS - Support multiple terminals
-        const envPrefix = buildEnvPrefix(false)
+        const envPrefix = buildEnvPrefix()
 
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
@@ -572,8 +595,7 @@ export class CodeCliService extends BaseService {
       }
       case 'win32': {
         // Windows - Use temp bat file for debugging
-        const envPrefix = buildEnvPrefix(true)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        const envLines = buildWindowsEnvLines()
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
         const tempDir = application.getPath('feature.cli.temp')
@@ -597,8 +619,8 @@ export class CodeCliService extends BaseService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${CodeCliService.escapeBatchTextForEcho(cliTool)}`,
-          `echo Directory: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+          `echo Tool: ${escapeBatchUnquoted(cliTool)}`,
+          `echo Directory: ${escapeBatchUnquoted(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -612,15 +634,16 @@ export class CodeCliService extends BaseService {
           ':: Clear screen before running CLI',
           'cls',
           '',
+          ...(envLines.length > 0 ? [':: Set environment variables', ...envLines, ''] : []),
           ':: Execute command',
-          command,
+          baseCommand,
           '',
           'goto :end',
           '',
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+          `echo Target: ${escapeBatchUnquoted(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -698,7 +721,7 @@ export class CodeCliService extends BaseService {
       }
       case 'linux': {
         // Linux - Try to use common terminal emulators
-        const envPrefix = buildEnvPrefix(false)
+        const envPrefix = buildEnvPrefix()
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         const linuxTerminals = ['gnome-terminal', 'konsole', 'deepin-terminal', 'xterm', 'x-terminal-emulator']
@@ -761,6 +784,26 @@ export class CodeCliService extends BaseService {
     if (platform === 'win32') appendBundledGitPathTail(processEnv)
     removeEnvProxy(processEnv)
 
+    // Windows launches the terminal executable directly rather than through a
+    // shell. With `shell: true` Node concatenates argv into one command line
+    // *without quoting* it (Node DEP0190), so a launcher path under
+    // `C:\Users\First Last\...` was split at the space and the terminal ran
+    // `C:\Users\First` instead. The shell was only carrying PATHEXT lookup —
+    // `wt` / `alacritty` / `wezterm` are passed without an extension — which
+    // findExecutable does explicitly, leaving Node to quote each argument.
+    if (platform === 'win32') {
+      const resolvedTerminal = findExecutable(terminalCommand, {
+        extensions: ['.exe', '.cmd', '.bat'],
+        env: processEnv
+      })
+      if (!resolvedTerminal) {
+        const message = `Terminal executable not found: ${terminalCommand}`
+        logger.error(message)
+        return { success: false, message }
+      }
+      terminalCommand = resolvedTerminal
+    }
+
     // Launch terminal process
     try {
       logger.info(`Launching terminal with command: ${terminalCommand}`)
@@ -773,7 +816,7 @@ export class CodeCliService extends BaseService {
         stdio: 'ignore',
         cwd: directory,
         env: processEnv,
-        shell: isWin
+        shell: false
       })
       // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
       // missing); without a listener that becomes an uncaught exception after
@@ -798,31 +841,19 @@ export class CodeCliService extends BaseService {
       }
     }
   }
-
-  /**
-   * Escape text for safe use in batch echo statements
-   * Only handles critical issues: newlines and % characters
-   * Preserves command syntax (e.g., &&) - use for constructed command strings
-   * @param text - Raw text from command output or user input
-   * @returns Escaped text safe for batch echo statements
-   */
-  private static escapeBatchTextForEcho(text: string): string {
-    if (!text) return ''
-    return text
-      .replace(/%/g, '%%') // Escape % to avoid variable expansion
-      .replace(/\r\n/g, ' ') // Windows newline to space
-      .replace(/\n/g, ' ') // Unix newline to space
-  }
 }
 
 /**
- * Escape text for safe use in Windows batch files
- * Handles ALL cmd.exe metacharacters to prevent command injection
- * Use this for arbitrary untrusted input that may contain any characters
- * @param text - Raw text that may contain user input or error messages
- * @returns Fully escaped text safe for batch files
+ * Escape text embedded **unquoted** in a batch line — today only `echo`
+ * arguments. Carets escape the command metacharacters, which is what cmd.exe
+ * expects outside quotes: without it a directory named `Foo & Bar` makes the
+ * banner line run `Bar` as a command.
+ *
+ * Not interchangeable with `escapeBatchQuotedValue` — inside double quotes
+ * cmd.exe does not process carets, so this escaping would leak them into the
+ * value.
  */
-export function escapeBatchText(text: string): string {
+export function escapeBatchUnquoted(text: string): string {
   if (!text) return ''
   return text
     .replace(/\^/g, '^^') // Escape caret first (before other escapes)
@@ -831,7 +862,31 @@ export function escapeBatchText(text: string): string {
     .replace(/\|/g, '^|') // Escape | pipe
     .replace(/>/g, '^>') // Escape > output redirect
     .replace(/</g, '^<') // Escape < input redirect
-    .replace(/"/g, '""') // Escape double quotes to prevent echo injection
     .replace(/\r\n/g, ' ') // Windows newline to space
     .replace(/\n/g, ' ') // Unix newline to space
+}
+
+/**
+ * Escape a value for `set "KEY=<value>"` inside a batch file.
+ *
+ * Inside cmd.exe's double quotes `& | < >` are already literal and `^` is not
+ * an escape character, so caret-escaping them would leave the caret *in* the
+ * value — enough to break a PATH segment such as `C:\Dell & Co`. Only `%` has
+ * to be doubled, which the batch parser collapses back to one.
+ *
+ * Values that could break out of the quotes are rejected by
+ * `isBatchQuotableEnvValue`, never escaped.
+ */
+export function escapeBatchQuotedValue(value: string): string {
+  if (!value) return ''
+  return value.replace(/%/g, '%%')
+}
+
+/**
+ * Whether a value can be carried by `set "KEY=<value>"`. A `"` closes the
+ * quoted region and a newline ends the line, either of which would turn the
+ * remainder into commands.
+ */
+export function isBatchQuotableEnvValue(value: string): boolean {
+  return !/["\r\n]/.test(value)
 }
