@@ -41,6 +41,8 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
   /** Selection captured with the original busy submit. */
   reasoningEffort?: ReasoningEffortOption
+  /** Fast selection captured with the original busy submit. */
+  fastMode: boolean
 }
 
 export type MainDispatchRequest = (
@@ -117,7 +119,12 @@ export async function dispatchStreamRequest(
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
   // and `onExecutionDone` chains a `steer-continuation` to answer it.
   if (prepared.pendingSteerUserMessageId) {
-    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId, prepared.pendingSteerReasoningEffort)
+    manager.enqueuePendingSteer(
+      req.topicId,
+      prepared.pendingSteerUserMessageId,
+      prepared.pendingSteerReasoningEffort,
+      prepared.pendingSteerFastMode === true
+    )
   } else if (
     provider.name === persistentChatContextProvider.name &&
     prepared.models.length === 0 &&

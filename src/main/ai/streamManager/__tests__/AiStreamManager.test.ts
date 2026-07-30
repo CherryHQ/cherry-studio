@@ -953,7 +953,8 @@ describe('AiStreamManager', () => {
     const steerReq = (topicId: string, userMessageId: string) => ({
       trigger: 'steer-continuation',
       topicId,
-      userMessageId
+      userMessageId,
+      fastMode: false
     })
 
     it('rebroadcasts awaiting-approval anchors when a live stream pauses and resumes for tool approval', () => {
@@ -1288,7 +1289,8 @@ describe('AiStreamManager', () => {
     const steerReq = (topicId: string, userMessageId: string) => ({
       trigger: 'steer-continuation',
       topicId,
-      userMessageId
+      userMessageId,
+      fastMode: false
     })
 
     it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {

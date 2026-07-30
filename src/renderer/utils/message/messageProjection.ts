@@ -17,6 +17,7 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
       modelId: shared.modelId ?? undefined,
       messageSnapshot: shared.messageSnapshot ?? undefined,
       status: shared.status,
+      turnOptions: shared.data.turnOptions,
       createdAt: shared.createdAt,
       stats: shared.stats ?? undefined,
       ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})

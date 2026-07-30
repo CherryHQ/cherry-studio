@@ -21,10 +21,6 @@ vi.mock('@renderer/components/composer/tools/components/KnowledgeBaseButton', ()
   KnowledgeBaseToolRuntime: () => null
 }))
 
-vi.mock('@renderer/components/composer/tools/components/ThinkingButton', () => ({
-  ThinkingToolRuntime: () => null
-}))
-
 vi.mock('@renderer/components/composer/tools/components/QuickPhrasesButton', () => ({
   QuickPhrasesToolRuntime: () => null
 }))
@@ -65,9 +61,7 @@ describe('composer tool visibility', () => {
       } as any
     })
 
-    expect(tools.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['generate_image', 'knowledge_base', 'thinking'])
-    )
+    expect(tools.map((tool) => tool.key)).toEqual(expect.arrayContaining(['generate_image', 'knowledge_base']))
   })
 
   it('shows MCP status in chat and agent session scopes only', () => {

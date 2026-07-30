@@ -189,6 +189,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }
@@ -797,4 +801,14 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
 
   const response = await fetch(src)
   return response.blob()
+}
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
 }

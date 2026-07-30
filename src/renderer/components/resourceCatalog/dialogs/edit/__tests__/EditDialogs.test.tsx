@@ -827,6 +827,92 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
+
+    rerender(
+      <AgentEditDialog
+        {...props}
+        resource={{
+          ...AGENT,
+          configuration: { ...AGENT.configuration, permission_mode: 'plan' }
+        }}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Locally renamed' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { name: 'Locally renamed' }
+      })
+    )
+  })
+
+  it('advances the agent form baseline before a queued follow-up save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Second edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { description: 'Second edit' }
+    })
+  })
+
+  it('preserves skill baseline initialization while an unrelated save is pending', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(<AgentEditDialog {...props} />)
+    selectTab('技能')
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: false }] }
+    })
+  })
+
   it('polishes agent instructions and auto-saves the polished value', async () => {
     fetchGenerateMock.mockResolvedValue('Polished agent instructions')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
@@ -1040,11 +1126,7 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body).toEqual(
-      expect.objectContaining({
-        configuration: expect.not.objectContaining({ max_turns: expect.anything() })
-      })
-    )
+    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },

@@ -1,5 +1,7 @@
+import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
+import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdown'
@@ -9,10 +11,14 @@ import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+import type { InlineHtmlPreviewMode } from './ChatMarkdown'
+import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
 interface Props {
-  children: string
+  /** Absent while a fence is still empty (e.g. the first chunk of a streamed ```html block). */
+  children?: string
   className?: string
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   node?: Omit<Node, 'type'>
   blockId: string // Message block id
   isStreaming?: boolean
@@ -25,7 +31,15 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middl
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
-const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStreaming = false }) => {
+const CodeBlock: React.FC<Props> = ({
+  children: rawChildren,
+  className,
+  inlineHtmlPreviewMode,
+  node,
+  blockId,
+  isStreaming = false
+}) => {
+  const children = rawChildren ?? ''
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -76,13 +90,48 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStre
   if (language !== null) {
     // Fancy code block
     if (codeFancyBlock) {
-      if (language === 'html') {
+      if (language.toLowerCase() === 'html') {
+        const isHtmlArtifactStreaming = inlineHtmlPreviewMode === 'generating' || isStreaming || isIncomplete
+        // The single classification for the whole artifact pipeline: it picks the streaming
+        // surface here and travels down as `kind` to decide the safety gate once complete.
+        const htmlKind = classifyHtmlArtifactSource(children)
+
+        if (inlineHtmlPreviewMode) {
+          // Too short to classify yet — render nothing rather than pick a surface we would
+          // have to swap out a few characters later.
+          if (isHtmlArtifactStreaming && htmlKind === undefined) return null
+
+          if (isHtmlArtifactStreaming && htmlKind === 'document') {
+            return (
+              <CodeBlockView
+                language={language}
+                editable={false}
+                isStreaming={isHtmlArtifactStreaming}
+                maxHeight={MAX_COLLAPSED_CODE_HEIGHT}
+                showToolbar={false}>
+                {children}
+              </CodeBlockView>
+            )
+          }
+
+          return (
+            <MessageHtmlArtifact
+              artifactId={`${blockId}:${id}`}
+              html={children}
+              onSave={handleSave}
+              editable={canSaveCodeBlock}
+              kind={htmlKind ?? 'fragment'}
+              isStreaming={isHtmlArtifactStreaming}
+            />
+          )
+        }
+
         return (
           <HtmlArtifactsCard
             html={children}
             onSave={handleSave}
             editable={canSaveCodeBlock}
-            isStreaming={isIncomplete}
+            isStreaming={isHtmlArtifactStreaming}
           />
         )
       }
