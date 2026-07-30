@@ -1,7 +1,7 @@
 /**
- * @deprecated v2 replacement pending. Like BackupService, this currently uses the retained v1
- * compatibility engine for real archives. Transient sync status remains in the session-local,
- * non-reactive `nutstoreSyncState` below until the native v2 service replaces it.
+ * @deprecated v2 replacement pending. Like BackupService, this retains the existing transport
+ * surface while main delegates archive creation and restore admission to BackupService v2.
+ * Transient sync status remains session-local until a native v2 scheduler replaces it.
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'

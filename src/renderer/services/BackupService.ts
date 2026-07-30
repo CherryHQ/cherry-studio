@@ -1,7 +1,7 @@
 /**
- * @deprecated v2 replacement pending. The retained v1 engine currently creates real compatibility
- * archives containing Data, IndexedDB, Local Storage, and cache.json. Transient sync status remains
- * in the session-local, non-reactive `backupSyncState` below until the native v2 service replaces it.
+ * @deprecated v2 replacement pending. Existing remote/local scheduling and transport remain here,
+ * while the main-process compatibility surface delegates archive creation and restore admission to
+ * BackupService v2. Transient sync status remains session-local until a native v2 scheduler replaces it.
  */
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
