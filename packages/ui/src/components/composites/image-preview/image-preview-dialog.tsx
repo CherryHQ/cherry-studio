@@ -132,7 +132,10 @@ export function ImagePreviewDialog({
             showNext()
           }
         }}
-        overlayClassName={cn('bg-black/70', overlayClassName)}
+        overlayClassName={cn(
+          'bg-black/70 data-[state=closed]:animate-none data-[state=open]:animate-none',
+          overlayClassName
+        )}
         showCloseButton={false}>
         <div className="relative h-full w-full">
           <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>

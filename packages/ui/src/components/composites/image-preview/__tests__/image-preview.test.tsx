@@ -157,13 +157,17 @@ describe('ImagePreviewDialog', () => {
     ])
   })
 
-  it('uses a plain close icon and opens without image motion', () => {
+  it('uses a plain close icon and disables preview motion', () => {
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 
     const closeButton = screen.getByRole('button', { name: LABELS.close })
     expect(closeButton).toHaveClass('rounded-none', 'bg-transparent', 'shadow-none', 'transition-none')
     expect(closeButton).not.toHaveClass('rounded-full')
     expect(screen.getByTestId('image-preview-dialog')).toHaveClass('data-[state=open]:animate-none')
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass(
+      'data-[state=closed]:animate-none',
+      'data-[state=open]:animate-none'
+    )
     expect(screen.getByRole('img', { name: 'One' })).not.toHaveClass('transition-transform')
   })
 
