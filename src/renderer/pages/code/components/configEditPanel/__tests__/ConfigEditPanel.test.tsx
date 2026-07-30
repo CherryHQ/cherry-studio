@@ -309,7 +309,7 @@ describe('ConfigEditPanel', () => {
   it('keeps the model selector available when the current CLI config points at another model', async () => {
     renderPanel()
 
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
 
     expect(screen.getByText('code.model_selection')).toBeInTheDocument()
     expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1)

@@ -81,7 +81,7 @@ import {
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
-  getAgentManagedDraftTokens,
+  getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
@@ -104,6 +104,7 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -248,6 +249,16 @@ type AgentComposerSessionSnapshot = {
   workspaceId?: string | null
 }
 
+export interface AgentComposerSendBody {
+  agentId: string
+  sessionId: string
+  userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
+  reasoningEffort?: ThinkingOption
+  fastMode?: boolean
+}
+
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+
 type Props = {
   agentId: string
   sessionId: string
@@ -256,7 +267,7 @@ type Props = {
   resolvedModel?: Model
   resolvedWorkspaceWarning?: string | null
   externalContextControls?: boolean
-  sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
   captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
@@ -721,6 +732,7 @@ const AgentComposerInner = ({
     setReasoningOverride((current) => (current === reasoningOverride ? null : current))
   }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
   const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
+  const [fastMode, setFastMode] = useState(false)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
@@ -741,6 +753,10 @@ const AgentComposerInner = ({
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
+  useEffect(() => {
+    if (model?.supportsFastMode !== true) setFastMode(false)
+  }, [model?.supportsFastMode])
+
   const setText = useCallback(
     (nextText: string, options: { persist?: boolean; tokens?: readonly ComposerSerializedToken[] } = {}) => {
       clearTimeoutTimer('agentComposerSendMessage')
@@ -757,7 +773,7 @@ const AgentComposerInner = ({
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(historyDraft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
@@ -1090,18 +1106,13 @@ const AgentComposerInner = ({
     [agent, canonicalReasoningEffort, updateAgent]
   )
 
-  const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
-    [handleReasoningEffortChange, reasoningEffort]
-  )
-
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
   // cache snapshot, which is variant state.
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(draftTokens)
+      const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
@@ -1144,7 +1155,10 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({ reasoningEffort })
+        extra: () => ({
+          reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
+        })
       })
       if (!payload) return null
 
@@ -1157,7 +1171,7 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [files, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1173,7 +1187,8 @@ const AgentComposerInner = ({
               agentId,
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
-              reasoningEffort: payload.reasoningEffort
+              reasoningEffort: payload.reasoningEffort,
+              ...(payload.fastMode ? { fastMode: true } : {})
             }
           }
         )
@@ -1229,11 +1244,11 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
-  // skill subset and managed file/knowledge/skill state before dropping it from the queue.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
+  // state and the managed file/knowledge/skill selections before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)
@@ -1243,8 +1258,10 @@ const AgentComposerInner = ({
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
@@ -1418,7 +1435,18 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    <>
+      {model ? (
+        <ComposerSpeedControl
+          model={model}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={handleReasoningEffortChange}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </>
   )
 
   return (
@@ -1426,9 +1454,7 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && (
-        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
-      )}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface

@@ -1,4 +1,4 @@
-import { EmptyState, ImagePreviewImage, useImagePreviewTransform } from '@cherrystudio/ui'
+import { EmptyState, ImagePreviewViewport, useImagePreviewTransform } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toFileUrl } from '@shared/utils/file'
 import ImageOff from 'lucide-react/dist/esm/icons/image-off'
@@ -59,10 +59,11 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
               <span>{t('file_preview.loading')}</span>
             </div>
           )}
-          <ImagePreviewImage
-            className={status === 'loading' ? 'opacity-0' : undefined}
+          <ImagePreviewViewport
+            className="h-full min-h-full w-full"
+            imageClassName={status === 'loading' ? 'opacity-0' : undefined}
             item={item}
-            transform={transformControls.transform}
+            transformControls={transformControls}
             onLoad={() => setStatus('ready')}
             onError={() => {
               const error = new Error(`Failed to load image preview: ${filePath}`)
