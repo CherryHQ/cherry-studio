@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fetchMock = vi.hoisted(() => vi.fn())
+const fetchUrlsUnprocessedMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    WebSearchService: { fetchUrlsUnprocessed: fetchUrlsUnprocessedMock }
+  } as never)
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -13,13 +20,17 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('electron', () => ({
-  net: {
-    fetch: fetchMock
-  }
-}))
-
 const { fetchKnowledgeWebPage } = await import('../url')
+
+function fetchResponse(url: string, content: string) {
+  return {
+    query: url,
+    providerId: 'jina',
+    capability: 'fetchUrls',
+    inputs: [url],
+    results: [{ title: url, content, url, sourceInput: url }]
+  }
+}
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -35,11 +46,13 @@ function createDeferred<T>() {
 describe('fetchKnowledgeWebPage', () => {
   beforeEach(() => {
     vi.useRealTimers()
-    fetchMock.mockReset()
+    fetchUrlsUnprocessedMock.mockReset()
   })
 
   it('fetches a page and returns markdown content', async () => {
-    fetchMock.mockResolvedValue(new Response('# Example Page\n\nHello knowledge', { status: 200 }))
+    fetchUrlsUnprocessedMock.mockResolvedValue(
+      fetchResponse('https://example.com', '# Example Page\n\nHello knowledge')
+    )
 
     const controller = new AbortController()
 
@@ -47,15 +60,9 @@ describe('fetchKnowledgeWebPage', () => {
       '# Example Page\n\nHello knowledge'
     )
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://r.jina.ai/https://example.com',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal),
-        headers: {
-          'X-Retain-Images': 'none',
-          'X-Return-Format': 'markdown'
-        }
-      })
+    expect(fetchUrlsUnprocessedMock).toHaveBeenCalledWith(
+      { providerId: 'jina', urls: ['https://example.com'] },
+      { signal: expect.any(AbortSignal) }
     )
   })
 
@@ -64,15 +71,13 @@ describe('fetchKnowledgeWebPage', () => {
     controller.abort(new Error('fetch aborted'))
 
     await expect(fetchKnowledgeWebPage('https://example.com', controller.signal)).rejects.toThrow('fetch aborted')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchUrlsUnprocessedMock).not.toHaveBeenCalled()
   })
 
-  it('throws on non-ok upstream responses', async () => {
-    fetchMock.mockResolvedValue(new Response('nope', { status: 500 }))
+  it('propagates upstream fetch failures', async () => {
+    fetchUrlsUnprocessedMock.mockRejectedValue(new Error('Jina Reader fetch failed: HTTP 500'))
 
-    await expect(fetchKnowledgeWebPage('https://example.com')).rejects.toThrow(
-      'Failed to fetch knowledge web page https://example.com: HTTP 500'
-    )
+    await expect(fetchKnowledgeWebPage('https://example.com')).rejects.toThrow('Jina Reader fetch failed: HTTP 500')
   })
 
   it('rejects unsupported protocols before dispatching the request', async () => {
@@ -80,16 +85,16 @@ describe('fetchKnowledgeWebPage', () => {
       'Invalid knowledge url: file:///etc/passwd'
     )
 
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchUrlsUnprocessedMock).not.toHaveBeenCalled()
   })
 
   it('limits concurrent upstream web fetches through a shared queue', async () => {
     let activeFetches = 0
     let maxActiveFetches = 0
-    const deferredResponses = Array.from({ length: 5 }, () => createDeferred<Response>())
+    const deferredResponses = Array.from({ length: 5 }, () => createDeferred<ReturnType<typeof fetchResponse>>())
     let fetchCallIndex = 0
 
-    fetchMock.mockImplementation(async () => {
+    fetchUrlsUnprocessedMock.mockImplementation(async () => {
       const deferred = deferredResponses[fetchCallIndex]
       fetchCallIndex += 1
       if (!deferred) {
@@ -115,21 +120,21 @@ describe('fetchKnowledgeWebPage', () => {
     ]
 
     await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchUrlsUnprocessedMock).toHaveBeenCalledTimes(3)
       expect(activeFetches).toBe(3)
     })
 
-    deferredResponses[0].resolve(new Response('page 1', { status: 200 }))
+    deferredResponses[0].resolve(fetchResponse('https://example.com/1', 'page 1'))
 
     await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(fetchUrlsUnprocessedMock).toHaveBeenCalledTimes(4)
       expect(maxActiveFetches).toBeLessThanOrEqual(3)
     })
 
-    deferredResponses[1].resolve(new Response('page 2', { status: 200 }))
-    deferredResponses[2].resolve(new Response('page 3', { status: 200 }))
-    deferredResponses[3].resolve(new Response('page 4', { status: 200 }))
-    deferredResponses[4].resolve(new Response('page 5', { status: 200 }))
+    deferredResponses[1].resolve(fetchResponse('https://example.com/2', 'page 2'))
+    deferredResponses[2].resolve(fetchResponse('https://example.com/3', 'page 3'))
+    deferredResponses[3].resolve(fetchResponse('https://example.com/4', 'page 4'))
+    deferredResponses[4].resolve(fetchResponse('https://example.com/5', 'page 5'))
 
     await expect(Promise.all(requests)).resolves.toEqual(['page 1', 'page 2', 'page 3', 'page 4', 'page 5'])
     expect(maxActiveFetches).toBeLessThanOrEqual(3)
@@ -137,10 +142,10 @@ describe('fetchKnowledgeWebPage', () => {
 
   it('does not create the fetch timeout while a request is waiting in the queue', async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
-    const deferredResponses = Array.from({ length: 4 }, () => createDeferred<Response>())
+    const deferredResponses = Array.from({ length: 4 }, () => createDeferred<ReturnType<typeof fetchResponse>>())
     let fetchCallIndex = 0
 
-    fetchMock.mockImplementation(async () => {
+    fetchUrlsUnprocessedMock.mockImplementation(async () => {
       const deferred = deferredResponses[fetchCallIndex]
       fetchCallIndex += 1
       if (!deferred) {
@@ -160,19 +165,19 @@ describe('fetchKnowledgeWebPage', () => {
     void queuedRequest.catch(() => undefined)
 
     await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchUrlsUnprocessedMock).toHaveBeenCalledTimes(3)
     })
 
     expect(timeoutSpy).toHaveBeenCalledTimes(3)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchUrlsUnprocessedMock).toHaveBeenCalledTimes(3)
 
     queuedController.abort(new Error('queued abort'))
-    deferredResponses[0].resolve(new Response('page 1', { status: 200 }))
-    deferredResponses[1].resolve(new Response('page 2', { status: 200 }))
-    deferredResponses[2].resolve(new Response('page 3', { status: 200 }))
+    deferredResponses[0].resolve(fetchResponse('https://example.com/1', 'page 1'))
+    deferredResponses[1].resolve(fetchResponse('https://example.com/2', 'page 2'))
+    deferredResponses[2].resolve(fetchResponse('https://example.com/3', 'page 3'))
 
     await expect(Promise.all(activeRequests)).resolves.toEqual(['page 1', 'page 2', 'page 3'])
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchUrlsUnprocessedMock).toHaveBeenCalledTimes(3)
     timeoutSpy.mockRestore()
   })
 })

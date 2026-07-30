@@ -1,11 +1,10 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { net } from 'electron'
 import PQueue from 'p-queue'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
 const logger = loggerService.withContext('KnowledgeWebSearch')
 const DEFAULT_FETCH_TIMEOUT_MS = 30000
-const JINA_READER_BASE_URL = 'https://r.jina.ai/'
 const KNOWLEDGE_WEB_FETCH_CONCURRENCY = 3
 const KNOWLEDGE_WEB_FETCH_INTERVAL_CAP = 10
 const KNOWLEDGE_WEB_FETCH_INTERVAL_MS = 60_000
@@ -40,13 +39,9 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
         const timeoutSignal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS)
         const fetchSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
 
-        return await net.fetch(`${JINA_READER_BASE_URL}${safeUrl}`, {
-          signal: fetchSignal,
-          headers: {
-            'X-Retain-Images': 'none',
-            'X-Return-Format': 'markdown'
-          }
-        })
+        return await application
+          .get('WebSearchService')
+          .fetchUrlsUnprocessed({ providerId: 'jina', urls: [safeUrl] }, { signal: fetchSignal })
       },
       signal ? { signal } : undefined
     )
@@ -54,11 +49,12 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
       throw new Error(`Knowledge web fetch queue returned no response for ${safeUrl}`)
     }
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch knowledge web page ${safeUrl}: HTTP ${response.status}`)
+    const result = response.results[0]
+    if (!result) {
+      throw new Error(`Knowledge web fetch returned no result for ${safeUrl}`)
     }
 
-    const markdown = (await response.text()).trim()
+    const markdown = result.content.trim()
 
     return markdown
   } catch (error) {
