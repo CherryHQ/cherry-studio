@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { getAppLanguage } from '@main/i18n'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -253,6 +254,7 @@ async function deriveConnectionConfigFromSnapshot(
     reasoningEffort,
     route: routeFacts,
     cwd,
+    language: getAppLanguage(),
     instructions: agent.instructions ?? null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
@@ -513,7 +515,7 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !ref.provider || !supportsAnthropicMessages(ref.provider)
+    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
@@ -669,13 +671,9 @@ function resolveRuntimeModelRef(
   }
 }
 
-function supportsAnthropicMessages(provider: Provider): boolean {
-  return (
-    provider.id === 'anthropic' ||
-    provider.presetProviderId === 'anthropic' ||
-    provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
-    Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-  )
+function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
+  if (!ref.provider || !ref.model) return false
+  return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
 }
 
 async function resolveApiGatewayRuntime(

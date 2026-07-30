@@ -433,7 +433,8 @@
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
-        "unknown_agent": "Unknown agent",
+        "unknown_agent": "Unlinked Agent",
+        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Yesterday"
       },
       "label_one": "Session",
@@ -1932,6 +1933,7 @@
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
+        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Yesterday"
       },
       "list": "Conversation List",
@@ -2299,6 +2301,12 @@
     "generate_random_seed": "Generate random seed",
     "get_embedding_dimension": "Get embedding dimension",
     "go_to_settings": "Go to settings",
+    "group": {
+      "create": "New Group",
+      "create_failed": "Failed to create group",
+      "name_placeholder": "Enter group name...",
+      "name_required": "Group name is required"
+    },
     "help": "Help",
     "html_preview": "HTML Preview",
     "i_know": "I know",
@@ -6648,9 +6656,6 @@
           "dxtFile": "DXT Package File",
           "dxtHelp": "Select a .dxt file containing an MCP server package",
           "dxtProcessFailed": "Failed to process DXT file",
-          "error": {
-            "multipleServers": "Cannot import from multiple servers"
-          },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
           "mcpb": "Import MCPB Bundle",
@@ -8400,6 +8405,7 @@
         "placeholder": "Search translation history"
       },
       "source": "Source",
+      "star": "Favorite",
       "success": {
         "add": "Saved to history",
         "clear": "History cleared",

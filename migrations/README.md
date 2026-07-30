@@ -1,7 +1,7 @@
 **THIS DIRECTORY IS NOT FOR RUNTIME USE**
 
-**v2 Data Refactoring Notice**
-Before the official release of the alpha version, the database structure may change at any time. To maintain simplicity, the database migration files will be periodically reinitialized, which may cause the application to fail. If this occurs, please delete `Data/cherrystudio.sqlite` from the user data directory.
+**Migration files are append-only**
+The chain was consolidated into a single initial migration and shipped with `v2.0.0-rc.1`, so it now runs against databases holding real user data. Never reinitialize, rewrite, or renumber a migration that has shipped, and never advise deleting `Data/cherrystudio.sqlite` — schema changes go in as new appended migrations.
 
 - Using `better-sqlite3` as the `sqlite3` driver, and `drizzle` as the ORM and database migration tool
 - Table schemas are defined in `src\main\data\db\schemas`

@@ -26,6 +26,8 @@ export interface ComposerToolbarCustomTool {
   customizePlacement?: 'leading'
   /** Defaults to true for category shortcuts that need the unified panel. */
   requiresPanel?: boolean
+  /** Allows model-independent actions to remain usable before a model is configured. */
+  availableWithoutModel?: boolean
   onSelect: (args: { inputAdapter?: QuickPanelInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => void
 }
 
@@ -48,6 +50,8 @@ interface ShortcutCandidate {
   toggle: boolean
   /** Runtime state and action have been registered for the current model/context. */
   resolved: boolean
+  /** Model-independent actions bypass the shared model-required guard. */
+  availableWithoutModel?: boolean
   select: () => void
 }
 
@@ -205,6 +209,7 @@ export const ComposerToolbarShortcuts = ({
         haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
         resolved: true,
+        availableWithoutModel: tool.availableWithoutModel,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
       }
     })
@@ -329,12 +334,13 @@ export const ComposerToolbarShortcuts = ({
         <div className="flex min-h-8 shrink-0 items-center gap-1.5">
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
+            const blockedByMissingModel = isModelUnavailable && !shortcut.availableWithoutModel
             const tooltip =
               shortcut.disabled && shortcut.disabledReason
                 ? shortcut.disabledReason
                 : (shortcut.tooltip ?? shortcut.label)
             return (
-              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={isModelUnavailable}>
+              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={blockedByMissingModel}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -346,13 +352,13 @@ export const ComposerToolbarShortcuts = ({
                     shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
-                  aria-haspopup={isModelUnavailable ? undefined : shortcut.haspopup}
+                  aria-haspopup={blockedByMissingModel ? undefined : shortcut.haspopup}
                   aria-pressed={
-                    !isModelUnavailable && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
+                    !blockedByMissingModel && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
                   }
-                  disabled={!isModelUnavailable && shortcut.disabled}
+                  disabled={!blockedByMissingModel && shortcut.disabled}
                   data-active={shortcut.active || undefined}
-                  onClick={isModelUnavailable ? showModelRequiredToast : shortcut.select}>
+                  onClick={blockedByMissingModel ? showModelRequiredToast : shortcut.select}>
                   {shortcut.icon}
                 </Button>
               </Tooltip>

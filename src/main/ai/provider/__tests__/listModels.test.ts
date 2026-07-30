@@ -73,6 +73,34 @@ function makeGeminiProvider() {
   })
 }
 
+describe('listModels — default grouping', () => {
+  it.each(['7f8b0f84-36d1-45ec-9f49-0bfb535ab38d', 'opencode'])(
+    'derives model-family groups instead of using provider id %s',
+    async (providerId) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: {
+          data: [
+            { id: 'deepseek-v4-pro', owned_by: providerId },
+            { id: 'glm-5.2', owned_by: providerId },
+            { id: 'grok-4.5', owned_by: providerId }
+          ]
+        }
+      })
+      const provider = makeProvider({
+        id: providerId,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://models.example.com/v1' }
+        }
+      })
+
+      const models = await listModels(provider)
+
+      expect(models.map((model) => model.group)).toEqual(['deepseek', 'glm', 'grok'])
+      expect(models.map((model) => model.group)).not.toContain(providerId)
+    }
+  )
+})
+
 describe('listModels — geminiFetcher API key transport', () => {
   it('passes the API key via the x-goog-api-key header, never the ?key= query (REGRESSION)', async () => {
     const provider = makeGeminiProvider()
