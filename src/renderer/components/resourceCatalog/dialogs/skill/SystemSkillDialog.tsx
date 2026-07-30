@@ -61,6 +61,7 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
             <p className="mt-1 text-foreground-muted text-xs">{t('library.system_skill.description')}</p>
           </DialogHeader>
           <ResourceCatalogSearchInput
+            autoFocus
             value={query}
             onValueChange={setQuery}
             placeholder={t('library.system_skill.search_placeholder')}
