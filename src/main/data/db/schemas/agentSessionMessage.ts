@@ -52,6 +52,11 @@ export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$infe
  * implicit rowid, which a table rebuild or VACUUM would reshuffle — see schemas/message.ts). The
  * triggers assign `fts_rowid`, keep `searchable_text` in sync with text-bearing message parts, and
  * mirror it into the FTS index.
+ *
+ * Only `text` parts are indexed — NOT `reasoning`. Reasoning parts hold the model's hidden
+ * chain-of-thought, which the session UI does not render; indexing it would leak that hidden
+ * text through global-search snippets (which read `searchable_text` verbatim). This matches the
+ * chat `message` table's searchable-text expression, which likewise excludes reasoning.
  */
 export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
   // Keyed on the stable `fts_rowid` column, not the implicit rowid (which a table rebuild or
@@ -74,7 +79,7 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
       searchable_text = COALESCE((
         SELECT group_concat(json_extract(value, '$.text'), char(10))
         FROM json_each(json_extract(NEW.data, '$.parts'))
-        WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
+        WHERE json_extract(value, '$.type') = 'text'
       ), '')
     WHERE id = NEW.id;
     INSERT INTO agent_session_message_fts(rowid, searchable_text)
@@ -92,7 +97,7 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     UPDATE agent_session_message SET searchable_text = COALESCE((
       SELECT group_concat(json_extract(value, '$.text'), char(10))
       FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
+      WHERE json_extract(value, '$.type') = 'text'
     ), '') WHERE id = NEW.id;
     INSERT INTO agent_session_message_fts(rowid, searchable_text)
     SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
