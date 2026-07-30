@@ -9,6 +9,7 @@ import 'dayjs/locale/ru'
 import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
+import 'dayjs/locale/tr'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -36,7 +37,8 @@ const localeLoaders = {
   'pt-PT': () => import('./translate/pt-pt.json'),
   'ro-RO': () => import('./translate/ro-ro.json'),
   'ru-RU': () => import('./translate/ru-ru.json'),
-  'vi-VN': () => import('./translate/vi-vn.json')
+  'vi-VN': () => import('./translate/vi-vn.json'),
+  'tr-TR': () => import('./translate/tr-tr.json')
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
 
 export const getLanguage = async () => {
@@ -60,7 +62,8 @@ const dayjsLocaleMap: Record<string, string> = {
   'fr-FR': 'fr',
   'pt-PT': 'pt',
   'ro-RO': 'ro',
-  'vi-VN': 'vi'
+  'vi-VN': 'vi',
+  'tr-TR': 'tr'
 }
 
 export const setDayjsLocale = (language: string) => {
