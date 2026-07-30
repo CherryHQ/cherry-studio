@@ -66,7 +66,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
-export type AgentEditDialogProps = EditDialogBaseProps<AgentDetail> & {
+export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
 }
 
@@ -194,14 +194,7 @@ function createAgentPatcher(form: UseFormReturn<AgentEditFormValues>, resource: 
   }
 }
 
-export function AgentEditDialog({
-  resource,
-  open,
-  onOpenChange,
-  onSaved,
-  modelFilter,
-  initialTab
-}: AgentEditDialogProps) {
+export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, initialTab }: AgentEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -209,7 +202,6 @@ export function AgentEditDialog({
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
-      onSaved={onSaved}
       modelFilter={modelFilter}
       initialTab={initialTab}
     />
@@ -220,10 +212,9 @@ function AgentEditDialogContent({
   resource,
   open,
   onOpenChange,
-  onSaved,
   modelFilter,
   initialTab
-}: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
+}: EditDialogBaseProps & { resource: AgentDetail }) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
@@ -336,20 +327,12 @@ function AgentEditDialogContent({
     form.clearErrors('root')
     saveFailedRef.current = false
 
-    let updated: Awaited<ReturnType<typeof updateAgent>>
     try {
-      updated = await updateAgent(pending.payload)
+      await updateAgent(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       saveFailedRef.current = true
-      return
-    }
-
-    try {
-      await onSaved(updated)
-    } catch (error) {
-      logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
   }
 
