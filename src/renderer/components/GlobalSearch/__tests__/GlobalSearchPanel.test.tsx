@@ -679,6 +679,21 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
+  it('keeps the search input focused after clearing the query', async () => {
+    const user = userEvent.setup()
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const searchInput = screen.getByRole('combobox', {
+      name: 'Search conversations, tasks, assistants, agents, and knowledge...'
+    })
+    await user.type(searchInput, 'needle')
+    await user.click(screen.getByRole('button', { name: 'Clear search' }))
+
+    expect(searchInput).toHaveFocus()
+    await user.keyboard('second query')
+    expect(searchInput).toHaveValue('second query')
+  })
+
   it('links the search input to the visible recent listbox', async () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 

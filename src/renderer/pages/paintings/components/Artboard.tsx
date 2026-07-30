@@ -1,5 +1,6 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import CopyButton from '@renderer/components/CopyButton'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { ImageDown, ImageUp, Palette, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
@@ -29,8 +30,10 @@ const MIN_IMAGE_SCALE = 0.25
 const MAX_IMAGE_SCALE = 4
 const IMAGE_SCALE_STEP = 0.25
 const DEFAULT_IMAGE_OFFSET = { x: 0, y: 0 }
+const PROMPT_POPOVER_CLOSE_DELAY = 150
 
 type ImageOffset = typeof DEFAULT_IMAGE_OFFSET
+type PromptPopoverOpenReason = 'keyboard' | 'pointer'
 
 type ImageDragState = {
   pointerId: number
@@ -59,21 +62,127 @@ export interface ArtboardProps {
  * width rather than the full artboard.
  */
 const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt, sizeLabel }) => {
+  const { t } = useTranslation()
+  const [isPromptPopoverOpen, setPromptPopoverOpen] = useState(false)
+  const promptPopoverCloseTimerRef = useRef<number | null>(null)
+  const promptPopoverTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const promptPopoverContentRef = useRef<HTMLDivElement | null>(null)
+  const promptPopoverOpenReasonRef = useRef<PromptPopoverOpenReason>('pointer')
+
+  const cancelPromptPopoverClose = useCallback(() => {
+    if (promptPopoverCloseTimerRef.current === null) return
+    window.clearTimeout(promptPopoverCloseTimerRef.current)
+    promptPopoverCloseTimerRef.current = null
+  }, [])
+
+  const openPromptPopover = useCallback(
+    (reason: PromptPopoverOpenReason) => {
+      cancelPromptPopoverClose()
+      promptPopoverOpenReasonRef.current = reason
+      setPromptPopoverOpen(true)
+    },
+    [cancelPromptPopoverClose]
+  )
+
+  const openPromptPopoverFromPointer = useCallback(() => {
+    cancelPromptPopoverClose()
+    if (isPromptPopoverOpen) return
+    promptPopoverOpenReasonRef.current = 'pointer'
+    setPromptPopoverOpen(true)
+  }, [cancelPromptPopoverClose, isPromptPopoverOpen])
+
+  const schedulePromptPopoverClose = useCallback(() => {
+    cancelPromptPopoverClose()
+    promptPopoverCloseTimerRef.current = window.setTimeout(() => {
+      promptPopoverCloseTimerRef.current = null
+      const focusedElement = document.activeElement
+      if (
+        promptPopoverTriggerRef.current?.contains(focusedElement) ||
+        promptPopoverContentRef.current?.contains(focusedElement)
+      ) {
+        return
+      }
+      setPromptPopoverOpen(false)
+    }, PROMPT_POPOVER_CLOSE_DELAY)
+  }, [cancelPromptPopoverClose])
+
+  useEffect(() => cancelPromptPopoverClose, [cancelPromptPopoverClose])
+
   return (
     <div className="mb-2 flex w-full min-w-0 items-center justify-between gap-2 text-muted-foreground text-xs">
-      <Tooltip
-        classNames={{ placeholder: 'max-w-full min-w-0 flex-1 overflow-hidden' }}
-        content={prompt}
-        delay={800}
-        placement="bottom">
-        <span className="flex w-full min-w-0 items-center gap-1.5">
-          <Palette className="size-3.5 shrink-0" aria-hidden />
-          {/* CSS `truncate` clips to the available width responsively — the full
-              prompt stays in the DOM (and in the tooltip) instead of a fixed-length
-              JS slice that shows the same ~10 chars on a wide artboard. */}
-          <span className="truncate">{prompt}</span>
-        </span>
-      </Tooltip>
+      <div className="min-w-0 max-w-xs flex-1 overflow-hidden">
+        <Popover
+          open={isPromptPopoverOpen}
+          onOpenChange={(open) => {
+            cancelPromptPopoverClose()
+            if (open && promptPopoverOpenReasonRef.current !== 'keyboard') {
+              promptPopoverOpenReasonRef.current = 'pointer'
+            }
+            setPromptPopoverOpen(open)
+          }}>
+          <PopoverTrigger asChild>
+            <button
+              ref={promptPopoverTriggerRef}
+              type="button"
+              onPointerEnter={(event) => {
+                if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
+              }}
+              onPointerLeave={(event) => {
+                if (event.pointerType !== 'touch') schedulePromptPopoverClose()
+              }}
+              onBlur={schedulePromptPopoverClose}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                event.stopPropagation()
+                openPromptPopover('keyboard')
+              }}
+              className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left text-inherit outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Palette className="size-3.5 shrink-0" aria-hidden />
+              {/* CSS `truncate` clips to the available width responsively — the full
+                  prompt stays in the DOM (and in the popover) instead of a fixed-length
+                  JS slice that shows the same ~10 chars on a wide artboard. */}
+              <span className="truncate">{prompt}</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            ref={promptPopoverContentRef}
+            side="bottom"
+            sideOffset={2}
+            onPointerEnter={(event) => {
+              if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
+            }}
+            onPointerLeave={(event) => {
+              if (event.pointerType !== 'touch') schedulePromptPopoverClose()
+            }}
+            onFocusCapture={cancelPromptPopoverClose}
+            onBlurCapture={schedulePromptPopoverClose}
+            onOpenAutoFocus={(event) => {
+              if (promptPopoverOpenReasonRef.current !== 'keyboard') {
+                event.preventDefault()
+              }
+            }}
+            onCloseAutoFocus={(event) => {
+              if (promptPopoverOpenReasonRef.current !== 'keyboard') {
+                event.preventDefault()
+              }
+            }}
+            role="dialog"
+            aria-label={t('common.prompt')}
+            className="max-h-80 w-fit max-w-md overflow-y-auto rounded-md border-0 bg-neutral-900 p-2 text-neutral-50 text-xs leading-relaxed shadow-md">
+            <CopyButton
+              textToCopy={prompt}
+              aria-label={t('common.copy')}
+              successFeedback="icon"
+              size={14}
+              color="inherit"
+              hoverColor="inherit"
+              className="float-right ml-0.5 size-5 justify-center rounded-md text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-50/70 [&_svg]:stroke-neutral-50! [&_svg]:text-neutral-50!"
+            />
+            <span className="select-text whitespace-pre-wrap break-words">{prompt}</span>
+          </PopoverContent>
+        </Popover>
+      </div>
       {sizeLabel && <span className="shrink-0">{sizeLabel}</span>}
     </div>
   )
@@ -375,7 +484,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
-      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center">
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center [container-type:size]">
         {isLoading || activeReveal ? (
           <PaintingImageSkeleton
             imageUrl={activeReveal?.status === 'ready' ? activeReveal.imageUrl : undefined}
@@ -412,7 +521,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
                 alt=""
                 data-testid="artboard-image-transform"
                 className={`max-h-full min-h-0 max-w-full select-none rounded-md object-contain ${
-                  isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
+                  isDraggingImage
+                    ? 'cursor-grabbing transition-none will-change-transform'
+                    : 'cursor-grab transition-transform duration-150'
                 }`}
                 draggable={false}
                 onLoad={onDisplayedImageLoad}
@@ -472,7 +583,17 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
           </div>
         ) : imageCover ? (
           imageCover
-        ) : null}
+        ) : (
+          <div
+            role="img"
+            aria-label={t('paintings.image_placeholder')}
+            className="relative size-[min(72cqh,96cqw)] rounded-3xl border border-border-subtle bg-[linear-gradient(145deg,var(--muted),transparent_58%)]">
+            <div
+              aria-hidden
+              className="absolute inset-2 rounded-2xl border border-border-subtle bg-background-subtle"
+            />
+          </div>
+        )}
       </div>
     </div>
   )

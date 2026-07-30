@@ -10,12 +10,12 @@ import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { providerToAiSdkConfigMock } = vi.hoisted(() => ({
-  providerToAiSdkConfigMock: vi.fn()
+const { resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+  resolveProviderAiSdkConfigMock: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
-  providerToAiSdkConfig: providerToAiSdkConfigMock
+  resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
 }))
 
 vi.mock('@application', () => ({
@@ -41,9 +41,12 @@ const {
 
 describe('buildAgentParams provider resolution', () => {
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
-    providerToAiSdkConfigMock.mockResolvedValue({
-      providerId: 'google-vertex-maas',
-      providerSettings: { project: 'my-project', location: 'global' }
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google-vertex-maas',
+        providerSettings: { project: 'my-project', location: 'global' }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
     })
     const provider = makeProvider({
       id: 'vertex',
@@ -85,6 +88,7 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
         reasoningEffort: 'high',
@@ -97,9 +101,12 @@ describe('buildAgentParams provider resolution', () => {
 
 describe('buildAgentParams assistant-less reasoning', () => {
   const makeOffCapableSetup = () => {
-    providerToAiSdkConfigMock.mockResolvedValue({
-      providerId: 'anthropic',
-      providerSettings: {}
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'anthropic',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
     })
     const provider = makeProvider({
       id: 'custom-claude',
@@ -158,9 +165,12 @@ describe('buildAgentParams assistant-less reasoning', () => {
   })
 
   it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
-    providerToAiSdkConfigMock.mockResolvedValue({
-      providerId: 'aihubmix',
-      providerSettings: {}
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'aihubmix',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
     })
     const provider = makeProvider({
       id: 'aihubmix',
@@ -372,7 +382,10 @@ describe('buildAgentParams knowledge-scope enforcement', () => {
     requestKnowledgeBaseIds: string[] | undefined
   ): Promise<readonly string[] | undefined> => {
     observedScope = undefined
-    providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'anthropic', providerSettings: {} })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
     registry.register(scopeProbeEntry)
 
     await buildAgentParams({

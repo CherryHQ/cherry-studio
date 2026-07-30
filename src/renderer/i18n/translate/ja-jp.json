@@ -441,6 +441,12 @@
       "list": {
         "title": "タスク"
       },
+      "model_switch_confirm": {
+        "confirm": "モデル切り替え",
+        "description": "異なるモデルは、コンテキストの理解や処理方法が異なる場合があります。切り替えると、今後の回答の連続性や品質に影響を与える可能性があります。続行しますか？",
+        "skip_for_app_run": "アプリを終了するまで再度尋ねないでください",
+        "title": "「{{model}}」に切り替えますか？"
+      },
       "new": "新しいタスク",
       "pin": {
         "title": "タスクをピン留め"
@@ -1633,8 +1639,17 @@
       "token_details": {
         "cache_read": "キャッシュ読み取り",
         "cache_write": "キャッシュ書き込み",
+        "cost": "コスト",
+        "cost_billed": "プロバイダーによる請求",
+        "cost_estimated": "推定",
+        "end_to_end_throughput": "エンドツーエンドのスループット",
         "input": "入力",
         "input_breakdown": "入力の内訳",
+        "lane_approval": "承認",
+        "lane_model": "モデル",
+        "lane_other": "その他",
+        "lane_tool": "ツール",
+        "model_throughput": "モデル生成TPS",
         "output": "出力",
         "reasoning": "推論",
         "reasoning_time": "推論",
@@ -1643,6 +1658,7 @@
         "text_output": "テキスト出力",
         "tokens": "{{value}} トークン",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "エンドツーエンドの期間",
         "uncached": "キャッシュされていない",
         "usage": "トークン使用量",
         "waiting_first_token": "待機"
@@ -2310,6 +2326,7 @@
     "open_in": "{{name}}で開く",
     "open_in_new_tab": "新しいタブで開く",
     "open_sidebar": "サイドバーを開く",
+    "other": "その他",
     "placeholders": {
       "select": {
         "model": "モデルを選択"
@@ -4316,6 +4333,7 @@
     },
     "pinned": "固定済み",
     "price": {
+      "cache_read": "キャッシュ読み取り価格",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
@@ -4931,6 +4949,11 @@
     "seed_random": "ランダム",
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
+    "showcase": {
+      "caption": "テンプレートを選んで始め、下のプロンプトを自分好みに調整しましょう。",
+      "styles_label": "プロンプトテンプレート",
+      "title": "次の傑作は、ここから。"
+    },
     "style_options": {
       "anime": "アニメ",
       "auto": "自動",
@@ -5207,6 +5230,7 @@
       "label": "データを復元しますか？"
     },
     "content": "復元操作は現在のアプリデータをバックアップデータで上書きします。復元処理には時間がかかる場合があります。",
+    "messages_paused": "バックアップの復元が進行中です。完了するまで、新しいメッセージは一時停止されています。",
     "progress": {
       "completed": "復元完了",
       "copying_files": "ファイルコピー中... {{progress}}%",
@@ -5792,8 +5816,7 @@
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
-        "skip_file_data_title": "精簡バックアップ",
-        "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
+        "skip_file_data_title": "精簡バックアップ"
       },
       "clear_cache": {
         "button": "キャッシュをクリア",
@@ -8104,6 +8127,108 @@
       "show": "トレイアイコンを表示",
       "title": "トレイ"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "アクティブ日数",
+        "cacheHitRate": "キャッシュヒット率",
+        "cacheObservedTokens": "観測可能な入力: {{tokens}}",
+        "cacheStartsWithNewRequests": "新しいリクエストから始まります",
+        "dailyAverage": "日平均",
+        "explicitApiKey": "選択されたキー",
+        "lastPeriod": "前期対比",
+        "matchedApiKey": "一致したオーバーライド",
+        "none": "N/A",
+        "peakDay": "ピーク日",
+        "providerAuth": "プロバイダー認証",
+        "streak": "最長連続記録: {{days}} 日",
+        "topModel": "トップモデル",
+        "totalCost": "総費用",
+        "totalRequests": "リクエスト",
+        "totalTokens": "総トークン数",
+        "unattributedApiKey": "未帰属のリクエスト",
+        "unattributedSource": "出典不明"
+      },
+      "chart": {
+        "bar": "バー",
+        "line": "行",
+        "pie": "パイ",
+        "stack": "スタック"
+      },
+      "currency": "通貨",
+      "empty": {
+        "description": "サポートされているAIリクエストが使用レコードを作成すると、使用状況が表示されます。",
+        "title": "まだ使用されていません"
+      },
+      "explore": {
+        "analysis": "分析",
+        "chart": "チャート",
+        "clearDate": "日付フィルターをクリア",
+        "drilldownTitle": "{{date}} ドリルダウン",
+        "entries": "リクエスト",
+        "groupBy": "グループ化",
+        "loadMore": "もっと読み込む",
+        "loading": "読み込み中...",
+        "metric": "メトリック",
+        "noBreakdown": "故障データなし",
+        "noBreakdownDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
+        "noEntries": "エントリがありません",
+        "noEntriesDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
+        "rollup": "ロールアップ",
+        "selectedDate": "選択された日付: {{date}}",
+        "shareLabel": "共有",
+        "title": "探索する",
+        "top": "トップ",
+        "totalEntries_one": "{{count}} エントリー",
+        "totalEntries_other": "{{count}} エントリー"
+      },
+      "groupBy": {
+        "apiKey": "APIキー",
+        "model": "モデル",
+        "provider": "プロバイダー",
+        "source": "アシスタント / エージェント"
+      },
+      "heatmap": {
+        "ariaDate": "{{date}}の使用状況",
+        "title": "日常活動"
+      },
+      "metric": {
+        "cost": "コスト",
+        "requests": "リクエスト",
+        "tokens": "トークン"
+      },
+      "overview": {
+        "title": "概要"
+      },
+      "rollup": {
+        "daily": "毎日",
+        "monthly": "月次",
+        "total": "合計",
+        "weekly": "週刊"
+      },
+      "summary": "{{window}} / {{tokens}} トークン / {{requests}} リクエスト",
+      "table": {
+        "cost": "コスト",
+        "date": "日付",
+        "model": "モデル",
+        "source": "ソース",
+        "tokens": "トークン",
+        "tps": "TPS",
+        "tpsValue": "{{value}} トークン/秒",
+        "ttft": "TTFT"
+      },
+      "title": "使用分析",
+      "tooltip": {
+        "cost": "コスト {{value}}",
+        "requests_one": "{{count}} 件のリクエスト",
+        "requests_other": "{{count}} 件のリクエスト",
+        "tokens": "{{value}}トークン"
+      },
+      "window": {
+        "30d": "過去30日間",
+        "365d": "去年",
+        "90d": "過去90日間"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "タイトルバーのスタイルを変更するには、アプリを再起動する必要があります。今すぐ再起動しますか？",
@@ -8279,6 +8404,7 @@
         "placeholder": "翻訳履歴を検索"
       },
       "source": "ソース",
+      "star": "お気に入り",
       "success": {
         "add": "履歴に保存されました",
         "clear": "履歴はクリアされました",

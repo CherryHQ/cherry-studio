@@ -441,6 +441,12 @@
       "list": {
         "title": "Sarcini"
       },
+      "model_switch_confirm": {
+        "confirm": "Schimbă modelul",
+        "description": "Modelele diferite pot înțelege și procesa contextul în mod diferit. Schimbarea poate afecta continuitatea sau calitatea răspunsurilor ulterioare. Doriți să continuați?",
+        "skip_for_app_run": "Nu mai întreba până când închid aplicația",
+        "title": "Treci la \"{{model}}\"?"
+      },
       "new": "Sarcină nouă",
       "pin": {
         "title": "Fixează sarcina"
@@ -1633,8 +1639,17 @@
       "token_details": {
         "cache_read": "Citire din cache",
         "cache_write": "Scriere în cache",
+        "cost": "Cost",
+        "cost_billed": "Facturat de furnizor",
+        "cost_estimated": "Estimat",
+        "end_to_end_throughput": "Debit capăt-la-capăt",
         "input": "Intrare",
         "input_breakdown": "Descompunere intrare",
+        "lane_approval": "Aprobare",
+        "lane_model": "Model",
+        "lane_other": "Altele",
+        "lane_tool": "Instrument",
+        "model_throughput": "Generare model TPS",
         "output": "Ieșire",
         "reasoning": "Raționament",
         "reasoning_time": "Raționament",
@@ -1643,6 +1658,7 @@
         "text_output": "Ieșire text",
         "tokens": "{{value}} Jetoane",
         "tokens_per_second_value": "{{value}} Tokeni/s",
+        "total_duration": "Durată de la capăt la capăt",
         "uncached": "Necached/Necacheuit",
         "usage": "Utilizare token-uri",
         "waiting_first_token": "Așteptare"
@@ -2310,6 +2326,7 @@
     "open_in": "Deschide în {{name}}",
     "open_in_new_tab": "Deschide în filă nouă",
     "open_sidebar": "Deschide bara laterală",
+    "other": "Altele",
     "placeholders": {
       "select": {
         "model": "Selectează un model"
@@ -4316,6 +4333,7 @@
     },
     "pinned": "Fixat",
     "price": {
+      "cache_read": "Preț Citire Cache",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
@@ -4931,6 +4949,11 @@
     "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
+    "showcase": {
+      "caption": "Alege un șablon pentru început, apoi personalizează promptul de mai jos.",
+      "styles_label": "Șabloane de prompturi",
+      "title": "Un spațiu pentru următoarea ta capodoperă."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5207,6 +5230,7 @@
       "label": "Ești sigur că vrei să restaurezi datele?"
     },
     "content": "Operațiunea de restaurare va suprascrie toate datele actuale ale aplicației cu datele din backup. Te rugăm să reții că procesul de restaurare poate dura ceva timp, îți mulțumim pentru răbdare.",
+    "messages_paused": "O restaurare din copie de rezervă este în desfășurare; mesajele noi sunt întrerupte până la finalizarea acesteia.",
     "progress": {
       "completed": "Restaurare finalizată",
       "copying_files": "Se copiază fișierele... {{progress}}%",
@@ -5792,8 +5816,7 @@
       },
       "backup": {
         "skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
-        "skip_file_data_title": "Backup simplificat",
-        "v2_unavailable": "Backup & restore V2 nu este încă disponibil. În curând."
+        "skip_file_data_title": "Backup simplificat"
       },
       "clear_cache": {
         "button": "Golește memoria cache",
@@ -8104,6 +8127,108 @@
       "show": "Afișează pictograma în zona de notificare",
       "title": "Zonă de notificare"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Zile active",
+        "cacheHitRate": "Rată de acces cache reușit",
+        "cacheObservedTokens": "Intrare observabilă: {{tokens}}",
+        "cacheStartsWithNewRequests": "Începe cu cereri noi",
+        "dailyAverage": "Medie zilnică",
+        "explicitApiKey": "Cheie selectată",
+        "lastPeriod": "față de perioada anterioară",
+        "matchedApiKey": "Suprascriere corespunzătoare",
+        "none": "N/A",
+        "peakDay": "Zi de vârf",
+        "providerAuth": "Autentificare furnizor",
+        "streak": "Cea mai lungă serie: {{days}} zile",
+        "topModel": "Model de top",
+        "totalCost": "Cost total",
+        "totalRequests": "Cereri",
+        "totalTokens": "Tokeni totali",
+        "unattributedApiKey": "Cerere neatribuită",
+        "unattributedSource": "Sursă neatribuită"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Linie",
+        "pie": "Plăcintă",
+        "stack": "Stivă"
+      },
+      "currency": "Monedă",
+      "empty": {
+        "description": "Utilizarea apare după ce cererile AI acceptate creează înregistrări de utilizare.",
+        "title": "Nicio utilizare încă"
+      },
+      "explore": {
+        "analysis": "Analiză",
+        "chart": "Grafic",
+        "clearDate": "Eliminați filtrul de dată",
+        "drilldownTitle": "Detaliere {{date}}",
+        "entries": "Cereri",
+        "groupBy": "Grupați după",
+        "loadMore": "Încarcă mai mult",
+        "loading": "Se încarcă...",
+        "metric": "Metrică",
+        "noBreakdown": "Date de defalcare indisponibile",
+        "noBreakdownDescription": "Încercați o fereastră mai largă sau un alt furnizor.",
+        "noEntries": "Nicio intrare",
+        "noEntriesDescription": "Încercați o fereastră mai largă sau un alt furnizor.",
+        "rollup": "Rollup",
+        "selectedDate": "Data selectată: {{date}}",
+        "shareLabel": "Distribuie",
+        "title": "Explorează",
+        "top": "Vârf",
+        "totalEntries_one": "{{count}} intrare",
+        "totalEntries_other": "{{count}} intrări"
+      },
+      "groupBy": {
+        "apiKey": "Cheie API",
+        "model": "Model",
+        "provider": "Furnizor",
+        "source": "Asistent / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "Utilizare în data de {{date}}",
+        "title": "Activitate zilnică"
+      },
+      "metric": {
+        "cost": "Cost",
+        "requests": "Cereri",
+        "tokens": "Token-uri"
+      },
+      "overview": {
+        "title": "Prezentare generală"
+      },
+      "rollup": {
+        "daily": "Zilnic",
+        "monthly": "Lunar",
+        "total": "Total",
+        "weekly": "Săptămânal"
+      },
+      "summary": "{{window}} / {{tokens}} tokenuri / {{requests}} cereri",
+      "table": {
+        "cost": "Cost",
+        "date": "Data",
+        "model": "Model",
+        "source": "Sursă",
+        "tokens": "Token-uri",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Analiza utilizării",
+      "tooltip": {
+        "cost": "Cost {{value}}",
+        "requests_one": "{{count}} cerere",
+        "requests_other": "{{count}} cereri",
+        "tokens": "{{value}} jetoane"
+      },
+      "window": {
+        "30d": "Ultimele 30 de zile",
+        "365d": "Anul trecut",
+        "90d": "Ultimele 90 de zile"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Schimbarea stilului barei de titlu necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
@@ -8279,6 +8404,7 @@
         "placeholder": "Caută istoricul traducerilor"
       },
       "source": "Sursă",
+      "star": "Preferat",
       "success": {
         "add": "Salvat în istoric",
         "clear": "Istoric șters",

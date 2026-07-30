@@ -2,10 +2,12 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -40,7 +42,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput
+  AgentRuntimeUserInput,
+  AgentSessionUsageCapture
 } from '../runtime/types'
 import {
   PersistenceListener,
@@ -49,6 +52,7 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
+import type { InProcessUsageContext } from '../types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
@@ -108,6 +112,8 @@ type AgentSessionTurn = {
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
+  /** Immutable author snapshot captured when this exact turn was submitted. */
+  messageSnapshot?: MessageSnapshot
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   admitted: boolean
@@ -122,6 +128,12 @@ type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
+}
+
+type SteerContinuationReservation = {
+  assistantMessageId: string
+  userMessageId: string
+  messageSnapshot?: MessageSnapshot
 }
 
 type AgentSessionConnectionTarget = {
@@ -143,6 +155,8 @@ type AgentSessionRuntimeEntry = {
   status: AgentSessionRuntimeStatus
   pendingTurns: PendingAgentSessionTurn[]
   connection?: AgentRuntimeConnection
+  /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
+  usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
@@ -168,6 +182,9 @@ type AgentSessionRuntimeEntry = {
   rollSteerInputs?: AgentRuntimeUserInput[]
   /** Whether the post-steer continuation turn should keep responder-less/headless enforcement. */
   rollHeadless?: boolean
+  /** Gateway correlation reserved synchronously when a steer is injected, before the post-steer
+   *  provider request can enter the local gateway. The later boundary persists A2 with this id. */
+  steerContinuationReservation?: SteerContinuationReservation
   compacting?: boolean
   /** A `system/api_retry` backoff is in flight — set so its ephemeral cache state is cleared exactly
    *  once when content resumes / the turn settles / the connection closes. */
@@ -212,6 +229,17 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 @ServicePhase(Phase.WhenReady)
 export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
+   *  lifecycle pause — this never touches service state. See `pause()`. */
+  private readonly pauseHolds = new Set<symbol>()
+  /** Turn starts suppressed by the write-quiesce gate; the last hold's disposal re-kicks them. */
+  private readonly suppressedTurnStarts = new Map<string, 'next' | 'continuation'>()
+  /** In-flight `startNextTurn`/`startContinuationTurn` launches (registered synchronously in the
+   *  schedule* wrappers) — a launch admitted before a pause must be awaited by `drainInFlight`
+   *  through its placeholder write and `startRuntimeTurn` handoff. */
+  private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
+  /** Shutdown wins over pause-release compensation (same posture as JobManager). */
+  private isShuttingDown = false
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -247,12 +275,14 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
       turnId,
       assistantMessageId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
+      messageSnapshot,
       reasoningEffort: input.reasoningEffort ?? 'default',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       admitted: false,
@@ -272,9 +302,10 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
-      existing.messageSnapshot = input.messageSnapshot
+      existing.messageSnapshot = messageSnapshot
       existing.status = 'active'
       existing.currentTurn = turn
+      existing.steerContinuationReservation = undefined
 
       return {
         listeners: [
@@ -296,7 +327,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
-      messageSnapshot: input.messageSnapshot,
+      messageSnapshot,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -311,6 +342,45 @@ export class AgentSessionRuntimeService extends BaseService {
       ],
       turnId,
       abortController: turn.abortController
+    }
+  }
+
+  /**
+   * Resolve the trusted gateway correlation into the reserved continuation or active turn.
+   * The gateway calls this at provider-request ingress, before any later agent edit,
+   * message roll, or deletion can affect usage persistence.
+   */
+  getActiveUsageContext(sessionId: string): InProcessUsageContext | undefined {
+    const entry = this.entries.get(sessionId)
+    const reservation = entry?.steerContinuationReservation
+    if (reservation) {
+      return {
+        agentSessionId: sessionId,
+        assistantMessageId: reservation.assistantMessageId,
+        source: sourceSnapshotFromMessageSnapshot(reservation.messageSnapshot)
+      }
+    }
+
+    const turn = entry?.currentTurn
+    if (!turn || turn.terminalStatus) return undefined
+    return {
+      agentSessionId: sessionId,
+      assistantMessageId: turn.assistantMessageId,
+      source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot)
+    }
+  }
+
+  private reserveSteerContinuation(entry: AgentSessionRuntimeEntry, inputs: AgentRuntimeUserInput[]): void {
+    if (!this.isCurrentEntry(entry) || entry.usageCapture?.owner !== 'provider-calls') return
+    const turn = entry.currentTurn
+    const steerMessage = inputs[0]?.message
+    if (!turn || turn.terminalStatus || !steerMessage || entry.steerContinuationReservation) return
+
+    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    entry.steerContinuationReservation = {
+      assistantMessageId: uuidv7(),
+      userMessageId: steerMessage.id,
+      ...(messageSnapshot ? { messageSnapshot: structuredClone(messageSnapshot) } : {})
     }
   }
 
@@ -536,7 +606,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (opts.headless === true) (entry.headlessMessageIds ??= new Set()).add(message.id)
     // Store before the redirect check so a native-steer follow-up (redirect → steer-boundary/undelivered)
     // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
-    if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
+    if (opts.messageSnapshot) {
+      const pendingSnapshots = (entry.pendingSnapshots ??= new Map())
+      pendingSnapshots.set(message.id, structuredClone(opts.messageSnapshot))
+    }
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
 
@@ -591,8 +664,10 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rollBuffer = undefined
       entry.rollSteerInputs = undefined
       entry.rollHeadless = undefined
+      entry.steerContinuationReservation = undefined
     }
 
+    entry.steerContinuationReservation = undefined
     entry.status = 'idle'
     entry.lastTerminalStatus = status
     if (entry.currentTurn) entry.currentTurn.terminalStatus = status
@@ -643,6 +718,14 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
+  /** Whether any agent session can still mutate its DB row or external runtime files. */
+  hasBusySessions(): boolean {
+    for (const sessionId of this.entries.keys()) {
+      if (this.isSessionBusy(sessionId)) return true
+    }
+    return false
+  }
+
   /**
    * Whether the agent runtime will open another turn for this topic once the current one ends — a
    * queued steer/follow-up, or a next-turn drain already in progress. `AiStreamManager.onExecutionDone`
@@ -683,6 +766,125 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  // ── Write quiesce (backup restore) ───────────────────────────────
+  // Contract shared with JobManager / AiStreamManager / ChannelManager (issues
+  // #16849/#16850). This service's autonomous write surface is the placeholder
+  // `saveMessage` in `startNextTurn` / `startContinuationTurn` — both launches are
+  // gated at entry (before consuming their queue/roll state) so a pause leaves the
+  // work queued in memory and DB-consistent; the last hold's disposal re-kicks it.
+  // New-turn admission via `prepareDispatch`/`beginTurn` is gated upstream by
+  // AiStreamManager.
+
+  /** True while any write-quiesce hold is live. */
+  get isWriteQuiesced(): boolean {
+    return this.pauseHolds.size > 0
+  }
+
+  /**
+   * Pause autonomous turn starts: queued follow-ups and steer-roll continuations are
+   * suppressed (not consumed) while any hold is live. In-flight turns keep running until
+   * drained. No resume() — dispose your own hold; the last disposal re-kicks suppressed
+   * starts. A dropped hold fails closed (paused until relaunch).
+   */
+  pause(reason?: string): Disposable {
+    const token = Symbol(reason ?? 'agent-session-runtime-pause')
+    this.pauseHolds.add(token)
+    logger.info('AgentSessionRuntimeService paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+    return {
+      dispose: () => {
+        if (!this.pauseHolds.delete(token)) return
+        logger.info('AgentSessionRuntimeService pause hold released', {
+          reason: reason ?? null,
+          holds: this.pauseHolds.size
+        })
+        if (this.pauseHolds.size > 0) return
+        // Shutdown wins: onStop owns the teardown; a compensation kick would only race it.
+        if (this.isShuttingDown) return
+        this.runReleaseCompensation()
+      }
+    }
+  }
+
+  /**
+   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
+   * bounded by timeoutMs. Never rejects; stragglers are NOT aborted. The resulting stream
+   * writes are AiStreamManager's drain — this only covers the window this service writes in.
+   * The set can grow one step while draining (a settling turn schedules the next start
+   * before the pause gate suppresses it), so the drain is a fixed point over promise
+   * identities rather than one snapshot.
+   *
+   * PRECONDITION: hold a live pause() hold — without one the verdict is a point-in-time
+   * snapshot (warned, not thrown).
+   */
+  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    if (!this.isWriteQuiesced) {
+      logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
+    }
+
+    const seen = new WeakSet<Promise<unknown>>()
+    const pending = new Map<Promise<unknown>, string>()
+    const collect = (): void => {
+      for (const [sessionId, launch] of this.inFlightTurnStarts) {
+        if (seen.has(launch)) continue
+        seen.add(launch)
+        pending.set(launch, sessionId)
+        const remove = () => pending.delete(launch)
+        launch.then(remove, remove)
+      }
+    }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
+    })
+    try {
+      for (;;) {
+        collect()
+        if (pending.size === 0) return { stragglerIds: [] }
+        const winner = await Promise.race([
+          Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
+          timeout
+        ])
+        if (winner === 'timeout') {
+          const stragglerIds = [...new Set(pending.values())]
+          logger.warn('drainInFlight timed out with unsettled work', { timeoutMs: opts.timeoutMs, stragglerIds })
+          return { stragglerIds }
+        }
+      }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
+  /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
+  listActiveWork(): Array<{ id: string; summary: string }> {
+    const work: Array<{ id: string; summary: string }> = []
+    for (const [sessionId, entry] of this.entries) {
+      if (!this.isSessionBusy(sessionId)) continue
+      const turn = entry.currentTurn && entry.currentTurn.terminalStatus === undefined ? 'live' : '-'
+      work.push({
+        id: sessionId,
+        summary: `turn=${turn} pending=${entry.pendingTurns.length} rolling=${entry.rolling === true} compacting=${entry.compacting === true} starting=${entry.startingNextTurn === true}`
+      })
+    }
+    return work
+  }
+
+  /** Last-hold release: re-kick suppressed turn starts. The re-check guard skips WITHOUT
+   *  draining the map, so a newer hold (or shutdown) inherits the debt. */
+  private runReleaseCompensation(): void {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    const suppressed = [...this.suppressedTurnStarts]
+    this.suppressedTurnStarts.clear()
+    for (const [sessionId, kind] of suppressed) {
+      const entry = this.entries.get(sessionId)
+      if (!entry || entry.startingNextTurn) continue
+      // A session closed mid-window (closeEntry cleared its queue/roll) simply drops its debt.
+      if (kind === 'next' && entry.pendingTurns.length > 0) this.scheduleNextTurn(entry)
+      else if (kind === 'continuation' && entry.rolling === true) this.scheduleContinuationTurn(entry)
+    }
+  }
+
   /**
    * Resolve a Claude `canUseTool` approval that was registered against the live
    * driver session. Returns `false` if no live entry matches — the caller
@@ -698,6 +900,26 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
+  recordToolExecutionTiming(
+    sessionId: string,
+    input: { toolCallId: string; toolName: string; durationMs: number }
+  ): boolean {
+    const entry = this.entries.get(sessionId)
+    const turn = entry?.currentTurn
+    if (!entry || !turn || turn.terminalStatus || !Number.isFinite(input.durationMs) || input.durationMs < 0) {
+      return false
+    }
+    const completedAt = Date.now()
+    return application.get('AiStreamManager').addCompletedRuntimeSpan(entry.topicId, turn.assistantMessageId, {
+      id: `tool:${input.toolCallId}`,
+      kind: 'tool-execution',
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+      startedAt: completedAt - input.durationMs,
+      completedAt
+    })
+  }
+
   abortPendingTurn(sessionId: string, reason: string): boolean {
     const turn = this.entries.get(sessionId)?.currentTurn
     if (!turn || turn.terminalStatus || turn.abortController.signal.aborted) return false
@@ -706,6 +928,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected onStop(): void {
+    this.isShuttingDown = true
     this.closeAll()
     toolApprovalRegistry.clear('agent-session-runtime-stop')
   }
@@ -847,7 +1070,8 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: target.reasoningEffort,
       knowledgeBaseIds: target.knowledgeBaseIds,
       resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId)
+      trace: this.sessionTraceContext(entry, target.modelId),
+      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       void Promise.resolve(connection.close()).catch((error) =>
@@ -857,6 +1081,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
+    entry.usageCapture = connection.usageCapture
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
@@ -904,6 +1129,9 @@ export class AgentSessionRuntimeService extends BaseService {
         if (turn?.controller && !turn.terminalStatus) this.enqueueTurnChunk(turn, event.chunk)
         break
       }
+      case 'usage':
+        this.recordRuntimeUsage(entry, event.invocation)
+        break
       case 'steer-boundary':
         // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
         // A1a (`closeCurrentTurn` 'success'), then buffer the continuation until `startContinuationTurn`
@@ -953,6 +1181,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'turn-complete':
         this.clearApiRetry(entry)
+        if (!entry.rolling) entry.steerContinuationReservation = undefined
         this.closeCurrentTurn(entry, 'success')
         this.refreshContextUsage(entry)
         break
@@ -971,6 +1200,48 @@ export class AgentSessionRuntimeService extends BaseService {
       status: 'compacting',
       startedAt: new Date().toISOString(),
       ...(trigger ? { trigger } : {})
+    })
+  }
+
+  private recordRuntimeUsage(
+    entry: AgentSessionRuntimeEntry,
+    invocation: Extract<AgentRuntimeEvent, { type: 'usage' }>['invocation']
+  ): void {
+    const capture = entry.usageCapture
+    if (capture?.owner !== 'agent-sdk') return
+
+    const turn =
+      invocation.messageAssociation === 'current-turn' && !entry.currentTurn?.terminalStatus
+        ? entry.currentTurn
+        : undefined
+    if (invocation.messageAssociation === 'current-turn' && !turn) {
+      logger.warn('Agent SDK usage lost its active turn before persistence; recording stateless', {
+        sessionId: entry.sessionId,
+        requestId: invocation.requestId
+      })
+    }
+
+    const normalizedModel = normalizeClaudeModelAlias(invocation.model)
+    const frozenModel = capture.frozenModels.find((candidate) =>
+      candidate.aliases.some((alias) => normalizeClaudeModelAlias(alias) === normalizedModel)
+    )
+    const modelId = frozenModel?.modelId ?? normalizedModel
+    aiUsageRecordService.recordInvocation({
+      requestId: `claude-agent:${invocation.requestId}`,
+      context: createAiUsageCaptureContext({
+        providerId: capture.providerId,
+        providerName: capture.providerName,
+        modelId,
+        modelName: frozenModel?.modelName ?? invocation.model,
+        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        credentialReceipt: capture.credentialReceipt,
+        source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
+        messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
+      }),
+      modality: 'language',
+      usage: invocation.usage,
+      metrics: invocation.metrics,
+      completedAt: Date.now()
     })
   }
 
@@ -1068,6 +1339,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
+    entry.steerContinuationReservation = undefined
     if (entry.compacting) {
       this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
     }
@@ -1136,18 +1408,33 @@ export class AgentSessionRuntimeService extends BaseService {
     // microtask, and `isSessionBusy` relies on this flag so a concurrent dispatch landing in the
     // inter-turn window enqueues instead of beginning a clobbering fresh turn. Clear it only once
     // the drain settles (turn established, bailed, or errored).
-    queueMicrotask(() => {
-      void this.startNextTurn(entry)
-        .catch((error) => {
-          logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
-        })
-        .finally(() => {
-          entry.startingNextTurn = false
-        })
+    // The launch is registered into `inFlightTurnStarts` SYNCHRONOUSLY: the caller runs inside a
+    // settling stream, so a write-quiesce drain that just awaited that stream must see the pending
+    // launch on its next collect, not miss it behind the microtask.
+    const launch = new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        void this.startNextTurn(entry)
+          .catch((error) => {
+            logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
+          })
+          .finally(() => {
+            entry.startingNextTurn = false
+            this.inFlightTurnStarts.delete(entry.sessionId)
+            resolve()
+          })
+      })
     })
+    this.inFlightTurnStarts.set(entry.sessionId, launch)
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    // Write-quiesce: suppress before consuming the queue — the follow-up stays in
+    // `pendingTurns` (its user row is already persisted, `isSessionBusy` stays true) and
+    // the last hold's disposal re-kicks it.
+    if (this.isWriteQuiesced) {
+      this.suppressedTurnStarts.set(entry.sessionId, 'next')
+      return
+    }
     const pendingTurn = entry.pendingTurns.shift()
     if (!pendingTurn) {
       this.refreshIdleTimer(entry)
@@ -1220,6 +1507,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: nextMessage,
       modelId: entry.modelId,
+      messageSnapshot,
       reasoningEffort,
       knowledgeBaseIds,
       admitted: false,
@@ -1263,15 +1551,22 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleContinuationTurn(entry: AgentSessionRuntimeEntry): void {
     if (entry.startingNextTurn) return
     entry.startingNextTurn = true
-    queueMicrotask(() => {
-      void this.startContinuationTurn(entry)
-        .catch((error) => {
-          logger.error('Failed to start steer continuation turn', { sessionId: entry.sessionId, error })
-        })
-        .finally(() => {
-          entry.startingNextTurn = false
-        })
+    // Synchronous `inFlightTurnStarts` registration — same drain-visibility reasoning as
+    // `scheduleNextTurn`.
+    const launch = new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        void this.startContinuationTurn(entry)
+          .catch((error) => {
+            logger.error('Failed to start steer continuation turn', { sessionId: entry.sessionId, error })
+          })
+          .finally(() => {
+            entry.startingNextTurn = false
+            this.inFlightTurnStarts.delete(entry.sessionId)
+            resolve()
+          })
+      })
     })
+    this.inFlightTurnStarts.set(entry.sessionId, launch)
   }
 
   /**
@@ -1282,6 +1577,14 @@ export class AgentSessionRuntimeService extends BaseService {
    * The steer message is reused only for rename/seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    // Write-quiesce: suppress before consuming `rollSteerInputs` — `rolling` stays true (the
+    // rollBuffer keeps buffering in memory, no DB writes) and the last hold's disposal re-kicks
+    // the continuation.
+    if (this.isWriteQuiesced) {
+      this.suppressedTurnStarts.set(entry.sessionId, 'continuation')
+      return
+    }
+    const reservation = entry.steerContinuationReservation
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
@@ -1297,7 +1600,10 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
     // The continuation answers the steered follow-up — freeze its submit-time author, not the entry's.
-    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    const messageSnapshot =
+      reservation?.userMessageId === steerMessage.id
+        ? reservation.messageSnapshot
+        : (entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot)
     entry.pendingSnapshots?.delete(steerMessage.id)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -1306,6 +1612,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
         message: {
+          ...(reservation ? { id: reservation.assistantMessageId } : {}),
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
@@ -1320,18 +1627,21 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rolling = false
       entry.rollBuffer = undefined
       entry.rollHeadless = undefined
+      entry.steerContinuationReservation = undefined
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
 
     const assistantMessageId = assistantMessage.id
+    entry.steerContinuationReservation = undefined
     const turnId = crypto.randomUUID()
     entry.currentTurn = {
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
       modelId,
+      messageSnapshot,
       reasoningEffort,
       knowledgeBaseIds,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
@@ -1505,6 +1815,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
+    entry.steerContinuationReservation = undefined
     if (entry.compacting) {
       application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
         status: 'idle'
@@ -1569,6 +1880,20 @@ function reconcileSnapshotModel(
   if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
   const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
   return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+}
+
+function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {
+  if (!snapshot) return null
+  return {
+    type: 'agent',
+    id: snapshot.id,
+    name: snapshot.name,
+    icon: snapshot.emoji ?? null
+  }
+}
+
+function normalizeClaudeModelAlias(value: string): string {
+  return value.trim().replace(/\[1m\]$/, '')
 }
 
 function createRuntimeSeedMessages(

@@ -441,6 +441,12 @@
       "list": {
         "title": "Tarefas"
       },
+      "model_switch_confirm": {
+        "confirm": "Mudar modelo",
+        "description": "Diferentes modelos podem entender e processar o contexto de formas diferentes. Mudar de modelo pode afetar a continuidade ou a qualidade das respostas subsequentes. Deseja continuar?",
+        "skip_for_app_run": "Não pergunte novamente até eu sair do aplicativo",
+        "title": "Mudar para \"{{model}}\"?"
+      },
       "new": "Nova tarefa",
       "pin": {
         "title": "Fixar tarefa"
@@ -1633,8 +1639,17 @@
       "token_details": {
         "cache_read": "Leitura de cache",
         "cache_write": "Escrita em cache",
+        "cost": "Custo",
+        "cost_billed": "Faturado pelo provedor",
+        "cost_estimated": "Estimado",
+        "end_to_end_throughput": "Vazão de ponta a ponta",
         "input": "Entrada",
         "input_breakdown": "Quebra de entrada",
+        "lane_approval": "Aprovação",
+        "lane_model": "Modelo",
+        "lane_other": "Outro",
+        "lane_tool": "Ferramenta",
+        "model_throughput": "Geração de modelo TPS",
         "output": "Saída",
         "reasoning": "Raciocínio",
         "reasoning_time": "Raciocínio",
@@ -1643,6 +1658,7 @@
         "text_output": "Saída de texto",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "Duração de ponta a ponta",
         "uncached": "Não em cache",
         "usage": "Uso de tokens",
         "waiting_first_token": "Aguardando"
@@ -2310,6 +2326,7 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
+    "other": "Outro",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -4316,6 +4333,7 @@
     },
     "pinned": "Fixado",
     "price": {
+      "cache_read": "Preço de Leitura de Cache",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
@@ -4931,6 +4949,11 @@
     "seed_random": "Aleatório",
     "seed_tip": "A mesma semente e palavra-chave podem gerar imagens semelhantes",
     "select_model": "Selecionar modelo",
+    "showcase": {
+      "caption": "Escolha um modelo para começar e personalize o prompt abaixo.",
+      "styles_label": "Modelos de prompts",
+      "title": "Um espaço para a sua próxima obra-prima."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Automático",
@@ -5207,6 +5230,7 @@
       "label": "Tem certeza de que deseja restaurar os dados?"
     },
     "content": "A operação de restauração usará os dados de backup para substituir todos os dados atuais do aplicativo. Por favor, note que o processo de restauração pode levar algum tempo. Agradecemos sua paciência.",
+    "messages_paused": "Uma restauração de backup está em andamento; novas mensagens estão pausadas até que seja concluída.",
     "progress": {
       "completed": "Restauração concluída",
       "copying_files": "Copiando arquivos... {{progress}}%",
@@ -5792,8 +5816,7 @@
       },
       "backup": {
         "skip_file_data_help": "Pule arquivos de dados como imagens e bancos de conhecimento durante o backup e realize apenas o backup das conversas e configurações. Diminua o consumo de espaço e aumente a velocidade do backup.",
-        "skip_file_data_title": "Backup simplificado",
-        "v2_unavailable": "Backup & restore V2 ainda não está disponível. Em breve."
+        "skip_file_data_title": "Backup simplificado"
       },
       "clear_cache": {
         "button": "Limpar cache",
@@ -8104,6 +8127,108 @@
       "show": "Mostrar ícone de bandeja",
       "title": "Tray"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Dias ativos",
+        "cacheHitRate": "Taxa de acerto do cache",
+        "cacheObservedTokens": "Entrada observável: {{tokens}}",
+        "cacheStartsWithNewRequests": "Começa com novos pedidos",
+        "dailyAverage": "Média diária",
+        "explicitApiKey": "Chave selecionada",
+        "lastPeriod": "vs último período",
+        "matchedApiKey": "Sobreposição correspondente",
+        "none": "N/A",
+        "peakDay": "Dia de pico",
+        "providerAuth": "Autenticação do provedor",
+        "streak": "Maior sequência: {{days}} dias",
+        "topModel": "Top model",
+        "totalCost": "Custo total",
+        "totalRequests": "Pedidos",
+        "totalTokens": "Tokens totais",
+        "unattributedApiKey": "Pedido não atribuído",
+        "unattributedSource": "Fonte não atribuída"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Linha",
+        "pie": "Torta",
+        "stack": "Pilha"
+      },
+      "currency": "Moeda",
+      "empty": {
+        "description": "O uso aparece após as solicitações de IA suportadas criarem registros de uso.",
+        "title": "Sem uso ainda"
+      },
+      "explore": {
+        "analysis": "Análise",
+        "chart": "Gráfico",
+        "clearDate": "Limpar filtro de data",
+        "drilldownTitle": "Detalhamento de {{date}}",
+        "entries": "Pedidos",
+        "groupBy": "Agrupar por",
+        "loadMore": "Carregar mais",
+        "loading": "Carregando...",
+        "metric": "Métrica",
+        "noBreakdown": "Dados não detalhados",
+        "noBreakdownDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "noEntries": "Sem entradas",
+        "noEntriesDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "rollup": "Rollup",
+        "selectedDate": "Data selecionada: {{date}}",
+        "shareLabel": "Compartilhar",
+        "title": "Explorar",
+        "top": "Topo",
+        "totalEntries_one": "{{count}} entrada",
+        "totalEntries_other": "{{count}} entradas"
+      },
+      "groupBy": {
+        "apiKey": "Chave de API",
+        "model": "Modelo",
+        "provider": "Fornecedor",
+        "source": "Assistente / Agente"
+      },
+      "heatmap": {
+        "ariaDate": "Uso em {{date}}",
+        "title": "Atividade diária"
+      },
+      "metric": {
+        "cost": "Custo",
+        "requests": "Pedidos",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Visão Geral"
+      },
+      "rollup": {
+        "daily": "Diário",
+        "monthly": "Mensal",
+        "total": "Total",
+        "weekly": "Semanal"
+      },
+      "summary": "{{janela}} / {{tokens}} tokens / {{solicitações}} requests",
+      "table": {
+        "cost": "Custo",
+        "date": "Data",
+        "model": "Modelo",
+        "source": "Fonte",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Análise de Uso",
+      "tooltip": {
+        "cost": "Custo {{value}}",
+        "requests_one": "{{count}} solicitação",
+        "requests_other": "{{count}} solicitações",
+        "tokens": "{{value}} tokens"
+      },
+      "window": {
+        "30d": "Últimos 30 dias",
+        "365d": "Ano passado",
+        "90d": "Últimos 90 dias"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Alterar o estilo da barra de título requer reiniciar o aplicativo para ter efeito. Deseja reiniciar agora?",
@@ -8279,6 +8404,7 @@
         "placeholder": "Pesquisar histórico de traduções"
       },
       "source": "Fonte",
+      "star": "Favorito",
       "success": {
         "add": "Salvo no histórico",
         "clear": "Histórico limpo",

@@ -79,6 +79,23 @@ describe('captureUrlSnapshotFile', () => {
     expect(stripOkfFrontmatter(written)).toBe(markdown)
   })
 
+  it('uses the fetched page title instead of markdown section links', async () => {
+    const markdown =
+      'Intro text\n\n## Install[\u200b](https://example.com/docs#install "Direct link to Install")\n\nbody'
+    const relativePath = await captureUrlSnapshotFile(
+      'kb-1',
+      'https://example.com/docs',
+      markdown,
+      new Set(),
+      'Example Documentation'
+    )
+
+    expect(relativePath).toBe('Example Documentation.md')
+    const written = writeFileIntoKnowledgeBaseAtMock.mock.calls[0][2] as string
+    expect(written).toContain('title: "Example Documentation"')
+    expect(stripOkfFrontmatter(written)).toBe(markdown)
+  })
+
   it('renames around an already-reserved snapshot name', async () => {
     const reserved = new Set<string>(['My Page.md'])
     const relativePath = await captureUrlSnapshotFile('kb-1', 'https://example.com/p', '# My Page\n\nbody', reserved)

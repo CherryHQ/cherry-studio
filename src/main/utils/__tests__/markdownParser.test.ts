@@ -55,4 +55,35 @@ Body`
     expect(metadata.description).toContain('example: user')
     expect(metadata.tools).toEqual(['Read', 'Grep'])
   })
+
+  it('reads the skill slug and nested metadata version', async () => {
+    vi.mocked(fs.promises.readFile).mockResolvedValue(`---
+name: Git
+slug: git
+metadata:
+  version: "1.0.12"
+---
+
+Body`)
+
+    const metadata = await parseSkillMetadata('/abs/skill', 'skills/git', 'skills')
+
+    expect(metadata.slug).toBe('git')
+    expect(metadata.version).toBe('1.0.12')
+  })
+
+  it('prefers a top-level skill version over metadata.version', async () => {
+    vi.mocked(fs.promises.readFile).mockResolvedValue(`---
+name: versioned-skill
+version: "2.0.0"
+metadata:
+  version: "1.0.0"
+---
+
+Body`)
+
+    const metadata = await parseSkillMetadata('/abs/skill', 'skills/versioned-skill', 'skills')
+
+    expect(metadata.version).toBe('2.0.0')
+  })
 })
