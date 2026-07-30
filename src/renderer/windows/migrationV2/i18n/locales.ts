@@ -113,7 +113,7 @@ export const zhCN = {
       cancel: '取消',
       confirm: '已知晓风险，跳过并重启',
       confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)',
-      failed: '跳过迁移失败，数据未变动，请重试。'
+      failed: '跳过迁移失败，请重试。'
     },
     migration: {
       title: '正在迁移数据...',
@@ -288,7 +288,7 @@ export const enUS = {
       cancel: 'Cancel',
       confirm: 'I understand the risk, skip and restart',
       confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)',
-      failed: 'Failed to skip migration. No data was changed — please try again.'
+      failed: 'Failed to skip migration. Please try again.'
     },
     migration: {
       title: 'Migrating Data...',

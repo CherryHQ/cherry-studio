@@ -1,7 +1,7 @@
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockChildrenProps = { children?: ReactNode }
@@ -64,6 +64,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
+  const DialogContext = React.createContext({
+    onOpenChange: Function.prototype as (open: boolean) => void,
+    open: false
+  })
   const passthrough =
     (tag: string, testId: string) =>
     ({ children, ...props }: MockPassthroughProps) =>
@@ -97,14 +101,34 @@ vi.mock('@cherrystudio/ui', () => {
         startContent,
         children
       ),
-    Dialog: ({ children, open }: MockChildrenProps & { open?: boolean }) =>
-      open ? React.createElement('div', { 'data-testid': 'dialog' }, children) : null,
-    DialogClose: ({ children }: MockChildrenProps) => children,
-    DialogContent: passthrough('div', 'dialog-content'),
+    Dialog: ({
+      children,
+      onOpenChange,
+      open
+    }: MockChildrenProps & { onOpenChange?: (open: boolean) => void; open?: boolean }) =>
+      React.createElement(DialogContext.Provider, { value: { onOpenChange, open } }, children),
+    DialogClose: ({ children }: MockChildrenProps) => {
+      const { onOpenChange } = React.use(DialogContext)
+      const child = children as ReactElement<Record<string, unknown>>
+      return React.createElement(child.type, { ...child.props, onClick: () => onOpenChange?.(false) })
+    },
+    DialogContent: ({ children, ...props }: MockPassthroughProps) => {
+      const { open } = React.use(DialogContext)
+      return open ? React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children) : null
+    },
     DialogDescription: passthrough('p', 'dialog-description'),
     DialogFooter: passthrough('div', 'dialog-footer'),
     DialogHeader: passthrough('div', 'dialog-header'),
     DialogTitle: passthrough('h2', 'dialog-title'),
+    DialogTrigger: ({ children }: MockChildrenProps) => {
+      const { onOpenChange } = React.use(DialogContext)
+      const child = children as ReactElement<Record<string, unknown>>
+      return React.createElement(child.type, {
+        ...child.props,
+        'data-dialog-trigger': 'true',
+        onClick: () => onOpenChange?.(true)
+      })
+    },
     Select: ({ children }: MockChildrenProps) => React.createElement('div', { 'data-testid': 'select' }, children),
     SelectContent: passthrough('div', 'select-content'),
     SelectItem: passthrough('div', 'select-item'),
@@ -263,6 +287,7 @@ vi.mock('../hooks/useMigrationProgress', () => ({
 }))
 
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters'
+import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
@@ -510,8 +535,14 @@ describe('MigrationApp', () => {
     // The failure surfaces the error stage locally, without ever handing off to main.
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'migration.buttons.more_options' })).toHaveLength(1)
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+  })
+
+  it('does not claim all data is unchanged when skipping fails', () => {
+    expect(zhCN.migration.skip_dialog.failed).toBe('跳过迁移失败，请重试。')
+    expect(enUS.migration.skip_dialog.failed).toBe('Failed to skip migration. Please try again.')
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -593,6 +624,7 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     const warningTrigger = screen.getByRole('button', { name: 'migration.completed.warning_heading' })
+    expect(warningTrigger).toHaveAttribute('data-dialog-trigger', 'true')
     expect(warningTrigger).toHaveClass('h-auto', 'w-fit', 'text-warning')
     expect(warningTrigger).not.toHaveClass('w-full')
     expect(warningTrigger.closest('[data-migration-warning-trigger]')).toHaveClass('flex', 'justify-center')
@@ -880,6 +912,7 @@ describe('MigrationApp', () => {
 
       const retryButton = screen.getByRole('button', { name: 'migration.buttons.retry' })
       const moreOptionsButton = screen.getByRole('button', { name: 'migration.buttons.more_options' })
+      expect(moreOptionsButton).toHaveAttribute('data-dialog-trigger', 'true')
       expect(retryButton).toHaveClass('w-full')
       expect(moreOptionsButton).toHaveAttribute('variant', 'outline')
       expect(moreOptionsButton).toHaveClass('w-full', 'text-muted-foreground')

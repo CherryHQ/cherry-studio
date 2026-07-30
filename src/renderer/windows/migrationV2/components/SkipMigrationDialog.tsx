@@ -58,10 +58,18 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
   }, [open])
 
   const counting = seconds > 0
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && pending) return
+    onOpenChange(nextOpen)
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="default" showCloseButton={false}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        size="default"
+        showCloseButton={false}
+        closeOnOverlayClick={!pending}
+        aria-busy={pending || undefined}>
         <DialogHeader>
           <DialogTitle>{t('migration.skip_dialog.title')}</DialogTitle>
           <DialogDescription asChild>
@@ -111,11 +119,14 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">{t('migration.skip_dialog.cancel')}</Button>
+            <Button variant="outline" disabled={pending}>
+              {t('migration.skip_dialog.cancel')}
+            </Button>
           </DialogClose>
           <Button
             variant="destructive"
             disabled={counting || pending}
+            loading={pending}
             onClick={() => {
               setPending(true)
               onConfirm()

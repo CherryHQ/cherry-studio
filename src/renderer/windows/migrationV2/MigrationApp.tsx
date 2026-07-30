@@ -8,6 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
   error as showErrorToast,
   Scrollbar,
   Select,
@@ -249,100 +250,97 @@ const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
   }
 
   return (
-    <>
-      <Button
-        type="button"
-        variant={showLabel ? 'outline' : 'ghost'}
-        size={showLabel ? 'lg' : 'icon-sm'}
-        disabled={disabled}
-        aria-label={t('migration.buttons.more_options')}
-        className={cn(
-          'text-muted-foreground hover:text-foreground',
-          showLabel ? 'w-full gap-2' : 'text-muted-foreground/60'
-        )}
-        onClick={() => onOpenChange(true)}>
-        <Wrench size={15} />
-        {showLabel && t('migration.buttons.more_options')}
-      </Button>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size={showLabel ? 'default' : 'sm'} className="max-h-[calc(100vh-2rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('migration.buttons.more_options')}</DialogTitle>
-            <DialogDescription>{t('migration.more_options.description')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2.5">
-            {onExportDiagnostics && (
-              <Button
-                type="button"
-                variant="outline"
-                aria-label={t('migration.more_options.diagnostics_title')}
-                className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
-                onClick={handleExportDiagnostics}>
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
-                  <Download size={16} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-medium text-foreground text-sm">
-                    {t('migration.more_options.diagnostics_title')}
-                  </span>
-                  <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
-                    {t('migration.more_options.diagnostics_description')}
-                  </span>
-                </span>
-              </Button>
-            )}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant={showLabel ? 'outline' : 'ghost'}
+          size={showLabel ? 'lg' : 'icon-sm'}
+          disabled={disabled}
+          aria-label={t('migration.buttons.more_options')}
+          className={cn(
+            'text-muted-foreground hover:text-foreground',
+            showLabel ? 'w-full gap-2' : 'text-muted-foreground/60'
+          )}>
+          <Wrench size={15} />
+          {showLabel && t('migration.buttons.more_options')}
+        </Button>
+      </DialogTrigger>
+      <DialogContent size={showLabel ? 'default' : 'sm'} className="max-h-[calc(100vh-2rem)] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t('migration.buttons.more_options')}</DialogTitle>
+          <DialogDescription>{t('migration.more_options.description')}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2.5">
+          {onExportDiagnostics && (
             <Button
               type="button"
               variant="outline"
-              aria-label={t('migration.more_options.use_v2_title')}
+              aria-label={t('migration.more_options.diagnostics_title')}
               className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
-              onClick={handleSkipMigration}>
+              onClick={handleExportDiagnostics}>
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
-                <AlertTriangle size={16} />
+                <Download size={16} />
               </span>
               <span className="min-w-0">
                 <span className="block font-medium text-foreground text-sm">
-                  {t('migration.more_options.use_v2_title')}
+                  {t('migration.more_options.diagnostics_title')}
                 </span>
                 <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
-                  {t('migration.more_options.skip_description')}
+                  {t('migration.more_options.diagnostics_description')}
                 </span>
               </span>
             </Button>
-            {onContinueV1 && (
-              <Button
-                type="button"
-                variant="outline"
-                aria-label={t('migration.buttons.continue_v1')}
-                className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
-                onClick={handleContinueV1}>
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
-                  <History size={16} />
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            aria-label={t('migration.more_options.use_v2_title')}
+            className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+            onClick={handleSkipMigration}>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
+              <AlertTriangle size={16} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium text-foreground text-sm">
+                {t('migration.more_options.use_v2_title')}
+              </span>
+              <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                {t('migration.more_options.skip_description')}
+              </span>
+            </span>
+          </Button>
+          {onContinueV1 && (
+            <Button
+              type="button"
+              variant="outline"
+              aria-label={t('migration.buttons.continue_v1')}
+              className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+              onClick={handleContinueV1}>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
+                <History size={16} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium text-foreground text-sm">{t('migration.buttons.continue_v1')}</span>
+                <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                  {t('migration.more_options.continue_v1_description')}
                 </span>
-                <span className="min-w-0">
-                  <span className="block font-medium text-foreground text-sm">
-                    {t('migration.buttons.continue_v1')}
-                  </span>
-                  <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
-                    {t('migration.more_options.continue_v1_description')}
-                  </span>
-                </span>
-              </Button>
-            )}
-          </div>
-          <DialogFooter className="items-center sm:justify-between">
-            {onCloseApp && (
-              <Button type="button" variant="outline" onClick={onCloseApp}>
-                {t('migration.buttons.close')}
-              </Button>
-            )}
-            <DialogClose asChild>
-              <Button variant="outline">{t('migration.skip_dialog.cancel')}</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+              </span>
+            </Button>
+          )}
+        </div>
+        <DialogFooter className="items-center sm:justify-between">
+          {onCloseApp && (
+            <Button type="button" variant="outline" onClick={onCloseApp}>
+              {t('migration.buttons.close')}
+            </Button>
+          )}
+          <DialogClose asChild>
+            <Button variant="outline">{t('migration.skip_dialog.cancel')}</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -683,46 +681,44 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <>
+              <Dialog open={warningsDialogOpen} onOpenChange={setWarningsDialogOpen}>
                 <div className="flex justify-center" data-migration-warning-trigger="">
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    aria-haspopup="dialog"
-                    className="h-auto w-fit gap-2 px-0 py-0 text-warning hover:text-warning"
-                    onClick={() => setWarningsDialogOpen(true)}>
-                    <AlertTriangle size={14} className="shrink-0" />
-                    {t('migration.completed.warning_heading', { count: warnings.length })}
-                  </Button>
-                </div>
-                <Dialog open={warningsDialogOpen} onOpenChange={setWarningsDialogOpen}>
-                  <DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-hidden">
-                    <DialogHeader>
-                      <DialogTitle>{t('migration.completed.warning_heading', { count: warnings.length })}</DialogTitle>
-                      <DialogDescription>{t('migration.completed.warning_description')}</DialogDescription>
-                    </DialogHeader>
-                    <Scrollbar className="max-h-[50vh]">
-                      <ul className="text-foreground text-sm leading-relaxed">
-                        {warnings.map((warning, index) => (
-                          <li key={index} className="wrap-break-words">
-                            {warning}
-                          </li>
-                        ))}
-                      </ul>
-                    </Scrollbar>
+                  <DialogTrigger asChild>
                     <Button
                       type="button"
-                      variant="emphasis"
-                      size="lg"
-                      className="w-full gap-2"
-                      onClick={() => void copyMigrationWarnings(warnings)}>
-                      <Copy size={14} />
-                      {t('migration.completed.warning_copy')}
+                      variant="link"
+                      size="sm"
+                      className="h-auto w-fit gap-2 px-0 py-0 text-warning hover:text-warning">
+                      <AlertTriangle size={14} className="shrink-0" />
+                      {t('migration.completed.warning_heading', { count: warnings.length })}
                     </Button>
-                  </DialogContent>
-                </Dialog>
-              </>
+                  </DialogTrigger>
+                </div>
+                <DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-hidden">
+                  <DialogHeader>
+                    <DialogTitle>{t('migration.completed.warning_heading', { count: warnings.length })}</DialogTitle>
+                    <DialogDescription>{t('migration.completed.warning_description')}</DialogDescription>
+                  </DialogHeader>
+                  <Scrollbar className="max-h-[50vh]">
+                    <ul className="text-foreground text-sm leading-relaxed">
+                      {warnings.map((warning, index) => (
+                        <li key={index} className="wrap-break-words">
+                          {warning}
+                        </li>
+                      ))}
+                    </ul>
+                  </Scrollbar>
+                  <Button
+                    type="button"
+                    variant="emphasis"
+                    size="lg"
+                    className="w-full gap-2"
+                    onClick={() => void copyMigrationWarnings(warnings)}>
+                    <Copy size={14} />
+                    {t('migration.completed.warning_copy')}
+                  </Button>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
         )
@@ -861,7 +857,7 @@ const MigrationApp: React.FC = () => {
               'relative min-w-0 flex-1 overflow-y-auto',
               progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
             )}>
-            {progress.stage === 'introduction' && (
+            {stage === 'introduction' && (
               <div className="absolute top-2 right-3 z-10">
                 <MigrationOptionsDialog
                   open={moreOptionsOpen}
