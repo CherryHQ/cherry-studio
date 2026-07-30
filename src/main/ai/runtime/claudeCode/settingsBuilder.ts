@@ -323,6 +323,8 @@ export interface ClaudeCodeSessionOptions {
     effort?: Options['effort']
     thinking?: Options['thinking']
   }
+  /** Claude Code SDK-native Fast mode. */
+  fastMode?: boolean
 }
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>
@@ -453,7 +455,10 @@ export async function buildClaudeCodeSessionSettings(
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     settingSources: getSettingSources(agent, provider),
-    settings: { autoCompactEnabled: true },
+    settings: {
+      autoCompactEnabled: true,
+      fastMode: options?.fastMode === true
+    },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,

@@ -259,6 +259,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
     ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
+    fastMode: presetMetadata.fastMode,
     apiKeys,
     authType,
     apiFeatures,
