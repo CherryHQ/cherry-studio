@@ -171,6 +171,40 @@ describe('ImagePreviewDialog', () => {
     expect(screen.getByRole('img', { name: 'One' })).not.toHaveClass('transition-transform')
   })
 
+  it('reveals the image only after its fitted geometry is ready', () => {
+    const getBoundingClientRect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
+
+    const image = screen.getByRole('img', { name: 'One' })
+    expect(image).toHaveStyle({ visibility: 'hidden' })
+
+    Object.defineProperties(image, {
+      naturalHeight: { configurable: true, value: 1200 },
+      naturalWidth: { configurable: true, value: 1600 }
+    })
+    fireEvent.load(image)
+
+    expect(image).toHaveStyle({
+      height: '1200px',
+      transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(0.5) scaleX(1) scaleY(1)',
+      visibility: 'visible',
+      width: '1600px'
+    })
+
+    getBoundingClientRect.mockRestore()
+  })
+
   it('runs injected toolbar actions with the active item', async () => {
     const onSelect = vi.fn()
 

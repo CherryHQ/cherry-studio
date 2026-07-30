@@ -99,6 +99,8 @@ export function ImagePreviewViewport({
   const { transform, update } = transformControls
   const geometry = getGeometry(imageSize, viewportSize, transform)
   const canPan = geometry.maxOffsetX > 0 || geometry.maxOffsetY > 0
+  const isGeometryReady =
+    imageSize.width > 0 && imageSize.height > 0 && viewportSize.width > 0 && viewportSize.height > 0
 
   React.useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -233,7 +235,10 @@ export function ImagePreviewViewport({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={stopDragging}
-      style={imageSize.width > 0 ? { height: imageSize.height, width: imageSize.width } : undefined}
+      style={{
+        ...(imageSize.width > 0 ? { height: imageSize.height, width: imageSize.width } : {}),
+        visibility: isGeometryReady ? 'visible' : 'hidden'
+      }}
       transform={transform}
     />
   )
