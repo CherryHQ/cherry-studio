@@ -1,7 +1,7 @@
 import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useState } from 'react'
@@ -255,8 +255,7 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('toggles raw ids without closing while multi-select mode is active', async () => {
-    const user = userEvent.setup()
+  it('suppresses only the immediate close caused by a multi-select item click', async () => {
     const firstId = 'openai::gpt-4' as UniqueModelId
     const secondId = 'openai::gpt-3.5' as UniqueModelId
     const onOpenChange = vi.fn()
@@ -274,10 +273,18 @@ describe('ModelSelector', () => {
       />
     )
 
-    await user.click(screen.getAllByRole('option')[1])
+    // The close event from the popover primitive occurs in the same event turn.
+    fireEvent.click(screen.getAllByRole('option')[1])
+    fireEvent.click(screen.getByRole('button', { name: 'close selector' }))
 
     expect(onSelect).toHaveBeenCalledWith([firstId, secondId])
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    fireEvent.click(screen.getAllByRole('option')[1])
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    fireEvent.click(screen.getByRole('button', { name: 'close selector' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('collapses multiple ids when multi-select mode is disabled', async () => {
@@ -327,7 +334,7 @@ describe('ModelSelector', () => {
     expect(refetchPinnedModels).toHaveBeenCalledOnce()
   })
 
-  it('positions the selected model at the start when opened', () => {
+  it('positions the selected model before paint each time the selector opens', () => {
     const selectedId = 'openai::gpt-3.5' as UniqueModelId
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
@@ -335,10 +342,26 @@ describe('ModelSelector', () => {
         visibleSelectedModelIdSet: new Set([selectedId])
       })
     )
+    const closed = (
+      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+    const { rerender } = render(closed)
 
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     expect(mocks.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
+
+    mocks.scrollToIndex.mockClear()
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
+        visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
+      })
+    )
+    rerender(closed)
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'start' })
   })
 
   it('shows an error toast when pinning fails', async () => {
@@ -357,7 +380,18 @@ describe('ModelSelector', () => {
     })
   })
 
-  it('lets the host close before navigating to model settings', async () => {
+  it.each([
+    {
+      actionName: 'navigate.provider_settings',
+      expectedPath: '/settings/provider?id=openai',
+      name: 'provider'
+    },
+    {
+      actionName: 'models.action.configure_custom',
+      expectedPath: '/settings/provider',
+      name: 'custom model'
+    }
+  ])('lets the host close before navigating to $name settings', async ({ actionName, expectedPath }) => {
     const user = userEvent.setup()
 
     function HostDialog() {
@@ -384,10 +418,10 @@ describe('ModelSelector', () => {
     }
 
     render(<HostDialog />)
-    await user.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
+    await user.click(screen.getByRole('button', { name: actionName }))
 
     await waitFor(() => expect(screen.getByText('dialog closed')).toBeInTheDocument())
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith(expectedPath)
   })
 
   it('shows an empty result when no models match', () => {

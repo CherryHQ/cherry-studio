@@ -58,7 +58,7 @@ describe('renderSvgInShadowHost', () => {
   it('accepts malformed SVG that the browser can safely repair', () => {
     renderSvgInShadowHost('<svg><rect></svg>', hostElement)
 
-    expect(hostElement.shadowRoot?.querySelector('svg')).toBeInTheDocument()
+    expect(hostElement.shadowRoot?.querySelector('svg')).toHaveAttribute('xmlns', 'http://www.w3.org/2000/svg')
     expect(hostElement.shadowRoot?.querySelector('rect')).toBeInTheDocument()
   })
 

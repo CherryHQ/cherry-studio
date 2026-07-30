@@ -91,6 +91,16 @@ describe('useModelListKeyboardNav', () => {
     button.remove()
   })
 
+  it('still selects the focused item when Enter comes from the search input', () => {
+    const input = document.body.appendChild(document.createElement('input'))
+    const { onSelectItem } = renderNav({ items: makeItems(3), focusedItemKey: 'item-1' })
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+
+    expect(onSelectItem).toHaveBeenCalledWith({ key: 'item-1' })
+    input.remove()
+  })
+
   it('closes on Escape', () => {
     const { onClose } = renderNav()
 
