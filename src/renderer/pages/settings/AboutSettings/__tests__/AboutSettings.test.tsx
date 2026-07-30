@@ -49,7 +49,7 @@ vi.mock('../DiagnosticBundleDialog', () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>diagnostic-dialog-open</div> : null)
 }))
 
-import AboutSettings from '../AboutSettings'
+import AboutSettings from '../../AboutSettings'
 
 describe('AboutSettings diagnostics entry', () => {
   beforeEach(() => {

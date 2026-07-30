@@ -11,13 +11,13 @@ import {
   type ReadableFileSnapshot,
   remove
 } from '@main/utils/file'
-import type { DiagnosticWarning } from '@shared/ipc/schemas/diagnostics'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type {
   CrashDumpInventory,
   DiagnosticSourceKind,
   DiagnosticTimeRange,
+  DiagnosticWarning,
   SourceCandidate,
   SourceCollection,
   SourceIdentity,
@@ -136,6 +136,19 @@ function isInRange(timestamp: number, range: DiagnosticTimeRange): boolean {
   return timestamp >= range.fromMs && timestamp <= range.toMs
 }
 
+function logMayOverlapRange(fileName: string, range: DiagnosticTimeRange): boolean {
+  const match = LOG_NAME.exec(fileName)
+  if (!match) return false
+
+  const [year, month, day] = match[1].split('-').map(Number)
+  const dayStart = new Date(year, month - 1, day)
+  if (dayStart.getFullYear() !== year || dayStart.getMonth() !== month - 1 || dayStart.getDate() !== day) {
+    return false
+  }
+  const nextDay = new Date(year, month - 1, day + 1)
+  return dayStart.getTime() <= range.toMs && nextDay.getTime() > range.fromMs
+}
+
 async function scanSnapshot(
   snapshot: ReadableFileSnapshot,
   kind: DiagnosticSourceKind,
@@ -213,7 +226,7 @@ async function discoverLogs(range: DiagnosticTimeRange, warnings: Set<Diagnostic
 
   const candidates: SourceCandidate[] = []
   for (const entry of entries) {
-    if (!entry.isFile() || !LOG_NAME.test(entry.name)) continue
+    if (!entry.isFile() || !logMayOverlapRange(entry.name, range)) continue
     const sourcePath = AbsoluteFilePathSchema.parse(application.getPath('app.logs', entry.name))
     const candidate = await scanCandidate(sourcePath, `logs/${entry.name}`, 'logs', range, warnings)
     if (candidate) candidates.push(candidate)
@@ -253,6 +266,14 @@ async function discoverTraces(
     for (const trace of traces) {
       if (!trace.isFile()) continue
       const sourcePath = AbsoluteFilePathSchema.parse(path.join(topicPath, trace.name))
+      try {
+        const fileStat = await lstat(sourcePath)
+        if (!fileStat.isFile || fileStat.modifiedAt < range.fromMs) continue
+      } catch (error) {
+        warnings.add('source_unreadable')
+        logReadFailure('Failed to inspect a persisted trace for diagnostics', error)
+        continue
+      }
       const archiveName = `traces/${portableSegment(topic.name)}/${portableSegment(trace.name)}.jsonl`
       const candidate = await scanCandidate(sourcePath, archiveName, 'traces', range, warnings)
       if (candidate) candidates.push(candidate)
@@ -392,19 +413,16 @@ export async function collectCrashDumpInventory(
   const files: Array<{ createdAt: string; size: number }> = []
   const root = AbsoluteFilePathSchema.parse(application.getPath('app.crash_dumps'))
   const directories = [{ depth: 0, path: root }]
-  let rootAvailable = true
 
   while (directories.length > 0) {
     const directory = directories.pop()!
     try {
       const directoryStat = await lstat(directory.path)
       if (!directoryStat.isDirectory) {
-        if (directory.path === root) rootAvailable = false
         warnings.add('source_unreadable')
         continue
       }
     } catch (error) {
-      if (directory.path === root) rootAvailable = false
       if (errorCode(error) !== 'ENOENT') {
         warnings.add('source_unreadable')
         logReadFailure('Failed to inspect a crash dump directory for diagnostics', error)
@@ -416,7 +434,6 @@ export async function collectCrashDumpInventory(
     try {
       entries = await readdir(directory.path, { withFileTypes: true })
     } catch (error) {
-      if (directory.path === root) rootAvailable = false
       warnings.add('source_unreadable')
       logReadFailure('Failed to list a crash dump directory for diagnostics', error)
       continue
@@ -442,7 +459,6 @@ export async function collectCrashDumpInventory(
 
   files.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   return {
-    available: rootAvailable,
     files,
     totalBytes: files.reduce((total, file) => total + file.size, 0)
   }

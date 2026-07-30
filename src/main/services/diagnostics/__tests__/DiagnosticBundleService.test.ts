@@ -1,31 +1,26 @@
-import { access, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => ({
-  getAllDisplays: vi.fn(),
-  getGpuFeatureStatus: vi.fn(),
-  getGpuInfo: vi.fn(),
-  showItemInFolder: vi.fn(),
+  getLocale: vi.fn(),
+  getVersion: vi.fn(),
   showSaveDialog: vi.fn()
 }))
 
 vi.mock('electron', () => ({
   app: {
-    getGPUFeatureStatus: electronMocks.getGpuFeatureStatus,
-    getGPUInfo: electronMocks.getGpuInfo,
-    getLocale: () => 'en-US',
+    getLocale: electronMocks.getLocale,
     getName: () => 'Cherry Studio',
-    getVersion: () => '2.0.0-test',
+    getVersion: electronMocks.getVersion,
     isPackaged: true
   },
-  dialog: { showSaveDialog: electronMocks.showSaveDialog },
-  screen: { getAllDisplays: electronMocks.getAllDisplays },
-  shell: { showItemInFolder: electronMocks.showItemInFolder }
+  dialog: { showSaveDialog: electronMocks.showSaveDialog }
 }))
 
 import { DiagnosticBundleService } from '../DiagnosticBundleService'
@@ -39,13 +34,7 @@ describe('DiagnosticBundleService', () => {
   let userDataDir: string
   let destination: string
   const parentWindow = {}
-  const preferenceValues: Record<string, unknown> = {
-    'app.developer_mode.enabled': true,
-    'app.language': 'en-US',
-    'app.proxy.mode': 'none',
-    'BootConfig.app.disable_hardware_acceleration': false
-  }
-  const preferenceService = { get: vi.fn<(key: string) => unknown>() }
+  const preferenceService = { get: vi.fn(() => 'en-US') }
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -57,7 +46,6 @@ describe('DiagnosticBundleService', () => {
     userDataDir = path.join(workDir, 'user-data')
     destination = path.join(workDir, 'bundle.zip')
     await Promise.all([mkdir(logsDir), mkdir(tracesDir), mkdir(crashDumpsDir), mkdir(appTempDir), mkdir(userDataDir)])
-    preferenceService.get.mockImplementation((key) => preferenceValues[key])
 
     vi.mocked(application.getPath).mockImplementation((key: string, fileName?: string) => {
       const roots: Record<string, string> = {
@@ -77,18 +65,8 @@ describe('DiagnosticBundleService', () => {
     })
 
     electronMocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: destination })
-    electronMocks.getGpuInfo.mockResolvedValue({
-      auxAttributes: {
-        glRenderer: 'Test GPU',
-        glVendor: 'Test Vendor',
-        machineModelName: 'must-not-leak'
-      },
-      gpuDevice: [{ active: true, deviceId: 2, vendorId: 1 }]
-    })
-    electronMocks.getGpuFeatureStatus.mockReturnValue({ webgl: 'enabled' })
-    electronMocks.getAllDisplays.mockReturnValue([
-      { id: 99, label: 'Private display name', rotation: 0, scaleFactor: 2, size: { height: 900, width: 1440 } }
-    ])
+    electronMocks.getLocale.mockReturnValue('en-US')
+    electronMocks.getVersion.mockReturnValue('2.0.0-test')
   })
 
   afterEach(async () => {
@@ -125,8 +103,10 @@ describe('DiagnosticBundleService', () => {
     expect(result.status).toBe('saved')
     if (result.status !== 'saved') throw new Error('Expected saved result')
     expect(result.fileName).toBe('bundle.zip')
-    expect(result.included.logs.fileCount).toBe(1)
-    expect(result.included.traces.fileCount).toBe(1)
+    expect(result.filePath).toBe(destination)
+    expect(result.hasWarnings).toBe(false)
+    expect(result.includedFileCount).toBe(2)
+    expect(result.omittedFileCount).toBe(0)
 
     const zip = await readZip(destination)
     expect(zip.entries).toHaveLength(3)
@@ -145,16 +125,14 @@ describe('DiagnosticBundleService', () => {
       uploadedAutomatically: false
     })
     expect(manifest.crashDumps.files).toHaveLength(1)
-    expect(manifest.system.gpu).toMatchObject({ renderer: 'Test GPU', vendor: 'Test Vendor' })
-    expect(manifest.system.displays).toEqual([{ height: 900, rotation: 0, scaleFactor: 2, width: 1440 }])
+    expect(manifest.system.application).toEqual({
+      isPackaged: true,
+      name: 'Cherry Studio',
+      version: '2.0.0-test'
+    })
+    expect(manifest.system.operatingSystem).toMatchObject({ locale: 'en-US' })
     expect(manifestText).not.toContain('private-crash-name')
-    expect(manifestText).not.toContain('Private display name')
-    expect(manifestText).not.toContain('machineModelName')
-    expect(manifestText).not.toContain('deviceId')
     expect(manifestText).not.toContain(userDataDir)
-
-    expect(await service.revealLastBundle()).toBe(true)
-    expect(electronMocks.showItemInFolder).toHaveBeenCalledWith(destination)
   })
 
   it('returns canceled without scanning or writing when the save dialog is canceled', async () => {
@@ -164,7 +142,6 @@ describe('DiagnosticBundleService', () => {
     await expect(
       service.exportBundle({ includeLogs: true, includeTraces: true, range: '24h' }, 'main-window')
     ).resolves.toEqual({ status: 'canceled' })
-    expect(await service.revealLastBundle()).toBe(false)
   })
 
   it('exports only the manifest when logs and traces are disabled', async () => {
@@ -201,17 +178,9 @@ describe('DiagnosticBundleService', () => {
     expect(manifest.range.to).toBe(exportStartedAt.toISOString())
   })
 
-  it('continues when individual system information sources fail', async () => {
-    electronMocks.getGpuInfo.mockRejectedValueOnce(new Error('gpu unavailable'))
-    electronMocks.getGpuFeatureStatus.mockImplementationOnce(() => {
-      throw new Error('features unavailable')
-    })
-    electronMocks.getAllDisplays.mockImplementationOnce(() => {
-      throw new Error('displays unavailable')
-    })
-    preferenceService.get.mockImplementation((key) => {
-      if (key === 'app.developer_mode.enabled') throw new Error('preference unavailable')
-      return preferenceValues[key]
+  it('continues when application metadata collection fails', async () => {
+    electronMocks.getVersion.mockImplementation(() => {
+      throw new Error('version unavailable')
     })
     const service = new DiagnosticBundleService()
 
@@ -219,13 +188,11 @@ describe('DiagnosticBundleService', () => {
 
     expect(result.status).toBe('saved')
     if (result.status !== 'saved') throw new Error('Expected saved result')
-    expect(result.warnings).toContain('system_info_unavailable')
+    expect(result.hasWarnings).toBe(true)
     const zip = await readZip(destination)
     const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-    expect(manifest.system.application.version).toBe('2.0.0-test')
-    expect(manifest.system.gpu).toBeUndefined()
-    expect(manifest.system.displays).toBeUndefined()
-    expect(manifest.system.settings.developerModeEnabled).toBeUndefined()
+    expect(manifest.system.application).toBeUndefined()
+    expect(manifest.system.operatingSystem.locale).toBe('en-US')
   })
 
   it('returns busy while another save dialog is open', async () => {
@@ -284,5 +251,29 @@ describe('DiagnosticBundleService', () => {
 
     expect(await readdir(appTempDir)).toEqual([])
     await expect(access(destination)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('preserves a destination created while the bundle archive is finalizing', async () => {
+    const originalFinalize = ZipArchive.prototype.finalize
+    const finalizeSpy = vi.spyOn(ZipArchive.prototype, 'finalize').mockImplementation(async function (
+      this: ZipArchive
+    ) {
+      const finalized = originalFinalize.call(this)
+      await writeFile(destination, 'external file')
+      return finalized
+    })
+    const service = new DiagnosticBundleService()
+
+    try {
+      await expect(
+        service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
+      ).rejects.toThrow('destination changed')
+    } finally {
+      finalizeSpy.mockRestore()
+    }
+
+    expect(await readFile(destination, 'utf8')).toBe('external file')
+    expect((await readdir(workDir)).filter((name) => name.startsWith('.cherry-studio-diagnostics-'))).toEqual([])
+    expect(await readdir(appTempDir)).toEqual([])
   })
 })

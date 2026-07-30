@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import type { DiagnosticWarning } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,7 +13,7 @@ import {
   SourceChangedError,
   stageSourceCandidate
 } from '../sourceCollector'
-import type { SourceCandidate } from '../types'
+import type { DiagnosticWarning, SourceCandidate } from '../types'
 
 describe('diagnostic source collection', () => {
   let workDir: string
@@ -109,6 +108,25 @@ describe('diagnostic source collection', () => {
     const stagedPath = path.join(tempDir, 'mtime-filtered.jsonl') as AbsoluteFilePath
     await stageSourceCandidate(collection.logs[0], range, stagedPath)
     expect(await readFile(stagedPath, 'utf8')).toBe(recentLine)
+  })
+
+  it('skips log days and trace files that cannot overlap the requested range', async () => {
+    const now = Date.now()
+    await writeFile(path.join(logsDir, 'app.2020-01-01.log'), 'not-json\n')
+    await writeFile(path.join(logsDir, 'app.2026-99-99.log'), 'not-json\n')
+
+    const topicDir = path.join(tracesDir, 'old-topic')
+    await mkdir(topicDir)
+    const tracePath = path.join(topicDir, 'old-trace')
+    await writeFile(tracePath, 'not-json\n')
+    const oldTime = new Date(now - 30 * 86_400_000)
+    await utimes(tracePath, oldTime, oldTime)
+
+    const collection = await collectDiagnosticSources({ fromMs: now - 86_400_000, toMs: now })
+
+    expect(collection.logs).toEqual([])
+    expect(collection.traces).toEqual([])
+    expect(collection.warnings).not.toContain('malformed_lines')
   })
 
   it('stages the inspected log prefix when the active file is appended', async () => {

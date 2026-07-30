@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
   exportBundle: vi.fn(),
-  inspect: vi.fn(),
-  revealLastBundle: vi.fn()
+  inspect: vi.fn()
 }))
 
 vi.mock('@main/services/diagnostics', () => ({
@@ -19,14 +18,13 @@ beforeEach(() => {
 describe('diagnosticsHandlers', () => {
   it('delegates inspection to the diagnostic bundle service', async () => {
     const expected = {
-      range: { from: 'from', to: 'to' },
+      hasWarnings: false,
       sourceLimitBytes: 1,
       sources: {
-        crashDumps: { available: false, estimatedBytes: 0, fileCount: 0 },
+        crashDumps: { fileCount: 0 },
         logs: { available: false, estimatedBytes: 0, fileCount: 0 },
         traces: { available: false, estimatedBytes: 0, fileCount: 0 }
-      },
-      warnings: []
+      }
     }
     serviceMocks.inspect.mockResolvedValue(expected)
 
@@ -44,12 +42,5 @@ describe('diagnosticsHandlers', () => {
       { status: 'canceled' }
     )
     expect(serviceMocks.exportBundle).toHaveBeenCalledWith(input, 'main-window')
-  })
-
-  it('reveals only through the service-owned last path', async () => {
-    serviceMocks.revealLastBundle.mockResolvedValue(true)
-
-    await expect(diagnosticsHandlers['diagnostics.bundle.reveal'](undefined, { senderId: 'main' })).resolves.toBe(true)
-    expect(serviceMocks.revealLastBundle).toHaveBeenCalledOnce()
   })
 })

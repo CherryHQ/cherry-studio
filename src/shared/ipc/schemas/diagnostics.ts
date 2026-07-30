@@ -1,3 +1,4 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -5,44 +6,23 @@ import { defineRoute } from '../define'
 export const diagnosticRangeSchema = z.enum(['24h', '3d', '7d'])
 export type DiagnosticRange = z.infer<typeof diagnosticRangeSchema>
 
-const diagnosticWarningSchema = z.enum([
-  'malformed_lines',
-  'size_limit_reached',
-  'source_changed',
-  'source_unreadable',
-  'system_info_unavailable'
-])
-export type DiagnosticWarning = z.infer<typeof diagnosticWarningSchema>
-
 const diagnosticSourceSummarySchema = z.object({
   available: z.boolean(),
   estimatedBytes: z.number().int().nonnegative(),
   fileCount: z.number().int().nonnegative()
 })
 
-const diagnosticSourceStatsSchema = z.object({
-  bytes: z.number().int().nonnegative(),
-  fileCount: z.number().int().nonnegative(),
-  malformedLineCount: z.number().int().nonnegative()
-})
-
-const diagnosticTimeRangeSchema = z.object({
-  from: z.string(),
-  to: z.string()
-})
-
 export const diagnosticsRequestSchemas = {
   'diagnostics.bundle.inspect': defineRoute({
     input: z.object({ range: diagnosticRangeSchema }).strict(),
     output: z.object({
-      range: diagnosticTimeRangeSchema,
+      hasWarnings: z.boolean(),
       sourceLimitBytes: z.number().int().positive(),
       sources: z.object({
-        crashDumps: diagnosticSourceSummarySchema,
+        crashDumps: z.object({ fileCount: z.number().int().nonnegative() }),
         logs: diagnosticSourceSummarySchema,
         traces: diagnosticSourceSummarySchema
-      }),
-      warnings: z.array(diagnosticWarningSchema)
+      })
     })
   }),
   'diagnostics.bundle.export': defineRoute({
@@ -60,22 +40,12 @@ export const diagnosticsRequestSchemas = {
         archiveBytes: z.number().int().nonnegative(),
         bundleId: z.string(),
         fileName: z.string(),
-        included: z.object({
-          logs: diagnosticSourceStatsSchema,
-          traces: diagnosticSourceStatsSchema
-        }),
-        omitted: z.object({
-          logs: diagnosticSourceStatsSchema,
-          traces: diagnosticSourceStatsSchema
-        }),
-        range: diagnosticTimeRangeSchema,
-        status: z.literal('saved'),
-        warnings: z.array(diagnosticWarningSchema)
+        filePath: AbsoluteFilePathSchema,
+        hasWarnings: z.boolean(),
+        includedFileCount: z.number().int().nonnegative(),
+        omittedFileCount: z.number().int().nonnegative(),
+        status: z.literal('saved')
       })
     ])
-  }),
-  'diagnostics.bundle.reveal': defineRoute({
-    input: z.void(),
-    output: z.boolean()
   })
 }

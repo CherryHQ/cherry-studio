@@ -15,7 +15,6 @@
  *   `canWrite`, …).
  * - `./pathStatus` — `getPathStatus` + its result types.
  * - `./shell` — OS open / reveal (`open`, `showInFolder`).
- * - `./archive` — atomic fixed-length ZIP streaming.
  *
  * Related surfaces that live elsewhere (not here):
  * - Legacy v1 file helpers (`getFileExt`, `readTextFileWithAutoEncoding`,
@@ -49,13 +48,6 @@
  * here.
  */
 
-export {
-  type AtomicZipBufferEntry,
-  type AtomicZipEntry,
-  type AtomicZipStreamEntry,
-  FixedLengthReadError,
-  writeAtomicZip
-} from './archive'
 export {
   atomicWriteFile,
   atomicWriteIfUnchanged,

@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { OutputFor } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,31 +46,24 @@ vi.mock('react-i18next', () => ({
 import DiagnosticBundleDialog from '../DiagnosticBundleDialog'
 
 const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
-  range: { from: '2026-07-29T00:00:00.000Z', to: '2026-07-30T00:00:00.000Z' },
+  hasWarnings: false,
   sourceLimitBytes: 50 * 1024 * 1024,
   sources: {
-    crashDumps: { available: true, estimatedBytes: 100, fileCount: 1 },
+    crashDumps: { fileCount: 1 },
     logs: { available: true, estimatedBytes: 1_024, fileCount: 2 },
     traces: { available: true, estimatedBytes: 2_048, fileCount: 3 }
-  },
-  warnings: []
+  }
 }
 
 const savedResult: Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'saved' }> = {
   archiveBytes: 2_000,
   bundleId: 'bundle-123',
   fileName: 'cherry-studio-diagnostics.zip',
-  included: {
-    logs: { bytes: 1_000, fileCount: 1, malformedLineCount: 0 },
-    traces: { bytes: 1_000, fileCount: 1, malformedLineCount: 0 }
-  },
-  omitted: {
-    logs: { bytes: 0, fileCount: 0, malformedLineCount: 0 },
-    traces: { bytes: 0, fileCount: 0, malformedLineCount: 0 }
-  },
-  range: inspectResult.range,
-  status: 'saved',
-  warnings: []
+  filePath: AbsoluteFilePathSchema.parse('/tmp/cherry-studio-diagnostics.zip'),
+  hasWarnings: false,
+  includedFileCount: 2,
+  omittedFileCount: 0,
+  status: 'saved'
 }
 
 function renderDialog() {
@@ -101,7 +95,6 @@ describe('DiagnosticBundleDialog', () => {
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.export') return savedResult
-      if (route === 'diagnostics.bundle.reveal') return true
       return undefined
     })
   })
@@ -159,14 +152,19 @@ describe('DiagnosticBundleDialog', () => {
     expect(Array.from(content.children)).toEqual([header, scrollbar, footer])
   })
 
-  it('reveals the saved file and prepares a private support email without a local path', async () => {
+  it('reveals the saved file without embedding its local path in the support email', async () => {
     renderDialog()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
     await confirmSensitiveExport()
     await screen.findByText('settings.about.diagnostics.success.title')
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.reveal' }))
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.reveal'))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', {
+        kind: 'path',
+        path: '/tmp/cherry-studio-diagnostics.zip'
+      })
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
     await waitFor(() => {
@@ -271,7 +269,7 @@ describe('DiagnosticBundleDialog', () => {
   it('shows a warning when source inspection is incomplete', async () => {
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') {
-        return { ...inspectResult, warnings: ['source_unreadable'] }
+        return { ...inspectResult, hasWarnings: true }
       }
       return undefined
     })
@@ -285,7 +283,7 @@ describe('DiagnosticBundleDialog', () => {
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.export') {
-        return { ...savedResult, warnings: ['system_info_unavailable'] }
+        return { ...savedResult, hasWarnings: true }
       }
       return undefined
     })

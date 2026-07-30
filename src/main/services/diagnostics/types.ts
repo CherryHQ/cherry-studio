@@ -1,7 +1,12 @@
-import type { DiagnosticWarning } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 export type DiagnosticSourceKind = 'logs' | 'traces'
+export type DiagnosticWarning =
+  | 'malformed_lines'
+  | 'size_limit_reached'
+  | 'source_changed'
+  | 'source_unreadable'
+  | 'system_info_unavailable'
 
 export interface DiagnosticTimeRange {
   readonly fromMs: number
@@ -46,7 +51,6 @@ export interface StagedSource {
 }
 
 export interface CrashDumpInventory {
-  readonly available: boolean
   readonly files: ReadonlyArray<{
     readonly createdAt: string
     readonly size: number

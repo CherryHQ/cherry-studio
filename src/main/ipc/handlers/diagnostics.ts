@@ -4,6 +4,5 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const diagnosticsHandlers: IpcHandlersFor<typeof diagnosticsRequestSchemas> = {
   'diagnostics.bundle.inspect': async ({ range }) => diagnosticBundleService.inspect(range),
-  'diagnostics.bundle.export': async (input, { senderId }) => diagnosticBundleService.exportBundle(input, senderId),
-  'diagnostics.bundle.reveal': async () => diagnosticBundleService.revealLastBundle()
+  'diagnostics.bundle.export': async (input, { senderId }) => diagnosticBundleService.exportBundle(input, senderId)
 }

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { createReadStream } from 'node:fs'
 import { mkdtemp } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -7,20 +6,21 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import {
-  type AtomicZipEntry,
+  createAtomicWriteStream,
   isPathInside,
+  move,
   openReadableFileSnapshot,
-  probeReadable,
   type ReadableFileSnapshot,
   realpath,
+  remove,
   removeDir,
-  stat,
-  writeAtomicZip
+  stat
 } from '@main/utils/file'
-import type { DiagnosticRange, DiagnosticWarning } from '@shared/ipc/schemas/diagnostics'
+import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { dialog, shell } from 'electron'
+import { ZipArchive } from 'archiver'
+import { dialog } from 'electron'
 
 import {
   collectCrashDumpInventory,
@@ -31,7 +31,14 @@ import {
   stageSourceCandidate
 } from './sourceCollector'
 import { collectDiagnosticSystemInfo } from './systemInfo'
-import type { DiagnosticTimeRange, SourceCandidate, SourceIdentity, SourceStats, StagedSource } from './types'
+import type {
+  DiagnosticTimeRange,
+  DiagnosticWarning,
+  SourceCandidate,
+  SourceIdentity,
+  SourceStats,
+  StagedSource
+} from './types'
 
 const logger = loggerService.withContext('DiagnosticBundleService')
 
@@ -88,6 +95,61 @@ function stagedStats(sources: readonly StagedSource[], kind: 'logs' | 'traces'):
 
 function candidateStats(candidates: readonly SourceCandidate[], kind: 'logs' | 'traces'): SourceStats {
   return sourceStats(candidates.filter((candidate) => candidate.kind === kind))
+}
+
+function assertSafeArchiveName(name: string): void {
+  const segments = name.split('/')
+  if (
+    !name ||
+    path.posix.isAbsolute(name) ||
+    name.includes('\\') ||
+    segments.some((segment) => !segment || segment === '.' || segment === '..')
+  ) {
+    throw new Error('Invalid ZIP entry name')
+  }
+}
+
+async function writeBundleZip(
+  destination: AbsoluteFilePath,
+  expectedDestinationIdentity: DestinationIdentity,
+  manifest: string,
+  sources: readonly StagedSource[]
+): Promise<void> {
+  for (const source of sources) assertSafeArchiveName(source.archiveName)
+
+  const stagingPath = AbsoluteFilePathSchema.parse(
+    path.join(path.dirname(destination), `.cherry-studio-diagnostics-${randomUUID()}.tmp`)
+  )
+  const output = createAtomicWriteStream(stagingPath)
+  const archive = new ZipArchive({ zlib: { level: 1 } })
+  const completion = new Promise<void>((resolve, reject) => {
+    output.once('finish', resolve)
+    output.once('error', reject)
+    archive.once('error', reject)
+    archive.once('warning', reject)
+  })
+
+  try {
+    archive.pipe(output)
+    archive.append(manifest, { name: 'diagnostics.json' })
+    for (const source of sources) archive.file(source.path, { name: source.archiveName })
+    await Promise.all([archive.finalize(), completion])
+    const currentDestinationIdentity = await probeDestination(destination)
+    if (!sameDestinationIdentity(expectedDestinationIdentity, currentDestinationIdentity)) {
+      throw new Error('Diagnostic bundle destination changed before it could be written')
+    }
+    await move(stagingPath, destination)
+  } catch (error) {
+    archive.abort()
+    if (!output.closed) await output.abort().catch(() => undefined)
+    throw error
+  } finally {
+    await remove(stagingPath).catch((error) => {
+      logger.warn('Failed to clean diagnostic bundle staging archive', {
+        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      })
+    })
+  }
 }
 
 async function probeDestination(destination: AbsoluteFilePath): Promise<DestinationIdentity> {
@@ -157,7 +219,6 @@ function selectedCandidates(collection: Awaited<ReturnType<typeof collectDiagnos
 
 export class DiagnosticBundleService {
   private inFlightExport: Promise<ExportResult> | null = null
-  private lastSavedPath: AbsoluteFilePath | null = null
 
   async inspect(rangeName: DiagnosticRange): Promise<InspectResult> {
     const range = toTimeRange(rangeName, Date.now())
@@ -165,14 +226,10 @@ export class DiagnosticBundleService {
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
 
     return {
-      range: serializeTimeRange(range),
+      hasWarnings: collection.warnings.size > 0,
       sourceLimitBytes: DIAGNOSTIC_SOURCE_LIMIT_BYTES,
       sources: {
-        crashDumps: {
-          available: crashDumps.files.length > 0,
-          estimatedBytes: crashDumps.totalBytes,
-          fileCount: crashDumps.files.length
-        },
+        crashDumps: { fileCount: crashDumps.files.length },
         logs: {
           available: collection.logs.length > 0,
           estimatedBytes: sourceStats(collection.logs).bytes,
@@ -183,8 +240,7 @@ export class DiagnosticBundleService {
           estimatedBytes: sourceStats(collection.traces).bytes,
           fileCount: collection.traces.length
         }
-      },
-      warnings: warningsArray(collection.warnings)
+      }
     }
   }
 
@@ -196,20 +252,6 @@ export class DiagnosticBundleService {
       return await operation
     } finally {
       if (this.inFlightExport === operation) this.inFlightExport = null
-    }
-  }
-
-  async revealLastBundle(): Promise<boolean> {
-    const lastSavedPath = this.lastSavedPath
-    if (!lastSavedPath || (await probeReadable(lastSavedPath)) !== 'readable') return false
-    try {
-      shell.showItemInFolder(lastSavedPath)
-      return true
-    } catch (error) {
-      logger.warn('Failed to reveal the last diagnostic bundle', {
-        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
-      })
-      return false
     }
   }
 
@@ -341,31 +383,18 @@ export class DiagnosticBundleService {
       warnings
     }
 
-    const entries: AtomicZipEntry[] = [
-      { name: 'diagnostics.json', data: `${JSON.stringify(manifest, null, 2)}\n` },
-      ...staged.map((source) => ({
-        name: source.archiveName,
-        expectedBytes: source.bytes,
-        createReadStream: () => createReadStream(source.path)
-      }))
-    ]
-    const currentDestinationIdentity = await probeDestination(destination)
-    if (!sameDestinationIdentity(destinationIdentity, currentDestinationIdentity)) {
-      throw new Error('Diagnostic bundle destination changed before it could be written')
-    }
-    await writeAtomicZip(destination, entries)
+    await writeBundleZip(destination, destinationIdentity, `${JSON.stringify(manifest, null, 2)}\n`, staged)
 
     const archiveBytes = (await stat(destination)).size
-    this.lastSavedPath = destination
     return {
       archiveBytes,
       bundleId,
+      filePath: destination,
       fileName: path.basename(destination),
-      included,
-      omitted,
-      range: serializedRange,
-      status: 'saved',
-      warnings
+      hasWarnings: warnings.length > 0,
+      includedFileCount: included.logs.fileCount + included.traces.fileCount,
+      omittedFileCount: omitted.logs.fileCount + omitted.traces.fileCount,
+      status: 'saved'
     }
   }
 }

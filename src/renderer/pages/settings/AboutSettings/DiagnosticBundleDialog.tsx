@@ -17,6 +17,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
+import { createFilePathHandle } from '@shared/utils/file'
 import { CircleCheck, LoaderCircle } from 'lucide-react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,8 +114,8 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const effectiveIncludeTraces = includeTraces && tracesAvailable
   const includesSensitiveData = effectiveIncludeLogs || effectiveIncludeTraces
   const canExport = inspectResult !== null && !isInspecting && !inspectError && status !== 'saving'
-  const hasInspectWarnings = (inspectResult?.warnings.length ?? 0) > 0
-  const hasSavedWarnings = (savedResult?.warnings.length ?? 0) > 0
+  const hasInspectWarnings = inspectResult?.hasWarnings ?? false
+  const hasSavedWarnings = savedResult?.hasWarnings ?? false
 
   const changeRange = (nextRange: DiagnosticRange) => {
     setRange(nextRange)
@@ -192,10 +193,9 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   }
 
   const handleReveal = async () => {
+    if (!savedResult) return
     try {
-      if (!(await ipcApi.request('diagnostics.bundle.reveal'))) {
-        toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
-      }
+      await ipcApi.request('file.show_in_folder', createFilePathHandle(savedResult.filePath))
     } catch (error) {
       logger.error('Failed to reveal diagnostic bundle', error as Error)
       toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
@@ -236,7 +236,6 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
     label: t(translationKey),
     value
   }))
-  const omittedFiles = savedResult ? savedResult.omitted.logs.fileCount + savedResult.omitted.traces.fileCount : 0
 
   return (
     <>
@@ -266,8 +265,8 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
                     <p className="break-all text-sm">{savedResult.fileName}</p>
                     <p className="text-muted-foreground text-xs">
                       {t('settings.about.diagnostics.success.summary', {
-                        included: savedResult.included.logs.fileCount + savedResult.included.traces.fileCount,
-                        omitted: omittedFiles,
+                        included: savedResult.includedFileCount,
+                        omitted: savedResult.omittedFileCount,
                         size: formatBytes(savedResult.archiveBytes)
                       })}
                     </p>
