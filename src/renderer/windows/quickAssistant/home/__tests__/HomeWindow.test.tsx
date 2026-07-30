@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +16,7 @@ type TestModel = {
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  readClipboardAtStartup: false,
   defaultModel: {
     id: 'cherryai::qwen',
     modelId: 'qwen',
@@ -60,7 +61,7 @@ vi.mock('@ai-sdk/react', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     const values: Record<string, unknown> = {
-      'feature.quick_assistant.read_clipboard_at_startup': false,
+      'feature.quick_assistant.read_clipboard_at_startup': state.readClipboardAtStartup,
       'feature.quick_assistant.assistant_id': state.quickAssistantId,
       'app.language': 'en-US',
       'ui.window_style': 'default'
@@ -222,6 +223,7 @@ describe('HomeWindow', () => {
       providerId: 'anthropic',
       group: 'Anthropic'
     }
+    state.readClipboardAtStartup = false
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.setMessages.mockClear()
@@ -259,5 +261,37 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  describe('clipboard read on mount', () => {
+    let readText: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      state.readClipboardAtStartup = true
+      readText = vi.fn().mockResolvedValue('secret-token')
+      // jsdom ships no navigator.clipboard, so define it before the window mounts.
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { readText },
+        configurable: true,
+        writable: true
+      })
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    })
+
+    it('reads the clipboard on mount for the real window', async () => {
+      render(<HomeWindow />)
+
+      await waitFor(() => expect(readText).toHaveBeenCalled())
+      expect(await screen.findByTestId('clipboard-preview')).toHaveTextContent('secret-token')
+    })
+
+    it('does not read the clipboard on mount for the settings preview', async () => {
+      render(<HomeWindow draggable={false} autoReadClipboard={false} />)
+
+      // Give any stray mount effect a chance to fire before asserting.
+      await Promise.resolve()
+      expect(readText).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+    })
   })
 })
