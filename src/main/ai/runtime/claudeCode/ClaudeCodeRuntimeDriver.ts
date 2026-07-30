@@ -639,7 +639,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
         if (message.type === 'assistant') {
           this.captureAssistantInvocation(message, messageAssociation)
-          if (message.parent_tool_use_id === null) this.lastTopLevelAssistantUuid = message.uuid
+          // Turn-gated so the resume-point anchor can never hold an outside-turn
+          // (background) uuid that the main transcript file would not contain.
+          if (message.parent_tool_use_id === null && this.adapter!.isTurnActive) {
+            this.lastTopLevelAssistantUuid = message.uuid
+          }
         }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
