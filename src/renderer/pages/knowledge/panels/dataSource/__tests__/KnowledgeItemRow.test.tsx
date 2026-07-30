@@ -272,6 +272,17 @@ describe('KnowledgeItemRow', () => {
     expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
   })
 
+  it('omits the preview-original action for notes while keeping chunk viewing when completed', () => {
+    render(<KnowledgeItemRow item={createNoteItem({ id: 'note-1' })} {...defaultHandlers} />)
+
+    fireEvent.contextMenu(screen.getByRole('row'))
+
+    // Notes have no external source to preview — their text opens via the row's primary click.
+    expect(screen.queryByRole('button', { name: '预览原文' })).not.toBeInTheDocument()
+    // Chunks remain reachable as a separate advanced action once the note is indexed.
+    expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
+  })
+
   it('renders the processing status label for in-flight items', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'reading' })} {...defaultHandlers} />)
 
@@ -326,7 +337,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
-  it('does not activate a non-completed note (no external target until its chunk view is ready)', () => {
+  it('activates a non-completed note so its original content can be viewed regardless of index state', () => {
     const handleClick = vi.fn()
 
     render(
@@ -339,7 +350,7 @@ describe('KnowledgeItemRow', () => {
 
     fireEvent.click(screen.getByRole('row'))
 
-    expect(handleClick).not.toHaveBeenCalled()
+    expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
   it.each(['processing', 'failed'] as const)(
@@ -425,7 +436,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('is not keyboard-activatable for a non-completed note', () => {
+  it('is keyboard-activatable for a non-completed note', () => {
     const handleClick = vi.fn()
 
     render(
@@ -438,11 +449,11 @@ describe('KnowledgeItemRow', () => {
 
     const row = screen.getByRole('row')
 
-    expect(row).not.toHaveAttribute('tabindex')
+    expect(row).toHaveAttribute('tabindex', '0')
 
     fireEvent.keyDown(row, { key: 'Enter' })
 
-    expect(handleClick).not.toHaveBeenCalled()
+    expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
   it('reveals the same actions via the more button and right-click', () => {

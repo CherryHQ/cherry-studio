@@ -11,20 +11,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockPreferenceGet, mockProcessMessage, mockGetModels } = vi.hoisted(() => ({
+const { mockPreferenceGet, mockProcessMessage, mockGetModels, mockIsInternalRequestToken } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] }))
+  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token')
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+  const overrides = {
+    PreferenceService: { get: mockPreferenceGet },
+    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
+  }
+  return mockApplicationFactory(overrides)
 })
 
 vi.mock('@logger', () => ({
@@ -173,6 +176,36 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.ok).toBe(true)
       expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('ignores the internal Fast header from a public API-key client', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, 'x-cherry-fast-mode': 'true' }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: false }))
+    })
+
+    it('accepts Fast only with the process-local internal request token', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          {
+            ...AUTH,
+            'x-cherry-fast-mode': 'true',
+            'x-cherry-internal-request-token': 'internal-request-token'
+          }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: true }))
     })
 
     it('GET /v1/models returns the model list', async () => {

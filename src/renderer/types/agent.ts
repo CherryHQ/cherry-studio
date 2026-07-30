@@ -6,7 +6,12 @@
  * intentionally does not re-export them.
  */
 import type { Tool } from '@shared/ai/tool'
-import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
+import {
+  AgentBaseSchema,
+  type AgentConfiguration,
+  AgentEntitySchema,
+  type UpdateAgentDto
+} from '@shared/data/api/schemas/agents'
 import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
@@ -65,10 +70,7 @@ export type BaseAgentForm = {
 
 export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }
 
-export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
-  id: string
-  type?: never
-}
+export type UpdateAgentForm = UpdateAgentDto & { id: string; type?: never }
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 

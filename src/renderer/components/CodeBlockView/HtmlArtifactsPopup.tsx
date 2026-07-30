@@ -29,7 +29,7 @@ import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/form
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HtmlPreviewFrame from './HtmlPreviewFrame'
@@ -100,6 +100,8 @@ interface HtmlArtifactsPopupProps {
   html: string
   onSave?: (html: string) => void
   editable?: boolean
+  canCapturePreview?: boolean
+  renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
   onClose: () => void
 }
 
@@ -111,6 +113,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   html,
   onSave,
   editable = true,
+  canCapturePreview = true,
+  renderPreview,
   onClose
 }) => {
   const { t } = useTranslation()
@@ -185,14 +189,17 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     />
   )
 
-  const renderPreviewPanel = () => (
-    <HtmlPreviewFrame
-      iframeRef={previewFrameRef}
-      html={html}
-      title={t('common.html_preview')}
-      emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
-    />
-  )
+  const renderPreviewPanel = () =>
+    renderPreview ? (
+      renderPreview(previewFrameRef)
+    ) : (
+      <HtmlPreviewFrame
+        iframeRef={previewFrameRef}
+        html={html}
+        title={t('common.html_preview')}
+        emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
+      />
+    )
 
   const renderContent = () => {
     if (viewMode === 'code') {
@@ -300,29 +307,31 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             <div
               className="flex flex-1 items-center justify-end gap-2 pr-1"
               onDoubleClick={(event) => event.stopPropagation()}>
-              <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
-                <Tooltip content={t('html_artifacts.capture.label')}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
-                      <Camera className="size-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                </Tooltip>
-                <PopoverContent align="end" className="w-56 p-1.5">
-                  <MenuList>
-                    <MenuItem
-                      label={t('html_artifacts.capture.to_file')}
-                      icon={<FilePngIcon size={14} className="lucide-custom" />}
-                      onClick={() => void handleCapture('file')}
-                    />
-                    <MenuItem
-                      label={t('html_artifacts.capture.to_clipboard')}
-                      icon={<CopyIcon size={14} className="lucide-custom" />}
-                      onClick={() => void handleCapture('clipboard')}
-                    />
-                  </MenuList>
-                </PopoverContent>
-              </Popover>
+              {canCapturePreview && (
+                <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
+                  <Tooltip content={t('html_artifacts.capture.label')}>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                        <Camera className="size-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                  </Tooltip>
+                  <PopoverContent align="end" className="w-56 p-1.5">
+                    <MenuList>
+                      <MenuItem
+                        label={t('html_artifacts.capture.to_file')}
+                        icon={<FilePngIcon size={14} className="lucide-custom" />}
+                        onClick={() => void handleCapture('file')}
+                      />
+                      <MenuItem
+                        label={t('html_artifacts.capture.to_clipboard')}
+                        icon={<CopyIcon size={14} className="lucide-custom" />}
+                        onClick={() => void handleCapture('clipboard')}
+                      />
+                    </MenuList>
+                  </PopoverContent>
+                </Popover>
+              )}
               <Button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 variant="ghost"

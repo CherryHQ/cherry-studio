@@ -54,6 +54,8 @@ overrides:
   '@img/sharp-linux-x64': 0.34.5
   '@img/sharp-win32-x64': 0.34.5
   '@napi-rs/canvas': 0.1.97
+  '@napi-rs/system-ocr-darwin-arm64': 1.0.2
+  '@napi-rs/system-ocr-darwin-x64': 1.0.2
   '@ai-sdk/provider-utils': 4.0.40
   '@ai-sdk/anthropic': 3.0.87
 
@@ -1240,11 +1242,11 @@ importers:
         specifier: 0.1.97
         version: 0.1.97
       '@napi-rs/system-ocr-darwin-arm64':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.0.2
+        version: 1.0.2
       '@napi-rs/system-ocr-darwin-x64':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.0.2
+        version: 1.0.2
       '@napi-rs/system-ocr-win32-arm64-msvc':
         specifier: 1.1.0
         version: 1.1.0
@@ -3614,14 +3616,14 @@ packages:
     resolution: {integrity: sha512-8cFniXvrIEnVwuNSRCW9wirRZbHvrD3JVujdS2P5n5xiJZNZMOZcfOvJ1pb66c7jXMKHHglJEDVJGbm8XWFcXQ==}
     engines: {node: '>= 10'}
 
-  '@napi-rs/system-ocr-darwin-arm64@1.1.0':
-    resolution: {integrity: sha512-aZc7WKUxKCRD+HSOuAwWmxyjHgNuHoVBRF2UIq4fvWN5/xkdbl6NaiYdcIisILWbplwpGszRaKdOeQ8VJwOYDg==}
+  '@napi-rs/system-ocr-darwin-arm64@1.0.2':
+    resolution: {integrity: sha512-/9E1T4+Pzbk8eI1QC1a1wimj4wgweKn9NUGtmO9Vf0rDi1TxYaJsv6ioSzdmhlazkKxd27Brk5VfLfUg6Bha6A==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
 
-  '@napi-rs/system-ocr-darwin-x64@1.1.0':
-    resolution: {integrity: sha512-qcNDsBKQZSOH7dNardoqaiwq57pZKcwdoAaGiAa+ywks27yJYfYms18XoPY2FLlRTNs3odUypMQ+VQa0VY5n5w==}
+  '@napi-rs/system-ocr-darwin-x64@1.0.2':
+    resolution: {integrity: sha512-z8FiuVjMEXrqU9O5tIWfLkNWzyx8moQZ/kgYo1jPvbiaC+bA0gBBo9X8C1dYrF7Q3nLug0zTU59FMAESXbhJpA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -16499,10 +16501,10 @@ snapshots:
       '@napi-rs/canvas-win32-arm64-msvc': 0.1.97
       '@napi-rs/canvas-win32-x64-msvc': 0.1.97
 
-  '@napi-rs/system-ocr-darwin-arm64@1.1.0':
+  '@napi-rs/system-ocr-darwin-arm64@1.0.2':
     optional: true
 
-  '@napi-rs/system-ocr-darwin-x64@1.1.0':
+  '@napi-rs/system-ocr-darwin-x64@1.0.2':
     optional: true
 
   '@napi-rs/system-ocr-win32-arm64-msvc@1.1.0':
@@ -16513,8 +16515,8 @@ snapshots:
 
   '@napi-rs/system-ocr@1.1.0(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)':
     optionalDependencies:
-      '@napi-rs/system-ocr-darwin-arm64': 1.1.0
-      '@napi-rs/system-ocr-darwin-x64': 1.1.0
+      '@napi-rs/system-ocr-darwin-arm64': 1.0.2
+      '@napi-rs/system-ocr-darwin-x64': 1.0.2
       '@napi-rs/system-ocr-win32-arm64-msvc': 1.1.0
       '@napi-rs/system-ocr-win32-x64-msvc': 1.1.0
 
