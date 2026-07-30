@@ -53,6 +53,10 @@ download button asks main to open the page, passing the wizard's current languag
 `i18n/resolver.ts` uses, so the site is the one the user can read and the renderer can never name a URL of its
 own.
 
+On completion, non-fatal migration notices stay collapsed into a single-line warning entry below Restart. The
+entry opens a scrollable dialog with the full notice list and a full-width copy action at the bottom of the
+content; the dialog intentionally has no footer.
+
 ## Implementation Notes
 
 - The renderer never writes directly to disk; it sends Redux data in-memory and streams Dexie exports to main via IPC. Main overwrites each table file at the start, appends chunks in order, and leaves the same JSON array format for downstream readers. Retrying therefore truncates any partial export before rebuilding it.

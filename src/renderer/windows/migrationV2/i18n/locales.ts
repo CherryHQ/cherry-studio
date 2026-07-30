@@ -141,7 +141,10 @@ export const zhCN = {
       items_label: '迁移项',
       duration_label: '迁移耗时',
       warning_heading: '{{count}} 条迁移提示',
-      warning_description: '数据已迁移完成，但以下内容需要注意。'
+      warning_description: '数据已迁移完成，但以下内容需要注意。',
+      warning_copy: '复制全部提示',
+      warning_copy_success: '迁移提示已复制',
+      warning_copy_failed: '无法复制迁移提示'
     },
     error: {
       title: '迁移失败',
@@ -313,7 +316,10 @@ export const enUS = {
       items_label: 'Migration items',
       duration_label: 'Migration time',
       warning_heading: '{{count}} migration notice(s)',
-      warning_description: 'Migration completed, but the following items need attention.'
+      warning_description: 'Migration completed, but the following items need attention.',
+      warning_copy: 'Copy all notices',
+      warning_copy_success: 'Migration notices copied',
+      warning_copy_failed: 'Failed to copy migration notices'
     },
     error: {
       title: 'Migration Failed',

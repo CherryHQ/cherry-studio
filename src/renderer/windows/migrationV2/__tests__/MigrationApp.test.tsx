@@ -20,6 +20,7 @@ const platformState = vi.hoisted(() => ({
   isMac: false
 }))
 const toastErrorMock = vi.hoisted(() => vi.fn())
+const toastSuccessMock = vi.hoisted(() => vi.fn())
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
@@ -41,6 +42,13 @@ const migrationHookMock = vi.hoisted(() => ({
     migrators: unknown[]
     overallProgress: number
     stage: string
+    summary?: {
+      completedMigrators: number
+      durationMs: number
+      itemsProcessed: number
+      totalMigrators: number
+    }
+    warnings?: string[]
   }
 }))
 
@@ -62,12 +70,6 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement(tag, { ...props, 'data-testid': testId }, children)
 
   return {
-    Accordion: ({ children }: MockChildrenProps) =>
-      React.createElement('div', { 'data-testid': 'accordion' }, children),
-    AccordionContent: passthrough('div', 'accordion-content'),
-    AccordionItem: passthrough('div', 'accordion-item'),
-    AccordionTrigger: ({ children, ...props }: MockPassthroughProps) =>
-      React.createElement('button', { ...props, type: 'button', 'data-testid': 'accordion-trigger' }, children),
     Alert: ({
       description,
       message,
@@ -108,8 +110,10 @@ vi.mock('@cherrystudio/ui', () => {
     SelectItem: passthrough('div', 'select-item'),
     SelectTrigger: passthrough('button', 'select-trigger'),
     SelectValue: () => React.createElement('span', { 'data-testid': 'select-value' }),
+    Scrollbar: passthrough('div', 'scrollbar'),
     Tooltip: ({ children }: MockChildrenProps) => children,
-    error: toastErrorMock
+    error: toastErrorMock,
+    success: toastSuccessMock
   }
 })
 
@@ -282,6 +286,13 @@ describe('MigrationApp', () => {
       }))
     })
     toastErrorMock.mockClear()
+    toastSuccessMock.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined)
+      }
+    })
     vi.mocked(migrationHookMock.actions.cancel).mockClear()
     vi.mocked(migrationHookMock.actions.openDownloadPage).mockReset()
     vi.mocked(migrationHookMock.actions.restart).mockClear()
@@ -568,6 +579,68 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.migration.title')).toBeInTheDocument()
     expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
+  })
+
+  it('opens completed migration notices in a dialog with a full-width copy action', async () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Completed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'completed',
+      warnings: ['First migration notice', 'Second migration notice']
+    }
+
+    render(<MigrationApp />)
+
+    const warningTrigger = screen.getByRole('button', { name: 'migration.completed.warning_heading' })
+    expect(warningTrigger).toHaveClass('h-auto', 'w-fit', 'text-warning')
+    expect(warningTrigger).not.toHaveClass('w-full')
+    expect(warningTrigger.closest('[data-migration-warning-trigger]')).toHaveClass('flex', 'justify-center')
+    expect(screen.queryByText('First migration notice')).not.toBeInTheDocument()
+
+    fireEvent.click(warningTrigger)
+
+    expect(screen.getByText('First migration notice')).toBeInTheDocument()
+    expect(screen.getByText('Second migration notice')).toBeInTheDocument()
+    expect(screen.getByText('migration.completed.warning_description')).toBeInTheDocument()
+    expect(screen.queryByTestId('dialog-footer')).not.toBeInTheDocument()
+    const scrollbar = screen.getByTestId('scrollbar')
+    expect(scrollbar).toHaveClass('max-h-[50vh]')
+    expect(within(scrollbar).getByRole('list')).not.toHaveClass('list-decimal', 'pl-5', 'space-y-2', 'overflow-y-auto')
+
+    const copyButton = screen.getByRole('button', { name: 'migration.completed.warning_copy' })
+    expect(copyButton).toHaveClass('w-full')
+
+    await act(async () => {
+      fireEvent.click(copyButton)
+    })
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(
+      '1. First migration notice\n2. Second migration notice'
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith('migration.completed.warning_copy_success')
+    expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('shows an error toast when completed migration notices cannot be copied', async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error('copy failed'))
+    migrationHookMock.progress = {
+      currentMessage: 'Completed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'completed',
+      warnings: ['Migration notice']
+    }
+
+    render(<MigrationApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'migration.completed.warning_heading' }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'migration.completed.warning_copy' }))
+    })
+
+    expect(toastErrorMock).toHaveBeenCalledWith('migration.completed.warning_copy_failed')
+    expect(toastSuccessMock).not.toHaveBeenCalled()
   })
 
   it('mounts diagnostics directly for the version-incompatible stage', () => {

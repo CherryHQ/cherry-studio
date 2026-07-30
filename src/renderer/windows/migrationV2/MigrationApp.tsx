@@ -1,8 +1,4 @@
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   Alert,
   Button,
   Dialog,
@@ -13,11 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
   error as showErrorToast,
+  Scrollbar,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  success as showSuccessToast,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -31,6 +29,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
+  Copy,
   Database,
   Download,
   FolderOpen,
@@ -366,6 +365,7 @@ const MigrationApp: React.FC = () => {
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false)
   const [diagnosticExportOpen, setDiagnosticExportOpen] = useState(false)
   const [diagnosticResult, setDiagnosticResult] = useState<'included' | 'not_included' | null>(null)
+  const [warningsDialogOpen, setWarningsDialogOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   // Set when the user confirmed quit but main deferred it because a migration write
   // is still in flight; drives the non-blocking "closing after the current step" notice.
@@ -514,6 +514,16 @@ const MigrationApp: React.FC = () => {
   const openDiagnosticsFromError = () => {
     if (window.getSelection()?.toString().trim()) return
     setDiagnosticExportOpen(true)
+  }
+
+  const copyMigrationWarnings = async (warnings: string[]) => {
+    try {
+      await navigator.clipboard.writeText(warnings.map((warning, index) => `${index + 1}. ${warning}`).join('\n'))
+      showSuccessToast(t('migration.completed.warning_copy_success'))
+    } catch (error) {
+      logger.error('Failed to copy migration warnings', error as Error)
+      showErrorToast(t('migration.completed.warning_copy_failed'))
+    }
   }
 
   // On success main restarts the app, so there is no resolve path to handle here.
@@ -673,23 +683,46 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <Accordion type="single" collapsible className="rounded-xl border border-warning bg-warning-bg px-4">
-                <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
-                  <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
+              <>
+                <div className="flex justify-center" data-migration-warning-trigger="">
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    aria-haspopup="dialog"
+                    className="h-auto w-fit gap-2 px-0 py-0 text-warning hover:text-warning"
+                    onClick={() => setWarningsDialogOpen(true)}>
+                    <AlertTriangle size={14} className="shrink-0" />
                     {t('migration.completed.warning_heading', { count: warnings.length })}
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
-                    <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
-                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
-                      {warnings.map((warning, index) => (
-                        <li key={index} className="wrap-break-words">
-                          {warning}
-                        </li>
-                      ))}
-                    </ul>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+                  </Button>
+                </div>
+                <Dialog open={warningsDialogOpen} onOpenChange={setWarningsDialogOpen}>
+                  <DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-hidden">
+                    <DialogHeader>
+                      <DialogTitle>{t('migration.completed.warning_heading', { count: warnings.length })}</DialogTitle>
+                      <DialogDescription>{t('migration.completed.warning_description')}</DialogDescription>
+                    </DialogHeader>
+                    <Scrollbar className="max-h-[50vh]">
+                      <ul className="text-foreground text-sm leading-relaxed">
+                        {warnings.map((warning, index) => (
+                          <li key={index} className="wrap-break-words">
+                            {warning}
+                          </li>
+                        ))}
+                      </ul>
+                    </Scrollbar>
+                    <Button
+                      type="button"
+                      variant="emphasis"
+                      size="lg"
+                      className="w-full gap-2"
+                      onClick={() => void copyMigrationWarnings(warnings)}>
+                      <Copy size={14} />
+                      {t('migration.completed.warning_copy')}
+                    </Button>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
           </div>
         )
