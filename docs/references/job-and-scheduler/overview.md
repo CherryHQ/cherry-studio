@@ -155,6 +155,19 @@ application.get('DbService').withWriteTx((tx) => {
 
 Post-commit side effects (state publish, dispatch / delayed arming) are deferred one microtask past the synchronous transaction. On rollback the row never existed: the returned handle's `finished` never resolves, and an idempotency-key unique-index collision aborts the whole caller transaction. See the `enqueueTx` JSDoc for the full contract.
 
+## Batch enqueue (`enqueueBatch` / `enqueueBatchTx`)
+
+Use the batch variants when one producer expands an operation into many durable jobs of the same type. Every entry carries its own typed `input` and optional `options`; returned handles preserve input order. JobManager validates the complete batch before writing, resolves active idempotency matches in bulk, and inserts all new rows inside one transaction. SQL statements are chunked only to stay below SQLite parameter limits — the commit boundary remains the whole batch.
+
+```ts
+const handles = jobManager.enqueueBatch('my.index-leaf', leaves.map((leaf) => ({
+  input: { fileId: leaf.id },
+  options: { queue: `base.${leaf.baseId}`, idempotencyKey: `index:${leaf.id}` }
+})))
+```
+
+After commit, initial snapshots are published in one shared-cache batch, delayed rows are armed individually, and pending rows trigger at most one dispatch kick per affected queue. `enqueueBatchTx` composes with an existing synchronous `withWriteTx` callback and defers the same effects by one microtask; callers must not swallow its database errors inside the transaction callback. Batch enqueue optimizes durable admission only — it does not add outstanding-capacity limits or change per-queue/global running concurrency.
+
 ## Transactional schedule mutation (`registerJobScheduleTx` / `updateJobScheduleTx` + `syncJobScheduleTimerById`)
 
 When a schedule row and a related business write must commit atomically, compose the transactional primitives inside a `DbService.withWriteTx` callback, then sync the timer after the transaction returns:

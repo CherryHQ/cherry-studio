@@ -23,6 +23,9 @@ import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
 import { runStartupRecovery } from './runtime/recovery'
 import {
+  type EnqueueBatchEntry,
+  EnqueueBatchValidationError,
+  type EnqueueBatchValidationFailure,
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,
   JOB_STATE_KEY_PREFIX,
@@ -77,6 +80,17 @@ class JobHandlerTimeoutError extends Error {
 interface FinishedResolver {
   resolve: (snapshot: JobSnapshot) => void
   promise: Promise<JobSnapshot>
+}
+
+interface PreparedEnqueue {
+  handler: JobHandler
+  queueName: string
+  insertRow: InsertJobRow
+}
+
+interface PersistedEnqueueBatch {
+  snapshots: JobSnapshot[]
+  insertedIds: string[]
 }
 
 /**
@@ -834,11 +848,7 @@ export class JobManager extends BaseService {
    * at the call sites AFTER their idempotency check, so an idempotency hit
    * does not register a stray in-memory queue entry.
    */
-  private prepareEnqueue<K extends JobType>(
-    type: K,
-    input: JobPayloadOf<K>,
-    opts: EnqueueOptions
-  ): { handler: JobHandler; queueName: string; insertRow: InsertJobRow } {
+  private prepareEnqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions): PreparedEnqueue {
     const handler = this.handlers.get(type)
     if (!handler) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
@@ -1033,6 +1043,150 @@ export class JobManager extends BaseService {
     })
 
     return handle
+  }
+
+  /**
+   * Atomically enqueue a homogeneous batch. Every entry is validated before
+   * the write transaction begins; results preserve input order and active
+   * idempotency matches reuse their existing handles.
+   */
+  enqueueBatch<K extends JobType>(type: K, entries: readonly EnqueueBatchEntry<K>[]): JobHandle[] {
+    if (entries.length === 0) return []
+    const prepared = this.prepareEnqueueBatch(type, entries)
+    const persisted = application.get('DbService').withWriteTx((tx) => this.persistEnqueueBatchTx(tx, prepared))
+    const handles = persisted.snapshots.map((snapshot) => this.handleFor(snapshot))
+    this.scheduleEnqueueBatchPostCommit(type, persisted.insertedIds, prepared[0].handler.defaultConcurrency ?? 1)
+    return handles
+  }
+
+  /**
+   * Transactional batch variant. The caller must let any thrown error escape
+   * its synchronous `withWriteTx` callback so every chunk rolls back together.
+   * Post-commit effects are deferred by one microtask, matching `enqueueTx`.
+   */
+  enqueueBatchTx<K extends JobType>(tx: DbOrTx, type: K, entries: readonly EnqueueBatchEntry<K>[]): JobHandle[] {
+    if (entries.length === 0) return []
+    const prepared = this.prepareEnqueueBatch(type, entries)
+    const persisted = this.persistEnqueueBatchTx(tx, prepared)
+    const handles = persisted.snapshots.map((snapshot) => this.handleFor(snapshot))
+    this.scheduleEnqueueBatchPostCommit(type, persisted.insertedIds, prepared[0].handler.defaultConcurrency ?? 1)
+    return handles
+  }
+
+  private prepareEnqueueBatch<K extends JobType>(type: K, entries: readonly EnqueueBatchEntry<K>[]): PreparedEnqueue[] {
+    const prepared: PreparedEnqueue[] = []
+    const failures: EnqueueBatchValidationFailure[] = []
+
+    entries.forEach((entry, index) => {
+      try {
+        prepared.push(this.prepareEnqueue(type, entry.input, entry.options ?? {}))
+      } catch (error) {
+        const typed = error as { code?: unknown; message?: unknown; params?: unknown }
+        failures.push({
+          index,
+          code: typeof typed.code === 'string' ? typed.code : 'JOB_BATCH_ENTRY_INVALID',
+          message: typeof typed.message === 'string' ? typed.message : String(error),
+          ...(typed.params && typeof typed.params === 'object'
+            ? { params: typed.params as Record<string, unknown> }
+            : {})
+        })
+      }
+    })
+
+    if (failures.length > 0) throw new EnqueueBatchValidationError(failures)
+    return prepared
+  }
+
+  private persistEnqueueBatchTx(tx: DbOrTx, prepared: readonly PreparedEnqueue[]): PersistedEnqueueBatch {
+    const idempotencyKeys = Array.from(
+      new Set(prepared.map(({ insertRow }) => insertRow.idempotencyKey).filter((key): key is string => Boolean(key)))
+    )
+    const existingByKey = new Map(
+      jobService
+        .findActiveByIdempotencyKeysTx(tx, idempotencyKeys)
+        .map((snapshot) => [snapshot.idempotencyKey as string, snapshot] as const)
+    )
+    const createdIndexByKey = new Map<string, number>()
+    const rowsToCreate: InsertJobRow[] = []
+    const resolutions: Array<{ existing: JobSnapshot } | { createdIndex: number }> = []
+
+    for (const { insertRow } of prepared) {
+      const key = insertRow.idempotencyKey
+      const existing = key ? existingByKey.get(key) : undefined
+      if (existing) {
+        resolutions.push({ existing })
+        continue
+      }
+
+      const priorCreatedIndex = key ? createdIndexByKey.get(key) : undefined
+      if (priorCreatedIndex !== undefined) {
+        resolutions.push({ createdIndex: priorCreatedIndex })
+        continue
+      }
+
+      const createdIndex = rowsToCreate.length
+      rowsToCreate.push(insertRow)
+      if (key) createdIndexByKey.set(key, createdIndex)
+      resolutions.push({ createdIndex })
+    }
+
+    const created = jobService.createManyTx(tx, rowsToCreate)
+    return {
+      snapshots: resolutions.map((resolution) => {
+        if ('existing' in resolution) return resolution.existing
+        const snapshot = created[resolution.createdIndex]
+        if (!snapshot) throw new Error(`Missing created job at batch index ${resolution.createdIndex}`)
+        return snapshot
+      }),
+      insertedIds: created.map((snapshot) => snapshot.id)
+    }
+  }
+
+  private scheduleEnqueueBatchPostCommit(type: string, insertedIds: readonly string[], concurrency: number): void {
+    if (insertedIds.length === 0) return
+
+    queueMicrotask(() => {
+      try {
+        const persisted = jobService.getByIds(insertedIds)
+        const persistedIds = new Set(persisted.map((snapshot) => snapshot.id))
+        const missingIds = insertedIds.filter((id) => !persistedIds.has(id))
+        for (const id of missingIds) this.finishedResolvers.delete(id)
+
+        if (persisted.length === 0) {
+          logger.warn('enqueueBatch: rows absent after tx — rolled back, resolvers discarded', {
+            type,
+            count: insertedIds.length
+          })
+          return
+        }
+
+        application.get('CacheService').setSharedMany(
+          persisted.map((snapshot) => ({
+            key: `${JOB_STATE_KEY_PREFIX}${snapshot.id}` as const,
+            value: snapshot,
+            ttl: 60_000
+          }))
+        )
+
+        logger.info('Job batch enqueued', {
+          type,
+          inserted: persisted.length,
+          missing: missingIds.length
+        })
+
+        if (this._isShuttingDown) return
+
+        const pendingQueues = new Set<string>()
+        for (const snapshot of persisted) {
+          this.ensureQueue(snapshot.queue, concurrency)
+          if (snapshot.status === 'pending') pendingQueues.add(snapshot.queue)
+          else if (snapshot.status === 'delayed') this.armDelayedJob(snapshot)
+        }
+        for (const queue of pendingQueues) void this.dispatch(queue)
+      } catch (err) {
+        logger.error('enqueueBatch: post-commit side effects failed', { type, count: insertedIds.length, err })
+      }
+    })
   }
 
   /**

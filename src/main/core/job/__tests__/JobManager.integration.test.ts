@@ -29,6 +29,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
+import { EnqueueBatchValidationError } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -1066,6 +1067,267 @@ describe('JobManager integration', () => {
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('enqueueBatch', () => {
+    it('treats an empty batch as a no-op', async () => {
+      const { scheduler, jobManager } = await bootstrapManager()
+      const dbService = MockMainDbServiceExport.dbService
+      const cache = MockMainCacheServiceExport.cacheService
+      dbService.withWriteTx.mockClear()
+      cache.setSharedMany.mockClear()
+
+      expect(jobManager.enqueueBatch('unregistered.empty' as never, [])).toEqual([])
+      expect(dbService.withWriteTx).not.toHaveBeenCalled()
+      expect(cache.setSharedMany).not.toHaveBeenCalled()
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('aggregates validation failures before persistence or side effects', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.validation', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const cache = MockMainCacheServiceExport.cacheService
+      cache.setSharedMany.mockClear()
+
+      let thrown: unknown
+      try {
+        jobManager.enqueueBatch(
+          'batch.validation' as never,
+          [
+            { input: { message: 'bad-attempts' }, options: { maxAttempts: 0 } },
+            { input: { message: 'valid' } },
+            { input: { message: 'bad-timeout' }, options: { timeoutMs: 0 } }
+          ] as never
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(EnqueueBatchValidationError)
+      expect((thrown as EnqueueBatchValidationError).failures.map(({ index, code }) => ({ index, code }))).toEqual([
+        { index: 0, code: 'JOB_INVALID_MAX_ATTEMPTS' },
+        { index: 2, code: 'JOB_INVALID_TIMEOUT_MS' }
+      ])
+      expect(jobService.count({ type: 'batch.validation' })).toBe(0)
+      expect(cache.setSharedMany).not.toHaveBeenCalled()
+      expect((jobManager as unknown as { queues: Map<string, unknown> }).queues.size).toBe(0)
+      expect((jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers.size).toBe(0)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('atomically admits 2,500 jobs, preserves order, and coalesces queue kicks and publication', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.large', makeSlowHandler('retry') as JobHandler]]
+      })
+      jobManager.pause('hold large admission at rest')
+      const dispatch = vi.spyOn(jobManager, 'dispatch')
+      const cache = MockMainCacheServiceExport.cacheService
+      const dbService = MockMainDbServiceExport.dbService
+      cache.setSharedMany.mockClear()
+      dbService.withWriteTx.mockClear()
+
+      const entries = Array.from({ length: 2_500 }, (_, index) => ({
+        input: { message: `job-${index}` },
+        options: { queue: index % 2 === 0 ? 'batch.q-a' : 'batch.q-b' }
+      }))
+      const handles = jobManager.enqueueBatch('batch.large' as never, entries as never)
+      await Promise.resolve()
+
+      expect(handles).toHaveLength(entries.length)
+      expect(handles.map((handle) => (handle.snapshot.input as SlowInput).message)).toEqual(
+        entries.map((entry) => entry.input.message)
+      )
+      expect(jobService.count({ type: 'batch.large' })).toBe(entries.length)
+      expect(dbService.withWriteTx).toHaveBeenCalledTimes(1)
+      expect(cache.setSharedMany).toHaveBeenCalledTimes(1)
+      expect(cache.setSharedMany.mock.calls[0][0]).toHaveLength(entries.length)
+      expect(dispatch.mock.calls.map(([queue]) => queue).sort()).toEqual(['batch.q-a', 'batch.q-b'])
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('reuses database and in-batch idempotency matches in input order', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.idempotency', makeSlowHandler('abandon') as JobHandler]]
+      })
+      jobManager.pause('hold idempotency batch at rest')
+      const existing = jobManager.enqueue('batch.idempotency' as never, { message: 'existing' } as never, {
+        idempotencyKey: 'existing-key'
+      })
+      const cache = MockMainCacheServiceExport.cacheService
+      cache.setSharedMany.mockClear()
+
+      const handles = jobManager.enqueueBatch(
+        'batch.idempotency' as never,
+        [
+          { input: { message: 'existing-request' }, options: { idempotencyKey: 'existing-key' } },
+          { input: { message: 'new-first' }, options: { idempotencyKey: 'new-key' } },
+          { input: { message: 'new-duplicate' }, options: { idempotencyKey: 'new-key' } },
+          { input: { message: 'unkeyed' } }
+        ] as never
+      )
+      await Promise.resolve()
+
+      expect(handles[0].id).toBe(existing.id)
+      expect(handles[0].finished).toBe(existing.finished)
+      expect(handles[1].id).toBe(handles[2].id)
+      expect(handles[1].finished).toBe(handles[2].finished)
+      expect((handles[1].snapshot.input as SlowInput).message).toBe('new-first')
+      expect(jobService.count({ type: 'batch.idempotency' })).toBe(3)
+      expect(cache.setSharedMany.mock.calls[0][0]).toHaveLength(2)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rolls back every chunk without leaking resolvers, queues, publication, or dispatch', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.rollback', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+      const cache = MockMainCacheServiceExport.cacheService
+      const dispatch = vi.spyOn(jobManager, 'dispatch')
+      cache.setSharedMany.mockClear()
+      let ids: string[] = []
+
+      expect(() =>
+        db.transaction(
+          (tx) => {
+            ids = jobManager
+              .enqueueBatchTx(
+                tx,
+                'batch.rollback' as never,
+                Array.from({ length: 125 }, (_, index) => ({ input: { message: `doomed-${index}` } })) as never
+              )
+              .map((handle) => handle.id)
+            throw new Error('business-write-failed')
+          },
+          { behavior: 'immediate' }
+        )
+      ).toThrow('business-write-failed')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const resolvers = (jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers
+      expect(jobService.count({ type: 'batch.rollback' })).toBe(0)
+      expect(ids.every((id) => !resolvers.has(id))).toBe(true)
+      expect((jobManager as unknown as { queues: Map<string, unknown> }).queues.size).toBe(0)
+      expect(cache.setSharedMany).not.toHaveBeenCalled()
+      expect(dispatch).not.toHaveBeenCalled()
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('keeps existing per-queue and global running concurrency while draining a batch', async () => {
+      let globalRunning = 0
+      let maxGlobalRunning = 0
+      const runningByQueue = new Map<string, number>()
+      const maxByQueue = new Map<string, number>()
+      const handler: JobHandler<{ message: string; queue: string }> = {
+        recovery: 'retry',
+        defaultQueue: (input) => input.queue,
+        defaultConcurrency: 2,
+        async execute(ctx) {
+          globalRunning += 1
+          maxGlobalRunning = Math.max(maxGlobalRunning, globalRunning)
+          const queueRunning = (runningByQueue.get(ctx.input.queue) ?? 0) + 1
+          runningByQueue.set(ctx.input.queue, queueRunning)
+          maxByQueue.set(ctx.input.queue, Math.max(maxByQueue.get(ctx.input.queue) ?? 0, queueRunning))
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          globalRunning -= 1
+          runningByQueue.set(ctx.input.queue, queueRunning - 1)
+          return ctx.input.message
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.concurrency', handler as JobHandler]]
+      })
+      ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 3
+
+      const handles = jobManager.enqueueBatch(
+        'batch.concurrency' as never,
+        Array.from({ length: 12 }, (_, index) => ({
+          input: { message: `job-${index}`, queue: index % 2 === 0 ? 'queue-a' : 'queue-b' }
+        })) as never
+      )
+      await Promise.all(handles.map((handle) => handle.finished))
+
+      expect(maxGlobalRunning).toBeLessThanOrEqual(3)
+      expect(maxByQueue.get('queue-a')).toBeLessThanOrEqual(2)
+      expect(maxByQueue.get('queue-b')).toBeLessThanOrEqual(2)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('arms delayed batch rows after commit and allows pending and delayed cancellation', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.cancel', makeSlowHandler('retry') as JobHandler]]
+      })
+      jobManager.pause('keep cancellation targets at rest')
+      const handles = jobManager.enqueueBatch(
+        'batch.cancel' as never,
+        [
+          { input: { message: 'pending' } },
+          { input: { message: 'delayed' }, options: { scheduledAt: Date.now() + 60_000 } }
+        ] as never
+      )
+      await Promise.resolve()
+
+      expect(jobService.getById(handles[0].id)?.status).toBe('pending')
+      expect(jobService.getById(handles[1].id)?.status).toBe('delayed')
+      await Promise.all(handles.map((handle) => jobManager.cancel(handle.id, 'cancel batch')))
+      const settled = await Promise.all(handles.map((handle) => handle.finished))
+      expect(settled.map((snapshot) => snapshot.status)).toEqual(['cancelled', 'cancelled'])
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('promotes and completes delayed batch rows through the existing scheduler path', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.delayed', makeSlowHandler('retry') as JobHandler]]
+      })
+      const scheduledAt = Date.now() + 100
+      const handles = jobManager.enqueueBatch(
+        'batch.delayed' as never,
+        [
+          { input: { message: 'later-a', sleepMs: 5 }, options: { scheduledAt } },
+          { input: { message: 'later-b', sleepMs: 5 }, options: { scheduledAt } }
+        ] as never
+      )
+
+      expect(handles.every((handle) => handle.snapshot.status === 'delayed')).toBe(true)
+      const settled = await Promise.all(handles.map((handle) => handle.finished))
+      expect(settled.every((snapshot) => snapshot.status === 'completed')).toBe(true)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('recovers pending batch rows after restart and processes them normally', async () => {
+      const first = await bootstrapManager({
+        handlers: [['batch.recovery', makeSlowHandler('retry') as JobHandler]]
+      })
+      first.jobManager.pause('simulate shutdown before dispatch')
+      const handles = first.jobManager.enqueueBatch(
+        'batch.recovery' as never,
+        Array.from({ length: 3 }, (_, index) => ({ input: { message: `recover-${index}`, sleepMs: 5 } })) as never
+      )
+      await Promise.resolve()
+      expect(handles.every((handle) => jobService.getById(handle.id)?.status === 'pending')).toBe(true)
+      await teardownManager(first.scheduler, first.jobManager)
+
+      const second = await bootstrapManager({
+        handlers: [['batch.recovery', makeSlowHandler('retry') as JobHandler]]
+      })
+      expect(jobService.list({ type: 'batch.recovery' }).every((snapshot) => snapshot.status === 'completed')).toBe(
+        true
+      )
+
+      await drainAllQueues(second.jobManager)
+      await teardownManager(second.scheduler, second.jobManager)
     })
   })
 

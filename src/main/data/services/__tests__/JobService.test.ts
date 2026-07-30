@@ -1,8 +1,11 @@
+import { application } from '@application'
 import type { InsertJobRow } from '@data/db/schemas/job'
+import type { DbType } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { describe, expect, it } from 'vitest'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
@@ -114,5 +117,57 @@ describe('JobService.list/count filters', () => {
 
     expect(jobService.list({ type: [] })).toHaveLength(2)
     expect(jobService.count({ type: [] })).toBe(2)
+  })
+})
+
+describe('JobService batch primitives', () => {
+  setupTestDatabase()
+
+  it('inserts parameter-safe chunks and returns snapshots in input order', () => {
+    const rows = Array.from({ length: 125 }, (_, index) =>
+      baseRow({ input: { index }, idempotencyKey: `batch-order-${index}` })
+    )
+
+    const snapshots = application.get('DbService').withWriteTx((tx) => jobService.createManyTx(tx, rows))
+
+    expect(snapshots).toHaveLength(rows.length)
+    expect(snapshots.map((snapshot) => snapshot.input)).toEqual(rows.map((row) => row.input))
+    expect(new Set(snapshots.map((snapshot) => snapshot.id)).size).toBe(rows.length)
+  })
+
+  it('finds active idempotency keys across query chunks and ignores terminal rows', () => {
+    const rows = Array.from({ length: 905 }, (_, index) =>
+      baseRow({
+        status: index === 904 ? 'completed' : 'pending',
+        idempotencyKey: `batch-find-${index}`
+      })
+    )
+    application.get('DbService').withWriteTx((tx) => jobService.createManyTx(tx, rows))
+
+    const keys = rows.map((row) => row.idempotencyKey as string)
+    const found = application.get('DbService').withWriteTx((tx) => jobService.findActiveByIdempotencyKeysTx(tx, keys))
+
+    expect(found).toHaveLength(904)
+    expect(found.some((snapshot) => snapshot.idempotencyKey === 'batch-find-904')).toBe(false)
+  })
+
+  it('rolls back every insert chunk when the caller transaction fails', () => {
+    const db = MockMainDbServiceExport.dbService.getDb() as DbType
+    expect(() =>
+      db.transaction(
+        (tx) => {
+          jobService.createManyTx(
+            tx,
+            Array.from({ length: 125 }, (_, index) =>
+              baseRow({ type: 'batch.rollback', input: { index }, idempotencyKey: `batch-rollback-${index}` })
+            )
+          )
+          throw new Error('rollback-batch')
+        },
+        { behavior: 'immediate' }
+      )
+    ).toThrow('rollback-batch')
+
+    expect(jobService.count({ type: 'batch.rollback' })).toBe(0)
   })
 })

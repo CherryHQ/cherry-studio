@@ -13,8 +13,19 @@ import {
   TERMINAL_JOB_STATUSES
 } from '@shared/data/api/schemas/jobs'
 import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('JobService')
+const IDEMPOTENCY_QUERY_CHUNK_SIZE = 900
+const JOB_INSERT_CHUNK_SIZE = 50
+
+function chunksOf<T>(values: readonly T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size))
+  }
+  return chunks
+}
 
 export interface JobListFilter {
   status?: JobStatus[]
@@ -108,6 +119,17 @@ export class JobService {
     return row ? this.rowToSnapshot(row) : null
   }
 
+  getByIds(ids: readonly string[]): JobSnapshot[] {
+    if (ids.length === 0) return []
+
+    const snapshots: JobSnapshot[] = []
+    for (const chunk of chunksOf(ids, IDEMPOTENCY_QUERY_CHUNK_SIZE)) {
+      const rows = this.getDb().select().from(jobTable).where(inArray(jobTable.id, chunk)).all()
+      snapshots.push(...rows.map((row) => this.rowToSnapshot(row)))
+    }
+    return snapshots
+  }
+
   /**
    * Find any non-terminal job with the given idempotency key. JobManager.enqueue
    * calls this for cross-restart deduplication: if a result is returned, reuse
@@ -166,6 +188,33 @@ export class JobService {
   }
 
   /**
+   * Insert rows in parameter-safe chunks. The caller owns the transaction that
+   * keeps all chunks atomic. UUIDs are assigned before INSERT so the returned
+   * snapshots can be restored to input order without relying on SQLite's
+   * unspecified RETURNING order.
+   */
+  createManyTx(tx: DbOrTx, dtos: readonly InsertJobRow[]): JobSnapshot[] {
+    if (dtos.length === 0) return []
+
+    const prepared = dtos.map((dto) => ({ ...dto, id: dto.id ?? uuidv7() }))
+    const snapshotsById = new Map<string, JobSnapshot>()
+
+    for (const chunk of chunksOf(prepared, JOB_INSERT_CHUNK_SIZE)) {
+      const rows = withSqliteErrors(
+        () => tx.insert(jobTable).values(chunk).returning().all(),
+        defaultHandlersFor('Job batch', `${dtos.length} rows`)
+      )
+      for (const row of rows) snapshotsById.set(row.id, this.rowToSnapshot(row))
+    }
+
+    return prepared.map((dto) => {
+      const snapshot = snapshotsById.get(dto.id)
+      if (!snapshot) throw new Error(`jobService.createManyTx returned no row for ${dto.id}`)
+      return snapshot
+    })
+  }
+
+  /**
    * `findActiveByIdempotencyKey` reading through the caller's transaction, so
    * `JobManager.enqueueTx` sees a consistent view of the key within its tx.
    */
@@ -177,6 +226,21 @@ export class JobService {
       .limit(1)
       .all()
     return row ? this.rowToSnapshot(row) : null
+  }
+
+  findActiveByIdempotencyKeysTx(tx: DbOrTx, keys: readonly string[]): JobSnapshot[] {
+    if (keys.length === 0) return []
+
+    const snapshots: JobSnapshot[] = []
+    for (const chunk of chunksOf(keys, IDEMPOTENCY_QUERY_CHUNK_SIZE)) {
+      const rows = tx
+        .select()
+        .from(jobTable)
+        .where(and(inArray(jobTable.idempotencyKey, chunk), inArray(jobTable.status, ACTIVE_JOB_STATUSES)))
+        .all()
+      snapshots.push(...rows.map((row) => this.rowToSnapshot(row)))
+    }
+    return snapshots
   }
 
   /**

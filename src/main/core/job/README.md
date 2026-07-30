@@ -21,7 +21,7 @@ Unified background-job system: typed handlers, DB-driven dispatch, 6-state machi
 
 ```
 job/
-├── JobManager.ts        # @Injectable lifecycle service: enqueue/enqueueTx, dispatch, schedule registry, GC
+├── JobManager.ts        # @Injectable lifecycle service: single/batch enqueue, dispatch, schedule registry, GC
 ├── jobRegistry.ts       # Compile-time `interface JobRegistry` — business modules extend via declaration merging
 ├── types.ts             # JobHandler, JobContext, EnqueueOptions, JobHandle, cache key prefixes
 ├── runtime/
@@ -48,8 +48,14 @@ jobManager.registerHandler('my.task', {
 
 await jobManager.enqueue('my.task', { itemId: '42' })
 
+jobManager.enqueueBatch('my.task', [
+  { input: { itemId: '43' } },
+  { input: { itemId: '44' }, options: { queue: 'my.bulk' } }
+])
+
 // Atomic with a business write — inside a DbService.withWriteTx callback:
 // jobManager.enqueueTx(tx, 'my.task', { itemId: '42' })
+// jobManager.enqueueBatchTx(tx, 'my.task', entries)
 ```
 
 See [Handler Authoring](../../../../docs/references/job-and-scheduler/handler-authoring.md) for the full handler contract.
