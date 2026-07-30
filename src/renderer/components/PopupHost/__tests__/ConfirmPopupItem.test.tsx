@@ -1,8 +1,8 @@
 import i18n from '@renderer/i18n/resolver'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
 const dialogMock = vi.hoisted(() => ({
@@ -65,13 +65,15 @@ import { popup } from '@renderer/services/popup'
 
 import { PopupHost } from '../index'
 
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+
 afterEach(() => {
   // Unmount first so settling/removing leftover entries triggers no React update
-  // on a still-mounted host (which would fire act warnings). Then drain the
-  // singleton store so the next test starts empty. Fake timers fire the exit phase
-  // synchronously (no wall-clock wait).
+  // on a still-mounted host (which would fire act warnings). Then drain the singleton
+  // store so the next test starts empty.
   cleanup()
-  vi.useFakeTimers()
   for (const entry of [...popupService.getSnapshot()]) {
     popupService.settle(entry.instanceId, false)
   }
@@ -81,9 +83,42 @@ afterEach(() => {
   dialogMock.onOpenChange = undefined
 })
 
+describe('PopupHost', () => {
+  it('injects open state and a resolving callback into component popups', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const ComponentPopup = createPopup<{ label: string }, string>(
+      ({ label, open, resolve }) => (
+        <div>
+          <span>{label}</span>
+          <span>{open ? 'Component open' : 'Component closing'}</span>
+          <button type="button" onClick={() => resolve('accepted')}>
+            Resolve component
+          </button>
+        </div>
+      ),
+      { dismissResult: 'dismissed' }
+    )
+    render(<PopupHost />)
+
+    let pending!: Promise<string>
+    act(() => {
+      pending = ComponentPopup.show({ label: 'Custom content' })
+    })
+
+    expect(screen.getByText('Custom content')).toBeInTheDocument()
+    expect(screen.getByText('Component open')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Resolve component' }))
+    await act(async () => {})
+
+    await expect(pending).resolves.toBe('accepted')
+    expect(screen.getByText('Component closing')).toBeInTheDocument()
+  })
+})
+
 describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
   it('resolves confirm as true when the OK button is clicked', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PopupHost />)
 
     let confirmed!: Promise<boolean>
@@ -107,7 +142,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
   })
 
   it('resolves confirm as false when cancelled', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PopupHost />)
 
     let confirmed!: Promise<boolean>
@@ -122,7 +157,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
   })
 
   it('renders feedback (error) popups without a cancel button', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PopupHost />)
 
     let acknowledged!: Promise<boolean>
@@ -140,7 +175,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
   })
 
   it('uses the translated destructive label for danger confirmations', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PopupHost />)
 
     let confirmed!: Promise<boolean>
