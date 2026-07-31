@@ -298,16 +298,9 @@
         "button": "カスタムパスをクリア"
       },
       "customPath": "カスタムパスを使用中: {{path}}",
-      "error": {
-        "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
-        "recheck": "Git Bashのインストールを再確認してください",
-        "required": "WindowsではGit Bashのパスが必要です",
-        "title": "Git Bashが必要です"
-      },
       "found": {
         "title": "Git Bashが設定されました"
       },
-      "notFound": "Git Bash が見つかりません。先にインストールしてください。",
       "pick": {
         "button": "Git Bashパスを選択",
         "failed": "Git Bashパスの設定に失敗しました",

@@ -298,16 +298,9 @@
         "button": "Clear custom path"
       },
       "customPath": "Using custom path: {{path}}",
-      "error": {
-        "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
-        "recheck": "Recheck Git Bash Installation",
-        "required": "Git Bash path is required on Windows",
-        "title": "Git Bash Required"
-      },
       "found": {
         "title": "Git Bash configured"
       },
-      "notFound": "Git Bash not found. Please install it first.",
       "pick": {
         "button": "Select Git Bash Path",
         "failed": "Failed to set Git Bash path",

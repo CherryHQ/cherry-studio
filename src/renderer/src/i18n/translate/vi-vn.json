@@ -298,16 +298,9 @@
         "button": "Xóa đường dẫn tùy chỉnh"
       },
       "customPath": "Sử dụng đường dẫn tùy chỉnh: {{path}}",
-      "error": {
-        "description": "Git Bash là bắt buộc để chạy agent trên Windows. Agent không thể hoạt động nếu thiếu nó. Vui lòng cài đặt Git for Windows từ",
-        "recheck": "Kiểm tra lại việc cài đặt Git Bash",
-        "required": "Đường dẫn Git Bash là bắt buộc trên Windows",
-        "title": "Cần có Git Bash"
-      },
       "found": {
         "title": "Git Bash đã được cấu hình"
       },
-      "notFound": "Không tìm thấy Git Bash. Vui lòng cài đặt trước.",
       "pick": {
         "button": "Chọn đường dẫn Git Bash",
         "failed": "Không thể thiết lập đường dẫn Git Bash",

@@ -298,16 +298,9 @@
         "button": "Borrar ruta personalizada"
       },
       "customPath": "Usando ruta personalizada: {{path}}",
-      "error": {
-        "description": "Se requiere Git Bash para ejecutar agentes en Windows. El agente no puede funcionar sin él. Instale Git para Windows desde",
-        "recheck": "Volver a verificar la instalación de Git Bash",
-        "required": "Se requiere la ruta de Git Bash en Windows",
-        "title": "Git Bash Requerido"
-      },
       "found": {
         "title": "Git Bash configurado"
       },
-      "notFound": "Git Bash no encontrado. Por favor, instálalo primero.",
       "pick": {
         "button": "Seleccionar ruta de Git Bash",
         "failed": "No se pudo configurar la ruta de Git Bash",

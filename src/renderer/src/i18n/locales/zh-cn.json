@@ -298,16 +298,9 @@
         "button": "清除自定义路径"
       },
       "customPath": "使用自定义路径：{{path}}",
-      "error": {
-        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
-        "recheck": "重新检测 Git Bash 安装",
-        "required": "在 Windows 上需要配置 Git Bash 路径",
-        "title": "需要 Git Bash"
-      },
       "found": {
         "title": "已配置 Git Bash"
       },
-      "notFound": "未找到 Git Bash。请先安装。",
       "pick": {
         "button": "选择 Git Bash 路径",
         "failed": "设置 Git Bash 路径失败",

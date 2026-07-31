@@ -298,16 +298,9 @@
         "button": "Limpar caminho personalizado"
       },
       "customPath": "Usando caminho personalizado: {{path}}",
-      "error": {
-        "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
-        "recheck": "Reverificar a Instalação do Git Bash",
-        "required": "O caminho do Git Bash é necessário no Windows",
-        "title": "Git Bash Necessário"
-      },
       "found": {
         "title": "Git Bash configurado"
       },
-      "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
       "pick": {
         "button": "Selecionar caminho do Git Bash",
         "failed": "Falha ao configurar o caminho do Git Bash",

@@ -298,16 +298,9 @@
         "button": "清除自訂路徑"
       },
       "customPath": "使用自訂路徑：{{path}}",
-      "error": {
-        "description": "在 Windows 上執行 Agent 需要 Git Bash。沒有它 Agent 無法運作。請從以下網址安裝 Git for Windows",
-        "recheck": "重新偵測 Git Bash 安裝",
-        "required": "在 Windows 上需要設定 Git Bash 路徑",
-        "title": "需要 Git Bash"
-      },
       "found": {
         "title": "已設定 Git Bash"
       },
-      "notFound": "找不到 Git Bash。請先安裝。",
       "pick": {
         "button": "選擇 Git Bash 路徑",
         "failed": "設定 Git Bash 路徑失敗",
