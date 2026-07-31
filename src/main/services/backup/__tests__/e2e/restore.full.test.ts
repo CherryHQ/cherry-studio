@@ -353,12 +353,16 @@ describe('e2e-restore real data / backfill + degrade', () => {
       expect(work.prepare(`SELECT model_id FROM message WHERE id='msg-1'`).get()).toMatchObject({
         model_id: 'openai::gpt-4o-backup'
       })
-      // Non-deterministic workspace: FIELD_MERGE keeps local PK; backup uuid not inserted;
-      // session's NOT NULL workspace FK (ws-backup) cannot resolve → pruned (B1 identity
-      // propagation will rewrite to ws-local instead).
+      // Non-deterministic workspace: FIELD_MERGE keeps local PK; backup uuid not inserted.
+      // B1 identity propagation rewrites the session's NOT NULL workspaceId FK from
+      // the backup uuid to the local canonical PK — session survives (was: pruned).
       expect(work.prepare(`SELECT id FROM agent_workspace WHERE id='ws-local'`).get()).toBeDefined()
       expect(work.prepare(`SELECT id FROM agent_workspace WHERE id='ws-backup'`).get()).toBeUndefined()
-      expect(work.prepare(`SELECT id FROM agent_session WHERE id='sess-1'`).get()).toBeUndefined()
+      const sessRow = work.prepare(`SELECT workspace_id FROM agent_session WHERE id='sess-1'`).get() as
+        | { workspace_id: string }
+        | undefined
+      expect(sessRow).toBeDefined()
+      expect(sessRow?.workspace_id).toBe('ws-local')
       // Tag: local uuid survives alone (FIELD_MERGE keeps local PK).
       const tags = work.prepare(`SELECT id FROM tag WHERE name='work'`).all() as { id: string }[]
       expect(tags).toEqual([{ id: 'tag-local' }])

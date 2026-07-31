@@ -19,7 +19,12 @@
 //
 // See `docs/references/backup/backup-architecture.md` §3/§9.
 
-import type { AggregateBoundary, FieldMergePolicy, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
+import type {
+  AggregateBoundary,
+  EntityReference,
+  FieldMergePolicy,
+  ReadonlyBackupRegistry
+} from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import { DB_FOREIGN_KEYS, DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain } from '@main/data/db/backup/domains'
@@ -253,6 +258,175 @@ const setIdentityEntry = (
   inner.set(id, canonical)
 }
 
+/**
+ * Resolve the target table of a declared `EntityReference` from the codegen
+ * `DB_FOREIGN_KEYS[ref.table]` fact — the contributor schema's `EntityReference`
+ * carries `column` + `referencedDomain` but not `targetTable`. We need the
+ * `targetTable` for identity-map keying (and for the intra-domain topo sort).
+ */
+const resolveReferenceTargetTable = (ref: EntityReference): DbTableName | undefined => {
+  const fks = DB_FOREIGN_KEYS[ref.table]
+  if (!fks) return undefined
+  for (const fk of fks) {
+    if (fk.columns.length === 1 && fk.columns[0] === ref.column) return fk.targetTable as DbTableName
+  }
+  return undefined
+}
+
+/**
+ * Intra-domain Kahn topological sort of aggregates. Edges are `kind:'owning'`
+ * cross-aggregate refs whose target is another aggregate root in the SAME
+ * domain — the referenced root must be processed first so its identityMap
+ * entry is available when the referrer's pre-pass writes its own entry.
+ *
+ * Does NOT sort across domains — `registry.topoSort` already handles that.
+ * The implementation is independent of the contributor `aggregates` declaration
+ * order (it does not assume any), so contributors may declare aggregates in
+ * any order without breaking identity propagation.
+ */
+const topoSortAggregates = (
+  aggregates: readonly AggregateBoundary[],
+  intraDomainRefs: ReadonlyMap<DbTableName, readonly EntityReference[]>
+): readonly AggregateBoundary[] => {
+  const rootsByTable = new Map<DbTableName, AggregateBoundary>()
+  for (const agg of aggregates) rootsByTable.set(agg.root, agg)
+
+  const adj = new Map<DbTableName, DbTableName[]>()
+  const inDegree = new Map<DbTableName, number>()
+  for (const agg of aggregates) {
+    adj.set(agg.root, [])
+    inDegree.set(agg.root, 0)
+  }
+  for (const agg of aggregates) {
+    const refs = intraDomainRefs.get(agg.root) ?? []
+    for (const ref of refs) {
+      if (ref.kind !== 'owning') continue
+      const targetTable = resolveReferenceTargetTable(ref)
+      if (targetTable === undefined) continue
+      // Edge only between two aggregates in the SAME domain (intra-domain cross-aggregate).
+      if (!rootsByTable.has(targetTable) || targetTable === agg.root) continue
+      adj.get(targetTable)!.push(agg.root)
+      inDegree.set(agg.root, (inDegree.get(agg.root) ?? 0) + 1)
+    }
+  }
+  const queue: DbTableName[] = aggregates.map((a) => a.root).filter((t) => (inDegree.get(t) ?? 0) === 0)
+  const sorted: AggregateBoundary[] = []
+  const visited = new Set<DbTableName>()
+  while (queue.length > 0) {
+    const t = queue.shift()!
+    if (visited.has(t)) continue
+    visited.add(t)
+    const agg = rootsByTable.get(t)
+    if (agg) sorted.push(agg)
+    for (const next of adj.get(t) ?? []) {
+      inDegree.set(next, (inDegree.get(next) ?? 0) - 1)
+      if (inDegree.get(next) === 0) queue.push(next)
+    }
+  }
+  // Defensive fallback — if a cycle slipped through, append any leftovers in
+  // declaration order. (Topo itself was verified at registry finalize; this
+  // is a safety net so we never throw inside a merge tx.)
+  for (const agg of aggregates) {
+    if (!visited.has(agg.root)) sorted.push(agg)
+  }
+  return sorted
+}
+
+/**
+ * Group declared cross-aggregate owning refs by source root table, scoped to a
+ * single domain. Used to drive the intra-domain topological sort. The current
+ * `EntityReference` shape carries a single `column` (not an array) — composite
+ * refs are filtered at the schema/FK-fact layer via the
+ * `resolveReferenceTargetTable` helper which only matches single-column FKs.
+ * Refs whose target is not in `aggregates` are skipped — the topo only orders
+ * aggregates that actually reference each other.
+ */
+const groupIntraDomainOwningRefs = (
+  aggregates: readonly AggregateBoundary[],
+  domainRefs: readonly EntityReference[]
+): ReadonlyMap<DbTableName, readonly EntityReference[]> => {
+  const aggRoots = new Set(aggregates.map((a) => a.root))
+  const out = new Map<DbTableName, EntityReference[]>()
+  for (const ref of domainRefs) {
+    if (ref.kind !== 'owning') continue
+    const targetTable = resolveReferenceTargetTable(ref)
+    if (targetTable === undefined || !aggRoots.has(targetTable)) continue
+    let bucket = out.get(ref.table)
+    if (!bucket) {
+      bucket = []
+      out.set(ref.table, bucket)
+    }
+    bucket.push(ref)
+  }
+  return out
+}
+
+/**
+ * In-memory rewrite of a JSON entity-id soft reference through the identityMap.
+ *
+ * `policy.target === 'entity-id'` rows declare a JSON column whose embedded
+ * primary-key must be rewritten to the local canonical PK when the target
+ * natural-key aggregate merges under a different PK. Today this covers
+ * `agent_channel.workspace` and `job_schedule.jobInputTemplate` — both embed an
+ * `AgentSessionWorkspaceSource` discriminated union (`type:'user' | 'system'`)
+ * whose `workspaceId` points at `agent_workspace`.
+ *
+ * The walker is column-specific (per `policy`) — column shapes diverge and a
+ * generic recurse would silently mis-rewrite non-id fields. The current
+ * `agent_channel.workspace` and `job_schedule.jobInputTemplate` both hold
+ * `AgentSessionWorkspaceSource` at the top level; rewrite only the
+ * `type==='user'` branch's `workspaceId`. `type==='system'` has no
+ * `workspaceId` and is left intact.
+ *
+ * Returns the rewritten JSON text plus the list of `workspaceId`s that could
+ * not be resolved (so the caller can discard the row when `policy.kind === 'required'`).
+ */
+const rewriteWorkspaceEntityId = (
+  jsonText: string,
+  identityMap: IdentityMap,
+  targetTable: DbTableName,
+  column: string
+): { text: string; missing: readonly string[] } => {
+  // The agent_workspace identity map is keyed by source-of-truth table.
+  const map = identityMap.targetMap.get(targetTable)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonText)
+  } catch {
+    return { text: jsonText, missing: [] }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { text: jsonText, missing: [] }
+  }
+  const obj = parsed as Record<string, unknown>
+  // The AgentSessionWorkspaceSource lives at different depths per policy column
+  // (B1 review R3 P0-2): agent_channel.workspace carries it at the TOP level, while
+  // job_schedule.jobInputTemplate nests it under `.workspace` (the template also has
+  // agentId/prompt siblings). Resolve the container + a reconstructor accordingly.
+  let container: Record<string, unknown>
+  const reconstruct = (next: Record<string, unknown>): unknown =>
+    column === 'jobInputTemplate' ? { ...obj, workspace: next } : next
+  if (column === 'jobInputTemplate') {
+    const nested = obj.workspace
+    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) {
+      return { text: jsonText, missing: [] }
+    }
+    container = nested as Record<string, unknown>
+  } else {
+    container = obj
+  }
+  // AgentSessionWorkspaceSource discriminated union — only the user branch
+  // carries a workspaceId to rewrite. system branches are pass-through.
+  if (container.type !== 'user') return { text: jsonText, missing: [] }
+  const id = container.workspaceId
+  if (typeof id !== 'string' || id.length === 0) return { text: jsonText, missing: [] }
+  if (map === undefined || map.size === 0) return { text: jsonText, missing: [id] }
+  const canonical = map.get(id)
+  if (canonical === undefined) return { text: jsonText, missing: [id] }
+  if (canonical === id) return { text: jsonText, missing: [] }
+  return { text: JSON.stringify(reconstruct({ ...container, workspaceId: canonical })), missing: [] }
+}
+
 /** Strategy stubs not yet implemented in the MVP scaffold. */
 export class MergeStrategyNotImplementedError extends Error {
   constructor(strategy: string) {
@@ -299,8 +473,18 @@ export class MergeEngine {
       this.stmtCache.clear()
       const ordered = this.registry.topoSort(ctx.domains)
       const degradedToSkips: DegradedSkip[] = []
+      // scanAggregates stays pure read-only (no identityMap side effects) so existing
+      // tests/audit-scripts that diff `degradedToSkips` against an injected empty
+      // identityMap keep working — the B1 identityMap is built by the pre-pass below.
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
       const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
+      // B1: pre-pass — seed `identityMap.targetMap[rootTable]` for every natural-key
+      // FIELD_MERGE decision so cross-aggregate root FK rewrites (R1 P0-1) + JSON
+      // entity-id walkers (R1 P0-4) can resolve the target identity before any
+      // row is written. Intra-domain topological order is enforced inside the
+      // pre-pass so referenced roots are written before referrers, regardless of
+      // the contributor `aggregates` declaration order.
+      this.buildRootIdentityMap(workSqlite, ordered, decisions, identityMap)
       // Snapshot app_state keys BEFORE the tx — the merge tx must not add/drop keys. PREFERENCES
       // may UPDATE values (forward-compat), but the key-set is invariant. app_state is ALWAYS_STRIP
       // (backup holds none), so any key-set change is a merge bug. undefined when app_state is absent.
@@ -510,6 +694,79 @@ export class MergeEngine {
     return decisions
   }
 
+  /**
+   * B1 pre-pass — seed `identityMap.targetMap[rootTable]` for every natural-key
+   * FIELD_MERGE decision. Runs AFTER `scanAggregates` (which stays pure read-only)
+   * and BEFORE `importRows` (which needs the map to rewrite cross-aggregate
+   * owning FKs + JSON entity-ids).
+   *
+   * Topological order is enforced per-domain via `topoSortAggregates` so that an
+   * intra-domain cross-aggregate owning ref (e.g. `agent_session.workspaceId →
+   * agent_workspace`) sees the workspace identity in the map by the time the
+   * session's targetMap entry is computed. The sort key is `kind:'owning'` +
+   * same-domain + target is an aggregate root; cross-domain edges remain the
+   * registry-level `topoSort`'s job.
+   *
+   * `scanAggregates` already resolved `localCanonicalPrimaryKey` via
+   * `findLocalByIdentityKey`; we just record the backup→local mapping so the
+   * later root FK rewrite (R1 P0-1) and JSON entity-id walker (R1 P0-4) can
+   * consume it. `sourceMap` is NOT seeded here — that is per-row "imported this
+   * restore" data set by `importRows` when the row is actually written.
+   */
+  private buildRootIdentityMap(
+    _workSqlite: Database.Database,
+    ordered: readonly BackupDomain[],
+    decisions: readonly AggregateDecision[],
+    identityMap: IdentityMap
+  ): void {
+    // Bucket decisions by domain (for per-domain topo) — keep a parallel index
+    // for fast decision lookup by (domain, rootTable, backupPrimaryKey).
+    const decisionsByDomain = new Map<BackupDomain, AggregateDecision[]>()
+    for (const d of decisions) {
+      const domain = this.registry.getTableOwner(d.aggregate.root)
+      if (domain === 'excluded' || domain === 'infrastructure') continue
+      let bucket = decisionsByDomain.get(domain)
+      if (!bucket) {
+        bucket = []
+        decisionsByDomain.set(domain, bucket)
+      }
+      bucket.push(d)
+    }
+    for (const domain of ordered) {
+      const domainDecisions = decisionsByDomain.get(domain) ?? []
+      if (domainDecisions.length === 0) continue
+      const aggregates = this.registry.getAggregatesForDomain(domain)
+      const intraDomainRefs = groupIntraDomainOwningRefs(aggregates, this.registry.getReferencesForDomain(domain))
+      const sorted = topoSortAggregates(aggregates, intraDomainRefs)
+      // Decision write order: each aggregate's decisions land in topo order so
+      // the referenced root identity is in the map before any referrer that
+      // needs it. The sort is a total order over aggregates; decisions per
+      // aggregate are still emitted in their original scan order.
+      for (const agg of sorted) {
+        for (const decision of domainDecisions) {
+          if (decision.aggregate.root !== agg.root) continue
+          // Pre-fill targetMap for both field-merge AND skip decisions. A skip still carries
+          // a local canonical PK (local-wins: the local row exists), and referrers (e.g.
+          // agent_session.workspaceId → agent_workspace) need that mapping before THEY import.
+          // Under explicit userStrategy:'SKIP', workspace is scanned skip (canonical = local PK);
+          // if we skip pre-filling it here, the map is delayed until importRows processes workspace,
+          // but agent_session is declared earlier and imports first → its owning FK misses the map,
+          // falls through to repair, and the row is pruned — silent loss of a session that should
+          // have been rewritten to the local canonical. Only targetMap is filled (not sourceMap:
+          // skip means the row was NOT imported by this restore). (B1 review R3 P0-1)
+          if (decision.action !== 'field-merge' && decision.action !== 'skip') continue
+          if (decision.localCanonicalPrimaryKey === undefined) continue
+          setIdentityEntry(
+            identityMap.targetMap,
+            agg.root,
+            String(decision.backupPrimaryKey[0]),
+            String(decision.localCanonicalPrimaryKey[0])
+          )
+        }
+      }
+    }
+  }
+
   /** file_entry lower(external_path) conflict fold (expression UNIQUE not in DB_UNIQUE_KEYS). */
   private findLocalByExternalPath(
     workSqlite: Database.Database,
@@ -711,6 +968,13 @@ export class MergeEngine {
         ? []
         : (this.registry.getPolicy(domain).fieldMergePolicies ?? []).filter((p) => p.table === agg.root)
     const exclude = new Set<string>([...pkColumns, ...(agg.identityKey ?? [])])
+    // B1 R1 P0-1: ownable root FKs (e.g. agent_workspace has no cross-aggregate
+    // owning FK so this is a no-op for today's natural-key FIELD_MERGE roots,
+    // but the call is cheap and keeps the contract symmetric with insertAggregate).
+    // The rewrite MUST run before fieldMergeRow so a later deep-merge on a JSON
+    // column sees the rewritten FK (though today no natural-key root carries
+    // both an owning FK and a deep-merge policy).
+    this.rewriteRootOwningFks(agg.root, backupRoot, identityMap)
     this.fieldMergeRow(
       workSqlite,
       agg.root,
@@ -721,6 +985,16 @@ export class MergeEngine {
       policies,
       degradedToSkips
     )
+    // B1 R1 P0-4: required JSON entity-id walker must run AFTER fieldMergeRow's
+    // deep-merge (which may rewrite the JSON column's discriminated-union type)
+    // so the entity-id rewrite sees the post-merge shape. The walker operates
+    // on the work.sqlite row now (not the backup row) so any deep-merged
+    // changes survive.
+    if (
+      !this.rewriteRowEntityIdsForLocal(agg.root, workSqlite, localCanonicalPrimaryKey, identityMap, degradedToSkips)
+    ) {
+      return
+    }
 
     const localPk = String(localCanonicalPrimaryKey[0])
     const backupPk = String(backupPrimaryKey[0])
@@ -759,6 +1033,22 @@ export class MergeEngine {
     if (decision.noteRootPath !== undefined) {
       rootRow[physicalColumn('rootPath')] = decision.noteRootPath
     }
+    // B1 R1 P0-1: rewrite the root row's cross-aggregate owning FKs through the
+    // identityMap BEFORE insert. The only owning FK in B1's owning set is
+    // `agent_session.workspaceId → agent_workspace` (intra-domain cross-aggregate,
+    // uuid PK); the deterministic-PK model FKs (agent.model*, KB.embeddingModelId,
+    // assistant.modelId) are NOT in the set because user_model PKs are
+    // cross-device deterministic and never conflict. Unresolvable owning → row
+    // is discarded + disclosed (R1 P1-1 kind semantics).
+    if (this.shouldDiscardRootForOwning(agg.root, rootRow, identityMap, degradedToSkips)) return
+    this.rewriteRootOwningFks(agg.root, rootRow, identityMap)
+    // B1 R1 P0-4: required JSON entity-id columns (`agent_channel.workspace`,
+    // `job_schedule.jobInputTemplate`) must have their embedded workspaceId
+    // rewritten through the identityMap BEFORE the row is inserted. The walker
+    // handles the AgentSessionWorkspaceSource discriminated union
+    // (type='user' carries the id, type='system' is pass-through). Unresolvable
+    // required entity-id → row is discarded + disclosed.
+    if (!this.rewriteRowEntityIds(agg.root, rootRow, identityMap, degradedToSkips)) return
     this.insertRow(workSqlite, agg.root, rootRow)
     // Record source eligibility (inserted) + target availability (inserted) for this root,
     // scoped per endpoint table (R8 + endpoint-disjoint — see IdentityMap).
@@ -1120,6 +1410,218 @@ export class MergeEngine {
   }
 
   /**
+   * B1 R1 P0-1: determine whether the root row should be discarded because
+   * one of its owning FKs is unresolvable. An owning FK is unresolvable when
+   * the backup value has NO entry in the identityMap's target table — meaning
+   * the referenced natural-key row was neither imported nor pre-existing
+   * locally. In that case the row cannot satisfy `kind:'owning'` semantics
+   * (the target does not exist) and the spec dictates discard+disclose.
+   *
+   * `optional` FKs do NOT trigger discard — they go through `rewriteRootOwningFks`
+   * which clears them to NULL in the in-memory row. Only `kind:'owning'` refs
+   * are checked here. Deterministic-PK targets (e.g. `user_model`) are excluded
+   * by virtue of the contributor's `kind:'optional'` declaration.
+   */
+  private shouldDiscardRootForOwning(
+    table: DbTableName,
+    row: Record<string, unknown>,
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
+  ): boolean {
+    const domain = this.registry.getTableOwner(table)
+    if (domain === 'excluded' || domain === 'infrastructure') return false
+    const refs = this.registry.getReferencesForDomain(domain)
+    let discard = false
+    for (const ref of refs) {
+      if (ref.table !== table) continue
+      if (ref.kind !== 'owning') continue
+      const physCol = physicalColumn(ref.column)
+      const backupVal = row[physCol]
+      if (backupVal === null || backupVal === undefined) continue
+      const targetTable = resolveReferenceTargetTable(ref)
+      if (targetTable === undefined) continue
+      const map = identityMap.targetMap.get(targetTable)
+      if (map === undefined) continue
+      // Map populated but no entry for this backup value → unresolvable.
+      if (!map.has(String(backupVal))) {
+        discard = true
+        const reason = `owning ref to ${targetTable}.${ref.column} could not be resolved (no local survivor); row discarded (B1)`
+        const existing = degradedToSkips.find((d) => d.table === table && d.reason === reason)
+        if (!existing) {
+          degradedToSkips.push({
+            kind: 'row_pruned',
+            table,
+            count: 1,
+            reason: `owning ref to ${targetTable}.${ref.column} could not be resolved (no local survivor); row discarded (B1)`
+          })
+        }
+      }
+    }
+    return discard
+  }
+
+  /**
+   * B1 R1 P0-1: rewrite the root row's cross-aggregate FKs through the
+   * identityMap. For each declared `kind:'owning' | 'optional'` ref of this
+   * root, if the backup FK value has an entry in the target's identityMap,
+   * rewrite the value in the in-memory row to the local canonical PK.
+   *
+   * - `owning` (cross-aggregate + non-deterministic PK): unresolvable cases
+   *   are caught by `shouldDiscardRootForOwning` before this call; here we
+   *   only resolve present entries.
+   * - `optional` (deterministic-PK targets like `user_model`): target
+   *   identity is identity-stable across devices, so a present map entry
+   *   means "this exact PK collided and was remapped" — rewrite. A missing
+   *   map entry is NOT touched here: it is a true dangling reference (a
+   *   removed model), which the existing `repairDanglingRefs` pass handles
+   *   with the correct semantics for that table's business invariants
+   *   (e.g. knowledge_base status/dimension check constraints).
+   *
+   * The call is idempotent: passing the same map twice is a no-op.
+   */
+  private rewriteRootOwningFks(table: DbTableName, row: Record<string, unknown>, identityMap: IdentityMap): void {
+    const domain = this.registry.getTableOwner(table)
+    if (domain === 'excluded' || domain === 'infrastructure') return
+    const refs = this.registry.getReferencesForDomain(domain)
+    for (const ref of refs) {
+      if (ref.table !== table) continue
+      if (ref.kind !== 'owning' && ref.kind !== 'optional') continue
+      const physCol = physicalColumn(ref.column)
+      const backupVal = row[physCol]
+      if (backupVal === null || backupVal === undefined) continue
+      const targetTable = resolveReferenceTargetTable(ref)
+      if (targetTable === undefined) continue
+      const map = identityMap.targetMap.get(targetTable)
+      if (map === undefined) continue
+      // Only rewrite when the target identity has an entry for this backup
+      // value. Missing entries (true dangling refs) fall through to the
+      // existing repair pass — which understands per-table business invariants
+      // (e.g. knowledge_base status/dimension CHECK) better than this generic
+      // rewrite can.
+      const canonical = map.get(String(backupVal))
+      if (canonical !== undefined && canonical !== String(backupVal)) {
+        row[physCol] = canonical
+      }
+    }
+  }
+
+  /**
+   * B1 R1 P0-4: in-memory rewrite of `target:'entity-id'` JSON soft references
+   * for an INSERT-path root row. Operates on the in-memory `row` BEFORE insert.
+   * Today the only declared policies are:
+   *   - agent_channel.workspace  (AgentSessionWorkspaceSource, type='user' branch)
+   *   - job_schedule.jobInputTemplate (same shape, jobSchedule jobInputTemplate)
+   * Both target `agent_workspace`. The walker is column-specific by design —
+   * see `rewriteWorkspaceEntityId`.
+   *
+   * `required` policy + unresolvable entity-id → discard the row + disclose.
+   * `tolerant` policy + unresolvable → leave the cell untouched (existing
+   * `discloseFileIdSoftRefs` handles the disclosure for file-ref tolerant;
+   * entity-id tolerant is a future work).
+   *
+   * Returns `true` when the row should proceed to insert, `false` when the
+   * caller must drop the row (required entity-id unresolvable).
+   */
+  private rewriteRowEntityIds(
+    table: DbTableName,
+    row: Record<string, unknown>,
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
+  ): boolean {
+    const domain = this.registry.getTableOwner(table)
+    if (domain === 'excluded' || domain === 'infrastructure') return true
+    const policies = this.registry.getSchema(domain).jsonSoftReferences
+    for (const policy of policies) {
+      if (policy.table !== table) continue
+      if (policy.target !== 'entity-id') continue
+      const colPhys = physicalColumn(policy.column)
+      const cell = row[colPhys]
+      if (cell === null || cell === undefined) continue
+      const text = typeof cell === 'string' ? cell : JSON.stringify(cell)
+      // Both entity-id policies (agent_channel.workspace, job_schedule.jobInputTemplate)
+      // target agent_workspace, but live at different JSON depths — the walker takes the
+      // policy column and resolves the container depth itself (B1 review R3 P0-2).
+      const targetTable: DbTableName = 'agent_workspace'
+      const result = rewriteWorkspaceEntityId(text, identityMap, targetTable, policy.column)
+      if (result.missing.length > 0) {
+        if (policy.kind === 'required') {
+          degradedToSkips.push({
+            kind: 'row_pruned',
+            table,
+            count: 1,
+            reason: `required JSON entity-id (${policy.column}) could not be resolved; row discarded (B1)`
+          })
+          return false
+        }
+        // tolerant: leave the cell as-is; the row may still be useful (the
+        // embedded id is informational in tolerant mode). Disclosure pass is
+        // out of B1's scope for entity-ids (no file-ref equivalent yet).
+        continue
+      }
+      if (result.text !== text) {
+        row[colPhys] = result.text
+      }
+    }
+    return true
+  }
+
+  /**
+   * B1 R1 P0-4 FIELD_MERGE variant: rewrite the JSON entity-id column on the
+   * LOCAL row AFTER `fieldMergeRow` (which may have run deep-merge). The
+   * deep-merge preserves the local `type` discriminator on a discriminated
+   * union, so a subsequent entity-id rewrite that runs on the work.sqlite
+   * row (not the in-memory backup row) sees the post-merge shape and rewrites
+   * the surviving `type='user'` branch's workspaceId.
+   *
+   * Returns `true` to keep the FIELD_MERGE outcome, `false` to signal the
+   * caller must abort the aggregate (required entity-id unresolvable).
+   */
+  private rewriteRowEntityIdsForLocal(
+    table: DbTableName,
+    workSqlite: Database.Database,
+    localPk: readonly (string | number)[],
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
+  ): boolean {
+    const domain = this.registry.getTableOwner(table)
+    if (domain === 'excluded' || domain === 'infrastructure') return true
+    const policies = this.registry.getSchema(domain).jsonSoftReferences
+    if (policies.length === 0) return true
+    const pkPhys = physicalColumn(this.registry.getPrimaryKey(table).columns[0])
+    const wherePk = `${quoteIdent(pkPhys)} = ?`
+    for (const policy of policies) {
+      if (policy.table !== table) continue
+      if (policy.target !== 'entity-id') continue
+      const colPhys = physicalColumn(policy.column)
+      const selectSql = `SELECT ${quoteIdent(colPhys)} AS data FROM ${quoteIdent(table)} WHERE ${wherePk}`
+      const current = this.prepareCached(workSqlite, `sel:${table}:entityid:${colPhys}:${pkPhys}`, selectSql).get(
+        ...localPk
+      ) as { data: string | null } | undefined
+      if (!current?.data) continue
+      const targetTable: DbTableName = 'agent_workspace'
+      const result = rewriteWorkspaceEntityId(current.data, identityMap, targetTable, policy.column)
+      if (result.missing.length > 0) {
+        if (policy.kind === 'required') {
+          degradedToSkips.push({
+            kind: 'row_pruned',
+            table,
+            count: 1,
+            reason: `required JSON entity-id (${policy.column}) could not be resolved on local row; row discarded (B1)`
+          })
+          return false
+        }
+        continue
+      }
+      if (result.text !== current.data) {
+        workSqlite
+          .prepare(`UPDATE ${quoteIdent(table)} SET ${quoteIdent(colPhys)} = ? WHERE ${wherePk}`)
+          .run(result.text, ...localPk)
+      }
+    }
+    return true
+  }
+
+  /**
    * Insert a row. Columns not on the work table are dropped (schema-drift defense),
    * and FTS-derived columns (`fts_rowid`, `searchable_text`) are stripped on FTS source
    * tables so the AFTER-INSERT trigger can recompute them — see FTS_SOURCE_TABLES.
@@ -1190,10 +1692,25 @@ export class MergeEngine {
       for (const row of rows) {
         const sourceBackupId = String(row[sourcePhys])
         const targetBackupId = String(row[targetPhys])
-        const sourceCanonical = identityMap.sourceMap.get(desc.sourceEndpoint.table)?.get(sourceBackupId)
+        // B1 R1 P2-2 (A8): a junction source whose endpoint SKIPs (uuid-entity
+        // local-wins) never enters `sourceMap` (sourceMap = "imported THIS restore").
+        // Without a fallback, the whole junction row would be pruned even when
+        // the local source row is still present and usable. Resolve the source
+        // canonical by checking the work.sqlite FK column directly when
+        // sourceMap lookup misses — this preserves the row for pre-existing
+        // local sources. Distinct from identityMap.targetMap fallback for the
+        // TARGET endpoint, which remains the canonical target-availability path.
+        let sourceCanonical = identityMap.sourceMap.get(desc.sourceEndpoint.table)?.get(sourceBackupId)
         if (sourceCanonical === undefined) {
-          bump(desc.table, `junction source '${desc.sourceEndpoint.table}' not imported`) // → prune
-          continue
+          // The source table's PK is the value the junction row references via
+          // its FK column — look up the source table by its PK column directly.
+          const workSource = this.lookupWorkRowByPk(workSqlite, desc.sourceEndpoint.table, sourceBackupId)
+          if (workSource !== undefined) {
+            sourceCanonical = workSource
+          } else {
+            bump(desc.table, `junction source '${desc.sourceEndpoint.table}' not imported`) // → prune
+            continue
+          }
         }
         const targetCanonical = identityMap.targetMap.get(desc.targetEndpoint.table)?.get(targetBackupId)
         if (targetCanonical === undefined) {
@@ -1207,6 +1724,33 @@ export class MergeEngine {
       const [table, reason] = key.split(DEGRADE_KEY_SEP)
       degradedToSkips.push({ kind: 'association_dropped', table: table as DbTableName, count, reason })
     }
+  }
+
+  /**
+   * B1 R1 P2-2 (A8) helper: look up the local row's PK in work.sqlite for a
+   * given (table, PK value). Used by the junction phase to resolve the source
+   * endpoint when the source SKIPped (no sourceMap entry) but the local source
+   * row is still present and usable. The junction row's FK column holds the
+   * source's PK value (e.g. `agent_skill.agent_id = agent.id`), so the lookup
+   * is by PK. Returns the work-side PK or `undefined`.
+   *
+   * Single-column PK assumed — the same constraint `rewriteMemberFks` already
+   * relies on, and which holds for every AGENTS junction source today: agent,
+   * agent_session, agent_channel all use single-column uuid PKs.
+   */
+  private lookupWorkRowByPk(workSqlite: Database.Database, table: DbTableName, pkValue: string): string | undefined {
+    const pkColumns = this.registry.getPrimaryKey(table).columns
+    if (pkColumns.length !== 1) return undefined
+    const pkPhys = physicalColumn(pkColumns[0])
+    const hasTable =
+      workSqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table) !== undefined
+    if (!hasTable) return undefined
+    const row = this.prepareCached(
+      workSqlite,
+      `sel:${table}:pklkp:${pkPhys}`,
+      `SELECT ${quoteIdent(pkPhys)} AS pk FROM ${quoteIdent(table)} WHERE ${quoteIdent(pkPhys)} = ? LIMIT 1`
+    ).get(pkValue) as { pk: string } | undefined
+    return row?.pk
   }
 
   /**

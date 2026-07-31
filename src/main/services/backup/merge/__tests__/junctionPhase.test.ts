@@ -173,8 +173,13 @@ describe('importAllJunctionRows (global junction phase)', () => {
     expect(skills).toEqual([{ id: 'skill-local' }])
   })
 
-  it('cascade-prunes agent_skill when the source agent is not imported (work already has it)', async () => {
+  it('keeps the junction row when the source is SKIPed but a local source row is available (B1 R1 P2-2)', async () => {
     // Work already has agent-1 (uuid SKIP → sourceMap stays empty) AND skill-1 (local-canonical).
+    // Pre-B1: the missing sourceMap entry cascade-pruned the whole junction row, even
+    // though the local agent-1 was perfectly usable. B1 adds a work.sqlite fallback so
+    // a SKIPed source no longer silently drops a junction row whose endpoints are
+    // present on this host. Distinct from the source-not-in-work case (below), which
+    // remains a real cascade-prune.
     seedAgent(dbh.sqlite, 'agent-1')
     seedSkill(dbh.sqlite, 'skill-1')
     seedBackup((db) => {
@@ -185,8 +190,9 @@ describe('importAllJunctionRows (global junction phase)', () => {
 
     await runMerge(agentsSkillsCtx())
 
-    // source agent-1 not imported this restore → cascade-prune (no junction row).
-    expect(agentSkillRows()).toEqual([])
+    // Local source row is present + skill-1 is local-canonical → junction row lands
+    // against the local source PK (no prune).
+    expect(agentSkillRows()).toEqual([{ agent_id: 'agent-1', skill_id: 'skill-1' }])
   })
 
   it('backfills the natural-key target when work lacks it and imports the junction', async () => {

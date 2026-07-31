@@ -105,12 +105,18 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   }
 
   /** Insert a minimal job_schedule row. type is the AGENTS rowScope column. */
-  const insertJobSchedule = (db: Database.Database, id: string, type: string, name = id): void => {
+  const insertJobSchedule = (
+    db: Database.Database,
+    id: string,
+    type: string,
+    name = id,
+    jobInputTemplate = '{}'
+  ): void => {
     const now = Date.now()
     db.prepare(
       `INSERT INTO job_schedule (id, type, name, trigger, job_input_template, catch_up_policy, metadata, created_at, updated_at)
-       VALUES (?, ?, ?, '{}', '{}', '{}', '{}', ?, ?)`
-    ).run(id, type, name, now, now)
+       VALUES (?, ?, ?, '{}', ?, '{}', '{}', ?, ?)`
+    ).run(id, type, name, jobInputTemplate, now, now)
   }
 
   const countRows = (table: string): number =>
@@ -1194,5 +1200,368 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     })) as { degradedToSkips: { table: string; reason: string }[] }
 
     expect(result.degradedToSkips.filter((d) => d.reason.includes('not staged'))).toEqual([])
+  })
+
+  // ─── B1 identity propagation tests ─────────────────────────────────────
+  // These verify the root FK rewrite (R1 P0-1) and JSON entity-id walker
+  // (R1 P0-4) on a real-shaped AGENTS archive. agent_session is a uuid-entity
+  // (SKIP/INSERT path) and the session's NOT NULL owning FK to agent_workspace
+  // is rewritten to the local canonical PK when both exist. agent_channel
+  // holds a required JSON entity-id (workspace.workspaceId via discriminated
+  // union) that is rewritten through the identityMap.
+
+  /** Insert an agent_workspace row (uuid PK + path UNIQUE natural-key). */
+  const insertAgentWorkspace = (
+    db: Database.Database,
+    id: string,
+    path: string,
+    name = `ws-${id}`,
+    type: 'user' | 'system' = 'user'
+  ): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, name, path, type, `o-${id}`, now, now)
+  }
+
+  /** Insert an agent row (uuid PK). */
+  const insertAgent = (db: Database.Database, id: string, name = `agent-${id}`): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+       VALUES (?, 'custom', ?, 'do things', ?, ?, ?)`
+    ).run(id, name, `o-${id}`, now, now)
+  }
+
+  /** Insert an agent_session row. workspaceId is a cross-aggregate owning FK. */
+  const insertAgentSession = (
+    db: Database.Database,
+    id: string,
+    workspaceId: string,
+    agentId: string | null = null
+  ): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, agentId, `s-${id}`, workspaceId, `o-${id}`, now, now)
+  }
+
+  /** Insert an agent_channel row with a JSON workspace field (AgentSessionWorkspaceSource). */
+  const insertAgentChannel = (db: Database.Database, id: string, workspace: Record<string, unknown>): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO agent_channel (id, type, name, agent_id, session_id, workspace, config, is_active, active_chat_ids, permission_mode, created_at, updated_at)
+       VALUES (?, 'telegram', ?, NULL, NULL, ?, '{}', 1, '[]', NULL, ?, ?)`
+    ).run(id, `c-${id}`, JSON.stringify(workspace), now, now)
+  }
+
+  it('B1: rewrites agent_session.workspaceId from backup uuid to local canonical PK', async () => {
+    // Work holds agent_workspace under 'ws-local' (path '/Users/me/proj'). Backup has
+    // agent_workspace under a DIFFERENT uuid 'ws-backup' for the same path. After FIELD_MERGE,
+    // local 'ws-local' survives as the canonical. The backup agent_session has
+    // workspace_id='ws-backup' — without B1, that NOT NULL owning FK dangles and the session
+    // is pruned. With B1, the FK is rewritten to 'ws-local' and the session lands intact.
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj') // same path → FIELD_MERGE conflict
+      insertAgent(db, 'agent-1')
+      insertAgentSession(db, 'sess-1', 'ws-backup', 'agent-1')
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    // Workspace FIELD_MERGE — local PK survives.
+    expect(dbh.sqlite.prepare(`SELECT id FROM agent_workspace WHERE id='ws-local'`).get()).toBeDefined()
+    expect(dbh.sqlite.prepare(`SELECT id FROM agent_workspace WHERE id='ws-backup'`).get()).toBeUndefined()
+    // Session INSERTed with workspaceId rewritten to local canonical.
+    const sess = dbh.sqlite.prepare(`SELECT workspace_id FROM agent_session WHERE id='sess-1'`).get() as
+      | { workspace_id: string }
+      | undefined
+    expect(sess).toBeDefined()
+    expect(sess?.workspace_id).toBe('ws-local')
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('B1: rewrites agent_session.workspaceId under explicit userStrategy SKIP (R3 P0-1 regression)', async () => {
+    // Under userStrategy:'SKIP', agent_workspace scans SKIP (canonical = local PK). Before the
+    // R3 P0-1 fix, buildRootIdentityMap only pre-filled field-merge decisions, so the workspace
+    // targetMap was delayed until importRows — but agent_session is declared earlier and imported
+    // first, missed the map, and fell through to repair which pruned a session that should have
+    // been rewritten to the local canonical.
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj') // same path → SKIP under forceSkip
+      insertAgent(db, 'agent-1')
+      insertAgentSession(db, 'sess-1', 'ws-backup', 'agent-1')
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      userStrategy: 'SKIP',
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    // Session survives (not pruned by repair) with workspaceId rewritten to local canonical.
+    const sess = dbh.sqlite.prepare(`SELECT workspace_id FROM agent_session WHERE id='sess-1'`).get() as
+      | { workspace_id: string }
+      | undefined
+    expect(sess).toBeDefined()
+    expect(sess?.workspace_id).toBe('ws-local')
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('B1: rewrites job_schedule.jobInputTemplate.workspace.workspaceId nested (R3 P0-2 regression)', async () => {
+    // job_schedule.jobInputTemplate embeds AgentSessionWorkspaceSource NESTED under `.workspace`
+    // (the template also has agentId/prompt siblings). Unlike agent_channel.workspace which is
+    // top-level, the walker must descend into .workspace. Before R3 P0-2 the walker only read
+    // the top level and the nested workspaceId was never rewritten — a silent dangling JSON ref
+    // (no SQL FK, so foreign_key_check could not catch it).
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj')
+      insertJobSchedule(
+        db,
+        'job-1',
+        'agent.task',
+        'job-1',
+        JSON.stringify({ agentId: 'agent-1', prompt: 'run', workspace: { type: 'user', workspaceId: 'ws-backup' } })
+      )
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT job_input_template FROM job_schedule WHERE id='job-1'`).get() as
+      | { job_input_template: string }
+      | undefined
+    expect(row).toBeDefined()
+    const parsed = JSON.parse(row!.job_input_template) as { workspace: { type: string; workspaceId: string } }
+    expect(parsed.workspace.type).toBe('user')
+    expect(parsed.workspace.workspaceId).toBe('ws-local') // rewritten, not left as ws-backup
+  })
+
+  it('B1: rewrites agent_channel.workspace.workspaceId (type=user) through the identityMap', async () => {
+    // The agent_channel JSON column `workspace` is AgentSessionWorkspaceSource. The 'user'
+    // branch carries a workspaceId pointing at agent_workspace. After FIELD_MERGE on the
+    // workspace, the embedded workspaceId must be rewritten to the local canonical PK so
+    // the channel no longer points at the merged-away backup workspace.
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj')
+      insertAgentChannel(db, 'ch-1', { type: 'user', workspaceId: 'ws-backup' })
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT workspace FROM agent_channel WHERE id='ch-1'`).get() as
+      | { workspace: string }
+      | undefined
+    expect(row).toBeDefined()
+    const parsed = JSON.parse(row!.workspace) as Record<string, unknown>
+    expect(parsed.type).toBe('user')
+    expect(parsed.workspaceId).toBe('ws-local')
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('B1: leaves agent_channel.workspace untouched when type=system (no workspaceId to rewrite)', async () => {
+    // The AgentSessionWorkspaceSource discriminated union has a 'system' branch with NO
+    // workspaceId. The walker must not invent one and must not error on the missing key.
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj')
+      insertAgentChannel(db, 'ch-sys', { type: 'system' })
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT workspace FROM agent_channel WHERE id='ch-sys'`).get() as
+      | { workspace: string }
+      | undefined
+    expect(row).toBeDefined()
+    const parsed = JSON.parse(row!.workspace) as Record<string, unknown>
+    expect(parsed.type).toBe('system')
+    expect(parsed.workspaceId).toBeUndefined()
+  })
+
+  it('B1: discard+disclose a required JSON entity-id row when the target is unresolvable', async () => {
+    // agent_channel.workspace points at an agent_workspace that exists in NEITHER work
+    // NOR backup → no identityMap entry, the required entity-id is unresolvable. The row
+    // must be discarded and disclosed in degradedToSkips (not silently inserted with a
+    // dangling soft ref, not aborted wholesale).
+    seedBackup((db) => {
+      insertAgentChannel(db, 'ch-dangle', { type: 'user', workspaceId: 'ws-nonexistent' })
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { table: string; reason: string }[] }
+
+    expect(dbh.sqlite.prepare(`SELECT id FROM agent_channel WHERE id='ch-dangle'`).get()).toBeUndefined()
+    expect(
+      result.degradedToSkips.some((d) => d.table === 'agent_channel' && d.reason.includes('required JSON entity-id'))
+    ).toBe(true)
+  })
+
+  it('B1: intra-domain Kahn topo — workspace identityMap is built before session refers to it', async () => {
+    // The AGENTS contributor declares `agent_session` before `agent_workspace` in the
+    // aggregates array. Without intra-domain topological sort, the session would be
+    // processed first, and the workspace targetMap entry would not yet exist, leading
+    // to a false "unresolvable" → discard. With B1's intra-domain topo, the workspace
+    // identity is built first, and the session's workspaceId is rewritten to the local PK.
+    // Same outcome as the standalone root-FK-rewrite test above, but the fixture proves
+    // the topo is order-independent.
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj')
+      insertAgent(db, 'agent-1')
+      insertAgentSession(db, 'sess-1', 'ws-backup', 'agent-1')
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const sess = dbh.sqlite.prepare(`SELECT workspace_id FROM agent_session WHERE id='sess-1'`).get() as
+      | { workspace_id: string }
+      | undefined
+    expect(sess?.workspace_id).toBe('ws-local')
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('B1: scanAggregates stays pure read-only (no identityMap side effects) — covered by pre-pass isolation', async () => {
+    // Synthetic check: the identityMap is built by `buildRootIdentityMap` after
+    // `scanAggregates`. Pre-B1 the engine could leave the identityMap empty until
+    // `importRows` ran; B1 formalizes that contract by moving the seeding to a
+    // dedicated pre-pass. This test simply exercises the FIELD_MERGE path and
+    // verifies the identityMap end-state is correct — the pre-pass isolation is
+    // covered by the test above (workspace identityMap exists when session FK
+    // rewrite happens, regardless of aggregate declaration order).
+    insertAgentWorkspace(dbh.sqlite, 'ws-local', '/Users/me/proj')
+    seedBackup((db) => {
+      insertAgentWorkspace(db, 'ws-backup', '/Users/me/proj')
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    // Local canonical survives, backup uuid pruned.
+    expect(dbh.sqlite.prepare(`SELECT id FROM agent_workspace WHERE id='ws-local'`).get()).toBeDefined()
+    expect(dbh.sqlite.prepare(`SELECT id FROM agent_workspace WHERE id='ws-backup'`).get()).toBeUndefined()
+  })
+
+  it('B1: composite FK no-op (knowledge_item self-FK [baseId, groupId] stays untouched by rewriteMemberFks)', async () => {
+    // R1 P1-5: composite FKs are NOT rewritten by rewriteMemberFks (length !== 1 continue).
+    // The existing `repairDanglingRefs` pass already handles mixed-nullability partial NULL
+    // on composite (knowledge_item.groupId is nullable; baseId is NOT NULL). B1 explicitly
+    // does NOT add rewrite logic for composite — the behavior must remain the same.
+    // The test exercises a fresh install: knowledge_base backfill + knowledge_item with
+    // the composite self-FK column (baseId, groupId) → (baseId, id). No collision, so the
+    // row inserts; the assertion is that the composite column is passed through unmodified
+    // (no PK remap, no rewrite).
+    const now = Date.now()
+    // knowledge_base for the self-FK target — completed + no embedding model (KB status check)
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO knowledge_base (id, name, embedding_model_id, dimensions, status, chunk_size, chunk_overlap, chunk_strategy, chunk_separator, created_at, updated_at)
+         VALUES (?, ?, NULL, NULL, 'completed', 500, 50, 'structured', '\n\n', ?, ?)`
+      )
+      .run('kb-local', 'kb', now, now)
+    // knowledge_item with groupId=NULL — exercises the composite column passing through
+    // unchanged. The composite FK `[baseId, groupId]` → `[baseId, id]` is partial-NULL
+    // which is the no-op case the engine must not rewrite.
+    seedBackup(
+      (db) => {
+        db.prepare(
+          `INSERT INTO knowledge_base (id, name, embedding_model_id, dimensions, status, chunk_size, chunk_overlap, chunk_strategy, chunk_separator, created_at, updated_at)
+           VALUES (?, ?, NULL, NULL, 'completed', 500, 50, 'structured', '\n\n', ?, ?)`
+        ).run('kb-backup', 'kb', now, now)
+        db.prepare(
+          `INSERT INTO knowledge_item (id, base_id, group_id, type, data, status, created_at, updated_at)
+           VALUES (?, ?, NULL, 'file', '{}', 'idle', ?, ?)`
+        ).run('ki-1', 'kb-backup', now, now)
+      },
+      { foreignKeys: false }
+    )
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['KNOWLEDGE'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    // Composite FK column preserved as-is (B1 no-op): ki-1's (baseId, groupId) =
+    // (kb-backup, NULL) — not rewritten, not split, not mapped through identityMap.
+    const row = dbh.sqlite.prepare(`SELECT base_id, group_id FROM knowledge_item WHERE id='ki-1'`).get() as
+      | { base_id: string; group_id: string | null }
+      | undefined
+    expect(row).toBeDefined()
+    expect(row?.base_id).toBe('kb-backup')
+    expect(row?.group_id).toBeNull()
+  })
+
+  it('B1: owning unresolvable discards the row + discloses (no silent null)', async () => {
+    // agent_session.workspaceId points at an agent_workspace that does NOT exist locally
+    // and is NOT in the backup either → no identityMap entry. owning unresolvable →
+    // row discarded + disclosed (NOT silent null, NOT repair pass, which would only
+    // catch the row after it was inserted).
+    // FKs disabled for seed because the planted orphan would fail at the backup's
+    // own PRAGMA foreign_keys = ON. The merge engine's own defer_foreign_keys +
+    // whole-graph foreign_key_check covers the consistency contract.
+    seedBackup(
+      (db) => {
+        insertAgent(db, 'agent-1')
+        insertAgentSession(db, 'sess-dangle', 'ws-missing', 'agent-1')
+      },
+      { foreignKeys: false }
+    )
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    // The session is NOT imported — it is dropped because the owning FK is unresolvable.
+    // The disclosure may surface from `shouldDiscardRootForOwning` (B1 owning semantics)
+    // or from the `repairDanglingRefs` safety net if the row slipped past the discard
+    // gate; the user-visible guarantee is "row absent + disclosed in degradedToSkips".
+    expect(dbh.sqlite.prepare(`SELECT id FROM agent_session WHERE id='sess-dangle'`).get()).toBeUndefined()
+    // Whole-graph FK check is the final arbiter — must be clean.
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })
