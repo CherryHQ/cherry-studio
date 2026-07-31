@@ -24,7 +24,7 @@ import {
   ensureAgentDataDirectory,
   ensureAgentStorageDirectory
 } from '@main/ai/agents/agentDataDirectory'
-import { isWin } from '@main/core/platform'
+import { isMac, isWin } from '@main/core/platform'
 import { isPathInside } from '@main/utils/file'
 import PQueue from 'p-queue'
 import { validate as isUuid } from 'uuid'
@@ -222,10 +222,6 @@ async function lstatBigIntIfExists(targetPath: string): Promise<BigIntStats | un
 
 function isPathInsideOrEqual(childPath: string, parentPath: string): boolean {
   return path.normalize(childPath) === path.normalize(parentPath) || isPathInside(childPath, parentPath)
-}
-
-function pathsOverlap(leftPath: string, rightPath: string): boolean {
-  return isPathInsideOrEqual(leftPath, rightPath) || isPathInsideOrEqual(rightPath, leftPath)
 }
 
 async function realpathIfExists(targetPath: string): Promise<string | undefined> {
@@ -1959,6 +1955,85 @@ async function publishPreparedWorkspaceEntries(
   return { publishedEntries, reusedEntries }
 }
 
+interface CleanupPathIndexEntry {
+  indexedPath: string
+  ownerPath: string
+}
+
+type CleanupPathAncestorIndex = Map<string, CleanupPathIndexEntry>
+
+// Ancestor walks keep overlap validation linear in path count and bounded by path depth.
+function cleanupPathIndexKey(targetPath: string): string {
+  const resolvedPath = path.resolve(targetPath)
+  return isMac || isWin ? resolvedPath.toLowerCase() : resolvedPath
+}
+
+function createCleanupPathAncestorIndex(entries: CleanupPathIndexEntry[]): CleanupPathAncestorIndex {
+  const index: CleanupPathAncestorIndex = new Map()
+  for (const entry of entries) {
+    const key = cleanupPathIndexKey(entry.indexedPath)
+    if (!index.has(key)) index.set(key, entry)
+  }
+  return index
+}
+
+function findCleanupPathAncestor(
+  index: CleanupPathAncestorIndex,
+  targetPath: string,
+  includeSelf = true
+): CleanupPathIndexEntry | undefined {
+  let currentPath = cleanupPathIndexKey(targetPath)
+  if (!includeSelf) {
+    const parentPath = path.dirname(currentPath)
+    if (parentPath === currentPath) return undefined
+    currentPath = parentPath
+  }
+
+  while (true) {
+    const ancestor = index.get(currentPath)
+    if (ancestor) return ancestor
+    const parentPath = path.dirname(currentPath)
+    if (parentPath === currentPath) return undefined
+    currentPath = parentPath
+  }
+}
+
+function createCleanupTargetAncestorIndex(targets: CleanupPathIndexEntry[]): CleanupPathAncestorIndex {
+  const index: CleanupPathAncestorIndex = new Map()
+  for (const target of targets) {
+    const key = cleanupPathIndexKey(target.indexedPath)
+    const duplicate = index.get(key)
+    if (duplicate) {
+      throw new Error(`Legacy Agent migration cleanup targets overlap: ${duplicate.ownerPath} and ${target.ownerPath}`)
+    }
+    index.set(key, target)
+  }
+
+  for (const target of targets) {
+    const ancestor = findCleanupPathAncestor(index, target.indexedPath, false)
+    if (ancestor) {
+      throw new Error(`Legacy Agent migration cleanup targets overlap: ${ancestor.ownerPath} and ${target.ownerPath}`)
+    }
+  }
+  return index
+}
+
+function findCleanupTargetSourceOverlap(
+  targets: CleanupPathIndexEntry[],
+  targetIndex: CleanupPathAncestorIndex,
+  sources: CleanupPathIndexEntry[]
+): string | undefined {
+  const sourceIndex = createCleanupPathAncestorIndex(sources)
+  for (const source of sources) {
+    const targetAncestor = findCleanupPathAncestor(targetIndex, source.indexedPath)
+    if (targetAncestor) return targetAncestor.ownerPath
+  }
+  for (const target of targets) {
+    if (findCleanupPathAncestor(sourceIndex, target.indexedPath)) return target.ownerPath
+  }
+  return undefined
+}
+
 async function clearLegacyAgentMigrationTargets(input: {
   agentsDataRoot: string
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
@@ -1987,15 +2062,8 @@ async function clearLegacyAgentMigrationTargets(input: {
     target.exists = Boolean(await lstatIfExists(target.path))
   }
 
-  for (let leftIndex = 0; leftIndex < targets.length; leftIndex++) {
-    for (let rightIndex = leftIndex + 1; rightIndex < targets.length; rightIndex++) {
-      if (pathsOverlap(targets[leftIndex].path, targets[rightIndex].path)) {
-        throw new Error(
-          `Legacy Agent migration cleanup targets overlap: ${targets[leftIndex].path} and ${targets[rightIndex].path}`
-        )
-      }
-    }
-  }
+  const lexicalTargets = targets.map((target) => ({ indexedPath: target.path, ownerPath: target.path }))
+  const lexicalTargetIndex = createCleanupTargetAncestorIndex(lexicalTargets)
 
   const sourcePaths = new Set(
     input.sessions
@@ -2006,22 +2074,31 @@ async function clearLegacyAgentMigrationTargets(input: {
         )
       )
   )
-  const resolvedSources = new Map<string, string | undefined>()
-  for (const sourcePath of sourcePaths) {
-    resolvedSources.set(sourcePath, await realpathIfExists(sourcePath))
+  const lexicalSources = Array.from(sourcePaths, (sourcePath) => ({
+    indexedPath: sourcePath,
+    ownerPath: sourcePath
+  }))
+  const lexicalOverlapTarget = findCleanupTargetSourceOverlap(lexicalTargets, lexicalTargetIndex, lexicalSources)
+  if (lexicalOverlapTarget) {
+    throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${lexicalOverlapTarget}`)
   }
 
+  const resolvedSources: CleanupPathIndexEntry[] = []
+  for (const sourcePath of sourcePaths) {
+    const resolvedSource = await realpathIfExists(sourcePath)
+    if (resolvedSource) resolvedSources.push({ indexedPath: resolvedSource, ownerPath: sourcePath })
+  }
+
+  const resolvedTargets: CleanupPathIndexEntry[] = []
   for (const target of targets) {
     const targetStat = await lstatIfExists(target.path)
     const resolvedTarget = targetStat && !targetStat.isSymbolicLink() ? await realpathIfExists(target.path) : undefined
-    for (const [sourcePath, resolvedSource] of resolvedSources) {
-      if (
-        pathsOverlap(target.path, sourcePath) ||
-        (resolvedTarget && resolvedSource && pathsOverlap(resolvedTarget, resolvedSource))
-      ) {
-        throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${target.path}`)
-      }
-    }
+    if (resolvedTarget) resolvedTargets.push({ indexedPath: resolvedTarget, ownerPath: target.path })
+  }
+  const resolvedTargetIndex = createCleanupPathAncestorIndex(resolvedTargets)
+  const resolvedOverlapTarget = findCleanupTargetSourceOverlap(resolvedTargets, resolvedTargetIndex, resolvedSources)
+  if (resolvedOverlapTarget) {
+    throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${resolvedOverlapTarget}`)
   }
 
   for (const target of targets) {
