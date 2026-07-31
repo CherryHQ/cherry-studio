@@ -69,7 +69,7 @@ function SettingsLayout() {
 
 ## 导航 API
 
-本项目有两种导航方式：
+本项目有三种导航方式：
 
 ### 1. Tab 级别导航 - `openTab`
 
@@ -82,13 +82,13 @@ function MyComponent() {
   const { openTab, closeTab } = useTabs()
 
   // 基础用法 - 复用已有 Tab 或新建
-  openTab('/settings')
+  openTab('/app/knowledge')
 
   // 带标题
   openTab('/chat/123', { title: 'Chat with Alice' })
 
   // 强制新开 Tab（即使已有相同 URL）
-  openTab('/settings', { forceNew: true })
+  openTab('/app/knowledge', { forceNew: true })
 
   // 打开 Webview Tab
   openTab('https://example.com', {
@@ -101,7 +101,19 @@ function MyComponent() {
 }
 ```
 
-### 2. Tab 内部导航 - `useNavigate`
+### 2. 应用级设置导航 - `openSettingsTab`
+
+打开沉浸式设置界面，不创建或替换工作区 Tab：
+
+```typescript
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+
+openSettingsTab('/settings/provider')
+```
+
+不要把设置路由传给 `openTab`。`AppShell` 会将工作区内误入设置的链接提升为应用级界面，但新调用方应直接使用 `openSettingsTab` 表达应用级导航意图。
+
+### 3. Tab 内部导航 - `useNavigate`
 
 在同一个 Tab 内跳转路由（不会新开 Tab），使用 TanStack Router 的 `useNavigate`：
 
@@ -124,7 +136,8 @@ function SettingsPage() {
 | 场景 | 使用 | 效果 |
 |-----|------|------|
 | 打开新功能模块 | `openTab('/knowledge')` | 新建 Tab |
-| 设置页内切换子页 | `navigate({ to: '/settings/provider' })` | 当前 Tab 内跳转 |
+| 从工作区内容打开设置 | `openSettingsTab('/settings/provider')` | 打开沉浸式设置并保留 Tab |
+| 设置页内切换子页 | `navigate({ to: '/settings/provider' })` | 在设置界面内跳转 |
 | 从列表打开详情 | `openTab('/chat/123', { title: '...' })` | 新建 Tab |
 | 返回上一页 | `navigate({ to: '..' })` | 当前 Tab 内返回 |
 
@@ -155,19 +168,17 @@ function SettingsPage() {
 
 ```text
 AppShell
-├── Sidebar
-├── TabBar
-└── Content Area
-    ├── TabRouter #1 (Home)
-    │   └── Activity(visible) → MemoryRouter → RouterProvider
-    ├── TabRouter #2 (Settings)
-    │   └── Activity(hidden) → MemoryRouter → RouterProvider
-    └── WebviewContainer (for webview tabs)
+├── Workspace Shell
+│   ├── Sidebar
+│   ├── TabBar
+│   └── TabRouter(s) → Activity → MemoryRouter → RouterProvider
+└── Immersive Settings Shell → MemoryRouter → RouterProvider
 ```
 
 - 每个 Tab 拥有独立的 `MemoryRouter` 实例
 - 使用 React 19 `<Activity>` 组件控制可见性
 - Tab 切换时组件不卸载，状态完全保持（KeepAlive）
+- 设置是应用级界面而非工作区 Tab；返回后恢复保留的工作区
 
 ## 错误处理
 
@@ -202,3 +213,4 @@ src/renderer/
 2. **路由文件命名即路径** - `routes/settings.tsx` → `/settings`
 3. **动态参数使用 `$`** - `routes/chat/$topicId.tsx` → `/chat/:topicId`
 4. **页面状态自动保持** - Tab 切换不会丢失 `useState`、滚动位置等
+5. **禁止用 `openTab` 打开设置** - 从工作区或外部入口使用 `openSettingsTab`，只在已经进入设置后使用 `useNavigate` 切换设置子页

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,9 +9,17 @@ const mocks = vi.hoisted(() => ({
   commandHandlers: new Map<string, () => void>(),
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
+  closeSettings: vi.fn(),
+  openTab: vi.fn(),
   platformState: { isMac: false },
+  settingsPath: null as string | null,
+  settingsRouterProps: undefined as Record<string, unknown> | undefined,
+  setSettingsPath: vi.fn(),
   tabBarProps: undefined as Record<string, unknown> | undefined,
-  showSearchPopup: vi.fn()
+  updateTab: vi.fn(),
+  workspaceRouterProps: undefined as Record<string, unknown> | undefined,
+  showSearchPopup: vi.fn(),
+  hideSearchPopup: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
@@ -41,16 +49,24 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
-    show: mocks.showSearchPopup
+    show: mocks.showSearchPopup,
+    hide: mocks.hideSearchPopup
   }
 }))
 
+vi.mock('../SettingsSurfaceProvider', () => ({
+  useSettingsSurface: () => ({
+    closeSettings: mocks.closeSettings,
+    settingsPath: mocks.settingsPath,
+    setSettingsPath: mocks.setSettingsPath
+  })
+}))
+
 vi.mock('../../../hooks/tab', () => ({
-  useMainWindowNavigation: vi.fn(),
   useTabs: () => ({
     activeTabId: 'home',
     closeTab: vi.fn(),
-    openTab: vi.fn(),
+    openTab: mocks.openTab,
     pinTab: vi.fn(),
     reorderTabs: vi.fn(),
     setActiveTab: vi.fn(),
@@ -64,7 +80,7 @@ vi.mock('../../../hooks/tab', () => ({
       }
     ],
     unpinTab: vi.fn(),
-    updateTab: vi.fn()
+    updateTab: mocks.updateTab
   })
 }))
 
@@ -95,7 +111,19 @@ vi.mock('../AppShellTabBar', () => ({
 }))
 
 vi.mock('../TabRouter', () => ({
-  TabRouter: () => <section data-testid="tab-router" />
+  TabRouter: (props: Record<string, unknown>) => {
+    const tab = props.tab as { id: string; url: string }
+    if (tab.id === 'immersive-settings') {
+      mocks.settingsRouterProps = props
+      return <section data-testid="settings-router" data-url={tab.url} />
+    }
+    mocks.workspaceRouterProps = props
+    return <section data-testid="tab-router" />
+  }
+}))
+
+vi.mock('../../WindowControls', () => ({
+  WindowControls: () => (mocks.platformState.isMac ? null : <div data-testid="window-controls" />)
 }))
 
 import { AppShell } from '../AppShell'
@@ -107,7 +135,10 @@ afterEach(() => {
   mocks.ipcHandlers.clear()
   mocks.ipcRequest.mockResolvedValue(false)
   mocks.platformState.isMac = false
+  mocks.settingsPath = null
+  mocks.settingsRouterProps = undefined
   mocks.tabBarProps = undefined
+  mocks.workspaceRouterProps = undefined
 })
 
 describe('AppShell', () => {
@@ -128,6 +159,26 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('app.search')?.()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not open global search while settings is immersive', () => {
+    mocks.settingsPath = '/settings/provider'
+    render(<AppShell />)
+
+    mocks.commandHandlers.get('app.search')?.()
+
+    expect(mocks.showSearchPopup).not.toHaveBeenCalled()
+  })
+
+  it('dismisses an already-open global search when Settings takes over the window', () => {
+    const { rerender } = render(<AppShell />)
+
+    expect(mocks.hideSearchPopup).not.toHaveBeenCalled()
+
+    mocks.settingsPath = '/settings/provider'
+    rerender(<AppShell />)
+
+    expect(mocks.hideSearchPopup).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the Windows and Linux tab bar inside the content column beside the sidebar', () => {
@@ -239,5 +290,80 @@ describe('AppShell', () => {
     expect(await screen.findByTestId('macos-traffic-light-spacer')).toBeInTheDocument()
     expect(screen.getByTestId('macos-traffic-light-drag-region')).toBeInTheDocument()
     expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
+  })
+
+  it('shows Settings as an immersive surface while preserving the hidden workspace shell', () => {
+    mocks.settingsPath = '/settings/provider'
+
+    render(<AppShell />)
+
+    expect(screen.getByTestId('workspace-shell')).toHaveClass('hidden')
+    expect(screen.getByTestId('settings-shell')).toBeVisible()
+    expect(screen.getByTestId('settings-router')).toHaveAttribute('data-url', '/settings/provider')
+    expect(screen.getByTestId('window-controls')).toBeInTheDocument()
+    expect(mocks.workspaceRouterProps).toHaveProperty('isActive', false)
+    expect(screen.getByRole('button', { name: /Back|返回/ })).toHaveFocus()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('closes immersive Settings from the title-bar Back action without changing tabs', () => {
+    mocks.settingsPath = '/settings/provider'
+
+    render(<AppShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Back|返回/ }))
+
+    expect(mocks.closeSettings).toHaveBeenCalledTimes(1)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('syncs navigation inside the Settings router without opening a tab', () => {
+    mocks.settingsPath = '/settings/provider'
+    render(<AppShell />)
+
+    act(() => {
+      const onUrlChange = mocks.settingsRouterProps?.onUrlChange as ((url: string) => void) | undefined
+      onUrlChange?.('/settings/about')
+    })
+
+    expect(mocks.setSettingsPath).toHaveBeenCalledWith('/settings/about')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('promotes Settings navigation from a workspace router into the immersive surface', () => {
+    render(<AppShell />)
+
+    act(() => {
+      const onUrlChange = mocks.workspaceRouterProps?.onUrlChange as ((url: string) => void) | undefined
+      onUrlChange?.('/settings/provider?id=openai')
+    })
+
+    expect(mocks.setSettingsPath).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('places the macOS Back action after the traffic-light area', () => {
+    mocks.platformState.isMac = true
+    mocks.settingsPath = '/settings/provider'
+
+    render(<AppShell />)
+
+    const titleBar = screen.getByTestId('settings-title-bar')
+    expect(screen.getByTestId('settings-macos-traffic-light-spacer').parentElement).toBe(titleBar)
+    expect(screen.queryByTestId('window-controls')).toBeNull()
+    expect(screen.getByRole('button', { name: /Back|返回/ })).toBeInTheDocument()
+  })
+
+  it('removes the Settings traffic-light spacer in macOS fullscreen', async () => {
+    mocks.platformState.isMac = true
+    mocks.settingsPath = '/settings/provider'
+    mocks.ipcRequest.mockResolvedValue(true)
+
+    render(<AppShell />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('settings-macos-traffic-light-spacer')).toBeNull()
+    })
   })
 })

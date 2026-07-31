@@ -39,6 +39,7 @@ const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
 // so an already-persisted OpenClaw pin is redirected here rather than restoring to a dead route.
 const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
 const CODE_ROUTE_PATH = '/app/code'
+const SETTINGS_ROUTE_PATH = '/settings'
 
 function routePathOfTab(tab: Tab): string | null {
   if (tab.type !== 'route') return null
@@ -49,11 +50,25 @@ function routePathOfTab(tab: Tab): string | null {
   }
 }
 
+function isSettingsRouteTab(tab: Tab): boolean {
+  const path = routePathOfTab(tab)
+  return path === SETTINGS_ROUTE_PATH || !!path?.startsWith(`${SETTINGS_ROUTE_PATH}/`)
+}
+
+/**
+ * Settings now opens as an application-level surface, so a Settings tab persisted by an older
+ * version must not be restored — reopening it would render Settings back inside the workspace.
+ * Pinned Settings tabs are dropped by `migratePinnedTabs`; this covers the normal-tab session.
+ */
+export function dropRestoredSettingsTabs(tabs: Tab[]): Tab[] {
+  return tabs.filter((tab) => !isSettingsRouteTab(tab))
+}
+
 /**
  * Reconcile persisted pinned tabs against routes that have since been removed or relocated: drop
- * `/app/library` pins outright, and redirect `/app/openclaw` pins to `/app/code` (deduping so the
- * redirect never produces a second Code pin). `changed` is true when anything was dropped or
- * rewritten, signalling the caller to write the reconciled list back to the persistent cache.
+ * `/app/library` and Settings pins outright, and redirect `/app/openclaw` pins to `/app/code`
+ * (deduping so the redirect never produces a second Code pin). `changed` is true when anything was
+ * dropped or rewritten, signalling the caller to write the reconciled list back to the cache.
  */
 export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: boolean } {
   let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
@@ -61,7 +76,7 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: bo
   let changed = false
   for (const tab of pinnedTabs) {
     const path = routePathOfTab(tab)
-    if (path === LEGACY_LIBRARY_ROUTE_PATH) {
+    if (path === LEGACY_LIBRARY_ROUTE_PATH || isSettingsRouteTab(tab)) {
       changed = true
       continue
     }
@@ -85,7 +100,7 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   if (isPageTitledRoute(tab.url)) {
     return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
-  // Only auto-localize titles for top-level and settings routes. Parameterized
+  // Only auto-localize titles for top-level routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
   //
@@ -94,15 +109,10 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   // per-entity route (e.g. opening a mini-app from the sidebar), forcing the
   // route default here clobbers the caller-supplied title every render and
   // fights MiniAppPage's title-sync effect, spinning into an infinite
-  // `updateTab` loop ("Maximum update depth exceeded"). On top-level / settings
-  // routes the branch below still relocalizes the home tab, so language changes
-  // are unaffected.
-  if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
+  // `updateTab` loop ("Maximum update depth exceeded"). On top-level routes the
+  // branch below still relocalizes the home tab, so language changes are unaffected.
+  if (!isTopLevelRoute(tab.url)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
-}
-
-function isSettingsRouteTab(tab: Tab): boolean {
-  return tab.type === 'route' && tab.url.startsWith('/settings')
 }
 
 type InitialSession = { normalTabs: Tab[]; pinnedTabs: Tab[]; activeTabId: string }
@@ -221,7 +231,7 @@ export function TabsProvider({
       // Check the active-pinned tab against the migrated set that actually renders, not the raw
       // persisted pins — a pin dropped/redirected by migratePinnedTabs must not resolve as active.
       pinnedTabs: availablePinnedTabs,
-      persistedNormalTabs: persistedNormalTabs ?? [],
+      persistedNormalTabs: dropRestoredSettingsTabs(persistedNormalTabs ?? []),
       persistedActiveTabId: persistedActiveTabId ?? ''
     })
   }

@@ -31,6 +31,19 @@ export function openRoute(path: string, query?: Record<string, string>): void {
   }
 }
 
-export function openSettingsTab(path: SettingsPath = DEFAULT_SETTINGS_PATH): void {
-  openRoute(normalizeSettingsPath(path))
+export function openSettingsTab(
+  path: SettingsPath = DEFAULT_SETTINGS_PATH,
+  search?: Readonly<Record<string, string>>
+): void {
+  const normalizedPath = normalizeSettingsPath(path)
+  if (!search) {
+    openRoute(normalizedPath)
+    return
+  }
+
+  const url = new URL(normalizedPath, 'https://www.cherry-ai.com')
+  for (const [key, value] of Object.entries(search)) {
+    url.searchParams.set(key, value)
+  }
+  openRoute(`${url.pathname}${url.search}`)
 }

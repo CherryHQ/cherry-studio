@@ -6,7 +6,9 @@ import type { MessageListItem } from '../../types'
 const mocks = vi.hoisted(() => ({
   cache: new Map<string, unknown>(),
   classifyErrorByAI: vi.fn(),
-  showErrorDetailPopup: vi.fn()
+  showErrorDetailPopup: vi.fn(),
+  navigate: vi.fn(),
+  openSettingsTab: vi.fn()
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -28,8 +30,12 @@ vi.mock('@renderer/components/ErrorDetailModal', () => ({
   showErrorDetailPopup: mocks.showErrorDetailPopup
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn()
+  useNavigate: () => mocks.navigate
 }))
 
 const { cacheService } = await import('@data/CacheService')
@@ -86,5 +92,23 @@ describe('useMessageErrorActions', () => {
         onDiagnosisComplete: persistDiagnosis
       })
     )
+  })
+
+  it('opens Settings targets outside the current message-list router', () => {
+    const { result } = renderHook(() => useMessageErrorActions())
+
+    void result.current.navigateErrorTarget?.('/settings/provider?id=openai')
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('keeps non-Settings error targets inside the current router', () => {
+    const { result } = renderHook(() => useMessageErrorActions())
+
+    void result.current.navigateErrorTarget?.('/app/knowledge')
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
   })
 })

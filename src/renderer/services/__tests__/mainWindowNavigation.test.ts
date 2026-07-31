@@ -78,6 +78,18 @@ describe('openSettingsTab', () => {
     window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
   })
 
+  it('merges structured search parameters before opening Settings', () => {
+    const handler = vi.fn((event: Event) => event.preventDefault())
+    window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
+
+    openSettingsTab('/settings/provider?source=existing', { id: 'open ai', source: 'diagnosis' })
+
+    const event = handler.mock.calls[0][0] as OpenMainRouteEvent
+    expect(event.detail).toEqual({ path: '/settings/provider?source=diagnosis&id=open+ai' })
+
+    window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
+  })
+
   it('requests main-window navigation when the main-route event is unhandled', () => {
     openSettingsTab('/settings/mcp/servers')
 

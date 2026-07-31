@@ -60,6 +60,16 @@ const HOME_TAB: Tab = {
   isDormant: false
 }
 
+const LEGACY_SETTINGS_PINNED_TAB: Tab = {
+  id: 'settings',
+  type: 'route',
+  url: '/settings/provider?id=openai',
+  title: 'Settings',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
 // Stable reference: re-renders are then driven only by the i18n.language change,
 // not by a fresh pinnedTabs identity — which is what makes the test catch a dropped
 // i18n.language dependency in the tabs useMemo.
@@ -121,7 +131,7 @@ vi.mock('@renderer/ipc', () => ({
 
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
+import { dropRestoredSettingsTabs, migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
 function TabTitleWriter() {
   const { tabs, updateTab } = useTabsContext()
@@ -755,10 +765,38 @@ describe('migratePinnedTabs', () => {
     expect(tabs).toEqual([PINNED_FILES_TAB])
   })
 
+  it('drops persisted Settings pins now that Settings is an application-level surface', () => {
+    const { tabs, changed } = migratePinnedTabs([LEGACY_SETTINGS_PINNED_TAB, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_FILES_TAB])
+  })
+
   it('is a no-op when nothing needs migrating', () => {
     const input = [PINNED_FILES_TAB, PINNED_CODE_TAB]
     const { tabs, changed } = migratePinnedTabs(input)
     expect(changed).toBe(false)
     expect(tabs).toEqual(input)
+  })
+})
+
+describe('dropRestoredSettingsTabs', () => {
+  const settingsTab: Tab = { ...LEGACY_SETTINGS_PINNED_TAB, isPinned: false }
+
+  it('drops a Settings tab persisted by an older version', () => {
+    expect(dropRestoredSettingsTabs([PINNED_FILES_TAB, settingsTab])).toEqual([PINNED_FILES_TAB])
+  })
+
+  it('drops the bare /settings route too', () => {
+    expect(dropRestoredSettingsTabs([{ ...settingsTab, url: '/settings' }])).toEqual([])
+  })
+
+  it('keeps routes that merely start with the same prefix', () => {
+    const lookalike: Tab = { ...settingsTab, url: '/settings-export' }
+    expect(dropRestoredSettingsTabs([lookalike])).toEqual([lookalike])
+  })
+
+  it('leaves a session without Settings tabs untouched', () => {
+    const input = [PINNED_FILES_TAB, PINNED_CODE_TAB]
+    expect(dropRestoredSettingsTabs(input)).toEqual(input)
   })
 })

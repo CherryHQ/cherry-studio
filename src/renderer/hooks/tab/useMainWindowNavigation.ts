@@ -1,73 +1,11 @@
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import i18n from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useTabs } from './useTabs'
-
-function isSettingsTabUrl(url: string) {
-  return url === '/settings' || url.startsWith('/settings/') || url.startsWith('/settings?')
-}
-
-function useOpenSettingsRoute() {
-  const { tabs, openTab, setActiveTab, updateTab } = useTabs()
-  const settingsTabIdRef = useRef<string | null>(null)
-  const pendingSettingsPathRef = useRef<SettingsPath | null>(null)
-
-  useEffect(() => {
-    const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsTabUrl(tab.url))
-
-    if (!settingsTab) {
-      settingsTabIdRef.current = null
-      return
-    }
-
-    settingsTabIdRef.current = settingsTab.id
-
-    const pendingPath = pendingSettingsPathRef.current
-    if (!pendingPath) {
-      return
-    }
-
-    pendingSettingsPathRef.current = null
-    updateTab(settingsTab.id, {
-      url: pendingPath,
-      title: i18n.t('settings.title'),
-      lastAccessTime: Date.now()
-    })
-    setActiveTab(settingsTab.id)
-  }, [tabs, setActiveTab, updateTab])
-
-  return useCallback(
-    (path: SettingsPath) => {
-      const targetPath = normalizeSettingsPath(path)
-      const title = i18n.t('settings.title')
-      const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsTabUrl(tab.url))
-
-      if (settingsTab) {
-        updateTab(settingsTab.id, {
-          url: targetPath,
-          title,
-          lastAccessTime: Date.now()
-        })
-        setActiveTab(settingsTab.id)
-        return
-      }
-
-      if (settingsTabIdRef.current) {
-        pendingSettingsPathRef.current = targetPath
-        return
-      }
-
-      const settingsTabId = openTab(targetPath, { title })
-      settingsTabIdRef.current = settingsTabId
-    },
-    [tabs, openTab, setActiveTab, updateTab]
-  )
-}
 
 function useMainRouteEventBridge(handleRoute: (path: string) => void) {
   useEffect(() => {
@@ -95,24 +33,33 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  * - Navigation init data — the cold-start path only (the window was created FOR
  *   this route); `requestId` dedupes replays of the same stored payload.
  *
- * Settings paths land in the singleton settings tab; everything else goes
- * through `openTab`'s exact-URL dedupe.
+ * Settings paths open the application-level immersive Settings surface;
+ * everything else goes through `openTab`'s exact-URL dedupe.
  */
 export function useMainWindowNavigation() {
-  const openSettingsRoute = useOpenSettingsRoute()
   const { openTab } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
+  const [settingsPath, setSettingsPathState] = useState<SettingsPath | null>(null)
+
+  const setSettingsPath = useCallback((path: string) => {
+    setSettingsPathState(normalizeSettingsPath(path))
+  }, [])
+
+  const closeSettings = useCallback(() => {
+    setSettingsPathState(null)
+  }, [])
 
   const handleRoute = useCallback(
     (to: string) => {
       if (isSettingsPath(to)) {
-        openSettingsRoute(to)
+        setSettingsPath(to)
       } else {
+        closeSettings()
         openTab(to)
       }
     },
-    [openSettingsRoute, openTab]
+    [closeSettings, openTab, setSettingsPath]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))
@@ -131,4 +78,6 @@ export function useMainWindowNavigation() {
   useEffect(() => {
     void ipcApi.request('navigation.protocol_dispatch_ready')
   }, [])
+
+  return { settingsPath, setSettingsPath, closeSettings }
 }

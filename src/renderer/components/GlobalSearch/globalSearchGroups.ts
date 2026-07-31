@@ -9,6 +9,7 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import dayjs from 'dayjs'
 
 export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20
@@ -145,7 +146,10 @@ function getRoutePathname(url: string) {
 }
 
 function isLegacyRouteRecentEntry(entry: GlobalSearchRecentEntry) {
-  return entry.kind === 'route' && LEGACY_ROUTE_PATHS.has(getRoutePathname(entry.url))
+  if (entry.kind !== 'route') return false
+
+  const pathname = getRoutePathname(entry.url)
+  return LEGACY_ROUTE_PATHS.has(pathname) || pathname === '/app/settings' || isSettingsPath(pathname)
 }
 
 export function sanitizeGlobalSearchRecentEntries(

@@ -79,7 +79,7 @@ describe('globalSearchGroups', () => {
     expect(changed[0]).toEqual(expect.objectContaining({ kind: 'topic', topicId: 'topic-1', lastAccessTime: 30 }))
   })
 
-  it('filters legacy assistant library route recents', () => {
+  it('filters legacy and immersive-only route recents', () => {
     const entries = [
       {
         kind: 'route' as const,
@@ -92,17 +92,16 @@ describe('globalSearchGroups', () => {
         url: '/app/settings',
         title: 'Settings',
         lastAccessTime: 20
+      },
+      {
+        kind: 'route' as const,
+        url: '/settings/provider?id=openai',
+        title: 'Provider Settings',
+        lastAccessTime: 10
       }
     ]
 
-    expect(sanitizeGlobalSearchRecentEntries(entries)).toEqual([
-      {
-        kind: 'route',
-        url: '/app/settings',
-        title: 'Settings',
-        lastAccessTime: 20
-      }
-    ])
+    expect(sanitizeGlobalSearchRecentEntries(entries)).toEqual([])
     expect(
       upsertGlobalSearchRecentEntry(entries, {
         kind: 'route',
@@ -110,14 +109,7 @@ describe('globalSearchGroups', () => {
         title: 'Library',
         lastAccessTime: 40
       })
-    ).toEqual([
-      {
-        kind: 'route',
-        url: '/app/settings',
-        title: 'Settings',
-        lastAccessTime: 20
-      }
-    ])
+    ).toEqual([])
     expect(
       getDisplayGlobalSearchRecentEntries([
         ...entries,
@@ -129,12 +121,6 @@ describe('globalSearchGroups', () => {
         }
       ])
     ).toEqual([
-      {
-        kind: 'route',
-        url: '/app/settings',
-        title: 'Settings',
-        lastAccessTime: 20
-      },
       {
         kind: 'topic',
         topicId: 'topic-1',

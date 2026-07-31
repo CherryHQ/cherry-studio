@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -6,15 +7,108 @@ import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
+import { ArrowLeft } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
+import { WindowControls } from '../WindowControls'
 import { AppShellTabBar } from './AppShellTabBar'
+import { useSettingsSurface } from './SettingsSurfaceProvider'
 import { TabRouter } from './TabRouter'
+
+const IMMERSIVE_SETTINGS_TAB_ID = 'immersive-settings'
+
+type ImmersiveSettingsShellProps = {
+  isFullscreen: boolean
+  isMacTransparentWindow: boolean
+  onBack: () => void
+  onUrlChange: (url: string) => void
+  settingsPath: string
+}
+
+function ImmersiveSettingsShell({
+  isFullscreen,
+  isMacTransparentWindow,
+  onBack,
+  onUrlChange,
+  settingsPath
+}: ImmersiveSettingsShellProps) {
+  const { t } = useTranslation()
+  const backButtonRef = useRef<HTMLButtonElement>(null)
+  const settingsTab = useMemo<Tab>(
+    () => ({
+      id: IMMERSIVE_SETTINGS_TAB_ID,
+      type: 'route',
+      url: settingsPath,
+      title: t('settings.title'),
+      isDormant: false
+    }),
+    [settingsPath, t]
+  )
+
+  useEffect(() => {
+    const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    backButtonRef.current?.focus()
+
+    return () => previouslyFocusedElement?.focus()
+  }, [])
+
+  return (
+    <section
+      data-testid="settings-shell"
+      className={cn(
+        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+      )}>
+      {/* Two deliberate offsets keep Back on the traffic lights' line:
+          - the divider is an overlay, not a border, so it does not shrink the content box;
+          - macOS draws the lights from `trafficLightPosition` y=16 (windowRegistry) at ~13.5px, so
+            their centre sits ~0.75px below the centre of the 44px chrome. `pt-[1.5px]` moves the
+            row's centre down by exactly that much. Fullscreen hides the lights, so it drops out. */}
+      <header
+        data-testid="settings-title-bar"
+        className={cn(
+          "relative flex h-[var(--app-top-chrome-height)] shrink-0 items-center [-webkit-app-region:drag] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[0.5px] after:bg-border after:content-['']",
+          isMac && !isFullscreen && 'pt-[1.5px]'
+        )}>
+        {isMac && !isFullscreen && (
+          <div
+            aria-hidden="true"
+            data-testid="settings-macos-traffic-light-spacer"
+            className="h-full w-[env(titlebar-area-x)] shrink-0"
+          />
+        )}
+        <div className="flex h-full items-center px-2 [-webkit-app-region:no-drag]">
+          <Button
+            ref={backButtonRef}
+            type="button"
+            variant="ghost"
+            aria-label={t('common.back')}
+            onClick={onBack}
+            className="h-8 text-foreground text-sm dark:text-foreground">
+            <ArrowLeft size={16} />
+            <span>{t('common.back')}</span>
+          </Button>
+        </div>
+        <div className="ml-auto h-full">
+          <WindowControls />
+        </div>
+      </header>
+      <main className="relative min-h-0 flex-1 overflow-hidden bg-background">
+        <ResourceViewSourceProvider>
+          <TabRouter tab={settingsTab} isActive onUrlChange={onUrlChange} />
+        </ResourceViewSourceProvider>
+      </main>
+    </section>
+  )
+}
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -33,12 +127,23 @@ export const AppShell = () => {
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const { settingsPath, setSettingsPath, closeSettings } = useSettingsSurface()
 
   const handleOpenGlobalSearch = useCallback(() => {
+    if (settingsPath) return
     void GlobalSearchPopup.show()
-  }, [])
+  }, [settingsPath])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
+
+  // Blocking `show()` only covers searches started from here. A deep link or a menu entry can open
+  // Settings while global search is already up, and the popup lives in the window-level PopupHost —
+  // so it would keep covering the surface. Dismiss it as Settings takes over.
+  useEffect(() => {
+    if (settingsPath) {
+      GlobalSearchPopup.hide()
+    }
+  }, [settingsPath])
 
   useEffect(() => {
     if (!isMac) return
@@ -85,6 +190,11 @@ export const AppShell = () => {
   // session name + assistant / agent emoji), so we only sync the url and leave
   // title/icon alone, or navigating between topics would wipe them.
   const handleUrlChange = (tabId: string, url: string) => {
+    if (isSettingsPath(url)) {
+      setSettingsPath(url)
+      return
+    }
+
     const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
     const patch = isPageTitled
@@ -132,7 +242,7 @@ export const AppShell = () => {
               <TabRouter
                 key={tab.id}
                 tab={tab}
-                isActive={tab.id === activeTabId}
+                isActive={tab.id === activeTabId && !settingsPath}
                 onUrlChange={(url) => handleUrlChange(tab.id, url)}
               />
             ))}
@@ -151,24 +261,24 @@ export const AppShell = () => {
     </div>
   )
 
-  if (!isMac) {
-    return (
-      <div
-        className={cn(
-          'flex h-screen w-screen flex-row overflow-hidden text-foreground',
-          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
-        )}>
-        <Sidebar />
-        {contentColumn}
-      </div>
-    )
-  }
-
-  return (
+  const workspaceShell = !isMac ? (
     <div
+      data-testid="workspace-shell"
+      className={cn(
+        'flex h-screen w-screen flex-row overflow-hidden text-foreground',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
+        settingsPath && 'hidden'
+      )}>
+      <Sidebar />
+      {contentColumn}
+    </div>
+  ) : (
+    <div
+      data-testid="workspace-shell"
       className={cn(
         'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
+        settingsPath && 'hidden'
       )}>
       {!isFullscreen && (
         <div
@@ -189,5 +299,20 @@ export const AppShell = () => {
       </div>
       {contentColumn}
     </div>
+  )
+
+  return (
+    <>
+      {workspaceShell}
+      {settingsPath && (
+        <ImmersiveSettingsShell
+          settingsPath={settingsPath}
+          isFullscreen={isFullscreen}
+          isMacTransparentWindow={isMacTransparentWindow}
+          onBack={closeSettings}
+          onUrlChange={setSettingsPath}
+        />
+      )}
+    </>
   )
 }

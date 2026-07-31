@@ -2296,9 +2296,9 @@ describe('GlobalSearchPanel', () => {
     mocks.recentItems = [
       {
         kind: 'route',
-        url: '/app/settings',
-        title: 'Settings',
-        icon: 'settings',
+        url: '/app/knowledge',
+        title: 'Knowledge',
+        icon: 'knowledge',
         lastAccessTime: 20
       }
     ]
@@ -2311,19 +2311,18 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.recentItems).toEqual([
       {
         kind: 'route',
-        url: '/app/settings',
-        title: 'Settings',
-        icon: 'settings',
+        url: '/app/knowledge',
+        title: 'Knowledge',
+        icon: 'knowledge',
         lastAccessTime: 20
       }
     ])
   })
 
-  it('cleans legacy assistant library route recents on open', async () => {
-    const user = userEvent.setup()
+  it('cleans legacy and immersive-only route recents on open', async () => {
     const settingsRecent = {
       kind: 'route' as const,
-      url: '/app/settings',
+      url: '/settings/provider',
       title: 'Settings',
       icon: 'settings',
       lastAccessTime: 20
@@ -2342,18 +2341,12 @@ describe('GlobalSearchPanel', () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     expect(screen.queryByRole('option', { name: /Library/ })).not.toBeInTheDocument()
-    const settingsOption = screen.getByRole('option', { name: /Settings/ })
+    expect(screen.queryByRole('option', { name: /Settings/ })).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(mocks.recentItems).toEqual([settingsRecent])
+      expect(mocks.recentItems).toEqual([])
     })
 
-    await user.click(settingsOption)
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/settings', { title: 'Settings', icon: 'settings' })
-    expect(mocks.openTab).not.toHaveBeenCalledWith(
-      '/app/library?resourceType=assistant',
-      expect.objectContaining({ title: 'Library' })
-    )
+    expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
   it('only refreshes up to the display limit items ordered by lastAccessTime', async () => {

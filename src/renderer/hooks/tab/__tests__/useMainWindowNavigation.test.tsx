@@ -1,12 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
-  setActiveTab: vi.fn(),
-  updateTab: vi.fn(),
-  tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
   initData: null as { kind: 'navigation'; to: string; requestId: number } | null,
   ipcListeners: new Map<string, (payload: unknown) => void>(),
   ipcRequest: vi.fn()
@@ -19,22 +16,13 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: {
-    t: (key: string) => key
-  }
-}))
-
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
   useWindowInitData: () => mocks.initData
 }))
 
 vi.mock('../useTabs', () => ({
   useTabs: () => ({
-    tabs: mocks.tabs,
-    openTab: mocks.openTab,
-    setActiveTab: mocks.setActiveTab,
-    updateTab: mocks.updateTab
+    openTab: mocks.openTab
   })
 }))
 
@@ -43,14 +31,30 @@ import { OPEN_MAIN_ROUTE_EVENT } from '@renderer/services/mainWindowNavigation'
 import { useMainWindowNavigation } from '../useMainWindowNavigation'
 
 function MainWindowNavigationHarness() {
-  useMainWindowNavigation()
-  return null
+  const { settingsPath, closeSettings } = useMainWindowNavigation()
+
+  return (
+    <>
+      <output data-testid="settings-path">{settingsPath ?? 'closed'}</output>
+      <button type="button" onClick={closeSettings}>
+        Close settings
+      </button>
+    </>
+  )
+}
+
+function dispatchMainRoute(path: string) {
+  const event = new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
+    cancelable: true,
+    detail: { path }
+  })
+  void act(() => window.dispatchEvent(event))
+  return event
 }
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  mocks.tabs = []
   mocks.initData = null
   mocks.ipcListeners.clear()
 })
@@ -63,83 +67,59 @@ describe('useMainWindowNavigation', () => {
     expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.protocol_dispatch_ready')
   })
 
-  it('opens a settings tab for renderer settings-tab events', () => {
+  it('opens Settings as application-level state without creating a workspace tab', () => {
     render(<MainWindowNavigationHarness />)
 
-    const event = new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
-      cancelable: true,
-      detail: { path: '/settings/provider?id=openai' }
-    })
-    window.dispatchEvent(event)
+    const event = dispatchMainRoute('/settings/provider?id=openai')
 
     expect(event.defaultPrevented).toBe(true)
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider?id=openai', { title: 'settings.title' })
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('/settings/provider?id=openai')
+    expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('reuses the existing settings tab for another settings path', () => {
-    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
+  it('treats the Settings index route as the immersive surface instead of a workspace tab', () => {
     render(<MainWindowNavigationHarness />)
 
-    window.dispatchEvent(
-      new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
-        cancelable: true,
-        detail: { path: '/settings/about' }
-      })
-    )
+    dispatchMainRoute('/settings')
 
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('/settings')
     expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.updateTab).toHaveBeenCalledWith('settings-1', {
-      url: '/settings/about',
-      title: 'settings.title',
-      lastAccessTime: expect.any(Number)
-    })
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('settings-1')
   })
 
-  it('does not create duplicate settings tabs for consecutive open requests before tabs refresh', () => {
-    mocks.openTab.mockReturnValue('settings-1')
-    const { rerender } = render(<MainWindowNavigationHarness />)
+  it('reuses the Settings surface for consecutive requests', () => {
+    render(<MainWindowNavigationHarness />)
 
-    window.dispatchEvent(
-      new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
-        cancelable: true,
-        detail: { path: '/settings/provider' }
-      })
-    )
-    window.dispatchEvent(
-      new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
-        cancelable: true,
-        detail: { path: '/settings/about' }
-      })
-    )
+    dispatchMainRoute('/settings/provider')
+    dispatchMainRoute('/settings/about')
 
-    expect(mocks.openTab).toHaveBeenCalledTimes(1)
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
-
-    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
-    rerender(<MainWindowNavigationHarness />)
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('settings-1', {
-      url: '/settings/about',
-      title: 'settings.title',
-      lastAccessTime: expect.any(Number)
-    })
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('settings-1')
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('/settings/about')
+    expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('acknowledges main-window init data so it is not replayed after remount', () => {
+  it('closes Settings without navigating the workspace', () => {
+    render(<MainWindowNavigationHarness />)
+
+    dispatchMainRoute('/settings/appearance')
+    fireEvent.click(screen.getByRole('button', { name: 'Close settings' }))
+
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('closed')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('opens Settings from main-window init data and acknowledges it so it is not replayed after remount', () => {
     mocks.initData = { kind: 'navigation', to: '/settings/about', requestId: 1 }
     mocks.ipcRequest.mockImplementation((channel: string) => {
       if (channel === 'navigation.ack_open_route') mocks.initData = null
     })
     const { unmount } = render(<MainWindowNavigationHarness />)
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('/settings/about')
+    expect(mocks.openTab).not.toHaveBeenCalled()
     expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
 
     unmount()
     render(<MainWindowNavigationHarness />)
-    expect(mocks.openTab).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('closed')
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {
@@ -147,74 +127,46 @@ describe('useMainWindowNavigation', () => {
     render(<MainWindowNavigationHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/agents')
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('closed')
   })
 
-  it('opens a regular tab when a non-settings open_route_requested event arrives', () => {
+  it('opens a regular tab when a non-settings IPC event arrives', () => {
     render(<MainWindowNavigationHarness />)
 
-    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/knowledge' })
+    act(() => mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/knowledge' }))
 
     expect(mocks.openTab).toHaveBeenCalledWith('/knowledge')
   })
 
-  it('routes a settings path from the open_route_requested event through the settings singleton', () => {
-    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
+  it('routes a Settings IPC event through the same immersive surface', () => {
     render(<MainWindowNavigationHarness />)
 
-    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/settings/about' })
+    act(() => mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/settings/about' }))
 
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('/settings/about')
     expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.updateTab).toHaveBeenCalledWith('settings-1', {
-      url: '/settings/about',
-      title: 'settings.title',
-      lastAccessTime: expect.any(Number)
-    })
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('settings-1')
   })
 
-  it('opens settings again when init data request id changes', () => {
-    const { rerender } = render(<MainWindowNavigationHarness />)
-
-    mocks.initData = { kind: 'navigation', to: '/settings/provider', requestId: 1 }
-    rerender(<MainWindowNavigationHarness />)
-
-    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
-    mocks.initData = { kind: 'navigation', to: '/settings/about', requestId: 2 }
-    rerender(<MainWindowNavigationHarness />)
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
-    expect(mocks.updateTab).toHaveBeenCalledWith('settings-1', {
-      url: '/settings/about',
-      title: 'settings.title',
-      lastAccessTime: expect.any(Number)
-    })
-  })
-
-  it('does not replay the same init data request when tabs change', () => {
-    mocks.initData = { kind: 'navigation', to: '/settings/provider', requestId: 1 }
-    const { rerender } = render(<MainWindowNavigationHarness />)
-
-    expect(mocks.openTab).toHaveBeenCalledTimes(1)
-
-    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
-    rerender(<MainWindowNavigationHarness />)
-
-    expect(mocks.openTab).toHaveBeenCalledTimes(1)
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-  })
-
-  it('routes non-settings main-route event paths to a regular tab', () => {
+  it('leaves Settings when a regular route request arrives', () => {
     render(<MainWindowNavigationHarness />)
 
-    window.dispatchEvent(
-      new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
-        cancelable: true,
-        detail: { path: '/agents' }
-      })
-    )
+    dispatchMainRoute('/settings/provider')
+    dispatchMainRoute('/agents')
 
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('closed')
     expect(mocks.openTab).toHaveBeenCalledWith('/agents')
+  })
+
+  it('does not replay the same init-data request after Settings state changes', () => {
+    const { rerender } = render(<MainWindowNavigationHarness />)
+
+    mocks.initData = { kind: 'navigation', to: '/settings/provider', requestId: 1 }
+    rerender(<MainWindowNavigationHarness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Close settings' }))
+    rerender(<MainWindowNavigationHarness />)
+
+    expect(screen.getByTestId('settings-path')).toHaveTextContent('closed')
+    expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
   it('removes the main-route event bridge on unmount', () => {

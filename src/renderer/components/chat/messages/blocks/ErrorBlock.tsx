@@ -3,6 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
@@ -51,7 +52,18 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: (
+              <Link
+                style={{ color: 'var(--link)' }}
+                to="/settings/provider"
+                search={{ id: providerId }}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openSettingsTab('/settings/provider', { id: providerId })
+                }}
+              />
+            )
           }}
         />
       )

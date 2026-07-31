@@ -7,13 +7,13 @@ import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
-import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
@@ -34,7 +34,6 @@ const REASON_MESSAGE_KEYS: Partial<Record<WebToolUnavailableReason, string>> = {
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProvider(model?.providerId ?? '')
   const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
@@ -97,7 +96,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         if (!confirmed) return
 
         navigatedAway = true
-        await navigate({ to: '/settings/websearch' })
+        openSettingsTab('/settings/websearch')
         return
       }
 
@@ -107,7 +106,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
+    [assistant, disabledReason, enableWebSearch, t, updateAssistant, model, searchUnavailableReason]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')

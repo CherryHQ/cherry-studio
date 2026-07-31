@@ -69,7 +69,7 @@ function SettingsLayout() {
 
 ## Navigation API
 
-This project provides two navigation methods:
+This project provides three navigation methods:
 
 ### 1. Tab-Level Navigation - `openTab`
 
@@ -82,13 +82,13 @@ function MyComponent() {
   const { openTab, closeTab } = useTabs()
 
   // Basic usage - reuse existing Tab or create new one
-  openTab('/settings')
+  openTab('/app/knowledge')
 
   // With title
   openTab('/chat/123', { title: 'Chat with Alice' })
 
   // Force new Tab (even if same URL exists)
-  openTab('/settings', { forceNew: true })
+  openTab('/app/knowledge', { forceNew: true })
 
   // Open Webview Tab
   openTab('https://example.com', {
@@ -101,7 +101,19 @@ function MyComponent() {
 }
 ```
 
-### 2. In-Tab Navigation - `useNavigate`
+### 2. Application-Level Settings Navigation - `openSettingsTab`
+
+Open the immersive Settings surface without creating or replacing a workspace Tab:
+
+```typescript
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+
+openSettingsTab('/settings/provider')
+```
+
+Do not pass a Settings route to `openTab`. Workspace links that resolve to Settings are promoted by `AppShell`, but new callers should express the application-level intent directly with `openSettingsTab`.
+
+### 3. In-Tab Navigation - `useNavigate`
 
 Navigate within the same Tab (won't create a new Tab) using TanStack Router's `useNavigate`:
 
@@ -124,7 +136,8 @@ function SettingsPage() {
 | Scenario | Method | Result |
 |----------|--------|--------|
 | Open new feature module | `openTab('/knowledge')` | Creates new Tab |
-| Switch sub-page in settings | `navigate({ to: '/settings/provider' })` | Navigates within current Tab |
+| Open Settings from workspace content | `openSettingsTab('/settings/provider')` | Opens immersive Settings; preserves Tabs |
+| Switch sub-page inside Settings | `navigate({ to: '/settings/provider' })` | Navigates within the Settings surface |
 | Open detail from list | `openTab('/chat/123', { title: '...' })` | Creates new Tab |
 | Go back to previous page | `navigate({ to: '..' })` | Goes back within current Tab |
 
@@ -155,19 +168,17 @@ function SettingsPage() {
 
 ```text
 AppShell
-├── Sidebar
-├── TabBar
-└── Content Area
-    ├── TabRouter #1 (Home)
-    │   └── Activity(visible) → MemoryRouter → RouterProvider
-    ├── TabRouter #2 (Settings)
-    │   └── Activity(hidden) → MemoryRouter → RouterProvider
-    └── WebviewContainer (for webview tabs)
+├── Workspace Shell
+│   ├── Sidebar
+│   ├── TabBar
+│   └── TabRouter(s) → Activity → MemoryRouter → RouterProvider
+└── Immersive Settings Shell → MemoryRouter → RouterProvider
 ```
 
 - Each Tab has its own independent `MemoryRouter` instance
 - Uses React 19 `<Activity>` component to control visibility
 - Components are not unmounted on Tab switch, state is fully preserved (KeepAlive)
+- Settings is application-level UI, not a workspace Tab; Back restores the preserved workspace
 
 ## Error Handling
 
@@ -202,3 +213,4 @@ src/renderer/
 2. **File name determines route path** - `routes/settings.tsx` → `/settings`
 3. **Dynamic parameters use `$`** - `routes/chat/$topicId.tsx` → `/chat/:topicId`
 4. **Page state is automatically preserved** - Tab switching won't lose `useState`, scroll position, etc.
+5. **Never open Settings with `openTab`** - use `openSettingsTab` from workspace or external entry points, and `useNavigate` only between pages already inside Settings

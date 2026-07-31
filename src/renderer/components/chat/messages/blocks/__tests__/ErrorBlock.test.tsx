@@ -6,7 +6,8 @@ import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
-  i18nKeys: new Set<string>()
+  i18nKeys: new Set<string>(),
+  openSettingsTab: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -30,12 +31,33 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (providerId: string) => providerId
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>
+  Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
-  Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
+  Trans: ({
+    components,
+    i18nKey
+  }: {
+    components?: Record<string, React.ReactElement<React.AnchorHTMLAttributes<HTMLAnchorElement>>>
+    i18nKey: string
+  }) =>
+    components?.provider ? (
+      <a href="/settings/provider" onClick={components.provider.props.onClick}>
+        provider
+      </a>
+    ) : (
+      <>{i18nKey}</>
+    ),
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: {
@@ -209,5 +231,23 @@ describe('ErrorBlock', () => {
         language: 'en'
       })
     )
+  })
+
+  it('opens an inline provider link in immersive Settings', () => {
+    mocks.i18nKeys.add('error.api_key')
+    const openErrorDetail = vi.fn()
+    mocks.actions = { openErrorDetail }
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AuthError', message: 'Unauthorized', stack: null, providerId: 'open ai', i18nKey: 'api_key' }}
+        message={message}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'provider' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider', { id: 'open ai' })
+    expect(openErrorDetail).not.toHaveBeenCalled()
   })
 })

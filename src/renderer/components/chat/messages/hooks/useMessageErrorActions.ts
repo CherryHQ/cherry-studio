@@ -1,7 +1,9 @@
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { classifyErrorByAI } from '@renderer/utils/errorDiagnosis'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
@@ -52,6 +54,10 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
     (target) => {
+      if (isSettingsPath(target)) {
+        openSettingsTab(target)
+        return
+      }
       void navigate({ to: target })
     },
     [navigate]
