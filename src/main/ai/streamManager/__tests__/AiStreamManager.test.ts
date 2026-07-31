@@ -340,6 +340,43 @@ describe('AiStreamManager', () => {
       expect(s2.status).toBe('pending')
       expect(s2.executions).toHaveLength(1)
     })
+
+    it('ignores chunks and terminal callbacks from a replaced runtime execution', async () => {
+      vi.useRealTimers()
+      const replaced = controlledStream()
+      const current = controlledStream()
+      mockStreamText.mockResolvedValueOnce(replaced.stream).mockResolvedValueOnce(current.stream)
+
+      mgr.startRuntimeTurn({
+        topicId: 'agent-session:s1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s1'),
+        listeners: [new FakeListener('agent-runtime:replaced')]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+      const currentListener = new FakeListener('agent-runtime:current')
+      mgr.startRuntimeTurn({
+        topicId: 'agent-session:s1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s1'),
+        listeners: [currentListener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+      replaced.enqueue(chunk('stale'))
+      replaced.close()
+      await new Promise((resolve) => setTimeout(resolve, 25))
+
+      expect(currentListener.chunks).toEqual([])
+      expect(currentListener.doneResults).toEqual([])
+      expect(currentListener.pausedResults).toEqual([])
+      expect(currentListener.errorResults).toEqual([])
+      expect(mgr.inspect('agent-session:s1')?.status).toBe('pending')
+
+      current.close()
+      await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
+    })
   })
 
   // ── send (inject path) ─────────────────────────────────────────────
@@ -692,6 +729,32 @@ describe('AiStreamManager', () => {
       expect(listener.doneResults).toHaveLength(1)
       expect(listener.doneResults[0].isTopicDone).toBe(false)
       expect(mgr.inspect(topicId)).toBeDefined()
+    })
+
+    it('suspends an unadmitted runtime turn without terminalizing its internal listeners', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const renderer = new FakeListener(`wc:1:${topicId}`)
+      const persistence = new FakeListener(`persistence:agents-db:${topicId}:model`)
+      const runtime = new FakeListener(`agent-runtime:session-1`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [renderer, persistence, runtime]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      const suspended = mgr.suspendUnadmittedRuntimeTurn(topicId)
+      feed.close()
+      await suspended
+
+      expect(renderer.doneResults).toHaveLength(1)
+      expect(renderer.doneResults[0].isTopicDone).toBe(false)
+      expect(persistence.doneResults).toEqual([])
+      expect(runtime.doneResults).toEqual([])
     })
 
     it('does not let trace flush failure block terminal completion', async () => {

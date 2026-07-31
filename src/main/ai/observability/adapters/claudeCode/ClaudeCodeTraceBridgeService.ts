@@ -52,27 +52,8 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   }
 
   async prepareTrace(context: ClaudeCodeTraceContext): Promise<Record<string, string> | undefined> {
-    if (!this.isActivated) return undefined
-
-    if (!isTraceId(context.traceId) || !isSpanId(context.rootSpanId)) {
-      logger.warn('Skipping Claude Code trace env for invalid trace context', {
-        traceId: context.traceId,
-        rootSpanId: context.rootSpanId
-      })
-      return undefined
-    }
-
-    const normalizedContext: ClaudeCodeTraceContext = {
-      ...context,
-      traceId: context.traceId.toLowerCase(),
-      rootSpanId: context.rootSpanId.toLowerCase()
-    }
-
-    this.setTraceContext(normalizedContext)
-    observabilitySinks.registerTraceMeta(normalizedContext.traceId, {
-      topicId: normalizedContext.topicId,
-      modelName: normalizedContext.modelName
-    })
+    const normalizedContext = this.registerTraceContext(context)
+    if (!normalizedContext) return undefined
 
     const endpoint = await this.ensureServer()
     // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
@@ -105,6 +86,35 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
       OTEL_LOG_RAW_API_BODIES: '1',
       TRACEPARENT: `00-${normalizedContext.traceId}-${normalizedContext.rootSpanId}-01`
     }
+  }
+
+  refreshTraceContext(context: ClaudeCodeTraceContext): void {
+    this.registerTraceContext(context)
+  }
+
+  private registerTraceContext(context: ClaudeCodeTraceContext): ClaudeCodeTraceContext | undefined {
+    if (!this.isActivated) return undefined
+
+    if (!isTraceId(context.traceId) || !isSpanId(context.rootSpanId)) {
+      logger.warn('Skipping invalid Claude Code trace context', {
+        traceId: context.traceId,
+        rootSpanId: context.rootSpanId
+      })
+      return undefined
+    }
+
+    const normalizedContext: ClaudeCodeTraceContext = {
+      ...context,
+      traceId: context.traceId.toLowerCase(),
+      rootSpanId: context.rootSpanId.toLowerCase()
+    }
+
+    this.setTraceContext(normalizedContext)
+    observabilitySinks.registerTraceMeta(normalizedContext.traceId, {
+      topicId: normalizedContext.topicId,
+      modelName: normalizedContext.modelName
+    })
+    return normalizedContext
   }
 
   private async ensureServer(): Promise<string> {
