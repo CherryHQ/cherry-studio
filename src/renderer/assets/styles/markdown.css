@@ -1,7 +1,7 @@
 .markdown {
   --markdown-content-background: var(--background-subtle);
   --markdown-border-color: var(--border-subtle);
-  --markdown-hover-background: var(--accent);
+  --markdown-hover-background: color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--markdown-foreground, var(--foreground));
   line-height: 1.65;
   user-select: text;
@@ -299,7 +299,7 @@
   margin: 1em 0;
   padding: 0.75em 1em;
   background-color: var(--markdown-content-background);
-  border-left: 2px solid var(--border-strong);
+  border-left: 2px solid var(--primary);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   color: var(--muted-foreground);
   font-style: normal;
