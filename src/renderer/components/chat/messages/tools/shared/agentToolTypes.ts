@@ -43,7 +43,9 @@ import type {
   WebFetchInput,
   WebFetchOutput,
   WebSearchInput,
-  WebSearchOutput
+  WebSearchOutput,
+  WorkflowInput,
+  WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 import * as z from 'zod'
 
@@ -81,7 +83,8 @@ export const AgentToolsType = {
   TeamCreate: 'TeamCreate',
   TeamDelete: 'TeamDelete',
   EnterWorktree: 'EnterWorktree',
-  ExitWorktree: 'ExitWorktree'
+  ExitWorktree: 'ExitWorktree',
+  Workflow: 'Workflow'
 } as const
 
 export type AgentToolsType = (typeof AgentToolsType)[keyof typeof AgentToolsType]
@@ -217,6 +220,16 @@ export function isAskUserQuestionToolName(toolName: unknown): boolean {
 }
 
 /**
+ * Whether an `Agent`/`Task` result is a launch receipt for a subagent that is still running. A
+ * detached subagent returns immediately, so its tool call reaches a terminal state while the work has
+ * barely started — the tool call finished, the task did not.
+ */
+export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): boolean {
+  if (!output || Array.isArray(output)) return false
+  return output.status === 'async_launched' || output.status === 'remote_launched'
+}
+
+/**
  * Safely parse AskUserQuestionToolInput from unknown data.
  * Returns undefined if the data doesn't match the expected structure.
  */
@@ -251,6 +264,10 @@ export type EnterWorktreeToolOutput = EnterWorktreeOutput | string
 
 export type ExitWorktreeToolInput = ExitWorktreeInput
 export type ExitWorktreeToolOutput = ExitWorktreeOutput | string
+
+/** The Workflow tool always launches in the background, so its result is a launch receipt. */
+export type WorkflowToolInput = WorkflowInput
+export type WorkflowToolOutput = WorkflowOutput | string
 
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
@@ -292,6 +309,7 @@ export type ToolInput =
   | TeamDeleteToolInput
   | EnterWorktreeToolInput
   | ExitWorktreeToolInput
+  | WorkflowToolInput
 
 export type ToolOutput =
   | SkillToolOutput
@@ -321,6 +339,7 @@ export type ToolOutput =
   | TaskListToolOutput
   | EnterWorktreeToolOutput
   | ExitWorktreeToolOutput
+  | WorkflowToolOutput
 
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
@@ -359,6 +378,7 @@ export interface ToolInputMap {
   [AgentToolsType.TeamDelete]: TeamDeleteToolInput
   [AgentToolsType.EnterWorktree]: EnterWorktreeToolInput
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolInput
+  [AgentToolsType.Workflow]: WorkflowToolInput
 }
 
 export interface ToolOutputMap {
@@ -394,6 +414,7 @@ export interface ToolOutputMap {
   [AgentToolsType.TeamDelete]: TeamDeleteToolOutput
   [AgentToolsType.EnterWorktree]: EnterWorktreeToolOutput
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolOutput
+  [AgentToolsType.Workflow]: WorkflowToolOutput
 }
 
 export type ToolRendererProps<T extends AgentToolsType = AgentToolsType> = {

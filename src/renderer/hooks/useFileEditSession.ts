@@ -92,7 +92,7 @@ export interface FileEditSession {
 async function readFile(path: AbsoluteFilePath): Promise<FileEditSnapshot> {
   const { content, version } = await ipcApi.request('file.read', {
     handle: createFilePathHandle(path),
-    options: { encoding: 'binary' }
+    options: { mode: 'full', encoding: 'binary' }
   })
   if (content.byteLength > FILE_EDIT_MAX_SIZE_BYTES) throw new UnsupportedFileTextError('size')
   const decoded = decodeFileText(content)

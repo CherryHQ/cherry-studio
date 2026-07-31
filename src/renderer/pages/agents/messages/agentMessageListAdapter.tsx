@@ -109,6 +109,7 @@ interface AgentMessageListParams {
   imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
+  messageTail?: MessageListState['messageTail']
 }
 
 const isAbsoluteFilePath = (path: string): boolean => {
@@ -143,7 +144,8 @@ export function useAgentMessageListProviderValue({
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
-  workspacePath
+  workspacePath,
+  messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -257,13 +259,6 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
-  const isDirectory = useCallback(
-    (path: string) => {
-      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
-  )
-
   const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
     const open = leafCapabilities.openInExternalApp
     if (!open) return undefined
@@ -365,6 +360,7 @@ export function useAgentMessageListProviderValue({
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
+      messageTail: normalInteractionsEnabled ? messageTail : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -392,6 +388,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
@@ -419,7 +416,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
-      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -437,7 +433,6 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
-      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

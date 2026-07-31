@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
@@ -19,6 +21,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
+  /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
+  private readonly internalRequestToken = uuidv4()
   /** Latest persistent desired state — the `enabled` preference, or the boot auto-start decision. */
   private desiredEnabled = false
   /**
@@ -207,6 +211,17 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   isRunning(): boolean {
     return this.apiGateway?.isRunning() ?? false
+  }
+
+  getInternalRequestToken(): string {
+    return this.internalRequestToken
+  }
+
+  isInternalRequestToken(candidate: string | undefined): boolean {
+    if (!candidate) return false
+    const expected = Buffer.from(this.internalRequestToken)
+    const received = Buffer.from(candidate)
+    return expected.length === received.length && timingSafeEqual(expected, received)
   }
 
   getCurrentConfig(): ApiGatewayConfig {
