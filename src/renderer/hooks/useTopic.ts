@@ -123,6 +123,11 @@ export const finishTopicRenaming = (topicId: string) => {
 // hard-capping at one large page.
 const MESSAGES_PAGE_SIZE = 200
 
+function isRenderableTopicMessage(message: SharedMessage): boolean {
+  const parts = message.data.parts ?? []
+  return !hasClearContextPart(parts) && (message.role !== 'user' || message.status !== 'success' || parts.length > 0)
+}
+
 /**
  * Load and return all messages for a topic.
  *
@@ -165,12 +170,12 @@ export async function getTopicMessages(
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        if (!hasClearContextPart(item.message.data.parts)) {
+        if (isRenderableTopicMessage(item.message)) {
           pageMessages.push(convertSharedMessage(item.message, assistantId))
         }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            if (!hasClearContextPart(sibling.data.parts)) {
+            if (isRenderableTopicMessage(sibling)) {
               pageMessages.push(convertSharedMessage(sibling, assistantId))
             }
           }

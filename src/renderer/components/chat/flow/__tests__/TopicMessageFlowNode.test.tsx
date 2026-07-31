@@ -188,9 +188,9 @@ describe('TopicMessageFlowNode', () => {
     renderNode({
       isActive: true,
       isAwaitingInput: true,
-      preview: 'chat.message.flow.status.awaiting_input',
+      preview: '',
       role: 'user',
-      status: 'paused'
+      status: 'success'
     })
 
     const node = screen

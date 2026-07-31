@@ -133,13 +133,13 @@ describe('TopicImageCaptureHost', () => {
 
   it('omits persisted empty user messages from the captured conversation', async () => {
     const visibleUser = createMessage('user-visible', 'user', '2026-01-01T00:00:00.000Z')
-    const branchDraft = createMessage('user-draft', 'user', '2026-01-01T00:00:01.000Z', {
+    const awaitingInput = createMessage('user-awaiting-input', 'user', '2026-01-01T00:00:01.000Z', {
       parentId: 'assistant-anchor',
       data: { parts: [] }
     })
 
     dataApiGetMock.mockResolvedValueOnce({
-      items: [{ message: visibleUser }, { message: branchDraft }],
+      items: [{ message: visibleUser }, { message: awaitingInput }],
       nextCursor: undefined
     })
 
