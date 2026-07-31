@@ -75,6 +75,15 @@ describe('PrivacyPolicyUpdateGate', () => {
     expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
   })
 
+  it('requires acknowledgement when the previously accepted policy is outdated', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '20260531')
+
+    render(<PrivacyPolicyUpdateGate />)
+
+    expect(screen.getByRole('heading', { name: 'privacy_policy_update.title' })).toBeInTheDocument()
+    expect(LATEST_PRIVACY_POLICY_VERSION).toBe('20260731')
+  })
+
   it('does not block the app when data collection is already disabled', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
 

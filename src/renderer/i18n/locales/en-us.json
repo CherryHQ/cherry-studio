@@ -7369,7 +7369,7 @@
     },
     "privacy": {
       "contextual_greetings": {
-        "description": "Local rotating Chat and Agent greetings are generated on your device. The displayed greeting is included as untrusted context in your first message so your selected model can understand brief replies; developer traces may record it. Enable this option to contact IPInfo for a coarse country or region, then send that result with your name, app language, local date and time, and time zone to the built-in CherryAI model for contextual enhancement. The enhanced greeting is also passed to your selected model with the first message. Disabled by default.",
+        "description": "Local rotating Chat and Agent greetings are generated on your device and remain available while this option is off. The displayed greeting is included as untrusted context in your first message so your selected model can understand brief replies; developer traces may record it. Enable this option to contact IPInfo for a coarse country or region; if unavailable, the app uses the app-language region as a labeled fallback. The country or region hint, your name, app language, local date and time, time zone, Chat or Agent mode, the base fallback greeting, and the previous greeting are sent to the fixed built-in CherryAI Qwen model for contextual enhancement. Disabled by default.",
         "title": "AI-enhanced contextual greetings"
       },
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
