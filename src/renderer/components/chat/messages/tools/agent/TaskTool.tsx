@@ -76,7 +76,7 @@ function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeo
         <div key={task.id} className="flex min-w-0 items-start gap-2 rounded-md bg-muted/30 p-2">
           <div className="min-w-0 flex-1">
             <div className="truncate text-foreground">{task.subject}</div>
-            {task.owner && <div className="mt-0.5 truncate text-muted-foreground text-xs">{task.owner}</div>}
+            {task.owner && <div className="mt-0.5 truncate text-xs text-muted-foreground">{task.owner}</div>}
           </div>
           <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] ${getStatusClassName(task.status)}`}>
             {getStatusLabel(task.status, t)}
@@ -90,7 +90,7 @@ function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeo
 function TaskTextOutput({ text, t }: { text: string; t: ReturnType<typeof useTranslation>['t'] }) {
   return (
     <div>
-      <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
+      <div className="mb-1 text-xs font-medium text-muted-foreground">{t('message.tools.sections.output')}</div>
       <div className="rounded-md bg-muted/30 p-2">
         <Streamdown mode="static">{text}</Streamdown>
       </div>

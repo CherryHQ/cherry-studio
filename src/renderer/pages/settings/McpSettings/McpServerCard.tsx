@@ -1,3 +1,10 @@
+import { CircleXIcon, ExternalLink } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -14,12 +21,6 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { CircleXIcon, ExternalLink } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import type { FallbackProps } from 'react-error-boundary'
-import { useTranslation } from 'react-i18next'
 
 import { useMcpServerTrust } from './useMcpServerTrust'
 
@@ -191,7 +192,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           showIcon
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
-          description={<div className="line-clamp-3 text-error text-xs leading-5">{errorDetails}</div>}
+          description={<div className="line-clamp-3 text-xs leading-5 text-error">{errorDetails}</div>}
           onClick={onClickDetails}
           action={
             <div className="flex items-center gap-1">
@@ -268,7 +269,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border-subtle border-b px-0 py-1.5 text-sm transition-colors',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-b border-border-subtle px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}
@@ -290,7 +291,7 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'hidden w-16 shrink-0 truncate text-right text-muted-foreground text-sm tabular-nums min-[1180px]:block',
+      'hidden w-16 shrink-0 truncate text-right text-sm text-muted-foreground tabular-nums min-[1180px]:block',
       className
     )}
     {...props}

@@ -1,8 +1,9 @@
 import process from 'node:process'
 
+import { app, crashReporter } from 'electron'
+
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { app, crashReporter } from 'electron'
 
 const logger = loggerService.withContext('CrashTelemetry')
 

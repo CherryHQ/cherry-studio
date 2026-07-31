@@ -1,3 +1,10 @@
+// Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
+// via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
+// Only type imports remain static as they are erased at compile time.
+import type { SpanContext } from '@opentelemetry/api'
+import { context, trace } from '@opentelemetry/api'
+import { ipcMain } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
@@ -9,12 +16,6 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
-// Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
-// via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
-// Only type imports remain static as they are erased at compile time.
-import type { SpanContext } from '@opentelemetry/api'
-import { context, trace } from '@opentelemetry/api'
-import { ipcMain } from 'electron'
 
 const TRACER_NAME = 'CherryStudio'
 

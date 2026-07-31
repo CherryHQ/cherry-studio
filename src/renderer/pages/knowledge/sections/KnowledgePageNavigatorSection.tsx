@@ -1,5 +1,6 @@
-import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { type MouseEvent as ReactMouseEvent, useCallback, useRef, useState } from 'react'
+
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 
 import { BaseNavigator } from '../components/navigator'
 import { useKnowledgePage } from '../KnowledgePageProvider'

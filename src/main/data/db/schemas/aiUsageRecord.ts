@@ -1,3 +1,6 @@
+import { sql } from 'drizzle-orm'
+import { check, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
 import {
   type AiUsageCostBreakdown,
   type AiUsagePricingSnapshot,
@@ -17,8 +20,6 @@ import {
   AiUsageRecordSourceTypeSchema
 } from '@shared/data/types/aiUsageRecord'
 import { CURRENCY, type Currency, objectValues } from '@shared/data/types/model'
-import { sql } from 'drizzle-orm'
-import { check, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { uuidPrimaryKeyOrdered } from './_columnHelpers'
 

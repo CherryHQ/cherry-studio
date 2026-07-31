@@ -1,8 +1,10 @@
+import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
+import path from 'path'
+
+import crossSpawn from 'cross-spawn'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
-import crossSpawn from 'cross-spawn'
-import path from 'path'
 
 import { getShellEnv } from './shellEnv'
 

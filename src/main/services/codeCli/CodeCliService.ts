@@ -1,5 +1,7 @@
+import { execFile, spawn } from 'child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'util'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -21,8 +23,6 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { execFile, spawn } from 'child_process'
-import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'

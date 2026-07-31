@@ -1,10 +1,11 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import Spinner from '@renderer/components/Spinner'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { generateImageOutputSchema } from '@shared/ai/builtinTools'
 import { toSafeFileUrl } from '@shared/utils/file'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../../blocks/ImageBlock'
 
@@ -56,7 +57,7 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
 }
 
 const NoteText = ({ children }: { children: React.ReactNode }) => (
-  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-muted-foreground leading-5">{children}</span>
+  <span className="flex min-w-0 items-center py-0.5 text-[13px] leading-5 text-muted-foreground">{children}</span>
 )
 
 export const MessageGenerateImageToolTitle = ({

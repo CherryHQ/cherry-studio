@@ -1,5 +1,6 @@
-import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { useEffect, useState } from 'react'
+
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 
 /**
  * Unified entry point for any managed window to consume its init data.

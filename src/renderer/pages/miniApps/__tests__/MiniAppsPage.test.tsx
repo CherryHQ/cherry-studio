@@ -1,8 +1,9 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppsPage from '../MiniAppsPage'
 

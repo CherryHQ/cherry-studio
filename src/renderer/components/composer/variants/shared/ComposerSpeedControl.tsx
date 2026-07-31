@@ -1,11 +1,12 @@
+import { ChevronDown, Gauge, Zap } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
-import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
   'default',
@@ -89,7 +90,7 @@ export function ComposerSpeedControl({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
+          className="h-8 gap-1 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
           <span>{triggerLabel}</span>
@@ -101,7 +102,7 @@ export function ComposerSpeedControl({
         side="top"
         align="end"
         sideOffset={8}
-        className="w-56 overflow-hidden rounded-md border-frame-border p-1.5 text-xs shadow-xl">
+        className="border-frame-border w-56 overflow-hidden rounded-md p-1.5 text-xs shadow-xl">
         <div className="flex h-10 items-center px-2">
           {supportsReasoning ? (
             <div className="flex min-w-0 items-baseline gap-1 text-xs">
@@ -131,7 +132,7 @@ export function ComposerSpeedControl({
         </div>
         {supportsReasoning && showEffortSlider ? (
           <div className="mx-2.5 mt-1 mb-2">
-            <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
+            <div className="flex items-center justify-between text-[11px] font-medium" aria-hidden="true">
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
               <span className="text-primary">{t('agent.speed.smarter')}</span>
             </div>
@@ -164,7 +165,7 @@ export function ComposerSpeedControl({
                       key={effort}
                       data-slot="composer-effort-step"
                       data-index={index}
-                      className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
+                      className="absolute size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background"
                       style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
                     />
                   )

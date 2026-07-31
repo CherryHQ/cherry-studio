@@ -1,8 +1,9 @@
+import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { HtmlArtifactView } from '@renderer/components/chat/HtmlArtifactView'
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import { extractHtmlTitle } from '@renderer/utils/formats'
-import { memo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface MessageHtmlArtifactProps {
   artifactId: string
@@ -28,7 +29,7 @@ export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({
     <div
       data-html-artifact=""
       data-testid="message-html-artifact"
-      className="message-html-artifact special-preview mt-0 mb-2.5 w-full min-w-0 max-w-full">
+      className="message-html-artifact special-preview mt-0 mb-2.5 w-full max-w-full min-w-0">
       <HtmlArtifactView
         artifactId={artifactId}
         html={html}

@@ -1,6 +1,7 @@
+import React, { memo, useState } from 'react'
+
 import { NormalTooltip } from '@cherrystudio/ui'
 import type { Citation } from '@renderer/types/message'
-import React, { memo, useState } from 'react'
 
 import { KnowledgeCitationHoverContent } from '../../citations/KnowledgeCitation'
 import { WebCitationHoverContent } from '../../citations/WebCitation'

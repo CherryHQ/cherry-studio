@@ -1,6 +1,7 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { loggerService } from '@logger'
 import { context, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+
+import { loggerService } from '@logger'
 import { KB } from '@shared/utils/constants'
 
 import { TRACER_NAME } from './constants'

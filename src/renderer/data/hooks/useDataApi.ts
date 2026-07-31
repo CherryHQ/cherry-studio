@@ -35,6 +35,14 @@
  */
 
 import { dataApiService } from '@data/DataApiService'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
+import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
+import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
+import useSWRInfinite from 'swr/infinite'
+import type { SWRMutationConfiguration } from 'swr/mutation'
+import useSWRMutation from 'swr/mutation'
+
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/utils/platform'
 import type {
@@ -52,13 +60,6 @@ import {
   type OffsetPaginationResponse,
   type PaginationResponse
 } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
-import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
-import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
-import useSWRInfinite from 'swr/infinite'
-import type { SWRMutationConfiguration } from 'swr/mutation'
-import useSWRMutation from 'swr/mutation'
 
 const logger = loggerService.withContext('useDataApi')
 
@@ -92,9 +93,8 @@ const EMPTY_ITEMS: readonly never[] = Object.freeze([])
 // ============================================================================
 
 /** Infer item type from paginated response path */
-type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
-  ? T
-  : unknown
+type InferPaginatedItem<TPath extends ApiPath> =
+  ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T> ? T : unknown
 
 /**
  * Path constrained to endpoints whose GET response is a cursor-paginated shape.
@@ -114,17 +114,15 @@ type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> e
  * `useInfiniteQuery<'/some-path'>(...)`) may still bypass when `TPath` itself
  * is widened — always let TypeScript infer `TPath` from the path argument.
  */
-type CursorPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'cursor'
-  ? TPath
-  : never
+type CursorPaginatedPath<TPath extends ApiPath> =
+  InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'cursor' ? TPath : never
 
 /**
  * Path constrained to endpoints whose GET response is an offset-paginated shape.
  * Same `any`-fallback caveat as {@link CursorPaginatedPath}.
  */
-type OffsetPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'offset'
-  ? TPath
-  : never
+type OffsetPaginatedPath<TPath extends ApiPath> =
+  InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'offset' ? TPath : never
 
 /**
  * Map a path to the shape of its `params` option.

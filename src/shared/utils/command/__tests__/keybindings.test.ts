@@ -1,5 +1,6 @@
-import type { RegisteredKeybindingRule } from '@shared/types/command'
 import { describe, expect, it } from 'vitest'
+
+import type { RegisteredKeybindingRule } from '@shared/types/command'
 
 import { parseContextExpr } from '../contextExpr'
 import {

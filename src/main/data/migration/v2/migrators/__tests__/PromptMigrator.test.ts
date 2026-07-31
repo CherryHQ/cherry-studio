@@ -1,8 +1,9 @@
 import { promptTable } from '@data/db/schemas/prompt'
-import { PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+
+import { PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { PromptMigrator } from '../PromptMigrator'

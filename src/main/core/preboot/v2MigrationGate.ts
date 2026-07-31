@@ -9,7 +9,6 @@
  * keeps no domain files (see core/preboot/README.md, Membership criteria).
  */
 
-import { application } from '@application'
 import {
   evaluateCandidateVersion,
   getAllMigrators,
@@ -24,9 +23,11 @@ import {
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
+import { app, dialog } from 'electron'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { app, dialog } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
 

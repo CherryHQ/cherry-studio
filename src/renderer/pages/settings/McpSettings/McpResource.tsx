@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -9,7 +11,6 @@ import {
   Flex
 } from '@cherrystudio/ui'
 import type { McpResource } from '@shared/types/mcp'
-import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'
 
@@ -68,7 +69,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
     <div className="mt-2 pt-2">
       {resources.length > 0 ? (
         <>
-          <h3 className="mb-2 font-medium text-muted-foreground text-sm">
+          <h3 className="mb-2 text-sm font-medium text-muted-foreground">
             {t('settings.mcp.resources.availableResources') || 'Available Resources'}
           </h3>
           <Accordion type="multiple">
@@ -77,10 +78,10 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
                 <AccordionTrigger className="py-3">
                   <ColFlex className="w-full min-w-0 items-start">
                     <Flex className="w-full min-w-0 items-center">
-                      <span className="truncate text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
+                      <span className="truncate text-sm text-foreground">{`${resource.name} (${resource.uri})`}</span>
                     </Flex>
                     {resource.description && (
-                      <span className="mt-1 text-[13px] text-muted-foreground leading-5">
+                      <span className="mt-1 text-[13px] leading-5 text-muted-foreground">
                         {resource.description.length > 100
                           ? `${resource.description.substring(0, 100)}...`
                           : resource.description}
@@ -88,7 +89,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
                     )}
                   </ColFlex>
                 </AccordionTrigger>
-                <AccordionContent className="select-text px-3">{renderResourceProperties(resource)}</AccordionContent>
+                <AccordionContent className="px-3 select-text">{renderResourceProperties(resource)}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>

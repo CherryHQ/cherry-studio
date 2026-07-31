@@ -1,4 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
+
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 /**

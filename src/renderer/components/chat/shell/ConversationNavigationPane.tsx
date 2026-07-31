@@ -1,6 +1,7 @@
+import type { HTMLAttributes } from 'react'
+
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
-import type { HTMLAttributes } from 'react'
 
 export function ConversationNavigationPane({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   const isWindowFrame = useWindowFrame().mode === 'window'

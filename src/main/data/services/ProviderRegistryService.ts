@@ -13,6 +13,9 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
+import { isEqual } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import type {
   ProtoModelConfig,
@@ -42,7 +45,6 @@ import {
   selectFormatWire
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
-import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
@@ -63,7 +65,6 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
-import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 

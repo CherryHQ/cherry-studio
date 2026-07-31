@@ -1,5 +1,10 @@
-import { Button } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
+import type { TFunction } from 'i18next'
+import { ChevronDown, FolderOpen } from 'lucide-react'
+import { type MouseEvent, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
@@ -9,10 +14,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import { isMac, isWin } from '@renderer/utils/platform'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
-import type { TFunction } from 'i18next'
-import { ChevronDown, FolderOpen } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
 
@@ -206,7 +207,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
           <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
         </span>
-        <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
+        <span className="min-w-0 truncate text-[13px] leading-5 font-medium text-foreground">{fileName}</span>
       </button>
       {hasOpenActions && (
         <CommandPopupMenu

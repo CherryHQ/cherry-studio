@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import ActionWindow from '../ActionWindow'
 

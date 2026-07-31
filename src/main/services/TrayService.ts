@@ -1,9 +1,10 @@
+import type { MenuItemConstructorOptions } from 'electron'
+import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
+
 import { application } from '@application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getI18n } from '@main/i18n'
-import type { MenuItemConstructorOptions } from 'electron'
-import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'

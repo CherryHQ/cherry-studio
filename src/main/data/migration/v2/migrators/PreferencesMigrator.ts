@@ -3,11 +3,12 @@
  */
 
 import { preferenceTable } from '@data/db/schemas/preference'
+import { and, eq, sql } from 'drizzle-orm'
+
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { tagStoredFileRef } from '@shared/data/types/file'
-import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'

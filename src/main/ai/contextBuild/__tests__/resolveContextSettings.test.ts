@@ -1,5 +1,6 @@
-import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it } from 'vitest'
+
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 
 import { resolveContextSettings } from '../resolveContextSettings'
 

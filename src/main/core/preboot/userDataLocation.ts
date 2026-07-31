@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
-import { app } from 'electron'
 
 const logger = loggerService.withContext('Preboot')
 const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'

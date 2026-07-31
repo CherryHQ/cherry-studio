@@ -1,3 +1,8 @@
+import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -6,10 +11,6 @@ import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
-import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
@@ -92,7 +93,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -127,7 +128,7 @@ function FilePreviewShell({ children, header }: FilePreviewShellProps) {
       <FilePreviewLayout.Frame>
         <div
           data-testid="file-preview-header"
-          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
+          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
           <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
           <FilePreviewToolbarPortalHost />
         </div>

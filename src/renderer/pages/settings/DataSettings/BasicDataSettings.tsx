@@ -1,5 +1,10 @@
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import {
   SettingDivider,
   SettingGroup,
@@ -15,10 +20,6 @@ import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
-import type React from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import RestorePopup from './RestorePopup'
@@ -317,7 +318,7 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-tertiary text-xs leading-4', className)}
+    className={cn('ml-1.25 inline-block text-left align-middle text-xs leading-4 text-foreground-tertiary', className)}
     {...props}
   />
 )
@@ -346,13 +347,13 @@ const MigrationPathRow = ({ className, ...props }: React.ComponentPropsWithoutRe
 )
 
 const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-semibold text-[15px] text-foreground', className)} {...props} />
+  <div className={cn('text-[15px] font-semibold text-foreground', className)} {...props} />
 )
 
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground text-sm',
+      'rounded border border-border bg-background-subtle px-3 py-2 text-sm break-all text-muted-foreground',
       className
     )}
     {...props}

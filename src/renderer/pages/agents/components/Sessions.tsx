@@ -1,3 +1,7 @@
+import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -98,9 +102,6 @@ import {
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type AgentSessionImageActionRequest,
@@ -2060,7 +2061,7 @@ function SessionListBody({
         </ResourceList.ErrorState>
       }
       emptyFallback={
-        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words text-muted-foreground">
           {t('agent.session.empty.title')}
         </div>
       }

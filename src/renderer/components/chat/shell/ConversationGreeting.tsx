@@ -1,3 +1,5 @@
+import { useLayoutEffect } from 'react'
+
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -34,7 +36,7 @@ export function ConversationGreeting({ avatar, title }: ConversationGreetingProp
             <AvatarFallback className="text-2xl">🤖</AvatarFallback>
           </Avatar>
         ))}
-      <h2 className="m-0 font-medium text-foreground text-lg">{title}</h2>
+      <h2 className="m-0 text-lg font-medium text-foreground">{title}</h2>
     </div>
   )
 }

@@ -1,14 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
 import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { TraceSpanStore } from './TraceSpanStore'

@@ -1,3 +1,7 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
@@ -9,9 +13,6 @@ import type {
   KnowledgeItemOf,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgePage from '../KnowledgePage'
 import type { KnowledgeFilePreviewTarget } from '../types'

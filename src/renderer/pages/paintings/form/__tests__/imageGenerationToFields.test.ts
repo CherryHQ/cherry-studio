@@ -1,5 +1,6 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { imageGenerationToFields } from '../imageGenerationToFields'
 

@@ -1,3 +1,15 @@
+import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -22,17 +34,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { type ArtifactPaneFileSelection, getArtifactPaneSelectionPath, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
@@ -469,7 +470,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
+        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
         <div className="flex min-w-0 flex-1 items-center gap-0.5">
           {overlaySelection ? (
             <Tooltip content={t('common.back')} delay={800}>
@@ -487,7 +488,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
             <div
               data-testid="artifact-pane-header-title"
-              className="min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm"
+              className="min-w-0 flex-1 truncate text-sm font-medium text-foreground select-none"
               title={overlaySelection?.filePath}>
               {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
             </div>
@@ -567,8 +568,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         onKeyDown={handleOverlayKeyDown}
         className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {props.headerVariant === 'pane' ? null : (
-          <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle pr-2 pl-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground">
               <span className="truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
               {isEditDirty && (
                 <span
@@ -603,7 +604,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {fileSession?.saveError && (
           <div
             role="alert"
-            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
+            className="flex shrink-0 items-center gap-2 border-b border-error-border bg-error-subtle px-3 py-2 text-xs text-error-subtle-foreground">
             <AlertCircle className="size-4 shrink-0" />
             <span className="min-w-0 flex-1">
               {t(
@@ -680,7 +681,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           searchClearLabel={t('common.clear')}
           getMenuItems={getFileTreeMenuItems}
           emptyState={
-            <div className="px-2 py-3 text-muted-foreground text-xs">
+            <div className="px-2 py-3 text-xs text-muted-foreground">
               {treeErrorKeys
                 ? t(treeErrorKeys.title)
                 : trimmedFileSearch
@@ -753,7 +754,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       {paneHeader}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
             {fileTreeContent}
           </div>
         </aside>

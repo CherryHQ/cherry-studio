@@ -1,9 +1,10 @@
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { TagService, tagService } from '@data/services/TagService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 const TAG_1 = '11111111-1111-4111-8111-111111111111'
 const TAG_2 = '22222222-2222-4222-8222-222222222222'

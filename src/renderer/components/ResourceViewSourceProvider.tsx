@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 import {
   type AgentSessionsSource,
   AgentSessionsSourceContext,
@@ -14,8 +17,6 @@ import {
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
 
 const EMPTY_PIN_IDS = new Map<string, string>()
 
@@ -33,9 +34,9 @@ export function shouldLoadResourceViewSource(
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
   return Boolean(
     activeTab?.type === 'route' &&
-      !activeTab.isDormant &&
-      tabBelongsToApp(app, activeTab.url) &&
-      !isMessageOnlyConversationUrl(activeTab.url)
+    !activeTab.isDormant &&
+    tabBelongsToApp(app, activeTab.url) &&
+    !isMessageOnlyConversationUrl(activeTab.url)
   )
 }
 

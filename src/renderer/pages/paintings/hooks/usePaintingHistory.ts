@@ -1,6 +1,7 @@
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
-import { loggerService } from '@logger'
 import { useEffect, useState } from 'react'
+
+import { loggerService } from '@logger'
 
 import { recordsToPaintingDataList } from '../model/mappers/recordToPaintingData'
 import type { PaintingData } from '../model/types/paintingData'

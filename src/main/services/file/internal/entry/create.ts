@@ -13,6 +13,9 @@
 
 import { realpath } from 'node:fs/promises'
 
+import mime from 'mime'
+import { v7 as uuidv7 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
@@ -26,8 +29,6 @@ import {
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
-import mime from 'mime'
-import { v7 as uuidv7 } from 'uuid'
 
 import type { CreateInternalEntryParams, EnsureExternalEntryParams } from '../../FileManager'
 import type { FileManagerDeps } from '../deps'

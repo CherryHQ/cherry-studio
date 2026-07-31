@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import type { Assistant } from '@renderer/types/assistant'
 import type { SerializedError } from '@renderer/types/error'
@@ -20,7 +22,6 @@ import {
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
-import { v4 as uuidv4 } from 'uuid'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 

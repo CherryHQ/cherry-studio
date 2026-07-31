@@ -1,9 +1,10 @@
+import type { ComponentProps } from 'react'
+
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { ComponentProps } from 'react'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
@@ -48,7 +49,7 @@ export default function AgentChatMain({
   }
 
   return (
-    <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 w-full flex-1 translate-z-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1">
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}

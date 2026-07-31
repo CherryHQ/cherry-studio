@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+
 /**
  * React binding for {@link executionStreamOverlayService}, which owns the
  * per-execution streaming overlay (readers, snapshots, rAF batching) keyed by
@@ -10,7 +12,6 @@
 import { executionStreamOverlayService } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 export type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'

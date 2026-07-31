@@ -1,6 +1,10 @@
-import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
+import { useNavigate } from '@tanstack/react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Sortable } from '@cherrystudio/ui'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -13,9 +17,6 @@ import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 
@@ -198,7 +199,7 @@ export default function LaunchpadPage() {
       <button
         type="button"
         onClick={() => openLaunchpadItem(item.id)}
-        className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
+        className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center transition-transform duration-200 outline-none hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">
           <span
             className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
@@ -206,7 +207,7 @@ export default function LaunchpadPage() {
             {item.icon}
           </span>
         </span>
-        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+        <span className="w-full overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-foreground">
           {item.text}
         </span>
       </button>
@@ -226,7 +227,7 @@ export default function LaunchpadPage() {
       <Scrollbar className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
           <section className="flex flex-col gap-2">
-            <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
+            <h2 className="m-0 px-9 py-0 text-[14px] font-semibold text-foreground opacity-80">
               {t('launchpad.apps')}
             </h2>
             <div className={LAUNCHPAD_GRID_CLASS}>
@@ -246,7 +247,7 @@ export default function LaunchpadPage() {
 
           {launchpadMiniAppsVisible && (
             <section className="flex flex-col gap-2">
-              <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
+              <h2 className="m-0 px-9 py-0 text-[14px] font-semibold text-foreground opacity-80">
                 {t('launchpad.miniApps')}
               </h2>
               <div className={LAUNCHPAD_GRID_CLASS}>

@@ -56,41 +56,39 @@ type SchemaKeyForPath<Path extends string> = Path extends TemplateApiPaths ? Pat
  * Extract path parameters type declared in a schema method.
  * Returns `never` for schema methods that don't declare a `params` field.
  */
-export type ParamsForPath<Path extends string, Method extends string> = SchemaKeyForPath<Path> extends keyof ApiSchemas
-  ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { params: infer P } }
-    ? P
+export type ParamsForPath<Path extends string, Method extends string> =
+  SchemaKeyForPath<Path> extends keyof ApiSchemas
+    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { params: infer P } }
+      ? P
+      : never
     : never
-  : never
 
 /**
  * Extract query parameters type for a given concrete path and HTTP method
  */
-export type QueryParamsForPath<
-  Path extends string,
-  Method extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-> = SchemaKeyForPath<Path> extends keyof ApiSchemas
-  ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { query?: infer Q } }
-    ? Q
+export type QueryParamsForPath<Path extends string, Method extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'> =
+  SchemaKeyForPath<Path> extends keyof ApiSchemas
+    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { query?: infer Q } }
+      ? Q
+      : Record<string, any>
     : Record<string, any>
-  : Record<string, any>
 
 /**
  * Extract request body type for a given concrete path and HTTP method
  */
-export type BodyForPath<Path extends string, Method extends string> = SchemaKeyForPath<Path> extends keyof ApiSchemas
-  ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { body: infer B } }
-    ? B
+export type BodyForPath<Path extends string, Method extends string> =
+  SchemaKeyForPath<Path> extends keyof ApiSchemas
+    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { body: infer B } }
+      ? B
+      : any
     : any
-  : any
 
 /**
  * Extract response type for a given concrete path and HTTP method
  */
-export type ResponseForPath<
-  Path extends string,
-  Method extends string
-> = SchemaKeyForPath<Path> extends keyof ApiSchemas
-  ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { response: infer R } }
-    ? R
+export type ResponseForPath<Path extends string, Method extends string> =
+  SchemaKeyForPath<Path> extends keyof ApiSchemas
+    ? ApiSchemas[SchemaKeyForPath<Path>] extends { [M in Method]: { response: infer R } }
+      ? R
+      : any
     : any
-  : any

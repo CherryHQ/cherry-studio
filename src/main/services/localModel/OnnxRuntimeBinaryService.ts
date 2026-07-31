@@ -5,6 +5,9 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
+import { net } from 'electron'
+import { extract } from 'tar'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
@@ -13,8 +16,6 @@ import {
   ONNXRUNTIME_TARBALL_SHA256
 } from '@main/ai/inference/localModelCatalog'
 import { regionService } from '@main/services/RegionService'
-import { net } from 'electron'
-import { extract } from 'tar'
 
 const logger = loggerService.withContext('OnnxRuntimeBinaryService')
 

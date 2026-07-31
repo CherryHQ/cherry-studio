@@ -1,14 +1,3 @@
-import {
-  Button,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Tooltip,
-  usePortalContainer
-} from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { AtSign, Search, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -23,6 +12,18 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip,
+  usePortalContainer
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 /**
@@ -479,10 +480,10 @@ export function SelectorShell({
               {search ? (
                 <div
                   ref={setSearchElement}
-                  className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
+                  className="flex h-9 items-center gap-2 border-b border-border-subtle px-3"
                   data-selector-shell-chrome="search">
                   <div className="relative min-w-0 flex-1">
-                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground" />
+                    <Search className="pointer-events-none absolute top-1/2 left-0 size-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       type="text"
                       ref={setSearchInputElement}
@@ -507,7 +508,7 @@ export function SelectorShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t('common.clear')}
-                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                        className="absolute top-1/2 right-0 size-[22px] -translate-y-1/2 rounded-md p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           search.onChange('')
@@ -545,7 +546,7 @@ export function SelectorShell({
               {hasFilterContent ? (
                 <div
                   ref={setFilterElement}
-                  className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
+                  className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2"
                   data-selector-shell-chrome="filter">
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
                 </div>
@@ -554,7 +555,7 @@ export function SelectorShell({
               {renderMultiSelectRow && multiSelect ? (
                 <div
                   ref={setMultiSelectElement}
-                  className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
+                  className="flex items-center justify-between gap-3 border-b border-border px-3 py-2"
                   data-selector-shell-chrome="multi-select"
                   data-testid={multiSelect.rowTestId}>
                   <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
@@ -579,7 +580,7 @@ export function SelectorShell({
               {hasBottomAction ? (
                 <div
                   ref={setBottomActionElement}
-                  className="relative z-1 shrink-0 border-border border-t bg-popover"
+                  className="relative z-1 shrink-0 border-t border-border bg-popover"
                   data-selector-shell-chrome="bottom-action">
                   {resolvedBottomActions.map((action, index) => {
                     const selected = action.type === 'selectable' && action.selected
@@ -600,7 +601,7 @@ export function SelectorShell({
                         {selected ? (
                           <span
                             aria-hidden="true"
-                            className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+                            className="absolute top-1/2 left-0 block h-[60%] w-0.75 -translate-y-1/2 rounded-full bg-muted-foreground/60"
                           />
                         ) : null}
                         {action.icon}

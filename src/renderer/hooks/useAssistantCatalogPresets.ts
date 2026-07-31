@@ -59,9 +59,9 @@ function normalizePresets(value: unknown): AssistantCatalogPreset[] {
   return value.filter((preset): preset is AssistantCatalogPreset => {
     return Boolean(
       preset &&
-        typeof preset === 'object' &&
-        typeof (preset as AssistantCatalogPreset).id === 'string' &&
-        typeof (preset as AssistantCatalogPreset).name === 'string'
+      typeof preset === 'object' &&
+      typeof (preset as AssistantCatalogPreset).id === 'string' &&
+      typeof (preset as AssistantCatalogPreset).name === 'string'
     )
   })
 }

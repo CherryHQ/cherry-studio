@@ -1,14 +1,15 @@
-import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
-import { ErrorCode } from '@shared/data/api/errors'
-import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock } from 'vitest'
+
+import { application } from '@application'
+import { ErrorCode } from '@shared/data/api/errors'
+import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 
 describe('MiniAppService', () => {
   const dbh = setupTestDatabase()

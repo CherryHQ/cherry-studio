@@ -4,10 +4,12 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
-import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbType } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type {
@@ -28,7 +30,6 @@ import {
   KnowledgeBaseSchema,
   KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
-import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
 import { groupService } from './GroupService'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'

@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { Message } from '@renderer/types/newMessage'

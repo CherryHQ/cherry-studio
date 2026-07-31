@@ -25,6 +25,8 @@
  */
 
 import { isAbortError } from '@ai-sdk/provider-utils'
+import type { UIMessage } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
@@ -35,7 +37,6 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import type { UIMessage } from 'ai'
 
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { materializeNativeFilePart } from './fileProcessor'

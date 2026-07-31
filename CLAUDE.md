@@ -68,7 +68,7 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 
 - `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
 - `pnpm test` — run all Vitest tests
-- `pnpm format` — Biome format + lint (write mode)
+- `pnpm format` — Oxfmt format (write mode)
 - `pnpm build:check` — **REQUIRED before commits**. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
 - `pnpm test:lint` — the CI-equivalent lint gate: it denies oxlint warnings that `pnpm lint` / `pnpm build:check` silently tolerate; run it when CI must pass.
 

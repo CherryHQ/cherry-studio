@@ -10,6 +10,7 @@
  */
 
 import { miniAppService } from '@data/services/MiniAppService'
+
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MiniAppSchemas } from '@shared/data/api/schemas/miniApps'
 import { CreateMiniAppSchema, ListMiniAppsQuerySchema, UpdateMiniAppSchema } from '@shared/data/api/schemas/miniApps'

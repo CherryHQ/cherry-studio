@@ -1,12 +1,13 @@
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
+import { getSystemProxy } from 'os-proxy-config'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import type { ProxyConfig } from 'electron'
-import { app, session } from 'electron'
-import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './NodeProxyController'
 

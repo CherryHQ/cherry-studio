@@ -1,7 +1,8 @@
-import type * as ImageUtils from '@renderer/utils/image'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ImageUtils from '@renderer/utils/image'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { useProviderEditor } from '../useProviderEditor'
 

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // Use vi.hoisted() so mock variables are available in hoisted vi.mock() factories

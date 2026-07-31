@@ -22,7 +22,7 @@ export function FilePreviewToolbarPortalHost() {
     <div
       ref={context?.setTarget}
       data-testid="file-preview-toolbar-host"
-      className="ml-3 flex min-w-0 max-w-[70%] items-center justify-end overflow-x-auto"
+      className="ml-3 flex max-w-[70%] min-w-0 items-center justify-end overflow-x-auto"
     />
   )
 }
@@ -45,7 +45,7 @@ export function FilePreviewToolbar({ 'aria-label': ariaLabel, children }: FilePr
     <div
       role="toolbar"
       aria-label={ariaLabel}
-      className="relative flex h-11 min-h-11 shrink-0 items-center overflow-x-auto px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
+      className="relative flex h-11 min-h-11 shrink-0 items-center overflow-x-auto px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
       <div className="mx-auto flex min-w-max shrink-0 items-center justify-center gap-1">{children}</div>
     </div>
   )

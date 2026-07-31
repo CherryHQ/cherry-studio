@@ -1,3 +1,6 @@
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import {
   buildGroupedVirtualRows,
   type DynamicVirtualListRef,
@@ -8,8 +11,6 @@ import {
   type GroupedVirtualListRow
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
   getResourceListOptionDomId,
@@ -175,7 +176,7 @@ function VirtualItemRow({
       data-resource-list-item-row="true"
       className={cn(
         ITEM_ROW_CLASS,
-        !groupHeaderIconVisible && '[&_[role=option]]:!px-2.5 [&_[data-resource-list-leading-slot=true]]:hidden'
+        !groupHeaderIconVisible && '[&_[data-resource-list-leading-slot=true]]:hidden [&_[role=option]]:!px-2.5'
       )}>
       {children}
     </div>

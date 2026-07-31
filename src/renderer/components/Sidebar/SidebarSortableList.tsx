@@ -1,7 +1,8 @@
-import { Sortable } from '@cherrystudio/ui'
 import type { Active } from '@dnd-kit/core'
 import type { ReactNode } from 'react'
 import { useCallback, useRef } from 'react'
+
+import { Sortable } from '@cherrystudio/ui'
 
 /**
  * After a drag-drop, dnd-kit fires a trailing synthetic click on the dragged

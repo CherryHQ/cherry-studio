@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it, vi } from 'vitest'
 
 // isProviderSettingsListVisibleProvider only reads the provider id; stub the i18n +
 // CherryAI helpers the module imports so the test stays focused on visibility.

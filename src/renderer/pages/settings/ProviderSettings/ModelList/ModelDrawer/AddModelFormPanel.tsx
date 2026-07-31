@@ -1,12 +1,13 @@
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { ChevronDown, ChevronUp } from 'lucide-react'
-import type { FormEvent } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
@@ -396,7 +397,7 @@ export default function AddModelFormPanel({
       {submitError && (
         <div
           role="alert"
-          className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
+          className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-xs leading-4 text-error-subtle-foreground">
           {submitError}
         </div>
       )}

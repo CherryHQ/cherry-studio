@@ -1,9 +1,3 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
-import HighlightText from '@renderer/components/HighlightText'
-import { cn } from '@renderer/utils/style'
-import { formatRelativeTime } from '@renderer/utils/time'
-import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 import {
   ArrowRight,
   Bot,
@@ -16,6 +10,13 @@ import {
 } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import HighlightText from '@renderer/components/HighlightText'
+import { cn } from '@renderer/utils/style'
+import { formatRelativeTime } from '@renderer/utils/time'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 
 import type {
   GlobalMessageSearchPanelGroup,
@@ -103,7 +104,7 @@ export function GlobalSearchGroupHeader({ group }: { group: GlobalSearchPanelGro
   return (
     <div
       role="presentation"
-      className="flex h-7 items-center gap-1.5 px-5 pt-1 font-medium text-muted-foreground text-sm">
+      className="flex h-7 items-center gap-1.5 px-5 pt-1 text-sm font-medium text-muted-foreground">
       <span>{t(getGroupLabelKey(group.id))}</span>
       <span>·</span>
       <span>{group.total ?? group.items.length}</span>
@@ -141,7 +142,7 @@ export function GlobalSearchGroupFooter({
         onMouseEnter={onMouseEnter}
         onClick={onOpen}
         className={cn(
-          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+          'mx-5 flex h-8 w-[calc(100%-2.5rem)] items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left text-xs font-medium transition-colors',
           active
             ? 'bg-muted/60 text-accent-foreground'
             : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -198,17 +199,17 @@ export function GlobalSearchRow({
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-foreground text-sm leading-5">
+        <span className="block truncate text-sm leading-5 font-medium text-foreground">
           <HighlightText text={title || t('common.unnamed')} keyword={query} />
         </span>
         {subtitle && (
-          <span className="block truncate text-muted-foreground text-xs leading-4">
+          <span className="block truncate text-xs leading-4 text-muted-foreground">
             <HighlightText text={subtitle} keyword={query} />
           </span>
         )}
       </span>
       {updatedAtLabel && (
-        <span className="ml-2 shrink-0 text-muted-foreground text-xs leading-4" title={updatedAt}>
+        <span className="ml-2 shrink-0 text-xs leading-4 text-muted-foreground" title={updatedAt}>
           {updatedAtLabel}
         </span>
       )}
@@ -242,7 +243,7 @@ export function GlobalMessageSearchGroupHeader({
       <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
         {group.title || t('common.unnamed')}
       </span>
-      <span className="ml-2 flex h-5 shrink-0 items-center gap-1 rounded-[6px] bg-muted/40 px-1.5 font-medium text-muted-foreground text-xs">
+      <span className="ml-2 flex h-5 shrink-0 items-center gap-1 rounded-[6px] bg-muted/40 px-1.5 text-xs font-medium text-muted-foreground">
         <span>{t(sourceLabelKey)}</span>
         <span>·</span>
         <span>{group.total}</span>
@@ -286,7 +287,7 @@ export function GlobalMessageSearchRow({
           onMouseEnter={onMouseEnter}
           onClick={onOpen}
           className={cn(
-            'flex h-8 items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left font-medium text-xs transition-colors',
+            'flex h-8 items-center gap-1 rounded-lg py-0 pr-3 pl-8 text-left text-xs font-medium transition-colors',
             inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
             active
               ? 'bg-muted/60 text-accent-foreground'
@@ -325,7 +326,7 @@ export function GlobalMessageSearchRow({
         inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
-      <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-5">
+      <span className="min-w-0 flex-1 truncate text-sm leading-5 text-foreground">
         <span className="font-medium text-muted-foreground">{actorLabel}</span>
         <span className="text-muted-foreground">: </span>
         <HighlightText text={item.result.snippet} keyword={query} />
@@ -334,7 +335,7 @@ export function GlobalMessageSearchRow({
         <span
           className="relative ml-2 flex h-7 min-w-19 shrink-0 items-center justify-end"
           title={item.result.createdAt}>
-          <span className="whitespace-nowrap text-muted-foreground text-xs leading-4 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
+          <span className="text-xs leading-4 whitespace-nowrap text-muted-foreground transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
             {updatedAtLabel}
           </span>
           <button
@@ -344,7 +345,7 @@ export function GlobalMessageSearchRow({
             tabIndex={isJumpActionVisible ? 0 : -1}
             title={jumpLabel}
             onClick={handleJumpClick}
-            className="pointer-events-none absolute right-0 flex size-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-[background-color,color,opacity] hover:bg-accent hover:text-foreground group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+            className="pointer-events-none absolute right-0 flex size-7 items-center justify-center rounded-[7px] text-muted-foreground opacity-0 transition-[background-color,color,opacity] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-accent hover:text-foreground">
             <ArrowRight className="size-4" />
           </button>
         </span>
@@ -355,12 +356,12 @@ export function GlobalMessageSearchRow({
 
 export function GlobalSearchRecentHint({ label, offset }: { label: string; offset: number }) {
   return (
-    <div className="pointer-events-none absolute right-5 left-5 text-muted-foreground text-sm" style={{ top: offset }}>
+    <div className="pointer-events-none absolute right-5 left-5 text-sm text-muted-foreground" style={{ top: offset }}>
       {label}
     </div>
   )
 }
 
 export function GlobalSearchState({ label }: { label: string }) {
-  return <div className="flex h-full items-center justify-center text-muted-foreground text-sm">{label}</div>
+  return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{label}</div>
 }

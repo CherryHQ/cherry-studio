@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
 import { dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
 
 // Shared mock fns so each test can configure return values.
 const diagnosticModuleState = vi.hoisted(() => ({ loadCount: 0 }))

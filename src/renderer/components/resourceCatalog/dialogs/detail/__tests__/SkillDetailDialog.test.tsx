@@ -1,8 +1,9 @@
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import type { InstalledSkill } from '@shared/types/skill'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type { InstalledSkill } from '@shared/types/skill'
 
 import SkillDetailDialog from '../SkillDetailDialog'
 

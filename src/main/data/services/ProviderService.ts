@@ -6,7 +6,6 @@
  * - Row to Provider conversion
  */
 
-import { application } from '@application'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
@@ -23,6 +22,10 @@ import {
   type LogoBindInput,
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
+import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -40,8 +43,6 @@ import type {
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
-import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 

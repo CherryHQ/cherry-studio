@@ -1,3 +1,6 @@
+import { nativeTheme, shell, systemPreferences } from 'electron'
+import fontList from 'font-list'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
@@ -7,8 +10,6 @@ import { getDeviceType } from '@main/utils/system'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { nativeTheme, shell, systemPreferences } from 'electron'
-import fontList from 'font-list'
 
 const logger = loggerService.withContext('systemHandlers')
 

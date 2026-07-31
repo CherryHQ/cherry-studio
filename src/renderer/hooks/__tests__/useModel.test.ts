@@ -1,10 +1,11 @@
-import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
-import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
+import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import { useDefaultModel, useModelById, useModelMutations, useModels } from '../useModel'
 

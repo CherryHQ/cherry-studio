@@ -109,10 +109,11 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
+import * as z from 'zod'
+
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
 import { CanonicalFilePathSchema } from '@shared/utils/file'
-import * as z from 'zod'
 
 import { MessageIdSchema } from './message'
 

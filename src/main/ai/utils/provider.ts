@@ -1,4 +1,5 @@
 import { providerService } from '@data/services/ProviderService'
+
 import { defaultAppHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

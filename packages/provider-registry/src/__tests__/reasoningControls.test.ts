@@ -170,7 +170,7 @@ describe('catalog invariant: controls ↔ derived legacy fields', () => {
     models: Array<{ id: string; reasoning?: { controls?: ReasoningControl[] } & Record<string, unknown> }>
   }
 
-  // Key-order-insensitive (the shipped JSON is biome key-sorted).
+  // Key-order-insensitive: generated catalog ordering is an implementation detail.
   const canonical = (v: unknown): string =>
     JSON.stringify(v, (_, val) =>
       val && typeof val === 'object' && !Array.isArray(val)

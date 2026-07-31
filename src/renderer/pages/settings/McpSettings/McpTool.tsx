@@ -1,13 +1,14 @@
+import { Zap } from 'lucide-react'
+import type { Key } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpTool } from '@renderer/types/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Zap } from 'lucide-react'
-import type { Key } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'
 
@@ -96,10 +97,10 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         <Flex className="items-center gap-2">
           {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
-        {prop.description && <p className="m-0 text-muted-foreground text-sm leading-5">{prop.description}</p>}
+        {prop.description && <p className="m-0 text-sm leading-5 text-muted-foreground">{prop.description}</p>}
         {prop.enum && (
           <div className="mt-1">
-            <span className="text-muted-foreground text-sm">
+            <span className="text-sm text-muted-foreground">
               {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
             </span>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -120,7 +121,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
           prop.items?.type === 'object' &&
           prop.items.properties && (
             <div className="mt-1">
-              <span className="text-muted-foreground text-sm italic">items:</span>
+              <span className="text-sm text-muted-foreground italic">items:</span>
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
@@ -179,14 +180,14 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         return (
           <ColFlex className="gap-1">
             <Flex className="items-center gap-1">
-              <span className="truncate text-foreground text-sm" title={tool.name}>
+              <span className="truncate text-sm text-foreground" title={tool.name}>
                 {tool.name}
               </span>
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
             {tool.description && (
               <Tooltip content={tool.description} fullWidthTrigger>
-                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-muted-foreground leading-5">
+                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] leading-5 text-muted-foreground">
                   {tool.description}
                 </p>
               </Tooltip>

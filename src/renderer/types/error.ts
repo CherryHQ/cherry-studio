@@ -1,4 +1,3 @@
-import type { Serializable } from '@shared/types/serializable'
 import type {
   AISDKError,
   APICallError,
@@ -20,6 +19,8 @@ import type {
   TypeValidationError,
   UnsupportedFunctionalityError
 } from 'ai'
+
+import type { Serializable } from '@shared/types/serializable'
 
 import type { ProviderSpecificError } from './providerSpecificError'
 

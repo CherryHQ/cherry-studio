@@ -1,14 +1,15 @@
-import { application } from '@application'
 import { jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { application } from '@application'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
+import type { FileEntryId } from '@shared/data/types/file'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
   type: 'test.echo',

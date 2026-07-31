@@ -1,7 +1,7 @@
 import '@renderer/assets/styles/tailwind.css'
+import { createRoot } from 'react-dom/client'
 
 import { prepareWindow } from '@renderer/windows/prepareWindow'
-import { createRoot } from 'react-dom/client'
 
 import SelectionToolbarApp from './SelectionToolbarApp'
 

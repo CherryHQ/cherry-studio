@@ -23,6 +23,7 @@
 
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
+
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 
 import type { DanglingCache } from '../danglingCache'

@@ -1,5 +1,6 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { Input, RowFlex } from '@cherrystudio/ui'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
@@ -32,7 +33,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           max={validation.maxWidth}
           className="flex-1"
         />
-        <span className="text-muted-foreground text-xs">x</span>
+        <span className="text-xs text-muted-foreground">x</span>
         <Input
           aria-label={t('paintings.generate.height')}
           placeholder={t('paintings.generate.height')}
@@ -46,7 +47,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           max={validation.maxHeight}
           className="flex-1"
         />
-        <span className="text-muted-foreground text-xs">px</span>
+        <span className="text-xs text-muted-foreground">px</span>
       </RowFlex>
     </div>
   )

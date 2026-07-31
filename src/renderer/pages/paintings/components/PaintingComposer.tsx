@@ -1,3 +1,7 @@
+import { Settings2 } from 'lucide-react'
+import { type FC, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ComposerSurface from '@renderer/components/composer/ComposerSurface'
@@ -24,9 +28,6 @@ import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
-import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'

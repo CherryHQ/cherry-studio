@@ -1,7 +1,8 @@
 import type { LanguageModelV3ToolCall } from '@ai-sdk/provider'
-import { KB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { InvalidToolInputError, NoSuchToolError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { KB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const { generateText } = vi.hoisted(() => ({ generateText: vi.fn() }))
 

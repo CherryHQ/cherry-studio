@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -76,12 +77,10 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
     // Model metadata only tunes optional fields (endpoint pick, context window),
     // so a fetch failure degrades the config quietly — leave a breadcrumb.
-    dataApiService
-      .get(`/models/${args.modelId}`)
-      .catch((error) => {
-        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-        return null
-      })
+    dataApiService.get(`/models/${args.modelId}`).catch((error) => {
+      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+      return null
+    })
   ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)

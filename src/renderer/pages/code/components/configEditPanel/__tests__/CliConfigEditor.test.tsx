@@ -1,7 +1,8 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 
 import { CliConfigEditor } from '../CliConfigEditor'
 

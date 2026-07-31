@@ -3,11 +3,12 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import type { LoggerService } from '@main/core/logger/LoggerService'
-import { DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP, DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { LoggerService } from '@main/core/logger/LoggerService'
+import { DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP, DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE } from '@shared/data/types/knowledge'
 
 vi.mock('@logger', () => ({
   loggerService: {

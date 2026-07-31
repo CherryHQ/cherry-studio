@@ -1,6 +1,7 @@
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import { app, BrowserWindow } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 
 import { MigrationWindowManager } from '../MigrationWindowManager'
 

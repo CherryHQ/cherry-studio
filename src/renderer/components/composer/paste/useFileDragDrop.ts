@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { ipcApi } from '@renderer/ipc'
@@ -9,8 +12,6 @@ import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/
 import { isComposerFileTokenPathLike } from '@renderer/utils/message/composerFileTokenSource'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
-import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useFileDragDrop')
 

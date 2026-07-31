@@ -1,6 +1,4 @@
 import '@renderer/assets/styles/vendor/xyflow.css'
-
-import { cn } from '@renderer/utils/style'
 import {
   Controls,
   MiniMap,
@@ -13,6 +11,8 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@renderer/utils/style'
 
 import { TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR, TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
 import TopicMessageFlowLegend from './TopicMessageFlowLegend'
@@ -210,7 +210,7 @@ const TopicMessageFlowCanvas = ({
     return (
       <div
         className={cn(
-          'relative flex h-full min-h-[320px] items-center justify-center rounded-md border border-border bg-muted/20 text-foreground-tertiary text-sm',
+          'relative flex h-full min-h-[320px] items-center justify-center rounded-md border border-border bg-muted/20 text-sm text-foreground-tertiary',
           className
         )}
         data-testid="topic-message-flow-empty">

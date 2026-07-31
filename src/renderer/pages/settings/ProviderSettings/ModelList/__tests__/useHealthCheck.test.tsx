@@ -1,6 +1,7 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { HealthStatus } from '../../types/healthCheck'
 import { useHealthCheck } from '../useHealthCheck'

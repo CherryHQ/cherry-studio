@@ -4,8 +4,9 @@ import fs from 'node:fs'
 import type * as NodeOs from 'node:os'
 import os from 'node:os'
 
-import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 const { existsSyncMock, cpusMock, execMock } = vi.hoisted(() => ({
   existsSyncMock: vi.fn(),

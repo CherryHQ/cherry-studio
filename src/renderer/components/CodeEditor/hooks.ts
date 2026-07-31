@@ -1,9 +1,10 @@
 import { linter } from '@codemirror/lint' // statically imported by @uiw/codemirror-extensions-basic-setup
 import { EditorView } from '@codemirror/view'
-import { loggerService } from '@logger'
 import type { Extension } from '@uiw/react-codemirror'
 import { keymap } from '@uiw/react-codemirror'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import { loggerService } from '@logger'
 
 import { getNormalizedExtension } from './utils'
 

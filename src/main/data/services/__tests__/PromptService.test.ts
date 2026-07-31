@@ -1,9 +1,10 @@
 import { promptTable } from '@data/db/schemas/prompt'
 import { PromptService, promptService } from '@data/services/PromptService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 const PROMPT_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 

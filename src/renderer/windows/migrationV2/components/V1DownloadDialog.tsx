@@ -5,6 +5,10 @@
  * Dismissing leaves the failure screen untouched.
  */
 
+import { ExternalLink } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -15,9 +19,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { ExternalLink } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { SidebarAppId } from '@renderer/utils/sidebar'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 import type * as SidebarConstants from '../../Sidebar/constants'
 
@@ -205,7 +205,7 @@ vi.mock('../../Sidebar', async () => {
       const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
       return isFloating ? (
         <div
-          className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
+          className={isFloatingClosing ? 'animate-out slide-out-to-left-2' : 'animate-in slide-in-from-left-2'}
           data-testid="floating-sidebar">
           <button type="button" onClick={onDismiss}>
             dismiss

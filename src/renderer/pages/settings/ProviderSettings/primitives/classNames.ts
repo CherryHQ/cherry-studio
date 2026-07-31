@@ -190,7 +190,7 @@ export const modelListClasses = {
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
   sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1',
-  sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
+  sectionTitle: cn(sectionHeadingBase, 'shrink-0 font-semibold whitespace-nowrap'),
   titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-tertiary',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-link transition-colors hover:underline',

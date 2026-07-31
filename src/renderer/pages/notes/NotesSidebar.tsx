@@ -1,13 +1,14 @@
+import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesEditing } from './hooks/useNotesEditing'
@@ -260,8 +261,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         <span
           className={
             result.matchType === 'both'
-              ? 'inline-flex h-4 shrink-0 items-center rounded-xs bg-secondary px-1 font-medium text-secondary-foreground text-xs leading-none'
-              : 'inline-flex h-4 shrink-0 items-center rounded-xs bg-muted px-1 font-medium text-muted-foreground text-xs leading-none'
+              ? 'inline-flex h-4 shrink-0 items-center rounded-xs bg-secondary px-1 text-xs leading-none font-medium text-secondary-foreground'
+              : 'inline-flex h-4 shrink-0 items-center rounded-xs bg-muted px-1 text-xs leading-none font-medium text-muted-foreground'
           }>
           {label}
         </span>
@@ -324,7 +325,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   return (
     <div
       data-ui="notes.navigation"
-      className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
+      className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-r border-border bg-background"
       onDragOver={(e) => {
         e.preventDefault()
         setIsDragOverSidebar(true)
@@ -348,7 +349,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {isShowSearch && isSearching && (
-          <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
+          <div className="flex items-center gap-2 border-b border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
             <Loader2 size={14} className="animate-spin" />
             <span>{t('notes.search.searching')}</span>
             <button
@@ -361,7 +362,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           </div>
         )}
         {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
-          <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
+          <div className="flex items-center gap-2 border-b border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
             <span>
               {t('notes.search.found_results', {
                 count: searchStats.total,
@@ -393,7 +394,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
         {!isShowStarred && !isShowSearch && (
           <div
-            className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-muted-foreground text-xs italic hover:text-foreground"
+            className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-xs text-muted-foreground italic hover:text-foreground"
             onClick={handleSelectFiles}>
             <FilePlus size={14} className="shrink-0" />
             <span>{t('notes.drop_markdown_hint')}</span>
@@ -402,7 +403,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       </div>
 
       {isDragOverSidebar && (
-        <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />
+        <div className="pointer-events-none absolute inset-0 rounded border-2 border-dashed border-primary bg-primary/10" />
       )}
     </div>
   )

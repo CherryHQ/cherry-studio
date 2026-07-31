@@ -1,4 +1,5 @@
 import { noteService } from '@data/services/NoteService'
+
 import {
   DeleteNoteQuerySchema,
   ListNoteQuerySchema,

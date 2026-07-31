@@ -1,4 +1,3 @@
-import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 import type { Extensions } from '@tiptap/core'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Mention from '@tiptap/extension-mention'
@@ -10,6 +9,8 @@ import {
 import Typography from '@tiptap/extension-typography'
 import { Markdown } from '@tiptap/markdown'
 import { StarterKit } from '@tiptap/starter-kit'
+
+import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 
 import { commandSuggestion } from './command'
 import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'

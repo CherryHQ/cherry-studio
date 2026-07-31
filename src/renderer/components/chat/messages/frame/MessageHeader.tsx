@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { Sparkle } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -5,11 +11,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import dayjs from 'dayjs'
-import { Sparkle } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   useMessageListActions,
@@ -114,14 +115,14 @@ const MessageHeader: FC<Props> = memo(
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
           <div className="flex w-full min-w-0 items-center gap-1.5">
             <span
-              className="truncate font-semibold text-sm leading-5"
+              className="truncate text-sm leading-5 font-semibold"
               style={{
                 color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
               }}>
               {username}
             </span>
             {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
+              <span className="flex min-w-0 shrink items-center gap-1 text-xs leading-5 text-foreground-tertiary">
                 <span aria-hidden="true" className="shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
@@ -134,7 +135,7 @@ const MessageHeader: FC<Props> = memo(
               </Tooltip>
             )}
             <div
-              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
+              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] leading-none text-foreground-tertiary opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
               <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
               {renderConfig.showEstimatedTokens &&
                 isBubbleStyle &&
@@ -154,7 +155,7 @@ const MessageHeader: FC<Props> = memo(
             )}
           </div>
           {contentSlot && (
-            <div className="message-body-content mt-2 min-h-0 min-w-0 max-w-full flex-1">{contentSlot}</div>
+            <div className="message-body-content mt-2 min-h-0 max-w-full min-w-0 flex-1">{contentSlot}</div>
           )}
           {footerSlot && <div className="message-footer-slot mt-auto min-w-0 shrink-0">{footerSlot}</div>}
         </div>

@@ -1,10 +1,10 @@
 import './Sidebar.css'
+import { Search } from 'lucide-react'
+import React, { useCallback, useEffect, useRef } from 'react'
 
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { Search } from 'lucide-react'
-import React, { useCallback, useEffect, useRef } from 'react'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
@@ -121,7 +121,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'sidebar-theme fixed top-0 bottom-0 left-0 flex w-43.5 animate-in flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 select-none [-webkit-app-region:drag] slide-in-from-left-2',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -137,7 +137,7 @@ export function Sidebar({
           }}>
           <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
             {renderLogo()}
-            <span className="truncate text-sidebar-foreground text-sm">{title}</span>
+            <span className="truncate text-sm text-sidebar-foreground">{title}</span>
           </div>
 
           {showSearch && (
@@ -147,7 +147,7 @@ export function Sidebar({
                   onSearchClick?.()
                   handleDismiss()
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
                 <Search size={13} />
                 <span>{searchLabel}</span>
               </div>
@@ -202,14 +202,14 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
+        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 flex-col select-none [-webkit-app-region:drag]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}
       <div
         className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
-        {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
+        {layout === 'full' && <span className="truncate text-sm text-sidebar-foreground">{title}</span>}
       </div>
 
       {/* Search */}
@@ -218,7 +218,7 @@ export function Sidebar({
           <div className="px-3 py-2">
             <div
               onClick={onSearchClick}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
+              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
               <Search size={13} />
               <span>{searchLabel}</span>
             </div>

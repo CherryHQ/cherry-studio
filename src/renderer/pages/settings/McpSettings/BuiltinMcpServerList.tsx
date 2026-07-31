@@ -1,3 +1,8 @@
+import { Check, ExternalLink, Plus } from 'lucide-react'
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
@@ -6,10 +11,6 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Check, ExternalLink, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { toCreateMcpServerDto } from './utils'
 
@@ -83,7 +84,7 @@ const BuiltinMcpServerList: FC = () => {
                       rel="noopener noreferrer">
                       <Badge
                         variant="outline"
-                        className="h-5 gap-1 rounded-md border-error-border bg-error-subtle px-1.5 text-[11px] text-error-subtle-foreground leading-none">
+                        className="h-5 gap-1 rounded-md border-error-border bg-error-subtle px-1.5 text-[11px] leading-none text-error-subtle-foreground">
                         {t('settings.mcp.requiresConfig')}
                         <ExternalLink size={10} />
                       </Badge>
@@ -92,18 +93,18 @@ const BuiltinMcpServerList: FC = () => {
                 </div>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <div className="line-clamp-2 cursor-pointer text-[13px] text-muted-foreground leading-5 transition-colors hover:text-foreground">
+                    <div className="line-clamp-2 cursor-pointer text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground">
                       {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                     </div>
                   </PopoverTrigger>
                   <PopoverContent align="start" side="top" className="w-auto max-w-100">
-                    <div className="mb-2 font-semibold text-foreground text-sm">{server.name}</div>
-                    <div className="wrap-break-word whitespace-pre-wrap text-[14px] text-foreground leading-normal">
+                    <div className="mb-2 text-sm font-semibold text-foreground">{server.name}</div>
+                    <div className="text-[14px] leading-normal wrap-break-word whitespace-pre-wrap text-foreground">
                       {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                       {server.reference && (
                         <a
                           href={server.reference}
-                          className="wrap-break-word mt-2 inline-block text-link hover:underline">
+                          className="mt-2 inline-block wrap-break-word text-link hover:underline">
                           {server.reference}
                         </a>
                       )}
@@ -113,7 +114,7 @@ const BuiltinMcpServerList: FC = () => {
               </div>
               <div className="ml-3 flex min-w-21.5 shrink-0 items-center justify-end self-center">
                 {isInstalled ? (
-                  <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs">
+                  <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-muted-foreground">
                     <Check size={13} className="text-success" />
                     {t('settings.skills.installed')}
                   </div>
@@ -121,7 +122,7 @@ const BuiltinMcpServerList: FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 rounded-lg px-2 text-muted-foreground text-xs shadow-none hover:bg-muted hover:text-foreground hover:shadow-none"
+                    className="h-7 rounded-lg px-2 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground hover:shadow-none"
                     onClick={async () => {
                       try {
                         await addMcpServer(toCreateMcpServerDto(server))

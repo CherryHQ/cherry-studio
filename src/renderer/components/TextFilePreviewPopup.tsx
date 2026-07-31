@@ -1,5 +1,6 @@
-import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+
+import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
@@ -38,7 +39,7 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
               }}
             />
           ) : (
-            <div className="h-full cursor-text overflow-auto whitespace-pre p-4 text-foreground text-sm">{text}</div>
+            <div className="h-full cursor-text overflow-auto p-4 text-sm whitespace-pre text-foreground">{text}</div>
           )}
         </div>
       </DialogContent>

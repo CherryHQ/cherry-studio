@@ -1,3 +1,7 @@
+import { Plus, X } from 'lucide-react'
+import { type FC, type MouseEvent, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useComposerToolDispatch, useComposerToolState } from '@renderer/components/composer/ComposerToolRuntime'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import ImageViewer from '@renderer/components/ImageViewer'
@@ -5,9 +9,6 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
-import { Plus, X } from 'lucide-react'
-import { type FC, type MouseEvent, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 function imagePreviewUrl(path: AbsoluteFilePath, ext: string): string {
   return toSafeFileUrl(path, ext.replace(/^\./, '').toLowerCase() || null)

@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -17,8 +18,9 @@ vi.mock('../runAgentTask', () => ({
   runAgentTask: vi.fn()
 }))
 
-import { application } from '@application'
 import { jobService } from '@data/services/JobService'
+
+import { application } from '@application'
 
 import { agentTaskJobHandler } from '../agentTaskJobHandler'
 import { type AgentTaskInput, runAgentTask } from '../runAgentTask'

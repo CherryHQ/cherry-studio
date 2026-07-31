@@ -1,3 +1,9 @@
+import type React from 'react'
+import { useCallback, useState } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   FormControl,
   FormField,
@@ -20,11 +26,6 @@ import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import type React from 'react'
-import { useCallback, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 export const buildMcpSchema = (t: (key: string) => string) =>
   z
@@ -540,7 +541,7 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-tertiary text-xs">s</span>
+                <span className="text-xs text-foreground-tertiary">s</span>
               </div>
             </FormControl>
           </FormItem>

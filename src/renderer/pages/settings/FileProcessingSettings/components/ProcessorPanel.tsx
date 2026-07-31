@@ -1,3 +1,7 @@
+import { List, SquareCheckBig } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   type ComboboxOption,
@@ -24,9 +28,6 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { List, SquareCheckBig } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type FileProcessingMenuEntry,
@@ -248,7 +249,7 @@ export function ProcessorPanel({
       </div>
 
       {showApiSettings ? (
-        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
+        <div className="flex flex-col gap-3 border-t border-border-subtle pt-4">
           <div className="flex flex-col gap-2">
             <div className="flex min-w-0 items-baseline gap-2">
               <SettingRowTitle className="font-medium">
@@ -284,7 +285,7 @@ export function ProcessorPanel({
             </div>
           </div>
           {entry.capability.apiHost !== undefined ? (
-            <div className="flex flex-col gap-2 border-border-subtle border-t pt-3">
+            <div className="flex flex-col gap-2 border-t border-border-subtle pt-3">
               <SettingRowTitle className="font-medium">
                 {t('settings.tool.file_processing.fields.api_base_url')}
               </SettingRowTitle>
@@ -310,11 +311,11 @@ export function ProcessorPanel({
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
       {processor.id === 'local-paddleocr' ? (
-        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
+        <div className="flex flex-col gap-3 border-t border-border-subtle pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div className="min-w-0 flex-1">
-              <SettingRowTitle className="text-success text-xs">
+              <SettingRowTitle className="text-xs text-success">
                 {t('settings.tool.file_processing.processors.local_paddleocr.status.local')}
               </SettingRowTitle>
               <SettingHelpText className="mt-1 text-xs">{t(getProcessorDescriptionKey(processor.id))}</SettingHelpText>
@@ -324,11 +325,11 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'system' ? (
-        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
+        <div className="flex flex-col gap-3 border-t border-border-subtle pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div>
-              <SettingRowTitle className="text-success text-xs">
+              <SettingRowTitle className="text-xs text-success">
                 {t('settings.tool.file_processing.processors.system.status.available')}
               </SettingRowTitle>
               <SettingHelpText className="mt-1 text-xs">

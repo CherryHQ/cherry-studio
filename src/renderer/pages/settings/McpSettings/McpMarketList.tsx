@@ -1,10 +1,11 @@
-import { Composio, Glama, Higress, Mcp, Mcpso, Modelscope, Pulse, Smithery, Zhipu } from '@cherrystudio/ui/icons'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { cn } from '@renderer/utils/style'
 import { ExternalLink } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Composio, Glama, Higress, Mcp, Mcpso, Modelscope, Pulse, Smithery, Zhipu } from '@cherrystudio/ui/icons'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { cn } from '@renderer/utils/style'
 
 const mcpMarkets = [
   {
@@ -147,7 +148,7 @@ const ExternalLinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRe
 
 const MarketDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('mt-0.5 line-clamp-1 overflow-hidden text-[13px] text-muted-foreground leading-[1.35]', className)}
+    className={cn('mt-0.5 line-clamp-1 overflow-hidden text-[13px] leading-[1.35] text-muted-foreground', className)}
     {...props}
   />
 )

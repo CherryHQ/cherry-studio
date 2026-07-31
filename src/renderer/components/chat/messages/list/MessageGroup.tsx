@@ -1,3 +1,6 @@
+import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -6,8 +9,6 @@ import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import {

@@ -11,6 +11,7 @@
  */
 
 import * as fs from 'fs'
+
 import { IndentationText, NewLineKind, Project, QuoteKind, VariableDeclarationKind } from 'ts-morph'
 
 const project = new Project({

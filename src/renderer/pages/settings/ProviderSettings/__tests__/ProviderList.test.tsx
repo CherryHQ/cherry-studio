@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { ProviderList } from '../ProviderList'
 

@@ -22,9 +22,10 @@
  */
 
 import { cacheService } from '@data/CacheService'
-import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 import { type RefObject, useCallback, useEffect, useRef } from 'react'
 import type { VListHandle } from 'virtua'
+
+import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 
 export type { ChatScrollAnchor }
 

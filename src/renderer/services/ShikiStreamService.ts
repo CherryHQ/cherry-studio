@@ -1,3 +1,6 @@
+import { LRUCache } from 'lru-cache'
+import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
+
 import { loggerService } from '@logger'
 import {
   DEFAULT_LANGUAGES,
@@ -6,8 +9,6 @@ import {
   loadLanguageIfNeeded,
   loadThemeIfNeeded
 } from '@renderer/utils/shiki'
-import { LRUCache } from 'lru-cache'
-import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
 import type { ShikiStreamTokenizerOptions } from './ShikiStreamTokenizer'
 import { ShikiStreamTokenizer } from './ShikiStreamTokenizer'

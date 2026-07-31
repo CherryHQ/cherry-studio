@@ -1,9 +1,10 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { isMac, isWin } from '@renderer/utils/platform'
-import type { TerminalConfig } from '@shared/types/codeCli'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { isMac, isWin } from '@renderer/utils/platform'
+import type { TerminalConfig } from '@shared/types/codeCli'
 
 export interface CurrentConfigPanelProps {
   directory?: string
@@ -30,7 +31,7 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <label className="text-muted-foreground text-xs">{t('code.working_directory')}</label>
+        <label className="text-xs text-muted-foreground">{t('code.working_directory')}</label>
         <div className="flex w-full items-center">
           <Input value={directory ?? ''} placeholder={t('code.folder_placeholder')} readOnly tabIndex={-1} />
           <Button variant="default" onClick={onSelectFolder} className="ml-2 shrink-0">
@@ -42,7 +43,7 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
 
       {showTerminals && (
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-xs">{t('code.terminal')}</label>
+          <label className="text-xs text-muted-foreground">{t('code.terminal')}</label>
           <Select value={effectiveTerminal} onValueChange={(value) => onSelectTerminal(value)}>
             <SelectTrigger size="sm" className="w-full">
               <SelectValue />

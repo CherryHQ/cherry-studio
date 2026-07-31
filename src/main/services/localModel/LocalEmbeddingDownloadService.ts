@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { InferenceProgress } from '@main/ai/inference/InferenceServiceBase'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'

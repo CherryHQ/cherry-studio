@@ -15,9 +15,11 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
@@ -27,7 +29,6 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import * as z from 'zod'
 
 import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
 

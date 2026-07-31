@@ -22,9 +22,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { CherryCliTools, CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } = await import(
-  '../cherryCliTools'
-)
+const { CherryCliTools, CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } =
+  await import('../cherryCliTools')
 
 function json(result: { content: Array<{ type: string; text?: string }> }) {
   return JSON.parse(result.content[0].type === 'text' ? (result.content[0].text ?? '{}') : '{}')

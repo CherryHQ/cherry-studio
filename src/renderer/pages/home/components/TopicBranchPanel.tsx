@@ -1,5 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { CopyPlus, GitBranch } from 'lucide-react'
+import type { FC, MouseEvent } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -14,10 +19,6 @@ import { CommandContextMenu } from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
-import { CopyPlus, GitBranch } from 'lucide-react'
-import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean
@@ -243,10 +244,10 @@ const TopicBranchPanel: FC<Props> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
+      <div className="flex min-h-10 shrink-0 items-center gap-2 border-b border-border-subtle px-3 text-xs">
         {topicName && (
           <>
-            <span className="min-w-0 max-w-55 truncate text-foreground-tertiary">{topicName}</span>
+            <span className="max-w-55 min-w-0 truncate text-foreground-tertiary">{topicName}</span>
             <span className="shrink-0 text-foreground-tertiary">·</span>
           </>
         )}
@@ -260,11 +261,11 @@ const TopicBranchPanel: FC<Props> = ({
       </div>
       <div className="min-h-0 flex-1">
         {error ? (
-          <div className="flex h-full min-h-80 items-center justify-center text-destructive text-sm" role="alert">
+          <div className="flex h-full min-h-80 items-center justify-center text-sm text-destructive" role="alert">
             {t('common.error')}
           </div>
         ) : isLoading ? (
-          <div className="flex h-full min-h-80 items-center justify-center text-foreground-tertiary text-sm">
+          <div className="flex h-full min-h-80 items-center justify-center text-sm text-foreground-tertiary">
             {t('common.loading')}
           </div>
         ) : (

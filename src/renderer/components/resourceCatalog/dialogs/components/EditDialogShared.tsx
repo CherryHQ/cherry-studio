@@ -1,3 +1,8 @@
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -30,10 +35,6 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
@@ -45,7 +46,7 @@ const submenuItemClassName =
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
+const railTabItemClassName = cn(submenuItemClassName, 'flex-none justify-start data-[state=active]:!shadow-none')
 
 const logger = loggerService.withContext('EditDialogShared')
 
@@ -232,7 +233,7 @@ export function FieldLabelWithHelp({
   const labelContent = formLabel ? (
     <FormLabel className="font-normal">{label}</FormLabel>
   ) : (
-    <span className="font-normal text-foreground text-sm leading-none">{label}</span>
+    <span className="text-sm leading-none font-normal text-foreground">{label}</span>
   )
 
   return (
@@ -340,7 +341,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                   <button
                     type="button"
                     disabled={disabled}
-                    className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                     onClick={onOpenKnowledgePage}>
                     <ArrowUpRight size={14} className="shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
@@ -350,10 +351,10 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             />
           </div>
           {linkedItems.length === 0 ? (
-            <div className="mt-2 flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
+            <div className="mt-2 flex flex-col items-center rounded-md border border-dashed border-border-subtle p-6">
               <Database size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
-              <p className="mb-1 text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_title')}</p>
-              <p className="text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_desc')}</p>
+              <p className="mb-1 text-xs text-foreground-tertiary">{t('library.config.knowledge.empty_title')}</p>
+              <p className="text-xs text-foreground-tertiary">{t('library.config.knowledge.empty_desc')}</p>
             </div>
           ) : (
             <div className="mt-2 space-y-1.5">
@@ -363,8 +364,8 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                   className="group flex items-center gap-3 rounded-md border border-border-subtle bg-accent/15 px-3 py-2.5 transition-colors hover:border-border-subtle hover:bg-accent/20">
                   <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-foreground text-sm">{kb.name}</div>
-                    <div className="text-muted-foreground text-xs">
+                    <div className="truncate text-sm text-foreground">{kb.name}</div>
+                    <div className="text-xs text-muted-foreground">
                       {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
                     </div>
                   </div>
@@ -375,7 +376,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                     disabled={disabled}
                     onClick={() => remove(kb.id)}
                     aria-label={t('library.config.knowledge.remove_aria')}
-                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-0 group-hover:opacity-100">
+                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-0">
                     <Trash2 size={10} />
                   </Button>
                 </div>
@@ -482,7 +483,7 @@ export function EditDialogShell<TValues extends FieldValues>({
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
               {/* Quiet rail surface keeps navigation distinct without competing with the form. */}
-              <div className="flex w-36 shrink-0 flex-col border-border border-r-[0.5px] bg-background-subtle">
+              <div className="flex w-36 shrink-0 flex-col border-r-[0.5px] border-border bg-background-subtle">
                 <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-3">
                   <MenuList>
                     {tabs.map((tab) => {
@@ -555,7 +556,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                     rounded-3xl corners so content never clips into them mid-scroll, and
                     surfaces the save error inline when present. */}
                 <div className="flex min-h-6 shrink-0 items-center px-6 pb-4" aria-live="polite">
-                  {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
+                  {rootError ? <p className="text-xs text-destructive">{rootError}</p> : null}
                 </div>
               </div>
             </Tabs>
@@ -778,7 +779,7 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  className="pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted">
                   <X size={12} />
                 </Button>
               ) : null}
@@ -824,16 +825,16 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
         className="w-80 p-3">
         <div className="space-y-3">
           <div className="space-y-1">
-            <div className="font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
-            <div className="text-muted-foreground text-xs leading-relaxed">
+            <div className="text-xs font-medium text-foreground">{t('library.config.prompt.variables_title')}</div>
+            <div className="text-xs leading-relaxed text-muted-foreground">
               {t('library.config.prompt.variables_description')}
             </div>
           </div>
-          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-muted-foreground text-xs">
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground">
             {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
           </div>
           <div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-muted-foreground text-xs">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
               {PROMPT_VARIABLES.map((variable) => (
                 <div key={variable.name} className="contents">
                   <button

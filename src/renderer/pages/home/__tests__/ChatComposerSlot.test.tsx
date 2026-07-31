@@ -1,8 +1,9 @@
-import { type ComposerContextValue, useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
-import type { Topic } from '@renderer/types/topic'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { type ComposerContextValue, useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
+import type { Topic } from '@renderer/types/topic'
 
 import ChatComposerSlot from '../ChatComposerSlot'
 

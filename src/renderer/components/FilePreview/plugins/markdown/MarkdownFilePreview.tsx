@@ -1,12 +1,12 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-
-import { EmptyState, Markdown, withFullMarkdown } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { lazy, type ReactNode, Suspense, useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState, Markdown, withFullMarkdown } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -28,7 +28,7 @@ function MarkdownPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>

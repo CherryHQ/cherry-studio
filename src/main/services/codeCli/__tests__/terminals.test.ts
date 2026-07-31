@@ -1,5 +1,6 @@
-import { TerminalApp } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
+
+import { TerminalApp } from '@shared/types/codeCli'
 
 import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS } from '../terminals'
 

@@ -1,5 +1,9 @@
 'use client'
 
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Check, ChevronDown, X } from 'lucide-react'
+import * as React from 'react'
+
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import {
   Command,
@@ -12,15 +16,12 @@ import {
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, X } from 'lucide-react'
-import * as React from 'react'
 
 // ==================== Variants ====================
 
 const comboboxTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors outline-none',
     'bg-muted/20',
     'text-foreground'
   ),
@@ -29,12 +30,12 @@ const comboboxTriggerVariants = cva(
       state: {
         default: 'border-border focus-visible:border-ring',
         error: 'border border-destructive!',
-        disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
+        disabled: 'pointer-events-none cursor-not-allowed opacity-50'
       },
       size: {
-        sm: 'px-2 text-xs gap-1',
-        default: 'px-3 gap-2',
-        lg: 'px-4 gap-2'
+        sm: 'gap-1 px-2 text-xs',
+        default: 'gap-2 px-3',
+        lg: 'gap-2 px-4'
       }
     },
     defaultVariants: {
@@ -45,13 +46,13 @@ const comboboxTriggerVariants = cva(
 )
 
 const comboboxItemVariants = cva(
-  'relative flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors outline-none select-none',
+  'relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none select-none',
   {
     variants: {
       state: {
         default: 'hover:bg-accent data-[selected=true]:bg-accent',
         selected: 'bg-primary/10 text-primary',
-        disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
+        disabled: 'pointer-events-none cursor-not-allowed opacity-50'
       }
     },
     defaultVariants: {
@@ -78,8 +79,10 @@ export type ComboboxOption<TExtra extends object = Record<never, never>> = {
 
 export type ComboboxSearchPlacement = 'content' | 'trigger'
 
-export interface ComboboxProps<TExtra extends object = Record<never, never>>
-  extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
+export interface ComboboxProps<TExtra extends object = Record<never, never>> extends Omit<
+  VariantProps<typeof comboboxTriggerVariants>,
+  'state'
+> {
   // Data source
   options: ComboboxOption<TExtra>[]
   value?: string | string[]
@@ -392,7 +395,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     const selectedOption = options.find((opt) => opt.value === value)
     if (selectedOption) {
       return (
-        <div className="flex items-center gap-2 flex-1 min-w-0 truncate">
+        <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
           {selectedOption.icon}
           <span className="truncate">{selectedOption.label}</span>
         </div>
@@ -440,7 +443,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           </PopoverTrigger>
           <ChevronDown
             className={cn(
-              'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 shrink-0 opacity-50 transition-transform',
+              'pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50 transition-transform',
               open && 'rotate-180'
             )}
           />
@@ -489,9 +492,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     return (
       <>
         {option.icon && <span className="shrink-0">{option.icon}</span>}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate">{option.label}</div>
-          {option.description && <div className="text-xs text-muted-foreground truncate">{option.description}</div>}
+          {option.description && <div className="truncate text-xs text-muted-foreground">{option.description}</div>}
         </div>
         {isSelected(option.value) && <Check className="size-4 shrink-0 text-primary" />}
       </>
@@ -524,12 +527,12 @@ export function Combobox<TExtra extends object = Record<never, never>>({
             aria-expanded={open}
             aria-invalid={error}>
             {renderTriggerContent()}
-            <ChevronDown className="size-4 opacity-50 shrink-0" />
+            <ChevronDown className="size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
       )}
       <PopoverContent
-        className={cn('p-0 rounded-md', popoverClassName)}
+        className={cn('rounded-md p-0', popoverClassName)}
         align={popoverAlign}
         portalContainer={portalContainer}
         style={{ width: popoverWidth }}
@@ -554,7 +557,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <CommandList>
             {manualFilterEnabled ? (
               visibleOptions.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+                <div className="py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
               ) : (
                 <CommandGroup>
                   {visibleOptions.map((option) => (

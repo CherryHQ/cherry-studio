@@ -1,5 +1,6 @@
-import { codeLanguages as languages } from '@shared/utils/codeLanguages'
 import diff from 'fast-diff'
+
+import { codeLanguages as languages } from '@shared/utils/codeLanguages'
 
 /**
  * Computes code changes using fast-diff and converts them to CodeMirror changes.

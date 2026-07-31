@@ -1,4 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
+import { memo, useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
@@ -7,7 +9,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { projectBranchMessagesToUI } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
 import type { BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
-import { memo, useCallback } from 'react'
 
 import { useHomeMessageListProviderValue } from './homeMessageListAdapter'
 import { rejectPendingTopicImageActions } from './topicImageActionBus'

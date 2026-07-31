@@ -1,6 +1,3 @@
-import { getFileExt } from '@main/utils/legacyFile'
-import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
@@ -9,6 +6,10 @@ import { JSONReader } from '@vectorstores/readers/json'
 import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
+
+import { getFileExt } from '@main/utils/legacyFile'
+import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'

@@ -1,5 +1,6 @@
-import { ContextPrompts } from '@cherrystudio/ai-core'
 import { estimateTokenCount } from 'tokenx'
+
+import { ContextPrompts } from '@cherrystudio/ai-core'
 
 /**
  * Lightweight row view for compaction. Built from a raw cherry `Message`

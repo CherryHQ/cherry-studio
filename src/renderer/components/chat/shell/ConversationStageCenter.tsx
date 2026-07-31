@@ -1,5 +1,6 @@
-import ConversationComposerStage from '@renderer/components/composer/ConversationComposerStage'
 import type { ComponentProps } from 'react'
+
+import ConversationComposerStage from '@renderer/components/composer/ConversationComposerStage'
 
 import { useOptionalRightPanelState } from '../panes/Shell'
 

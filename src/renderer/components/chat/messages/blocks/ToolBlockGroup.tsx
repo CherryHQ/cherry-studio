@@ -1,6 +1,3 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
   CalendarDays,
@@ -21,6 +18,10 @@ import {
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import MessageTools from '../tools/MessageTools'
@@ -390,7 +391,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       shouldBypass: shouldBypassHeaderStabilization
     })
     const renderWithElapsed = (content: React.ReactNode, icon?: React.ReactNode) => (
-      <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
+      <div className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-[13px]">
         {icon && (
           <span
             aria-hidden="true"
@@ -414,7 +415,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     )
     const renderSemanticTitle = (title: React.ReactNode, icon?: React.ReactNode, key?: React.Key) =>
       renderWithElapsed(
-        <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
+        <div className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
           <span className="block truncate font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {title}
           </span>
@@ -435,7 +436,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
         <div className="flex items-center text-[13px]">
-          <span className="whitespace-nowrap font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="font-normal whitespace-nowrap text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </span>
         </div>,
@@ -467,7 +468,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     }
 
     return renderWithElapsed(
-      <div className="min-w-0 max-w-full overflow-hidden" key={displayCandidate.item.id}>
+      <div className="max-w-full min-w-0 overflow-hidden" key={displayCandidate.item.id}>
         <ToolHeader
           toolResponse={displayCandidate.item.toolResponse}
           variant="collapse-label"
@@ -497,7 +498,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
 
   if (preferSummary || (allCompleted && !showLatestWhenComplete && !activityLabel)) {
     return (
-      <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
+      <div className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-[13px]">
         {(summaryIcon || showContentIcon) && (
           <span
             aria-hidden="true"
@@ -513,7 +514,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         )}
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
-            <span className="whitespace-nowrap font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="font-normal whitespace-nowrap text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {fallbackLabel}
             </span>
           </div>
@@ -598,7 +599,7 @@ export const ToolBlockGroup = React.memo(
             })
           }}>
           <AccordionItem value="tools" className="border-0 first:border-t-0">
-            <AccordionTrigger className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:rotate-0 [&[data-state=open]>svg]:opacity-60">
+            <AccordionTrigger className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:rotate-0 [&[data-state=open]>svg]:opacity-60">
               <div className="min-w-0 overflow-hidden">
                 <ToolBlockGroupHeaderContent
                   items={items}

@@ -328,7 +328,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       className={cn(
         // no-drag punches the popup's area out of any titlebar drag region it overlaps,
         // so hover/click reach the items instead of the window-drag hit test (Electron).
-        'pointer-events-auto flex min-w-72 max-w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
+        'pointer-events-auto flex max-w-[min(420px,calc(100vw-2rem))] min-w-72 items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
         toast.className
       )}
@@ -336,9 +336,9 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       onClick={toast.onClick}>
       <div className="mt-0.5 flex shrink-0 items-center justify-center">{icon}</div>
       <div className="min-w-0 flex-1">
-        {toast.title && <div className="break-words font-medium text-sm leading-5">{toast.title}</div>}
+        {toast.title && <div className="text-sm leading-5 font-medium break-words">{toast.title}</div>}
         {toast.description && (
-          <div className="mt-0.5 break-words text-muted-foreground text-xs leading-5">{toast.description}</div>
+          <div className="mt-0.5 text-xs leading-5 break-words text-muted-foreground">{toast.description}</div>
         )}
       </div>
       <button
@@ -372,7 +372,7 @@ export const ToastViewport = ({
   return (
     <div
       aria-label="notifications"
-      className="-translate-x-1/2 pointer-events-none fixed top-5 left-1/2 z-[10000] flex flex-col items-center gap-2"
+      className="pointer-events-none fixed top-5 left-1/2 z-[10000] flex -translate-x-1/2 flex-col items-center gap-2"
       role="region">
       {toasts.map((toast) => (
         <ToastItem key={toast.key} labels={toastLabels} store={store} toast={toast} />

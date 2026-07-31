@@ -1,9 +1,10 @@
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { messageService } from '@data/services/MessageService'
-import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import type { MessageData } from '@shared/data/types/message'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }

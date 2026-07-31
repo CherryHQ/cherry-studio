@@ -1,4 +1,7 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'
@@ -12,8 +15,6 @@ import {
   resolveCommandShortcutPreference
 } from '@shared/utils/command'
 import { normalizeShortcutBinding } from '@shared/utils/shortcut'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useCommandContextReader } from './useCommandContext'
 

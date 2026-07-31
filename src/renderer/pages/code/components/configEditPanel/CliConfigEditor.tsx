@@ -1,13 +1,14 @@
-import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
-import { toast } from '@renderer/services/toast'
-import { cn } from '@renderer/utils/style'
 import { Wand2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 
 interface CliConfigEditorProps {
   files: CliConfigFileDraft[]
@@ -48,7 +49,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="shrink-0 font-normal text-foreground text-xs">{t('code.cli_config.title')}</span>
+          <span className="shrink-0 text-xs font-normal text-foreground">{t('code.cli_config.title')}</span>
           <span className="min-w-0 truncate text-[10px] text-foreground-tertiary">{activeFile?.path}</span>
         </div>
         <Tooltip content={t('code.format_json')}>
@@ -85,7 +86,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
       )}
 
       {error && (
-        <div className="rounded-md border border-error-border bg-error-subtle px-2 py-1.5 text-error-subtle-foreground text-xs">
+        <div className="rounded-md border border-error-border bg-error-subtle px-2 py-1.5 text-xs text-error-subtle-foreground">
           {error}
         </div>
       )}

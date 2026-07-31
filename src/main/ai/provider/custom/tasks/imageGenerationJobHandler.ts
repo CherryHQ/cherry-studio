@@ -1,6 +1,7 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
-import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { JobContext, JobHandler } from '@main/core/job/types'

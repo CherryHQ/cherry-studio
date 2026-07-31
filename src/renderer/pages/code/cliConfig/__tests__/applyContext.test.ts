@@ -1,5 +1,6 @@
-import { CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
+
+import { CodeCli } from '@shared/types/codeCli'
 
 import { parseConfiguredModelId, resolveCliConfigApplyContext } from '../applyContext'
 

@@ -8,6 +8,9 @@
  * (via the provided `onConfirm`).
  */
 
+import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Button,
@@ -19,8 +22,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import React, { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const COUNTDOWN_SECONDS = 10
 
@@ -80,7 +81,7 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
                   {t('migration.skip_dialog.warning_body')}
                 </span>
               </Alert>
-              <ul className="space-y-2 text-muted-foreground text-sm leading-relaxed">
+              <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
                   <span>

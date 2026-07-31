@@ -1,8 +1,9 @@
+import { APICallError, type UIMessageChunk } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { APICallError, type UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamRequest } from '../../types/requests'
 import type {
@@ -2089,7 +2090,6 @@ describe('AiStreamManager', () => {
     /** Drive a `tool-approval-request` so the exec is awaiting approval; return the private exec. */
     const startAwaitingApproval = (topicId: string, modelId: UniqueModelId) => {
       mgr.onChunk(topicId, modelId, { type: 'tool-approval-request' } as UIMessageChunk)
-      // biome-ignore lint/suspicious/noExplicitAny: reach the private exec to drive the abort path
       return (mgr as any).activeStreams.get(topicId).executions.get(modelId)
     }
 

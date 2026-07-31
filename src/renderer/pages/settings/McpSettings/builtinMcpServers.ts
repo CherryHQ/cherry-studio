@@ -1,3 +1,5 @@
+import { nanoid } from 'nanoid'
+
 /**
  * @deprecated Temporary placement. Extracted verbatim from the v1 Redux store
  * (the former `src/renderer/store/mcp.ts`, since deleted) during the Redux store removal.
@@ -8,7 +10,6 @@
  * that v2 migration lands.
  */
 import { type BuiltinMcpServer, BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { nanoid } from 'nanoid'
 
 const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 

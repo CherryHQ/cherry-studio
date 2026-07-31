@@ -1,7 +1,8 @@
+import type { UIMessageChunk } from 'ai'
+
 import { loggerService } from '@logger'
 import { type ChannelAdapter, sanitizeChannelOutput } from '@main/ai/channels'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { UIMessageChunk } from 'ai'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 

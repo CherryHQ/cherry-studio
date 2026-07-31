@@ -1,4 +1,3 @@
-import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import { applyUserOverlay, type UserModelOverlay } from '@data/services/ModelService'
 import {
   applyCapabilityOverride,
@@ -7,6 +6,8 @@ import {
   resolveReasoningProfileFromRegistry
 } from '@data/services/ProviderRegistryService'
 import { describe, expect, it } from 'vitest'
+
+import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 
 // Use string literals matching the actual enum values to avoid
 // importing @cherrystudio/provider-registry just for the constants.

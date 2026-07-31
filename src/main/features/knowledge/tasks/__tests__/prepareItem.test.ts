@@ -1,5 +1,6 @@
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 const {
   chooseDirectoryPathPrefixMock,

@@ -16,6 +16,9 @@
  */
 
 import { promptTable } from '@data/db/schemas/prompt'
+import { sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
@@ -26,8 +29,6 @@ import {
   PromptSchema,
   PromptTitleSchema
 } from '@shared/data/types/prompt'
-import { sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
@@ -279,7 +280,10 @@ export class PromptMigrator extends BaseMigrator {
     const db = ctx.db
 
     try {
-      const promptResult = db.select({ count: sql<number>`count(*)` }).from(promptTable).get()
+      const promptResult = db
+        .select({ count: sql<number>`count(*)` })
+        .from(promptTable)
+        .get()
       const targetCount = promptResult?.count ?? 0
 
       logger.info('Validation counts', {

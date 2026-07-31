@@ -1,3 +1,7 @@
+import type { FC, KeyboardEvent } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -11,9 +15,6 @@ import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { FC, KeyboardEvent } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   app: MiniApp
@@ -214,9 +215,9 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
           </div>
           <div
             className={cn(
-              'w-full select-none text-center text-muted-foreground',
+              'w-full text-center text-muted-foreground select-none',
               isLaunchpad
-                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? 'mt-2 [display:-webkit-box] min-h-9 max-w-[92px] overflow-hidden text-[13px] leading-[18px] [overflow-wrap:anywhere] whitespace-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:2]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}

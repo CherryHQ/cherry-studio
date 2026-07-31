@@ -1,3 +1,6 @@
+import { type ReactNode, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
@@ -9,8 +12,6 @@ import type {
   AiUsageRecordTimelineBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
-import { type ReactNode, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type BoundedTimeRange,
@@ -141,13 +142,13 @@ export function UsageDistributionChart({
       return dateFormatter.format(parseDateKey(periodKey))
     }
     const axis = (
-      <div className="mt-2 flex min-w-0 justify-between gap-3 text-foreground-tertiary text-xs">
+      <div className="mt-2 flex min-w-0 justify-between gap-3 text-xs text-foreground-tertiary">
         <span className="truncate">{formatPeriod(periodKeys[0])}</span>
         <span className="truncate">{formatPeriod(periodKeys[periodKeys.length - 1])}</span>
       </div>
     )
     const legend = (
-      <div className="mt-3 grid min-w-0 @[760px]/usage:grid-cols-4 grid-cols-2 gap-2">
+      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 @[760px]/usage:grid-cols-4">
         {chartSeries.map((series, index) => (
           <div key={series.key} className="flex min-w-0 items-center gap-2 text-xs">
             <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: seriesColor(index) }} />
@@ -190,7 +191,7 @@ export function UsageDistributionChart({
 
     return (
       <div className="min-w-0 p-3">
-        <div className={cn('flex h-64 min-w-0 items-end border-border border-b', periodKeys.length <= 120 && 'gap-px')}>
+        <div className={cn('flex h-64 min-w-0 items-end border-b border-border', periodKeys.length <= 120 && 'gap-px')}>
           {periodKeys.map((periodKey, index) => (
             <div
               key={periodKey}
@@ -293,9 +294,9 @@ export function UsageDistributionChart({
     const circumference = 2 * Math.PI * radius
 
     return (
-      <div className="grid min-w-0 @[820px]/usage:grid-cols-[18rem_minmax(0,1fr)] grid-cols-1 gap-4 p-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 p-3 @[820px]/usage:grid-cols-[18rem_minmax(0,1fr)]">
         <div className="flex min-h-64 items-center justify-center">
-          <svg viewBox="0 0 160 160" className="-rotate-90 size-56" role="img">
+          <svg viewBox="0 0 160 160" className="size-56 -rotate-90" role="img">
             <title>{t('settings.usage.chart.pie')}</title>
             <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--muted)" strokeWidth="22" />
             {entries.map((entry) => {
@@ -321,14 +322,14 @@ export function UsageDistributionChart({
             })}
           </svg>
         </div>
-        <div className="grid min-w-0 @[820px]/usage:grid-cols-2 content-start gap-2">
+        <div className="grid min-w-0 content-start gap-2 @[820px]/usage:grid-cols-2">
           {entries.map((entry) =>
             renderHoverCardForEntry(
               entry,
               <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent">
                 <span className="size-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span className="min-w-0 truncate text-foreground text-sm">{entry.label}</span>
-                <span className="shrink-0 font-medium text-foreground text-xs">{formatChartValue(entry.value)}</span>
+                <span className="min-w-0 truncate text-sm text-foreground">{entry.label}</span>
+                <span className="shrink-0 text-xs font-medium text-foreground">{formatChartValue(entry.value)}</span>
               </div>
             )
           )}
@@ -356,19 +357,19 @@ export function UsageDistributionChart({
         )}
       </div>
 
-      <div className="mt-3 grid min-w-0 @[820px]/usage:grid-cols-2 grid-cols-1 gap-x-4">
+      <div className="mt-3 grid min-w-0 grid-cols-1 gap-x-4 @[820px]/usage:grid-cols-2">
         {entries.map((entry) => {
           const percent = maxExploreMetric > 0 ? Math.max(3, (entry.value / maxExploreMetric) * 100) : 0
 
           return renderHoverCardForEntry(
             entry,
-            <div className="min-w-0 border-border border-t py-2">
+            <div className="min-w-0 border-t border-border py-2">
               <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3">
                 <div className="flex min-w-0 items-start gap-2">
                   <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
-                  <div className="min-w-0 text-foreground text-sm">{entry.label}</div>
+                  <div className="min-w-0 text-sm text-foreground">{entry.label}</div>
                 </div>
-                <div className="shrink-0 text-right font-medium text-foreground text-xs">
+                <div className="shrink-0 text-right text-xs font-medium text-foreground">
                   {formatChartValue(entry.value)}
                 </div>
               </div>

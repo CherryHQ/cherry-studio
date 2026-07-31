@@ -1,10 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
 import type { DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('WebviewContainer')
 

@@ -1,3 +1,8 @@
+import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
+
 import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -5,10 +10,6 @@ import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/usePro
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuidv4 } from 'uuid'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -186,7 +187,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
-              <div className="px-4 py-6 text-center text-muted-foreground text-sm">{t('error.no_api_key')}</div>
+              <div className="px-4 py-6 text-center text-sm text-muted-foreground">{t('error.no_api_key')}</div>
             ) : null}
             {apiKeys.map((entry) => (
               <div key={entry.id} className={apiKeyListClasses.keyRow}>

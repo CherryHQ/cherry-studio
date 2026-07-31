@@ -1,6 +1,7 @@
+import * as z from 'zod'
+
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
-import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 

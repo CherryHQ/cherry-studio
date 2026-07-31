@@ -1,4 +1,3 @@
-import { cn } from '@renderer/utils/style'
 import {
   type ButtonHTMLAttributes,
   createElement,
@@ -7,6 +6,8 @@ import {
   type Ref,
   useInsertionEffect
 } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 const STYLE_ID = 'cherry-rich-editor-style-helpers'
 

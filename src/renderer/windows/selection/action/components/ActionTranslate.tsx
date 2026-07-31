@@ -1,5 +1,10 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
+import type { FC } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
@@ -12,10 +17,6 @@ import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { defaultLanguage } from '@shared/utils/languages'
-import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
-import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
@@ -266,7 +267,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     () => (
       <div className="flex flex-col gap-2">
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-muted-foreground text-xs">{t('translate.preferred_target')}</span>
+          <span className="text-xs text-muted-foreground">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
             className="w-full [&>div]:w-full"
@@ -281,7 +282,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           />
         </div>
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-muted-foreground text-xs">{t('translate.alter_language')}</span>
+          <span className="text-xs text-muted-foreground">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
             className="w-full [&>div]:w-full"
@@ -318,7 +319,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
-            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
+            <div className="flex min-w-0 items-center rounded bg-muted px-2 py-1 text-xs whitespace-nowrap text-muted-foreground">
               {isDetecting ? (
                 <span className="min-w-0 truncate">{t('translate.detecting')}</span>
               ) : (
@@ -338,7 +339,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             {/* Target language selector */}
             <LanguageSelect
               value={actualTargetLanguage.langCode}
-              className="min-w-[100px] max-w-[160px]"
+              className="max-w-[160px] min-w-[100px]"
               listHeight={160}
               size="small"
               optionFilterProp="label"
@@ -379,7 +380,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <button
               type="button"
               onClick={() => setShowOriginal(!showOriginal)}
-              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-muted-foreground text-xs transition-colors hover:text-foreground">
+              className="flex cursor-pointer items-center justify-between py-1 text-xs whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground">
               <span>
                 {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
               </span>
@@ -388,7 +389,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </div>
         </div>
         {showOriginal && (
-          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
+          <div className="mt-2 w-full rounded bg-muted p-2 text-xs break-words whitespace-pre-wrap text-muted-foreground">
             {action.selectedText}{' '}
             <div className="flex justify-end">
               <CopyButton
@@ -400,7 +401,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </div>
           </div>
         )}
-        <div className="mt-4 w-full whitespace-pre-wrap break-words">
+        <div className="mt-4 w-full break-words whitespace-pre-wrap">
           {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
@@ -413,7 +414,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
+          <div className="mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
             {error}
           </div>
         )}

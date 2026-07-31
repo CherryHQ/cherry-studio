@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { buildModelListSyncPreview } from '../buildModelListSyncPreview'
 import { fetchResolvedProviderModels } from '../modelSync'

@@ -9,8 +9,9 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+
+import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'

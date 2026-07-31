@@ -12,7 +12,7 @@ import { cn } from '@renderer/utils/style'
 export const SubWindowTitleBar = () => (
   <header
     className={cn(
-      'relative flex w-full shrink-0 select-none items-center gap-2 border-border-subtle border-b bg-background [-webkit-app-region:drag]',
+      'relative flex w-full shrink-0 items-center gap-2 border-b border-border-subtle bg-background select-none [-webkit-app-region:drag]',
       TITLE_BAR_HEIGHT_CLASS,
       // Reserve the top-right corner for the OS window controls overlay (0px on macOS).
       'pr-[calc(0.5rem+var(--window-controls-width,0px))]',

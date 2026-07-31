@@ -1,5 +1,6 @@
-import type { CherryMessagePart, CherryUIMessage, TreeNode, TreeResponse } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage, TreeNode, TreeResponse } from '@shared/data/types/message'
 
 import { buildTopicMessageFlowLiveState, mergeTopicMessageFlowLiveTree } from '../topicMessageFlowLiveTree'
 

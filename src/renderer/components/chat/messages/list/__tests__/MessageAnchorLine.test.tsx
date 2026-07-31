@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, fireEvent, render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, createContext, use } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../../types'
 import MessageAnchorLine from '../MessageAnchorLine'

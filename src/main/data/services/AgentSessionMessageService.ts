@@ -1,4 +1,3 @@
-import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
@@ -10,6 +9,11 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { isToolUIPart } from 'ai'
+import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+import { v7 as uuidv7, validate as isUuid } from 'uuid'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
@@ -31,9 +35,6 @@ import {
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
-import { isToolUIPart } from 'ai'
-import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
-import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'

@@ -9,13 +9,14 @@
  */
 
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import type { LanguageModelMiddleware } from 'ai'
+import { estimateTokenCount } from 'tokenx'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { resolveAnthropicCacheSettings } from '@shared/ai/anthropicCache'
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { LanguageModelMiddleware } from 'ai'
-import { estimateTokenCount } from 'tokenx'
 
 import { VOLATILE_PROMPT_VARIABLES } from '../../../../../utils/prompt'
 import type { RequestFeature } from '../feature'

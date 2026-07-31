@@ -186,13 +186,13 @@ export function PromptVariableToken({
           defaultValue={token.label}
           aria-label={token.description ?? token.label}
           rows={1}
-          className="field-sizing-content wrap-anywhere m-0 min-w-0 max-w-full resize-none overflow-hidden whitespace-pre-wrap border-0 bg-transparent p-0 font-[inherit] text-current leading-[inherit] outline-none"
+          className="m-0 field-sizing-content max-w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-0 font-[inherit] leading-[inherit] wrap-anywhere whitespace-pre-wrap text-current outline-none"
           style={promptVariableInputStyle}
           onChange={handleInputChange}
           onMouseDown={(event) => event.stopPropagation()}
         />
       ) : (
-        <span className="wrap-anywhere min-w-0 whitespace-pre-wrap">{token.label}</span>
+        <span className="min-w-0 wrap-anywhere whitespace-pre-wrap">{token.label}</span>
       )}
     </ComposerToken>
   )

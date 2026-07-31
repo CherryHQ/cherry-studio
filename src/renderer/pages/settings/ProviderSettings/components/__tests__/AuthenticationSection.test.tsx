@@ -1,6 +1,7 @@
-import AuthenticationSection from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/AuthenticationSection'
 import { fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import AuthenticationSection from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/AuthenticationSection'
 
 const useProviderMock = vi.fn()
 const useProviderApiKeyMock = vi.fn()

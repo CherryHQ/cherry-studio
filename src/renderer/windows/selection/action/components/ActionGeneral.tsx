@@ -1,5 +1,10 @@
 import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
+import { ChevronDown, Loader2 } from 'lucide-react'
+import type { FC } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
@@ -12,10 +17,6 @@ import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { ChevronDown, Loader2 } from 'lucide-react'
-import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
@@ -180,7 +181,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           <button
             type="button"
             onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between text-muted-foreground text-xs transition-colors hover:text-foreground">
+            className="flex cursor-pointer items-center justify-between text-xs text-muted-foreground transition-colors hover:text-foreground">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>
@@ -188,7 +189,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </button>
         </div>
         {showOriginal && (
-          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
+          <div className="mt-2 mb-3 w-full rounded bg-muted p-2 text-xs break-words whitespace-pre-wrap text-muted-foreground">
             {action.selectedText}
             <div className="flex justify-end">
               <CopyButton
@@ -213,7 +214,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
+          <div className="mt-3 mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
             {error}
           </div>
         )}

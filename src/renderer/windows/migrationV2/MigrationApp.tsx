@@ -1,4 +1,27 @@
 import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  Copy,
+  Database,
+  Download,
+  FolderOpen,
+  History,
+  Loader2,
+  Monitor,
+  Moon,
+  Rocket,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Sun,
+  Wrench,
+  X
+} from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Alert,
   Button,
   Dialog,
@@ -26,28 +49,6 @@ import ToastHost from '@renderer/components/ToastHost'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  Copy,
-  Database,
-  Download,
-  FolderOpen,
-  History,
-  Loader2,
-  Monitor,
-  Moon,
-  Rocket,
-  RotateCcw,
-  Shield,
-  Sparkles,
-  Sun,
-  Wrench,
-  X
-} from 'lucide-react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   CloseMigrationDialog,
@@ -135,7 +136,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
   const current = stageStepNumber(stage)
 
   return (
-    <aside className="flex w-44 shrink-0 flex-col border-border border-r bg-muted/20">
+    <aside className="flex w-44 shrink-0 flex-col border-r border-border bg-muted/20">
       <ol className="flex flex-1 flex-col p-6">
         {RAIL_STEPS.map((step, index) => {
           const isError = stage === 'error' && step.n === current
@@ -148,14 +149,14 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
               {!isLast && (
                 <span
                   className={cn(
-                    '-translate-x-1/2 absolute top-1/2 left-3 h-11 w-px',
+                    'absolute top-1/2 left-3 h-11 w-px -translate-x-1/2',
                     done ? 'bg-primary/40' : 'bg-border'
                   )}
                 />
               )}
               <div
                 className={cn(
-                  'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
+                  'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm font-medium',
                   isError && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
                   !isError && (active || done) && 'bg-primary text-primary-foreground',
                   !isError && !active && !done && 'border border-border bg-background text-foreground-disabled'
@@ -278,16 +279,16 @@ const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
               type="button"
               variant="outline"
               aria-label={t('migration.more_options.diagnostics_title')}
-              className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+              className="h-auto w-full items-start justify-start gap-3 p-4 text-left whitespace-normal"
               onClick={handleExportDiagnostics}>
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
                 <Download size={16} />
               </span>
               <span className="min-w-0">
-                <span className="block font-medium text-foreground text-sm">
+                <span className="block text-sm font-medium text-foreground">
                   {t('migration.more_options.diagnostics_title')}
                 </span>
-                <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
                   {t('migration.more_options.diagnostics_description')}
                 </span>
               </span>
@@ -297,16 +298,16 @@ const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
             type="button"
             variant="outline"
             aria-label={t('migration.more_options.use_v2_title')}
-            className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+            className="h-auto w-full items-start justify-start gap-3 p-4 text-left whitespace-normal"
             onClick={handleSkipMigration}>
             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
               <AlertTriangle size={16} />
             </span>
             <span className="min-w-0">
-              <span className="block font-medium text-foreground text-sm">
+              <span className="block text-sm font-medium text-foreground">
                 {t('migration.more_options.use_v2_title')}
               </span>
-              <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
                 {t('migration.more_options.skip_description')}
               </span>
             </span>
@@ -316,14 +317,14 @@ const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
               type="button"
               variant="outline"
               aria-label={t('migration.buttons.continue_v1')}
-              className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+              className="h-auto w-full items-start justify-start gap-3 p-4 text-left whitespace-normal"
               onClick={handleContinueV1}>
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
                 <History size={16} />
               </span>
               <span className="min-w-0">
-                <span className="block font-medium text-foreground text-sm">{t('migration.buttons.continue_v1')}</span>
-                <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                <span className="block text-sm font-medium text-foreground">{t('migration.buttons.continue_v1')}</span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
                   {t('migration.more_options.continue_v1_description')}
                 </span>
               </span>
@@ -556,10 +557,10 @@ const MigrationApp: React.FC = () => {
               <StageBadge tone="neutral">
                 <Rocket size={28} strokeWidth={1.5} />
               </StageBadge>
-              <h1 className="font-semibold text-2xl text-foreground tracking-tight">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                 {t('migration.introduction.title')}
               </h1>
-              <p className="mt-2 text-muted-foreground text-sm">{t('migration.introduction.subtitle')}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{t('migration.introduction.subtitle')}</p>
             </TopContent>
 
             <div className="space-y-2.5">
@@ -587,8 +588,8 @@ const MigrationApp: React.FC = () => {
                     {feature.icon}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground text-sm">{feature.title}</p>
-                    <p className="mt-0.5 text-muted-foreground text-xs leading-relaxed">{feature.description}</p>
+                    <p className="text-sm font-medium text-foreground">{feature.title}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -605,7 +606,7 @@ const MigrationApp: React.FC = () => {
                 <ArrowRight size={14} />
               </Button>
               {progress.dataLocation && (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 text-foreground-tertiary text-xs">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 text-xs text-foreground-tertiary">
                   <FolderOpen size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 break-all">
                     {t('migration.introduction.data_location', { path: progress.dataLocation })}
@@ -623,17 +624,17 @@ const MigrationApp: React.FC = () => {
               <StageBadge tone="primary">
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
               </StageBadge>
-              <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.migration.title')}</h2>
-              <p className="mt-1.5 text-muted-foreground text-sm">{progressMessage}</p>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('migration.migration.title')}</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">{progressMessage}</p>
             </TopContent>
             <div>
-              <div className="mb-2 flex items-center justify-between text-foreground-tertiary text-xs">
+              <div className="mb-2 flex items-center justify-between text-xs text-foreground-tertiary">
                 <span className="tabular-nums">{Math.round(progress.overallProgress)}%</span>
               </div>
               <ProgressBar value={progress.overallProgress} />
             </div>
             <MigratorProgressList migrators={progress.migrators} />
-            <p className="pt-0.5 text-center text-muted-foreground text-xs">{t('migration.migration.do_not_close')}</p>
+            <p className="pt-0.5 text-center text-xs text-muted-foreground">{t('migration.migration.do_not_close')}</p>
           </div>
         )
 
@@ -647,10 +648,10 @@ const MigrationApp: React.FC = () => {
                 🎉
                 <Confetti />
               </div>
-              <h2 className="font-semibold text-2xl text-foreground tracking-tight">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                 {t('migration.completed.title')}
               </h2>
-              <p className="mt-2.5 text-muted-foreground text-sm leading-relaxed">
+              <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                 {t('migration.completed.description')}
               </p>
             </TopContent>
@@ -658,20 +659,20 @@ const MigrationApp: React.FC = () => {
             {summary && (
               <div className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/10 py-4">
                 <Stat>
-                  <span className="font-semibold text-2xl text-foreground tabular-nums">
+                  <span className="text-2xl font-semibold text-foreground tabular-nums">
                     {summary.completedMigrators}/{summary.totalMigrators}
                   </span>
-                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.steps_label')}</span>
+                  <span className="text-xs text-foreground-tertiary">{t('migration.completed.steps_label')}</span>
                 </Stat>
                 <Stat>
-                  <span className="font-semibold text-2xl text-foreground tabular-nums">{summary.itemsProcessed}</span>
-                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.items_label')}</span>
+                  <span className="text-2xl font-semibold text-foreground tabular-nums">{summary.itemsProcessed}</span>
+                  <span className="text-xs text-foreground-tertiary">{t('migration.completed.items_label')}</span>
                 </Stat>
                 <Stat>
-                  <span className="font-semibold text-2xl text-foreground tabular-nums">
+                  <span className="text-2xl font-semibold text-foreground tabular-nums">
                     {formatDuration(summary.durationMs)}
                   </span>
-                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.duration_label')}</span>
+                  <span className="text-xs text-foreground-tertiary">{t('migration.completed.duration_label')}</span>
                 </Stat>
               </div>
             )}
@@ -701,7 +702,7 @@ const MigrationApp: React.FC = () => {
                     <DialogDescription>{t('migration.completed.warning_description')}</DialogDescription>
                   </DialogHeader>
                   <Scrollbar className="max-h-[50vh]">
-                    <ul className="text-foreground text-sm leading-relaxed">
+                    <ul className="text-sm leading-relaxed text-foreground">
                       {warnings.map((warning, index) => (
                         <li key={index} className="wrap-break-words">
                           {warning}
@@ -732,8 +733,8 @@ const MigrationApp: React.FC = () => {
               <StageBadge tone="destructive">
                 <AlertTriangle size={26} strokeWidth={1.5} />
               </StageBadge>
-              <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.error.title')}</h2>
-              <p className="mt-1.5 text-muted-foreground text-sm leading-relaxed">{t('migration.error.description')}</p>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('migration.error.title')}</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t('migration.error.description')}</p>
             </TopContent>
             <div
               role="button"
@@ -748,7 +749,7 @@ const MigrationApp: React.FC = () => {
                   setDiagnosticExportOpen(true)
                 }
               }}>
-              <p className="wrap-break-words select-text text-error-subtle-foreground text-xs leading-5">
+              <p className="wrap-break-words text-xs leading-5 text-error-subtle-foreground select-text">
                 {t('migration.error.error_prefix')}
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
@@ -783,11 +784,11 @@ const MigrationApp: React.FC = () => {
               <StageBadge tone="warning">
                 <AlertTriangle size={26} strokeWidth={1.5} />
               </StageBadge>
-              <h2 className="font-semibold text-foreground text-lg tracking-tight">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
                 {t('migration.version_incompatible.title')}
               </h2>
             </div>
-            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
+            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
               <p>{t('migration.version_incompatible.preamble')}</p>
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
@@ -812,18 +813,18 @@ const MigrationApp: React.FC = () => {
   return (
     <>
       <div className="flex h-screen w-screen flex-col bg-card text-card-foreground">
-        <header className="relative flex h-11 shrink-0 items-center justify-center border-border border-b [-webkit-app-region:drag]">
+        <header className="relative flex h-11 shrink-0 items-center justify-center border-b border-border [-webkit-app-region:drag]">
           <div
             data-migration-language-select=""
             className={cn(
-              '-translate-y-1/2 absolute top-1/2 z-10 flex items-center gap-1 [-webkit-app-region:no-drag]',
+              'absolute top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 [-webkit-app-region:no-drag]',
               isMac ? 'right-3' : 'left-3'
             )}>
             <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
               <SelectTrigger
                 aria-label={t('migration.language.select')}
                 size="sm"
-                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-muted-foreground text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -844,9 +845,9 @@ const MigrationApp: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />
-            <span className="font-medium text-foreground text-sm">Cherry Studio</span>
+            <span className="text-sm font-medium text-foreground">Cherry Studio</span>
             <span className="text-foreground-tertiary">·</span>
-            <span className="text-foreground-tertiary text-xs">{t('migration.title')}</span>
+            <span className="text-xs text-foreground-tertiary">{t('migration.title')}</span>
           </div>
           <MigrationWindowControls />
         </header>

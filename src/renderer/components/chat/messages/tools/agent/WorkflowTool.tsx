@@ -1,9 +1,10 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import CopyIcon from '@renderer/components/icons/CopyIcon'
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
@@ -63,7 +64,7 @@ export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentTo
         {script ? (
           <div className="min-w-0">
             <div className="mb-1 flex min-h-7 items-center justify-between gap-2">
-              <span className="font-medium text-muted-foreground text-xs">{t('message.tools.workflow.script')}</span>
+              <span className="text-xs font-medium text-muted-foreground">{t('message.tools.workflow.script')}</span>
               {actions?.copyText ? (
                 <Tooltip content={copied ? t('common.copied') : t('common.copy')}>
                   <Button
@@ -79,7 +80,7 @@ export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentTo
             </div>
             <Suspense
               fallback={
-                <pre className="max-h-72 overflow-auto rounded-md bg-background-subtle p-2 font-mono text-foreground text-xs">
+                <pre className="max-h-72 overflow-auto rounded-md bg-background-subtle p-2 font-mono text-xs text-foreground">
                   {script}
                 </pre>
               }>
@@ -98,20 +99,20 @@ export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentTo
 
         {result?.summary ? (
           <div>
-            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.workflow.summary')}</div>
-            <div className="whitespace-pre-wrap rounded-md bg-background-subtle p-2 text-foreground text-xs">
+            <div className="mb-1 text-xs font-medium text-muted-foreground">{t('message.tools.workflow.summary')}</div>
+            <div className="rounded-md bg-background-subtle p-2 text-xs whitespace-pre-wrap text-foreground">
               {result.summary}
             </div>
           </div>
         ) : null}
 
         {result?.warning ? (
-          <div className="rounded-md border border-warning-border bg-warning-subtle p-2 text-warning-subtle-foreground text-xs">
+          <div className="rounded-md border border-warning-border bg-warning-subtle p-2 text-xs text-warning-subtle-foreground">
             {result.warning}
           </div>
         ) : null}
         {result?.error ? (
-          <div className="rounded-md border border-error-border bg-error-subtle p-2 text-error-subtle-foreground text-xs">
+          <div className="rounded-md border border-error-border bg-error-subtle p-2 text-xs text-error-subtle-foreground">
             {result.error}
           </div>
         ) : null}

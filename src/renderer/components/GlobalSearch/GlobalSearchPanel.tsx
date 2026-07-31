@@ -1,3 +1,11 @@
+import { dataApiService } from '@data/DataApiService'
+import { usePersistCache } from '@data/hooks/useCache'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
+import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -10,10 +18,6 @@ import {
   KbdGroup,
   SegmentedControl
 } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { usePersistCache } from '@data/hooks/useCache'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   ResourceEditDialogHost,
@@ -33,9 +37,6 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
-import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   areGlobalSearchRecentEntriesEqual,
@@ -278,7 +279,7 @@ function TimeFilterDropdown({
         <Button
           type="button"
           variant="ghost"
-          className="h-7 gap-1.5 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground"
+          className="h-7 gap-1.5 rounded-[8px] px-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           aria-label={`${t(getTimeFilterAriaLabelKey(panelMode))}: ${t(getTimeFilterLabelKey(timeFilter))}`}>
           <Clock3 className="size-3.5" />
           <span>{t(getTimeFilterLabelKey(timeFilter))}</span>
@@ -291,7 +292,7 @@ function TimeFilterDropdown({
             <DropdownMenuRadioItem
               key={filterOption}
               value={filterOption}
-              className="h-8 rounded-[7px] font-medium text-xs data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground">
+              className="h-8 rounded-[7px] text-xs font-medium data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground">
               {t(getTimeFilterLabelKey(filterOption))}
             </DropdownMenuRadioItem>
           ))}
@@ -937,7 +938,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     onMouseEnter={() => setActiveItemId(GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID)}
                     onClick={handleLoadMoreMessageResults}
                     className={cn(
-                      'h-8 w-full rounded-[8px] font-medium text-xs hover:bg-muted/50 hover:text-foreground',
+                      'h-8 w-full rounded-[8px] text-xs font-medium hover:bg-muted/50 hover:text-foreground',
                       active ? 'bg-muted/60 text-accent-foreground' : 'text-muted-foreground'
                     )}>
                     {isLoadingMoreMessageResults
@@ -968,7 +969,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="shrink-0 px-5 pt-4 pb-2">
         <div className="relative">
-          <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 size-5 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             ref={inputRef}
             value={query}
@@ -1000,7 +1001,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 setMessagePreviewTarget(null)
                 inputRef.current?.focus({ preventScroll: true })
               }}
-              className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              className="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
             </button>
           )}
@@ -1032,7 +1033,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     aria-pressed={messageSourceFilter === filterOption}
                     onClick={() => handleMessageSourceFilterSelect(filterOption)}
                     className={cn(
-                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
+                      'h-7 rounded-[8px] px-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                       messageSourceFilter === filterOption && 'bg-muted text-foreground hover:bg-muted'
                     )}>
                     {t(getMessageSourceFilterLabelKey(filterOption))}
@@ -1051,7 +1052,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     aria-pressed={filter === filterOption}
                     onClick={() => handleFilterSelect(filterOption)}
                     className={cn(
-                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
+                      'h-7 rounded-[8px] px-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                       filter === filterOption && 'bg-muted text-foreground hover:bg-muted'
                     )}>
                     {t(getFilterLabelKey(filterOption))}
@@ -1064,7 +1065,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         )}
       </div>
 
-      <div className={cn('min-h-0 flex-1', showSearchControls && 'border-border-subtle border-t')}>
+      <div className={cn('min-h-0 flex-1', showSearchControls && 'border-t border-border-subtle')}>
         {isMessageSearchMode ? (
           messagePreviewTarget ? (
             <GlobalSearchMessagePreviewPanel
@@ -1149,7 +1150,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       </div>
 
       {showSearchControls && (
-        <div className="flex h-10 shrink-0 items-center gap-4 border-border-subtle border-t bg-background/95 px-5 text-muted-foreground text-xs">
+        <div className="flex h-10 shrink-0 items-center gap-4 border-t border-border-subtle bg-background/95 px-5 text-xs text-muted-foreground">
           <KbdGroup>
             <Kbd className="bg-muted text-muted-foreground shadow-none">↑↓</Kbd>
             <span>{t('globalSearch.keyboard.select')}</span>

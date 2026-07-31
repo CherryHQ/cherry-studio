@@ -14,6 +14,9 @@
 
 import { cacheService } from '@data/CacheService'
 import { useCache, usePersistCache, useSharedCache } from '@data/hooks/useCache'
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
 import type {
   ExpandTemplateKey,
   InferSharedCacheValue,
@@ -24,8 +27,6 @@ import type {
   UseCacheCasualKey,
   UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { installCacheApiMock } from './testUtils'
 

@@ -1,8 +1,9 @@
-import { loggerService } from '@renderer/services/LoggerService'
 import type { FC } from 'react'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactPlayer from 'react-player'
+
+import { loggerService } from '@renderer/services/LoggerService'
 
 const logger = loggerService.withContext('MessageVideo')
 interface Props {

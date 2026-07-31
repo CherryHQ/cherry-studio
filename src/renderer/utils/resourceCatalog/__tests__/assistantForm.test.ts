@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { describe, expect, it } from 'vitest'
 
 import { diffAssistantSaveIntent, diffAssistantUpdate, initialAssistantFormState } from '../assistantForm'
 

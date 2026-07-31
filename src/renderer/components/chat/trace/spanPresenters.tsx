@@ -1,7 +1,8 @@
 import { SPAN_NAME_TURN } from '@mcp-trace/trace-core'
+import type { ReactNode } from 'react'
+
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ReactNode } from 'react'
 
 import type { TraceNode } from './traceNode'
 

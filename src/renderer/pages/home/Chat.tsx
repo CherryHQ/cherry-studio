@@ -1,6 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import type { FC, ReactNode } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
@@ -22,9 +26,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
-import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
@@ -93,10 +94,10 @@ const Chat: FC<Props> = (props) => {
   // conversation already carries everything its trigger needs on the Model entity itself.
   const shouldLoadProviders = Boolean(
     activeTopic &&
-      activeConversationControlsSnapshot &&
-      (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
-        activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
-        activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
+    activeConversationControlsSnapshot &&
+    (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
+      activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
+      activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId

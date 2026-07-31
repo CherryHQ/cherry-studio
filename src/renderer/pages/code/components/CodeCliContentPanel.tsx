@@ -1,12 +1,13 @@
+import { ExternalLink } from 'lucide-react'
+import { type FC, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, SearchInput } from '@cherrystudio/ui'
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { ExternalLink } from 'lucide-react'
-import { type FC, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { ConfigList } from './ConfigList'
@@ -134,7 +135,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
         />
 
         {providerState.providerless ? (
-          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
+          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-xs text-muted-foreground">
             {t('code.providerless_hint')}
           </div>
         ) : (
@@ -142,7 +143,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             <div className="space-y-3">
               {supportedProviders.length > 0 && (
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-medium text-foreground text-sm">{t('code.model_providers')}</h2>
+                  <h2 className="text-sm font-medium text-foreground">{t('code.model_providers')}</h2>
                   <div className="w-52 shrink-0">
                     <SearchInput
                       size="sm"
@@ -181,7 +182,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               variant="outline"
               size="sm"
               onClick={() => openSettingsTab('/settings/provider')}
-              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-muted-foreground hover:border-border hover:text-foreground">
+              className="w-full rounded-xl border-dashed border-border-subtle py-2 text-muted-foreground hover:border-border hover:text-foreground">
               {t(getAddProviderHintKey(selectedCliTool))}
               <ExternalLink size={10} />
             </Button>

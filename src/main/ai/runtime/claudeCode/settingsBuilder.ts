@@ -23,12 +23,14 @@ import type {
   PermissionResult,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
-import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { app } from 'electron'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
@@ -88,7 +90,6 @@ import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import type { McpTool } from '@shared/types/mcp'
 import { languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
-import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
 import {

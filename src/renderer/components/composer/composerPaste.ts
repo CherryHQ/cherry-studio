@@ -1,7 +1,8 @@
+import type { JSONContent } from '@tiptap/core'
+
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
-import type { JSONContent } from '@tiptap/core'
 
 import {
   type ComposerTokenMarkerRule,

@@ -1,4 +1,3 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type {
   Active,
   CollisionDetection,
@@ -33,6 +32,8 @@ import {
 } from '@dnd-kit/sortable'
 import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { ItemRenderer } from './item-renderer'
 import { SortableItem } from './sortable-item'

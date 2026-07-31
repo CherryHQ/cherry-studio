@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 export function useLocalModel(model: LocalModelKind) {
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')

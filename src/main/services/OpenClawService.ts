@@ -4,9 +4,10 @@ import fs from 'node:fs'
 import { Socket } from 'node:net'
 import path from 'node:path'
 
-import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'

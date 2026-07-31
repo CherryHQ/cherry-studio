@@ -1,10 +1,11 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { NormalTooltip, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
 import { UsagePanelTitle } from './UsageSettingsPrimitives'
@@ -226,7 +227,7 @@ export default function UsageHeatmap({
         </div>
       </div>
 
-      <div ref={heatmapRef} className="min-w-0 max-w-full overflow-x-auto pb-1">
+      <div ref={heatmapRef} className="max-w-full min-w-0 overflow-x-auto pb-1">
         <div className="flex w-max min-w-full justify-end" style={{ gap: CELL_GAP }}>
           {weeks.map((week, weekIndex) => (
             <div
@@ -237,7 +238,7 @@ export default function UsageHeatmap({
                 gap: CELL_GAP,
                 gridTemplateRows: `16px repeat(7, ${CELL_SIZE}px)`
               }}>
-              <div className="h-4 overflow-visible whitespace-nowrap pr-3 text-[10px] text-foreground-tertiary leading-4">
+              <div className="h-4 overflow-visible pr-3 text-[10px] leading-4 whitespace-nowrap text-foreground-tertiary">
                 {monthLabels[weekIndex]}
               </div>
 

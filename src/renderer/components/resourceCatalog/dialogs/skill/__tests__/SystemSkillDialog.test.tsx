@@ -1,8 +1,9 @@
-import type { SystemSkillCandidate } from '@shared/types/skill'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { SystemSkillCandidate } from '@shared/types/skill'
 
 import { SystemSkillDialog } from '../SystemSkillDialog'
 

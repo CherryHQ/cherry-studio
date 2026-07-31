@@ -22,20 +22,21 @@
  * enforce.
  */
 
-import { application } from '@application'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { JobManager } from '@main/core/job/JobManager'
-import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
-import { BaseService } from '@main/core/lifecycle/BaseService'
-import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { JobManager } from '@main/core/job/JobManager'
+import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 
 import { drainTrailingDispatch } from './_helpers'
 

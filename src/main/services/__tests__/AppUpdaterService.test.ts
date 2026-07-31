@@ -86,13 +86,14 @@ vi.mock('electron-updater', () => ({
   AppUpdater: vi.fn()
 }))
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { app } from 'electron'
+import { autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
 
 import { AppUpdaterService } from '../AppUpdaterService'
 

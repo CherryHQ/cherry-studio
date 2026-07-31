@@ -1,7 +1,8 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 // Stub the leaf cards so we can assert ONLY which branch chooseTool routes to.
 vi.mock('../meta/MessageMetaTool', () => ({

@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import type { ToolSet } from 'ai'
+
+import { loggerService } from '@logger'
 
 import type { AgentLoopHooks, ToolExecutionStartEvent } from './types'
 

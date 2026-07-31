@@ -1,12 +1,13 @@
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
@@ -101,7 +102,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
             return (
               <div key={option.value} className="flex items-start gap-2">
                 <RadioGroupItem value={option.value} id={id} className="mt-0.5" />
-                <Label htmlFor={id} className="max-w-full cursor-pointer font-normal leading-snug">
+                <Label htmlFor={id} className="max-w-full cursor-pointer leading-snug font-normal">
                   <span>
                     {option.label}{' '}
                     <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer" className="text-link">

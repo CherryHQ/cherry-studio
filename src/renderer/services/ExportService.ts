@@ -1,6 +1,11 @@
 import { preferenceService } from '@data/PreferenceService'
-import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
+import { markdownToBlocks } from '@tryfabric/martian'
+import dayjs from 'dayjs'
+import DOMPurify from 'dompurify'
+import { appendBlocks } from 'notion-helper'
+
+import { loggerService } from '@logger'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -27,10 +32,6 @@ import {
   getThinkingContent,
   getToolCitationExport
 } from '@renderer/utils/message/find'
-import { markdownToBlocks } from '@tryfabric/martian'
-import dayjs from 'dayjs'
-import DOMPurify from 'dompurify'
-import { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('ExportService')
 

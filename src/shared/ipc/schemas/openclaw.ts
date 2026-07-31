@@ -1,5 +1,6 @@
-import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'

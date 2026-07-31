@@ -1,15 +1,16 @@
+import { cva, type VariantProps } from 'class-variance-authority'
+import * as React from 'react'
+
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import type { TextareaInputProps } from '@cherrystudio/ui/components/primitives/textarea'
 import * as Textarea from '@cherrystudio/ui/components/primitives/textarea'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { cva, type VariantProps } from 'class-variance-authority'
-import * as React from 'react'
 
 const inputGroupVariants = cva(
   [
-    'group/input-group border-input bg-background relative flex w-full items-center rounded-md border transition-[color,box-shadow] outline-none',
+    'group/input-group relative flex w-full items-center rounded-md border border-input bg-background transition-[color,box-shadow] outline-none',
     'min-w-0 has-[>textarea]:h-auto',
 
     // Variants based on alignment.
@@ -22,7 +23,7 @@ const inputGroupVariants = cva(
     'has-[[data-slot=input-group-control]:focus-visible]:border-primary',
 
     // Error state.
-    'has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40'
+    'has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-destructive/20 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40'
   ],
   {
     variants: {
@@ -46,15 +47,15 @@ function InputGroup({
 }
 
 const inputGroupAddonVariants = cva(
-  "text-muted-foreground flex h-auto items-center justify-center gap-2 py-1.5 text-sm font-medium select-none [&>svg:not([class*='size-'])]:size-4 group-data-[disabled=true]/input-group:opacity-50",
+  "flex h-auto items-center justify-center gap-2 py-1.5 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>svg:not([class*='size-'])]:size-4",
   {
     variants: {
       align: {
         'inline-start': 'order-first pl-3 has-[>button]:ml-[-0.45rem] has-[>kbd]:ml-[-0.35rem]',
         'inline-end': 'order-last pr-3 has-[>button]:mr-[-0.45rem] has-[>kbd]:mr-[-0.35rem]',
         'block-start':
-          'order-first w-full justify-start px-3 pt-3 [.border-b]:pb-3 group-has-[>input]/input-group:pt-2.5',
-        'block-end': 'order-last w-full justify-start px-3 pb-3 [.border-t]:pt-3 group-has-[>input]/input-group:pb-2.5'
+          'order-first w-full justify-start px-3 pt-3 group-has-[>input]/input-group:pt-2.5 [.border-b]:pb-3',
+        'block-end': 'order-last w-full justify-start px-3 pb-3 group-has-[>input]/input-group:pb-2.5 [.border-t]:pt-3'
       }
     },
     defaultVariants: {
@@ -85,11 +86,11 @@ function InputGroupAddon({
   )
 }
 
-const inputGroupButtonVariants = cva('text-sm shadow-none flex gap-2 items-center', {
+const inputGroupButtonVariants = cva('flex items-center gap-2 text-sm shadow-none', {
   variants: {
     size: {
-      xs: "h-6 gap-1 px-2 [&>svg:not([class*='size-'])]:size-3.5 has-[>svg]:px-2",
-      sm: 'h-8 px-2.5 gap-1.5 rounded-md has-[>svg]:px-2.5',
+      xs: "h-6 gap-1 px-2 has-[>svg]:px-2 [&>svg:not([class*='size-'])]:size-3.5",
+      sm: 'h-8 gap-1.5 rounded-md px-2.5 has-[>svg]:px-2.5',
       'icon-xs': 'size-6 min-h-0 p-0 has-[>svg]:p-0',
       'icon-sm': 'size-8 min-h-0 p-0 has-[>svg]:p-0'
     }
@@ -121,7 +122,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
       className={cn(
-        "text-muted-foreground flex items-center gap-2 text-sm [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
+        "flex items-center gap-2 text-sm text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

@@ -1,11 +1,12 @@
+import type { WebviewTag } from 'electron'
+import React, { useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { cn } from '@renderer/utils/style'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { WebviewTag } from 'electron'
-import React, { useEffect, useMemo, useRef } from 'react'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across

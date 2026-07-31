@@ -1,9 +1,10 @@
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useTimer } from '@renderer/hooks/useTimer'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTimer } from '@renderer/hooks/useTimer'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
@@ -78,7 +79,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
             ),
             extra: (isDone || isError) && copyText && (
               <CopyButton
-                className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+                className="message-action-button invisible opacity-0 transition-opacity duration-150 group-hover/tool:visible group-hover/tool:opacity-100 focus-visible:visible focus-visible:opacity-100"
                 onClick={handleCopy}
                 aria-label={t('common.copy')}>
                 {copied ? t('common.copied') : t('common.copy')}

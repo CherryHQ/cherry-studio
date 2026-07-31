@@ -1,7 +1,8 @@
-import axios from 'axios'
-import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
+
+import axios from 'axios'
+import { socksDispatcher } from 'fetch-socks'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 

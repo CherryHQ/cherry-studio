@@ -157,8 +157,12 @@ export type GroupedSortableVirtualListDragCapabilities = {
   itemCrossGroup?: boolean
 }
 
-export interface GroupedSortableVirtualListProps<TGroup, TItem, THeader = TGroup, TFooter = unknown>
-  extends BaseDynamicVirtualListProps<TGroup, TItem, THeader, TFooter> {
+export interface GroupedSortableVirtualListProps<
+  TGroup,
+  TItem,
+  THeader = TGroup,
+  TFooter = unknown
+> extends BaseDynamicVirtualListProps<TGroup, TItem, THeader, TFooter> {
   groups: readonly GroupedVirtualListGroup<TGroup, TItem, THeader, TFooter>[]
   getGroupId: (group: TGroup, groupIndex: number) => UniqueIdentifier
   getGroupBoundaryId?: (group: TGroup, groupIndex: number) => UniqueIdentifier

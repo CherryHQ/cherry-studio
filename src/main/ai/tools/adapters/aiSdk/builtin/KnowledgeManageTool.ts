@@ -19,14 +19,15 @@
  * refuses it too (it never runs an approval-gated tool blind) — an unreachable tool either way.
  */
 
+import { type InferToolInput, type InferToolOutput, tool } from 'ai'
+import * as z from 'zod'
+
 import {
   KB_MANAGE_TOOL_NAME,
   KB_MANAGE_UNUSED_TYPE,
   kbManageOutputSchema,
   kbManageStrictInputSchema
 } from '@shared/ai/builtinTools'
-import { type InferToolInput, type InferToolOutput, tool } from 'ai'
-import * as z from 'zod'
 
 import {
   KNOWLEDGE_MANAGE_DESCRIPTION,

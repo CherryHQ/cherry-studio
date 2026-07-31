@@ -1,15 +1,15 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
-
-import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api/errors'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq, sql } from 'drizzle-orm'
 import { describe, expect, it, type Mock } from 'vitest'
+
+import { application } from '@application'
+import { ErrorCode } from '@shared/data/api/errors'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 describe('ProviderService reorder', () => {
   const dbh = setupTestDatabase()

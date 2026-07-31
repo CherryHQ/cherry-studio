@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
@@ -24,7 +26,6 @@ import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { FileUrlString } from '@shared/types/file'
-import type { ReactNode } from 'react'
 
 export interface MessageUiState {
   foldSelected?: boolean

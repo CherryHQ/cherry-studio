@@ -1,9 +1,10 @@
+import { useEffect } from 'react'
+
 import { isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
 import { buildTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
-import { useEffect } from 'react'
 
 import { useCurrentTabId } from './useCurrentTab'
 import { useOptionalTabsContext } from './useTabsContext'

@@ -1,3 +1,11 @@
+import os from 'os'
+import path from 'path'
+import { isMainThread } from 'worker_threads'
+
+import { app, ipcMain } from 'electron'
+import winston from 'winston'
+import DailyRotateFile from 'winston-daily-rotate-file'
+
 /* eslint-disable no-restricted-syntax */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
@@ -5,12 +13,6 @@ import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
-import { app, ipcMain } from 'electron'
-import os from 'os'
-import path from 'path'
-import winston from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
-import { isMainThread } from 'worker_threads'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',

@@ -1,3 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { FolderOpen, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   InputGroup,
@@ -7,7 +12,6 @@ import {
   RowFlex,
   Switch
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
@@ -17,9 +21,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { FolderOpen, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()

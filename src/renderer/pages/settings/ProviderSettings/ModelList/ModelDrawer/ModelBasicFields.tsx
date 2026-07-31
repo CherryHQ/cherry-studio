@@ -1,9 +1,10 @@
+import type { ReactNode, Ref } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'

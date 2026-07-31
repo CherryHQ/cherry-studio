@@ -1,9 +1,10 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   inferReasoningControls,
   REASONING_FORMAT_PROFILES,
   type ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
-import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'

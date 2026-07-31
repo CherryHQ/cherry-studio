@@ -1,5 +1,6 @@
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
+
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { resolveMcpPackageIconUrl } from '../mcpPackage'
 import { isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'

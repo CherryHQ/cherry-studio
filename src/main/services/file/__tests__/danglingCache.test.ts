@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it, vi } from 'vitest'
 
 import type { DanglingStateChangedEvent, ObservedPresence } from '../danglingCache'
 import { createDanglingCacheImpl } from '../danglingCache'

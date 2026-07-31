@@ -1,3 +1,25 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { Icon } from '@iconify/react'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  ArrowBigUp,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  FolderOpen,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Terminal,
+  Trash2,
+  TriangleAlert
+} from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -19,8 +41,6 @@ import {
   InputGroupInput,
   SelectDropdown
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import {
   BinaryInstallErrorDialog,
@@ -49,25 +69,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import { useNavigate } from '@tanstack/react-router'
-import {
-  ArrowBigUp,
-  Download,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  FolderOpen,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Settings2,
-  Terminal,
-  Trash2,
-  TriangleAlert
-} from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   GITHUB_MIRROR_PRESETS,
@@ -322,8 +323,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     <div className="flex flex-col gap-5">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
-          <span className="text-foreground-tertiary text-xs">{totalCount}</span>
+          <h1 className="text-[15px] leading-6 font-semibold text-foreground">{t('settings.dependencies.title')}</h1>
+          <span className="text-xs text-foreground-tertiary">{totalCount}</span>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -352,7 +353,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             {t('settings.dependencies.addTool')}
           </Button>
         </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('settings.dependencies.description')}</p>
       </div>
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -547,9 +548,9 @@ const BinaryToolPresetCard: FC<{
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-foreground text-sm leading-5">{tool.displayName}</span>
+              <span className="text-sm leading-5 text-foreground">{tool.displayName}</span>
               {tool.displayName !== tool.name && (
-                <span className="text-foreground-tertiary text-xs">({tool.name})</span>
+                <span className="text-xs text-foreground-tertiary">({tool.name})</span>
               )}
             </div>
             {present && (
@@ -562,7 +563,7 @@ const BinaryToolPresetCard: FC<{
                 {latestVersion && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
+                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] leading-4 text-success-subtle-foreground">
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
@@ -609,7 +610,7 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
+      <p className="mt-2.5 line-clamp-2 text-xs leading-4 text-muted-foreground" title={description}>
         {description}
       </p>
 
@@ -647,7 +648,7 @@ const BinaryToolPresetCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -732,8 +733,8 @@ const CustomToolCard: FC<{
             <ToolIcon />
           </div>
           <div className="min-w-0">
-            <span className="text-foreground text-sm leading-5">{tool.name}</span>
-            <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
+            <span className="text-sm leading-5 text-foreground">{tool.name}</span>
+            <div className="mt-0.5 text-xs text-muted-foreground">{toolSpec}</div>
             {installed && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 {installedVersion && (
@@ -757,7 +758,7 @@ const CustomToolCard: FC<{
                 {latestVersion && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
+                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] leading-4 text-success-subtle-foreground">
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
@@ -808,7 +809,7 @@ const CustomToolCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -940,7 +941,7 @@ function AddToolDialog({
               onChange={(e) => setQuery(e.target.value)}
             />
             {searching && (
-              <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 size-3.5 text-muted-foreground motion-safe:animate-spin" />
+              <Loader2 className="absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground motion-safe:animate-spin" />
             )}
             {results.length > 0 && (
               <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-md">
@@ -951,19 +952,19 @@ function AddToolDialog({
                     className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
                     onClick={() => selectResult(r)}>
                     <span className="font-medium">{r.name}</span>
-                    <span className="text-muted-foreground text-xs">{r.tool}</span>
+                    <span className="text-xs text-muted-foreground">{r.tool}</span>
                   </button>
                 ))}
               </div>
             )}
-            {searchError && <p className="mt-1 text-destructive text-xs">{t('settings.dependencies.searchFailed')}</p>}
+            {searchError && <p className="mt-1 text-xs text-destructive">{t('settings.dependencies.searchFailed')}</p>}
           </div>
 
           {selectedName && (
             <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
               <Terminal className="size-4 text-muted-foreground" />
               <span className="text-sm">{selectedName}</span>
-              <span className="text-muted-foreground text-xs">{selectedTool}</span>
+              <span className="text-xs text-muted-foreground">{selectedTool}</span>
             </div>
           )}
 
@@ -1049,8 +1050,8 @@ const UrlPresetField: FC<{
             renderSelected={() => null}
             renderItem={(item) => (
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-foreground text-sm">{item.label}</span>
-                {item.url && <span className="break-all text-muted-foreground text-xs">{item.url}</span>}
+                <span className="truncate text-sm text-foreground">{item.label}</span>
+                {item.url && <span className="text-xs break-all text-muted-foreground">{item.url}</span>}
               </div>
             )}
           />

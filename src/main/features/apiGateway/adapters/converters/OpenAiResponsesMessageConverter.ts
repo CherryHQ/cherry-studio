@@ -6,14 +6,15 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
+import { tool, zodSchema } from 'ai'
+import mime from 'mime'
+
 import type OpenAI from '@cherrystudio/openai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
-import mime from 'mime'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'

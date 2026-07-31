@@ -1,7 +1,5 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/MessageService'
-
-import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
@@ -10,12 +8,14 @@ import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { describe, expect, it, type Mock } from 'vitest'
+
+import { application } from '@application'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { FileEntryId } from '@shared/data/types/file'
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()

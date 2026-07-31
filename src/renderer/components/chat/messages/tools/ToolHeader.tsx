@@ -1,6 +1,3 @@
-import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type { McpTool } from '@renderer/types/tool'
 import {
   Bot,
   DoorOpen,
@@ -22,6 +19,10 @@ import {
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Flex, Tooltip } from '@cherrystudio/ui'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
@@ -333,7 +334,7 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
     return { label: labels.build, description: t('message.tools.activity.projectFiles') }
   }
   if (
-    /(\btest\b|\blint\b|\btypecheck\b|\bcheck\b|\bvitest\b|\bjest\b|\bplaywright\b|\btsc\b|\beslint\b|\bbiome\b)/.test(
+    /(\btest\b|\blint\b|\btypecheck\b|\bcheck\b|\bvitest\b|\bjest\b|\bplaywright\b|\btsc\b|\beslint\b|\boxfmt\b)/.test(
       text
     )
   ) {
@@ -543,7 +544,7 @@ const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) 
     <code
       data-testid="tool-command-preview"
       title={fullText}
-      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-muted-foreground leading-4 sm:block">
+      className="hidden max-w-[clamp(6rem,42vw,32rem)] min-w-0 shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] leading-4 text-muted-foreground sm:block">
       {text}
     </code>
   )
@@ -605,11 +606,11 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
           <Wrench size={14} />
         </span>
         {shimmer ? (
-          <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">
+          <PlaceholderShimmerText className="name max-w-full min-w-0 truncate">
             {tool.serverName} : {tool.name}
           </PlaceholderShimmerText>
         ) : (
-          <span className="name min-w-0 max-w-full truncate">
+          <span className="name max-w-full min-w-0 truncate">
             {tool.serverName} : {tool.name}
           </span>
         )}
@@ -687,9 +688,9 @@ const ToolHeader: FC<ToolHeaderProps> = ({
           <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
         )}
         {shimmer ? (
-          <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">{displayLabel}</PlaceholderShimmerText>
+          <PlaceholderShimmerText className="name max-w-full min-w-0 truncate">{displayLabel}</PlaceholderShimmerText>
         ) : (
-          <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
+          <span className="name max-w-full min-w-0 truncate">{displayLabel}</span>
         )}
       </ToolName>
       {description && <Description>{description}</Description>}

@@ -1,13 +1,14 @@
-import RefreshIcon from '@renderer/components/icons/RefreshIcon'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
-import { cn } from '@renderer/utils/style'
 import { CircleX, Copy, Loader2, Pause } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 
 interface FooterProps {
   content?: string
@@ -160,7 +161,7 @@ const WindowFooter: FC<FooterProps> = ({
 
   const footerButtonClassName = (enabled: boolean, hovered: boolean, danger = false) =>
     cn(
-      'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-muted-foreground text-xs transition-colors',
+      'flex h-[22px] cursor-pointer flex-row items-center gap-1.5 overflow-hidden rounded bg-muted px-2 text-xs text-ellipsis whitespace-nowrap text-muted-foreground transition-colors select-none',
       enabled ? 'opacity-100' : 'opacity-20',
       danger
         ? 'hover:text-error hover:[&_.btn-icon]:text-error'
@@ -173,10 +174,10 @@ const WindowFooter: FC<FooterProps> = ({
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
       className={cn(
-        '-translate-x-1/2 absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] min-w-min max-w-[480px] flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300',
+        'absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] max-w-[480px] min-w-min -translate-x-1/2 flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300',
         isShowMe || isContainerHovered ? 'opacity-100' : 'opacity-0'
       )}>
-      <div className="flex flex-row items-center justify-center gap-1.5 text-muted-foreground text-xs">
+      <div className="flex flex-row items-center justify-center gap-1.5 text-xs text-muted-foreground">
         <button
           type="button"
           onClick={handleEsc}

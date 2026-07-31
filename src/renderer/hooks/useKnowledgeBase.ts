@@ -1,10 +1,11 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useMemo, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
-import { useCallback, useMemo, useState } from 'react'
 
 const KNOWLEDGE_V2_BASES_QUERY = {
   page: 1,

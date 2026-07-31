@@ -1,7 +1,8 @@
-import { SegmentedControl } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Code, FileText, LayoutGrid, List, Monitor, Moon, Sun } from 'lucide-react'
 import { useState } from 'react'
+
+import { SegmentedControl } from '@cherrystudio/ui'
 
 const meta: Meta<typeof SegmentedControl> = {
   title: 'Components/Primitives/SegmentedControl',

@@ -4,9 +4,11 @@
  * API_KEY=sk-xxxx BASE_URL=xxxx MODEL=xxxx ts-node scripts/update-i18n.ts
  */
 
-import OpenAI from '@cherrystudio/openai'
-import cliProgress from 'cli-progress'
 import fs from 'fs'
+
+import cliProgress from 'cli-progress'
+
+import OpenAI from '@cherrystudio/openai'
 
 type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }

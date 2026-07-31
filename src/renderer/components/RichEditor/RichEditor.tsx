@@ -1,14 +1,15 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
-import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
-import { scrollElementIntoView } from '@renderer/utils/dom'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import React, { useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
+import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
+import { scrollElementIntoView } from '@renderer/utils/dom'
 
 import Scrollbar from '../Scrollbar'
 import {

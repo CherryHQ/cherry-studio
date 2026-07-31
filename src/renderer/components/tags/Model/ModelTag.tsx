@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react'
+
 import {
   MODALITY,
   type Modality,
@@ -10,7 +12,6 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { isFreeModel } from '@shared/utils/model'
 import { isBuiltinWebSearchAvailable, isServerToolModelEligible } from '@shared/utils/provider'
-import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
 import { AudioTag } from './AudioTag'

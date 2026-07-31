@@ -1,5 +1,6 @@
-import { Switch } from '@cherrystudio/ui/components/primitives/switch'
 import type { ReactNode } from 'react'
+
+import { Switch } from '@cherrystudio/ui/components/primitives/switch'
 
 type Props = {
   enabled: boolean

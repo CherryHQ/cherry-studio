@@ -1,4 +1,3 @@
-import type { Tab } from '@renderer/hooks/tab'
 import {
   FileSearch,
   Folder,
@@ -11,6 +10,8 @@ import {
   ScanSearch
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 import { getTabIcon } from '../tabIcons'
 

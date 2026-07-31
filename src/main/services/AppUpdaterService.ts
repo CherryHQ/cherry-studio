@@ -1,3 +1,9 @@
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
+import { app } from 'electron'
+import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
@@ -9,11 +15,6 @@ import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
-import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken } from 'builder-util-runtime'
-import { app } from 'electron'
-import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
-import { autoUpdater } from 'electron-updater'
 
 const logger = loggerService.withContext('AppUpdaterService')
 

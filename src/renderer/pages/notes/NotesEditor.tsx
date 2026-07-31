@@ -1,5 +1,10 @@
-import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { SpellCheck } from 'lucide-react'
+import type { FC, RefObject } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { CodeEditor, type CodeEditorHandles } from '@renderer/components/CodeEditor'
@@ -11,10 +16,6 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
-import { SpellCheck } from 'lucide-react'
-import type { FC, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
 
@@ -127,12 +128,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             />
           )}
         </div>
-        <div className="flex h-12 shrink-0 items-center border-border border-t px-4 py-2">
+        <div className="flex h-12 shrink-0 items-center border-t border-border px-4 py-2">
           <SpaceBetweenRowFlex className="w-full items-center">
-            <div className="select-none text-muted-foreground text-xs leading-none">
+            <div className="text-xs leading-none text-muted-foreground select-none">
               {t('notes.characters')}: {tokenCount}
             </div>
-            <div className="flex items-center gap-3 text-muted-foreground text-xs">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
               {tmpViewMode === 'preview' && (
                 <Tooltip placement="top" content={t('notes.spell_check_tooltip')}>
                   <ActionIconButton

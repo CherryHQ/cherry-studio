@@ -24,6 +24,9 @@
 
 import { randomUUID } from 'node:crypto'
 
+import type { WebContents } from 'electron'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -34,8 +37,6 @@ import {
   DirectoryTreeOptionsSchema,
   type TreeMutationPushPayload
 } from '@shared/utils/file'
-import type { WebContents } from 'electron'
-import * as z from 'zod'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 

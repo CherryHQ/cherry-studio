@@ -1,8 +1,9 @@
+import { getToolName, isToolUIPart } from 'ai'
+
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getToolName, isToolUIPart } from 'ai'
 
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'

@@ -1,3 +1,6 @@
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -13,8 +16,6 @@ import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/comp
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const QUICK_PHRASE_POLISH_SYSTEM_PROMPT = [
   'You are a user-prompt editor. Improve the supplied reusable user message without changing its intent or behavior.',
@@ -159,7 +160,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
             {t('settings.prompts.titleLabel')}
             <Input
               autoFocus
@@ -171,7 +172,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
 
           <PromptEditorField
             ref={promptEditorRef}
-            label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
+            label={<span className="text-sm font-medium text-foreground">{t('settings.prompts.contentLabel')}</span>}
             value={formData.content}
             onChange={(content) => setFormData((current) => ({ ...current, content }))}
             placeholder={t('settings.prompts.contentPlaceholder')}

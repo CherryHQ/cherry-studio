@@ -1,5 +1,6 @@
-import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
+
+import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
 import { getProviderById, getProviderForCapability, getResolvedConfig, getRuntimeConfig } from '../config'
 

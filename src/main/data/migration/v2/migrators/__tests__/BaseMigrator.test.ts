@@ -1,10 +1,11 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { BaseMigrator } from '../BaseMigrator'

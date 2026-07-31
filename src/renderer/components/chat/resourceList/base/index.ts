@@ -1,7 +1,4 @@
-export {
-  ConversationResourceMenu,
-  type ConversationResourceMenuItem
-} from './ConversationResourceMenu'
+export { ConversationResourceMenu, type ConversationResourceMenuItem } from './ConversationResourceMenu'
 export { resolveDefaultCollapsedGroupIds } from './defaultCollapsedGroups'
 export {
   buildResolvedResourceEntityMenuAction,

@@ -1,3 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { XIcon } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+
 import {
   Alert,
   Button,
@@ -19,7 +23,6 @@ import {
   TreeSelect,
   type TreeSelectOption
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
@@ -33,8 +36,6 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { XIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('ObsidianExportDialog')
 

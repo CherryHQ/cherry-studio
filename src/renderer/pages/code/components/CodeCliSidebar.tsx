@@ -1,8 +1,9 @@
-import { Scrollbar } from '@cherrystudio/ui'
-import type { CodeCli } from '@shared/types/codeCli'
 import { Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types'
@@ -29,7 +30,7 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   }
   if (isBusy) {
     return (
-      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-foreground-tertiary">
+      <span className="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-foreground-tertiary">
         <Loader2 className="size-2.5 motion-safe:animate-spin" />
         {t('code.installing')}
       </span>
@@ -38,7 +39,7 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   if (!status) return null
   if (!status.installed) {
     return (
-      <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground-tertiary">{t('code.not_installed')}</span>
+      <span className="shrink-0 text-[11px] whitespace-nowrap text-foreground-tertiary">{t('code.not_installed')}</span>
     )
   }
   return null
@@ -57,10 +58,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   const { t } = useTranslation()
 
   return (
-    <div data-ui="code.navigation" className="flex h-full min-h-0 w-60 shrink-0 flex-col border-border-subtle border-r">
+    <div data-ui="code.navigation" className="flex h-full min-h-0 w-60 shrink-0 flex-col border-r border-border-subtle">
       <Scrollbar className="min-h-0 flex-1 overflow-x-hidden p-2.5">
         {tools.length === 0 ? (
-          <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
+          <div className="py-8 text-center text-xs text-foreground-tertiary">{t('code.no_tools')}</div>
         ) : (
           <div className="space-y-2">
             {tools.map((tool) => {

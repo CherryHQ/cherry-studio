@@ -1,8 +1,9 @@
-import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ArrowUpDown, AudioLines, Boxes, Image, type LucideIcon, Mic, Speech, Type, Video } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'

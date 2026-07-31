@@ -7,8 +7,9 @@
  * The function is pure, so it is tested directly with no mocks.
  */
 
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { dropEmptyContentParts, finalizeInterruptedParts } from '../PersistenceBackend'
 

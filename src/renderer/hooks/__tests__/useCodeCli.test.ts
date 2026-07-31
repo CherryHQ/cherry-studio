@@ -1,8 +1,9 @@
-import type { CliProviderConfig, CodeCliConfigs, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
-import { CodeCli } from '@shared/types/codeCli'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CliProviderConfig, CodeCliConfigs, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { useCodeCli } from '../useCodeCli'
 

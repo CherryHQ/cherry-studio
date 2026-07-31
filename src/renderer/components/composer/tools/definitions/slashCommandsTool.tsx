@@ -1,9 +1,10 @@
+import { Terminal } from 'lucide-react'
+
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 import { type QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
-import { Terminal } from 'lucide-react'
 
 const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
   '/clear': 'chat.input.slash_commands.commands.clear',

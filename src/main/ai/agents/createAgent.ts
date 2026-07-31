@@ -1,8 +1,9 @@
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
-import { v4 as uuidv4 } from 'uuid'
 
 import { createAgentDataDirectory, removeAgentDataDirectory } from './agentDataDirectory'
 

@@ -1,8 +1,9 @@
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 import { Bot, ChevronsDownUp, ChevronsUpDown, Clock, History, ListFilter } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ResourceList } from './ResourceList'
 
@@ -51,7 +52,7 @@ export function TopicListOptionsMenu({
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
         <MenuList>
-          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">{t('chat.topics.display.title')}</div>
+          <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground">{t('chat.topics.display.title')}</div>
           {TOPIC_DISPLAY_OPTIONS.map((option) => (
             <MenuItem
               key={option}

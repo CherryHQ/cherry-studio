@@ -270,20 +270,14 @@ export interface CursorPaginationResponse<T> {
 /**
  * Infer pagination mode from response type
  */
-export type InferPaginationMode<R> = R extends OffsetPaginationResponse<any>
-  ? 'offset'
-  : R extends CursorPaginationResponse<any>
-    ? 'cursor'
-    : never
+export type InferPaginationMode<R> =
+  R extends OffsetPaginationResponse<any> ? 'offset' : R extends CursorPaginationResponse<any> ? 'cursor' : never
 
 /**
  * Infer item type from pagination response
  */
-export type InferPaginationItem<R> = R extends OffsetPaginationResponse<infer T>
-  ? T
-  : R extends CursorPaginationResponse<infer T>
-    ? T
-    : never
+export type InferPaginationItem<R> =
+  R extends OffsetPaginationResponse<infer T> ? T : R extends CursorPaginationResponse<infer T> ? T : never
 
 /**
  * Union type for both pagination responses

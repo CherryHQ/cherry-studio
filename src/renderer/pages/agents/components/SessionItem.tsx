@@ -1,3 +1,8 @@
+import { CircleAlert, Loader2, PinIcon, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
@@ -20,10 +25,6 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { CircleAlert, Loader2, PinIcon, Trash2, XIcon } from 'lucide-react'
-import type { MouseEvent } from 'react'
-import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DELETE_CONFIRMATION_TIMEOUT = 2000
 
@@ -289,7 +290,7 @@ const SessionItem = ({
         <ResourceList.ItemTitle
           title={sessionName}
           className={cn(
-            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
+            'text-foreground dark:text-muted-foreground dark:group-hover:text-foreground dark:group-focus-visible:text-foreground dark:group-data-[selected=true]:text-foreground',
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
             RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
@@ -309,19 +310,20 @@ const SessionItem = ({
         </ResourceList.ItemTitle>
       )}
 
-      {!rowState.renaming && showAwaitingApprovalBadge && (
-        // Paused-state label, shown alone (no spinner): a turn paused on an
-        // approval is blocked, not running, and the pill already says "act". It
-        // is in-flow so the title fades against it, and collapses on hover /
-        // focus / delete-confirm so the pin + delete actions take over. Warning
-        // tint matches the composer's approval pill; max-w-28 fits the en label,
-        // longer locales truncate rather than eat the title.
-        <span
-          data-testid="agent-session-awaiting-approval-badge"
-          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
-          {t('agent.toolPermission.pendingBadge')}
-        </span>
-      )}
+      {!rowState.renaming &&
+        showAwaitingApprovalBadge && (
+          // Paused-state label, shown alone (no spinner): a turn paused on an
+          // approval is blocked, not running, and the pill already says "act". It
+          // is in-flow so the title fades against it, and collapses on hover /
+          // focus / delete-confirm so the pin + delete actions take over. Warning
+          // tint matches the composer's approval pill; max-w-28 fits the en label,
+          // longer locales truncate rather than eat the title.
+          <span
+            data-testid="agent-session-awaiting-approval-badge"
+            className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 text-[10px] leading-4 font-medium text-warning-subtle-foreground transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+            {t('agent.toolPermission.pendingBadge')}
+          </span>
+        )}
 
       {hasStreamIndicator && (
         <SessionStreamIndicator
@@ -392,7 +394,7 @@ const SessionStreamIndicator = ({
     // dot/spinner and the actions are mutually exclusive, never side by side).
     <span
       aria-label={statusLabel}
-      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
+      className="pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 -translate-y-1/2 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
       data-testid="agent-session-stream-indicator"
       role="img">
       {isPending ? (

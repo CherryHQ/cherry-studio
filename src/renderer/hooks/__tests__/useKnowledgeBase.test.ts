@@ -1,8 +1,9 @@
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 
 import {
   useCreateKnowledgeBase,

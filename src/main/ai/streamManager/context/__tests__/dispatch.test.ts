@@ -1,5 +1,6 @@
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamManager } from '../../AiStreamManager'
 import type { StreamListener } from '../../types'

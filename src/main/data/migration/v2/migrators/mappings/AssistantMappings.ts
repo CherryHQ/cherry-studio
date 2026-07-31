@@ -21,8 +21,9 @@
 
 import type { InsertAssistantRow } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { ZodType } from 'zod'
+
+import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { legacyChatModelToUniqueId } from '../transformers/ModelTransformers'
 

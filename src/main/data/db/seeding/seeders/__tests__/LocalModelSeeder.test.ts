@@ -1,6 +1,10 @@
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { LocalModelSeeder } from '@data/db/seeding/seeders/LocalModelSeeder'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import {
   LOCAL_EMBEDDING_MODEL_ID,
   LOCAL_EMBEDDING_MODEL_NAME,
@@ -9,9 +13,6 @@ import {
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 describe('LocalModelSeeder', () => {
   const dbh = setupTestDatabase()

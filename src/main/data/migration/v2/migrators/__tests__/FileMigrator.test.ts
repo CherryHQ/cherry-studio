@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { FileEntrySchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerWarnMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn()

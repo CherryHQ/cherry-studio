@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
-import { useEffect, useRef } from 'react'
 
 interface UseProviderOnboardingAutoEnableParams {
   providerId: string

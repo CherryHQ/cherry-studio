@@ -1,5 +1,6 @@
-import type { Notification } from '@shared/types/notification'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Notification } from '@shared/types/notification'
 
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 vi.mock('@main/services/NotificationService', () => ({

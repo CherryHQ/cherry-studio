@@ -1,12 +1,13 @@
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { ATTACHMENT_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { toast } from '@renderer/services/toast'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
-import type { Dispatch, FC, SetStateAction } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   launcher: ToolLauncherApi

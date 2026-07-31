@@ -1,3 +1,8 @@
+import { ArrowRight, ChevronRight, Clock, Copy, Repeat, Star, Trash2 } from 'lucide-react'
+import type { FC, UIEvent } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -6,10 +11,6 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory, TranslateLanguage } from '@shared/data/types/translate'
-import { ArrowRight, ChevronRight, Clock, Copy, Repeat, Star, Trash2 } from 'lucide-react'
-import type { FC, UIEvent } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
 
@@ -155,7 +156,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const showHistoryActions = showStared || history.length > 0
   const header = (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="truncate font-semibold text-base text-foreground">{`${t('translate.history.title')} (${total})`}</span>
+      <span className="truncate text-base font-semibold text-foreground">{`${t('translate.history.title')} (${total})`}</span>
       <span className="flex-1" />
       {!selectedItem && showHistoryActions && (
         <div className="flex shrink-0 items-center gap-1">
@@ -302,17 +303,17 @@ const HistoryRow: FC<{
         <Star size={10} className={cn(item.star && 'fill-amber-500')} />
       </IconButton>
       <div className="flex items-center gap-1.5 pr-5">
-        <span className="rounded bg-muted px-1 py-px text-muted-foreground text-sm">
+        <span className="rounded bg-muted px-1 py-px text-sm text-muted-foreground">
           {item._sourceEmoji} {item._sourceLabel}
         </span>
         <ArrowRight size={8} className="text-foreground-tertiary" />
-        <span className="rounded bg-primary/10 px-1 py-px text-primary text-sm">
+        <span className="rounded bg-primary/10 px-1 py-px text-sm text-primary">
           {item._targetEmoji} {item._targetLabel}
         </span>
-        <span className="ml-auto text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
+        <span className="ml-auto text-sm text-foreground-tertiary">{item._createdAtLabel}</span>
       </div>
-      <p className="line-clamp-1 text-muted-foreground text-sm">{item.sourceText}</p>
-      <p className="line-clamp-1 text-foreground text-sm">{item.targetText}</p>
+      <p className="line-clamp-1 text-sm text-muted-foreground">{item.sourceText}</p>
+      <p className="line-clamp-1 text-sm text-foreground">{item.targetText}</p>
     </div>
   )
 }
@@ -350,17 +351,17 @@ const HistoryDetail: FC<{
       <button
         type="button"
         onClick={onBack}
-        className="mb-3 flex items-center gap-1 rounded-md text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
+        className="mb-3 flex items-center gap-1 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
         <ChevronRight size={11} className="rotate-180" />
         <span>{t('translate.history.back')}</span>
       </button>
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground text-sm">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-sm text-muted-foreground">
             {item._sourceEmoji} {item._sourceLabel}
           </span>
           <ArrowRight size={10} className="text-foreground-tertiary" />
-          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary text-sm">
+          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-sm text-primary">
             {item._targetEmoji} {item._targetLabel}
           </span>
           <span className="flex-1" />
@@ -380,27 +381,27 @@ const HistoryDetail: FC<{
             aria-pressed={!!item.star}>
             <Star size={11} className={cn(item.star && 'fill-amber-500')} />
           </IconButton>
-          <span className="text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
+          <span className="text-sm text-foreground-tertiary">{item._createdAtLabel}</span>
         </div>
         <div className="rounded-md bg-muted/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-foreground-tertiary text-sm">{t('translate.history.source')}</span>
+            <span className="text-sm text-foreground-tertiary">{t('translate.history.source')}</span>
             <IconButton size="sm" onClick={() => void onCopy(item.sourceText)} aria-label={t('common.copy')}>
               <Copy size={10} />
             </IconButton>
           </div>
-          <p className="wrap-break-word max-h-50 overflow-y-auto whitespace-pre-wrap text-foreground text-sm leading-relaxed">
+          <p className="max-h-50 overflow-y-auto text-sm leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground">
             {item.sourceText}
           </p>
         </div>
         <div className="rounded-md border border-border bg-accent/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">{t('translate.history.target')}</span>
+            <span className="text-sm text-muted-foreground">{t('translate.history.target')}</span>
             <IconButton size="sm" onClick={() => void onCopy(item.targetText)} aria-label={t('common.copy')}>
               <Copy size={10} />
             </IconButton>
           </div>
-          <p className="wrap-break-word max-h-50 overflow-y-auto whitespace-pre-wrap text-foreground text-sm leading-relaxed">
+          <p className="max-h-50 overflow-y-auto text-sm leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground">
             {item.targetText}
           </p>
         </div>
@@ -408,14 +409,14 @@ const HistoryDetail: FC<{
           <button
             type="button"
             onClick={() => onReuse(item)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
             <Repeat size={11} />
             <span>{t('translate.history.reuse')}</span>
           </button>
           <button
             type="button"
             onClick={() => void onCopy(item.targetText)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-sm transition-colors hover:opacity-90 focus-visible:opacity-90 focus-visible:outline-none">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-sm text-primary-foreground transition-colors hover:opacity-90 focus-visible:opacity-90 focus-visible:outline-none">
             <Copy size={11} />
             <span>{t('translate.history.copy_target')}</span>
           </button>

@@ -1,11 +1,12 @@
+import { omit } from 'es-toolkit/compat'
+import React, { useMemo } from 'react'
+import type { Node } from 'unist'
+
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import type { Citation } from '@renderer/types/message'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { cn } from '@renderer/utils/style'
-import { omit } from 'es-toolkit/compat'
-import React, { useMemo } from 'react'
-import type { Node } from 'unist'
 
 import CitationTooltip from './CitationTooltip'
 import Hyperlink from './Hyperlink'

@@ -1,9 +1,11 @@
-import { application } from '@application'
 import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertJobRow, type JobRow, jobTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   ACTIVE_JOB_STATUSES,
@@ -13,7 +15,6 @@ import {
   type JobStatus,
   TERMINAL_JOB_STATUSES
 } from '@shared/data/api/schemas/jobs'
-import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobService')
 

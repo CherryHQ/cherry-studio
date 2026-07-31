@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { describe, expect, it } from 'vitest'
 
 import { transformAssistant } from '../AssistantMappings'
 

@@ -1,3 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -7,11 +11,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { PrivacyPolicyDialog } from './PrivacyPolicyDialog'
 

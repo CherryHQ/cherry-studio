@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,

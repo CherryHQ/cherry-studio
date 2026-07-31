@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
@@ -15,7 +17,6 @@ import {
   isVideoModel,
   isVisionModel
 } from '@shared/utils/model'
-import { describe, expect, it } from 'vitest'
 
 const createModel = (capabilities: Model['capabilities'] = []): Model => ({
   id: 'openai::gpt-4o',

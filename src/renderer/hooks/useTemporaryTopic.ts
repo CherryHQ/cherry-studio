@@ -22,9 +22,10 @@
  */
 
 import { dataApiService } from '@data/DataApiService'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTemporaryTopic')
 const TEMPORARY_TOPIC_NAME_MAX_LENGTH = 30

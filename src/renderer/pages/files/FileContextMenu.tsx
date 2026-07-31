@@ -1,3 +1,6 @@
+import { FolderClosed, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import {
   ContextMenu,
   ContextMenuContent,
@@ -6,8 +9,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@cherrystudio/ui'
-import { FolderClosed, Pencil, RotateCcw, Trash2 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
 

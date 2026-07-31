@@ -1,5 +1,11 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useNavigate } from '@tanstack/react-router'
+import { Globe } from 'lucide-react'
+import type { FC, MouseEventHandler } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
@@ -13,11 +19,6 @@ import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
-import { useNavigate } from '@tanstack/react-router'
-import { Globe } from 'lucide-react'
-import type { FC, MouseEventHandler } from 'react'
-import { memo, useCallback, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   assistantId: string

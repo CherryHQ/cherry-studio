@@ -1,4 +1,5 @@
 import { providerService } from '@data/services/ProviderService'
+
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
 import { defaultAppHeaders } from '@main/utils/http'

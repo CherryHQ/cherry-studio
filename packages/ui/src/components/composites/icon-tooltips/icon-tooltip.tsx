@@ -1,5 +1,6 @@
-import { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import type { LucideIcon } from 'lucide-react'
+
+import { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 
 import type { IconTooltipProps } from './types'
 

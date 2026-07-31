@@ -1,3 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { Sparkles, Trash2 } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   EditableNumber,
@@ -18,7 +24,6 @@ import {
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
@@ -36,10 +41,6 @@ import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { Sparkles, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import {
   AvatarField,
@@ -440,7 +441,7 @@ function AssistantBasicFields({
   }
 
   return (
-    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+    <div className="divide-y divide-border-subtle border-b border-border-subtle [&>*:first-child]:pt-0">
       <AvatarField
         form={form}
         emojiPickerOpen={emojiPickerOpen}
@@ -598,7 +599,7 @@ function AssistantToolsFields({
         render={() => (
           <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{mcpModeLabel}</FormLabel>
+              <FormLabel className="text-[13px] font-normal">{mcpModeLabel}</FormLabel>
               <FormControl>
                 <SegmentedControl<AssistantFormState['mcpMode']>
                   size="sm"
@@ -670,7 +671,7 @@ function AssistantAdvancedFields({
   ]
 
   return (
-    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
+    <div className="divide-y divide-border-subtle [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
       <ToggleFieldGroup
         label={t('library.config.basic.temperature')}
         valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
@@ -681,7 +682,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="temperature"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full">
+            <div className="mt-3 -mb-2 w-full">
               <Slider
                 min={0}
                 max={2}
@@ -706,7 +707,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="topP"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full">
+            <div className="mt-3 -mb-2 w-full">
               <Slider
                 min={0}
                 max={1}
@@ -879,7 +880,7 @@ function ContextManagementFields({
         onEnabledChange={onOverrideToggle}
       />
       {values.contextOverrideEnabled ? (
-        <div className="grid gap-4 border-border/60 border-l pl-4">
+        <div className="grid gap-4 border-l border-border/60 pl-4">
           <FormField
             control={form.control}
             name="contextCompressEnabled"
@@ -977,7 +978,7 @@ function ToggleFieldGroup({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
+          {valueLabel ? <span className="text-xs text-muted-foreground">{valueLabel}</span> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {enabled && control ? <div className="w-36">{control}</div> : null}
@@ -1164,7 +1165,7 @@ function CustomParameterRow({
             placeholder='{"key": "value"}'
             hasError={jsonInvalid}
           />
-          {jsonInvalid ? <p className="mt-1 text-error text-xs">{t('library.config.basic.json_invalid')}</p> : null}
+          {jsonInvalid ? <p className="mt-1 text-xs text-error">{t('library.config.basic.json_invalid')}</p> : null}
         </div>
       ) : null}
     </div>

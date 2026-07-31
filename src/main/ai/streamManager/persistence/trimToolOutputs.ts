@@ -20,6 +20,8 @@
  * saw in-flight.
  */
 
+import { getToolName, isToolUIPart } from 'ai'
+
 import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
@@ -38,7 +40,6 @@ import {
 } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { getToolName, isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('TrimToolOutputs')
 

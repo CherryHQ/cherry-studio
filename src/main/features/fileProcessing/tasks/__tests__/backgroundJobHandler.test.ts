@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Unit tests for backgroundJobHandler.
  *
@@ -8,7 +10,6 @@
  */
 import type { JobContext } from '@main/core/job/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../shared'
 

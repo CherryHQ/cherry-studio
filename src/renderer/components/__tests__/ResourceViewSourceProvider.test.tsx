@@ -1,3 +1,6 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   ResourceViewSourceProvider,
   shouldLoadResourceViewSource
@@ -11,8 +14,6 @@ import {
 } from '@renderer/hooks/resourceViewSources'
 import type * as TabHooksModule from '@renderer/hooks/tab'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sourceMocks = vi.hoisted(() => ({
   tabs: [] as Tab[],

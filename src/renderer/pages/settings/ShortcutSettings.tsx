@@ -1,3 +1,10 @@
+import { preferenceService } from '@data/PreferenceService'
+import { isEmpty } from 'es-toolkit/compat'
+import { Check, ChevronDown, Filter, Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Input,
@@ -11,7 +18,6 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingGroup, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
@@ -44,11 +50,6 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { isEmpty } from 'es-toolkit/compat'
-import { Check, ChevronDown, Filter, Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ShortcutSettings')
 
@@ -473,7 +474,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
+            <span className="absolute top-full right-0 mt-1 text-xs whitespace-nowrap text-error">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -507,7 +508,7 @@ const ShortcutSettings: FC = () => {
                 <Kbd
                   key={key}
                   className={cn(
-                    'min-w-6 rounded-md border border-border-subtle bg-card px-1.5 py-0.75 text-card-foreground text-xs shadow-none',
+                    'min-w-6 rounded-md border border-border-subtle bg-card px-1.5 py-0.75 text-xs text-card-foreground shadow-none',
                     hasSystemConflict && 'border-error-border text-error'
                   )}>
                   {formatKeyDisplay(key, isMac)}
@@ -516,7 +517,7 @@ const ShortcutSettings: FC = () => {
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
+            <span className="absolute top-full right-0 mt-1 text-xs whitespace-nowrap text-error">
               {conflictMessage}
             </span>
           )}
@@ -528,7 +529,7 @@ const ShortcutSettings: FC = () => {
       <div className="relative flex flex-col items-end">
         <span
           className={cn(
-            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border-subtle hover:bg-muted/30',
+            'rounded-lg border border-dashed border-transparent bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border-subtle hover:bg-muted/30',
             hasSystemConflict && 'border-error-border text-error',
             isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
           )}
@@ -536,7 +537,7 @@ const ShortcutSettings: FC = () => {
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">{conflictMessage}</span>
+          <span className="absolute top-full right-0 mt-1 text-xs whitespace-nowrap text-error">{conflictMessage}</span>
         )}
       </div>
     )
@@ -575,7 +576,7 @@ const ShortcutSettings: FC = () => {
         className={cn(
           'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
           !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border-subtle border-b'
+          !isLast && 'border-b border-border-subtle'
         )}>
         <div className="min-w-0 pr-2">
           <div className="truncate text-[14px] text-foreground">{record.label}</div>
@@ -624,7 +625,7 @@ const ShortcutSettings: FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
+                    className="h-8 gap-1.5 px-2.5 text-xs text-destructive shadow-none hover:text-destructive"
                     onClick={handleResetAllShortcuts}>
                     <Undo2 size={13} />
                     {t('settings.shortcuts.reset')}
@@ -634,7 +635,7 @@ const ShortcutSettings: FC = () => {
 
               <div className="mb-3 flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
-                  <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     className="h-9 w-full rounded-lg border-border-subtle bg-background pr-3 pl-9"
                     placeholder={t('settings.shortcuts.search_placeholder')}
@@ -659,7 +660,7 @@ const ShortcutSettings: FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">{t('settings.shortcuts.empty')}</div>
               )}
             </SettingGroup>
           </SettingsContentBody>

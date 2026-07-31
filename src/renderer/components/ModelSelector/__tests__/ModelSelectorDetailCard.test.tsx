@@ -1,8 +1,9 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { act, render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
 import type { ModelSelectorModelItem } from '../types'

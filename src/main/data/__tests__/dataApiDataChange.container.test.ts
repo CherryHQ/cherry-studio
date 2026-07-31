@@ -1,3 +1,5 @@
+import { afterAll, describe, expect, it, vi } from 'vitest'
+
 /**
  * Real-ServiceContainer smoke test for notifyDataApiDataChange.
  *
@@ -13,7 +15,6 @@
  */
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { afterAll, describe, expect, it, vi } from 'vitest'
 
 import { notifyDataApiDataChange } from '../dataApiDataChange'
 

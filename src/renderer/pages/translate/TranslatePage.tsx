@@ -1,7 +1,13 @@
-import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { isEmpty } from 'es-toolkit/compat'
+import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
+import type { ClipboardEvent, DragEvent, FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
@@ -40,11 +46,6 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isNonChatModel } from '@shared/utils/model'
-import { isEmpty } from 'es-toolkit/compat'
-import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
-import type { ClipboardEvent, DragEvent, FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
@@ -646,7 +647,7 @@ const TranslatePage: FC = () => {
       <Navbar />
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b p-3">
+        <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle p-3">
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
@@ -663,7 +664,7 @@ const TranslatePage: FC = () => {
             <button
               type="button"
               onClick={onAbort}
-              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-secondary-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:bg-secondary-hover focus-visible:outline-none">
+              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-sm text-secondary-foreground transition-all hover:bg-secondary-hover focus-visible:bg-secondary-hover focus-visible:outline-none">
               <CirclePause size={14} className="lucide-custom" />
               <span>{t('common.stop')}</span>
             </button>
@@ -777,7 +778,7 @@ const TranslatePage: FC = () => {
             />
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col border-border-subtle border-l">
+          <section className="flex min-h-0 min-w-0 flex-col border-l border-border-subtle">
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}

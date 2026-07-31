@@ -1,3 +1,8 @@
+import * as fs from 'fs'
+import * as path from 'path'
+
+import * as cliProgress from 'cli-progress'
+
 /**
  * This script is used for automatic translation of all text except baseLocale.
  * Text to be translated must start with [to be translated]
@@ -9,9 +14,6 @@
  * - Built-in rate limiting to avoid API limits
  */
 import { OpenAI } from '@cherrystudio/openai'
-import * as cliProgress from 'cli-progress'
-import * as fs from 'fs'
-import * as path from 'path'
 
 import { sortedObjectByKeys } from './sort'
 

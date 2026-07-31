@@ -1,9 +1,10 @@
 import { pinTable } from '@data/db/schemas/pin'
 import { PinService, pinService } from '@data/services/PinService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 const PIN_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 const ENTITY_ID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'

@@ -1,9 +1,10 @@
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { cn } from '@renderer/utils/style'
 
 import {
   CHAT_SHELL_PANE_WIDTH,
@@ -59,7 +60,7 @@ export function PageSidebar({
           data-resource-list-pane
           data-resizing={isResizing || undefined}
           className={cn(
-            'group/resource-list-pane relative shrink-0 overflow-visible data-[resizing=true]:[&_.conversation-navigation-pane-content]:transition-none data-[resizing=true]:[&_.conversation-navigation-pane]:transition-none',
+            'group/resource-list-pane relative shrink-0 overflow-visible data-[resizing=true]:[&_.conversation-navigation-pane]:transition-none data-[resizing=true]:[&_.conversation-navigation-pane-content]:transition-none',
             className
           )}
           style={style}>

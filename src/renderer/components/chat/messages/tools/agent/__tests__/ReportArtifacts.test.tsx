@@ -1,9 +1,10 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'

@@ -1,8 +1,9 @@
+import type { FC } from 'react'
+
 import AppLogo from '@renderer/assets/images/logo.png'
 import { cn } from '@renderer/utils/style'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import type { FC } from 'react'
 
 interface WebSearchProviderLogoProps {
   providerId: WebSearchProviderId
@@ -35,7 +36,7 @@ const WebSearchProviderLogo: FC<WebSearchProviderLogoProps> = ({ providerId, pro
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-sm bg-sky-500 font-bold text-white text-xs leading-none',
+        'inline-flex shrink-0 items-center justify-center rounded-sm bg-sky-500 text-xs leading-none font-bold text-white',
         className
       )}
       style={{ width: size, height: size }}>

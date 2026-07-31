@@ -1,9 +1,10 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useState } from 'react'
+
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
-import { useCallback, useState } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 

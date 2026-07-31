@@ -34,6 +34,7 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+
 import { loggerService } from '@logger'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'

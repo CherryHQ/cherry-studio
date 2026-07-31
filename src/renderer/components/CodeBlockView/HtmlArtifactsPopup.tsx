@@ -1,3 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   CodeEditor,
@@ -17,7 +22,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
@@ -28,9 +32,6 @@ import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
-import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import HtmlPreviewFrame from './HtmlPreviewFrame'
 
@@ -258,15 +259,15 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
           <header
             className={cn(
-              'relative flex items-center justify-between gap-4 border-border border-b bg-background px-2.5',
+              'relative flex items-center justify-between gap-4 border-b border-border bg-background px-2.5',
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
             <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
-              <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
+              <DialogTitle className="max-w-[45vw] truncate text-sm font-bold text-foreground">{title}</DialogTitle>
             </div>
 
-            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 [-webkit-app-region:no-drag]">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 [-webkit-app-region:no-drag]">
               <SegmentedControl<ViewMode>
                 size="sm"
                 value={viewMode}

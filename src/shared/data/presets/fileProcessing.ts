@@ -1,5 +1,6 @@
-import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
+
+import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 
 import {
   FILE_PROCESSOR_FEATURES,

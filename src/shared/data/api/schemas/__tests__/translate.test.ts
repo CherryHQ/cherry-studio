@@ -90,9 +90,9 @@ describe('Translate API DTOs reject the "unknown" sentinel at the persistence bo
   })
 
   it('CreateTranslateLanguageSchema rejects unknown langCode', () => {
-    expect(CreateTranslateLanguageSchema.safeParse({ langCode: 'unknown', value: 'Unknown', emoji: '🏳️' }).success).toBe(
-      false
-    )
+    expect(
+      CreateTranslateLanguageSchema.safeParse({ langCode: 'unknown', value: 'Unknown', emoji: '🏳️' }).success
+    ).toBe(false)
   })
 
   it('CreateTranslateLanguageSchema accepts a real langCode', () => {

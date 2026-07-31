@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { BrowserWindow, dialog, ipcMain, session } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
@@ -9,7 +11,6 @@ import {
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'

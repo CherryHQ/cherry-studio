@@ -1,8 +1,9 @@
-import { Button } from '@cherrystudio/ui'
 import { Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { AddModelDrawer } from './ModelDrawer'

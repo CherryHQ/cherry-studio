@@ -8,10 +8,11 @@ import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/s
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
-import { loggerService } from '@logger'
-import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+
+import { loggerService } from '@logger'
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
@@ -418,7 +419,10 @@ export class AssistantMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(assistantTable).get()
+      const result = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(assistantTable)
+        .get()
       const count = result?.count ?? 0
       const groupResult = ctx.db
         .select({ count: sql<number>`count(*)` })

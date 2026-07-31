@@ -1,10 +1,11 @@
+import { render } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
-import { render } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),

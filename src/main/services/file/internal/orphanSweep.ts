@@ -38,10 +38,11 @@
 import { readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 

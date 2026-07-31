@@ -1,10 +1,11 @@
-import { Button, type RenderRowArgs } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
+
+import { Button, type RenderRowArgs } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 
 import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 
@@ -82,7 +83,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
       title={node.name}
       style={indent}
       className={cn(
-        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
+        'group relative flex items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm select-none',
         'transition-colors',
         isFolder
           ? 'text-foreground hover:bg-accent/50'
@@ -91,9 +92,9 @@ export function FileTreeRow(props: FileTreeRowProps) {
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
         dragPosition === 'before' &&
-          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
+          "before:absolute before:inset-x-1 before:-top-px before:h-0.5 before:rounded before:bg-primary before:content-['']",
         dragPosition === 'after' &&
-          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
+          "after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded after:bg-primary after:content-['']"
       )}>
       {isFolder ? (
         <Button

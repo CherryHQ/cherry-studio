@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'child_process'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Force Windows code path regardless of the host platform.

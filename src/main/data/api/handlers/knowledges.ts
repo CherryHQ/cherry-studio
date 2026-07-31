@@ -13,6 +13,7 @@
 
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 import {
   ListKnowledgeBasesQuerySchema,

@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { toast } from '@renderer/services/toast'
 import type { Message } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { copyMessageAsPlainText, copyTopicAsMarkdown, copyTopicAsPlainText } from '../copy'
 

@@ -7,13 +7,15 @@
  * This file lives inside migration/v2/ so it is removed when migration is deleted.
  */
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import type { DbType } from '@data/db/types'
-import { loggerService } from '@logger'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
 import fs from 'fs'
 import path from 'path'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import type { DbType } from '@data/db/types'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+
+import { loggerService } from '@logger'
 
 import type { MigrationPaths } from './MigrationPaths'
 

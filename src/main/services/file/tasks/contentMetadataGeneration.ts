@@ -1,8 +1,9 @@
-import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import * as z from 'zod'
+
+import { application } from '@application'
 
 const CONTENT_METADATA_GENERATION_KEY = 'fileManager:contentMetadataGeneration'
 const CONTENT_METADATA_GENERATION_VERSION = 2

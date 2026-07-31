@@ -1,6 +1,7 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { DEFER_TOOL_OUTPUT_BYTES, isDeferredToolOutput } from '../deferredToolResult'
 import { projectMessagePartForRenderer, projectStreamChunkForRenderer } from '../outboundProjection'

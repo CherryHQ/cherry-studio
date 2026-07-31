@@ -1,9 +1,10 @@
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { beforeEach, type Mocked, vi } from 'vitest'
+
 import type { JobContext } from '@main/core/job/types'
 import type * as FsUtils from '@main/utils/file'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { beforeEach, type Mocked, vi } from 'vitest'
 
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
 import type * as PathStorage from '../../pathStorage'

@@ -1,3 +1,5 @@
+import type { CSSProperties, FC } from 'react'
+
 import type {
   ConversationResourceMenuItem,
   ResourceListRevealRequest
@@ -6,7 +8,6 @@ import { ConversationNavigationPane } from '@renderer/components/chat/shell/Conv
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type { Topic } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties, FC } from 'react'
 
 import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../types'
 import { Topics } from './components/Topics'

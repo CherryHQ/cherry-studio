@@ -105,7 +105,7 @@ Use these instead of assembling labels/shortcuts in feature components:
    { binding, enabled }`), then regenerate:
    ```bash
    cd v2-refactor-temp/tools/data-classify && npm run generate:preferences
-   npx biome format --write src/shared/data/preference/preferenceSchemas.ts
+   pnpm oxfmt --write src/shared/data/preference/preferenceSchemas.ts
    ```
    (Never hand‑edit `preferenceSchemas.ts`.)
 3. **Provide a handler.** Renderer‑scope: `useCommandHandler(id, fn)` in the

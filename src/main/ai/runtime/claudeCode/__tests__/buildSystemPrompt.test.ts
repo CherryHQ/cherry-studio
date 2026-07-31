@@ -6,10 +6,11 @@
 
 import type * as NodeFs from 'node:fs'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFindBySessionId,

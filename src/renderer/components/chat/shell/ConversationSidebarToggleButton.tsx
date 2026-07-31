@@ -1,10 +1,11 @@
-import type { TooltipProps } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { t } from 'i18next'
+import type { ComponentProps } from 'react'
+
+import type { TooltipProps } from '@cherrystudio/ui'
 import { CommandTooltip } from '@renderer/components/command'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { t } from 'i18next'
-import type { ComponentProps } from 'react'
 
 type ConversationSidebarToggleButtonProps = Omit<
   ComponentProps<typeof NavbarIcon>,

@@ -1,11 +1,12 @@
+import { ChevronRight, Minus } from 'lucide-react'
+import React, { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { ChevronRight, Minus } from 'lucide-react'
-import React, { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelOperationErrorMessage } from './errorMessage'
@@ -120,7 +121,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               size="icon-sm"
               aria-label={t('settings.models.manage.remove_whole_group')}
               disabled={disabled || bulkActionDisabled || hasPendingModel || deletableGroupModels.length === 0}
-              className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton} opacity-0 transition-opacity focus-visible:opacity-100 group-focus-within/modelGroup:opacity-100 group-hover/modelGroup:opacity-100`}
+              className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton} opacity-0 transition-opacity group-focus-within/modelGroup:opacity-100 group-hover/modelGroup:opacity-100 focus-visible:opacity-100`}
               onKeyDown={handleDeleteGroupKeyDown}
               onClick={handleDeleteGroupModels}>
               <Minus className="size-3.5" />

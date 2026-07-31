@@ -1,15 +1,16 @@
-import { Scrollbar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import LanguageSelect from '@renderer/components/LanguageSelect'
-import { useTranslate } from '@renderer/hooks/translate'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import { toast } from '@renderer/services/toast'
 import { isEmpty } from 'es-toolkit/compat'
 import { ArrowLeftRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
+import LanguageSelect from '@renderer/components/LanguageSelect'
+import { useTranslate } from '@renderer/hooks/translate'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import { toast } from '@renderer/services/toast'
 
 interface Props {
   text: string
@@ -48,7 +49,7 @@ const Translate: FC<Props> = ({ text }) => {
   return (
     <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
       <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
-        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-disabled text-sm">
+        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-foreground-disabled">
           <span className="truncate">{t('translate.any.language')}</span>
         </div>
         <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
@@ -67,7 +68,7 @@ const Translate: FC<Props> = ({ text }) => {
           <div className="text-foreground-tertiary italic">{t('translate.output.placeholder')}...</div>
         ) : (
           <Scrollbar className="flex flex-1 flex-col gap-2.5">
-            <div className="w-full whitespace-pre-wrap break-words">{result}</div>
+            <div className="w-full break-words whitespace-pre-wrap">{result}</div>
           </Scrollbar>
         )}
       </div>

@@ -11,11 +11,12 @@
  * `chatVirtualizerRuntime`. This component is just the JSX integration.
  */
 
-import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
 import { ArrowDown } from 'lucide-react'
 import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Virtualizer } from 'virtua'
+
+import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
 import {
@@ -306,7 +307,7 @@ function ScrollToBottomButton({ bottomOffset, label, onClick }: ScrollToBottomBu
           variant="outline"
           size="icon"
           aria-label={label}
-          className="[&_svg]:!size-5 pointer-events-auto h-9 w-9 rounded-full border-border bg-background/95 text-foreground shadow-[0_10px_24px_rgba(15,23,42,0.14),0_3px_8px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-[background-color,color,box-shadow] duration-200 ease-out hover:bg-background hover:text-foreground dark:shadow-[0_12px_28px_rgba(0,0,0,0.34),0_3px_10px_rgba(0,0,0,0.22)]"
+          className="pointer-events-auto h-9 w-9 rounded-full border-border bg-background/95 text-foreground shadow-[0_10px_24px_rgba(15,23,42,0.14),0_3px_8px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-[background-color,color,box-shadow] duration-200 ease-out hover:bg-background hover:text-foreground dark:shadow-[0_12px_28px_rgba(0,0,0,0.34),0_3px_10px_rgba(0,0,0,0.22)] [&_svg]:!size-5"
           data-testid="message-scroll-to-bottom-button"
           onClick={onClick}>
           <ArrowDown />

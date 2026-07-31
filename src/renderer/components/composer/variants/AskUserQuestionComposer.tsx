@@ -1,11 +1,12 @@
+import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Checkbox, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
@@ -202,7 +203,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
+          <h2 className="line-clamp-1 min-w-0 flex-1 text-sm leading-5 font-semibold text-foreground">
             {currentQuestion.question}
           </h2>
 
@@ -257,7 +258,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 type="button"
                 variant="ghost"
                 className={cn(
-                  'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
+                  'group h-auto min-h-11 w-full justify-start gap-3 rounded-[12px] px-3 py-2 text-left whitespace-normal shadow-none',
                   'hover:bg-muted focus-visible:bg-muted',
                   isSelected && 'bg-muted'
                 )}
@@ -266,7 +267,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 onClick={() => handleSelectOption(option.label)}>
                 <span
                   className={cn(
-                    'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
+                    'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors',
                     isSelected
                       ? 'bg-foreground text-background'
                       : 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
@@ -275,9 +276,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 </span>
 
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-foreground text-sm leading-5">{option.label}</span>
+                  <span className="block truncate text-sm leading-5 font-semibold text-foreground">{option.label}</span>
                   {option.description && (
-                    <span className="block truncate font-medium text-muted-foreground text-xs leading-4">
+                    <span className="block truncate text-xs leading-4 font-medium text-muted-foreground">
                       {option.description}
                     </span>
                   )}
@@ -304,9 +305,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           })}
         </div>
 
-        <div className="mt-2 flex items-center gap-2 border-border-subtle border-t pt-2">
+        <div className="mt-2 flex items-center gap-2 border-t border-border-subtle pt-2">
           <div className="relative min-w-0 flex-1">
-            <Pencil className="-translate-y-1/2 absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
+            <Pencil className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={currentCustomAnswer}
               disabled={isSubmitting}
@@ -329,7 +330,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           <Button
             type="button"
             variant="ghost"
-            className="h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
+            className="h-9 px-2.5 text-sm font-semibold text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground"
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>

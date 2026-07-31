@@ -1,6 +1,7 @@
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useNutstoreSso')
 
