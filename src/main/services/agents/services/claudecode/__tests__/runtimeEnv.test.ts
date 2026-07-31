@@ -23,6 +23,8 @@ const SCRUBBED_MODEL_KEYS = [
 
 const SCRUBBED_SHELL_KEYS = ['CLAUDE_CODE_SHELL', 'CLAUDE_CODE_SHELL_PREFIX'] as const
 
+const EXTRA_BODY_KEY_VARIANTS = ['CLAUDE_CODE_EXTRA_BODY', 'claude_code_extra_body', 'Claude_Code_Extra_Body'] as const
+
 describe('withPreferredWindowsShellEnvironment', () => {
   const staleShellEnv = {
     KeepMe: 'kept',
@@ -118,6 +120,77 @@ describe('mergeUserEnvironmentVariables', () => {
     ['Claude_Code_Use_Ccr_V2', 'CLAUDE_CODE_USE_CCR_V2'],
     ['claude_code_websocket_auth_file_descriptor', 'CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR']
   ] as const
+
+  it.each(EXTRA_BODY_KEY_VARIANTS)(
+    'removes inherited request override %s while preserving application and ordinary environment values',
+    (inheritedKey) => {
+      const env = {
+        [inheritedKey]: '{"model":"inherited-model"}',
+        ANTHROPIC_MODEL: 'application-model',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        CUSTOM_JSON_ENV: '{"feature":"enabled"}',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, false)
+
+      expect(result).toEqual({
+        env: {
+          ANTHROPIC_MODEL: 'application-model',
+          HTTPS_PROXY: 'http://proxy.example.com',
+          CUSTOM_JSON_ENV: '{"feature":"enabled"}',
+          LOGIN_SHELL_VAR: 'kept'
+        },
+        blockedKeys: []
+      })
+      expect(env).toEqual({
+        [inheritedKey]: '{"model":"inherited-model"}',
+        ANTHROPIC_MODEL: 'application-model',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        CUSTOM_JSON_ENV: '{"feature":"enabled"}',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+    }
+  )
+
+  it.each(EXTRA_BODY_KEY_VARIANTS)(
+    'blocks Agent-provided request override %s while preserving application and ordinary environment values',
+    (userKey) => {
+      const env = {
+        ANTHROPIC_MODEL: 'application-model',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        BASE_VAR: 'kept'
+      }
+      const userEnv = {
+        [userKey]: '{"model":"agent-model"}',
+        CUSTOM_JSON_ENV: '{"feature":"enabled"}',
+        AGENT_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, userEnv, false)
+
+      expect(result).toEqual({
+        env: {
+          ANTHROPIC_MODEL: 'application-model',
+          HTTPS_PROXY: 'http://proxy.example.com',
+          BASE_VAR: 'kept',
+          CUSTOM_JSON_ENV: '{"feature":"enabled"}',
+          AGENT_VAR: 'kept'
+        },
+        blockedKeys: [userKey]
+      })
+      expect(env).toEqual({
+        ANTHROPIC_MODEL: 'application-model',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        BASE_VAR: 'kept'
+      })
+      expect(userEnv).toEqual({
+        [userKey]: '{"model":"agent-model"}',
+        CUSTOM_JSON_ENV: '{"feature":"enabled"}',
+        AGENT_VAR: 'kept'
+      })
+    }
+  )
 
   it.each(SCRUBBED_MODEL_KEYS)(
     'removes inherited active model selector %s case-insensitively without mutating the input',
