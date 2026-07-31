@@ -4,7 +4,7 @@ import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { SerializedTreeNode } from '@shared/utils/file'
+import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
@@ -77,7 +77,7 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
     editMode === 'edit' && selectedFile
       ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
       : undefined
-  const fileSession = useFileEditSession(editPath)
+  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined)
 
   return (
     <ArtifactPaneView
@@ -1479,9 +1479,9 @@ describe('ArtifactPane', () => {
     const writeInput = writeCall[1] as {
       data: Uint8Array
       expectedVersion: { mtime: number; size: number }
-      path: string
+      handle: { kind: 'path'; path: string }
     }
-    expect(writeInput.path).toBe('/tmp/workspace/notes.txt')
+    expect(writeInput.handle).toEqual({ kind: 'path', path: '/tmp/workspace/notes.txt' })
     expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
     const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])

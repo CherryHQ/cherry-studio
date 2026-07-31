@@ -402,16 +402,27 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const arrayBuffer = await blobToArrayBuffer(processedFile)
         const buffer = new Uint8Array(arrayBuffer)
 
-        // Save image to local storage
-        const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
+        const entry = await window.api.file.createInternalEntry({
+          source: 'bytes',
+          data: buffer,
+          name: 'Pasted Image',
+          ext: extension.replace(/^\./, ''),
+          // `manual`, unlike the chat/painting paste paths: the image is reachable
+          // only through a `file://` URL embedded in the note's HTML, and no ref
+          // table records that. `delete_when_unreferenced` would read it as
+          // unreferenced and reclaim it, breaking the image inside the note.
+          cleanupPolicy: 'manual'
+        })
+        const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
         // Insert image into editor using local file path
         if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${fileMetadata.path}`
-          editor.chain().focus().setImage({ src: imageUrl, alt: fileMetadata.origin_name }).run()
+          const imageUrl = `file://${physicalPath}`
+          const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
+          editor.chain().focus().setImage({ src: imageUrl, alt }).run()
         }
 
-        logger.info('Image pasted and saved:', fileMetadata)
+        logger.info('Image pasted and saved:', { id: entry.id })
       } catch (error) {
         logger.error('Failed to handle image paste:', error as Error)
       }

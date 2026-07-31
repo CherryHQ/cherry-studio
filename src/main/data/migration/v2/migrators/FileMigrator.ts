@@ -106,6 +106,7 @@ interface PreparedFileEntry {
   ext: string | null
   cleanupPolicy: 'manual'
   size: number
+  contentHash: null
   externalPath: null
   deletedAt: null
   createdAt: number
@@ -199,6 +200,7 @@ function toFileEntry(
     ext,
     cleanupPolicy: 'manual',
     size,
+    contentHash: null,
     externalPath: null,
     deletedAt: null,
     createdAt,
@@ -217,6 +219,7 @@ function toFileEntry(
     ext: entry.ext,
     cleanupPolicy: 'manual',
     size: entry.size,
+    contentHash: entry.contentHash,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt
   })

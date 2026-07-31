@@ -785,6 +785,7 @@ describe('FileMigrator write/read validation invariant', () => {
     const prepared = (m as any).preparedEntries as Array<Record<string, unknown>>
     expect(prepared).toHaveLength(3)
     for (const e of prepared) {
+      expect(e.contentHash).toBeNull()
       const probe = FileEntrySchema.safeParse({
         id: e.id,
         origin: 'internal',
@@ -792,6 +793,7 @@ describe('FileMigrator write/read validation invariant', () => {
         ext: e.ext,
         cleanupPolicy: e.cleanupPolicy,
         size: e.size,
+        contentHash: e.contentHash,
         createdAt: e.createdAt,
         updatedAt: e.updatedAt
       })

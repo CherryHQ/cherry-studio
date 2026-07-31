@@ -2,6 +2,7 @@ export {
   type AbsoluteFilePath,
   AbsoluteFilePathSchema,
   type Base64String,
+  Base64StringSchema,
   type DirectoryEntry,
   type DirectoryListOptions,
   FILE_TYPE,
@@ -14,7 +15,8 @@ export {
   type PhysicalFileMetadata,
   PhysicalFileMetadataSchema,
   SafeExtSchema,
-  type UrlString
+  type UrlString,
+  UrlStringSchema
 } from './common'
 export { type FileInfo, FileInfoSchema } from './info'
 export {

@@ -33,7 +33,14 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { CleanupPolicy, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import type {
+  CleanupPolicy,
+  ContentHash,
+  DanglingState,
+  FileEntry,
+  FileEntryId,
+  FileHandle
+} from '@shared/data/types/file'
 
 import type {
   AbsoluteFilePath,
@@ -84,16 +91,14 @@ export interface ReadResult<T> {
  *
  * TODO(file-ipc types): this union hand-mirrors `createInternalEntryInputSchema`
  * (`src/shared/ipc/schemas/file.ts`) and so re-declares the shared `cleanupPolicy`
- * per branch. It can't simply become `z.infer<typeof createInternalEntryInputSchema>`
- * yet: `path` is fine now that `AbsoluteFilePathSchema` *produces* the
- * `AbsoluteFilePath` brand, but `url` / `data` still infer to plain `string`
- * (`z.url()` / `z.string().min(1)` don't narrow) whereas this union carries the
- * `UrlString` / `Base64String` brands — so inferring would silently widen and drop
- * them. The remaining fix is to brand those two schema outputs the same way; then
- * `z.infer` equals this type, the base `cleanupPolicy` lives in one place, and this
- * hand-written union can be deleted. Deferred to the File IPC → IpcApi migration
- * (see the matching TODO in `schemas/file.ts`). Until then, keep the two in sync by
- * hand.
+ * per branch. What used to block collapsing it into
+ * `z.infer<typeof createInternalEntryInputSchema>` is gone: `path` was already
+ * fine, and `url` / `data` no longer widen to plain `string` now that
+ * `UrlStringSchema` / `Base64StringSchema` carry `UrlString` / `Base64String`.
+ * What is left is to confirm the remaining fields (`name`, `ext`) infer to the
+ * same types this union declares, then delete it and let `cleanupPolicy` live in
+ * one place. Deferred to the File IPC → IpcApi migration (see the matching TODO
+ * in `schemas/file.ts`). Until then, keep the two in sync by hand.
  */
 export type CreateInternalEntryIpcParams =
   | {
@@ -403,10 +408,10 @@ export interface FileIpcApi {
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /**
-   * Compute xxhash-h64 of file content.
+   * Compute a tagged XXH3-64 hash of file content.
    * @phase 2 — not yet wired
    */
-  getContentHash(handle: FileHandle): Promise<string>
+  getContentHash(handle: FileHandle): Promise<ContentHash>
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
   //
@@ -421,20 +426,20 @@ export interface FileIpcApi {
   /**
    * Optimistic-concurrency write. Throws StaleVersionError on version mismatch.
    *
-   * `expectedContentHash` (xxhash-h64 hex) is optional and only consulted on
+   * `expectedContentHash` (tagged XXH3-64) is optional and only consulted on
    * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — the generic FileHandle API is not yet wired. ArtifactPane uses
-   * the narrower path-only IpcApi route `file.write_if_unchanged`, whose OCC
-   * input is `FileVersion` only.
+   * @phase 2 — wired through the generic `file.write_if_unchanged` IpcApi
+   * route. Entry handles use FileManager's managed commit protocol; path
+   * handles use the guarded path-only OCC primitive.
    */
   writeIfUnchanged(
     handle: FileHandle,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion>
 
   // ─── E. Trash / Delete ───

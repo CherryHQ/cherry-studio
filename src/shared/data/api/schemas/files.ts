@@ -16,6 +16,7 @@
  * Endpoints:
  * - `GET /files/entries`            — FileEntry list (fixed shape)
  * - `GET /files/entries/:id`        — Single entry lookup (fixed shape)
+ * - `GET /files/entries/by-content-hash` — Active internal exact-hash candidates
  * - `GET /files/entries/stats`      — Pure-SQL aggregate counts for sidebar filters
  * - `GET /files/entries/ref-counts` — Ref-count aggregation for a batch of ids (persistent SQL refs)
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
@@ -50,7 +51,12 @@
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
 import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
-import { FileEntryIdSchema, FileEntryOriginSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
+import {
+  ContentHashSchema,
+  FileEntryIdSchema,
+  FileEntryOriginSchema,
+  FileRefSourceTypeSchema
+} from '@shared/data/types/file'
 import * as z from 'zod'
 
 /**
@@ -95,6 +101,9 @@ export const ListFilesQuerySchema = z
   )
 export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema> & CursorPaginationParams
 export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
+
+export const ContentHashQuerySchema = z.strictObject({ contentHash: ContentHashSchema })
+export type ContentHashQueryParams = z.input<typeof ContentHashQuerySchema>
 
 export interface FileEntryListResponse extends CursorPaginationResponse<FileEntry> {
   total: number
@@ -176,6 +185,14 @@ export type FileSchemas = {
     GET: {
       params: { id: FileEntryId }
       response: FileEntry
+    }
+  }
+
+  /** Active internal entries with an exact tagged content hash, oldest first. */
+  '/files/entries/by-content-hash': {
+    GET: {
+      query: ContentHashQueryParams
+      response: FileEntry[]
     }
   }
 

@@ -41,6 +41,8 @@ export const fileEntryTable = sqliteTable(
      * live value is read via File IPC `getMetadata`.
      */
     size: integer(),
+    /** Algorithm-tagged internal-content hash. Null means unknown, in-flight, or awaiting repair. */
+    contentHash: text(),
 
     // ─── External ───
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
@@ -69,6 +71,9 @@ export const fileEntryTable = sqliteTable(
   (t) => [
     index('fe_deleted_at_idx').on(t.deletedAt),
     index('fe_created_at_idx').on(t.createdAt),
+    // Content hashes are deliberately non-unique: duplicate content may have
+    // multiple logical entries, and callers choose whether to reuse one.
+    index('fe_content_hash_idx').on(t.contentHash),
     // Case-insensitive uniqueness for `externalPath`. SQLite indexes
     // expressions verbatim, so this index covers both the uniqueness
     // invariant ("no two external rows whose canonical paths agree under
@@ -107,6 +112,8 @@ export const fileEntryTable = sqliteTable(
     // External removal is always immediate via permanentDelete (DB-only; the
     // physical file is left untouched, path-level @main/utils/file/fs.remove is a separate call).
     check('fe_external_no_delete', sql`${t.origin} != 'external' OR ${t.deletedAt} IS NULL`),
+    // Cherry does not own external content, so its hash cannot be kept current.
+    check('fe_contenthash_external_null', sql`${t.origin} != 'external' OR ${t.contentHash} IS NULL`),
     // Size semantics are origin-dependent: internal rows carry an authoritative
     // byte count (non-null, ≥ 0); external rows must leave size NULL and read
     // live values from File IPC `getMetadata`. The Zod layer rejects the same

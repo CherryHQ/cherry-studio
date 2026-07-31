@@ -11,6 +11,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
@@ -49,7 +50,8 @@ function makeDeps() {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: createVersionCacheImpl(10)
+    versionCache: createVersionCacheImpl(10),
+    contentWriteLock: new KeyedMutex()
   }
 }
 
