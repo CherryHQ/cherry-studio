@@ -186,6 +186,28 @@ describe('useSessions', () => {
     vi.clearAllMocks()
   })
 
+  it('revalidates every loaded page for a load-all session source', () => {
+    renderHook(() => useSessions(undefined, { loadAll: true, pageSize: 200 }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      query: undefined,
+      limit: 200,
+      enabled: undefined,
+      swrOptions: { revalidateAll: true }
+    })
+  })
+
+  it('keeps progressive session sources on first-page revalidation', () => {
+    renderHook(() => useSessions(undefined))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      query: undefined,
+      limit: 20,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false }
+    })
+  })
+
   it('returns empty sessions when agentId is null', () => {
     mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
 

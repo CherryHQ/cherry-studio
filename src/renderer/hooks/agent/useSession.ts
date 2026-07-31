@@ -168,7 +168,10 @@ export const useSessions = (
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
     limit: pageSize,
-    enabled
+    enabled,
+    // SWR Infinite revalidates only the first page by default. A load-all source
+    // must refresh every loaded page before publishing its complete snapshot.
+    swrOptions: { revalidateAll: loadAll }
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
