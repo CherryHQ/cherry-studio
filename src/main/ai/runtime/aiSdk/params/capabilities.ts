@@ -23,11 +23,10 @@ import {
   isGenerateImageModel,
   isGrokModel,
   isOpenAIModel,
-  isPureGenerateImageModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel
 } from '@shared/utils/model'
-import { isAIGatewayProvider, isBuiltinWebSearchAvailable, isSupportUrlContextProvider } from '@shared/utils/provider'
+import { isAIGatewayProvider, type WebToolRoutes } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { getAiSdkProviderId } from '../../../provider/factory'
@@ -45,8 +44,8 @@ export interface ResolvedCapabilities {
 }
 
 export interface ResolveCapabilitiesOptions {
-  /** Caller-supplied external web search provider id. When set, disables built-in web search. */
-  webSearchProviderId?: string
+  /** The selected implementation for each mutually exclusive web capability. */
+  webToolRoutes?: WebToolRoutes
   /** Whether this request exposes any custom/function tools to the model. */
   hasFunctionTools?: boolean
 }
@@ -71,21 +70,10 @@ export function resolveCapabilities(
   const enableReasoning =
     isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
-  // Built-in web search follows the provider registry's model scope. Most hosts
-  // are model-dependent; provider-wide hosts such as OpenRouter can serve every
-  // chat model. Non-supporting pairs fall back to the app's own web-search tool.
-  const hasExternalSearch = !!options.webSearchProviderId
-  const enableWebSearch =
-    !hasExternalSearch && !!assistant.settings?.enableWebSearch && isBuiltinWebSearchAvailable(model, provider)
+  const enableWebSearch = options.webToolRoutes?.webSearch === 'server'
 
-  // Provider-native URL context: the provider must serve it (`serverTools`), the
-  // model must be a Gemini/Anthropic-family SKU, and the user must enable it.
-  const urlContextSupported =
-    isSupportUrlContextProvider(provider) &&
-    !isPureGenerateImageModel(model) &&
-    (isGeminiModel(model) || isAnthropicModel(model))
   const hasIncompatibleGeminiTools = isGeminiModel(model) && !isGemini3Model(model) && options.hasFunctionTools === true
-  const enableUrlContext = urlContextSupported && !hasIncompatibleGeminiTools && !!assistant.settings?.enableUrlContext
+  const enableUrlContext = options.webToolRoutes?.webFetch === 'server' && !hasIncompatibleGeminiTools
 
   // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
   // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),

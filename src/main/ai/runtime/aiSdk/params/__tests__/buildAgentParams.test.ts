@@ -1,16 +1,17 @@
 import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+  preferenceGetMock: vi.fn(),
   resolveProviderAiSdkConfigMock: vi.fn()
 }))
 
@@ -24,7 +25,7 @@ vi.mock('@application', () => ({
       path.join(process.cwd(), 'packages/provider-registry/data', filename),
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
-      if (name === 'PreferenceService') return { get: () => null }
+      if (name === 'PreferenceService') return { get: preferenceGetMock }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -38,6 +39,10 @@ const {
   resolveToolCallLimit,
   resolveTools
 } = await import('../buildAgentParams')
+
+beforeEach(() => {
+  preferenceGetMock.mockReturnValue(null)
+})
 
 describe('buildAgentParams provider resolution', () => {
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
@@ -162,6 +167,89 @@ describe('buildAgentParams provider resolution', () => {
 
     expect(result.plugins.map((plugin) => plugin.name)).toContain('urlContext')
   })
+})
+
+describe('buildAgentParams web-tool routing', () => {
+  const provider = makeProvider({
+    id: 'anthropic',
+    defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+    },
+    serverTools: [
+      { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' },
+      { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
+    ]
+  })
+  const model = makeModel({
+    id: 'anthropic::claude-sonnet-4-6',
+    providerId: 'anthropic',
+    apiModelId: 'claude-sonnet-4-6',
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+  })
+  const assistant = makeAssistant({ settings: { enableWebSearch: true, enableUrlContext: true } })
+  const clientSearchEntry: ToolEntry = {
+    name: 'web_search',
+    namespace: 'web',
+    description: 'client search',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => scope.webToolRoutes?.webSearch === 'client'
+  }
+  const clientFetchEntry: ToolEntry = {
+    name: 'web_fetch',
+    namespace: 'web',
+    description: 'client fetch',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => scope.webToolRoutes?.webFetch === 'client'
+  }
+
+  beforeEach(() => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+  })
+
+  afterEach(() => {
+    registry.deregister(clientSearchEntry.name)
+    registry.deregister(clientFetchEntry.name)
+  })
+
+  it.each([
+    { clientToolsPreferred: true, expectedRoute: 'client' },
+    { clientToolsPreferred: false, expectedRoute: 'server' }
+  ])(
+    'injects only $expectedRoute implementations when preference is $clientToolsPreferred',
+    async ({ clientToolsPreferred, expectedRoute }) => {
+      const preferences = new Map<string, unknown>([
+        ['app.developer_mode.enabled', false],
+        ['chat.web_search.client_tools_preferred', clientToolsPreferred],
+        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+        ['chat.web_search.default_fetch_urls_provider', 'jina'],
+        ['chat.web_search.provider_overrides', {}],
+        ['chat.web_search.max_results', 5],
+        ['chat.web_search.exclude_domains', []]
+      ])
+      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+      registry.register(clientSearchEntry)
+      registry.register(clientFetchEntry)
+
+      const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+      const hasClientSearch = result.tools?.web_search === clientSearchEntry.tool
+      const hasClientFetch = result.tools?.web_fetch === clientFetchEntry.tool
+      const hasServerSearch = result.plugins.some((plugin) => plugin.name === 'webSearch')
+      const hasServerFetch = result.plugins.some((plugin) => plugin.name === 'urlContext')
+
+      expect(hasClientSearch).toBe(expectedRoute === 'client')
+      expect(hasClientFetch).toBe(expectedRoute === 'client')
+      expect(hasServerSearch).toBe(expectedRoute === 'server')
+      expect(hasServerFetch).toBe(expectedRoute === 'server')
+      expect(Number(hasClientSearch) + Number(hasServerSearch)).toBe(1)
+      expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
+    }
+  )
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {

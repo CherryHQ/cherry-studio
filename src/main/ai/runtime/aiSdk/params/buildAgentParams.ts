@@ -5,16 +5,20 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
+import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
+import { resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
@@ -65,6 +69,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
   KB_SEARCH_TOOL_NAME,
   KB_READ_TOOL_NAME
 ])
+const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
@@ -111,11 +116,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
+  const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant)
   const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
+    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
   const capabilities = assistant
     ? resolveCapabilities(model, provider, assistant, {
+        webToolRoutes,
         hasFunctionTools: tools !== undefined && Object.keys(tools).length > 0
       })
     : undefined
@@ -162,6 +169,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoning,
     requestContext,
     mcpToolIds,
+    webToolRoutes,
     hasFileAttachments,
     knowledgeBaseIds
   }
@@ -255,7 +263,8 @@ export async function resolveTools(
   assistant: Assistant | undefined,
   model: Model,
   hasFileAttachments: boolean,
-  knowledgeBaseIds: readonly string[]
+  knowledgeBaseIds: readonly string[],
+  webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -282,7 +291,8 @@ export async function resolveTools(
     mcpToolIds,
     hasFileAttachments,
     hasAnyKnowledgeBase,
-    knowledgeBaseIds
+    knowledgeBaseIds,
+    webToolRoutes
   })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
@@ -308,6 +318,44 @@ export async function resolveTools(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, hasCitableTools, mcpToolIds }
+}
+
+async function resolveRequestWebToolRoutes(
+  model: Model,
+  provider: Provider,
+  assistant: Assistant | undefined
+): Promise<WebToolRoutes> {
+  if (!assistant) return NO_WEB_TOOL_ROUTES
+
+  const preferenceService = application.get('PreferenceService')
+  const clientWebToolsEnabled = assistant.settings.enableWebSearch === true
+  const [clientSearchAvailable, clientFetchAvailable] = clientWebToolsEnabled
+    ? await Promise.all([
+        resolveClientWebCapabilityAvailability('searchKeywords'),
+        resolveClientWebCapabilityAvailability('fetchUrls')
+      ])
+    : [false, false]
+  const clientToolsPreferred = preferenceService.get('chat.web_search.client_tools_preferred')
+
+  return resolveWebToolRoutes(model, provider, {
+    webSearchEnabled: clientWebToolsEnabled,
+    urlContextEnabled: assistant.settings.enableUrlContext === true,
+    clientSearchAvailable,
+    clientFetchAvailable,
+    clientToolsPreferred
+  })
+
+  async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
+    try {
+      const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
+      return isWebSearchProviderReady(clientProvider, capability)
+    } catch (error) {
+      if (!isPermanentWebSearchConfigError(error)) {
+        logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })
+      }
+      return false
+    }
+  }
 }
 
 /**

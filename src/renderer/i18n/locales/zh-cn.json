@@ -8076,6 +8076,10 @@
         "check": "检测",
         "check_failed": "验证失败",
         "check_success": "验证成功",
+        "client_tools_preferred": {
+          "description": "当客户端与模型原生能力均可用时，优先使用已配置的搜索和 URL 获取服务商。",
+          "label": "优先使用客户端 Web 工具"
+        },
         "compression": {
           "cutoff": {
             "limit": {

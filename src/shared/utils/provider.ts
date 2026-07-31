@@ -8,7 +8,13 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { isNonChatModel } from './model'
+import {
+  isAnthropicModel,
+  isFunctionCallingModel,
+  isGeminiModel,
+  isNonChatModel,
+  isPureGenerateImageModel
+} from './model'
 import { getProviderHostTopology } from './providerTopology'
 
 // Azure/Vertex/Bedrock reuse other vendors' endpoint protocols, so authType
@@ -159,7 +165,7 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
-export function isSupportUrlContextProvider(provider: Provider): boolean {
+export function isSupportUrlContextProvider(provider: Pick<Provider, 'serverTools'>): boolean {
   return provider.serverTools?.some((tool) => tool.id === SERVER_TOOL.URL_CONTEXT) ?? false
 }
 
@@ -214,6 +220,72 @@ export function isBuiltinWebSearchAvailable(model: Model, provider: Pick<Provide
   }
 
   return isServerToolModelEligible(model, SERVER_TOOL.WEB_SEARCH)
+}
+
+export type WebToolRoute = 'client' | 'server' | 'none'
+
+export interface WebToolRoutes {
+  webSearch: WebToolRoute
+  webFetch: WebToolRoute
+}
+
+/** Effective provider-native URL-fetch availability for one provider-model pair. */
+export function isBuiltinWebFetchAvailable(model: Model, provider: Pick<Provider, 'serverTools'>): boolean {
+  return (
+    isSupportUrlContextProvider(provider) &&
+    !isPureGenerateImageModel(model) &&
+    (isGeminiModel(model) || isAnthropicModel(model))
+  )
+}
+
+/** Select one web-tool side for a request, then expose only the capabilities available on that side. */
+export function resolveWebToolRoutes(
+  model: Model,
+  provider: Pick<Provider, 'serverTools'> | undefined,
+  options: {
+    webSearchEnabled: boolean
+    urlContextEnabled: boolean
+    clientSearchAvailable: boolean
+    clientFetchAvailable: boolean
+    clientToolsPreferred: boolean
+  }
+): WebToolRoutes {
+  const supportsClientTools = isFunctionCallingModel(model)
+  const clientSearchAvailable = options.webSearchEnabled && supportsClientTools && options.clientSearchAvailable
+  const clientFetchAvailable = options.webSearchEnabled && supportsClientTools && options.clientFetchAvailable
+  const serverSearchAvailable =
+    options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider) : false
+  const serverFetchAvailable =
+    options.urlContextEnabled && provider ? isBuiltinWebFetchAvailable(model, provider) : false
+  const clientAvailable = clientSearchAvailable || clientFetchAvailable
+  const serverAvailable = serverSearchAvailable || serverFetchAvailable
+
+  const selectedSide: Exclude<WebToolRoute, 'none'> | undefined = options.clientToolsPreferred
+    ? clientAvailable
+      ? 'client'
+      : serverAvailable
+        ? 'server'
+        : undefined
+    : serverAvailable
+      ? 'server'
+      : clientAvailable
+        ? 'client'
+        : undefined
+
+  return {
+    webSearch:
+      selectedSide === 'client' && clientSearchAvailable
+        ? 'client'
+        : selectedSide === 'server' && serverSearchAvailable
+          ? 'server'
+          : 'none',
+    webFetch:
+      selectedSide === 'client' && clientFetchAvailable
+        ? 'client'
+        : selectedSide === 'server' && serverFetchAvailable
+          ? 'server'
+          : 'none'
+  }
 }
 
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS = ['ollama', 'lmstudio', 'nvidia', 'gpustack'] as const

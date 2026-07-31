@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
@@ -9,11 +10,11 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch, isOpenAIWebSearchModel } from '@renderer/utils/model'
+import { isOpenAIWebSearchModel } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
-import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
+import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel } from '@shared/utils/model'
-import { isGeminiWebSearchProvider } from '@shared/utils/provider'
+import { isBuiltinWebSearchAvailable, isGeminiWebSearchProvider, resolveWebToolRoutes } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
@@ -25,35 +26,36 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
-
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProvider(model?.providerId ?? '')
-  const { defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model, modelProvider) : false
-  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model, modelProvider) : false
+  const clientSearchAvailable = isWebSearchProviderReady(defaultSearchKeywordsProvider, 'searchKeywords')
+  const clientFetchAvailable = isWebSearchProviderReady(defaultFetchUrlsProvider, 'fetchUrls')
+  const webSearchRoute = model
+    ? resolveWebToolRoutes(model, modelProvider, {
+        webSearchEnabled: true,
+        urlContextEnabled: assistant?.settings.enableUrlContext === true,
+        clientSearchAvailable,
+        clientFetchAvailable,
+        clientToolsPreferred
+      }).webSearch
+    : 'none'
+  const hasSearchBackend =
+    clientSearchAvailable || (model && modelProvider ? isBuiltinWebSearchAvailable(model, modelProvider) : false)
+  const usesServerSearch = webSearchRoute === 'server'
+  const activeProviderId = clientSearchAvailable ? defaultSearchKeywordsProvider?.id : undefined
 
-  const activeProviderId = useMemo(() => {
-    const p = defaultSearchKeywordsProvider
-    if (!p) return undefined
-    const available = webSearchProviderRequiresApiKey(p.id)
-      ? p.apiKeys.some((k) => k.trim().length > 0)
-      : Boolean(p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim())
-    return available ? p.id : undefined
-  }, [defaultSearchKeywordsProvider])
-  const hasSearchBackend = hasBuiltinWebSearch || Boolean(activeProviderId)
-
-  // When the model has built-in web search, the toggle just flips the
-  // assistant flag — no external provider is invoked, so don't show its logo.
-  const providerLogo = !hasBuiltinWebSearch && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
+  const providerLogo =
+    webSearchRoute === 'client' && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
   const hasGeminiWebSearchConflict = Boolean(
-    modelProvider &&
+    usesServerSearch &&
+      modelProvider &&
       assistant &&
       model &&
       isGeminiWebSearchProvider(modelProvider) &&
@@ -62,7 +64,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       getEffectiveMcpMode(assistant) !== 'disabled'
   )
   const hasOpenAIMinimalWebSearchConflict = Boolean(
-    model &&
+    usesServerSearch &&
+      model &&
       assistant &&
       isOpenAIWebSearchModel(model) &&
       isGPT5SeriesReasoningModel(model) &&
@@ -70,7 +73,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   )
   const disabledReason =
     !enableWebSearch && hasSearchBackend
-      ? !canUseWebSearch
+      ? webSearchRoute === 'none'
         ? t('chat.input.web_search.builtin.disabled_content')
         : hasGeminiWebSearchConflict
           ? t('chat.mcp.warning.gemini_web_search')
@@ -91,9 +94,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         return
       }
 
-      // Built-in web search bypasses the external-provider requirement; the
-      // toggle simply flips the assistant flag and the model handles search.
-      if (!hasBuiltinWebSearch && !activeProviderId) {
+      if (webSearchRoute === 'none') {
         let navigatedAway = false
 
         const confirmed = await popup.confirm({
@@ -124,17 +125,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [
-      activeProviderId,
-      assistant,
-      disabledReason,
-      enableWebSearch,
-      hasBuiltinWebSearch,
-      navigate,
-      t,
-      updateAssistant,
-      model
-    ]
+    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, webSearchRoute]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')

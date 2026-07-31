@@ -8076,6 +8076,10 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
+        "client_tools_preferred": {
+          "description": "Prefer the configured search and URL fetch providers over equivalent model-native tools when both are available.",
+          "label": "Prefer client web tools"
+        },
         "compression": {
           "cutoff": {
             "limit": {

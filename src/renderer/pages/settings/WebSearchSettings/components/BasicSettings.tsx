@@ -7,12 +7,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import {
   SettingDivider,
   SettingGroup,
+  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -46,7 +48,8 @@ const BasicSettings: FC = () => {
     setDefaultFetchUrlsProvider,
     setDefaultSearchKeywordsProvider
   } = useWebSearchProviderLists()
-  const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
+  const { clientToolsPreferred, maxResults, compressionConfig, setClientToolsPreferred, setMaxResults } =
+    useWebSearchSettings()
   const [draftMaxResultsInput, setDraftMaxResultsInput] = useState(String(maxResults))
   const [maxResultsBaseline, setMaxResultsBaseline] = useState(maxResults)
   const maxResultsDirty = draftMaxResultsInput !== String(maxResultsBaseline)
@@ -147,6 +150,22 @@ const BasicSettings: FC = () => {
 
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.label')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow className={settingRowClassName}>
+          <div className={settingLabelClassName}>
+            <SettingRowTitle>{t('settings.tool.websearch.client_tools_preferred.label')}</SettingRowTitle>
+            <SettingHelpText className="mt-1">
+              {t('settings.tool.websearch.client_tools_preferred.description')}
+            </SettingHelpText>
+          </div>
+          <Switch
+            aria-label={t('settings.tool.websearch.client_tools_preferred.label')}
+            checked={clientToolsPreferred}
+            onCheckedChange={(checked) =>
+              void persist(() => setClientToolsPreferred(checked), 'Failed to save the client web-tool preference')
+            }
+          />
+        </SettingRow>
         <SettingDivider />
         <SettingRow className={settingRowClassName}>
           <SettingRowTitle className={settingLabelClassName}>
