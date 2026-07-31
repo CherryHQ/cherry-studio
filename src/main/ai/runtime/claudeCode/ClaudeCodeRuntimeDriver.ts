@@ -812,13 +812,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private emitPortableResumePoint(sessionId: string): void {
-    this.eventQueue.push({
-      type: 'resume-token',
-      token: encodePortableAgentResumePoint({
+    // Encoding validates the ids are the UUIDs the SDK contract promises. A
+    // resume point is not worth losing a completed turn over, so a violation is
+    // logged and the token is dropped rather than thrown out of the result path.
+    let token: string
+    try {
+      token = encodePortableAgentResumePoint({
         sessionId,
         ...(this.lastTopLevelAssistantUuid ? { resumeSessionAt: this.lastTopLevelAssistantUuid } : {})
       })
-    })
+    } catch (error) {
+      logger.warn('Skipping an unencodable portable resume point', error as Error, {
+        sessionId: this.input.sessionId
+      })
+      return
+    }
+    this.eventQueue.push({ type: 'resume-token', token })
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {

@@ -1,6 +1,9 @@
+import { encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const FRESH_SDK_SESSION_ID = '33333333-3333-4333-8333-333333333333'
 
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
@@ -2246,8 +2249,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // The recovered conversation reports a NEW session id and completes the SAME turn — no error
     // event reaches the host, so the stale token self-heals on the next persisted assistant row.
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-1' })
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-1', usage: {} })
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: FRESH_SDK_SESSION_ID })
+    freshQueue.push({ type: 'result', subtype: 'success', session_id: FRESH_SDK_SESSION_ID, usage: {} })
 
     const seen: any[] = []
     while (true) {
@@ -2256,7 +2259,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (next.value?.type === 'turn-complete' || next.done) break
     }
     expect(seen.map((event) => event?.type)).not.toContain('error')
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-1' }))
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'resume-token',
+        token: encodePortableAgentResumePoint({ sessionId: FRESH_SDK_SESSION_ID })
+      })
+    )
     // The transcript tells the user the prior conversation was lost and this reply starts fresh.
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
