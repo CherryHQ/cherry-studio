@@ -51,12 +51,12 @@ export function PermissionModeOptionLabel({
         {t(card.titleKey, card.titleFallback)}
       </span>
       {withDescription && (
-        <span className={cn('text-xs', card.dangerous ? 'text-destructive/80' : 'text-muted-foreground')}>
+        <span className={cn('text-xs', card.dangerous ? 'text-destructive' : 'text-muted-foreground')}>
           {t(card.descriptionKey, card.descriptionFallback)}
         </span>
       )}
       {card.warningKey && (
-        <span className={cn('text-xs', card.dangerous ? 'text-destructive/80' : 'text-warning')}>
+        <span className={cn('text-xs', card.dangerous ? 'text-destructive' : 'text-warning')}>
           {t(card.warningKey, card.warningFallback ?? '')}
         </span>
       )}
