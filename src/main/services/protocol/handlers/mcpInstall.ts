@@ -1,35 +1,55 @@
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { WindowType } from '@main/core/window/types'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import { nanoid } from 'nanoid'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
+import { type CreateMcpServerDto, CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
-function installMcpServer(server: McpServer) {
-  const now = Date.now()
+function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpServerDto {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('MCP server config must be an object')
+  }
 
-  const payload: McpServer = {
-    ...server,
-    id: server.id ?? nanoid(),
+  const candidate = { ...(value as Record<string, unknown>) }
+  const legacyUrl = candidate.url
+
+  delete candidate.id
+  delete candidate.createdAt
+  delete candidate.updatedAt
+  delete candidate.url
+
+  if (!candidate.name && fallbackName) {
+    candidate.name = fallbackName
+  }
+  if (candidate.baseUrl === undefined && typeof legacyUrl === 'string') {
+    candidate.baseUrl = legacyUrl
+  }
+
+  return CreateMcpServerSchema.parse({
+    ...candidate,
     installSource: 'protocol',
     isTrusted: false,
     isActive: false,
     trustedAt: undefined,
-    installedAt: server.installedAt ?? now
-  }
-
-  application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.server.added', payload)
+    installedAt: candidate.installedAt ?? Date.now()
+  })
 }
 
-function installMcpServers(servers: Record<string, McpServer>) {
-  for (const name in servers) {
-    const server = servers[name]
-    if (!server.name) {
-      server.name = name
-    }
-    installMcpServer(server)
+function parseMcpServerDtos(value: unknown): CreateMcpServerDto[] {
+  if (Array.isArray(value)) {
+    return value.map((server) => toCreateMcpServerDto(server))
   }
+
+  if (value && typeof value === 'object' && 'mcpServers' in value) {
+    const servers = (value as { mcpServers?: unknown }).mcpServers
+    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
+      throw new Error('mcpServers must be an object')
+    }
+    return Object.entries(servers).map(([name, server]) => toCreateMcpServerDto(server, name))
+  }
+
+  return [toCreateMcpServerDto(value)]
 }
 
 export function handleMcpProtocolUrl(url: URL) {
@@ -54,19 +74,16 @@ export function handleMcpProtocolUrl(url: URL) {
 
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
-        logger.debug(`install MCP servers from protocol: ${stringify}`)
         const jsonConfig = JSON.parse(stringify)
-        logger.debug(`install MCP servers from protocol: ${JSON.stringify(jsonConfig)}`)
+        const serverDtos = parseMcpServerDtos(jsonConfig)
+        const createdServers = serverDtos.map((server) => mcpServerService.create(server))
 
-        // support both {mcpServers: [servers]}, [servers] and {server}
-        if (jsonConfig.mcpServers) {
-          installMcpServers(jsonConfig.mcpServers)
-        } else if (Array.isArray(jsonConfig)) {
-          for (const server of jsonConfig) {
-            installMcpServer(server)
-          }
-        } else {
-          installMcpServer(jsonConfig)
+        logger.debug('Installed MCP servers from protocol', { count: createdServers.length })
+
+        const lastCreatedServer = createdServers.at(-1)
+        if (lastCreatedServer) {
+          openSettingsInMainWindow(`/settings/mcp/settings/${lastCreatedServer.id}`, { delivery: 'init-data' })
+          break
         }
       }
 

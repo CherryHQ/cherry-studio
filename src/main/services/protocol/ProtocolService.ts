@@ -26,6 +26,9 @@ const logger = loggerService.withContext('ProtocolService')
 // open-url events to fire before our listener attaches. MainWindowService is resolved
 // at call time inside listener callbacks — safe because OS events fire post-bootstrap.
 export class ProtocolService extends BaseService {
+  private pendingProtocolUrls: string[] = []
+  private isProtocolHandlingReady = false
+
   protected async onInit() {
     // NOTE: Background phase's onInit runs on the first microtask after startPhase(),
     // which is before app.whenReady() (an OS-level event requiring the event loop).
@@ -65,6 +68,9 @@ export class ProtocolService extends BaseService {
   }
 
   protected async onAllReady() {
+    this.isProtocolHandlingReady = true
+    this.flushPendingProtocolUrls()
+
     // Runs after all bootstrap phases — application.getPath() is safe
     await this.setupAppImageDeepLink()
   }
@@ -87,6 +93,22 @@ export class ProtocolService extends BaseService {
   private handleProtocolUrl(url: string) {
     if (!url) return
 
+    if (!this.isProtocolHandlingReady) {
+      this.pendingProtocolUrls.push(url)
+      return
+    }
+
+    this.dispatchProtocolUrl(url)
+  }
+
+  private flushPendingProtocolUrls() {
+    const pendingUrls = this.pendingProtocolUrls.splice(0)
+    for (const url of pendingUrls) {
+      this.dispatchProtocolUrl(url)
+    }
+  }
+
+  private dispatchProtocolUrl(url: string) {
     try {
       const urlObj = new URL(url)
       const params = new URLSearchParams(urlObj.search)

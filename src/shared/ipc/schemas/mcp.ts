@@ -1,4 +1,3 @@
-import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
 import * as z from 'zod'
 
@@ -42,7 +41,6 @@ export const mcpRequestSchemas = {
 }
 
 export type McpEventSchemas = {
-  'mcp.server.added': McpServer
   'mcp.server.log': McpServerLogEntry & { serverId: string }
   'mcp.tool.call_progress': McpProgressEvent
 }

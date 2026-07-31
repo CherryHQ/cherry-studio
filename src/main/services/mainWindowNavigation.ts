@@ -27,6 +27,10 @@ export const isAllowedRoute = (path: string): boolean =>
 
 let nextNavigationRequestId = 0
 
+export interface MainWindowNavigationOptions {
+  delivery?: 'auto' | 'init-data'
+}
+
 /**
  * Open a route in the main window. Two delivery paths, split by whether the
  * navigation coincides with the window's lifecycle:
@@ -39,16 +43,18 @@ let nextNavigationRequestId = 0
  *   creation and the renderer picks it up on cold start.
  *
  * Do NOT push navigation through init data on a live window: init data is
- * lifecycle state, persists in the store, and replays on renderer reload.
+ * lifecycle state, persists in the store, and replays on renderer reload. The
+ * narrow `init-data` override is reserved for callers that may run before the
+ * renderer has mounted its event listener.
  */
-export function openRouteInMainWindow(path: string): void {
+export function openRouteInMainWindow(path: string, options: MainWindowNavigationOptions = {}): void {
   const windowManager = application.get('WindowManager')
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
   const mainWindowId = mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
 
-  if (mainWindowId) {
+  if (mainWindowId && options.delivery !== 'init-data') {
     application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
     mainWindowService.showMainWindow()
     return
@@ -61,6 +67,6 @@ export function openRouteInMainWindow(path: string): void {
   } satisfies MainWindowInitData)
 }
 
-export function openSettingsInMainWindow(path?: SettingsPath): void {
-  openRouteInMainWindow(normalizeSettingsPath(path))
+export function openSettingsInMainWindow(path?: SettingsPath, options?: MainWindowNavigationOptions): void {
+  openRouteInMainWindow(normalizeSettingsPath(path), options)
 }

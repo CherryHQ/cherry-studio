@@ -105,7 +105,9 @@ describe('ProtocolService', () => {
     setDefaultApp(originalDefaultApp)
   })
 
-  it('logs malformed protocol URLs instead of throwing', () => {
+  it('logs malformed protocol URLs instead of throwing', async () => {
+    await (service as any).onAllReady()
+
     expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
 
     expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
@@ -136,6 +138,7 @@ describe('ProtocolService', () => {
   it('logs asynchronous providers handler failures', async () => {
     const error = new Error('failed')
     handlersMock.handleProvidersProtocolUrl.mockRejectedValueOnce(error)
+    await (service as any).onAllReady()
 
     ;(service as any).handleProtocolUrl('cherrystudio://providers/api-keys?v=1&data=abc')
 
@@ -144,12 +147,64 @@ describe('ProtocolService', () => {
     })
   })
 
-  it('broadcasts unknown protocol hosts to all windows', () => {
+  it('broadcasts unknown protocol hosts to all windows', async () => {
+    await (service as any).onAllReady()
+
     ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
 
     expect(ipcApiServiceMock.broadcast).toHaveBeenCalledWith('navigation.protocol_data', {
       url: 'cherrystudio://unknown/path?foo=bar',
       params: { foo: 'bar' }
+    })
+  })
+
+  describe('protocol URL readiness', () => {
+    function getOpenUrlHandler() {
+      const call = appMock.on.mock.calls.find((call) => call[0] === 'open-url')
+      if (!call) throw new Error('open-url listener not registered')
+      return call[1] as (event: { preventDefault: () => void }, url: string) => void
+    }
+
+    it('queues a cold-start URL until all services are ready and replays it only once', async () => {
+      process.argv = ['electron', '.']
+      await (service as any).onInit()
+      const handler = getOpenUrlHandler()
+      const event = { preventDefault: vi.fn() }
+
+      handler(event, 'cherrystudio://mcp/install?servers=abc')
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(handlersMock.handleMcpProtocolUrl).not.toHaveBeenCalled()
+
+      await (service as any).onAllReady()
+      await (service as any).onAllReady()
+
+      expect(handlersMock.handleMcpProtocolUrl).toHaveBeenCalledTimes(1)
+      expect(handlersMock.handleMcpProtocolUrl.mock.calls[0][0].href).toBe('cherrystudio://mcp/install?servers=abc')
+    })
+
+    it('handles a hot-start URL immediately', async () => {
+      await (service as any).onAllReady()
+
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+      expect(handlersMock.handleNavigateProtocolUrl.mock.calls[0][0].href).toBe('cherrystudio://navigate/agents')
+    })
+
+    it('replays queued URLs in order and continues after an invalid URL', async () => {
+      const handledUrls: string[] = []
+      handlersMock.handleMcpProtocolUrl.mockImplementation((url: URL) => handledUrls.push(url.href))
+      handlersMock.handleNavigateProtocolUrl.mockImplementation((url: URL) => handledUrls.push(url.href))
+
+      ;(service as any).handleProtocolUrl('cherrystudio://mcp/install?servers=first')
+      ;(service as any).handleProtocolUrl('not a url')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+
+      await (service as any).onAllReady()
+
+      expect(handledUrls).toEqual(['cherrystudio://mcp/install?servers=first', 'cherrystudio://navigate/agents'])
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
     })
   })
 
@@ -162,6 +217,7 @@ describe('ProtocolService', () => {
 
     it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {
       await (service as any).onInit()
+      await (service as any).onAllReady()
       const handler = getSecondInstanceHandler()
 
       handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
