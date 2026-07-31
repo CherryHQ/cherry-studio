@@ -2,7 +2,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport } from '../PdfFileRangeTransport'
+import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from '../PdfFileRangeTransport'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
@@ -115,17 +115,23 @@ describe('PdfFileRangeTransport', () => {
     expect(delivered[4 * PDF_RANGE_CHUNK_SIZE_BYTES]).toBe(4)
   })
 
-  it('rejects an oversized coalesced range before allocating or reading it', async () => {
-    const requestLength = 17 * PDF_RANGE_CHUNK_SIZE_BYTES
+  it('rejects a legitimate pdf.js range above the assembled limit before allocating or reading it', async () => {
+    const begin = PDF_RANGE_CHUNK_SIZE_BYTES
+    const end = 19 * PDF_RANGE_CHUNK_SIZE_BYTES
     const onError = vi.fn()
-    const transport = new PdfFileRangeTransport(handle, requestLength, onError)
+    const transport = new PdfFileRangeTransport(handle, end + PDF_RANGE_CHUNK_SIZE_BYTES, onError)
 
-    transport.requestDataRange(0, requestLength)
+    transport.requestDataRange(begin, end)
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('too large to assemble') })
-    )
+    const error = onError.mock.calls[0][0]
+    expect(error).toBeInstanceOf(PdfRangeTooLargeError)
+    expect(error).toMatchObject({
+      begin,
+      end,
+      maxRangeLength: 16 * PDF_RANGE_CHUNK_SIZE_BYTES,
+      rangeLength: 18_874_368
+    })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.onDataRange).not.toHaveBeenCalled()
   })

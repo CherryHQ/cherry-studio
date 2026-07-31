@@ -2634,6 +2634,14 @@
         "title": "文件过大"
       }
     },
+    "pdf": {
+      "too_large": {
+        "action": "用默认应用打开",
+        "description": "该 PDF 部分内容过大，无法安全地在应用内预览。",
+        "open_error": "无法打开此文件",
+        "title": "无法预览此 PDF"
+      }
+    },
     "text": {
       "empty": {
         "description": "此文本文件没有内容。",

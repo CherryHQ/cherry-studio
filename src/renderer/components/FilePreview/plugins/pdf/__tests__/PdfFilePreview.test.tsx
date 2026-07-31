@@ -2,11 +2,13 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PdfFilePreview from '../PdfFilePreview'
+import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
 
 const mocks = vi.hoisted(() => ({
   eventBusOff: vi.fn(),
@@ -33,6 +35,8 @@ const mocks = vi.hoisted(() => ({
     handle: unknown
     length: number
   }>,
+  safeOpen: vi.fn(),
+  toastError: vi.fn(),
   viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
 }))
 
@@ -48,6 +52,19 @@ vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({
 
 vi.mock('../PdfFileRangeTransport', () => ({
   PDF_RANGE_CHUNK_SIZE_BYTES: 1024 * 1024,
+  PdfRangeTooLargeError: class PdfRangeTooLargeError extends RangeError {
+    readonly maxRangeLength = 16 * 1024 * 1024
+    readonly rangeLength: number
+
+    constructor(
+      readonly begin: number,
+      readonly end: number
+    ) {
+      super('PDF byte range is too large to assemble')
+      this.name = 'PdfRangeTooLargeError'
+      this.rangeLength = end - begin
+    }
+  },
   PdfFileRangeTransport: class {
     abort = vi.fn()
 
@@ -200,6 +217,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+vi.mock('@renderer/utils/file/safeOpen', () => ({
+  safeOpen: mocks.safeOpen
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
+}))
+
 const filePath = '/tmp/workspace/paper.pdf' as AbsoluteFilePath
 let initialDataTheme: string | null
 let themeBackground: string
@@ -232,6 +257,7 @@ describe('PdfFilePreview', () => {
       return property === '--background' ? themeBackground : getPropertyValue.call(this, property)
     })
     mocks.loadingTaskDestroy.mockResolvedValue(undefined)
+    mocks.safeOpen.mockResolvedValue(undefined)
     mocks.getDocument.mockReturnValue({
       destroy: mocks.loadingTaskDestroy,
       promise: Promise.resolve(mocks.pdfDocument)
@@ -372,6 +398,35 @@ describe('PdfFilePreview', () => {
       `Failed to load PDF preview: ${filePath}`,
       expect.objectContaining({ message: 'range read failed' })
     )
+  })
+
+  it('offers the default app when a PDF range exceeds the safe assembled limit', async () => {
+    const user = userEvent.setup()
+    const loggerWarn = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    mocks.safeOpen.mockRejectedValueOnce(new Error('open failed'))
+    renderPreview()
+    await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
+
+    act(() => mocks.rangeTransportInstances[0].fail(new PdfRangeTooLargeError(1024 * 1024, 19 * 1024 * 1024)))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('file_preview.pdf.too_large.title')
+    expect(alert).toHaveTextContent('file_preview.pdf.too_large.description')
+    expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'PDF preview exceeded the safe assembled range limit',
+      expect.objectContaining({
+        begin: 1024 * 1024,
+        end: 19 * 1024 * 1024,
+        filePath,
+        rangeLength: 18 * 1024 * 1024
+      })
+    )
+
+    await user.click(screen.getByRole('button', { name: 'file_preview.pdf.too_large.action' }))
+
+    expect(mocks.safeOpen).toHaveBeenCalledWith(createFilePathHandle(filePath))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('file_preview.pdf.too_large.open_error'))
   })
 
   it('reloads the document when the refresh key changes', async () => {

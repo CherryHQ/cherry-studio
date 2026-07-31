@@ -6,6 +6,21 @@ import { PDFDataRangeTransport } from 'pdfjs-dist'
 export const PDF_RANGE_CHUNK_SIZE_BYTES = 1024 * 1024
 const PDF_MAX_ASSEMBLED_RANGE_BYTES = 16 * PDF_RANGE_CHUNK_SIZE_BYTES
 
+export class PdfRangeTooLargeError extends RangeError {
+  readonly maxRangeLength = PDF_MAX_ASSEMBLED_RANGE_BYTES
+  readonly rangeLength: number
+
+  constructor(
+    readonly begin: number,
+    readonly end: number
+  ) {
+    const rangeLength = end - begin
+    super(`PDF byte range is too large to assemble: ${rangeLength} bytes exceeds ${PDF_MAX_ASSEMBLED_RANGE_BYTES}`)
+    this.name = 'PdfRangeTooLargeError'
+    this.rangeLength = rangeLength
+  }
+}
+
 export class PdfFileRangeTransport extends PDFDataRangeTransport {
   private aborted = false
   private expectedVersion: FileVersion | null = null
@@ -43,9 +58,7 @@ export class PdfFileRangeTransport extends PDFDataRangeTransport {
 
     const rangeLength = end - begin
     if (rangeLength > PDF_MAX_ASSEMBLED_RANGE_BYTES) {
-      throw new RangeError(
-        `PDF byte range is too large to assemble: ${rangeLength} bytes exceeds ${PDF_MAX_ASSEMBLED_RANGE_BYTES}`
-      )
+      throw new PdfRangeTooLargeError(begin, end)
     }
 
     const data = new Uint8Array(rangeLength)

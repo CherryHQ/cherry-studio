@@ -2634,6 +2634,14 @@
         "title": "File is too large"
       }
     },
+    "pdf": {
+      "too_large": {
+        "action": "Open with default app",
+        "description": "Part of this PDF is too large to preview safely in the app.",
+        "open_error": "Couldn't open this file",
+        "title": "Can't preview this PDF"
+      }
+    },
     "text": {
       "empty": {
         "description": "This text file has no content.",

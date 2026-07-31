@@ -207,6 +207,9 @@ This composition lets the same plugin work in embedded and tab hosts without for
   range reads instead of loading the entire file.
 - Transports that combine multiple range reads must cap the assembled range before allocating it and reject responses
   whose `version` changes between reads or whose `version.size` differs from the preflighted `metadata.size`.
+- The PDF transport caps each assembled pdf.js range at 16 MiB. This is not a PDF file-size limit: larger files can
+  preview while every requested range stays within the cap. A PDF that requires a larger contiguous range must offer
+  an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
 - Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
 - Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.

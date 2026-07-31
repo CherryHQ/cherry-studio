@@ -2,8 +2,12 @@ import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
+import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import {
   AnnotationMode,
@@ -21,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
-import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport } from './PdfFileRangeTransport'
+import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -94,6 +98,27 @@ function destroyLoadingTask(loadingTask: PDFDocumentLoadingTask, filePath: strin
   })
 }
 
+function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
+  const { t } = useTranslation()
+
+  const handleOpenWithDefaultApp = () => {
+    void safeOpen(createFilePathHandle(filePath)).catch(() => toast.error(t('file_preview.pdf.too_large.open_error')))
+  }
+
+  return (
+    <div role="alert" className="h-full">
+      <EmptyState
+        icon={FileWarning}
+        title={t('file_preview.pdf.too_large.title')}
+        description={t('file_preview.pdf.too_large.description')}
+        actionLabel={t('file_preview.pdf.too_large.action')}
+        onAction={handleOpenWithDefaultApp}
+        className="h-full"
+      />
+    </div>
+  )
+}
+
 export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -104,7 +129,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   const backgroundRef = useRef(background)
   backgroundRef.current = background
   const [documentProxy, setDocumentProxy] = useState<PDFDocumentProxy | null>(null)
-  const [status, setStatus] = useState<'error' | 'loading' | 'ready'>('loading')
+  const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -221,6 +246,18 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
         loadingTask = null
       }
       const normalized = error instanceof Error ? error : new Error(String(error))
+      if (normalized instanceof PdfRangeTooLargeError) {
+        logger.warn('PDF preview exceeded the safe assembled range limit', {
+          begin: normalized.begin,
+          end: normalized.end,
+          filePath,
+          maxRangeLength: normalized.maxRangeLength,
+          rangeLength: normalized.rangeLength
+        })
+        setDocumentProxy(null)
+        setStatus('too_large')
+        return
+      }
       logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
       setDocumentProxy(null)
       setStatus('error')
@@ -475,6 +512,8 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
                 className="h-full"
               />
             </div>
+          ) : status === 'too_large' ? (
+            <PdfPreviewTooLarge filePath={filePath} />
           ) : (
             <>
               <div
