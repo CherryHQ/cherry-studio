@@ -331,7 +331,11 @@ vi.mock('@cherrystudio/ui', async () => {
     },
     Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Separator: () => <div />,
-    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => (
+      <div data-testid="shared-scrollbar" {...props}>
+        {children}
+      </div>
+    ),
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -509,6 +513,7 @@ describe('ResourceGrid empty state copy', () => {
 
       const loadingGrid = screen.getByTestId('resource-grid-loading')
       await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(loadingGrid.parentElement).toBe(screen.getByTestId('shared-scrollbar'))
       expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
     } finally {
       clientWidthSpy.mockRestore()
