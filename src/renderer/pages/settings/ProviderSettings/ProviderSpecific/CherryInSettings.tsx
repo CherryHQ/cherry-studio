@@ -2,10 +2,19 @@ import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@ch
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import {
+  fieldClasses,
+  ProviderHelpLink
+} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { type CherryInEndpointSelection, type CherryInHostMode } from '@shared/utils/cherryin'
+import {
+  CHERRYIN_HOSTS,
+  type CherryInEndpointSelection,
+  type CherryInHostMode,
+  getCherryInEndpoints,
+  resolveCherryInHost
+} from '@shared/utils/cherryin'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -75,9 +84,38 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
 
   const currentMode = selection?.mode ?? provider?.settings?.cherryInHostMode ?? 'auto'
   const currentOption = HOST_MODE_OPTIONS.find((option) => option.value === currentMode) ?? HOST_MODE_OPTIONS[0]
+  const baseUrl = Object.values(provider?.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
+  const endpoints = getCherryInEndpoints(selection?.host ?? resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china))
 
   return (
-    <ProviderField title={t('settings.provider.cherryin.route.title')} titleClassName="text-foreground">
+    <ProviderField
+      title={t('settings.provider.cherryin.route.title')}
+      titleClassName="text-foreground"
+      help={
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <ProviderHelpLink
+            className={fieldClasses.titleHelpLink}
+            href={endpoints.official}
+            target="_blank"
+            rel="noreferrer">
+            {t('settings.provider.oauth.official_website')}
+          </ProviderHelpLink>
+          <ProviderHelpLink
+            className={fieldClasses.titleHelpLink}
+            href={endpoints.apiKey}
+            target="_blank"
+            rel="noreferrer">
+            {t('settings.provider.get_api_key')}
+          </ProviderHelpLink>
+          <ProviderHelpLink
+            className={fieldClasses.titleHelpLink}
+            href={endpoints.models}
+            target="_blank"
+            rel="noreferrer">
+            {t('settings.models.docs')}
+          </ProviderHelpLink>
+        </div>
+      }>
       <div className={cn(fieldClasses.inputRow, 'group')}>
         <div className="flex min-w-0 flex-1">
           <Popover open={open} onOpenChange={setOpen}>

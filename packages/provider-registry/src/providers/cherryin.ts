@@ -29,12 +29,7 @@ export default defineProvider({
     }
   },
   metadata: {
-    website: {
-      apiKey: 'https://open.cherryin.net/console/token',
-      docs: 'https://open.cherryin.net',
-      models: 'https://open.cherryin.net/pricing',
-      official: 'https://open.cherryin.net'
-    }
+    website: {}
   },
   overrides: deepSeekModels.map((modelId) => ({
     modelId,

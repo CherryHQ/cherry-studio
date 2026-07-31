@@ -58,13 +58,18 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken ?? false
   const isOAuthLoggedIn = hasKeys && hasOAuthToken
   const baseUrl = Object.values(provider?.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
-  const endpoints = getCherryInEndpoints(resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china))
+  const configuredHost = resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china)
+  const endpoints = getCherryInEndpoints(configuredHost)
+
+  const getOAuthHost = useCallback(async () => {
+    if (providerId !== 'cherryin') return configuredHost
+    return (await ipcApi.request('cherryin.get_endpoint_selection')).host
+  }, [configuredHost, providerId])
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
     try {
-      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
-      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: selection.host })
+      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: await getOAuthHost() })
       setBalanceInfo(balance)
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
@@ -72,7 +77,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     } finally {
       setIsLoadingData(false)
     }
-  }, [])
+  }, [getOAuthHost])
 
   useEffect(() => {
     if (isOAuthLoggedIn) {
@@ -90,7 +95,6 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const handleOAuthLogin = useCallback(async () => {
     try {
-      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
       await oauthWithCherryIn(
         async (apiKeys: string) => {
           const keys = apiKeys
@@ -106,14 +110,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           toast.success(t('auth.get_key_success'))
         },
         {
-          oauthServer: selection.host
+          oauthServer: await getOAuthHost()
         }
       )
     } catch (error) {
       logger.error('OAuth error:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
     }
-  }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
+  }, [addApiKey, fetchData, getOAuthHost, refreshHasToken, t, updateProvider])
 
   const handleLogout = useCallback(async () => {
     const confirmed = await popup.confirm({
@@ -126,8 +130,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     setIsLoggingOut(true)
 
     try {
-      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
-      await ipcApi.request('cherryin.logout', { apiHost: selection.host })
+      await ipcApi.request('cherryin.logout', { apiHost: await getOAuthHost() })
       setOauthTokenOverride(false)
       setBalanceInfo(null)
 
@@ -149,12 +152,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     } finally {
       setIsLoggingOut(false)
     }
-  }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
+  }, [deleteApiKey, getOAuthHost, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(async () => {
-    const selection = await ipcApi.request('cherryin.get_endpoint_selection')
-    window.open(getCherryInEndpoints(selection.host).topup, '_blank')
-  }, [])
+    window.open(getCherryInEndpoints(await getOAuthHost()).topup, '_blank')
+  }, [getOAuthHost])
 
   if (!provider) {
     return null

@@ -50,12 +50,18 @@ describe('CherryInSettings', () => {
     } satisfies CherryInEndpointSelection)
   })
 
-  it('shows the selected route mode and updates it across windows', async () => {
+  it('updates the selected route and service links across windows', async () => {
     render(<CherryInSettings providerId="cherryin" />)
 
     const trigger = screen.getByTestId('route-trigger')
     await waitFor(() => expect(within(trigger).getByText('加速线路')).toBeInTheDocument())
     expect(within(trigger).queryByText('open.cherryin.net')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '官方网站' })).toHaveAttribute('href', CHERRYIN_HOSTS.china)
+    expect(screen.getByRole('link', { name: '获取密钥' })).toHaveAttribute(
+      'href',
+      `${CHERRYIN_HOSTS.china}/console/token`
+    )
+    expect(screen.getByRole('link', { name: '模型文档' })).toHaveAttribute('href', `${CHERRYIN_HOSTS.china}/pricing`)
 
     act(() => {
       ipcMocks.endpointSelectedHandler?.({
@@ -65,6 +71,12 @@ describe('CherryInSettings', () => {
     })
 
     expect(within(trigger).getByText('国际线路')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '官方网站' })).toHaveAttribute('href', CHERRYIN_HOSTS.global)
+    expect(screen.getByRole('link', { name: '获取密钥' })).toHaveAttribute(
+      'href',
+      `${CHERRYIN_HOSTS.global}/console/token`
+    )
+    expect(screen.getByRole('link', { name: '模型文档' })).toHaveAttribute('href', `${CHERRYIN_HOSTS.global}/pricing`)
   })
 
   it('shows the automatic mode instead of its resolved endpoint', async () => {

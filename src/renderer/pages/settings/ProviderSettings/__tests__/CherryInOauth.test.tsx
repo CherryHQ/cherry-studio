@@ -86,6 +86,31 @@ describe('CherryInOauth', () => {
     expect(screen.getByText(/open\.cherryin\.net/)).toBeInTheDocument()
   })
 
+  it('uses a custom CherryIN provider host without reading the built-in route selection', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-cherryin',
+        name: 'Custom CherryIN',
+        presetProviderId: 'cherryin',
+        endpointConfigs: {
+          openai: { baseUrl: 'https://open.cherryin.ai' }
+        },
+        apiKeys: [{ id: 'oauth-1', label: 'OAuth', isEnabled: true }],
+        isEnabled: true
+      },
+      updateProvider: vi.fn(),
+      addApiKey: vi.fn(),
+      deleteApiKey: vi.fn()
+    })
+
+    render(<CherryInOauth providerId="custom-cherryin" />)
+
+    await waitFor(() => {
+      expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.ai' })
+    })
+    expect(ipcApiRequestMock).not.toHaveBeenCalledWith('cherryin.get_endpoint_selection')
+  })
+
   it('keeps balance fetch failures quiet and shows the empty balance state', async () => {
     ipcApiRequestMock.mockImplementation((route: string) => {
       if (route === 'cherryin.get_endpoint_selection') {

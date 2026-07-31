@@ -22,12 +22,7 @@
       },
       "id": "cherryin",
       "metadata": {
-        "website": {
-          "apiKey": "https://open.cherryin.net/console/token",
-          "docs": "https://open.cherryin.net",
-          "models": "https://open.cherryin.net/pricing",
-          "official": "https://open.cherryin.net"
-        }
+        "website": {}
       },
       "name": "CherryIN"
     },
@@ -1891,5 +1886,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "db07a2fafd248176"
+  "version": "cd280948e016027b"
 }
