@@ -21,10 +21,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
-import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestorePopup from './RestorePopup'
 
-const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -33,6 +32,9 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const [contextualGreetingsEnabled, setContextualGreetingsEnabled] = usePreference(
+    'feature.conversation_greeting.enabled'
+  )
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
@@ -117,7 +119,7 @@ const BasicDataSettings: React.FC = () => {
     )
 
     const confirmed = await popup.confirm({
-      title: <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>,
+      title: <div style={{ fontSize: '18px', fontWeight: 600 }}>{t('settings.data.app_data.migration_title')}</div>,
       className: 'migration-modal',
       width: 'min(600px, 90vw)',
       style: { minHeight: '400px' },
@@ -213,38 +215,32 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setSkipBackupFile(value)
-  }
-
   return (
     <>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show()} variant="outline">
-                <SaveIcon size={14} />
-                {t('settings.general.backup.button')}
-              </Button>
-              <Button onClick={() => RestorePopup.show()} variant="outline">
-                <FolderOpen size={14} />
-                {t('settings.general.restore.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
-        </BackupUnavailableGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={() => BackupPopup.show()} variant="outline">
+              <SaveIcon size={14} />
+              {t('settings.general.backup.button')}
+            </Button>
+            <Button onClick={() => RestorePopup.show()} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.general.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
@@ -317,6 +313,22 @@ const BasicDataSettings: React.FC = () => {
             }}
           />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle>{t('settings.privacy.contextual_greetings.title')}</SettingRowTitle>
+            <SettingHelpText className="mt-1 max-w-2xl leading-relaxed">
+              {t('settings.privacy.contextual_greetings.description')}
+            </SettingHelpText>
+          </div>
+          <Switch
+            aria-label={t('settings.privacy.contextual_greetings.title')}
+            checked={contextualGreetingsEnabled}
+            onCheckedChange={(value) => {
+              void setContextualGreetingsEnabled(value)
+            }}
+          />
+        </SettingRow>
       </SettingGroup>
     </>
   )
@@ -324,7 +336,7 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-tertiary text-xs leading-4', className)}
     {...props}
   />
 )
@@ -359,7 +371,7 @@ const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithout
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground text-sm',
       className
     )}
     {...props}

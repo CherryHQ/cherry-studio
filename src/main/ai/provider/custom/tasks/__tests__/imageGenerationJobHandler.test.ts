@@ -24,8 +24,10 @@ const {
   cancelMock,
   downloadMock,
   getByProviderIdMock,
+  getApiKeysMock,
   getByKeyMock,
-  providerToAiSdkConfigMock
+  resolveProviderAiSdkConfigMock,
+  recordRequestMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   readMock: vi.fn(),
@@ -37,15 +39,34 @@ const {
   cancelMock: vi.fn(),
   downloadMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
+  getApiKeysMock: vi.fn(),
   getByKeyMock: vi.fn(),
-  providerToAiSdkConfigMock: vi.fn()
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  recordRequestMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('../../imageTransportRegistry', () => ({ resolveImageTransport: resolveImageTransportMock }))
-vi.mock('../../../config', () => ({ providerToAiSdkConfig: providerToAiSdkConfigMock }))
-vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getByProviderIdMock } }))
+vi.mock('../../../config', () => ({ resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock }))
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: getByProviderIdMock, getApiKeys: getApiKeysMock }
+}))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
+vi.mock('@main/data/services/AiUsageRecordService', () => ({
+  aiUsageRecordService: { recordInvocation: recordRequestMock }
+}))
+vi.mock('@main/ai/utils/usageCapture', () => ({
+  createAiUsageCaptureContext: (input: Record<string, unknown>) => ({
+    ...input,
+    pricingSnapshot: input.pricing
+      ? {
+          currency: 'USD',
+          perImage: { price: 0.02, unit: 'image' },
+          capturedAt: '2026-01-01T00:00:00.000Z'
+        }
+      : null
+  })
+}))
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 
 const { imageGenerationJobHandler } = await import('../imageGenerationJobHandler')
@@ -82,9 +103,21 @@ beforeEach(() => {
     }
     throw new Error(`Unexpected application.get(${name})`)
   })
-  getByProviderIdMock.mockResolvedValue({ id: 'ppio' })
-  getByKeyMock.mockResolvedValue({ id: 'qwen-image', apiModelId: 'qwen-image' })
-  providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'ppio', providerSettings: { apiKey: 'k' } })
+  getByProviderIdMock.mockReturnValue({
+    id: 'ppio',
+    name: 'PPIO',
+    apiFeatures: { reportsActualCost: false }
+  })
+  getApiKeysMock.mockReturnValue([{ id: 'key-a', key: 'submit-key', label: 'Primary', isEnabled: true }])
+  getByKeyMock.mockReturnValue({
+    id: 'ppio::qwen-image',
+    apiModelId: 'qwen-image',
+    pricing: { perImage: { price: 0.02 } }
+  })
+  resolveProviderAiSdkConfigMock.mockResolvedValue({
+    config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } }
+  })
+  recordRequestMock.mockReturnValue(undefined)
   cancelMock.mockResolvedValue(undefined)
   permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
@@ -115,6 +148,17 @@ describe('imageGenerationJobHandler contract', () => {
 
 describe('imageGenerationJobHandler.execute', () => {
   it('async: submit(taskId) → patchMetadata → poll → download/persist', async () => {
+    const credentialReceipt = {
+      attribution: 'explicit',
+      id: 'key-a',
+      label: 'Primary',
+      masked: 'sk-a****aaaa'
+    } as const
+    const source = { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' } as const
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
+      credentialReceipt
+    })
     submitMock.mockResolvedValue({ taskId: 'task-xyz' })
     pollMock.mockImplementation(async (_taskId: string, opts: { onProgress?: (p: number) => void }) => {
       opts.onProgress?.(50)
@@ -122,10 +166,11 @@ describe('imageGenerationJobHandler.execute', () => {
     })
 
     const ctx = createCtx()
+    ctx.input.source = source
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz', credentialReceipt })
     expect(pollMock).toHaveBeenCalledWith(
       'task-xyz',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
@@ -133,21 +178,171 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
     expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/a.png')
+    expect(recordRequestMock).toHaveBeenCalledWith({
+      requestId: 'custom-image:img-job-1',
+      context: expect.objectContaining({
+        providerId: 'ppio',
+        modelId: 'qwen-image',
+        credentialReceipt,
+        source
+      }),
+      modality: 'image',
+      imageCount: 1,
+      metrics: { timeCompletionMs: expect.any(Number) },
+      completedAt: expect.any(Number)
+    })
   })
 
-  it('resume: metadata.taskId present → skips submit, polls the persisted task', async () => {
+  it('resume: uses the exact submit key without advancing current rotation', async () => {
+    const submitCredentialReceipt = {
+      attribution: 'explicit',
+      id: 'key-a',
+      label: 'Primary',
+      masked: 'sk-a****aaaa'
+    } as const
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ppio', providerSettings: { apiKey: 'submit-key' } },
+      credentialReceipt: submitCredentialReceipt
+    })
     pollMock.mockResolvedValue(['https://cdn.example.com/b.png'])
 
-    const ctx = createCtx({ metadata: { taskId: 'resumed-task' } })
-    await imageGenerationJobHandler.execute(ctx)
+    const captureContext = {
+      providerId: 'ppio',
+      providerName: 'PPIO',
+      modelId: 'qwen-image',
+      modelName: 'Qwen Image',
+      pricingSnapshot: null,
+      trustProviderReportedCost: false,
+      reportedCostCurrency: null,
+      credentialReceipt: submitCredentialReceipt,
+      source: null,
+      messageRef: null
+    }
+    const ctx = createCtx({
+      metadata: {
+        taskId: 'resumed-task',
+        credentialReceipt: submitCredentialReceipt,
+        usageCaptureContext: captureContext,
+        usageStartedAt: 10
+      }
+    })
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(260)
+    try {
+      await imageGenerationJobHandler.execute(ctx)
+    } finally {
+      dateNow.mockRestore()
+    }
 
     expect(submitMock).not.toHaveBeenCalled()
     expect(ctx.patchMetadata).not.toHaveBeenCalled()
+    expect(getApiKeysMock).toHaveBeenCalledWith('ppio', { enabled: true })
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'ppio' }),
+      expect.objectContaining({ id: 'ppio::qwen-image' }),
+      { apiKeyOverride: 'submit-key' }
+    )
     // Resume must re-supply the persisted descriptor so a stateful transport
     // (DashScope) can rebuild its response-family routing.
     expect(pollMock).toHaveBeenCalledWith(
       'resumed-task',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
+    )
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: captureContext,
+        metrics: { timeCompletionMs: 250 },
+        completedAt: 260
+      })
+    )
+  })
+
+  it('resume: fails explicitly when the submit key is unavailable', async () => {
+    getApiKeysMock.mockReturnValue([])
+    const ctx = createCtx({
+      metadata: {
+        taskId: 'resumed-task',
+        usageCaptureContext: {
+          providerId: 'ppio',
+          providerName: 'PPIO',
+          modelId: 'qwen-image',
+          modelName: 'Qwen Image',
+          pricingSnapshot: null,
+          trustProviderReportedCost: false,
+          reportedCostCurrency: null,
+          credentialReceipt: {
+            attribution: 'explicit',
+            id: 'deleted-key',
+            label: 'Deleted',
+            masked: 'sk-****'
+          },
+          source: null,
+          messageRef: null
+        }
+      }
+    })
+
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow(/unavailable or disabled/)
+    expect(resolveProviderAiSdkConfigMock).not.toHaveBeenCalled()
+    expect(pollMock).not.toHaveBeenCalled()
+    expect(recordRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('rebinds capture context and timing when recovery must submit a new provider call', async () => {
+    const previousCredentialReceipt = {
+      attribution: 'explicit',
+      id: 'key-a',
+      label: 'Previous',
+      masked: 'sk-a****aaaa'
+    } as const
+    const selectedCredentialReceipt = {
+      attribution: 'explicit',
+      id: 'key-b',
+      label: 'Selected',
+      masked: 'sk-b****bbbb'
+    } as const
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ppio', providerSettings: { apiKey: 'new-key' } },
+      credentialReceipt: selectedCredentialReceipt
+    })
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/recovered.png'] })
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(1_250)
+
+    const ctx = createCtx({
+      metadata: {
+        credentialReceipt: previousCredentialReceipt,
+        usageCaptureContext: {
+          providerId: 'ppio',
+          providerName: 'PPIO',
+          modelId: 'qwen-image',
+          modelName: 'Qwen Image',
+          pricingSnapshot: null,
+          trustProviderReportedCost: false,
+          credentialReceipt: previousCredentialReceipt,
+          source: null,
+          messageRef: null
+        },
+        usageStartedAt: 10
+      }
+    })
+
+    try {
+      await imageGenerationJobHandler.execute(ctx)
+    } finally {
+      dateNow.mockRestore()
+    }
+
+    expect(submitMock).toHaveBeenCalledOnce()
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({
+      usageCaptureContext: expect.objectContaining({ credentialReceipt: selectedCredentialReceipt }),
+      usageStartedAt: 1_000,
+      credentialReceipt: selectedCredentialReceipt
+    })
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ credentialReceipt: selectedCredentialReceipt }),
+        metrics: { timeCompletionMs: 250 },
+        completedAt: 1_250
+      })
     )
   })
 
@@ -230,7 +425,7 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitArg.modelDescriptor).toBeUndefined()
   })
 
-  it('sync: submit(imageUrls) → no poll, no patchMetadata', async () => {
+  it('sync: freezes capture context before submit and does not poll', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sync.png'] })
 
     const ctx = createCtx()
@@ -238,7 +433,12 @@ describe('imageGenerationJobHandler.execute', () => {
 
     expect(result.files).toEqual([{ id: 'file-1' }])
     expect(pollMock).not.toHaveBeenCalled()
-    expect(ctx.patchMetadata).not.toHaveBeenCalled()
+    expect(ctx.patchMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usageCaptureContext: expect.objectContaining({ providerId: 'ppio', modelId: 'qwen-image' }),
+        usageStartedAt: expect.any(Number)
+      })
+    )
   })
 
   it('abort: cancels the remote task and throws AbortError', async () => {
@@ -309,9 +509,14 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockResolvedValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
+    // The vendor generated (and charged for) both images before the download step,
+    // so the usage record must still carry them even though the job surfaces an error.
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'custom-image:img-job-1', modality: 'image', imageCount: 2 })
+    )
   })
 
   it('returns the subset (does not throw) when only some downloads fail', async () => {
@@ -323,17 +528,23 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
     expect(result.files).toEqual([{ id: 'file-a' }])
+    // Bills the generated URL count, not the persisted file count.
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'custom-image:img-job-1', modality: 'image', imageCount: 2 })
+    )
   })
 
   it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
     submitMock.mockResolvedValue({ imageUrls: [] })
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 
   it('fails when poll returns an empty array (paid no-op guard)', async () => {
     submitMock.mockResolvedValue({ taskId: 'task-empty' })
     pollMock.mockResolvedValue([])
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 
   it('cancels the remote task when the signal aborts mid-poll', async () => {

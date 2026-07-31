@@ -1,6 +1,7 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
+  SettingGroup,
   SettingHelpLink,
   SettingHelpText,
   SettingHelpTextRow,
@@ -178,7 +179,7 @@ export function ProcessorPanel({
   )
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <SettingGroup className="flex w-full flex-col gap-2">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <ProcessorAvatar processorId={processor.id} />
@@ -187,7 +188,7 @@ export function ProcessorPanel({
           </div>
         </div>
         {isDefault ? (
-          <Badge className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
+          <Badge className="shrink-0 rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
             {t('common.default')}
           </Badge>
         ) : (
@@ -198,7 +199,7 @@ export function ProcessorPanel({
       </div>
 
       {supportsApiSettings(processor) ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <SettingRow className="items-start gap-4 py-0">
             <SettingRowTitle className="w-24 shrink-0 pt-2">
               {t('settings.tool.file_processing.fields.api_key')}
@@ -236,7 +237,7 @@ export function ProcessorPanel({
             </div>
           </SettingRow>
           {entry.capability.apiHost !== undefined ? (
-            <div className="border-border-muted border-t pt-3">
+            <div className="border-border-subtle border-t pt-3">
               <SettingRow className="items-center gap-4 py-0">
                 <SettingRowTitle className="w-24 shrink-0">
                   {t('settings.tool.file_processing.fields.api_base_url')}
@@ -266,11 +267,11 @@ export function ProcessorPanel({
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
       {processor.id === 'local-paddleocr' ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
-            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div className="min-w-0 flex-1">
-              <SettingRowTitle className="font-medium text-emerald-600 text-xs dark:text-emerald-400">
+              <SettingRowTitle className="text-success text-xs">
                 {t('settings.tool.file_processing.processors.local_paddleocr.status.local')}
               </SettingRowTitle>
               <SettingHelpText className="mt-1 text-xs">{t(getProcessorDescriptionKey(processor.id))}</SettingHelpText>
@@ -280,11 +281,11 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'system' ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
-            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div>
-              <SettingRowTitle className="font-medium text-emerald-600 text-xs dark:text-emerald-400">
+              <SettingRowTitle className="text-success text-xs">
                 {t('settings.tool.file_processing.processors.system.status.available')}
               </SettingRowTitle>
               <SettingHelpText className="mt-1 text-xs">
@@ -302,6 +303,6 @@ export function ProcessorPanel({
           onChange={(value) => void handleLanguagesChange(value)}
         />
       ) : null}
-    </div>
+    </SettingGroup>
   )
 }

@@ -30,9 +30,11 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  lstat as fsLstat,
   mkdir as fsMkdirPromise,
   open as fsOpen,
   readFile,
+  realpath as fsRealpath,
   rename,
   rm as fsRm,
   stat as fsStat,
@@ -43,7 +45,7 @@ import { Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
 
@@ -80,6 +82,32 @@ export async function read(
     return { data: buf.toString('base64'), mime: inferredMime }
   }
   return { data: new Uint8Array(buf), mime: inferredMime }
+}
+
+/** Read at most `length` bytes starting at the absolute byte `offset`. */
+export async function readChunk(
+  path: AbsoluteFilePath,
+  offset: number,
+  length: number
+): Promise<Uint8Array<ArrayBuffer>> {
+  const fileHandle = await fsOpen(path, 'r')
+  try {
+    const buffer = new Uint8Array(length)
+    let totalBytesRead = 0
+    while (totalBytesRead < length) {
+      const { bytesRead } = await fileHandle.read(
+        buffer,
+        totalBytesRead,
+        length - totalBytesRead,
+        offset + totalBytesRead
+      )
+      if (bytesRead === 0) break
+      totalBytesRead += bytesRead
+    }
+    return totalBytesRead === buffer.byteLength ? buffer : buffer.slice(0, totalBytesRead)
+  } finally {
+    await fileHandle.close()
+  }
 }
 
 /** Returns true iff the path exists and is readable by the current process. */
@@ -451,6 +479,31 @@ export async function stat(
     modifiedAt: Math.floor(s.mtimeMs),
     isDirectory: s.isDirectory()
   }
+}
+
+/** Get link-aware file/directory stats without following a symbolic link. */
+export async function lstat(target: AbsoluteFilePath): Promise<{
+  size: number
+  createdAt: number
+  modifiedAt: number
+  isDirectory: boolean
+  isFile: boolean
+  isSymbolicLink: boolean
+}> {
+  const s = await fsLstat(target)
+  return {
+    size: s.size,
+    createdAt: Math.floor(s.birthtimeMs),
+    modifiedAt: Math.floor(s.mtimeMs),
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile(),
+    isSymbolicLink: s.isSymbolicLink()
+  }
+}
+
+/** Resolve an existing path to its physical filesystem location. */
+export async function realpath(target: AbsoluteFilePath): Promise<AbsoluteFilePath> {
+  return AbsoluteFilePathSchema.parse(await fsRealpath(target))
 }
 
 /**

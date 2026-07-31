@@ -1,5 +1,5 @@
 import i18n from '@renderer/i18n/resolver'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -26,7 +26,7 @@ vi.mock('@cherrystudio/ui', () => {
       dialogMock.onOpenChange = onOpenChange
       return open ? React.createElement(React.Fragment, null, children) : null
     },
-    DialogContent: ({ children, closeOnOverlayClick = true, onInteractOutside, ...props }) => {
+    DialogContent: ({ children, closeOnOverlayClick = true, motion, onInteractOutside, ...props }) => {
       delete props.showCloseButton
       delete props.overlayClassName
 
@@ -51,7 +51,7 @@ vi.mock('@cherrystudio/ui', () => {
             }
           }
         }),
-        React.createElement('div', { role: 'dialog', ...props }, children)
+        React.createElement('div', { role: 'dialog', 'data-motion': motion, ...props }, children)
       )
     },
     DialogDescription: ({ children }) => React.createElement('div', null, children),
@@ -81,6 +81,39 @@ afterEach(() => {
   dialogMock.onOpenChange = undefined
 })
 
+describe('PopupHost', () => {
+  it('injects open state and a resolving callback into component popups', async () => {
+    const user = userEvent.setup()
+    const ComponentPopup = createPopup<{ label: string }, string>(
+      ({ label, open, resolve }) => (
+        <div>
+          <span>{label}</span>
+          <span>{open ? 'Component open' : 'Component closing'}</span>
+          <button type="button" onClick={() => resolve('accepted')}>
+            Resolve component
+          </button>
+        </div>
+      ),
+      { dismissResult: 'dismissed' }
+    )
+    render(<PopupHost />)
+
+    let pending!: Promise<string>
+    act(() => {
+      pending = ComponentPopup.show({ label: 'Custom content' })
+    })
+
+    expect(screen.getByText('Custom content')).toBeInTheDocument()
+    expect(screen.getByText('Component open')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Resolve component' }))
+    await act(async () => {})
+
+    await expect(pending).resolves.toBe('accepted')
+    expect(screen.getByText('Component closing')).toBeInTheDocument()
+  })
+})
+
 describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
   it('resolves confirm as true when the OK button is clicked', async () => {
     const user = userEvent.setup()
@@ -98,6 +131,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
 
     await screen.findByText('Delete item')
     expect(screen.getByText('This cannot be undone.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-motion', 'fade-scale')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})
@@ -130,6 +164,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     })
 
     await screen.findByText('Backup failed')
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-motion', 'fade-scale')
     expect(screen.queryByRole('button', { name: i18n.t('common.cancel') })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))

@@ -1,4 +1,4 @@
-import 'katex/dist/katex.min.css'
+import '@renderer/assets/styles/vendor/katex.css'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
@@ -33,6 +33,8 @@ export interface UseRichEditorOptions {
   placeholder?: string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to enable table of contents functionality */
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
@@ -88,6 +90,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onPaste,
     placeholder = '',
     editable = true,
+    autoFocus = true,
     enableSpellCheck = false,
     onShowTableActionMenu,
     scrollParent
@@ -355,6 +358,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+      if (!autoFocus) return
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -418,7 +422,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       editor.setEditable(editable)
-      if (editable) {
+      if (editable && autoFocus) {
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed) {
@@ -433,7 +437,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         }
       }
     }
-  }, [editor, editable])
+  }, [editor, editable, autoFocus])
 
   // Link editor callbacks (after editor is defined)
   const handleLinkSave = useCallback(

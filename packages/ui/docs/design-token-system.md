@@ -3,7 +3,7 @@
 > Status: normative v2 contract. Exact renderer aliases and temporary product parity variables have been
 > migrated; runtime compatibility bridges have been removed.
 
-This document defines the new variable system for Cherry Studio. It is intentionally focused on the Shadcn
+This document defines the current variable system for Cherry Studio. It is intentionally focused on the Shadcn
 semantic contract and its migration boundary. Historical public usage is recorded in the migration registry and
 enforcement tooling. A matching `--cs-*` spelling may remain in the runtime graph only as an internal value
 provider; it is not a compatibility alias or component-facing role.
@@ -14,23 +14,23 @@ The executable selection guide and complete public/historical inventory are main
 The visual guidance in the repository root `DESIGN.md` describes how the product should look. This document
 defines which variables product and shared UI code should use.
 
-## 1. Current systems and target
+## 1. Current layers and ownership
 
-The repository currently contains multiple variable families with different responsibilities:
+The repository contains multiple variable families with different responsibilities:
 
-| Family | Current role | Target role |
+| Family | Current role | Consumer rule |
 | --- | --- | --- |
-| `--cs-{palette}-{step}` | Primitive palette | Internal value provider; unchanged in this PR |
-| existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Internal value provider or migration source |
-| controlled `--cs-theme-*` | Runtime customization mixed into the semantic layer | Host-written input only; never a component-facing role |
-| unprefixed product semantics | Consumer-backed Cherry Studio extensions | Stable product API in the shared public namespace |
-| generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
-| retired renderer semantic `--app-*` aliases | Removed from runtime | Exact migration sources; forbidden from returning |
-| genuine host/component/page variables | Locally owned implementation details | Remain scoped to the owning stylesheet; never generated globally |
-| historical renderer legacy names | Removed from runtime | Exact migration sources; forbidden in product code |
-| official Shadcn variables | Complete shared contract | Canonical ecosystem-compatible API |
+| `--cs-{palette}-{step}` | Primitive palette and foundation values | Internal provider; regular components do not consume it directly |
+| existing semantic `--cs-*` | Internal providers and migration sources | Internal only; never a component-facing role |
+| controlled `--cs-theme-*` | Host-written runtime input | Runtime theme logic writes it; only semantic layers consume it |
+| unprefixed product semantics | Consumer-backed Cherry Studio extensions | Stable public API when Shadcn has no matching role |
+| generated `--color-*` | Tailwind theme adapter output | Generated only; authored runtime styles do not write or consume it |
+| retired renderer semantic `--app-*` aliases | Removed runtime compatibility bridges | Tooling-only migration sources; forbidden from returning |
+| genuine host/component/page variables | Locally owned implementation details | Stay scoped to their owner; never generated globally |
+| historical renderer legacy names | Removed runtime names | Tooling-only migration sources; forbidden in product code |
+| official Shadcn variables | Complete shared contract | Canonical public API and first choice for consumers |
 
-The new system does not create another independent palette. It creates one public semantic namespace with
+The current system does not create another independent palette. It provides one public semantic namespace with
 separate Shadcn and Cherry Studio ownership inventories over the values already shipped by Cherry Studio:
 
 ```text
@@ -196,7 +196,7 @@ Example:
 --editor-selection-foreground: var(--primary-foreground);
 ```
 
-This is a pattern example rather than a variable added by this PR. TweakCN can change `--primary` without knowing
+This is a pattern example rather than a variable in the current contract. TweakCN can change `--primary` without knowing
 the Cherry-specific variable, and a product role authored this way follows it automatically. Product roles that
 must preserve a Cherry-specific appearance may intentionally own mode-aware values instead.
 
@@ -235,9 +235,10 @@ authored CSS references the official or stable product variable directly. Existi
 palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
 Historical semantic and status utilities are exposed only by the frozen
-`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. Adding a variable to a
-foundation stylesheet does not create a Tailwind color automatically. These compatibility lists are shrink-only
-and must not be used as the registration path for new component APIs.
+`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. The remaining semantic
+entries support the unchanged shared Button contract and existing component-local active treatments; the status
+list is empty. Adding a variable to a foundation stylesheet does not create a Tailwind color automatically. These
+compatibility lists are shrink-only and must not be used as the registration path for new component APIs.
 
 ### 3.6 Internal ownership boundaries
 
@@ -329,9 +330,18 @@ with:
 
 ```text
 --background-subtle
+--foreground-tertiary
+--foreground-disabled
 --border-subtle
 --border-strong
+--border-selected
+--link
 ```
+
+Foreground roles use solid providers so their resolved foreground color does not change with the surface beneath
+them. Contrast still depends on the foreground/background pair and must be validated on every supported surface.
+`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode and
+`--cs-blue-400` in dark mode.
 
 The feedback intents are:
 
@@ -402,8 +412,8 @@ The multipliers match the current Shadcn radius adapter, so a theme that overrid
 standard radius consistently. Existing smaller and extended radius names remain available for compatibility.
 New code uses `rounded-full` instead of `rounded-round`.
 
-Spacing, typography, shadow, and motion keep their current behavior in this PR. They require separate design
-decisions and must not block the color contract.
+Spacing, typography, shadow, and motion remain outside this color/radius semantic contract. Their current generated
+theme mappings continue to work, but changing their architecture requires separate design decisions.
 
 ## 6. Modes and runtime customization
 
@@ -509,23 +519,7 @@ Run `pnpm --filter @cherrystudio/ui theme:check` to validate the canonical graph
 migration registry, and renderer boundary together. `theme:build` is deliberately a pure generator that reads
 only the inputs needed for generated output; governance remains the responsibility of `theme:check`.
 
-## 9. Delivery in this PR
-
-The contract is delivered as independent commits. In addition to the initial architecture, Shadcn variables,
-Tailwind adapter, migration registry, and product namespace, the migration phase:
-
-1. adds an authored `product.css` layer for stable Cherry Studio semantics not covered by Shadcn;
-2. aligns shared Shadcn providers with the values previously overridden by the renderer;
-3. records deprecated aliases with `exact`, `contextual`, `review`, or `preserve` policy and makes the codemod registry-driven;
-4. migrates exact consumers to canonical destinations and localizes parity-only values with their concrete owners;
-5. deletes `legacy-vars.css`, the retired `--app-*` semantic aliases, and the duplicate renderer `@theme` adapter;
-6. removes temporary product parity variables and validates that the removed bridges cannot be reintroduced.
-
-The exact pass preserves the same providers or authored values previously reached through each alias. Contextual
-and review rules remain outside automatic replacement. Visual verification in both light and dark modes remains
-required before treating preserved values as a visual redesign baseline.
-
-## 10. References
+## 9. References
 
 - [shadcn/ui theming](https://ui.shadcn.com/docs/theming)
 - [Tailwind CSS theme variables](https://tailwindcss.com/docs/theme)

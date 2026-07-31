@@ -139,11 +139,16 @@
         "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
         "disconnected": "Not logged in",
         "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
+        "qrExpired": "QR code expired. Please retry by toggling the channel.",
         "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
         "qrTitle": "WeChat QR Login",
         "title": "WeChat",
         "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} background task running",
+      "background_running_other": "{{count}} background tasks running"
     },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
@@ -193,6 +198,11 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
+      "local_greetings": {
+        "plan": "Tell me the outcome you want, and I’ll help make a plan.",
+        "progress": "What task can I help you move forward today?",
+        "research": "Need help researching, planning, or drafting something?"
+      },
       "welcome_title": "What should we work on today?"
     },
     "icon": {
@@ -320,16 +330,25 @@
         "more": "+{{count}} more",
         "no_artifacts": "No declared deliverables",
         "no_subagents": "No sub-agents",
-        "subagents": "Sub-agents"
+        "shell_tasks": "Background commands",
+        "subagents": "Sub-agents",
+        "workflows": "Workflows"
       },
       "status": {
         "activity": "Activity",
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "No active tasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Subtasks",
         "selected_tool": "Selected tool",
+        "stop_run_task": "Stop task",
+        "stop_run_task_failed": "Failed to stop task",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
+        "tool_uses_one": "{{count}} tool call",
+        "tool_uses_other": "{{count}} tool calls",
         "tools_active": "Active",
         "tools_done": "Done",
         "tools_failed": "Failed",
@@ -433,13 +452,20 @@
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
-        "unknown_agent": "Unknown agent",
+        "unknown_agent": "Unlinked Agent",
+        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Yesterday"
       },
       "label_one": "Session",
       "label_other": "Sessions",
       "list": {
         "title": "Tasks"
+      },
+      "model_switch_confirm": {
+        "confirm": "Switch model",
+        "description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. Do you want to continue?",
+        "skip_for_app_run": "Don't ask again until I quit the app",
+        "title": "Switch to \"{{model}}\"?"
       },
       "new": "New task",
       "pin": {
@@ -607,12 +633,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Can read and edit files freely. Asks before running commands.",
-            "title": "Auto-edit Mode"
+            "description": "Edits files freely. Asks before commands.",
+            "title": "Auto-accept Edits"
+          },
+          "auto": {
+            "description": "Runs without routine prompts. A safety check blocks risky actions.",
+            "title": "Approve for Me",
+            "warning": "Needs a model that supports it; others may ignore it or keep asking."
           },
           "bypassPermissions": {
-            "description": "Can do everything without asking. Use with caution.",
-            "title": "Full Auto Mode",
+            "description": "Skips permission checks. Can delete files and use the network.",
+            "title": "Full Access",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
           "confirmChange": {
@@ -620,14 +651,14 @@
             "title": "Change permission mode?"
           },
           "default": {
-            "description": "Can read files freely. Asks before editing or running commands.",
-            "title": "Normal Mode"
+            "description": "Asks before editing files or running commands.",
+            "title": "Ask Before Acting"
           },
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "description": "Can only read files and make plans. Cannot edit files or run commands.",
-            "title": "Plan Mode"
+            "description": "Plans without editing files. Only read-only or vetted commands run.",
+            "title": "Plan Only"
           },
           "title": "Permission mode"
         },
@@ -663,6 +694,14 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "effort": "Effort",
+      "fast": "Fast",
+      "faster": "Faster",
+      "label": "Speed",
+      "smarter": "Smarter",
+      "title": "Response settings"
+    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -726,6 +765,38 @@
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",
+      "schedule": {
+        "custom": "Custom schedule",
+        "daily": "Daily",
+        "hour": "Hour",
+        "hourly": "Hourly",
+        "interval": "Custom interval",
+        "intervalMinutes": "Interval",
+        "invalid": "Enter a valid execution frequency.",
+        "minute": "Minute",
+        "once": "One time",
+        "runAt": "Run at",
+        "summary": {
+          "daily": "Daily at {{time}}",
+          "hourly": "At the start of every hour",
+          "interval": "Every {{count}} minutes",
+          "weekdays": "Weekdays at {{time}}",
+          "weekly": "Every {{weekday}} at {{time}}"
+        },
+        "time": "Time",
+        "weekday": "Day of week",
+        "weekdays": {
+          "friday": "Friday",
+          "monday": "Monday",
+          "saturday": "Saturday",
+          "sunday": "Sunday",
+          "thursday": "Thursday",
+          "tuesday": "Tuesday",
+          "wednesday": "Wednesday"
+        },
+        "weekdaysOnly": "Weekdays",
+        "weekly": "Weekly"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Interval",
@@ -1003,7 +1074,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copy",
       "regenerate": "Regenerate",
       "restart": {
         "button": "Restart",
@@ -1015,8 +1085,6 @@
     "authHeader": {
       "title": "Authorization Header"
     },
-    "authHeaderText": "Use in Authorization header:",
-    "configuration": "Configuration",
     "description": "Expose Cherry Studio's AI capabilities through OpenAI- and Anthropic-compatible HTTP APIs",
     "documentation": {
       "title": "API Documentation"
@@ -1024,13 +1092,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copy API Key",
-        "description": "Secure authentication token for API access",
         "label": "API Key",
         "placeholder": "API key will be auto-generated"
       },
       "port": {
-        "description": "TCP port number for the gateway (1000-65535)",
-        "helpText": "Stop the gateway to change port",
         "label": "Port"
       },
       "url": {
@@ -1039,9 +1104,8 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
-      "notEnabled": "The API Gateway is not enabled.",
+      "notEnabled": "Start the gateway before connecting to this address.",
       "operationFailed": "API Gateway operation failed: ",
       "restartError": "Failed to restart API Gateway: ",
       "restartFailed": "API Gateway restart failed: ",
@@ -1049,8 +1113,7 @@
       "startError": "Failed to start API Gateway: ",
       "startSuccess": "API Gateway started successfully",
       "stopError": "Failed to stop API Gateway: ",
-      "stopSuccess": "API Gateway stopped successfully",
-      "urlCopied": "Gateway URL copied to clipboard"
+      "stopSuccess": "API Gateway stopped successfully"
     },
     "status": {
       "running": "Running",
@@ -1209,10 +1272,6 @@
           "on": "Intent Recognition",
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
-      },
-      "max_tool_calls": {
-        "label": "Max Tool Calls",
-        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
       },
       "mcp": {
         "description": "Default enabled MCP servers",
@@ -1383,6 +1442,11 @@
       "view_full_content": "View Full Content"
     },
     "home": {
+      "local_greetings": {
+        "casual": "What’s on your mind today?",
+        "explore": "What would you like to explore together?",
+        "play": "Up for a quick chat, a curious question, or a game?"
+      },
       "welcome_title": "What should we talk about today?"
     },
     "input": {
@@ -1419,9 +1483,8 @@
       "image_preview_failed": "Image preview failed",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
-      "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Clear Context"
       },
@@ -1527,6 +1590,7 @@
         },
         "open_file": "Open File",
         "open_file_error": "Failed to open file: {{path}}",
+        "open_with": "Open with",
         "reveal_in_finder": "Reveal in Finder"
       },
       "topics": " Conversations ",
@@ -1561,13 +1625,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}",
         "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
@@ -1609,8 +1668,17 @@
       "token_details": {
         "cache_read": "Cache read",
         "cache_write": "Cache write",
+        "cost": "Cost",
+        "cost_billed": "Billed by provider",
+        "cost_estimated": "Estimated",
+        "end_to_end_throughput": "End-to-end throughput",
         "input": "Input",
         "input_breakdown": "Input breakdown",
+        "lane_approval": "Approval",
+        "lane_model": "Model",
+        "lane_other": "Other",
+        "lane_tool": "Tool",
+        "model_throughput": "Model generation TPS",
         "output": "Output",
         "reasoning": "Reasoning",
         "reasoning_time": "Reasoning",
@@ -1619,6 +1687,7 @@
         "text_output": "Text output",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "End-to-end duration",
         "uncached": "Uncached",
         "usage": "Token usage",
         "waiting_first_token": "Waiting"
@@ -1892,6 +1961,7 @@
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
+        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Yesterday"
       },
       "list": "Conversation List",
@@ -2146,7 +2216,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
-    "title": "Code Switch",
+    "title": "Code Mate",
     "tool_parameters": "Parameter Settings",
     "up_to_date": "Up to date",
     "update_options": "Update Options",
@@ -2259,6 +2329,12 @@
     "generate_random_seed": "Generate random seed",
     "get_embedding_dimension": "Get embedding dimension",
     "go_to_settings": "Go to settings",
+    "group": {
+      "create": "New Group",
+      "create_failed": "Failed to create group",
+      "name_placeholder": "Enter group name...",
+      "name_required": "Group name is required"
+    },
     "help": "Help",
     "html_preview": "HTML Preview",
     "i_know": "I know",
@@ -2286,6 +2362,7 @@
     "open_in": "Open in {{name}}",
     "open_in_new_tab": "Open in new tab",
     "open_sidebar": "Open sidebar",
+    "other": "Other",
     "placeholders": {
       "select": {
         "model": "Select a model"
@@ -2518,6 +2595,10 @@
     "user": "User"
   },
   "file_preview": {
+    "directory": {
+      "description": "Select a file in this folder to preview it.",
+      "title": "This is a folder"
+    },
     "html": {
       "empty": {
         "description": "This HTML file has no content.",
@@ -2566,9 +2647,9 @@
     "pdf": {
       "too_large": {
         "action": "Open with default app",
-        "description": "PDF files larger than {{limit}} MiB cannot be previewed.",
+        "description": "Part of this PDF is too large to preview safely in the app.",
         "open_error": "Couldn't open this file",
-        "title": "File is too large"
+        "title": "Can't preview this PDF"
       }
     },
     "text": {
@@ -2583,6 +2664,10 @@
         "description": "Text files larger than {{limit}} MiB cannot be previewed.",
         "title": "File is too large"
       }
+    },
+    "unavailable": {
+      "description": "The file may have been moved, deleted, or cannot be accessed.",
+      "title": "File unavailable"
     },
     "unsupported": {
       "action": "Open with default app",
@@ -2844,6 +2929,10 @@
     "code": "Code",
     "empty_preview": "No content to display",
     "generating": "Generating",
+    "interactive_preview": {
+      "action": "View webpage",
+      "description": "This webpage contains scripts or external resources. Opening it may run code and connect to the internet."
+    },
     "preview": "Preview",
     "split": "Split",
     "view_mode": "View mode"
@@ -2986,6 +3075,7 @@
       "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
+        "copying": "Copying {{percent}}%",
         "embedding": "Embedding",
         "error": "Error",
         "pending": "Waiting",
@@ -3013,6 +3103,7 @@
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases yet",
+    "empty_action": "Create Knowledge Base",
     "empty_description": "Build up your knowledge with AI",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
@@ -3358,7 +3449,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call loops when enabled"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -3385,7 +3476,8 @@
         "group_placeholder": "Select group",
         "json_invalid": "Invalid JSON format",
         "max_tokens": "Max tokens",
-        "max_tool_calls": "Max tool calls",
+        "max_tool_calls": "Max tool call rounds",
+        "max_tool_calls_default": "Default ({{count}} rounds)",
         "mcp_mode": "MCP Mode",
         "model": "Default model",
         "model_clear": "Clear",
@@ -3401,8 +3493,7 @@
         "tags": "Tag",
         "temperature": "Temperature",
         "title": "Basic settings",
-        "top_p": "Top-P",
-        "unlimited": "Unlimited"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Library",
       "dialogs": {
@@ -3775,7 +3866,9 @@
       }
     },
     "citation": "{{count}} citations",
+    "citation_source": "Citation source {{number}}",
     "citations": "References",
+    "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",
     "copy": {
       "failed": "Copy failed",
@@ -4057,6 +4150,7 @@
         "write": "Write",
         "writing": "Writing it out"
       },
+      "agent_background": "Running in background",
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
@@ -4088,6 +4182,7 @@
         "tool": "Tool",
         "webFetch": "Web Fetch",
         "webSearch": "Web Search",
+        "workflow": "Workflow",
         "write": "Write"
       },
       "noData": "No data available for this tool",
@@ -4145,6 +4240,15 @@
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} result",
         "result_other": "{{count}} results"
+      },
+      "workflow": {
+        "orchestrating": "Orchestrating workflow",
+        "run_id": "Run ID",
+        "script": "Workflow script",
+        "script_path": "Script path",
+        "started": "Started workflow",
+        "summary": "Summary",
+        "workflow": "workflow"
       }
     },
     "topic": {
@@ -4287,6 +4391,7 @@
     },
     "pinned": "Pinned",
     "price": {
+      "cache_read": "Cache Read Price",
       "cost": "Cost",
       "currency": "Currency",
       "custom": "Custom",
@@ -4902,6 +5007,11 @@
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "showcase": {
+      "caption": "Choose a template to start, then make the prompt your own below.",
+      "styles_label": "Prompt templates",
+      "title": "A place for your next masterpiece."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5125,6 +5235,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -5178,6 +5289,7 @@
       "label": "Are you sure you want to restore data?"
     },
     "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+    "messages_paused": "A backup restore is in progress; new messages are paused until it completes.",
     "progress": {
       "completed": "Restore completed",
       "copying_files": "Copying files... {{progress}}%",
@@ -5685,6 +5797,7 @@
         "button": "Releases",
         "title": "Release Notes"
       },
+      "repository": "GitHub Repository",
       "social": {
         "title": "Social Accounts"
       },
@@ -5763,8 +5876,7 @@
       },
       "backup": {
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup",
-        "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
+        "skip_file_data_title": "Slim Backup"
       },
       "clear_cache": {
         "button": "Clear Cache",
@@ -6408,6 +6520,7 @@
       "viewErrorDetails": "View details"
     },
     "developer": {
+      "client_id": "Client ID",
       "enable_developer_mode": "Enable Developer Mode",
       "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
       "title": "Developer Mode"
@@ -6544,7 +6657,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
+        "content_disable": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
+        "content_enable": "Enabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
         "title": "Restart Required"
       },
       "title": "Disable Hardware Acceleration"
@@ -6590,16 +6704,15 @@
       "active": "Active",
       "addError": "Failed to add server",
       "addServer": {
+        "advanced": "Advanced",
         "create": "Quick Create",
+        "createDescription": "Fill in the connection details to create the server; everything else can be adjusted later.",
         "importFrom": {
           "connectionFailed": "Connection failed",
           "dxt": "Import DXT Package",
           "dxtFile": "DXT Package File",
           "dxtHelp": "Select a .dxt file containing an MCP server package",
           "dxtProcessFailed": "Failed to process DXT file",
-          "error": {
-            "multipleServers": "Cannot import from multiple servers"
-          },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
           "mcpb": "Import MCPB Bundle",
@@ -6670,7 +6783,11 @@
         "success": "Successfully fetched MCP servers"
       },
       "filter": {
-        "label": "Filter"
+        "allStatuses": "All statuses",
+        "allTypes": "All types",
+        "builtinOnly": "Built-in only",
+        "status": "Filter by status",
+        "type": "Filter by type"
       },
       "findMore": "Find More MCP",
       "headers": "Headers",
@@ -6727,6 +6844,7 @@
         "usage": "Usage",
         "version": "Version"
       },
+      "pageDescription": "Manage MCP servers. Once enabled, agents can call the tools and resources they provide.",
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -6748,6 +6866,15 @@
       "providers": "Providers",
       "registry": "Package Registry",
       "registryDefault": "Default",
+      "registryOptions": {
+        "custom": "Custom",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
       "requiresConfig": "Requires Configuration",
       "resources": {
@@ -6923,6 +7050,7 @@
         "display": "Display management",
         "preferences": "Preferences"
       },
+      "hide_app": "Hide {{name}}",
       "open_link_external": {
         "description": "Opens new-window links in your default browser",
         "title": "Open new-window links in browser"
@@ -6935,6 +7063,7 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
+      "show_app": "Show {{name}}",
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },
@@ -7243,6 +7372,10 @@
       "prevent_sleep_when_busy": "Keep the system awake while tasks are running"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Local rotating Chat and Agent greetings are generated on your device and remain available while this option is off. The displayed greeting is included as untrusted context in your first message so your selected model can understand brief replies; developer traces may record it. Enable this option to contact IPInfo for a coarse country or region; if unavailable, the app uses the app-language region as a labeled fallback. The country or region hint, your name, app language, local date and time, time zone, Chat or Agent mode, the base fallback greeting, and the previous greeting are sent to the fixed built-in CherryAI Qwen model for contextual enhancement. Disabled by default.",
+        "title": "AI-enhanced contextual greetings"
+      },
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
     },
@@ -7591,6 +7724,13 @@
         "usage_title": "Usage",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Open Token Factory",
+          "description": "Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
+          "title": "$10 in free daily API credits"
+        }
+      },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
       "reorder_failed": "Failed to reorder providers",
@@ -7690,12 +7830,39 @@
       "titlePlaceholder": "Please enter phrase title"
     },
     "scheduledTasks": {
+      "agentCreate": "Create with Agent",
+      "allAgents": "All Agents",
+      "allStatuses": "All statuses",
+      "clearFilters": "Clear filters",
+      "createDescription": "Set what the Agent should do and when it should run.",
+      "createTitle": "New scheduled task",
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "editDescription": "Update what the Agent should do and when it should run.",
+      "editTitle": "Edit scheduled task",
+      "filterAgent": "Filter by Agent",
+      "filterStatus": "Filter by status",
+      "manualCreate": "Create manually",
+      "newTask": "New",
       "noAgents": "No agents found. Create an agent first to add scheduled tasks.",
       "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "noAgentsTitle": "No Agents",
+      "noMatches": "Try a different search or filter.",
+      "noMatchesTitle": "No matching tasks",
+      "noTasks": "Create a task and let an Agent run it on schedule.",
+      "noTasksTitle": "No scheduled tasks",
+      "notFoundDescription": "This task may have been deleted, or the link is invalid.",
+      "notFoundTitle": "Task not found",
+      "paginationLabel": "Scheduled tasks pagination",
+      "paginationStatus": "Page {{page}} of {{pageCount}} · {{total}} tasks",
+      "search": "Search scheduled tasks",
+      "searchPlaceholder": "Search tasks or Agents",
       "selectTask": "Select a task to view details",
-      "title": "Scheduled Tasks"
+      "title": "Scheduled Tasks",
+      "validation": {
+        "agent": "Select an Agent.",
+        "name": "Enter a task name.",
+        "prompt": "Enter a task prompt."
+      }
     },
     "shortcuts": {
       "action": "Action",
@@ -7784,6 +7951,7 @@
       "noInstalled": "No skills installed",
       "noResults": "No skills found",
       "noSkillFile": "No SKILL.md found",
+      "pageDescription": "Manage installed skills. Skills extend what your agents can do and are invoked on demand.",
       "searchPlaceholder": "Discover more skills...",
       "searchRegistryTitle": "Search skill registries online",
       "searchTitle": "Search Skills",
@@ -8039,6 +8207,108 @@
       "show": "Show Tray Icon",
       "title": "Tray"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Active days",
+        "cacheHitRate": "Cache hit rate",
+        "cacheObservedTokens": "Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "Starts with new requests",
+        "dailyAverage": "Daily average",
+        "explicitApiKey": "Selected key",
+        "lastPeriod": "vs last period",
+        "matchedApiKey": "Matched override",
+        "none": "N/A",
+        "peakDay": "Peak day",
+        "providerAuth": "Provider auth",
+        "streak": "Longest streak: {{days}} days",
+        "topModel": "Top model",
+        "totalCost": "Total cost",
+        "totalRequests": "Requests",
+        "totalTokens": "Total tokens",
+        "unattributedApiKey": "Unattributed request",
+        "unattributedSource": "Unattributed source"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Line",
+        "pie": "Pie",
+        "stack": "Stack"
+      },
+      "currency": "Currency",
+      "empty": {
+        "description": "Usage appears after supported AI requests create usage records.",
+        "title": "No usage yet"
+      },
+      "explore": {
+        "analysis": "Analysis",
+        "chart": "Chart",
+        "clearDate": "Clear date filter",
+        "drilldownTitle": "{{date}} drilldown",
+        "entries": "Requests",
+        "groupBy": "Group by",
+        "loadMore": "Load more",
+        "loading": "Loading...",
+        "metric": "Metric",
+        "noBreakdown": "No breakdown data",
+        "noBreakdownDescription": "Try a broader window or a different provider.",
+        "noEntries": "No entries",
+        "noEntriesDescription": "Try a broader window or a different provider.",
+        "rollup": "Rollup",
+        "selectedDate": "Selected date: {{date}}",
+        "shareLabel": "Share",
+        "title": "Explore",
+        "top": "Top",
+        "totalEntries_one": "{{count}} entry",
+        "totalEntries_other": "{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "API key",
+        "model": "Model",
+        "provider": "Provider",
+        "source": "Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "Usage on {{date}}",
+        "title": "Daily activity"
+      },
+      "metric": {
+        "cost": "Cost",
+        "requests": "Requests",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Overview"
+      },
+      "rollup": {
+        "daily": "Daily",
+        "monthly": "Monthly",
+        "total": "Total",
+        "weekly": "Weekly"
+      },
+      "summary": "{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "Cost",
+        "date": "Date",
+        "model": "Model",
+        "source": "Source",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Usage Analytics",
+      "tooltip": {
+        "cost": "Cost {{value}}",
+        "requests_one": "{{count}} request",
+        "requests_other": "{{count}} requests",
+        "tokens": "{{value}} tokens"
+      },
+      "window": {
+        "30d": "Last 30 days",
+        "365d": "Last year",
+        "90d": "Last 90 days"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
@@ -8069,7 +8339,7 @@
   "title": {
     "apps": "Apps",
     "chat": "Chat",
-    "code": "Code Switch",
+    "code": "Code Mate",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",
@@ -8214,6 +8484,7 @@
         "placeholder": "Search translation history"
       },
       "source": "Source",
+      "star": "Favorite",
       "success": {
         "add": "Saved to history",
         "clear": "History cleared",

@@ -10,7 +10,9 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
-import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
+import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -61,9 +63,12 @@ function reservedUIMessageToAgentSessionMessage(
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
+  const flowParts = useSharedCacheValue(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId || 'disabled'))
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
+    // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
+    query: { deferToolOutputs: true },
     limit: PAGE_SIZE,
     enabled,
     swrOptions: {
@@ -77,6 +82,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
+  useDataChange('/agent-sessions/:sessionId/messages', () => {
+    if (enabled) void mutate()
+  })
 
   // Server returns each page newest-first (DESC) and the cursor walks older.
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
@@ -84,8 +92,12 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
 
   const messages = useMemo<CherryUIMessage[]>(() => {
-    return rows.map(toAgentSessionUIMessage)
-  }, [rows])
+    return rows.map((row) => {
+      const message = toAgentSessionUIMessage(row)
+      const liveParts = flowParts?.[row.id]
+      return liveParts ? { ...message, parts: liveParts } : message
+    })
+  }, [flowParts, rows])
 
   const refreshMessages = useCallback(async (): Promise<CherryUIMessage[]> => {
     if (!enabled) return []
@@ -97,8 +109,12 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
         for (let j = page.items.length - 1; j >= 0; j--) flat.push(page.items[j])
       }
     }
-    return flat.map(toAgentSessionUIMessage)
-  }, [enabled, mutate])
+    return flat.map((row) => {
+      const message = toAgentSessionUIMessage(row)
+      const liveParts = flowParts?.[row.id]
+      return liveParts ? { ...message, parts: liveParts } : message
+    })
+  }, [enabled, flowParts, mutate])
 
   const seedReservedMessages = useCallback(
     async (messages: CherryUIMessage[]): Promise<void> => {

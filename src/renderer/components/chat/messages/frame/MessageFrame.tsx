@@ -12,7 +12,6 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getMessageEnterMotionAttributes, getMessageEnterMotionVariant } from '../../motion/messageEnterMotion'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -44,13 +43,13 @@ interface Props {
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
   showModelIdentity?: boolean
   lockedMentionedModels?: Model[]
-  enterMotionActive?: boolean
+  messageTail?: React.ReactNode
 }
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
@@ -60,13 +59,13 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   index,
   hideMenuBar = false,
   isGrouped,
-  onUpdateUseful,
+  onSelectContext,
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
   showModelIdentity = false,
   lockedMentionedModels,
-  enterMotionActive = false
+  messageTail
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -114,13 +113,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const enterMotionVariant = getMessageEnterMotionVariant({
-    active: enterMotionActive,
-    role: message.role,
-    messageStyle,
-    isMultiSelectMode
-  })
-  const enterMotionAttributes = getMessageEnterMotionAttributes(enterMotionVariant)
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
@@ -164,9 +156,18 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   }, [actions, handleStartEditing, message.id, messageHighlightHandler])
 
   const handleStartNewContext = useCallback(() => {
-    if (isMultiSelectMode) return
+    if (isMultiSelectMode || !actions.startNewContext) return
     actions.startNewContext?.()
   }, [actions, isMultiSelectMode])
+  const canStartNewContext = !isMultiSelectMode && Boolean(actions.startNewContext)
+  const handleStartNewContextKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      handleStartNewContext()
+    },
+    [handleStartNewContext]
+  )
 
   const handleMessageSelectClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -180,12 +181,16 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     [actions, isMultiSelectMode, isSelected, message.id]
   )
 
-  if (message.type === 'clear') {
+  if (message.isContextBoundary) {
     return (
       <div
-        className={cn('clear-context-divider flex-1 cursor-pointer', isMultiSelectMode && 'cursor-default')}
-        onClick={handleStartNewContext}>
-        <div className="mx-5 my-0 flex items-center gap-2 text-foreground-muted text-sm">
+        aria-disabled={!canStartNewContext}
+        className={cn('clear-context-divider flex-1', canStartNewContext ? 'cursor-pointer' : 'cursor-default')}
+        onClick={handleStartNewContext}
+        onKeyDown={handleStartNewContextKeyDown}
+        role="button"
+        tabIndex={canStartNewContext ? 0 : -1}>
+        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-tertiary text-sm">
           <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-border border-dashed" />
@@ -195,21 +200,25 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   }
 
   const plainMessageContent = (
-    <Scrollbar
-      className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
-      style={{
-        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-        fontSize,
-        overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-      }}>
-      <MessageErrorBoundary>
-        <MessageContent message={message} />
-      </MessageErrorBoundary>
-    </Scrollbar>
+    <>
+      <Scrollbar
+        data-ui="part:message-content"
+        className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
+        style={{
+          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+          fontSize,
+          overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
+        }}>
+        <MessageErrorBoundary>
+          <MessageContent message={message} />
+        </MessageErrorBoundary>
+      </Scrollbar>
+      {isAssistantMessage ? messageTail : undefined}
+    </>
   )
 
   const userFooter = showUserFooterActions ? (
-    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-muted text-xs leading-none">
+    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-tertiary text-xs leading-none">
       <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
         <MessageMenuBar
           message={message}
@@ -220,7 +229,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
           variant="header"
         />
         <SiblingNavigator messageId={message.id} />
@@ -249,7 +258,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
           onMenuOpenChange={setIsMessageMenuOpen}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
         />
       </HorizontalScrollContainer>
       <SiblingNavigator messageId={message.id} />
@@ -259,7 +268,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   return (
     <div
       key={message.id}
-      data-message-enter-motion={enterMotionAttributes?.motion}
       className={cn(
         classNames({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
@@ -267,8 +275,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           'message-user': !isAssistantMessage,
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
-        }),
-        enterMotionAttributes?.className
+        })
       )}
       aria-disabled={isEditing ? true : undefined}
       ref={messageContainerRef}
@@ -282,7 +289,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
           isEditing={isEditing}
@@ -323,7 +330,7 @@ const UserBubbleMessage = ({
   isProcessing,
   messageContainerRef,
   onStartEditing,
-  onUpdateUseful,
+  onSelectContext,
   messageFont,
   fontSize,
   isEditing
@@ -335,7 +342,7 @@ const UserBubbleMessage = ({
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   onStartEditing?: (messageId: string) => void
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   messageFont: string
   fontSize: number
   isEditing: boolean
@@ -353,6 +360,7 @@ const UserBubbleMessage = ({
       <div className="flex max-w-full items-start justify-end gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           <Scrollbar
+            data-ui="part:message-content"
             className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
@@ -367,7 +375,7 @@ const UserBubbleMessage = ({
         <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
       {!isEditing && (
-        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
+        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-tertiary text-xs leading-none">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
             <MessageMenuBar
@@ -379,7 +387,7 @@ const UserBubbleMessage = ({
               isProcessing={isProcessing}
               messageContainerRef={messageContainerRef}
               onStartEditing={onStartEditing}
-              onUpdateUseful={onUpdateUseful}
+              onSelectContext={onSelectContext}
               variant="header"
             />
             <SiblingNavigator messageId={message.id} />

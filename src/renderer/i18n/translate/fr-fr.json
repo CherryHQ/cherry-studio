@@ -139,11 +139,16 @@
         "description": "Recevoir et répondre aux messages via WeChat en utilisant l'API iLink Bot.",
         "disconnected": "Déconnecté",
         "loginHint": "La première connexion nécessite de scanner un code QR. Vérifiez les journaux de l'application pour obtenir l'URL de connexion.",
+        "qrExpired": "Code QR expiré. Veuillez réessayer en basculant le canal.",
         "qrHint": "Ouvrez WeChat sur votre téléphone, scannez le code QR pour vous connecter.",
         "qrTitle": "Connexion par QR WeChat",
         "title": "WeChat",
         "whoamiTip": "Astuce : envoyez /whoami dans WeChat pour obtenir l'ID d'un utilisateur."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} de plus",
         "no_artifacts": "Aucun livrable déclaré",
         "no_subagents": "Aucun sous-agent",
-        "subagents": "Sous-agents"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Sous-agents",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Activité",
         "agent": "Agent",
         "context": "Contexte",
         "no_tasks": "Aucune tâche active",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Outil sélectionnée",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} terminé",
         "tasks": "Tâches",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Actif",
         "tools_done": "Fait",
         "tools_failed": "Échec",
@@ -377,6 +391,11 @@
         "helper": "Choisissez les outils préapprouvés. Les outils non sélectionnés nécessiteront une approbation avant utilisation.",
         "label": "Outils pré-approuvés",
         "placeholder": "Sélectionner des outils pré-approuvés"
+      },
+      "api_retry": {
+        "reason": "La requête a échoué ({{error}}, HTTP {{status}}) — nouvelle tentative",
+        "retrying": "Nouvelle tentative {{attempt}}/{{max}}…",
+        "retrying_in": "Réessai {{attempt}}/{{max}} dans {{seconds}}s"
       },
       "auto_rename": "Générer le nom de la tâche",
       "create": {
@@ -429,12 +448,19 @@
         "this_week": "Cette semaine",
         "today": "Aujourd'hui",
         "unknown_agent": "Agent inconnu",
+        "unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter.",
         "yesterday": "Hier"
       },
       "label_one": "Session",
       "label_other": "Séances",
       "list": {
         "title": "Tâches"
+      },
+      "model_switch_confirm": {
+        "confirm": "Changer de modèle",
+        "description": "Les différents modèles peuvent comprendre et traiter le contexte différemment. Changer de modèle peut affecter la continuité ou la qualité des réponses suivantes. Voulez-vous continuer ?",
+        "skip_for_app_run": "Ne me demande plus jusqu'à ce que je quitte l'application.",
+        "title": "Passer à « {{model}} » ?"
       },
       "new": "Nouvelle tâche",
       "pin": {
@@ -602,12 +628,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Les modifications de fichiers et les opérations sur le système de fichiers sont automatiquement approuvées.",
-            "title": "Accepter automatiquement les modifications de fichiers"
+            "description": "Modifie les fichiers librement. Demande avant les commandes.",
+            "title": "Accepter les modifications automatiquement"
+          },
+          "auto": {
+            "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
+            "title": "Approuver pour moi",
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
           },
           "bypassPermissions": {
-            "description": "Toutes les demandes de permission sont ignorées — à utiliser avec prudence.",
-            "title": "Contourner les vérifications de permission",
+            "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
+            "title": "Accès complet",
             "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
           },
           "confirmChange": {
@@ -615,14 +646,14 @@
             "title": "Changer le mode d'autorisation ?"
           },
           "default": {
-            "description": "Les vérifications d'autorisation normales s'appliquent.",
-            "title": "Par défaut (demander avant de continuer)"
+            "description": "Demande avant de modifier des fichiers ou d'exécuter des commandes.",
+            "title": "Demander avant d'agir"
           },
           "helper": "Spécifie comment l'agent gère l'autorisation d'utilisation des outils",
           "placeholder": "Sélectionner le mode de permission",
           "plan": {
-            "description": "Claude ne peut utiliser que des outils en lecture seule et présente un plan avant l'exécution.",
-            "title": "Mode de planification (à venir)"
+            "description": "Planifie sans modifier de fichiers. Seules les commandes en lecture seule ou vérifiées sont exécutées.",
+            "title": "Planification seule"
           },
           "title": "Mode de permission"
         },
@@ -658,6 +689,14 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "effort": "Effort",
+      "fast": "Rapide",
+      "faster": "Plus rapide",
+      "label": "Vitesse",
+      "smarter": "Plus intelligent",
+      "title": "Paramètres de réponse"
+    },
     "tasks": {
       "add": "Ajouter une tâche",
       "cancel": "Annuler",
@@ -678,6 +717,7 @@
         "deleteFailed": "Échec de la suppression de la tâche",
         "loadFailed": "Échec du chargement des tâches",
         "runFailed": "Échec de l'exécution de la tâche",
+        "triggerInvalid": "Expression de planification invalide : vérifiez l'expression, le fuseau horaire ou la plage d'intervalle",
         "updateFailed": "Échec de la mise à jour de la tâche"
       },
       "frequency": {
@@ -720,6 +760,38 @@
       "run": "Exécuter",
       "runTriggered": "Tâche déclenchée",
       "save": "Enregistrer",
+      "schedule": {
+        "custom": "Horaire personnalisé",
+        "daily": "Quotidien",
+        "hour": "Heure",
+        "hourly": "Par heure",
+        "interval": "Intervalle personnalisé",
+        "intervalMinutes": "Intervalle",
+        "invalid": "Entrez une fréquence d'exécution valide.",
+        "minute": "Minute",
+        "once": "Une fois",
+        "runAt": "Courir à",
+        "summary": {
+          "daily": "Tous les jours à {{time}}",
+          "hourly": "Au début de chaque heure",
+          "interval": "Toutes les {{count}} minutes",
+          "weekdays": "Les jours de la semaine à {{time}}",
+          "weekly": "Chaque {{weekday}} à {{time}}"
+        },
+        "time": "Temps",
+        "weekday": "Jour de la semaine",
+        "weekdays": {
+          "friday": "Vendredi",
+          "monday": "Lundi",
+          "saturday": "Samedi",
+          "sunday": "Dimanche",
+          "thursday": "Jeudi",
+          "tuesday": "Mardi",
+          "wednesday": "Mercredi"
+        },
+        "weekdaysOnly": "Jours de la semaine",
+        "weekly": "Hebdomadaire"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervalle",
@@ -869,7 +941,7 @@
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "En attente",
       "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
       "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
       "suggestion": {
@@ -997,7 +1069,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copier",
       "regenerate": "Régénérer",
       "restart": {
         "button": "Redémarrer",
@@ -1009,8 +1080,6 @@
     "authHeader": {
       "title": "En-tête d'autorisation"
     },
-    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
-    "configuration": "Configuration",
     "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
     "documentation": {
       "title": "Documentation API"
@@ -1018,13 +1087,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copier la Clé API",
-        "description": "Jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
       "port": {
-        "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
-        "helpText": "Arrêtez le serveur pour changer le port",
         "label": "Port"
       },
       "url": {
@@ -1033,7 +1099,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
       "apiKeyRegenerated": "Clé API régénérée",
       "notEnabled": "Le serveur API n'est pas activé.",
       "operationFailed": "Opération du Serveur API échouée : ",
@@ -1043,8 +1108,7 @@
       "startError": "Échec du démarrage du Serveur API : ",
       "startSuccess": "Serveur API démarré avec succès",
       "stopError": "Échec de l'arrêt du Serveur API : ",
-      "stopSuccess": "Serveur API arrêté avec succès",
-      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+      "stopSuccess": "Serveur API arrêté avec succès"
     },
     "status": {
       "running": "En cours d'exécution",
@@ -1203,10 +1267,6 @@
           "on": "Reconnaissance des intentions",
           "tip": "L'agent utilisera la capacité du grand modèle à reconnaître les intentions afin de déterminer si la base de connaissances doit être utilisée pour répondre. Cette fonctionnalité dépend des capacités du modèle"
         }
-      },
-      "max_tool_calls": {
-        "label": "Maximiser les appels d'outils",
-        "tip": "Nombre maximum d'appels d'outils autorisés dans une seule conversation. Des valeurs plus élevées permettent des opérations multi-étapes plus complexes, mais peuvent augmenter l'utilisation de tokens et le temps de réponse."
       },
       "mcp": {
         "description": "Serveur MCP activé par défaut",
@@ -1413,9 +1473,8 @@
       "image_preview_failed": "L'aperçu de l'image a échoué",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
-      "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
+      "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils",
       "locate_editing_message": "Localiser le message original",
-      "mcp_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation des outils dans l'invite.",
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
@@ -1427,21 +1486,21 @@
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Échec du chargement de la conversation référencée",
+        "no_room": "Pas assez d'espace restant dans le message pour ajouter cette conversation",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Aucune session ne correspond à votre recherche",
+            "label": "Aucune session trouvée"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Séances"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Aucun sujet ne correspond à votre recherche",
+            "label": "Aucun sujet trouvé"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Sujets"
         }
       },
       "resize_height": "Redimensionner la hauteur d'entrée",
@@ -1521,6 +1580,7 @@
         },
         "open_file": "Ouvrir le fichier",
         "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
+        "open_with": "Ouvrir avec",
         "reveal_in_finder": "Afficher dans le Finder"
       },
       "topics": "Sujets",
@@ -1555,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Impossible de convertir au format d'appel d'outil valide : {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
-        "multiple_tools": "Il existe plusieurs outils MCP correspondants, {{tool}} a été sélectionné",
-        "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé",
         "url_context": "Gemini ne prend pas en charge l'utilisation simultanée du contexte de la page Web et des appels de fonction"
       }
     },
@@ -1603,8 +1658,17 @@
       "token_details": {
         "cache_read": "Lecture du cache",
         "cache_write": "Écriture dans le cache",
+        "cost": "Coût",
+        "cost_billed": "Facturé par le fournisseur",
+        "cost_estimated": "Estimé",
+        "end_to_end_throughput": "Débit de bout en bout",
         "input": "Entrée",
         "input_breakdown": "Décomposition de l'entrée",
+        "lane_approval": "Approbation",
+        "lane_model": "Modèle",
+        "lane_other": "Autre",
+        "lane_tool": "Outil",
+        "model_throughput": "Génération de modèles TPS",
         "output": "Sortie",
         "reasoning": "Raisonnement",
         "reasoning_time": "Raisonnement",
@@ -1613,6 +1677,7 @@
         "text_output": "Sortie de texte",
         "tokens": "{{value}} Jetons",
         "tokens_per_second_value": "{{value}} jetons/s",
+        "total_duration": "Durée de bout en bout",
         "uncached": "Non mis en cache",
         "usage": "Utilisation des jetons",
         "waiting_first_token": "En attente"
@@ -1886,6 +1951,7 @@
         "this_week": "Cette semaine",
         "today": "Aujourd'hui",
         "unknown_assistant": "Assistant non lié",
+        "unknown_assistant_tip": "Il s'agit d'un groupe de conversation historique sans assistant, pas d'un assistant réel. Déplacez la conversation vers un assistant existant pour continuer.",
         "yesterday": "Hier"
       },
       "list": "Liste des sujets",
@@ -2140,7 +2206,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
     "terminal_placeholder": "Choisir une application de terminal",
-    "title": "Outils de code",
+    "title": "Code Mate",
     "tool_parameters": "Paramètres",
     "up_to_date": "À jour",
     "update_options": "Options de mise à jour",
@@ -2253,6 +2319,12 @@
     "generate_random_seed": "Générer une graine aléatoire",
     "get_embedding_dimension": "Obtenir la dimension d'intégration",
     "go_to_settings": "Aller aux paramètres",
+    "group": {
+      "create": "Nouveau groupe",
+      "create_failed": "Échec de la création du groupe",
+      "name_placeholder": "Entrez le nom du groupe...",
+      "name_required": "Le nom du groupe est obligatoire"
+    },
     "help": "Aide",
     "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
@@ -2280,6 +2352,7 @@
     "open_in": "Ouvrir dans {{name}}",
     "open_in_new_tab": "Ouvrir dans un nouvel onglet",
     "open_sidebar": "Ouvrir la barre latérale",
+    "other": "Autre",
     "placeholders": {
       "select": {
         "model": "Choisir le modèle"
@@ -2293,7 +2366,7 @@
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
     "refresh": "Actualiser",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Impossible de rafraîchir la liste. Affichage de la dernière version chargée.",
     "regenerate": "Regénérer",
     "remove_image": "Supprimer l'image",
     "rename": "Renommer",
@@ -2609,7 +2682,7 @@
     "empty": {
       "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
       "no_match_title": "Aucun fichier correspondant trouvé",
-      "title": "[to be translated]:No files yet"
+      "title": "Aucun fichier pour l'instant"
     },
     "empty_trash": "Vider la corbeille",
     "error": {
@@ -2838,6 +2911,10 @@
     "code": "Code",
     "empty_preview": "Aucun contenu à afficher",
     "generating": "Génération",
+    "interactive_preview": {
+      "action": "Afficher la page web",
+      "description": "Cette page web contient des scripts ou des ressources externes. Son ouverture peut exécuter du code et se connecter à Internet."
+    },
     "preview": "Aperçu",
     "split": "Diviser",
     "view_mode": "Mode d'affichage"
@@ -3007,6 +3084,7 @@
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
+    "empty_action": "Créer une base de connaissances",
     "empty_description": "Vous n'avez pas encore de bases de connaissances. Créez-en une pour commencer à organiser et rechercher vos documents.",
     "error": {
       "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
@@ -3380,6 +3458,7 @@
         "json_invalid": "Format JSON invalide",
         "max_tokens": "Jetons max",
         "max_tool_calls": "Appels d'outil max",
+        "max_tool_calls_default": "Par défaut ({{count}} tours)",
         "mcp_mode": "Mode MCP",
         "model": "Modèle par défaut",
         "model_clear": "Clair",
@@ -3395,8 +3474,7 @@
         "tags": "Étiquettes",
         "temperature": "Température",
         "title": "Paramètres de base",
-        "top_p": "Top-P",
-        "unlimited": "Illimité"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Bibliothèque",
       "dialogs": {
@@ -3770,6 +3848,7 @@
     },
     "citation": "{{count}} éléments cités",
     "citations": "Citations",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copié",
     "copy": {
       "failed": "La copie a échoué",
@@ -3781,6 +3860,8 @@
         "title": "Confirmation de suppression"
       },
       "failed": "Échec de la suppression",
+      "first_turn_not_supported": "Le premier message de l'utilisateur ne peut pas être supprimé.",
+      "root_unavailable": "Les messages sont encore en cours de chargement et ne peuvent pas encore être supprimés.",
       "success": "Suppression réussie"
     },
     "dialog": {
@@ -4049,6 +4130,7 @@
         "write": "Enregistrer",
         "writing": "Épargne"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "L'outil \"{{tool}}\" nécessite une approbation",
       "autoApproveEnabled": "Cet outil a l'approbation automatique activée",
       "cancelled": "Annulé",
@@ -4080,6 +4162,7 @@
         "tool": "Outil",
         "webFetch": "Récupération Web",
         "webSearch": "Recherche Web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Écrire"
       },
       "noData": "Aucune donnée disponible pour cet outil",
@@ -4137,6 +4220,15 @@
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} résultat",
         "result_other": "{{count}} résultats"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -4279,6 +4371,7 @@
     },
     "pinned": "Épinglé",
     "price": {
+      "cache_read": "Prix de lecture du cache",
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
@@ -4894,6 +4987,11 @@
     "seed_random": "Aléatoire",
     "seed_tip": "La même graine et le même prompt peuvent générer des images similaires",
     "select_model": "Sélectionner un modèle",
+    "showcase": {
+      "caption": "Choisissez un modèle pour commencer, puis personnalisez le prompt ci-dessous.",
+      "styles_label": "Modèles de prompts",
+      "title": "Un espace pour votre prochain chef-d’œuvre."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5170,6 +5268,7 @@
       "label": "Êtes-vous sûr de vouloir restaurer les données ?"
     },
     "content": "L'opération de restauration va utiliser les données de sauvegarde pour remplacer toutes les données d'applications actuelles. Veuillez noter que le processus de restauration peut prendre un certain temps. Merci de votre patience.",
+    "messages_paused": "Une restauration de sauvegarde est en cours ; les nouveaux messages sont mis en pause jusqu'à ce qu'elle se termine.",
     "progress": {
       "completed": "Restauration terminée",
       "copying_files": "Copie des fichiers... {{progress}}%",
@@ -5677,6 +5776,7 @@
         "button": "Afficher",
         "title": "Journal des mises à jour"
       },
+      "repository": "Dépôt GitHub",
       "social": {
         "title": "Comptes sociaux"
       },
@@ -5755,8 +5855,7 @@
       },
       "backup": {
         "skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
-        "skip_file_data_title": "Sauvegarde réduite",
-        "v2_unavailable": "La sauvegarde et la restauration V2 n'est pas encore disponible. Bientôt disponible."
+        "skip_file_data_title": "Sauvegarde réduite"
       },
       "clear_cache": {
         "button": "Effacer le cache",
@@ -6400,6 +6499,7 @@
       "viewErrorDetails": "Voir les détails"
     },
     "developer": {
+      "client_id": "ID client",
       "enable_developer_mode": "Activer le mode développeur",
       "help": "Une fois le mode développeur activé, vous pourrez utiliser la fonctionnalité de chaînage d'appels pour consulter le flux de données du processus d'appel du modèle.",
       "title": "Mode Développeur"
@@ -6536,7 +6636,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "La désactivation de l'accélération matérielle nécessite un redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
+        "content_disable": "La désactivation de l'accélération matérielle nécessite le redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
+        "content_enable": "L'activation de l'accélération matérielle nécessite le redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
         "title": "Redémarrage de l'application requis"
       },
       "title": "Désactiver l'accélération matérielle"
@@ -6582,16 +6683,15 @@
       "active": "Activer",
       "addError": "Échec de l'ajout du serveur",
       "addServer": {
+        "advanced": "Avancé",
         "create": "Création rapide",
+        "createDescription": "Remplissez les détails de connexion pour créer le serveur ; tout le reste peut être ajusté plus tard.",
         "importFrom": {
           "connectionFailed": "Échec de la connexion",
           "dxt": "Importer le paquet DXT",
           "dxtFile": "Fichier du paquet DXT",
           "dxtHelp": "Sélectionnez un fichier .dxt contenant un serveur MCP",
           "dxtProcessFailed": "Échec du traitement du fichier DXT",
-          "error": {
-            "multipleServers": "Impossible d'importer à partir de plusieurs serveurs"
-          },
           "invalid": "Entrée invalide, veuillez vérifier le format JSON",
           "json": "Importer depuis JSON",
           "mcpb": "Importer le bundle MCPB",
@@ -6662,7 +6762,11 @@
         "success": "Serveurs MCP récupérés avec succès"
       },
       "filter": {
-        "label": "Filtre"
+        "allStatuses": "Tous les statuts",
+        "allTypes": "Tous les types",
+        "builtinOnly": "Intégré uniquement",
+        "status": "Filtrer par statut",
+        "type": "Filtrer par type"
       },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
@@ -6719,6 +6823,7 @@
         "usage": "Utilisation",
         "version": "Version"
       },
+      "pageDescription": "Gérer les serveurs MCP. Une fois activés, les agents peuvent appeler les outils et ressources qu'ils fournissent.",
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Invites disponibles",
@@ -6740,6 +6845,15 @@
       "providers": "Fournisseurs",
       "registry": "Источник управления пакетами",
       "registryDefault": "По умолчанию",
+      "registryOptions": {
+        "custom": "Personnalisé",
+        "npmTaobao": "Miroir NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Выберите источник для установки пакетов, чтобы решить проблемы с сетью по умолчанию.",
       "requiresConfig": "Configuration requise",
       "resources": {
@@ -6915,6 +7029,7 @@
         "display": "Gestion de l'affichage",
         "preferences": "Préférences"
       },
+      "hide_app": "Masquer {{name}}",
       "open_link_external": {
         "description": "Lorsqu'elle est activée, les liens qui ouvrent une nouvelle fenêtre dans une mini-application s'ouvrent dans votre navigateur par défaut",
         "title": "Ouvrir un nouveau lien dans une fenêtre du navigateur"
@@ -6927,6 +7042,7 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
+      "show_app": "Afficher {{name}}",
       "title": "Paramètres des Mini Apps",
       "visible": "Applications visibles"
     },
@@ -7235,6 +7351,10 @@
       "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Lorsque cette option est activée, Cherry Studio contacte IPInfo pour détecter approximativement le pays ou la région, puis envoie ce résultat avec votre nom, la langue de l’application, la date et l’heure locales et le fuseau horaire au modèle CherryAI intégré afin de générer des messages d’accueil. Désactivée par défaut.",
+        "title": "Messages d’accueil contextuels générés par l’IA"
+      },
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
     },
@@ -7627,6 +7747,13 @@
           "toggle_private_key_visibility": "Basculer la visibilité de la clé privée",
           "toggle_project_id_visibility": "Basculer la visibilité de l'ID du projet"
         }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Ouvrir Token Factory",
+          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
+          "title": "10 USD de crédits API gratuits par jour"
+        }
       }
     },
     "proxy": {
@@ -7682,12 +7809,39 @@
       "titlePlaceholder": "Veuillez saisir le titre de la phrase"
     },
     "scheduledTasks": {
+      "agentCreate": "Créer avec Agent",
+      "allAgents": "Tous les agents",
+      "allStatuses": "Tous les statuts",
+      "clearFilters": "Effacer les filtres",
+      "createDescription": "Définissez ce que l'Agent doit faire et quand il doit s'exécuter.",
+      "createTitle": "Nouvelle tâche planifiée",
       "description": "Gérez les tâches planifiées sur tous les agents. Les tâches s'exécutent automatiquement selon le planning configuré.",
+      "editDescription": "Mettez à jour ce que l'Agent doit faire et quand il doit s'exécuter.",
+      "editTitle": "Modifier la tâche planifiée",
+      "filterAgent": "Filtrer par Agent",
+      "filterStatus": "Filtrer par statut",
+      "manualCreate": "Créer manuellement",
+      "newTask": "Nouveau",
       "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",
       "noAgentsTip": "Conseil : vous pouvez également demander à votre agent de créer des tâches planifiées via le chat.",
+      "noAgentsTitle": "Pas d'agents",
+      "noMatches": "Essayez une recherche ou un filtre différent.",
+      "noMatchesTitle": "Aucune tâche correspondante",
       "noTasks": "Aucune tâche planifiée. Cliquez sur « + Ajouter » pour en créer une pour un agent.",
+      "noTasksTitle": "Aucune tâche planifiée",
+      "notFoundDescription": "Cette tâche a peut-être été supprimée, ou le lien est invalide.",
+      "notFoundTitle": "Tâche non trouvée",
+      "paginationLabel": "Pagination des tâches planifiées",
+      "paginationStatus": "Page {{page}} sur {{pageCount}} · {{total}} tâches",
+      "search": "Rechercher les tâches planifiées",
+      "searchPlaceholder": "Rechercher des tâches ou des Agents",
       "selectTask": "Sélectionnez une tâche pour afficher les détails",
-      "title": "Tâches planifiées"
+      "title": "Tâches planifiées",
+      "validation": {
+        "agent": "Sélectionner un Agent.",
+        "name": "Entrez un nom de tâche.",
+        "prompt": "Entrez une invite de tâche."
+      }
     },
     "shortcuts": {
       "action": "Action",
@@ -7776,6 +7930,7 @@
       "noInstalled": "Aucune compétence installée",
       "noResults": "Aucune compétence trouvée",
       "noSkillFile": "Aucun SKILL.md trouvé",
+      "pageDescription": "Gérer les compétences installées. Les compétences étendent ce que vos agents peuvent faire et sont invoquées à la demande.",
       "searchPlaceholder": "Découvrir plus de compétences...",
       "searchRegistryTitle": "Rechercher des registres de compétences en ligne",
       "searchTitle": "Compétences de recherche",
@@ -8031,6 +8186,108 @@
       "show": "Afficher l'icône dans la barre d'état système",
       "title": "Barre d'état système"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Jours actifs",
+        "cacheHitRate": "Taux de réussite du cache",
+        "cacheObservedTokens": "Entrée observable : {{tokens}}",
+        "cacheStartsWithNewRequests": "Commence avec de nouvelles demandes",
+        "dailyAverage": "Moyenne quotidienne",
+        "explicitApiKey": "Clé sélectionnée",
+        "lastPeriod": "vs période précédente",
+        "matchedApiKey": "Remplacement correspondant trouvé",
+        "none": "N/A",
+        "peakDay": "Jour de pointe",
+        "providerAuth": "Authentification du fournisseur",
+        "streak": "Plus longue série : {{days}} jours",
+        "topModel": "Top model",
+        "totalCost": "Coût total",
+        "totalRequests": "Demandes",
+        "totalTokens": "Jetons totaux",
+        "unattributedApiKey": "Demande non attribuée",
+        "unattributedSource": "Source non attribuée"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Ligne",
+        "pie": "Tarte",
+        "stack": "Pile"
+      },
+      "currency": "Devise",
+      "empty": {
+        "description": "L'utilisation apparaît après que les demandes d'IA prises en charge créent des enregistrements d'utilisation.",
+        "title": "Aucune utilisation pour l'instant"
+      },
+      "explore": {
+        "analysis": "Analyse",
+        "chart": "Graphique",
+        "clearDate": "Effacer le filtre de date",
+        "drilldownTitle": "{{date}} détail",
+        "entries": "Demandes",
+        "groupBy": "Grouper par",
+        "loadMore": "Charger plus",
+        "loading": "Chargement...",
+        "metric": "Métrique",
+        "noBreakdown": "Aucune donnée de répartition",
+        "noBreakdownDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
+        "noEntries": "Aucune entrée",
+        "noEntriesDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
+        "rollup": "Rollup",
+        "selectedDate": "Date sélectionnée : {{date}}",
+        "shareLabel": "Partager",
+        "title": "Explorer",
+        "top": "Haut",
+        "totalEntries_one": "{{count}} entrée",
+        "totalEntries_other": "{{count}} entrées"
+      },
+      "groupBy": {
+        "apiKey": "Clé API",
+        "model": "Modèle",
+        "provider": "Fournisseur",
+        "source": "Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "Utilisation le {{date}}",
+        "title": "Activité quotidienne"
+      },
+      "metric": {
+        "cost": "Coût",
+        "requests": "Demandes",
+        "tokens": "Jetons"
+      },
+      "overview": {
+        "title": "Vue d'ensemble"
+      },
+      "rollup": {
+        "daily": "Quotidien",
+        "monthly": "Mensuel",
+        "total": "Total",
+        "weekly": "Hebdomadaire"
+      },
+      "summary": "{{fenêtre}} / {{jetons}} jetons / {{requêtes}} requêtes",
+      "table": {
+        "cost": "Coût",
+        "date": "Date",
+        "model": "Modèle",
+        "source": "Source",
+        "tokens": "Jetons",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Analyse d'utilisation",
+      "tooltip": {
+        "cost": "Coût {{value}}",
+        "requests_one": "{{count}} requête",
+        "requests_other": "{{count}} demandes",
+        "tokens": "{{value}} jetons"
+      },
+      "window": {
+        "30d": "30 derniers jours",
+        "365d": "L'année dernière",
+        "90d": "90 derniers jours"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "La modification du style de la barre de titre nécessite le redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
@@ -8061,7 +8318,7 @@
   "title": {
     "apps": "Mini-programmes",
     "chat": "Chat",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "Fichiers",
     "home": "Page d'accueil",
     "knowledge": "Base de connaissances",
@@ -8206,6 +8463,7 @@
         "placeholder": "Rechercher l'historique des traductions"
       },
       "source": "Source",
+      "star": "Favori",
       "success": {
         "add": "Enregistré dans l'historique",
         "clear": "Historique effacé",

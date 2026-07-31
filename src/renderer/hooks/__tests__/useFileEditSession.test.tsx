@@ -56,7 +56,7 @@ describe('useFileEditSession', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'))
     expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
       handle: { kind: 'path', path },
-      options: { encoding: 'binary' }
+      options: { mode: 'full', encoding: 'binary' }
     })
     expect(result.current.draft).toBe('hello\n')
     expect(result.current.savedContent).toBe('hello\n')
@@ -578,7 +578,7 @@ describe('useFileEditSession', () => {
 
         expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
           handle: { kind: 'path', path },
-          options: { encoding: 'binary' }
+          options: { mode: 'full', encoding: 'binary' }
         })
         expect(result.current.savedContent).toBe('a')
         expect(result.current.conflict).toBe(false)

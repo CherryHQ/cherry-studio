@@ -158,6 +158,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const [internalValue, setInternalValue] = React.useState<string | string[]>(defaultValue ?? (multiple ? [] : ''))
   const [triggerSearch, setTriggerSearch] = React.useState('')
   const [contentSearch, setContentSearch] = React.useState('')
+  const [activeValue, setActiveValue] = React.useState('')
   const triggerInputRef = React.useRef<HTMLInputElement>(null)
 
   const open = controlledOpen ?? internalOpen
@@ -181,6 +182,16 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   }
 
   const selectedOption = !multiple ? options.find((opt) => opt.value === value) : undefined
+
+  // Seed cmdk's active (highlighted) descendant to the current selection each
+  // time the list opens. Without this, cmdk defaults the highlight to the first
+  // option, making it look selected even when another option is the real value.
+  React.useEffect(() => {
+    if (open && !multiple && typeof value === 'string') {
+      setActiveValue(value)
+    }
+  }, [open, multiple, value])
+
   const triggerSearchEnabled = searchable && searchPlacement === 'trigger' && !multiple
   const contentSearchEnabled = searchable && !triggerSearchEnabled
   const manualFilterEnabled = triggerSearchEnabled || (contentSearchEnabled && Boolean(filterOption))
@@ -367,7 +378,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               <button
                 type="button"
                 aria-label={getRemoveTagAriaLabel(option.label)}
-                className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-foreground"
+                className="inline-flex size-3 cursor-pointer items-center justify-center opacity-70 hover:text-foreground hover:opacity-100"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
                 <X className="size-3" />
@@ -419,8 +430,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
-                'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
-                error && 'border-destructive! focus-visible:ring-red-600/20',
+                'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20',
+                error && 'border-destructive! focus-visible:ring-destructive/20',
                 disabled && 'cursor-not-allowed opacity-50',
                 comboboxInputSizeClasses[inputSize],
                 className
@@ -482,7 +493,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <div className="truncate">{option.label}</div>
           {option.description && <div className="text-xs text-muted-foreground truncate">{option.description}</div>}
         </div>
-        {isSelected(option.value) && <Check className="size-4 shrink-0 text-success" />}
+        {isSelected(option.value) && <Check className="size-4 shrink-0 text-primary" />}
       </>
     )
   }
@@ -491,6 +502,10 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const state = disabled ? 'disabled' : error ? 'error' : 'default'
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
+  const popoverWidth =
+    typeof triggerWidth === 'string' && triggerWidth.trim().endsWith('%')
+      ? 'var(--radix-popover-trigger-width)'
+      : triggerWidth
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -517,7 +532,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         className={cn('p-0 rounded-md', popoverClassName)}
         align={popoverAlign}
         portalContainer={portalContainer}
-        style={{ width: triggerWidth }}
+        style={{ width: popoverWidth }}
         onOpenAutoFocus={(event) => {
           if (!triggerSearchEnabled) {
             return
@@ -526,7 +541,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           event.preventDefault()
           triggerInputRef.current?.focus()
         }}>
-        <Command shouldFilter={!manualFilterEnabled}>
+        <Command
+          shouldFilter={!manualFilterEnabled}
+          {...(!multiple ? { value: activeValue, onValueChange: setActiveValue } : {})}>
           {contentSearchEnabled && (
             <CommandInput
               placeholder={searchPlaceholder}

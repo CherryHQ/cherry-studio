@@ -63,6 +63,9 @@ export interface OpenClawConfig {
     mode?: string
     providers?: Record<string, OpenClawProviderConfig>
   }
+  update?: {
+    checkOnStart?: boolean
+  }
 }
 
 export interface OpenClawModelConfig {
@@ -249,7 +252,10 @@ export class OpenClawService extends BaseService {
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
     const proc = crossPlatformSpawn(openclawPath, args, {
-      env: shellEnv,
+      // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
+      // version BinaryManager installed and reports. This is OpenClaw's documented kill
+      // switch, scoped to the gateway process we spawn.
+      env: { ...shellEnv, OPENCLAW_NO_AUTO_UPDATE: '1' },
       detached: !isWin, // Only detach on non-Windows to avoid console flash
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -384,8 +390,7 @@ export class OpenClawService extends BaseService {
    */
   private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
-      const { status } = await this.checkGatewayHealth()
-      const stillRunning = status === 'healthy'
+      const stillRunning = await this.checkPortOpen(this.gatewayPort)
       if (!stillRunning) {
         return false
       }
@@ -797,6 +802,14 @@ export class OpenClawService extends BaseService {
       const token = this.gatewayAuthToken || this.generateAuthToken()
       config.gateway.auth = { token }
       this.gatewayAuthToken = token
+
+      // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
+      // BinaryManager installed and version-tracks; the hint has no env kill switch
+      // (unlike OPENCLAW_NO_AUTO_UPDATE, which only blocks automatic applies).
+      // Only defaulted, never forced: a user who sets checkOnStart themselves keeps it.
+      if (config.update?.checkOnStart === undefined) {
+        config.update = { ...config.update, checkOnStart: false }
+      }
 
       // Update config
       config.models.providers[providerKey] = openclawProvider

@@ -1,20 +1,16 @@
-import { cacheService } from '@data/CacheService'
 import type { MessageListActions, MessageListState, MessageUiState } from '@renderer/components/chat/messages/types'
 import { useCallback, useMemo } from 'react'
+
+import { getCachedMessageUiState, updateCachedMessageUiState } from '../utils/messageUiStateCache'
 
 type MessageUiStateCache = Pick<MessageListState, 'getMessageUiState'> &
   Pick<MessageListActions, 'updateMessageUiState'>
 
 export function useMessageUiStateCache(): MessageUiStateCache {
-  const getMessageUiState = useCallback(
-    (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
-    []
-  )
+  const getMessageUiState = useCallback((messageId: string) => getCachedMessageUiState(messageId), [])
 
   const updateMessageUiState = useCallback((messageId: string, updates: MessageUiState) => {
-    const cacheKey = `message.ui.${messageId}` as const
-    const current = cacheService.get(cacheKey) || {}
-    cacheService.set(cacheKey, { ...current, ...updates })
+    updateCachedMessageUiState(messageId, updates)
   }, [])
 
   return useMemo(

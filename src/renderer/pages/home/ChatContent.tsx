@@ -21,7 +21,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -42,7 +42,6 @@ interface Props {
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
-  assistantContextLoading?: boolean
   onConversationControlsChange?: ChatConversationControlsChangeHandler
 }
 
@@ -69,7 +68,6 @@ const ChatContent: FC<Props> = ({
   onStartBranchDraft,
   assistantContext,
   providers,
-  assistantContextLoading,
   onConversationControlsChange
 }) => {
   const {
@@ -99,7 +97,6 @@ const ChatContent: FC<Props> = ({
       onStartBranchDraft={onStartBranchDraft}
       assistantContext={assistantContext}
       providers={providers}
-      assistantContextLoading={assistantContextLoading}
       onConversationControlsChange={onConversationControlsChange}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
@@ -150,7 +147,6 @@ const ChatContentInner: FC<InnerProps> = ({
   onStartBranchDraft,
   assistantContext,
   providers,
-  assistantContextLoading,
   onConversationControlsChange,
   isHistoryLoading,
   isHistoryStale,
@@ -167,6 +163,21 @@ const ChatContentInner: FC<InnerProps> = ({
   const { t } = useTranslation()
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  const greetingContextRef = useRef<{ topicId: string; text: string } | null>(null)
+  const handleGreetingChange = useCallback(
+    (greeting: string | null) => {
+      if (greeting) {
+        greetingContextRef.current = { topicId: topic.id, text: greeting }
+      } else if (greetingContextRef.current?.topicId === topic.id) {
+        greetingContextRef.current = null
+      }
+    },
+    [topic.id]
+  )
+  const getGreetingContext = useCallback(() => {
+    const current = greetingContextRef.current
+    return current?.topicId === topic.id ? current.text : undefined
+  }, [topic.id])
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
@@ -179,7 +190,8 @@ const ChatContentInner: FC<InnerProps> = ({
     assistant,
     onBranchLiveStateChange,
     clearBranchDraft,
-    getBranchDraftAnchorId
+    getBranchDraftAnchorId,
+    getGreetingContext
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 
@@ -218,7 +230,13 @@ const ChatContentInner: FC<InnerProps> = ({
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
-          <ConversationGreeting avatar={assistant?.emoji} title={t('chat.home.welcome_title')} />
+          <ConversationGreeting
+            avatar={assistant?.emoji}
+            conversationId={topic.id}
+            mode="chat"
+            onGreetingChange={handleGreetingChange}
+            title={t('chat.home.welcome_title')}
+          />
         </div>
       )}
       <ChatMain
@@ -228,6 +246,8 @@ const ChatContentInner: FC<InnerProps> = ({
         messages={runtime.messages}
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
+        localSendGeneration={runtime.localSendGeneration}
+        onBindRuntime={runtime.bindMessageListRuntime}
         isInitialLoading={isHistoryLoading}
         isMessagesStale={isHistoryStale}
         loadOlder={loadOlder}
@@ -242,11 +262,11 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       onSend={runtime.sendMessage}
+      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      assistantContextLoading={assistantContextLoading}
       onConversationControlsChange={onConversationControlsChange}
     />
   ) : (
@@ -254,13 +274,13 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="docked"
       topic={topic}
       onSend={runtime.sendMessage}
+      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      assistantContextLoading={assistantContextLoading}
       onConversationControlsChange={onConversationControlsChange}
     />
   )

@@ -45,16 +45,29 @@ import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  window.api.file.getMetadata = vi.fn().mockResolvedValue({
+    kind: 'file',
+    type: 'text',
+    size: 128,
+    createdAt: 1,
+    modifiedAt: 1,
+    mime: 'text/markdown'
+  })
+  window.api.file.isTextFile = vi.fn().mockResolvedValue(true)
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
     default: ({
       filePath,
       fileName,
-      refreshKey
+      metadata,
+      refreshKey,
+      type
     }: {
       filePath: AbsoluteFilePath
       fileName: string
+      metadata: { size: number }
       refreshKey: number
+      type?: string
     }) => (
       <FilePreviewLayout.Frame>
         <FilePreviewToolbar aria-label="Preview tools">
@@ -65,7 +78,9 @@ beforeEach(() => {
             data-testid="plugin-preview"
             data-file-path={filePath}
             data-file-name={fileName}
+            data-file-size={metadata.size}
             data-refresh-key={refreshKey}
+            data-preview-type={type}
           />
         </FilePreviewLayout.Content>
       </FilePreviewLayout.Frame>
@@ -89,11 +104,15 @@ describe('FilePreview plugin loading', () => {
   })
 
   it('lazy loads a matching plugin with the canonical file descriptor', async () => {
-    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as AbsoluteFilePath} refreshKey={4} />)
+    render(
+      <FilePreview filePath={'/tmp/workspace/notes/../README.md' as AbsoluteFilePath} refreshKey={4} type="artifact" />
+    )
 
     expect(await screen.findByTestId('plugin-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-name', 'README.md')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-size', '128')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-refresh-key', '4')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-preview-type', 'artifact')
     expect(mocks.load).toHaveBeenCalledTimes(1)
   })
 
@@ -109,7 +128,8 @@ describe('FilePreview plugin loading', () => {
     const header = screen.getByTestId('file-preview-header')
     const toolbarHost = screen.getByTestId('file-preview-toolbar-host')
 
-    expect(header).toHaveClass('h-10')
+    expect(header).toHaveClass('h-11', 'after:left-3', 'after:right-3', 'after:border-border', 'after:border-b')
+    expect(header.nextElementSibling).not.toHaveClass('px-3')
     expect(header.firstElementChild).toContainElement(screen.getByTestId('preview-title'))
     expect(header.lastElementChild).toBe(toolbarHost)
     expect(toolbarHost).toContainElement(toolbar)

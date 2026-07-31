@@ -22,6 +22,7 @@ import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../utils/items'
 import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
+import { directoryCopyProgressCacheKey } from './utils/directoryCopyProgress'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
 
 const logger = loggerService.withContext('Knowledge:ReindexSubtreeJobHandler')
@@ -47,6 +48,7 @@ export function createReindexSubtreeJobHandler(
 
     async execute(ctx) {
       const { baseId, rootItemIds } = ctx.input
+      const cacheService = application.get('CacheService')
       ctx.signal.throwIfAborted()
       logger.info('Running knowledge reindex-subtree reset', { baseId, rootItemIds, jobId: ctx.jobId })
 
@@ -115,6 +117,9 @@ export function createReindexSubtreeJobHandler(
         }
 
         for (const item of rebuildableRoots) {
+          if (item.type === 'directory') {
+            cacheService.deleteShared(directoryCopyProgressCacheKey(item.id))
+          }
           knowledgeItemService.updateStatus(item.id, item.type === 'directory' ? 'preparing' : 'processing')
         }
         return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }

@@ -11,7 +11,6 @@ import {
   ContentMessageRoleSchema,
   MessageDataSchema,
   MessageSnapshotSchema,
-  MessageStatsSchema,
   MessageStatusSchema
 } from '@shared/data/types/message'
 import * as z from 'zod'
@@ -53,8 +52,6 @@ export const CreateMessageSchema = z.strictObject({
   modelId: z.string().optional(),
   /** Model snapshot captured at message creation time */
   messageSnapshot: MessageSnapshotSchema.optional(),
-  /** Statistics */
-  stats: MessageStatsSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */
   setAsActive: z.boolean().optional()
 })
@@ -71,9 +68,7 @@ export const UpdateMessageSchema = z.strictObject({
   /** Change siblings group */
   siblingsGroupId: z.number().optional(),
   /** Update status */
-  status: MessageStatusSchema.optional(),
-  /** Update statistics */
-  stats: MessageStatsSchema.nullable().optional()
+  status: MessageStatusSchema.optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 

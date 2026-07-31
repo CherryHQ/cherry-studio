@@ -76,7 +76,6 @@ import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
@@ -328,7 +327,6 @@ export function Topics({
   } = useGroups('assistant')
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
-  const defaultAssistant = useMemo(() => ({ name: t('chat.default.name'), emoji: DEFAULT_ASSISTANT_EMOJI }), [t])
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
@@ -442,7 +440,7 @@ export function Topics({
     return ordered
   }, [assistants, optimisticAssistantOrderIds])
   // Move destinations intentionally include only persisted assistants. The
-  // unlinked "Default Assistant" group is a display fallback for orphaned data,
+  // unlinked assistant group is a display fallback for orphaned data,
   // not a user-selectable target that clears topic ownership.
   const assistantMoveTargets = useMemo<TopicMoveAssistantTarget[]>(() => {
     const targets = orderedAssistants.map((assistant) => ({
@@ -671,7 +669,6 @@ export function Topics({
     () =>
       createTopicDisplayGroupResolver<Topic>({
         assistantById,
-        defaultAssistant,
         mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
@@ -688,7 +685,7 @@ export function Topics({
         now: groupNow,
         pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, defaultAssistant, displayMode, groupNow, isAssistantDisplayMode, t]
+    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
   )
 
   const topicSectionBy = useMemo(() => {
@@ -959,6 +956,7 @@ export function Topics({
           )}
           <Tooltip title={t('chat.conversation.new')} delay={500}>
             <ResourceList.GroupHeaderActionButton
+              data-ui="chat.topic-list.action.create"
               type="button"
               aria-label={t('chat.conversation.new')}
               onClick={(event) => {
@@ -1045,14 +1043,7 @@ export function Topics({
   const getGroupHeaderIcon = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || group.id === TOPIC_PINNED_GROUP_ID) return undefined
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
-        if (group.label !== defaultAssistant.name) return null
-
-        return renderAssistantEntityIcon(assistantIconType, {
-          emoji: defaultAssistant.emoji,
-          modelId: defaultModelId
-        })
-      }
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
@@ -1064,24 +1055,22 @@ export function Topics({
         modelName: assistant.modelName
       })
     },
-    [
-      assistantById,
-      assistantIconType,
-      defaultAssistant.emoji,
-      defaultAssistant.name,
-      defaultModelId,
-      isAssistantDisplayMode
-    ]
+    [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
+  )
+  const getGroupHeaderTooltip = useCallback(
+    (group: { id: string }) =>
+      group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
+    [t]
   )
   const isGroupHeaderIconVisible = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || assistantIconType === 'none' || group.id === TOPIC_PINNED_GROUP_ID) return false
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return group.label === defaultAssistant.name
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return false
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       return !!assistantId && assistantById.has(assistantId)
     },
-    [assistantById, assistantIconType, defaultAssistant.name, isAssistantDisplayMode]
+    [assistantById, assistantIconType, isAssistantDisplayMode]
   )
 
   const collapsedTopicState = useMemo(
@@ -1279,6 +1268,7 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
+        getGroupHeaderTooltip={getGroupHeaderTooltip}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
@@ -1305,31 +1295,46 @@ export function Topics({
               placeholder={t('chat.topics.search.placeholder')}
               wrapperClassName="pt-1"
             />
+          ) : showHeaderCreateItem && isAssistantDisplayMode ? (
+            <ResourceList.HeaderItem
+              type="button"
+              aria-label={headerCreateLabel}
+              disabled={!onAddAssistant}
+              icon={<Plus />}
+              label={headerCreateLabel}
+              onClick={handleHeaderCreate}
+              actions={
+                <TopicListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
+                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  mode={displayMode}
+                  onChange={handleTopicDisplayModeChange}
+                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onOpenHistoryRecords={onOpenHistoryRecords}
+                  sectionIds={topicAssistantSectionIds}
+                />
+              }
+            />
           ) : showHeaderCreateItem ? (
-            <>
-              <ResourceList.HeaderItem
-                type="button"
-                command={isAssistantDisplayMode ? undefined : 'topic.create'}
-                aria-label={headerCreateLabel}
-                disabled={isAssistantDisplayMode && !onAddAssistant}
-                icon={isAssistantDisplayMode ? <Plus /> : <SquarePen />}
-                label={headerCreateLabel}
-                onClick={handleHeaderCreate}
-                actions={
-                  <>
-                    <TopicListOptionsMenu
-                      historyRecordsActive={historyRecordsActive}
-                      manageAssistantsActive={manageAssistantsMenuItem?.active}
-                      mode={displayMode}
-                      onChange={handleTopicDisplayModeChange}
-                      onManageAssistants={manageAssistantsMenuItem?.onSelect}
-                      onOpenHistoryRecords={onOpenHistoryRecords}
-                      sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
-                    />
-                  </>
-                }
-              />
-            </>
+            <ResourceList.HeaderItem
+              data-ui="chat.topic-list.action.create"
+              type="button"
+              command="topic.create"
+              aria-label={headerCreateLabel}
+              icon={<SquarePen />}
+              label={headerCreateLabel}
+              onClick={handleHeaderCreate}
+              actions={
+                <TopicListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
+                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  mode={displayMode}
+                  onChange={handleTopicDisplayModeChange}
+                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onOpenHistoryRecords={onOpenHistoryRecords}
+                />
+              }
+            />
           ) : (
             <TopicListOptionsMenu
               historyRecordsActive={historyRecordsActive}
@@ -1373,7 +1378,7 @@ export function Topics({
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
         {historyLoading && visibleFilteredTopics.length > 0 && (
-          <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">
+          <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">
             {t('common.loading')}
           </div>
         )}
@@ -1386,7 +1391,6 @@ export function Topics({
             onOpenChange={(open) => {
               if (!open) setEditDialogTarget(null)
             }}
-            onSaved={refreshAssistants}
           />
         </Suspense>
       ) : null}
@@ -1703,7 +1707,7 @@ const TopicRow = memo(function TopicRow({
       {!rowState.renaming && isTopicAwaitingApproval && (
         <span
           data-testid="topic-awaiting-approval-badge"
-          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full bg-warning/10 px-1.5 font-medium text-[10px] text-warning leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
           {t('agent.toolPermission.pendingBadge')}
         </span>
       )}
@@ -1719,7 +1723,7 @@ const TopicRow = memo(function TopicRow({
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
               aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-              className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
+              className={cn(topic.pinned && 'text-foreground')}
               onClick={(event) => {
                 event.stopPropagation()
                 void onPinTopic(topic)
@@ -1801,7 +1805,7 @@ const TopicStreamIndicator = ({
         // A spinner reads as "running", where the old pulsing amber dot looked
         // like a warning. Error uses a distinct icon instead of relying on
         // red/green color alone; completion remains a green read-receipt dot.
-        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-muted" />
+        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
       ) : isErrored ? (
         <CircleAlert aria-hidden="true" className="size-3 text-error" />
       ) : (

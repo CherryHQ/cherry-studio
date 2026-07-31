@@ -61,7 +61,6 @@ import {
   Plus,
   RefreshCw,
   Settings2,
-  SquareArrowOutUpRight,
   Terminal,
   Trash2,
   TriangleAlert
@@ -324,11 +323,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+          <span className="text-foreground-tertiary text-xs">{totalCount}</span>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-foreground-muted hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
             aria-label={t('settings.dependencies.checkUpdates')}
@@ -342,14 +341,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-foreground-muted hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => setShowInstallSettings(true)}
             aria-label={t('settings.dependencies.installSettings.title')}
             title={t('settings.dependencies.installSettings.title')}>
             <Settings2 className="size-3" />
           </Button>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowAddDialog(true)}>
-            <Plus className="size-3.5" />
+          <Button className="ml-auto" onClick={() => setShowAddDialog(true)}>
+            <Plus size={16} />
             {t('settings.dependencies.addTool')}
           </Button>
         </div>
@@ -535,7 +534,8 @@ const BinaryToolPresetCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
@@ -547,9 +547,9 @@ const BinaryToolPresetCard: FC<{
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground text-sm leading-5">{tool.displayName}</span>
+              <span className="text-foreground text-sm leading-5">{tool.displayName}</span>
               {tool.displayName !== tool.name && (
-                <span className="text-muted-foreground/60 text-xs">({tool.name})</span>
+                <span className="text-foreground-tertiary text-xs">({tool.name})</span>
               )}
             </div>
             {present && (
@@ -562,7 +562,7 @@ const BinaryToolPresetCard: FC<{
                 {latestVersion && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
@@ -587,7 +587,7 @@ const BinaryToolPresetCard: FC<{
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="text-foreground-muted hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={onUpdate}
                 disabled={busy}
                 aria-label={t('settings.dependencies.update')}
@@ -598,7 +598,7 @@ const BinaryToolPresetCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground-muted hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
               aria-label={t('settings.dependencies.uninstall')}
@@ -616,7 +616,7 @@ const BinaryToolPresetCard: FC<{
       <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
+          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
           onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
@@ -624,9 +624,9 @@ const BinaryToolPresetCard: FC<{
         {tool.homepage && (
           <button
             type="button"
-            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
+            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3 shrink-0" />
+            <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
         )}
@@ -636,7 +636,7 @@ const BinaryToolPresetCard: FC<{
             onClick={onOpenPath}
             aria-label={t('settings.dependencies.openBinariesDir')}
             title={t('settings.dependencies.openBinariesDir')}
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-foreground-muted transition-colors hover:text-foreground">
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
         )}
@@ -651,7 +651,7 @@ const BinaryToolPresetCard: FC<{
           <Button
             variant="outline"
             size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
+            className="h-7 w-full gap-1 text-xs"
             onClick={onInstall}
             disabled={busy}
             loading={installing}>
@@ -720,7 +720,8 @@ const CustomToolCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
@@ -731,7 +732,7 @@ const CustomToolCard: FC<{
             <ToolIcon />
           </div>
           <div className="min-w-0">
-            <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
+            <span className="text-foreground text-sm leading-5">{tool.name}</span>
             <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
             {installed && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
@@ -756,7 +757,7 @@ const CustomToolCard: FC<{
                 {latestVersion && (
                   <Badge
                     variant="outline"
-                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
@@ -770,7 +771,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground-muted hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
               onClick={onUpdate}
               disabled={busy}
               aria-label={t('settings.dependencies.update')}
@@ -782,7 +783,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground-muted hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
               onClick={onOpenPath}
               aria-label={t('settings.dependencies.openBinariesDir')}
               title={t('common.open')}>
@@ -792,7 +793,7 @@ const CustomToolCard: FC<{
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-foreground-muted hover:text-destructive"
+            className="text-muted-foreground hover:text-destructive"
             aria-label={t('settings.dependencies.remove')}
             title={t('settings.dependencies.remove')}
             onClick={onRemove}
@@ -811,7 +812,7 @@ const CustomToolCard: FC<{
           <Button
             variant="outline"
             size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
+            className="h-7 w-full gap-1 text-xs"
             onClick={onInstall}
             disabled={busy}
             loading={installing}>
@@ -933,6 +934,7 @@ function AddToolDialog({
         <div className="flex flex-col gap-3 py-2">
           <div className="relative">
             <Input
+              autoFocus
               placeholder={t('settings.dependencies.searchRegistry')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -960,7 +962,7 @@ function AddToolDialog({
           {selectedName && (
             <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
               <Terminal className="size-4 text-muted-foreground" />
-              <span className="font-medium text-sm">{selectedName}</span>
+              <span className="text-sm">{selectedName}</span>
               <span className="text-muted-foreground text-xs">{selectedTool}</span>
             </div>
           )}
@@ -1002,9 +1004,10 @@ const UrlPresetField: FC<{
   presetLabel: string
   value: string
   presets: readonly InstallSettingPreset[]
+  autoFocus?: boolean
   onChange: (value: string) => void
   onCommit: (value: string) => void
-}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange, onCommit }) => {
+}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, autoFocus, onChange, onCommit }) => {
   const { t } = useTranslation()
   const inputId = useId()
   const descriptionId = useId()
@@ -1023,6 +1026,7 @@ const UrlPresetField: FC<{
       <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="flex items-center gap-2">
         <Input
+          autoFocus={autoFocus}
           id={inputId}
           value={value}
           placeholder={placeholder}
@@ -1129,6 +1133,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <UrlPresetField
+            autoFocus
             label={t('settings.dependencies.installSettings.githubMirror.label')}
             description={t('settings.dependencies.installSettings.githubMirror.help')}
             invalidHint={t('settings.dependencies.installSettings.invalidUrl')}

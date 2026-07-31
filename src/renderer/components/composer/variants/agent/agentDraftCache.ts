@@ -1,7 +1,9 @@
 import { cacheService } from '@data/CacheService'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { LocalSkill } from '@shared/types/skill'
 
-import type { ComposerSerializedToken } from '../../tokens'
+import { excludeComposerDraftTokens } from '../../composerDraft'
+import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
@@ -43,6 +45,23 @@ export function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[])
   return tokens.filter((token) => token.kind === 'skill')
 }
 
+/**
+ * Input tokens retained in the live Agent composer draft. Files stay owned by attachment state;
+ * the persistence boundary below additionally removes session-scoped knowledge.
+ */
+export function getAgentDraftTokens(tokens: readonly ComposerSerializedToken[]) {
+  return tokens.filter((token) => token.kind !== 'file' && isComposerInputTokenKind(token.kind))
+}
+
+/** Knowledge selection is session-scoped, while this cache is agent-scoped. */
+export function getCacheableAgentDraft(draft: ComposerSerializedDraft): AgentComposerDraftCache {
+  const withoutKnowledge = excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')
+  return {
+    text: withoutKnowledge.text,
+    tokens: getAgentDraftTokens(withoutKnowledge.tokens)
+  }
+}
+
 export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
   const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
   if (typeof cached === 'string') return { text: cached, tokens: [] }
@@ -50,19 +69,10 @@ export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
     return { text: '', tokens: [] }
   }
 
-  return {
-    text: cached.text,
-    tokens: getCachedSkillTokens(cached.tokens)
-  }
+  return getCacheableAgentDraft({ text: cached.text, tokens: cached.tokens })
 }
 
 export function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
-  cacheService.setCasual<AgentComposerDraftCache>(
-    cacheKey,
-    {
-      text,
-      tokens: getCachedSkillTokens(tokens)
-    },
-    DRAFT_CACHE_TTL
-  )
+  const cacheableDraft = getCacheableAgentDraft({ text, tokens: [...tokens] })
+  cacheService.setCasual<AgentComposerDraftCache>(cacheKey, cacheableDraft, DRAFT_CACHE_TTL)
 }

@@ -39,6 +39,7 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'messageTail'
   | 'activeTurnStatus'
   | 'isInitialLoading'
   | 'isMessagesStale'
@@ -49,6 +50,7 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'localSendGeneration'
   | 'streamingLayers'
 >
 
@@ -90,6 +92,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      messageTail: state.messageTail,
       activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
       isMessagesStale: state.isMessagesStale,
@@ -100,11 +103,13 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
       listKey: state.listKey,
+      localSendGeneration: state.localSendGeneration,
       streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
       state.beforeList,
+      state.messageTail,
       state.activeTurnStatus,
       state.isInitialLoading,
       state.isMessagesStale,
@@ -115,6 +120,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
       state.listKey,
+      state.localSendGeneration,
       state.streamingLayers
     ]
   )

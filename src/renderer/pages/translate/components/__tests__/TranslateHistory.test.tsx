@@ -1,11 +1,11 @@
 import { toast } from '@renderer/services/toast'
-import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TranslateHistory from '../TranslateHistory'
+import { chinese, english } from './testUtils'
 
 const translateHistoryMock = vi.hoisted(() => ({
   useTranslateHistory: vi.fn(),
@@ -86,22 +86,6 @@ vi.mock('@cherrystudio/ui', () => ({
     ) : null
 }))
 
-const english: TranslateLanguage = {
-  value: 'English',
-  langCode: parsePersistedLangCode('en-us'),
-  emoji: '🇬🇧',
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
-}
-
-const chinese: TranslateLanguage = {
-  value: 'Chinese',
-  langCode: parsePersistedLangCode('zh-cn'),
-  emoji: '🇨🇳',
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
-}
-
 const languages = [english, chinese]
 
 const histories: TranslateHistoryItem[] = [
@@ -134,6 +118,19 @@ describe('TranslateHistory', () => {
   const loadMoreMock = vi.fn()
   const onHistoryItemClick = vi.fn()
 
+  const historyState = (overrides: Record<string, unknown> = {}) => ({
+    items: histories,
+    total: histories.length,
+    hasMore: false,
+    isLoadingMore: false,
+    loadMore: loadMoreMock,
+    status: 'success',
+    ...overrides
+  })
+
+  const renderHistory = (onItemClick: (item: TranslateHistoryItem) => void = vi.fn()) =>
+    render(<TranslateHistory isOpen onHistoryItemClick={onItemClick} onClose={vi.fn()} />)
+
   beforeEach(() => {
     translateHistoryMock.useTranslateHistory.mockReset()
     translateHistoryMock.useTranslateHistories.mockReset()
@@ -159,18 +156,11 @@ describe('TranslateHistory', () => {
       remove: removeMock
     })
 
-    translateHistoryMock.useTranslateHistories.mockReturnValue({
-      items: histories,
-      total: histories.length,
-      hasMore: false,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'success'
-    })
+    translateHistoryMock.useTranslateHistories.mockReturnValue(historyState())
   })
 
   it('does not create one translate history mutation hook per visible row', () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('bye')).toBeInTheDocument()
@@ -178,13 +168,13 @@ describe('TranslateHistory', () => {
   })
 
   it('localizes compact header spacing to the translate history drawer', () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     expect(screen.getByTestId('page-side-panel-header')).toHaveClass('pb-0')
   })
 
   it('opens detail and supports reuse', () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={onHistoryItemClick} onClose={vi.fn()} />)
+    renderHistory(onHistoryItemClick)
 
     fireEvent.click(screen.getByText('hello'))
     expect(screen.getByText('translate.history.back')).toBeInTheDocument()
@@ -194,34 +184,62 @@ describe('TranslateHistory', () => {
   })
 
   it('invokes update mutation when clicking row star action', async () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     const row = screen.getByText('hello').closest('[role="button"]')
     expect(row).toBeTruthy()
-    const rowStarButton = within(row as HTMLElement).getByRole('button', { name: 'translate.history.filter.starred' })
+    const rowStarButton = within(row as HTMLElement).getByRole('button', { name: 'translate.history.star' })
     fireEvent.click(rowStarButton)
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
   })
 
-  it('supports star toggle inside detail panel', async () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+  // The row star toggles that row's favourite state, so its name must stay the action's name
+  // (not the list filter's) and stay stable across states — the state itself is `aria-pressed`.
+  it('names the row star action after the favourite action and exposes its state via aria-pressed', () => {
+    renderHistory()
+
+    const unstarredRow = screen.getByText('hello').closest('[role="button"]') as HTMLElement
+    expect(within(unstarredRow).getByRole('button', { name: 'translate.history.star' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+
+    const starredRow = screen.getByText('bye').closest('[role="button"]') as HTMLElement
+    expect(within(starredRow).getByRole('button', { name: 'translate.history.star' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('names the detail star action after the favourite action and exposes its state via aria-pressed', () => {
+    renderHistory()
 
     fireEvent.click(screen.getByText('hello'))
-    const detailButtons = screen.getAllByRole('button', { name: 'translate.history.filter.starred' })
-    fireEvent.click(detailButtons[detailButtons.length - 1])
+    expect(screen.getByRole('button', { name: 'translate.history.star' })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByText('translate.history.back'))
+    fireEvent.click(screen.getByText('bye'))
+    expect(screen.getByRole('button', { name: 'translate.history.star' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('supports star toggle inside detail panel', async () => {
+    renderHistory()
+
+    fireEvent.click(screen.getByText('hello'))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.star' }))
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
   })
 
   it('copies text from detail actions and shows success toast', async () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     fireEvent.click(screen.getByText('hello'))
     const actionLabels = screen
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label') ?? button.textContent)
-    const detailStarIndex = actionLabels.lastIndexOf('translate.history.filter.starred')
+    const detailStarIndex = actionLabels.indexOf('translate.history.star')
     expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
     expect(copyTargetButton).toHaveClass('text-primary-foreground')
@@ -233,7 +251,7 @@ describe('TranslateHistory', () => {
 
   it('shows copy failure toast when clipboard write rejects', async () => {
     writeTextMock.mockRejectedValueOnce(new Error('clipboard denied'))
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     fireEvent.click(screen.getByText('hello'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.copy_target' }))
@@ -242,7 +260,7 @@ describe('TranslateHistory', () => {
   })
 
   it('invokes delete mutation from detail confirm dialog flow', async () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     fireEvent.click(screen.getByText('hello'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.delete' }))
@@ -259,7 +277,7 @@ describe('TranslateHistory', () => {
   })
 
   it('invokes clear mutation from confirm dialog flow', async () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.clear' }))
 
@@ -275,16 +293,15 @@ describe('TranslateHistory', () => {
   })
 
   it('hides history actions when there are no histories to filter or clear', () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
-      items: [],
-      total: 0,
-      hasMore: false,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'ready'
-    })
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
+      historyState({
+        items: [],
+        total: 0,
+        status: 'ready'
+      })
+    )
 
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
@@ -292,16 +309,15 @@ describe('TranslateHistory', () => {
   })
 
   it('centers the empty history state within the available body area', () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
-      items: [],
-      total: 0,
-      hasMore: false,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'ready'
-    })
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
+      historyState({
+        items: [],
+        total: 0,
+        status: 'ready'
+      })
+    )
 
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
       'flex',
@@ -315,26 +331,18 @@ describe('TranslateHistory', () => {
   it('keeps the action bar visible when star-filter is active but its results are empty', () => {
     // Initial mount: histories present so the filter button is exposed for the user to click.
     // Every subsequent call (after toggling showStared=true) returns the empty filter result.
-    translateHistoryMock.useTranslateHistories.mockReturnValue({
-      items: [],
-      total: 0,
-      hasMore: false,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'ready'
-    })
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
-      items: histories,
-      total: histories.length,
-      hasMore: false,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'ready'
-    })
+    translateHistoryMock.useTranslateHistories.mockReturnValue(
+      historyState({
+        items: [],
+        total: 0,
+        status: 'ready'
+      })
+    )
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(historyState({ status: 'ready' }))
 
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
-    const filterButton = screen.getAllByRole('button', { name: 'translate.history.filter.starred' })[0]
+    const filterButton = screen.getByRole('button', { name: 'translate.history.filter.starred' })
     fireEvent.click(filterButton)
 
     // Filter button must stay so the user can cancel the empty starred view; otherwise they are trapped.
@@ -344,16 +352,14 @@ describe('TranslateHistory', () => {
   })
 
   it('loads more when scrolled near bottom in virtual list', async () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
-      items: histories,
-      total: histories.length,
-      hasMore: true,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'success'
-    })
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
+      historyState({
+        hasMore: true,
+        status: 'success'
+      })
+    )
 
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     const list = screen.getByTestId('virtual-list')
     Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 1000 })
@@ -366,16 +372,14 @@ describe('TranslateHistory', () => {
   })
 
   it('coalesces repeated near-bottom scroll events into one load request', async () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
-      items: histories,
-      total: histories.length,
-      hasMore: true,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'success'
-    })
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
+      historyState({
+        hasMore: true,
+        status: 'success'
+      })
+    )
 
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    renderHistory()
 
     const list = screen.getByTestId('virtual-list')
     Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 1000 })

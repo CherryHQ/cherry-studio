@@ -34,6 +34,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -164,10 +165,14 @@ export async function getTopicMessages(
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        pageMessages.push(convertSharedMessage(item.message, assistantId))
+        if (!hasClearContextPart(item.message.data.parts)) {
+          pageMessages.push(convertSharedMessage(item.message, assistantId))
+        }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            pageMessages.push(convertSharedMessage(sibling, assistantId))
+            if (!hasClearContextPart(sibling.data.parts)) {
+              pageMessages.push(convertSharedMessage(sibling, assistantId))
+            }
           }
         }
       }
@@ -454,13 +459,13 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `ai.topic_auto_renamed` and invalidates the renamed
+ * Listens for `ai.topic.auto_renamed` and invalidates the renamed
  * topic's SWR cache so the new name shows up without manual refetch.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

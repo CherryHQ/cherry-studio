@@ -26,7 +26,9 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
     chmod: vi.fn(async () => {}),
     writeFile: vi.fn(async () => {}),
     rename: vi.fn(async () => {}),
-    access: vi.fn(async () => {})
+    readdir: vi.fn(async () => []),
+    access: vi.fn(async () => {}),
+    realpath: vi.fn(async (candidate: string) => candidate)
   },
   mockPreferenceService: {
     get: vi.fn(),
@@ -104,7 +106,7 @@ vi.mock('node:util', async (importOriginal) => {
 const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryManager')
 const { application } = await import('@application')
 const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
-const { refreshShellEnv } = await import('@main/utils/shellEnv')
+const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -153,8 +155,11 @@ describe('BinaryManager', () => {
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
+    mockFsp.readdir.mockReset().mockResolvedValue([])
     mockFsp.access.mockReset().mockResolvedValue(undefined)
+    mockFsp.realpath.mockReset().mockImplementation(async (candidate: string) => candidate)
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
+    vi.mocked(getRawShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
     mockInstallPreferences()
@@ -175,6 +180,15 @@ describe('BinaryManager', () => {
     it('is registered as Background phase', () => {
       expect(getPhase(BinaryManager)).toBe(Phase.Background)
     })
+  })
+
+  it('starts the process-wide shell environment capture without awaiting it', async () => {
+    vi.mocked(getRawShellEnv).mockReturnValue(new Promise<never>(() => {}))
+    const service = new BinaryManager()
+
+    await expect((service as any).onInit()).resolves.toBeUndefined()
+
+    expect(getRawShellEnv).toHaveBeenCalledOnce()
   })
 
   describe('install preference subscriptions', () => {
@@ -528,6 +542,49 @@ describe('BinaryManager', () => {
         availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
         application: { status: 'applied', version: '10.0.0' }
       })
+    })
+
+    it('stays applied when mise which resolves through its latest-version symlink', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'github:larksuite/cli': [
+                {
+                  version: '1.0.77',
+                  active: true,
+                  install_path: '/opt/mise/installs/github-larksuite-cli/1.0.77'
+                }
+              ]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/github-larksuite-cli/latest/lark-cli\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockFsp.realpath.mockImplementation(async (candidate: string) =>
+        candidate.replace('/github-larksuite-cli/latest/', '/github-larksuite-cli/1.0.77/')
+      )
+
+      const snapshots = await service.getToolSnapshots(['lark-cli'])
+
+      expect(snapshots['lark-cli']).toEqual({
+        name: 'lark-cli',
+        availability: {
+          source: 'mise',
+          path: '/mock/feature.binary.data/shims/lark-cli',
+          version: '1.0.77'
+        },
+        application: { status: 'applied', version: '1.0.77' }
+      })
+      expect(mockFsp.realpath).toHaveBeenCalledWith('/opt/mise/installs/github-larksuite-cli/latest/lark-cli')
+      expect(mockFsp.realpath).toHaveBeenCalledWith('/opt/mise/installs/github-larksuite-cli/1.0.77')
     })
 
     it('reports broken when an active entry shim resolves outside that entry install_path', async () => {
@@ -2853,6 +2910,65 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('Agent CLI inventory', () => {
+    it('aggregates bundled, fixed, custom, and runtime tools without `mise which` or exposed paths', async () => {
+      manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          'npm:acme': [{ version: '1.2.3', active: true }],
+          'core:node': [{ version: '22.1.0', active: true }]
+        }),
+        stderr: ''
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async (directory: string) =>
+        directory === '/mock/feature.binary.data/shims'
+          ? [
+              { name: 'acme', isFile: () => true, isSymbolicLink: () => false },
+              { name: 'node', isFile: () => true, isSymbolicLink: () => false }
+            ]
+          : []
+      )
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+      mockFs.readFileSync.mockImplementation((candidate: string) =>
+        candidate === '/mock/cherry.bin/.bun-version'
+          ? '1.3.0'
+          : (() => {
+              throw new Error('ENOENT')
+            })()
+      )
+
+      const inventory = await service.getToolInventory()
+
+      expect(inventory).toEqual(
+        expect.arrayContaining([
+          { name: 'bun', recipe: 'bun', status: 'ready', version: '1.3.0' },
+          expect.objectContaining({ name: 'fd', status: 'not_installed' }),
+          { name: 'acme', recipe: 'npm:acme', status: 'ready', version: '1.2.3' },
+          { name: 'node', recipe: 'core:node', status: 'ready', version: '22.1.0' }
+        ])
+      )
+      expect(JSON.stringify(inventory)).not.toContain('/mock/')
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+      expect(mockExecFileAsync.mock.calls[0][1]).toEqual(['ls', '--json'])
+    })
+
+    it('reads live state on every inventory call instead of caching snapshots', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      await service.getToolInventory()
+      await service.getToolInventory()
+
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(2)
+      expect(mockExecFileAsync.mock.calls.every((call: any[]) => call[1][0] === 'ls')).toBe(true)
+    })
+  })
+
   describe('extractBundledBinaries', () => {
     let mockFsp: Record<string, ReturnType<typeof vi.fn>>
 
@@ -2910,6 +3026,43 @@ describe('BinaryManager', () => {
       await (service as any).extractBundledBinaries()
 
       expect(mockFsp.copyFile).toHaveBeenCalled()
+    })
+
+    it('restores mise-shim.exe on Windows when mise.exe and its version marker already exist', async () => {
+      platformMock.isWin = true
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+
+      try {
+        const service = new BinaryManager()
+
+        mockFs.readFileSync.mockImplementation((p: string) => {
+          if (p.includes('.mise-version')) return '2026.7.14'
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        })
+        mockFs.existsSync.mockImplementation((...args: unknown[]) => {
+          const p = String(args[0])
+          if (p.includes('app.root.resources.binaries/win32-x64/mise')) return true
+          return p.endsWith('cherry.bin/mise.exe')
+        })
+
+        await (service as any).extractBundledBinaries()
+
+        expect(mockFsp.copyFile).toHaveBeenCalledWith(
+          expect.stringContaining('app.root.resources.binaries/win32-x64/mise.exe'),
+          expect.stringContaining('cherry.bin/mise.exe.tmp-')
+        )
+        expect(mockFsp.copyFile).toHaveBeenCalledWith(
+          expect.stringContaining('app.root.resources.binaries/win32-x64/mise-shim.exe'),
+          expect.stringContaining('cherry.bin/mise-shim.exe.tmp-')
+        )
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
     })
   })
 })

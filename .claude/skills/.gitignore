@@ -3,6 +3,7 @@
 *
 !.gitignore
 !README*.md
+!cherry-electron-dev
 !cherry-pr-test
 !create-skill
 !gh-create-issue

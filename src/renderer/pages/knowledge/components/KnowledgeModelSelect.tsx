@@ -67,10 +67,15 @@ export const KnowledgeModelSelect = ({
             aria-label={ariaLabel}
             aria-invalid={invalid || undefined}
             className={cn(
-              'h-8 w-full justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+              // The trigger must give way to the clear button beside it, and Button's
+              // base class ships `shrink-0`. Both overrides are needed: `shrink` to
+              // allow shrinking at all, `min-w-0` to shrink past the label — otherwise
+              // a long model name pushes the clear button outside the container.
+              'h-8 w-full min-w-0 shrink justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
               'aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
               hasValue ? 'text-foreground' : 'text-muted-foreground',
-              invalid && 'border-destructive aria-expanded:border-destructive aria-expanded:ring-red-600/20'
+              invalid &&
+                'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
             )}>
             <span className="min-w-0 truncate text-left">{triggerLabel}</span>
             <ChevronDown className="size-4 shrink-0 opacity-50" />
@@ -80,10 +85,10 @@ export const KnowledgeModelSelect = ({
       {allowClear && hasValue ? (
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="icon-sm"
           aria-label={clearAriaLabel}
-          className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+          className="size-8 shrink-0 rounded-md text-muted-foreground shadow-none hover:text-foreground"
           onClick={() => onChange(null)}>
           <X className="size-3.5" />
         </Button>

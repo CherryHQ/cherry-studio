@@ -1,14 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
-import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
@@ -99,6 +91,8 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
+  onBindRuntime?: MessageListActions['bindRuntime']
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -115,6 +109,7 @@ interface AgentMessageListParams {
   imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
+  messageTail?: MessageListState['messageTail']
 }
 
 const isAbsoluteFilePath = (path: string): boolean => {
@@ -135,6 +130,8 @@ export function useAgentMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
+  onBindRuntime,
   assistantProfile,
   assistantId,
   isLoading,
@@ -147,7 +144,8 @@ export function useAgentMessageListProviderValue({
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
-  workspacePath
+  workspacePath,
+  messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -208,10 +206,6 @@ export function useAgentMessageListProviderValue({
     })
   }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
-  const getMessageActivityState = useMessageActivityState(topic.id, displayPartsByMessageId)
-  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName: topic.name })
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
       const parsed = parseMessagePartId(partId)
@@ -229,22 +223,27 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId]
   )
-  const errorActions = useMessageErrorActions({ persistDiagnosis })
-  const leafCapabilities = useMessageLeafCapabilities({
-    partsByMessageId: displayPartsByMessageId,
-    streamingLayers: displayStreamingLayers
-  })
-  const headerCapabilities = useMessageHeaderCapabilities()
-  const messageUiStateCache = useMessageUiStateCache()
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-  const selectionController = useMessageSelectionController({
+  const {
+    errorActions,
+    exportActions,
+    getMessageActivityState,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    selectionController,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
     topicId: topic.id,
+    topicName: topic.name,
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage,
-    saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    persistDiagnosis
   })
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {
@@ -256,13 +255,6 @@ export function useAgentMessageListProviderValue({
   const showInFolder = useCallback(
     (path: string) => {
       return window.api.file.showInFolder(resolveWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
-  )
-
-  const isDirectory = useCallback(
-    (path: string) => {
-      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
     },
     [workspacePath]
   )
@@ -291,8 +283,9 @@ export function useAgentMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
-        return bindCaptureMessageImageRuntime({
+        const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Agent session image export was cancelled',
           consumePendingActions: consumePendingAgentSessionImageActions,
           rejectPendingActions: rejectPendingAgentSessionImageActions,
@@ -300,6 +293,12 @@ export function useAgentMessageListProviderValue({
           settleActionRequest: settleAgentSessionImageActionRequest,
           targetId: sessionId
         })
+        return () => {
+          unbindCaptureRuntime()
+          if (typeof unbindExternalRuntime === 'function') {
+            unbindExternalRuntime()
+          }
+        }
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
@@ -308,9 +307,12 @@ export function useAgentMessageListProviderValue({
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
+        if (typeof unbindExternalRuntime === 'function') {
+          unbindExternalRuntime()
+        }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, onBindRuntime, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -358,6 +360,7 @@ export function useAgentMessageListProviderValue({
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
+      messageTail: normalInteractionsEnabled ? messageTail : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -366,6 +369,7 @@ export function useAgentMessageListProviderValue({
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 600,
       listKey: topic.id,
+      localSendGeneration,
       readonly: true,
       renderConfig,
       menuConfig,
@@ -379,10 +383,12 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       isLoading,
       leafCapabilities,
+      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
@@ -410,7 +416,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
-      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -428,7 +433,6 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
-      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

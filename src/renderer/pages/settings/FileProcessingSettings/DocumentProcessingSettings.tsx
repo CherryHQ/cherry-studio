@@ -84,14 +84,14 @@ const DocumentProcessingSettings: FC = () => {
                     <ProcessorAvatar
                       processorId={entry.processor.id}
                       size="md"
-                      className="shrink-0 rounded-lg border border-border/30"
+                      className="shrink-0 rounded-lg border border-border-subtle"
                     />
                   }
                   className={settingsSubmenuItemClassName}
                   labelClassName={settingsSubmenuItemLabelClassName}
                   suffix={
                     defaultDocumentProcessor === entry.processor.id ? (
-                      <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                      <Badge className="rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
                         {t('common.default')}
                       </Badge>
                     ) : undefined
@@ -105,7 +105,7 @@ const DocumentProcessingSettings: FC = () => {
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
             {availableProcessors.status === 'error' ? (
-              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
+              <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
                 {t('settings.tool.file_processing.errors.load_processors_failed')}
               </div>
             ) : activeEntry ? (
@@ -119,7 +119,7 @@ const DocumentProcessingSettings: FC = () => {
                 onSetLanguageOptions={setLanguageOptions}
               />
             ) : (
-              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
+              <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
                 {t('common.no_results')}
               </div>
             )}

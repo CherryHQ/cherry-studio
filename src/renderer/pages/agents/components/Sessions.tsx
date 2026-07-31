@@ -1575,7 +1575,7 @@ const Sessions = ({
         if (!context.collapsed) return <FolderOpen size={13} />
 
         return (
-          <span className="flex size-4 items-center justify-center text-foreground/70 group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
+          <span className="flex size-4 items-center justify-center text-muted-foreground group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
             <Folder size={13} className="block group-hover/resource-list-group:hidden" />
             <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
           </span>
@@ -1619,6 +1619,7 @@ const Sessions = ({
   const getGroupHeaderTooltip = useCallback(
     (group: ResourceListGroup) => {
       if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return t('agent.session.group.unknown_agent_tip')
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       if (!agentId || !agentById.has(agentId)) return undefined
@@ -1849,7 +1850,7 @@ const Sessions = ({
         channelTypeMap={channelTypeMap}
         displayMode={displayMode}
         error={listError}
-        isDraggable={itemDragReady && !isRightPanel}
+        isDraggable={isDraggableMode && !isRightPanel}
         isRightPanel={isRightPanel}
         isValidating={listValidating}
         listRef={listRef}
@@ -1864,7 +1865,7 @@ const Sessions = ({
         setActiveSessionId={handleSelectSession}
       />
       {(historyLoading || isLoadingMore || hasMore) && visibleGroupedSessions.length > 0 && (
-        <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">{t('common.loading')}</div>
+        <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">{t('common.loading')}</div>
       )}
       <EditNameDialog
         open={!!renamingWorkspaceGroup}
@@ -1880,7 +1881,6 @@ const Sessions = ({
         onOpenChange={(open) => {
           if (!open) setEditDialogTarget(null)
         }}
-        onSaved={refetchAgents}
       />
       {imageCaptureTargets.map(({ requestId, target: session }) => {
         const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined

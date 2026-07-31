@@ -1,4 +1,5 @@
-import { Badge, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -9,13 +10,13 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
+  createResourcePaneCapability,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
-  ResourcePaneProvider,
-  RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
   RightPanelHeaderControls,
   RightPanelProvider,
   type RightPanelReadiness,
@@ -36,26 +37,35 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { useToolResult } from '@renderer/hooks/useToolResult'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { TreeDirRoot } from '@shared/utils/file'
+import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
   CheckCircle,
   Circle,
+  CircleStop,
   FileText,
   FolderOpen,
   GitBranch,
   Loader2,
   Package,
-  Waypoints
+  Terminal,
+  Waypoints,
+  Workflow
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -64,17 +74,19 @@ import { useTranslation } from 'react-i18next'
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
   type AgentRightPaneStatus,
+  type AgentRunLiveness,
+  type AgentRunTask,
   type AgentStatusTask,
-  type AgentSubagent,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection
 } from './agentRightPaneProjection'
 
+const logger = loggerService.withContext('AgentRightPane')
+
 // ── Agent-specific composition over the generic right panel ─────────────────
 
 const FLOW_TAB_PREFIX = 'flow:'
-const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 function containsFile(root: TreeDirRoot | null): boolean {
@@ -92,8 +104,21 @@ function getFlowTabValue(toolCallId: string): string {
 }
 
 function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
-  const title = input.title?.trim() || input.toolName?.trim() || input.toolCallId
-  return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
+  return input.title?.trim() || input.toolName?.trim() || input.toolCallId
+}
+
+function findDeferredToolResult(partsByMessageId: Record<string, CherryMessagePart[]>, toolCallId: string | undefined) {
+  if (!toolCallId) return undefined
+
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const source = part as unknown as { toolCallId?: unknown; output?: unknown }
+      if (source.toolCallId !== toolCallId) continue
+      return isDeferredToolOutput(source.output) ? source.output.$deferredToolResult : undefined
+    }
+  }
+
+  return undefined
 }
 
 function isSameFileSelection(
@@ -246,6 +271,15 @@ function AgentRightPaneActionsProvider({
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const panelActions = useRightPanelActions()
+  const artifactOpenRequestRef = useRef(0)
+  // Invalidate in-flight artifact-open requests when the session or workspace
+  // changes (and on unmount), so a late getMetadata resolution cannot restore a
+  // preview that the switch just cleared.
+  useEffect(() => {
+    return () => {
+      artifactOpenRequestRef.current += 1
+    }
+  }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
@@ -259,10 +293,27 @@ function AgentRightPaneActionsProvider({
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
+      const requestId = artifactOpenRequestRef.current + 1
+      artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      if (!selection) return
-      requestFileSelection(selection)
       panelActions.tryOpen('files', { userInitiated: true })
+
+      if (!selection) {
+        requestFileSelection(null)
+        return
+      }
+
+      void window.api.file
+        .getMetadata(createFilePathHandle(getArtifactPaneSelectionPath(selection)))
+        .then((metadata) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(metadata.kind === 'directory' ? null : selection)
+        })
+        .catch(() => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+          requestFileSelection(selection)
+        })
     },
     [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
   )
@@ -512,62 +563,55 @@ function AgentRightPaneStateProvider({
 
   return (
     <AgentFileNavigationContext value={requestFileTransition}>
-      <ResourcePaneProvider value={resourcePane}>
-        <AgentRightPaneMetaContext value={meta}>
-          <AgentRightPaneFileStateContext value={fileState}>
-            <AgentRightPaneRuntimeContext value={runtime}>
-              <RightPanelProvider
-                capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
-                scope={scope}
-                defaultPanelId={RESOURCE_PANE_TAB}
-                defaultOpen={defaultOpen}
-                onOpenChange={onOpenChange}
-                userOpenIntentSeq={userOpenIntentSeq}
-                present={present}>
-                <ResourcePaneLocateOpener revealRequest={revealRequest} />
-                <AgentRightPaneActionsProvider
-                  conversationState={conversationState}
-                  sessionId={sessionId}
-                  workspacePath={workspacePath}
-                  replaceFlowTab={replaceFlowTab}
-                  closeFilePreview={closeFilePreview}
-                  requestFileSelection={requestFileSelection}
-                  selectFile={selectFile}
-                  setFileEditMode={requestFileEditMode}
-                  setFileTreeExpandedIds={setFileTreeExpandedIds}
-                  setFileTreeSearchKeyword={setFileTreeSearchKeyword}
-                  workspaceCurrent={fileWorkspace.key === workspaceKey}>
-                  {children}
-                </AgentRightPaneActionsProvider>
-                <ConfirmDialog
-                  open={showDirtyLeaveConfirmation}
-                  onOpenChange={handleDirtyLeaveConfirmationChange}
-                  title={t('agent.preview_pane.edit.leave.title')}
-                  description={t('agent.preview_pane.edit.leave.description')}
-                  confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
-                  cancelText={t('common.cancel')}
-                  destructive
-                  confirmLoading={fileSession.isSaving}
-                  onConfirm={handleDiscardAndContinue}
-                />
-              </RightPanelProvider>
-            </AgentRightPaneRuntimeContext>
-          </AgentRightPaneFileStateContext>
-        </AgentRightPaneMetaContext>
-      </ResourcePaneProvider>
+      <AgentRightPaneMetaContext value={meta}>
+        <AgentRightPaneFileStateContext value={fileState}>
+          <AgentRightPaneRuntimeContext value={runtime}>
+            <RightPanelProvider
+              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+              scope={scope}
+              defaultPanelId={RESOURCE_PANE_TAB}
+              defaultOpen={defaultOpen}
+              onOpenChange={onOpenChange}
+              userOpenIntentSeq={userOpenIntentSeq}
+              present={present}>
+              <ResourcePaneLocateOpener revealRequest={revealRequest} />
+              <AgentRightPaneActionsProvider
+                conversationState={conversationState}
+                sessionId={sessionId}
+                workspacePath={workspacePath}
+                replaceFlowTab={replaceFlowTab}
+                closeFilePreview={closeFilePreview}
+                requestFileSelection={requestFileSelection}
+                selectFile={selectFile}
+                setFileEditMode={requestFileEditMode}
+                setFileTreeExpandedIds={setFileTreeExpandedIds}
+                setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                workspaceCurrent={fileWorkspace.key === workspaceKey}>
+                {children}
+              </AgentRightPaneActionsProvider>
+              <ConfirmDialog
+                open={showDirtyLeaveConfirmation}
+                onOpenChange={handleDirtyLeaveConfirmationChange}
+                title={t('agent.preview_pane.edit.leave.title')}
+                description={t('agent.preview_pane.edit.leave.description')}
+                confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
+                cancelText={t('common.cancel')}
+                destructive
+                confirmLoading={fileSession.isSaving}
+                onConfirm={handleDiscardAndContinue}
+              />
+            </RightPanelProvider>
+          </AgentRightPaneRuntimeContext>
+        </AgentRightPaneFileStateContext>
+      </AgentRightPaneMetaContext>
     </AgentFileNavigationContext>
   )
-}
-
-function AgentResourceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
-  return scope.resourcePane?.node ?? null
 }
 
 function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
-  const panelState = useRightPanelState()
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
     workspacePath: state.workspacePath,
@@ -611,8 +655,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={panelState.pdfLayoutPending}
-      pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
       enableFileSearch
       fileSession={state.fileSession}
       editMode={state.editMode}
@@ -682,7 +724,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden">
+      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
     </MessageListProvider>
@@ -693,13 +735,18 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const runtime = useAgentRightPaneRuntime()
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
+  const deferredToolResult = useMemo(
+    () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
+    [runtime.partsByMessageId, tab?.toolCallId]
+  )
+  const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined)
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
   const flow = useMemo(
     () =>
       !active && retainedFlowRef.current
         ? retainedFlowRef.current
-        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId),
-    [active, runtime.messages, runtime.partsByMessageId, tab?.toolCallId]
+        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
+    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow
@@ -724,7 +771,161 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   )
 }
 
-function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
+/**
+ * Stops one background task without touching the turn. The runtime answers with a task notification
+ * carrying status `stopped`, so the row updates from that rather than from optimistic local state;
+ * the button only disables itself so a second click cannot queue a duplicate request.
+ */
+function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: string }) {
+  const { t } = useTranslation()
+  const [stopping, setStopping] = useState(false)
+
+  if (!sessionId) return null
+
+  const label = t('agent.right_pane.status.stop_run_task')
+
+  return (
+    <Tooltip content={label}>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        disabled={stopping}
+        aria-label={label}
+        className="-mt-0.5 shrink-0 text-muted-foreground"
+        onClick={async () => {
+          setStopping(true)
+          try {
+            const stopped = await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
+            if (!stopped) {
+              setStopping(false)
+              toast.error(t('agent.right_pane.status.stop_run_task_failed'))
+            }
+          } catch (error) {
+            logger.warn('Failed to stop background task', { taskId, error })
+            setStopping(false)
+            toast.error(t('agent.right_pane.status.stop_run_task_failed'))
+          }
+        }}>
+        <CircleStop size={14} />
+      </Button>
+    </Tooltip>
+  )
+}
+
+/** A shell run is a command, not an agent — the two read differently, so they get separate sections. */
+function isShellRunTask(task: AgentRunTask): boolean {
+  const type = task.taskType ?? ''
+  return type.includes('bash') || type.includes('shell')
+}
+
+function isSubagentRunTask(task: AgentRunTask): boolean {
+  return task.taskType === 'subagent' || task.taskType === 'local_agent' || Boolean(task.subagentType)
+}
+
+function isLocalWorkflowRunTask(task: AgentRunTask): boolean {
+  return task.taskType === 'local_workflow'
+}
+
+function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+  const actions = useAgentRightPaneActions()
+
+  return (
+    <div className="space-y-1.5">
+      {tasks.map((task) => {
+        const toolCallId = actions.canOpenAgentToolFlow && isSubagentRunTask(task) ? task.toolUseId : undefined
+        const content = (
+          <>
+            <TaskStatusIcon status={task.status} />
+            <div className="min-w-0 flex-1">
+              {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
+              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+                {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
+              </div>
+              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            </div>
+          </>
+        )
+
+        return (
+          <div
+            key={task.id}
+            className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
+            {toolCallId ? (
+              <button
+                type="button"
+                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title })}>
+                {content}
+              </button>
+            ) : (
+              content
+            )}
+            {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="space-y-1.5">
+      {tasks.map((task) => {
+        const activity = task.status === 'in_progress' ? task.activeText : undefined
+        const usage = formatRunTaskUsage(task.usage, (count) => t('agent.right_pane.status.tool_uses', { count }))
+        const metadata = [task.lastToolName, usage].filter(Boolean).join(' · ')
+
+        return (
+          <div
+            key={task.id}
+            className="flex min-w-0 items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
+            <TaskStatusIcon status={task.status} />
+            <div className="min-w-0 flex-1">
+              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+                {task.workflowName ?? task.title}
+              </div>
+              {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
+                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                  {task.summary}
+                </div>
+              ) : null}
+              {activity && activity !== task.title && activity !== task.summary ? (
+                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                  {activity}
+                </div>
+              ) : null}
+              {metadata ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{metadata}</div> : null}
+            </div>
+            {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatRunTaskUsage(
+  usage: AgentRunTask['usage'],
+  formatToolUses?: (count: number) => string
+): string | undefined {
+  if (!usage) return undefined
+  const parts: string[] = []
+  if (typeof usage.totalTokens === 'number') {
+    parts.push(usage.totalTokens >= 1000 ? `${(usage.totalTokens / 1000).toFixed(1)}k` : String(usage.totalTokens))
+  }
+  if (typeof usage.toolUses === 'number' && formatToolUses) parts.push(formatToolUses(usage.toolUses))
+  if (typeof usage.durationMs === 'number') parts.push(`${Math.round(usage.durationMs / 1000)}s`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentRunTask['status'] }) {
   let icon: ReactNode
 
   switch (status) {
@@ -737,6 +938,9 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
     case 'error':
       icon = <Circle size={14} className="text-destructive" />
       break
+    case 'stopped':
+      icon = <CircleStop size={14} className="text-muted-foreground" />
+      break
     case 'pending':
     default:
       icon = <Circle size={14} className="text-muted-foreground" />
@@ -745,15 +949,36 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
+/** Foreground runs belong to one assistant row; detached runs use the SDK's per-task edge state. */
+function useAgentRunLiveness(messages: CherryUIMessage[], taskEvents: AgentSessionTaskEvents): AgentRunLiveness {
+  return useMemo(() => {
+    const activeMessageIds = new Set(
+      messages
+        .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
+        .map((message) => message.id)
+    )
+    const liveBackgroundTaskIds = new Set(
+      Object.values(taskEvents)
+        .filter((event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error')
+        .map((event) => event.taskId)
+    )
+    return { activeMessageIds, liveBackgroundTaskIds }
+  }, [messages, taskEvents])
+}
+
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
+  const meta = useAgentRightPaneMeta()
+  // Current-process per-task lifecycle edges.
+  const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
+  const liveness = useAgentRunLiveness(runtime.messages, lateTaskEvents)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>
       !active && retainedStatusRef.current
         ? retainedStatusRef.current
-        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId),
-    [active, runtime.messages, runtime.partsByMessageId]
+        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness),
+    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness]
   )
   useLayoutEffect(() => {
     if (active) retainedStatusRef.current = status
@@ -836,16 +1061,21 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 }
 
 /** Stable capability registry; runtime messages are intentionally absent. */
+const TRACE_PANE_ID = 'trace'
+const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
+  instanceKey: 'agent-resources'
+})
+const AGENT_TRACE_PANE_CAPABILITY = {
+  component: AgentTraceRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: TRACE_PANE_ID,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
+    title: scope.traceTitle,
+    readiness: resolveAgentTraceReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
-  {
-    component: AgentResourceRightPanel,
-    resolve: (scope) => ({
-      id: RESOURCE_PANE_TAB,
-      instanceKey: 'agent-resources',
-      title: scope.resourcePane?.label,
-      readiness: scope.resourcePane ? 'ready' : 'unavailable'
-    })
-  },
+  AGENT_RESOURCE_PANE_CAPABILITY,
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({
@@ -866,15 +1096,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       readiness: scope.meta.conversationState
     })
   },
-  {
-    component: AgentTraceRightPanel,
-    resolve: (scope) => ({
-      id: 'trace',
-      instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
-      title: scope.traceTitle,
-      readiness: resolveAgentTraceReadiness(scope)
-    })
-  },
+  AGENT_TRACE_PANE_CAPABILITY,
   {
     component: AgentFlowRightPanel,
     resolve: (scope) => {
@@ -891,24 +1113,8 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
 const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
-  return (
-    <RightPanelViewport>
-      <RightPanel />
-    </RightPanelViewport>
-  )
+  return <RightPanelViewport />
 })
-
-function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
-  switch (status) {
-    case 'done':
-      return <CheckCircle size={14} className="text-success" />
-    case 'error':
-      return <Circle size={14} className="text-destructive" />
-    case 'running':
-    default:
-      return <Loader2 size={14} className="animate-spin text-info" />
-  }
-}
 
 function AgentRightPaneHighlightSection({
   title,
@@ -949,9 +1155,13 @@ function AgentRightPaneHighlights({
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
+  const meta = useAgentRightPaneMeta()
+  const shellRunTasks = status.runTasks.filter(isShellRunTask)
+  const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
+  const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
   const tasks = includeTasks ? status.tasks : []
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
-  const hasHighlights = tasks.length > 0 || status.subagents.length > 0 || artifacts.length > 0
+  const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
 
@@ -969,7 +1179,7 @@ function AgentRightPaneHighlights({
                 <span
                   className={cn(
                     'wrap-break-word min-w-0 flex-1 text-xs leading-5',
-                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground-secondary'
+                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-muted-foreground'
                   )}>
                   {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
                 </span>
@@ -979,21 +1189,30 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {status.subagents.length > 0 && (
+      {workflowRunTasks.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.info.workflows')}
+          icon={<Workflow size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <WorkflowRunTaskList tasks={workflowRunTasks} sessionId={meta.sessionId} />
+        </AgentRightPaneHighlightSection>
+      )}
+
+      {agentRunTasks.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.subagents')}
           icon={<Bot size={14} className="text-muted-foreground" />}
           compact={compact}>
-          <ul className="space-y-1">
-            {status.subagents.map((subagent) => (
-              <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
-                <SubagentStatusIcon status={subagent.status} />
-                <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-xs leading-5">
-                  {subagent.name}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <RunTaskList tasks={agentRunTasks} sessionId={meta.sessionId} />
+        </AgentRightPaneHighlightSection>
+      )}
+
+      {shellRunTasks.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.info.shell_tasks')}
+          icon={<Terminal size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <RunTaskList tasks={shellRunTasks} sessionId={meta.sessionId} />
         </AgentRightPaneHighlightSection>
       )}
 
@@ -1009,7 +1228,7 @@ function AgentRightPaneHighlights({
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>
@@ -1083,7 +1302,7 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         icon={<FolderOpen className="size-3.5" />}
       />
       <AgentRightPaneStatusShortcut />
-      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
+      <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>
   )
 })
@@ -1092,6 +1311,6 @@ export const AgentRightPane = {
   Scope: AgentRightPaneStateProvider,
   Viewport: AgentRightPaneViewport,
   Shortcuts: AgentRightPaneShortcuts
-}
+} satisfies RightPanelComposition
 
 export type { AgentToolFlowOpenInput }

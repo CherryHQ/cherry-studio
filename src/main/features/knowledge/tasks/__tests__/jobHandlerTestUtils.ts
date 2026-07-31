@@ -360,7 +360,10 @@ beforeEach(() => {
   knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
   knowledgeItemSetSubtreeStatusMock.mockReturnValue([])
   knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem())
-  fetchKnowledgeWebPageMock.mockResolvedValue('# Example page\n\nbody text')
+  fetchKnowledgeWebPageMock.mockResolvedValue({
+    title: 'Example Page',
+    markdown: '# Example page\n\nbody text'
+  })
   captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
   captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
   knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(

@@ -13,6 +13,9 @@
  * second-guess it by forcing the suffix. "First-party" is decided by the resolved
  * host, NOT the provider's preset origin — a provider copied from the Anthropic
  * preset but repointed at a custom 1M proxy is not first-party and still needs it.
+ * First-party 1M is a user choice instead: the catalog serves the suffixed ids as
+ * their own models (see `provider-registry/src/providers/claude-code.ts`), because
+ * on a subscription the Opus 1M window can cost usage credits.
  *
  * @see https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code
  */

@@ -3,24 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   listAgentsMock,
-  createAgentMock,
   getAgentMock,
   updateAgentMock,
   deleteAgentMock,
   reorderMock,
   reorderBatchMock,
+  listAllTasksMock,
+  getTaskByIdMock,
   listTasksMock,
   getTaskMock,
   listSkillsMock,
   getSkillByIdMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
-  createAgentMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
   deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
+  listAllTasksMock: vi.fn(),
+  getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
@@ -30,7 +32,6 @@ const {
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     listAgents: listAgentsMock,
-    createAgent: createAgentMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
     deleteAgent: deleteAgentMock,
@@ -41,6 +42,8 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
+    listAllTasks: listAllTasksMock,
+    getTaskById: getTaskByIdMock,
     listTasks: listTasksMock,
     getTask: getTaskMock
   }
@@ -140,31 +143,8 @@ describe('agentHandlers', () => {
       expect(listAgentsMock).not.toHaveBeenCalled()
     })
 
-    it('delegates POST to agentService.createAgent', async () => {
-      createAgentMock.mockReturnValueOnce(mockAgent)
-
-      const result = await agentHandlers['/agents'].POST({
-        body: { type: 'claude-code', name: 'Test', model: 'anthropic::claude-3-5-sonnet' }
-      } as never)
-
-      expect(createAgentMock).toHaveBeenCalledOnce()
-      expect(result).toMatchObject({ id: AGENT_ID })
-    })
-
-    it('rejects POST when required fields are missing', async () => {
-      await expect(agentHandlers['/agents'].POST({ body: { name: 'Test' } } as never)).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
-
-      expect(createAgentMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects POST when model is missing', async () => {
-      await expect(
-        agentHandlers['/agents'].POST({ body: { type: 'claude-code', name: 'Test' } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-
-      expect(createAgentMock).not.toHaveBeenCalled()
+    it('keeps filesystem-backed creation off DataApi', () => {
+      expect(agentHandlers['/agents']).not.toHaveProperty('POST')
     })
   })
 
@@ -294,6 +274,38 @@ describe('agentHandlers', () => {
       )
 
       expect(reorderBatchMock).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── /agent-tasks ──────────────────────────────────────────────────────────
+
+  describe('/agent-tasks', () => {
+    it('delegates GET to taskService.listAllTasks with pagination', async () => {
+      listAllTasksMock.mockReturnValueOnce({ tasks: [mockTask], total: 11 })
+
+      const result = await agentHandlers['/agent-tasks'].GET({ query: { page: 2, limit: 10 } } as never)
+
+      expect(listAllTasksMock).toHaveBeenCalledWith({ limit: 10, offset: 10 })
+      expect(result).toMatchObject({ items: [mockTask], total: 11, page: 2 })
+    })
+  })
+
+  describe('/agent-tasks/:taskId', () => {
+    it('returns a task without requiring its owning Agent id', async () => {
+      getTaskByIdMock.mockReturnValueOnce(mockTask)
+
+      const result = await agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+
+      expect(getTaskByIdMock).toHaveBeenCalledWith(TASK_ID)
+      expect(result).toBe(mockTask)
+    })
+
+    it('throws not found when the task does not exist', async () => {
+      getTaskByIdMock.mockReturnValueOnce(null)
+
+      await expect(
+        agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 

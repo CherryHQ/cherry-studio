@@ -11,7 +11,7 @@
  *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -65,13 +65,16 @@ export const isGenerateAudioModel = (model: Model): boolean =>
 export const isEditImageModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) && model.inputModalities?.includes(MODALITY.IMAGE))
 
-// A dedicated speech-to-text model is identified by the explicit AUDIO_TRANSCRIPT
-// capability only. Accepting audio as an *input modality* does NOT make a model
-// speech-to-text — multimodal chat LLMs (Gemini, GPT-4o, …) take audio input yet are
-// still general chat models, and keying on the modality wrongly classified them as
-// non-chat (via `isNonChatModel`) and hid them from every model picker.
+// Prefer the explicit AUDIO_TRANSCRIPT capability. Catalogs that only expose
+// modalities still identify a dedicated ASR model by audio input + text output
+// with no text input. The no-text-input guard keeps multimodal chat LLMs
+// (Gemini, GPT-4o, …) selectable.
 export const isSpeechToTextModel = (model: Model): boolean =>
-  model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+  model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) ||
+  (model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION) &&
+    model.inputModalities?.includes(MODALITY.AUDIO) === true &&
+    !model.inputModalities.includes(MODALITY.TEXT) &&
+    model.outputModalities?.includes(MODALITY.TEXT) === true)
 
 // Mirror of `isSpeechToTextModel`: a dedicated text-to-speech model is identified by
 // the explicit AUDIO_GENERATION capability only. Producing audio as an *output
@@ -86,6 +89,7 @@ export const isTextToImageModel = (model: Model): boolean =>
   !model.capabilities.includes(MODEL_CAPABILITY.REASONING)
 
 export const isNonChatModel = (model: Model): boolean =>
+  endpointImpliedCapability(model.endpointTypes?.[0]) != null ||
   isEmbeddingModel(model) ||
   isRerankModel(model) ||
   isGenerateImageModel(model) ||
@@ -386,6 +390,23 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   if (baseModelName.endsWith('(free)')) baseModelName = baseModelName.replace('(free)', '')
   if (baseModelName.endsWith(':cloud')) baseModelName = baseModelName.replace(':cloud', '')
   return baseModelName
+}
+
+/**
+ * Derive the model-list group from an API model ID.
+ *
+ * Provider-prefixed IDs use the provider segment (`openai/gpt-4o` → `openai`);
+ * flat IDs use their family prefix (`deepseek-v4-pro` → `deepseek`).
+ */
+export function deriveModelGroupName(modelId: string): string | undefined {
+  const normalizedId = modelId.trim()
+  const pathParts = normalizedId.split('/')
+  if (pathParts.length > 1) {
+    return pathParts[0]?.trim() || undefined
+  }
+
+  const familyName = normalizedId.split('-')[0]?.trim()
+  return familyName && familyName !== normalizedId ? familyName : undefined
 }
 
 export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model, 'group'>>>(

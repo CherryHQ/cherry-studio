@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,9 +33,6 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 }))
 
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
-vi.mock('../BackupUnavailableGate', () => ({
-  BackupUnavailableGate: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}))
 vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
 
 import BasicDataSettings from '../BasicDataSettings'
@@ -45,11 +43,39 @@ async function renderSettings() {
   requestMock.mockClear()
 }
 
-describe('BasicDataSettings data reset', () => {
+describe('BasicDataSettings', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', false)
     getCacheSizeMock.mockResolvedValue('0')
     requestMock.mockResolvedValue(undefined)
     vi.stubGlobal('api', { getCacheSize: getCacheSizeMock })
+  })
+
+  it('leaves backup and restore actions interactive', async () => {
+    await renderSettings()
+
+    expect(screen.getByText('settings.data.backup.skip_file_data_title')).toBeInTheDocument()
+
+    for (const name of ['settings.general.backup.button', 'settings.general.restore.button']) {
+      const action = screen.getByRole('button', { name })
+      expect(action).toBeEnabled()
+      expect(action.closest('[inert]')).toBeNull()
+    }
+  })
+
+  it('discloses contextual greeting data sharing and requires an explicit opt-in', async () => {
+    await renderSettings()
+
+    expect(screen.getByText('settings.privacy.contextual_greetings.description')).toBeInTheDocument()
+    const toggle = screen.getByRole('switch', { name: 'settings.privacy.contextual_greetings.title' })
+    expect(toggle).not.toBeChecked()
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.conversation_greeting.enabled')).toBe(true)
+    })
   })
 
   it('does not send IPC when the renderer confirmation is cancelled', async () => {

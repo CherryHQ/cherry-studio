@@ -8,7 +8,8 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  Label
 } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -39,8 +40,8 @@ interface ProviderConnectionCheckDrawerProps {
 type ModelOption = ComboboxOption<{ model: Model }>
 type ApiKeyOption = ComboboxOption
 
-const CONNECTION_ERROR_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const CONNECTION_ERROR_DETAIL_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const CONNECTION_ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const CONNECTION_ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 function ModelOptionIcon({ model, size = 20 }: { model: Model; size?: number }) {
   const Icon = useIcon(getModelLogoRef(model))
@@ -123,9 +124,7 @@ export default function ProviderConnectionCheckDrawer({
         <div className="space-y-4">
           <div className="space-y-3">
             <div>
-              <label className="mb-2.5 block font-medium text-[13px] text-foreground/85">
-                {t('button.select_model')}
-              </label>
+              <Label className="mb-2.5 block text-[13px] text-foreground">{t('button.select_model')}</Label>
               {sortedModels.length > 0 ? (
                 <Combobox
                   className="h-9 w-full justify-between px-2.5 text-left font-normal"
@@ -151,9 +150,9 @@ export default function ProviderConnectionCheckDrawer({
 
             {hasMultipleKeys ? (
               <div>
-                <label className="mb-2.5 block font-medium text-[13px] text-foreground/85">
+                <Label className="mb-2.5 block text-[13px] text-foreground">
                   {t('settings.models.check.select_api_key')}
-                </label>
+                </Label>
                 <Combobox
                   className="h-9 w-full justify-between px-2.5 text-left font-mono text-[12px]"
                   emptyText={t('common.no_results')}
@@ -174,8 +173,8 @@ export default function ProviderConnectionCheckDrawer({
               </div>
             ) : (
               <div className="space-y-1.5">
-                <div className="font-medium text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</div>
-                <div className="rounded-md border border-border-muted bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground/70">
+                <div className="text-[13px] text-muted-foreground">{t('settings.provider.api_key.label')}</div>
+                <div className="rounded-md border border-border-subtle bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground">
                   {selectedApiKey ? maskApiKey(selectedApiKey) : '—'}
                 </div>
               </div>
@@ -186,13 +185,13 @@ export default function ProviderConnectionCheckDrawer({
           <button
             type="button"
             aria-label={`${t('message.api.connection.failed')}: ${connectionErrorText}. ${t('common.detail')}`}
-            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border"
+            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={handleShowConnectionErrorDetail}>
             <div className="mb-1.5 flex items-center gap-2">
-              <div className="flex shrink-0 items-center justify-center text-error-base">
+              <div className="flex shrink-0 items-center justify-center text-error">
                 <AlertTriangle size={15} className="lucide-custom" />
               </div>
-              <div className="pr-5 font-medium text-[13px] leading-[1.4]">{t('message.api.connection.failed')}</div>
+              <div className="pr-5 text-[13px] leading-[1.4]">{t('message.api.connection.failed')}</div>
             </div>
             <div
               className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal"

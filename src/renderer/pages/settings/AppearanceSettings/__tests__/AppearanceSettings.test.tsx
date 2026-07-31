@@ -1,9 +1,9 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
@@ -20,6 +20,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const themeMocks = vi.hoisted(() => ({ setTheme: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -135,7 +136,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
     settedTheme: 'light',
-    setTheme: vi.fn(),
+    setTheme: themeMocks.setTheme,
     theme: 'light'
   })
 }))
@@ -277,6 +278,7 @@ describe('AppearanceSettings selectors', () => {
     i18nMock.language = 'zh-CN'
     i18nMock.resolvedLanguage = 'zh-CN'
     mocks.request.mockReset()
+    themeMocks.setTheme.mockReset()
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.get_fonts') return Promise.resolve([])
       if (route === 'app.adjust_zoom') return Promise.resolve(1)
@@ -310,21 +312,29 @@ describe('AppearanceSettings selectors', () => {
     expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
   })
 
-  it('matches both font popover widths to their triggers', async () => {
-    const { container } = render(<AppearanceSettings />)
+  it('shows every theme as a visual choice and switches from the preview', async () => {
+    render(<AppearanceSettings />)
 
     await waitFor(() => {
       expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
     })
 
-    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
-      element.getAttribute('data-popover-class-name')
-    )
+    expect(screen.getByRole('button', { name: 'settings.theme.light' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')
 
-    expect(fontPopoverClassNames).toHaveLength(2)
-    expect(fontPopoverClassNames).toEqual([
-      expect.stringContaining('w-(--radix-popover-trigger-width)'),
-      expect.stringContaining('w-(--radix-popover-trigger-width)')
+    fireEvent.click(screen.getByRole('button', { name: 'settings.theme.dark' }))
+
+    expect(themeMocks.setTheme).toHaveBeenCalledWith(ThemeMode.dark)
+  })
+
+  it('places the theme group before the display and language group', () => {
+    const { container } = render(<AppearanceSettings />)
+    const groupTitles = Array.from(container.querySelectorAll('section > h2')).map((heading) => heading.textContent)
+
+    expect(groupTitles.slice(0, 2)).toEqual([
+      'settings.theme.title',
+      'settings.general.common.sections.display_language'
     ])
   })
 

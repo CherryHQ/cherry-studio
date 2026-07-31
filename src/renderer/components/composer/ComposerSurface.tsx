@@ -16,6 +16,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -25,7 +26,6 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
-import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { JSONContent } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
@@ -34,8 +34,8 @@ import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucid
 import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ComposerControlsLoading from './ComposerControlsLoading'
-import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
+import { useActiveComposerOverride } from './ComposerContext'
+import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -188,7 +188,7 @@ export interface ComposerSurfaceProps {
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -352,13 +352,22 @@ function getComposerUnifiedPanelSearchText(
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
-const getManagedTokenSignature = (
-  tokens: readonly ComposerSerializedToken[],
-  managedTokenKindSet: ReadonlySet<ComposerDraftToken['kind']>
-) =>
+const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
   tokens
-    .filter((token) => managedTokenKindSet.has(token.kind))
-    .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
+    .filter((token) => isComposerInputTokenKind(token.kind))
+    .map((token) =>
+      JSON.stringify([
+        token.kind,
+        token.id,
+        token.label,
+        token.icon,
+        token.description,
+        token.index,
+        token.textOffset,
+        token.promptText,
+        token.payload
+      ])
+    )
     .join('\n')
 
 function shouldDelegateLongTextPasteToFileHandler(text: string) {
@@ -474,37 +483,6 @@ function mergeComposerClipboardFiles(prev: ComposerAttachment[], files: readonly
   return changed ? next : prev
 }
 
-function isRestorableDraftToken(
-  token: ComposerSerializedToken
-): token is ComposerSerializedToken & ComposerMessageToken {
-  return token.kind !== 'promptVariable'
-}
-
-function getRestorableDraftTokens(draftTokens: readonly ComposerSerializedToken[] | undefined): ComposerMessageToken[] {
-  return (draftTokens ?? [])
-    .filter(isRestorableDraftToken)
-    .map(({ id, kind, label, icon, description, index, textOffset, promptText, payload }) => ({
-      id,
-      kind,
-      label,
-      ...(icon && { icon }),
-      ...(description && { description }),
-      index,
-      textOffset,
-      ...(promptText && { promptText }),
-      ...(payload !== undefined && { payload })
-    }))
-}
-
-function createComposerEditorContent(text: string, draftTokens: readonly ComposerSerializedToken[] | undefined) {
-  const restorableTokens = getRestorableDraftTokens(draftTokens)
-  if (restorableTokens.length) {
-    return createComposerDocumentContent(text, { version: 1, tokens: restorableTokens })
-  }
-
-  return createPromptVariableContent(text)
-}
-
 function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown', isInputHistoryActive: boolean) {
   const { doc, selection } = view.state
   // ProseMirror positions are token-based: `doc.content.size` is one past the
@@ -537,28 +515,6 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
 
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
-
-function useComposerDynamicControlsReady(deferDynamicControls: boolean) {
-  const [controlsReady, setControlsReady] = useState(!deferDynamicControls)
-
-  useLayoutEffect(() => {
-    if (!deferDynamicControls || controlsReady) return
-
-    let controlsFrame = 0
-    const editorFrame = window.requestAnimationFrame(() => {
-      controlsFrame = window.requestAnimationFrame(() => {
-        startTransition(() => setControlsReady(true))
-      })
-    })
-
-    return () => {
-      window.cancelAnimationFrame(editorFrame)
-      if (controlsFrame) window.cancelAnimationFrame(controlsFrame)
-    }
-  }, [controlsReady, deferDynamicControls])
-
-  return !deferDynamicControls || controlsReady
-}
 
 export default function ComposerSurface({
   text,
@@ -607,12 +563,16 @@ export default function ComposerSurface({
   compactWhenSingleLine = false,
   renderCompactControls,
   sendAccessory,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: ComposerSurfaceProps) {
-  const dynamicControlsReady = useComposerDynamicControlsReady(deferDynamicControls)
+  const [editorReady, setEditorReady] = useState(!deferQuickPanel)
+  const quickPanelReady = !deferQuickPanel || editorReady
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const composerOverridden = useActiveComposerOverride() !== null
+  const closeQuickPanel = quickPanel.close
+  const isQuickPanelVisible = quickPanel.isVisible
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
@@ -623,7 +583,7 @@ export default function ComposerSurface({
   const pendingLocalTextEchoRef = useRef<string | null>(null)
   const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
   const isSyncingTokensRef = useRef(false)
-  const managedTokenSignatureRef = useRef('')
+  const trackedTokenSignatureRef = useRef('')
   const tokenByIdRef = useRef(new Map<string, ComposerDraftToken>())
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
@@ -665,6 +625,12 @@ export default function ComposerSurface({
     sendMessageShortcut,
     setFiles
   ])
+
+  useLayoutEffect(() => {
+    if (composerOverridden && isQuickPanelVisible) {
+      closeQuickPanel('composer_override')
+    }
+  }, [closeQuickPanel, composerOverridden, isQuickPanelVisible])
 
   useEffect(() => {
     textRef.current = text
@@ -928,18 +894,15 @@ export default function ComposerSurface({
     return serializeComposerDocument(editor)
   }, [])
 
-  const replaceDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
-      const editor = editorRef.current
-      if (!editor || editor.isDestroyed) return
+  const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
 
-      textRef.current = draft.text
-      pendingLocalTextEchoRef.current = null
-      editor.commands.setContent(createComposerEditorContent(draft.text, draft.tokens), { emitUpdate: false })
-      managedTokenSignatureRef.current = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
-    },
-    [managedTokenKindSet]
-  )
+    textRef.current = draft.text
+    pendingLocalTextEchoRef.current = null
+    editor.commands.setContent(createComposerDraftContent(draft), { emitUpdate: false })
+    trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
+  }, [])
 
   useEffect(() => {
     onActionsChange?.({
@@ -1435,7 +1398,7 @@ export default function ComposerSurface({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-link text-xs leading-4 shadow-none hover:text-link focus-visible:border-0 focus-visible:text-link focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
                 onMouseDown={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -1776,7 +1739,7 @@ export default function ComposerSurface({
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
-    content: createComposerEditorContent(text, draftTokens),
+    content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
     editable,
     immediatelyRender: false,
     enableSpellCheck,
@@ -1796,17 +1759,20 @@ export default function ComposerSurface({
         listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
       )
 
-      const nextManagedTokenSignature = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+      const nextTrackedTokenSignature = getTrackedTokenSignature(draft.tokens)
       if (!isSyncingTokensRef.current) {
-        if (nextManagedTokenSignature !== managedTokenSignatureRef.current) {
-          managedTokenSignatureRef.current = nextManagedTokenSignature
+        if (nextTrackedTokenSignature !== trackedTokenSignatureRef.current) {
+          trackedTokenSignatureRef.current = nextTrackedTokenSignature
           onTokensChange(draft.tokens)
         }
       } else {
-        managedTokenSignatureRef.current = nextManagedTokenSignature
+        trackedTokenSignatureRef.current = nextTrackedTokenSignature
       }
     },
     onCreate: ({ editor: createdEditor }) => {
+      window.requestAnimationFrame(() => {
+        startTransition(() => setEditorReady(true))
+      })
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       setTimeoutTimer(
         'composerSurfaceFocus',
@@ -1835,7 +1801,7 @@ export default function ComposerSurface({
       return
     }
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createComposerEditorContent(text, draftTokens), { emitUpdate: false })
+    editor.commands.setContent(createComposerDraftContent({ text, tokens: draftTokens ?? [] }), { emitUpdate: false })
   }, [draftTokens, editor, text])
 
   useEffect(() => {
@@ -1859,10 +1825,7 @@ export default function ComposerSurface({
       isSyncingTokensRef.current = false
     }
 
-    managedTokenSignatureRef.current = getManagedTokenSignature(
-      serializeComposerDocument(editor).tokens,
-      managedTokenKindSet
-    )
+    trackedTokenSignatureRef.current = getTrackedTokenSignature(serializeComposerDocument(editor).tokens)
   }, [editor, managedTokenKindSet, tokens])
 
   const inputAdapter = useMemo<QuickPanelInputAdapter | undefined>(() => {
@@ -2029,15 +1992,15 @@ export default function ComposerSurface({
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
     void toolLaunchersVersion
-    if (!dynamicControlsReady || !quickPanelEnabled) return false
+    if (!quickPanelReady || !quickPanelEnabled) return false
 
     return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
       leadingItems: rootPanelLeadingItems,
       additionalItems: rootPanelAdditionalItems
     })
   }, [
-    dynamicControlsReady,
     getToolLaunchers,
+    quickPanelReady,
     quickPanelEnabled,
     rootPanelAdditionalItems,
     rootPanelLeadingItems,
@@ -2106,38 +2069,20 @@ export default function ComposerSurface({
     ]
   )
 
-  const quickPanelElement =
-    dynamicControlsReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
+  const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
-  const leftControls = dynamicControlsReady ? (
-    renderLeftControls?.(inputAdapter, unifiedPanelControl)
-  ) : renderLeftControls ? (
-    <ComposerControlsLoading />
-  ) : null
-  const belowControls = dynamicControlsReady ? (
-    renderBelowControls?.(inputAdapter, unifiedPanelControl)
-  ) : renderBelowControls ? (
-    <ComposerControlsLoading />
-  ) : undefined
-  // No placeholder here: `sendAccessory` is always a truthy element but usually
-  // renders nothing (the context ring needs a live session), so reserving space
-  // for it would flash a skeleton dot that then disappears.
-  const sendAccessoryElement = dynamicControlsReady
-    ? typeof sendAccessory === 'function'
-      ? sendAccessory(inputAdapter, unifiedPanelControl)
-      : sendAccessory
-    : undefined
-  const compactControls = dynamicControlsReady ? (
-    renderCompactControls?.(inputAdapter, unifiedPanelControl)
-  ) : renderCompactControls ? (
-    <ComposerControlsLoading compact />
-  ) : null
+  const leftControls = renderLeftControls?.(inputAdapter, unifiedPanelControl)
+  const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
+  const sendAccessoryElement =
+    typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
+  const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const sendAction = showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
       <button
+        data-ui="chat.composer.action.pause"
         type="button"
-        className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
+        className="flex size-7.5 items-center justify-center rounded-full text-error hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void onPause()}>
         <CirclePause size={20} />
@@ -2152,7 +2097,7 @@ export default function ComposerSurface({
       aria-live="polite"
       aria-label={t('chat.input.editing_message')}
       data-composer-editing-header=""
-      className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-foreground-secondary text-xs">
+      className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
@@ -2165,7 +2110,7 @@ export default function ComposerSurface({
               onClick={editingState.onLocate}
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
+              className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
               aria-label={t('chat.input.locate_editing_message')}>
               <LocateFixed size={14} />
             </Button>
@@ -2177,7 +2122,7 @@ export default function ComposerSurface({
             onClick={editingState.onCancel}
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
+            className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
             aria-label={t('chat.input.cancel_editing')}>
             <X size={14} />
           </Button>
@@ -2188,6 +2133,7 @@ export default function ComposerSurface({
   const inputbarElement = (
     <div
       id="inputbar"
+      data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
       className={cn(
@@ -2196,7 +2142,7 @@ export default function ComposerSurface({
         belowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
-          "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
+          "border-2 border-success border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
         isExpanded && 'expanded'
       )}>
       {!isCompact ? (
@@ -2213,7 +2159,7 @@ export default function ComposerSurface({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
             <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (
@@ -2221,14 +2167,14 @@ export default function ComposerSurface({
               <span
                 aria-hidden="true"
                 data-composer-expand-corner-line=""
-                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
+                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-foreground/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0"
               />
               <Button
                 type="button"
                 onClick={handleExpandControlClick}
                 variant="ghost"
                 size="icon-sm"
-                className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
+                className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-muted-foreground opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
                 aria-pressed={hasCustomHeight}
                 aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
                 <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
@@ -2248,16 +2194,11 @@ export default function ComposerSurface({
               ? 'flex items-start'
               : 'contents'
         }>
-        {isCompact ? (
-          dynamicControlsReady ? (
-            <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-          ) : (
-            <ComposerControlsLoading compact />
-          )
-        ) : null}
+        {isCompact ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
         {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
           ref={frameRef}
+          data-ui="part:composer-input"
           data-composer-editor-frame=""
           className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
           onTransitionEnd={handleTransitionEnd}
@@ -2272,7 +2213,7 @@ export default function ComposerSurface({
           />
         </div>
         {isCompact ? (
-          <div className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2282,6 +2223,7 @@ export default function ComposerSurface({
 
       {!isCompact ? (
         <div
+          data-ui="part:composer-actions"
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
@@ -2301,7 +2243,10 @@ export default function ComposerSurface({
   )
 
   return (
-    <NarrowLayout narrowMode={narrowMode} withSidePadding style={{ width: '100%' }}>
+    // pointer-events-auto: the composer dock stack above is click-through so the
+    // pane behind the flanks stays interactive; this width-capped box is where
+    // pointer events come back on.
+    <NarrowLayout narrowMode={narrowMode} withSidePadding className="pointer-events-auto" style={{ width: '100%' }}>
       <div className="w-full">
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
