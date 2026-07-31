@@ -263,6 +263,13 @@
               }
             }
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.deepseek.com",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "deepseek",
@@ -1891,5 +1898,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1aa522c45111d80c"
+  "version": "645f9b9b0f0ff508"
 }
