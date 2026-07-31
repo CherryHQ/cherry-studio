@@ -79,7 +79,7 @@ const getNodeText = (node: ReactNode): string => {
 const Selector = <V extends string | number>({
   options,
   value,
-  onChange = () => {},
+  onChange,
   placement = 'bottomRight',
   size = 13,
   placeholder,

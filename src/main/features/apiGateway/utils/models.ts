@@ -56,9 +56,13 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
     if (!providers) {
       return modelService.list({ enabled: true })
     }
-    const results = await Promise.allSettled(
-      providers.map((p) => modelService.list({ providerId: p.id, enabled: true }))
-    )
+    const results = providers.map((provider): PromiseSettledResult<Model[]> => {
+      try {
+        return { status: 'fulfilled', value: modelService.list({ providerId: provider.id, enabled: true }) }
+      } catch (reason) {
+        return { status: 'rejected', reason }
+      }
+    })
     return results.flatMap((result, i) => {
       if (result.status === 'fulfilled') return result.value
       logger.error(`Failed to list models for provider ${providers[i].id}`, result.reason as Error)

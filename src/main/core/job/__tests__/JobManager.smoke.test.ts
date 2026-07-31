@@ -363,10 +363,8 @@ describe('JobManager smoke (dummy.echo)', () => {
   // cap, the gate blocked every claim and no further job was ever dispatched.
   it('drains a single queue when jobs exceed concurrency (regression: pending-count deadlock)', async () => {
     // makeEchoHandler caps concurrency at 2; 6 jobs share the default queue.
-    const handles = await Promise.all(
-      Array.from({ length: 6 }, (_, i) =>
-        jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
-      )
+    const handles = Array.from({ length: 6 }, (_, i) =>
+      jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
     )
     const settled = await Promise.all(handles.map((h) => h.finished))
     expect(settled.map((s) => s.status)).toEqual(Array(6).fill('completed'))

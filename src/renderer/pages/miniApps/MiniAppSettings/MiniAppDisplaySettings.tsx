@@ -19,7 +19,7 @@ const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
-  const [region = 'auto', setRegion] = usePreference('feature.mini_app.region')
+  const [region, setRegion] = usePreference('feature.mini_app.region')
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(
