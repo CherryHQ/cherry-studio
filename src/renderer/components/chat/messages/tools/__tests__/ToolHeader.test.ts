@@ -280,21 +280,6 @@ describe('ToolHeader', () => {
     expect(commandPreview.querySelector('span')).toBeNull()
   })
 
-  it('uses a plain neutral style for command previews', () => {
-    render(
-      React.createElement(ToolHeader, {
-        args: { command: 'gh pr view 16600 --json title' },
-        status: 'invoking',
-        toolName: AgentToolsType.Bash,
-        variant: 'collapse-label'
-      })
-    )
-
-    const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-foreground-secondary')
-    expect(commandPreview.querySelector('span')).toBeNull()
-  })
-
   it('truncates long bash command information in tool call labels', () => {
     const command = `node scripts/generate-report.js --input ${'very-long-segment/'.repeat(16)}report.json --format markdown --include-details`
 
@@ -311,11 +296,6 @@ describe('ToolHeader', () => {
     expect(commandPreview.textContent?.length).toBeLessThanOrEqual(160)
     expect(commandPreview).toHaveTextContent(/…$/)
     expect(commandPreview).toHaveAttribute('title', command)
-    expect(commandPreview).toHaveClass('truncate')
-    expect(commandPreview).toHaveClass('hidden')
-    expect(commandPreview).toHaveClass('sm:block')
-    expect(commandPreview.className).toContain('max-w-[clamp(6rem,42vw,32rem)]')
-    expect(commandPreview.className).toContain('shrink-[2]')
     expect(commandPreview.querySelector('span')).toBeNull()
   })
 

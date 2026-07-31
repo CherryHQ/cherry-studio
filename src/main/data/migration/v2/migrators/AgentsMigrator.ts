@@ -1,7 +1,11 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import {
+  AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME,
+  AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL,
+  agentSessionMessageTable
+} from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
@@ -18,7 +22,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -78,8 +82,21 @@ type V1ChannelTaskSubscription = {
 }
 
 const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
+const AGENT_MESSAGE_IMPORT_SAVEPOINT = 'agent_message_batch_import'
 
 const logger = loggerService.withContext('AgentsMigrator')
+
+function formatMigrationByteCount(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KiB', 'MiB', 'GiB', 'TiB']
+  let value = bytes / 1024
+  let unit = units[0]
+  for (let index = 1; index < units.length && value >= 1024; index++) {
+    value /= 1024
+    unit = units[index]
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${unit}`
+}
 
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
@@ -132,16 +149,63 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    const executeStartedAt = performance.now()
+    const claudeConfigStartedAt = performance.now()
+    let reportedClaudeConfigProgress = 1
+    this.reportProgress(reportedClaudeConfigProgress, 'Scanning Agent configuration', {
+      key: 'migration.progress.agents_claude_config_scanning_start'
+    })
     const copiedLegacyClaudeConfig = await copyLegacyClaudeConfig(
       ctx.paths.legacyClaudeConfigDir,
-      ctx.paths.claudeConfigDir
+      ctx.paths.claudeConfigDir,
+      (progress) => {
+        const phaseRange = {
+          scanning: { start: 1, span: 14 },
+          copying: { start: 15, span: 15 },
+          verifying: { start: 30, span: 14 }
+        }[progress.phase]
+        const ratio =
+          progress.byteTotal > 0
+            ? progress.byteCount / progress.byteTotal
+            : progress.total > 0
+              ? progress.processed / progress.total
+              : 0
+        reportedClaudeConfigProgress = Math.max(
+          reportedClaudeConfigProgress,
+          phaseRange.start + Math.round(Math.min(Math.max(ratio, 0), 1) * phaseRange.span)
+        )
+        this.reportProgress(
+          reportedClaudeConfigProgress,
+          `Migrating Agent configuration: ${progress.processed}/${progress.total} files`,
+          {
+            key: `migration.progress.agents_claude_config_${progress.phase}`,
+            params: {
+              processed: progress.processed,
+              total: progress.total,
+              byteCount: formatMigrationByteCount(progress.byteCount),
+              byteTotal: formatMigrationByteCount(progress.byteTotal)
+            }
+          }
+        )
+      }
     )
+    logger.info('Agent migration phase completed', {
+      phase: 'claude-config',
+      copied: copiedLegacyClaudeConfig,
+      durationMs: Math.round(performance.now() - claudeConfigStartedAt)
+    })
+    this.reportProgress(45, 'Prepared Agent configuration', {
+      key: 'migration.progress.agents_claude_config'
+    })
 
     const reader = this.createReader(ctx)
     const dbPath = this.resolveSourceDbPath(reader)
 
     if (!dbPath) {
       logger.info('No legacy agents.db found, skipping agents migration')
+      this.reportProgress(98, 'No Agent database to migrate', {
+        key: 'migration.progress.agents_database'
+      })
       return { success: true, processedCount: 0 }
     }
 
@@ -176,15 +240,39 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
+      const messagePreparationStartedAt = performance.now()
       const derivedSessionWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
-      const stagedSessionMessageCount = await stageLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
-        db: ctx.db,
-        filesDataDir: ctx.paths.filesDataDir
-      })
+      const stagedSessionMessageCount = await stageLegacySessionMessages(
+        ctx.db,
+        this.sourceSchemaInfo,
+        {
+          db: ctx.db,
+          filesDataDir: ctx.paths.filesDataDir
+        },
+        (processed, total) => {
+          const progress = total === 0 ? 55 : 45 + Math.round((processed / total) * 10)
+          this.reportProgress(progress, `Prepared ${processed}/${total} Agent messages`, {
+            key: 'migration.progress.agents_messages',
+            params: { processed, total }
+          })
+        }
+      )
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, derivedSessionWorkspaces)
+      logger.info('Agent migration phase completed', {
+        phase: 'message-preparation',
+        messages: stagedSessionMessageCount,
+        workspaces: derivedSessionWorkspaces.workspaces.length,
+        sessions: derivedSessionWorkspaces.mappings.length,
+        durationMs: Math.round(performance.now() - messagePreparationStartedAt)
+      })
+      this.reportProgress(55, `Prepared ${stagedSessionMessageCount} Agent messages`, {
+        key: 'migration.progress.agents_messages',
+        params: { processed: stagedSessionMessageCount, total: stagedSessionMessageCount }
+      })
 
       // Foreign keys are already OFF for the whole migration (MigrationDbService sets the
       // PRAGMA once on its single connection), so no per-call toggle here.
+      const databaseImportStartedAt = performance.now()
       ctx.db.run(sql.raw('BEGIN'))
 
       insertSessionWorkspaces(ctx.db, derivedSessionWorkspaces)
@@ -209,7 +297,15 @@ export class AgentsMigrator extends BaseMigrator {
 
       ctx.db.run(sql.raw('COMMIT'))
       committed = true
-      logger.info('Agents migration transaction committed successfully')
+      logger.info('Agent migration phase completed', {
+        phase: 'database-import',
+        statements: importStatements.length,
+        messages: stagedSessionMessageCount,
+        durationMs: Math.round(performance.now() - databaseImportStartedAt)
+      })
+      this.reportProgress(55, 'Imported Agent database records', {
+        key: 'migration.progress.agents_database'
+      })
 
       // v1 scheduled_tasks → v2 job_schedule + agent_channel_task. Runs while
       // agents_legacy is still attached so the reads can target it directly via
@@ -224,31 +320,85 @@ export class AgentsMigrator extends BaseMigrator {
       const legacyAgentIds = ctx.db
         .all<{ id: string }>(sql.raw('SELECT id FROM agent ORDER BY id'))
         .map((row) => row.id)
+      const idMappingStartedAt = performance.now()
       const idRemap = remapAgentPrefixIds(ctx.db)
+      logger.info('Agent migration phase completed', {
+        phase: 'id-mapping',
+        agents: idRemap.agentIds.size,
+        sessions: idRemap.sessionIds.size,
+        durationMs: Math.round(performance.now() - idMappingStartedAt)
+      })
+      this.reportProgress(65, 'Remapped Agent and Session identifiers', {
+        key: 'migration.progress.agents_id_mapping'
+      })
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
       const fileSessionPlans = toAgentFileSessionPlans(ctx.db, finalSessionWorkspaces, stagedSessionMessageCount)
+      dropLegacySessionMessageStaging(ctx.db)
+      const workspaceCopyStartedAt = performance.now()
+      let reportedFileProgress = 65
       await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
           finalAgentId: idRemap.agentIds.get(sourceAgentId) ?? sourceAgentId
         })),
-        sessions: fileSessionPlans
+        sessions: fileSessionPlans,
+        onProgress: ({ phase, processed, total }) => {
+          const phaseStart = phase === 'identity' ? 65 : 70
+          const phaseSpan = phase === 'identity' ? 5 : 18
+          const progress =
+            total === 0 ? phaseStart + phaseSpan : phaseStart + Math.round((processed / total) * phaseSpan)
+          reportedFileProgress = Math.max(reportedFileProgress, progress)
+          this.reportProgress(reportedFileProgress, `Prepared ${processed}/${total} Agent ${phase} items`, {
+            key: phase === 'identity' ? 'migration.progress.agents_identity' : 'migration.progress.agents_workspaces',
+            params: { processed, total }
+          })
+        }
       })
+      logger.info('Agent migration phase completed', {
+        phase: 'workspace-copy',
+        agents: legacyAgentIds.length,
+        sessions: fileSessionPlans.length,
+        durationMs: Math.round(performance.now() - workspaceCopyStartedAt)
+      })
+      this.reportProgress(88, 'Prepared Agent workspaces', {
+        key: 'migration.progress.agents_workspaces',
+        params: { processed: fileSessionPlans.length, total: fileSessionPlans.length }
+      })
+      const claudeCacheStartedAt = performance.now()
       await copyLegacyClaudeSessionData({
         agentsDataRoot: ctx.paths.agentsDataDir,
         sourceProjectsDirectories: copiedLegacyClaudeConfig
           ? [ctx.paths.legacyClaudeProjectsDir]
           : [ctx.paths.legacyClaudeProjectsDir, ctx.paths.claudeProjectsDir],
         destinationProjectsDirectory: ctx.paths.claudeProjectsDir,
-        sessions: fileSessionPlans
+        sessions: fileSessionPlans,
+        onProgress: ({ processed, total }) => {
+          const progress = total === 0 ? 97 : 88 + Math.round((processed / total) * 9)
+          this.reportProgress(progress, `Prepared ${processed}/${total} Claude session transcripts`, {
+            key: 'migration.progress.agents_claude_cache',
+            params: { processed, total }
+          })
+        }
+      })
+      logger.info('Agent migration phase completed', {
+        phase: 'claude-session-cache',
+        sessions: fileSessionPlans.length,
+        durationMs: Math.round(performance.now() - claudeCacheStartedAt)
+      })
+      this.reportProgress(97, 'Prepared Agent Claude session cache', {
+        key: 'migration.progress.agents_claude_cache',
+        params: { processed: fileSessionPlans.length, total: fileSessionPlans.length }
       })
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
       // verifyForeignKeys). foreign_key_check is read-only and stays on this connection, so
       // it is safe inside the ATTACH window.
       this.assertOwnedForeignKeys(ctx.db, AGENT_TABLES)
+      this.reportProgress(98, 'Verified migrated Agent references', {
+        key: 'migration.progress.agents_validation'
+      })
     } catch (error) {
       if (!committed) {
         try {
@@ -282,6 +432,9 @@ export class AgentsMigrator extends BaseMigrator {
 
     if (pendingError) throw pendingError
 
+    logger.info('Agent migration execute completed', {
+      durationMs: Math.round(performance.now() - executeStartedAt)
+    })
     return {
       success: true,
       processedCount: getTotalAgentsRowCount(this.sourceCounts)
@@ -289,10 +442,25 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
+    const validationStartedAt = performance.now()
+    this.reportProgress(99, 'Validating migrated Agent data', {
+      key: 'migration.progress.agents_validation'
+    })
     const reader = this.createReader(ctx)
     const dbPath = this.resolveSourceDbPath(reader)
 
     if (!dbPath) {
+      logger.info('Agent migration phase completed', {
+        phase: 'validation',
+        sourceCount: 0,
+        targetCount: 0,
+        skippedCount: 0,
+        errors: 0,
+        durationMs: Math.round(performance.now() - validationStartedAt)
+      })
+      this.reportProgress(100, 'Validated migrated Agent data', {
+        key: 'migration.progress.agents_validation'
+      })
       return {
         success: true,
         errors: [],
@@ -448,6 +616,17 @@ export class AgentsMigrator extends BaseMigrator {
       validationDetails,
       errorCount: errors.length,
       totalSkipped: skippedCount
+    })
+    logger.info('Agent migration phase completed', {
+      phase: 'validation',
+      sourceCount: getTotalAgentsRowCount(this.sourceCounts),
+      targetCount,
+      skippedCount,
+      errors: errors.length,
+      durationMs: Math.round(performance.now() - validationStartedAt)
+    })
+    this.reportProgress(100, 'Validated migrated Agent data', {
+      key: 'migration.progress.agents_validation'
     })
 
     return {
@@ -692,6 +871,7 @@ type LegacySessionMessageRow = {
 type NormalizedLegacySessionMessage = {
   role: MessageRole
   data: MessageData
+  searchableText: string
   status: MessageStatus
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
@@ -704,6 +884,7 @@ type PreparedLegacySessionMessage = {
   sessionId: string
   role: MessageRole
   data: MessageData
+  searchableText: string
   status: MessageStatus
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
@@ -1010,6 +1191,18 @@ function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
 
+function searchableTextFromParts(parts: unknown[] | undefined): string {
+  const searchableText: string[] = []
+  for (const part of parts ?? []) {
+    if (!part || typeof part !== 'object') continue
+    const candidate = part as { type?: unknown; text?: unknown }
+    if ((candidate.type === 'text' || candidate.type === 'reasoning') && typeof candidate.text === 'string') {
+      searchableText.push(candidate.text)
+    }
+  }
+  return searchableText.join('\n')
+}
+
 // Legacy v1 model blobs are untrusted JSON. `.catch(undefined)` keeps a
 // malformed optional field from failing the whole parse (we still want id +
 // provider even if `name`/`group` are junk), matching the old lenient narrowing.
@@ -1053,6 +1246,7 @@ async function normalizeLegacySessionMessage(
     return {
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: directParts },
+      searchableText: searchableTextFromParts(directParts),
       status: 'success',
       modelId: null,
       modelSnapshot: null,
@@ -1066,6 +1260,7 @@ async function normalizeLegacySessionMessage(
     return {
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: [] },
+      searchableText: '',
       status: 'success',
       modelId: null,
       modelSnapshot: null,
@@ -1080,6 +1275,7 @@ async function normalizeLegacySessionMessage(
   return {
     role: normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole),
     data: { parts },
+    searchableText: searchableTextFromParts(parts),
     status: normalizeStatus(message.status),
     modelId: legacyModelToUniqueId(modelRef, rawModelId) ?? rawModelId,
     modelSnapshot: buildModelSnapshot(message.model),
@@ -1101,7 +1297,9 @@ type SessionAuthor = Omit<MessageSnapshot, 'model'>
  * {@link MessageSnapshot} the runtime writer persists (author with the model nested).
  * Sessions whose agent is missing get no author, hence no snapshot.
  */
-function readSessionAuthors(db: DbType): Map<string, SessionAuthor> {
+function readSessionAuthors(db: DbType, sessionIds: string[]): Map<string, SessionAuthor> {
+  if (sessionIds.length === 0) return new Map()
+
   const rows = db
     .select({
       sessionId: agentSessionTable.id,
@@ -1111,6 +1309,7 @@ function readSessionAuthors(db: DbType): Map<string, SessionAuthor> {
     })
     .from(agentSessionTable)
     .innerJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+    .where(inArray(agentSessionTable.id, sessionIds))
     .all()
 
   return new Map(
@@ -1137,6 +1336,7 @@ function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawMo
 }
 
 function createLegacySessionMessageStaging(db: DbType, schemaInfo: AgentsSchemaInfo): void {
+  db.run(sql.raw('PRAGMA temp_store = FILE'))
   dropLegacySessionMessageStaging(db)
   // Materialize only ordered source rowids first. The generated sequence is a
   // stable keyset cursor across async file promotion without copying message
@@ -1157,6 +1357,7 @@ function createLegacySessionMessageStaging(db: DbType, schemaInfo: AgentsSchemaI
          session_id TEXT NOT NULL,
          role TEXT NOT NULL,
          data TEXT NOT NULL,
+         searchable_text TEXT NOT NULL,
          status TEXT NOT NULL,
          model_id TEXT,
          model_snapshot TEXT,
@@ -1204,7 +1405,7 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
       db.run(sql`
         INSERT INTO ${sql.raw(LEGACY_SESSION_MESSAGE_STAGING_TABLE)}
           (
-            source_sequence, id, session_id, role, data, status, model_id,
+            source_sequence, id, session_id, role, data, searchable_text, status, model_id,
             model_snapshot, stats, runtime_resume_token, created_at, updated_at
           )
         VALUES
@@ -1214,6 +1415,7 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
             ${message.sessionId},
             ${message.role},
             ${JSON.stringify(message.data)},
+            ${message.searchableText},
             ${message.status},
             ${message.modelId},
             ${message.modelSnapshot ? JSON.stringify(message.modelSnapshot) : null},
@@ -1235,7 +1437,8 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
 async function stageLegacySessionMessages(
   db: DbType,
   schemaInfo: AgentsSchemaInfo,
-  deps?: ChatMappingDeps
+  deps?: ChatMappingDeps,
+  onProgress?: (processed: number, total: number) => void
 ): Promise<number> {
   if (
     !schemaInfo.session_messages.exists ||
@@ -1257,6 +1460,10 @@ async function stageLegacySessionMessages(
     selectLegacyMessageColumn(schemaInfo, 'created_at', 'createdAt', 'NULL'),
     selectLegacyMessageColumn(schemaInfo, 'updated_at', 'updatedAt', 'NULL')
   ]
+  const totalRows = Number(
+    db.all<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM ${LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE}`))[0]
+      ?.count ?? 0
+  )
   const modelCache = new Map<string, string | null>()
   let afterSequence = 0
   let stagedCount = 0
@@ -1285,6 +1492,7 @@ async function stageLegacySessionMessages(
         normalized = {
           role: normalizeLegacyRole(row.role),
           data: { parts: [] },
+          searchableText: '',
           status: 'error',
           modelId: null,
           modelSnapshot: null,
@@ -1306,6 +1514,7 @@ async function stageLegacySessionMessages(
         sessionId: row.sessionId,
         role: normalized.role,
         data: normalized.data,
+        searchableText: normalized.searchableText,
         status: normalized.status,
         modelId: resolveUserModelId(db, modelCache, normalized.modelId),
         modelSnapshot: normalized.modelSnapshot,
@@ -1319,6 +1528,7 @@ async function stageLegacySessionMessages(
     insertLegacySessionMessageStagingBatch(db, prepared)
     stagedCount += prepared.length
     afterSequence = rows.at(-1)!.sourceSequence
+    onProgress?.(Math.min(afterSequence, totalRows), totalRows)
   }
 
   logger.info('Staged legacy agent session messages in bounded batches', { staged: stagedCount })
@@ -1331,6 +1541,7 @@ type StagedLegacySessionMessageRow = {
   sessionId: string
   role: MessageRole
   data: string
+  searchableText: string
   status: MessageStatus
   modelId: string | null
   modelSnapshot: string | null
@@ -1343,62 +1554,91 @@ type StagedLegacySessionMessageRow = {
 function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): number {
   if (stagedCount === 0) return 0
 
-  const sessionAuthors = readSessionAuthors(db)
-  let afterSequence = 0
-  let imported = 0
+  const maxFtsRowid = Number(
+    db.all<{ maxFtsRowid: number | null }>(
+      sql.raw('SELECT MAX(fts_rowid) AS maxFtsRowid FROM agent_session_message')
+    )[0]?.maxFtsRowid ?? 0
+  )
 
-  while (true) {
-    const rows = db.all<StagedLegacySessionMessageRow>(
-      sql.raw(
-        `SELECT source_sequence AS sourceSequence,
-                id,
-                session_id AS sessionId,
-                role,
-                data,
-                status,
-                model_id AS modelId,
-                model_snapshot AS modelSnapshot,
-                stats,
-                runtime_resume_token AS runtimeResumeToken,
-                created_at AS createdAt,
-                updated_at AS updatedAt
-         FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
-         WHERE source_sequence > ${afterSequence}
-         ORDER BY source_sequence
-         LIMIT ${LEGACY_SESSION_MESSAGE_BATCH_SIZE}`
+  db.run(sql.raw(`SAVEPOINT ${AGENT_MESSAGE_IMPORT_SAVEPOINT}`))
+  try {
+    db.run(sql.raw(`DROP TRIGGER IF EXISTS ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME}`))
+    let afterSequence = 0
+    let imported = 0
+
+    while (imported < stagedCount) {
+      const rows = db.all<StagedLegacySessionMessageRow>(
+        sql.raw(
+          `SELECT source_sequence AS sourceSequence,
+                  id,
+                  session_id AS sessionId,
+                  role,
+                  data,
+                  searchable_text AS searchableText,
+                  status,
+                  model_id AS modelId,
+                  model_snapshot AS modelSnapshot,
+                  stats,
+                  runtime_resume_token AS runtimeResumeToken,
+                  created_at AS createdAt,
+                  updated_at AS updatedAt
+           FROM ${LEGACY_SESSION_MESSAGE_STAGING_TABLE}
+           WHERE source_sequence > ${afterSequence}
+           ORDER BY source_sequence
+           LIMIT ${LEGACY_SESSION_MESSAGE_BATCH_SIZE}`
+        )
       )
-    )
-    if (rows.length === 0) break
+      if (rows.length === 0) {
+        throw new Error(`Staged Agent message import stopped after ${imported}/${stagedCount} rows`)
+      }
 
-    for (const row of rows) {
-      // Resolve authors only after the target agent/session rows have been inserted.
-      // Message normalization remains outside the transaction, while the immutable
-      // author+model snapshot is assembled synchronously inside it.
-      const author = sessionAuthors.get(row.sessionId)
-      const modelSnapshot = row.modelSnapshot ? (JSON.parse(row.modelSnapshot) as ModelSnapshot) : null
-      const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
-      db.insert(agentSessionMessageTable)
-        .values({
+      const sessionAuthors = readSessionAuthors(db, Array.from(new Set(rows.map((row) => row.sessionId))))
+      const values = rows.map((row, index) => {
+        // Resolve authors only after the target agent/session rows have been inserted.
+        // Message normalization remains outside the transaction, while immutable
+        // snapshots are assembled one bounded page at a time.
+        const author = sessionAuthors.get(row.sessionId)
+        const modelSnapshot = row.modelSnapshot ? (JSON.parse(row.modelSnapshot) as ModelSnapshot) : null
+        const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
+        return {
           id: row.id,
           sessionId: row.sessionId,
           role: row.role,
           data: JSON.parse(row.data) as MessageData,
+          searchableText: row.searchableText,
           status: row.status,
           modelId: row.modelId,
           messageSnapshot,
           stats: row.stats ? (JSON.parse(row.stats) as MessageStats) : undefined,
           runtimeResumeToken: row.runtimeResumeToken,
+          ftsRowid: maxFtsRowid + imported + index + 1,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt
-        })
-        .run()
-    }
-    imported += rows.length
-    afterSequence = rows.at(-1)!.sourceSequence
-  }
+        }
+      })
 
-  logger.info('Imported staged legacy agent session messages with UUID ids', { imported })
-  return imported
+      db.insert(agentSessionMessageTable).values(values).run()
+      imported += rows.length
+      afterSequence = rows.at(-1)!.sourceSequence
+    }
+
+    db.run(sql.raw("INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')"))
+    db.run(sql.raw(AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL))
+    db.run(sql.raw(`RELEASE SAVEPOINT ${AGENT_MESSAGE_IMPORT_SAVEPOINT}`))
+    logger.info('Imported staged legacy agent session messages with UUID ids', {
+      imported,
+      batchSize: LEGACY_SESSION_MESSAGE_BATCH_SIZE
+    })
+    return imported
+  } catch (error) {
+    try {
+      db.run(sql.raw(`ROLLBACK TO SAVEPOINT ${AGENT_MESSAGE_IMPORT_SAVEPOINT}`))
+      db.run(sql.raw(`RELEASE SAVEPOINT ${AGENT_MESSAGE_IMPORT_SAVEPOINT}`))
+    } catch (rollbackError) {
+      logger.error('Failed to roll back batched Agent message import', rollbackError as Error)
+    }
+    throw error
+  }
 }
 
 export async function importLegacySessionMessages(

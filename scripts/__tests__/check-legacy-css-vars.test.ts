@@ -182,12 +182,12 @@ describe('check-legacy-css-vars', () => {
     expect(fixLegacyVarsInContent(content, 'src/renderer/example.css')).toEqual({ content, replacements: 0 })
   })
 
-  it('reports historical link colors for owner review without creating a shared alias', () => {
+  it('reports historical link colors for contextual owner review without creating a shared alias', () => {
     const content = '.link { color: var(--color-link); }'
     const findings = findLegacyVarHitsInContent(content, 'src/renderer/example.css')
 
     expect(findings.map(({ variable, strategy }) => ({ variable, strategy }))).toEqual([
-      { variable: '--color-link', strategy: 'review' }
+      { variable: '--color-link', strategy: 'contextual' }
     ])
     expect(fixLegacyVarsInContent(content, 'src/renderer/example.css')).toEqual({ content, replacements: 0 })
   })

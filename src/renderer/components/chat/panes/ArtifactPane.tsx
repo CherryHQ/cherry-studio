@@ -1,12 +1,9 @@
-import { Button, CodeEditor, ConfirmDialog, Markdown, Tooltip } from '@cherrystudio/ui'
+import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import ImagePreviewPanel from '@renderer/components/ArtifactPreview/image/ImagePreviewPanel'
-import type { OfficePreviewPanelProps } from '@renderer/components/ArtifactPreview/office/OfficePreviewPanel'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
-import CodeViewer from '@renderer/components/CodeViewer'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
@@ -16,19 +13,16 @@ import {
   FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   type FileEditSession
 } from '@renderer/hooks/useFileEditSession'
-import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
-import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { useFileSize } from '@renderer/hooks/useFileSize'
+import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
 import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
-  type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useCallback,
@@ -39,7 +33,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type ArtifactPaneFileSelection, WORKSPACE_ROOT_ID } from './artifactPanePath'
+import { type ArtifactPaneFileSelection, getArtifactPaneSelectionPath, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
 import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
 
@@ -59,8 +53,6 @@ export interface ArtifactPaneProps {
   maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
-  pdfLayoutPending?: boolean
-  pdfLayoutRefreshKey?: number
   selectedFile?: string | null
   onSelectedFileChange?: (file: string | null) => void
   /** Caller-owned expanded folder ids. The synthetic workspace root is managed internally. */
@@ -72,41 +64,10 @@ export interface ArtifactPaneProps {
   enableFileSearch?: boolean
 }
 
-interface ArtifactFilePreviewProps {
-  workspacePath?: string
-  filePath?: string | null
-  isText: IsTextState
-  fileSize: FileSizeState
-  pdfLayoutPending?: boolean
-  pdfLayoutRefreshKey?: number
-  contentRefreshKey?: number
-  contentOverride?: string
-}
-
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
-
-// Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
-// not text-vs-binary classification. Text detection lives in `useIsTextFile`.
-const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
-const HTML_EXT = new Set(['.html', '.htm'])
-const PDF_EXT = new Set(['.pdf'])
-const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
-// Binary but renderable via `<img>` from a `file://` URL — no text read needed.
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.avif', '.svg'])
-
-const extOf = (name: string): string => {
-  const dot = name.lastIndexOf('.')
-  return dot < 0 ? '' : name.slice(dot).toLowerCase()
-}
-
-const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
-const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
-const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
-export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
-export const isImageFile = (name: string) => IMAGE_EXT.has(extOf(name))
 
 function getPreviewFileTitle(filePath: string): string {
   const segments = filePath
@@ -125,356 +86,11 @@ function renderFileManagerIcon(): ReactNode {
   return isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />
 }
 
-type PdfPreviewPanelComponent = ComponentType<{
-  filePath: string
-  fileName: string
-  refreshKey: number
-}>
-type OfficePreviewPanelComponent = ComponentType<OfficePreviewPanelProps>
-
-let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
-let officePreviewPanelPromise: Promise<OfficePreviewPanelComponent> | null = null
-
-// `ArtifactFilePreview` re-derives `parsedBase` on every render; dedupe the
-// warn per offending path so an open preview doesn't flood the log.
-const warnedArtifactBasePaths = new Set<string>()
-
-const loadPdfPreviewPanel = () => {
-  pdfPreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel')
-    .then((module) => module.default)
-    .catch((err: unknown) => {
-      pdfPreviewPanelPromise = null
-      throw err
-    })
-  return pdfPreviewPanelPromise
-}
-
-const loadOfficePreviewPanel = () => {
-  officePreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/office/OfficePreviewPanel')
-    .then((module) => module.default)
-    .catch((err: unknown) => {
-      officePreviewPanelPromise = null
-      throw err
-    })
-  return officePreviewPanelPromise
-}
-
-export function ArtifactFilePreview({
-  workspacePath,
-  filePath,
-  isText,
-  fileSize,
-  pdfLayoutPending = false,
-  pdfLayoutRefreshKey = 0,
-  contentRefreshKey = 0,
-  contentOverride
-}: ArtifactFilePreviewProps) {
-  const { t } = useTranslation()
-  const [fileContent, setFileContent] = useState<string | null>(null)
-  const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
-  const [pdfPreviewLoadError, setPdfPreviewLoadError] = useState<Error | null>(null)
-  const [OfficePreviewPanel, setOfficePreviewPanel] = useState<OfficePreviewPanelComponent | null>(null)
-  const [officePreviewLoadError, setOfficePreviewLoadError] = useState<Error | null>(null)
-  const [readError, setReadError] = useState<Error | null>(null)
-  const [loadingContent, setLoadingContent] = useState(false)
-  const isPdfPreview = filePath ? isPdfFile(filePath) : false
-  const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
-  const isImagePreview = filePath ? isImageFile(filePath) : false
-  // The draft re-renders this per keystroke, so decide the cap from `length`
-  // alone where possible (UTF-8 is 1–3 bytes per UTF-16 code unit) and pay a
-  // full encode only in the gray zone — never a per-keystroke Blob of the file.
-  const contentOverrideOversized = useMemo(() => {
-    if (contentOverride === undefined) return null
-    if (contentOverride.length > ARTIFACT_PREVIEW_MAX_SIZE_BYTES) return true
-    if (contentOverride.length * 3 <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES) return false
-    return new TextEncoder().encode(contentOverride).byteLength > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
-  }, [contentOverride])
-  const oversizedForPreview =
-    !isPdfPreview &&
-    !isOfficeDocumentPreview &&
-    !isImagePreview &&
-    (contentOverrideOversized ?? (fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
-
-  useEffect(() => {
-    if (contentOverride !== undefined) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    if (!filePath || !workspacePath) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    // Binary previewers render straight from disk or external apps; no readText needed.
-    if (isPdfFile(filePath) || isOfficeDocumentFile(filePath) || isImageFile(filePath)) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    // Wait for both sniffs to settle before paying the readText cost — gates
-    // out binary files, oversized files, and inaccessible paths.
-    if (isText !== 'text' || fileSize.status !== 'ok' || oversizedForPreview) {
-      setFileContent(null)
-      setReadError(null)
-      setLoadingContent(false)
-      return
-    }
-
-    const absPath = joinPath(workspacePath, filePath)
-    let cancelled = false
-    setReadError(null)
-    setLoadingContent(true)
-
-    void (async () => {
-      try {
-        const text = await window.api.fs.readText(absPath)
-        if (cancelled) return
-        setFileContent(text)
-      } catch (err) {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error(`Failed to read file: ${absPath}`, normalized)
-        setFileContent(null)
-        setReadError(normalized)
-      } finally {
-        if (!cancelled) setLoadingContent(false)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [contentOverride, contentRefreshKey, filePath, workspacePath, isText, fileSize.status, oversizedForPreview])
-
-  useEffect(() => {
-    if (!isPdfPreview) {
-      setPdfPreviewLoadError(null)
-      return
-    }
-    if (pdfLayoutPending || PdfPreviewPanel) return
-
-    let cancelled = false
-    setPdfPreviewLoadError(null)
-
-    loadPdfPreviewPanel()
-      .then((component) => {
-        if (!cancelled) setPdfPreviewPanel(() => component)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error('Failed to load PDF preview panel', normalized)
-        setPdfPreviewLoadError(normalized)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [PdfPreviewPanel, filePath, isPdfPreview, pdfLayoutPending])
-
-  useEffect(() => {
-    if (!isOfficeDocumentPreview) {
-      setOfficePreviewLoadError(null)
-      return
-    }
-    if (OfficePreviewPanel) return
-
-    let cancelled = false
-    setOfficePreviewLoadError(null)
-
-    loadOfficePreviewPanel()
-      .then((component) => {
-        if (!cancelled) setOfficePreviewPanel(() => component)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error('Failed to load Office preview panel', normalized)
-        setOfficePreviewLoadError(normalized)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [OfficePreviewPanel, isOfficeDocumentPreview])
-
-  if (!workspacePath) {
-    return (
-      <EmptyState
-        icon={Sparkles}
-        title={t('agent.preview_pane.empty.title')}
-        description={t('agent.preview_pane.empty.description')}
-      />
-    )
-  }
-  if (!filePath) {
-    return <EmptyState icon={FileText} title={t('agent.preview_pane.select_file')} />
-  }
-
-  // PDF: binary but renderable; bypass isText gating.
-  if (isPdfFile(filePath)) {
-    if (pdfPreviewLoadError) {
-      return <EmptyState icon={AlertCircle} title={t('common.error')} description={pdfPreviewLoadError.message} />
-    }
-    if (pdfLayoutPending || !PdfPreviewPanel) {
-      return (
-        <div className="flex h-full w-full items-center justify-center">
-          <LoadingState label={t('common.loading')} />
-        </div>
-      )
-    }
-    return (
-      <PdfPreviewPanel
-        key={`pdf-${filePath}-${pdfLayoutRefreshKey}`}
-        filePath={joinPath(workspacePath, filePath)}
-        fileName={filePath}
-        refreshKey={pdfLayoutRefreshKey}
-      />
-    )
-  }
-
-  // Image: binary but renderable via `<img>`; bypass isText / size gating.
-  if (isImageFile(filePath)) {
-    const base = joinPath(workspacePath, filePath)
-    const parsedBase = AbsoluteFilePathSchema.safeParse(base)
-    if (!parsedBase.success && !warnedArtifactBasePaths.has(base)) {
-      warnedArtifactBasePaths.add(base)
-      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
-        path: base
-      })
-    }
-    return (
-      <ImagePreviewPanel
-        key={`image-${filePath}-${contentRefreshKey}`}
-        src={parsedBase.success ? toFileUrl(parsedBase.data) : ''}
-        fileName={filePath}
-      />
-    )
-  }
-
-  if (oversizedForPreview) {
-    return (
-      <EmptyState
-        icon={FileText}
-        title={t('agent.preview_pane.too_large.title')}
-        description={t('agent.preview_pane.too_large.description', { limit: ARTIFACT_PREVIEW_MAX_SIZE_LABEL })}
-      />
-    )
-  }
-
-  if (isText === 'pending' || fileSize.status === 'pending') {
-    return <LoadingState variant="skeleton" rows={4} />
-  }
-  // A failed size sniff means the file couldn't be stat'd (missing / moved /
-  // inaccessible). This is the report surface for opening a file that no longer
-  // exists — callers just open the file and let this pane explain the failure,
-  // rather than pre-checking existence over IPC.
-  if (fileSize.status === 'error') {
-    return (
-      <EmptyState
-        icon={AlertCircle}
-        title={t('agent.preview_pane.unavailable.title')}
-        description={t('agent.preview_pane.unavailable.description')}
-      />
-    )
-  }
-  if (isOfficeDocumentPreview) {
-    if (officePreviewLoadError) {
-      return <EmptyState icon={AlertCircle} title={t('common.error')} description={officePreviewLoadError.message} />
-    }
-    if (!OfficePreviewPanel) {
-      return (
-        <div className="flex h-full w-full items-center justify-center">
-          <LoadingState label={t('common.loading')} />
-        </div>
-      )
-    }
-    return (
-      <OfficePreviewPanel
-        filePath={filePath}
-        fileName={filePath}
-        sourceFilePath={joinPath(workspacePath, filePath)}
-        sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
-        className="min-h-0"
-        refreshKey={contentRefreshKey}
-      />
-    )
-  }
-  if (isText === 'binary') {
-    return (
-      <EmptyState
-        icon={FileText}
-        title={t('agent.preview_pane.preview')}
-        description={t('agent.preview_pane.code_unavailable')}
-      />
-    )
-  }
-
-  if (loadingContent && contentOverride === undefined) {
-    return <LoadingState variant="skeleton" rows={4} />
-  }
-
-  if (readError && contentOverride === undefined) {
-    return (
-      <EmptyState
-        icon={AlertCircle}
-        title={t('agent.preview_pane.unavailable.title')}
-        description={t('agent.preview_pane.unavailable.description')}
-      />
-    )
-  }
-
-  const effectiveContent = contentOverride ?? fileContent ?? ''
-
-  if (isHtmlFile(filePath)) {
-    const htmlBasePath = joinPath(workspacePath, filePath)
-    const parsedBase = AbsoluteFilePathSchema.safeParse(htmlBasePath)
-    if (!parsedBase.success && !warnedArtifactBasePaths.has(htmlBasePath)) {
-      warnedArtifactBasePaths.add(htmlBasePath)
-      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
-        path: htmlBasePath
-      })
-    }
-    return (
-      <HtmlPreviewFrame
-        key={`html-${filePath}-${contentRefreshKey}`}
-        html={effectiveContent}
-        title={filePath}
-        baseUrl={parsedBase.success ? toFileUrl(parsedBase.data) : undefined}
-      />
-    )
-  }
-  if (isMarkdownFile(filePath)) {
-    return (
-      <div className="min-w-0 px-5 py-4">
-        <Markdown id={`md-${filePath}-${contentRefreshKey}`}>{effectiveContent}</Markdown>
-      </div>
-    )
-  }
-  return (
-    <CodeViewer
-      key={`preview-${filePath}-${contentRefreshKey}`}
-      value={effectiveContent}
-      language={getLanguageByFilePath(filePath)}
-      wrapped={false}
-    />
-  )
-}
-
 interface ArtifactPaneViewBaseProps {
   workspacePath?: string
   maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
-  pdfLayoutPending?: boolean
-  pdfLayoutRefreshKey?: number
   enableFileSearch?: boolean
   /** Directory-tree model owned by the surrounding artifact capability. */
   model: ArtifactFileTreeModel
@@ -512,8 +128,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     maximized = false,
     previewFileSelection = null,
     onPreviewClose,
-    pdfLayoutPending = false,
-    pdfLayoutRefreshKey = 0,
     enableFileSearch = false,
     model,
     selectedFile,
@@ -573,12 +187,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [model.nodeById, onSelectedFileChange]
   )
 
-  const isPdfSelection = previewFilePath ? isPdfFile(previewFilePath) : false
-  const isOfficeDocumentSelection = previewFilePath ? isOfficeDocumentFile(previewFilePath) : false
-  const isImageSelection = previewFilePath ? isImageFile(previewFilePath) : false
-  const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection && !isImageSelection
-  const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
-  const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
+  const isText = useIsTextFile(previewWorkspacePath, previewFilePath)
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
   const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
@@ -644,11 +253,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
-    if (
-      overlayWorkspacePath &&
-      overlayFilePath &&
-      (isText === 'text' || isOfficeDocumentSelection || isImageSelection)
-    ) {
+    if (overlayWorkspacePath && overlayFilePath) {
       setContentRefreshToken((value) => value + 1)
     }
     if (editMode === 'edit' && fileSessionReload && !isEditDirty) {
@@ -660,10 +265,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   }, [
     editMode,
     fileSessionReload,
-    isImageSelection,
     isEditDirty,
-    isOfficeDocumentSelection,
-    isText,
     overlayFilePath,
     overlayWorkspacePath,
     refresh,
@@ -791,11 +393,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [props.headerVariant, refreshButton, workspacePath]
   )
 
-  const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
-  const isSelectedPdfPreview = isPdfSelection
-  const isSelectedOfficePreview = isOfficeDocumentSelection
-  const isSelectedImagePreview = isImageSelection
-
   const handleEditorModeChange = useCallback(
     (mode: 'preview' | 'edit') => {
       // Loading + unsupported handling is reactive via `fileSession.status`.
@@ -900,15 +497,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     ) : null
 
   const previewContent = overlaySelection ? (
-    <ArtifactFilePreview
-      workspacePath={overlaySelection.workspacePath}
-      filePath={overlaySelection.filePath}
-      isText={isText}
-      fileSize={fileSize}
-      pdfLayoutPending={pdfLayoutPending}
-      pdfLayoutRefreshKey={pdfLayoutRefreshKey}
-      contentRefreshKey={contentRefreshToken}
-      contentOverride={editMode === 'edit' && fileSession?.status === 'ready' ? fileSession.draft : undefined}
+    <FilePreview
+      filePath={getArtifactPaneSelectionPath(overlaySelection)}
+      refreshKey={contentRefreshToken}
+      type="artifact"
     />
   ) : null
 
@@ -933,10 +525,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </>
     )
 
-    const contentClassName =
-      isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-        ? 'overflow-hidden'
-        : 'overflow-auto'
     return (
       <div
         ref={overlayRef}
@@ -981,7 +569,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {fileSession?.saveError && (
           <div
             role="alert"
-            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-bg px-3 py-2 text-error-text text-xs">
+            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
             <AlertCircle className="size-4 shrink-0" />
             <span className="min-w-0 flex-1">{t('agent.preview_pane.edit.save_failed')}</span>
             <Button
@@ -1002,7 +590,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </div>
         )}
-        <div className={cn('min-h-0 flex-1', contentClassName)}>
+        <div className="min-h-0 flex-1 overflow-hidden">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <CodeEditor
               key={previewKey}
@@ -1154,8 +742,6 @@ const ArtifactPane = ({
   maximized = false,
   previewFileSelection,
   onPreviewClose,
-  pdfLayoutPending = false,
-  pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
   onSelectedFileChange,
   fileTreeExpandedIds: fileTreeExpandedIdsProp,
@@ -1255,8 +841,6 @@ const ArtifactPane = ({
       maximized={maximized}
       previewFileSelection={effectivePreviewFileSelection}
       onPreviewClose={onPreviewClose}
-      pdfLayoutPending={pdfLayoutPending}
-      pdfLayoutRefreshKey={pdfLayoutRefreshKey}
       enableFileSearch={enableFileSearch}
       model={model}
       selectedFile={selectedFile}

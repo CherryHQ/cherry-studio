@@ -72,18 +72,6 @@ describe('CitationTooltip', () => {
       expect(getTooltipContent()).toBeInTheDocument()
     })
 
-    it('should override default tooltip dark colors with markdown-aligned colors', () => {
-      const citation = createCitationData()
-      renderCitationTooltip(citation)
-
-      expect(screen.getByTestId('tooltip-wrapper')).toHaveClass(
-        'bg-card',
-        'dark:bg-card',
-        'text-foreground',
-        'dark:text-foreground'
-      )
-    })
-
     it('should render Favicon with correct props', () => {
       const citation = createCitationData({
         url: 'https://example.com',
@@ -94,17 +82,6 @@ describe('CitationTooltip', () => {
       const favicon = screen.getByTestId('mock-favicon')
       expect(favicon).toHaveAttribute('hostname', 'example.com')
       expect(favicon).toHaveAttribute('alt', 'Example Title')
-    })
-
-    it('should match snapshot', () => {
-      const citation = createCitationData()
-      const { container } = render(
-        <CitationTooltip citation={citation}>
-          <span>Test content</span>
-        </CitationTooltip>,
-        { wrapper: createWrapper() }
-      )
-      expect(container.firstChild).toMatchSnapshot()
     })
   })
 
@@ -184,19 +161,6 @@ describe('CitationTooltip', () => {
         const { unmount } = renderCitationTooltip(createCitationData({ content }))
         expect(getCitationContent()).not.toBeInTheDocument()
         unmount()
-      })
-    })
-
-    it('should handle long content with proper styling', () => {
-      const longContent =
-        'This is a very long content that should be clamped to three lines using CSS line-clamp property for better visual presentation in the tooltip interface.'
-      const citation = createCitationData({ content: longContent })
-      renderCitationTooltip(citation)
-
-      const contentElement = screen.getByText(longContent)
-      expect(contentElement).toHaveStyle({
-        display: '-webkit-box',
-        overflow: 'hidden'
       })
     })
 

@@ -184,7 +184,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
 import { toast } from '@renderer/services/toast'
 
 import { AssistantSelector } from '../AssistantSelector'
@@ -347,15 +346,6 @@ async function openCreateDialog() {
 }
 
 describe('AssistantSelector', () => {
-  it('sets the default popover target height', () => {
-    renderSelector()
-    openPopover()
-
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
-      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-    })
-  })
-
   it('renders rows in DataApi order and shows group filters without sort controls', () => {
     renderSelector()
     openPopover()

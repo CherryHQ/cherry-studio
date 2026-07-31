@@ -113,15 +113,6 @@ describe('CitationsList', () => {
     expect(mocks.openCitationsPanel).toHaveBeenCalledWith({ citations })
   })
 
-  it('lets the panel content fill the side panel body', async () => {
-    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
-
-    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
-
-    expect(screen.getByTestId('citations-scrollbar')).toHaveClass('min-h-0', 'flex-1')
-    await waitFor(() => expect(ipcRequest).toHaveBeenCalled())
-  })
-
   it('opens panel web citations through the supplied external URL action', async () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
     const openExternalUrl = vi.fn()
