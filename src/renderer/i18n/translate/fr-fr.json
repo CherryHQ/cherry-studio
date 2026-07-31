@@ -7351,6 +7351,10 @@
       "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Lorsque cette option est activée, Cherry Studio contacte IPInfo pour détecter approximativement le pays ou la région, puis envoie ce résultat avec votre nom, la langue de l’application, la date et l’heure locales et le fuseau horaire au modèle CherryAI intégré afin de générer des messages d’accueil. Désactivée par défaut.",
+        "title": "Messages d’accueil contextuels générés par l’IA"
+      },
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
     },

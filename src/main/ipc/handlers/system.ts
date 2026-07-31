@@ -43,6 +43,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     }
   },
   'system.get_ip_country': async () => regionService.getCountry(),
+  'system.ip_country.detect': async () => regionService.getDetectedCountry(),
   'system.mac.is_process_trusted': async () => (isMac ? systemPreferences.isTrustedAccessibilityClient(false) : false),
   'system.mac.request_process_trust': async () =>
     isMac ? systemPreferences.isTrustedAccessibilityClient(true) : false,

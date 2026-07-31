@@ -111,6 +111,8 @@ export interface BeginAgentSessionTurnInput {
   fastMode?: boolean
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
+  /** First-turn-only untrusted greeting context supplied without storing it as a session message. */
+  greetingContext?: string
   headless?: boolean
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
@@ -156,6 +158,7 @@ type AgentSessionTurn = {
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
   reasoningEffort: ReasoningEffortOption
+  greetingContext?: string
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
@@ -405,6 +408,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: input.modelId,
       messageSnapshot,
       reasoningEffort: input.reasoningEffort ?? 'default',
+      greetingContext: input.greetingContext,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
       abortController: new AbortController(),
@@ -2104,6 +2108,7 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.refreshTurnTraceContext(entry, turn)
     await this.currentConnection(entry)?.send({
       message: turn.userMessage,
+      ...(turn.greetingContext ? { greetingContext: turn.greetingContext } : {}),
       systemReminder: turn.systemReminder === true
     })
   }
