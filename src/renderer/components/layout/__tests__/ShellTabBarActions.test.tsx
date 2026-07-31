@@ -5,7 +5,8 @@ import { cleanup, render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, platformState, prefState } = vi.hoisted(() => ({
+const { cacheState, mocks, platformState, prefState } = vi.hoisted(() => ({
+  cacheState: { sidebarWidth: 50 },
   mocks: {
     openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn()
@@ -63,6 +64,14 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
+vi.mock('@data/hooks/useCache', () => ({
+  usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
@@ -95,6 +104,7 @@ afterEach(() => {
   platformState.isWin = false
   platformState.isLinux = false
   prefState.useSystemTitleBar = false
+  cacheState.sidebarWidth = 50
 })
 
 describe('ShellTabBarActions', () => {
@@ -113,14 +123,29 @@ describe('ShellTabBarActions', () => {
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
     expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveClass(
+      'text-muted-foreground',
+      'dark:text-muted-foreground'
+    )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps theme and settings actions out of the tab bar', () => {
+  it('keeps theme and settings actions out of the tab bar while the sidebar is visible', () => {
     render(<ShellTabBarActions />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
+  })
+
+  it('opens settings from the tab bar when the sidebar is hidden', async () => {
+    const user = userEvent.setup()
+    cacheState.sidebarWidth = 0
+
+    render(<ShellTabBarActions />)
+
+    await user.click(screen.getByRole('button', { name: /settings/i }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
   })
 
   it('does not render the theme toggle in the sidebar footer action', () => {
@@ -128,7 +153,10 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('text-muted-foreground')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
+      'text-muted-foreground',
+      'dark:text-muted-foreground'
+    )
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -160,7 +188,17 @@ describe('useShellTabBarLayout', () => {
     const { result } = renderHook(() => useShellTabBarLayout())
 
     expect(result.current.hasWindowControls).toBe(false)
+    expect(result.current.isSidebarHidden).toBe(false)
     expect(result.current.rightPaddingClass).toBe('pr-[72px]')
+  })
+
+  it('reserves room for the settings action when the sidebar is hidden', () => {
+    cacheState.sidebarWidth = 0
+
+    const { result } = renderHook(() => useShellTabBarLayout())
+
+    expect(result.current.isSidebarHidden).toBe(true)
+    expect(result.current.rightPaddingClass).toBe('pr-[108px]')
   })
 
   it('reserves the wider padding on Windows (in-app window controls present)', () => {

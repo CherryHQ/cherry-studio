@@ -25,7 +25,7 @@ const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
-  assistants: 'linear-gradient(135deg, #111827, #4B5563)',
+  assistants: 'linear-gradient(135deg, #4F46E5, #818CF8)',
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
   paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
   translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
