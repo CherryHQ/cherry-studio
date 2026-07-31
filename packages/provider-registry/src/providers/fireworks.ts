@@ -55,7 +55,6 @@ const override = (modelId: string, support: ReasoningSupport): Partial<ProviderM
 
 const toggleModels = [
   'glm-5-1',
-  'glm-5-1-fast',
   'kimi-k2-6',
   'kimi-k2-6-fast',
   'kimi-k2-6-turbo',
@@ -110,6 +109,7 @@ export default defineProvider({
   modelsDevProvider: 'fireworks-ai',
   overrides: [
     ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
+    { ...override('glm-5-1-fast', toggleSupport), name: 'GLM 5.1 Fast' },
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))
   ]
