@@ -8,8 +8,8 @@
   "react-native": "dist/index.mjs",
   "scripts": {
     "build": "tsdown",
-    "dev": "tsc -w",
-    "typecheck": "tsc --noEmit",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/aiCore/tsconfig.json",
+    "typecheck": "pnpm --workspace-root exec tsc --noEmit -p packages/aiCore/tsconfig.json --composite false",
     "lint": "oxlint --fix && eslint . --fix --cache",
     "lint:check": "oxlint && eslint . --cache",
     "format": "biome format --write && biome lint --write",
@@ -54,7 +54,7 @@
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "oxlint": "^1.36.0",
     "tsdown": "^0.20.3",
-    "typescript": "^5.0.0",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^3.2.7"
   },
   "sideEffects": false,
