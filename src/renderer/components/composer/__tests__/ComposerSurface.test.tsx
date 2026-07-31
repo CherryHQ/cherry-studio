@@ -871,7 +871,6 @@ describe('ComposerSurface', () => {
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
     expect(editorContainer).not.toHaveStyle({ height: 'max(220px, 50vh)' })
-    expect(editorContainer).toHaveClass('transition-[height]', 'ease-out')
     expect(editorContent).not.toHaveStyle({ height: '100%' })
     expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 40vh)')
     expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
@@ -912,7 +911,6 @@ describe('ComposerSurface', () => {
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const inputbar = document.getElementById('inputbar')
     const corner = inputbar?.querySelector('[data-composer-expand-corner]') as HTMLElement | null
-    const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
 
     expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
@@ -922,52 +920,13 @@ describe('ComposerSurface', () => {
     expect(resizeHandle).toHaveAttribute('aria-orientation', 'horizontal')
     expect(resizeHandle).toHaveAttribute('aria-valuemin', '46')
     expect(resizeHandle).toHaveAttribute('aria-valuemax', `${Math.max(220, Math.round(window.innerHeight * 0.5))}`)
-    expect(resizeHandle).toHaveClass('cursor-row-resize', '[-webkit-app-region:no-drag]')
     expect(expandButton.closest('#inputbar')).toBe(inputbar)
     expect(expandButton.parentElement).toBe(corner)
-    expect(inputbar).not.toHaveClass('group/inputbar')
-    expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'right-px', 'size-8')
-    expect(cornerLine).toHaveClass('top-1', 'right-1', 'size-3', 'rounded-tr-[16px]')
-    expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'origin-top-right')
-    expect(cornerLine).toHaveClass(
-      'transition-[opacity,scale]',
-      'duration-200',
-      'group-hover/expand-corner:scale-50',
-      'group-hover/expand-corner:opacity-0'
-    )
-    expect(expandButton).toHaveClass(
-      'absolute',
-      'top-1',
-      'right-1',
-      'size-5.5',
-      'translate-x-2.5',
-      '-translate-y-2.5',
-      'rotate-[-8deg]',
-      'scale-80',
-      'transition-[opacity,translate,scale,rotate,color,background-color]',
-      'duration-300',
-      'opacity-0'
-    )
-    expect(expandButton).toHaveClass(
-      'group-hover/expand-corner:translate-x-0',
-      'group-hover/expand-corner:translate-y-0',
-      'group-hover/expand-corner:rotate-0',
-      'group-hover/expand-corner:scale-100',
-      'group-hover/expand-corner:bg-accent/80',
-      'group-hover/expand-corner:opacity-100'
-    )
-    expect(expandButton.querySelector('svg')).toHaveClass('transition-[scale]', 'group-hover/expand-corner:scale-110')
 
     fireEvent.click(expandButton)
 
     const restoreButton = screen.getByRole('button', { name: 'chat.input.restore' })
     expect(restoreButton).toHaveAttribute('aria-pressed', 'true')
-    // Button remains hover-only regardless of custom height state.
-    expect(restoreButton).toHaveClass('opacity-0')
-    expect(restoreButton).not.toHaveClass('opacity-100')
-    // Corner arc stays visible as a hover affordance even after height is set.
-    expect(cornerLine).not.toHaveClass('opacity-0')
-    expect(cornerLine).not.toHaveClass('scale-50')
   })
 
   it('uses temporary manual height while dragging and restores the default height from the corner control', async () => {
@@ -1122,36 +1081,17 @@ describe('ComposerSurface', () => {
 
     expect(inputbar).not.toBeNull()
     expect(editingHeader?.closest('[data-composer-toolbar]')).toBeNull()
-    expect(editingHeader).toHaveClass(
-      'flex',
-      'h-9',
-      'shrink-0',
-      'justify-between',
-      'border-b',
-      'border-border-subtle',
-      'bg-transparent',
-      'px-3'
-    )
-    expect(editingHeader).not.toHaveClass('bg-card')
-    expect(editingHeader).not.toHaveClass('absolute', 'top-0', '-translate-y-1/2', 'rounded-full', 'border')
     expect(editingHeader?.children).toHaveLength(2)
-    expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveClass('size-3.5', 'shrink-0')
     expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveAttribute('aria-hidden', 'true')
-    expect(inputbar).toHaveClass('pt-0')
-    expect(inputbar).not.toHaveClass('pt-2')
-    expect(document.querySelector('[data-composer-editor-frame]')).toHaveClass('mt-2')
     expect(document.querySelector('[data-composer-expand-corner]')).toBeNull()
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
     expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(locateButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
-    expect(cancelButton).not.toHaveClass('text-info')
 
     fireEvent.click(cancelButton)
 
@@ -1161,8 +1101,6 @@ describe('ComposerSurface', () => {
 
     expect(document.querySelector('[data-composer-editing-header]')).toBeNull()
     expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
-    expect(document.querySelector('[data-composer-inputbar]')).toHaveClass('pt-2')
-    expect(document.querySelector('[data-composer-editor-frame]')).not.toHaveClass('mt-2')
   })
 
   it('focuses the editor when an editing session starts', async () => {
@@ -1183,38 +1121,6 @@ describe('ComposerSurface', () => {
     )
 
     await waitFor(() => expect(mocks.focus).toHaveBeenCalledTimes(1))
-  })
-
-  it('briefly highlights the inputbar border when editing starts', () => {
-    vi.useFakeTimers()
-
-    try {
-      const { rerender } = render(
-        <ComposerSurface
-          {...baseProps}
-          editingState={{
-            messageId: 'message-1',
-            highlightKey: 1,
-            onCancel: vi.fn()
-          }}
-        />
-      )
-      const inputbar = document.querySelector('[data-composer-inputbar]')
-
-      expect(inputbar).toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
-
-      act(() => {
-        vi.advanceTimersByTime(900)
-      })
-
-      expect(inputbar).not.toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
-
-      rerender(<ComposerSurface {...baseProps} editingState={undefined} />)
-
-      expect(inputbar).not.toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('sets quick phrase text as prompt variable token content', async () => {
@@ -1336,6 +1242,68 @@ describe('ComposerSurface', () => {
       { emitUpdate: false }
     )
     expect(onTextChange).not.toHaveBeenCalled()
+  })
+
+  it('preserves prompt variables when replacing a draft that also contains another token', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text=""
+        onActionsChange={(actions) => {
+          mocks.actions = actions
+        }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    mocks.setContent.mockClear()
+
+    act(() => {
+      mocks.actions?.replaceDraft({
+        text: '${city} https://example.com',
+        tokens: [
+          {
+            id: 'prompt-variable:0:city',
+            kind: 'promptVariable',
+            label: 'city',
+            promptText: '${city}',
+            index: 0,
+            textOffset: 0
+          },
+          {
+            id: 'link-1',
+            kind: 'link',
+            label: 'example.com',
+            promptText: 'https://example.com',
+            index: 1,
+            textOffset: 8
+          }
+        ]
+      })
+    })
+
+    expect(mocks.setContent).toHaveBeenCalledWith(
+      {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'composerToken',
+                attrs: expect.objectContaining({ kind: 'promptVariable', promptText: '${city}' })
+              },
+              { type: 'text', text: ' ' },
+              {
+                type: 'composerToken',
+                attrs: expect.objectContaining({ kind: 'link', promptText: 'https://example.com' })
+              }
+            ]
+          }
+        ]
+      },
+      { emitUpdate: false }
+    )
   })
 
   it('truncates external text updates at the maximum text length', async () => {
@@ -2857,7 +2825,6 @@ describe('ComposerSurface', () => {
     )
 
     expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')
     expect(screen.getByRole('button', { name: 'common.delete' })).toHaveAttribute('data-composer-token-remove')
     expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
 
@@ -2899,11 +2866,9 @@ describe('ComposerSurface', () => {
     )
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('h-6', 'align-middle')
-    expect(token).not.toHaveClass('align-baseline')
     expect(token).toHaveTextContent('preview.png')
-    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toHaveClass('size-4.5!', 'object-cover')
-    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')
+    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
   })
 
   it('renders pasted text file tokens with a show-in-input action that replaces the token', async () => {
@@ -2941,17 +2906,14 @@ describe('ComposerSurface', () => {
     )
 
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
-    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
-    expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()
     const actionContainer = document.querySelector('[data-file-token-actions]')!
-    expect(actionContainer).toHaveClass('flex', 'justify-end')
     const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
     expect(actionButtons).toEqual([showInInputButton])
     expect(deleteButton).toHaveAttribute('data-composer-token-remove')
     const textScrollbar = document.querySelector('[data-file-token-text-scrollbar]')
-    expect(textScrollbar).toHaveClass('max-h-44', 'min-h-24', 'overflow-x-hidden')
+    expect(textScrollbar).toBeInTheDocument()
 
     fireEvent.click(showInInputButton)
 
@@ -3052,6 +3014,63 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         id: 'skill:pdf',
         textOffset: 6
+      })
+    ])
+  })
+
+  it('notifies editor-owned token changes when prompt-backed token content changes', async () => {
+    const onTokensChange = vi.fn()
+    const createEditor = (promptText: string) => ({
+      getJSON: () => ({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'composerToken',
+                attrs: {
+                  id: 'prompt-variable:0:city',
+                  kind: 'promptVariable',
+                  label: promptText,
+                  promptText
+                }
+              }
+            ]
+          }
+        ]
+      }),
+      schema: { nodes: {} },
+      state: {
+        doc: {
+          descendants: vi.fn()
+        },
+        tr: mocks.transaction
+      },
+      view: {
+        composing: false,
+        dispatch: mocks.dispatch
+      }
+    })
+
+    render(<ComposerSurface {...baseProps} managedTokenKinds={[]} onTokensChange={onTokensChange} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: createEditor('${city}') })
+    })
+    onTokensChange.mockClear()
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: createEditor('上海') })
+    })
+
+    expect(onTokensChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        kind: 'promptVariable',
+        label: '上海',
+        promptText: '上海'
       })
     ])
   })

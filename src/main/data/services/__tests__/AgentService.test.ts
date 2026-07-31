@@ -93,7 +93,7 @@ describe('AgentService', () => {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
+      // Default to NULL; model-behavior tests override it with a seeded user_model FK.
       model: null,
       orderKey: 'a0',
       ...rest,
@@ -227,6 +227,121 @@ describe('AgentService', () => {
       })
       const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('model updates', () => {
+    it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, { model: TEST_MODEL_ID })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'default' }
+      })
+    })
+
+    it('merges a reasoning patch before normalizing it for the new model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', bootstrap_completed: true, reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🤖',
+          bootstrap_completed: true,
+          reasoning_effort: 'default'
+        }
+      })
+    })
+
+    it('preserves an explicit reasoning tombstone while changing the model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: undefined }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖' }
+      })
+      expect(updated?.configuration).not.toHaveProperty('reasoning_effort')
+    })
+  })
+
+  describe('configuration patches', () => {
+    it('merges each patch into the latest persisted configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+      })
+
+      agentService.updateAgent(created.id, { configuration: { bootstrap_completed: true } })
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        plugin_state: 'keep-me',
+        bootstrap_completed: true,
+        reasoning_effort: 'high'
+      })
+    })
+
+    it('normalizes an explicit reasoning patch against the current persisted model', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        reasoning_effort: 'default'
+      })
+    })
+
+    it('replaces nested configuration values instead of deep-merging them', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', env_vars: { A: '1', B: '2' } }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { env_vars: { A: '3' } }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        env_vars: { A: '3' }
+      })
+    })
+
+    it('removes an explicitly undefined key while preserving omitted siblings', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', max_turns: 10 }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { max_turns: undefined }
+      })
+
+      expect(updated?.configuration).toEqual({ avatar: '🤖' })
     })
   })
 

@@ -17,6 +17,8 @@ import { aiHandlers } from '../ai'
 
 const aiService = {
   generateText: vi.fn(),
+  runTextRequest: vi.fn(),
+  abortText: vi.fn(),
   checkModel: vi.fn(),
   embedMany: vi.fn(),
   runImageRequest: vi.fn(),
@@ -99,6 +101,33 @@ describe('aiHandlers', () => {
 
     expect(aiService.generateText).toHaveBeenCalledWith(request)
     expect(result).toBe(out)
+  })
+
+  it('generate_text registers cancellable requests by id', async () => {
+    const request = {
+      requestId: 'greeting-1',
+      uniqueModelId: 'openai::gpt-4o',
+      system: 'sys',
+      prompt: 'hi'
+    } as const
+    const out = { text: 'hello' }
+    aiService.runTextRequest.mockResolvedValue(out)
+
+    const result = await aiHandlers['ai.text.generate'](request, ctx)
+
+    expect(aiService.runTextRequest).toHaveBeenCalledWith('greeting-1', {
+      uniqueModelId: 'openai::gpt-4o',
+      system: 'sys',
+      prompt: 'hi'
+    })
+    expect(aiService.generateText).not.toHaveBeenCalled()
+    expect(result).toBe(out)
+  })
+
+  it('abort_text delegates to AiService.abortText and resolves void', async () => {
+    const result = await aiHandlers['ai.text.abort']({ requestId: 'greeting-1' }, ctx)
+    expect(aiService.abortText).toHaveBeenCalledWith('greeting-1')
+    expect(result).toBeUndefined()
   })
 
   it('check_model forwards the request and returns latency', async () => {
@@ -301,16 +330,18 @@ describe('aiHandlers — agent sessions & tasks', () => {
   })
 
   it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
-    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
     agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
     expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
-  it('prewarm_agent_session does not prime a connection while trace mode is on', async () => {
+  // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
+  // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
+  it('prewarm_agent_session primes the connection in trace mode too', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
+    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
+    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
   it('close_agent_session_warm releases the warm query and the primed connection', async () => {

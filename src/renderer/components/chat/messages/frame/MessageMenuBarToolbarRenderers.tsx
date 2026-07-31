@@ -76,9 +76,11 @@ const ActionButtonWithConfirm = ({
   tooltip?: ReactNode | false
 }) => {
   const disabled = !action.availability.enabled
+  const label = typeof action.label === 'string' ? action.label : undefined
   const button = (
     <MessageActionButton
       className="message-action-button"
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
         if (!action.confirm) {
@@ -102,6 +104,7 @@ const ActionButtonWithConfirm = ({
       {(open) => (
         <MessageActionButton
           className="message-action-button"
+          aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
             open()

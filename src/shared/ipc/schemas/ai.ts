@@ -1,4 +1,5 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -79,6 +80,8 @@ export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
 
+const ConversationGreetingContextSchema = z.string().transform(validateConversationGreeting).pipe(z.string().min(1))
+
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
 const agentTaskRefSchema = z.strictObject({
   agentId: z.string().min(1),
@@ -130,11 +133,16 @@ export const aiRequestSchemas = {
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
+      requestId: z.string().min(1).optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
+  }),
+  'ai.text.abort': defineRoute({
+    input: z.strictObject({ requestId: z.string().min(1) }),
+    output: z.void()
   }),
   'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiBaseRequestShape, values: z.array(z.string()) }),
@@ -175,7 +183,8 @@ export const aiRequestSchemas = {
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
   'ai.stream.open': defineRoute({
     // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
-    // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
+    // pass-through (main persists it), so its items use `z.custom`; `greetingContext` is submit-only
+    // ephemeral context.
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
@@ -186,11 +195,16 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          reasoningEffort: ReasoningEffortOptionSchema.optional()
+          greetingContext: ConversationGreetingContextSchema.optional(),
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
-          parentAnchorId: z.string().min(1)
+          parentAnchorId: z.string().min(1),
+          greetingContext: z.never().optional(),
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         })
       ])
     ),
@@ -247,6 +261,21 @@ export const aiRequestSchemas = {
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+
+  // ── Agent session runtime queries & commands ──
+  // Takes a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
+  // a session with no live connection keeps its last published value. The result arrives on the
+  // session's shared-cache key, not here.
+  'ai.agent.session.refresh_context_usage': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  // Stops one background task, not the turn. False when the session has no live connection or its
+  // runtime cannot stop tasks; the outcome itself arrives as a `task_notification`.
+  'ai.agent.session.stop_background_task': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
+    output: z.boolean()
   }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──

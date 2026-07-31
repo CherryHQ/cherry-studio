@@ -1,25 +1,28 @@
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { getLanguageDirection } from '@shared/utils/languages'
+import { getLanguageDirection, languageNativeNameMap } from '@shared/utils/languages'
+
+/** Display order of the app's language picker. Labels come from the shared native-name map. */
+const APP_LANGUAGE_FLAGS: ReadonlyArray<{ value: LanguageVarious; flag: string }> = [
+  { value: 'ar-YE', flag: '🇾🇪' },
+  { value: 'zh-CN', flag: '🇨🇳' },
+  { value: 'zh-TW', flag: '🇭🇰' },
+  { value: 'en-US', flag: '🇺🇸' },
+  { value: 'de-DE', flag: '🇩🇪' },
+  { value: 'ja-JP', flag: '🇯🇵' },
+  { value: 'ru-RU', flag: '🇷🇺' },
+  { value: 'el-GR', flag: '🇬🇷' },
+  { value: 'es-ES', flag: '🇪🇸' },
+  { value: 'fr-FR', flag: '🇫🇷' },
+  { value: 'pt-PT', flag: '🇵🇹' },
+  { value: 'ro-RO', flag: '🇷🇴' },
+  { value: 'vi-VN', flag: '🇻🇳' }
+]
 
 export const appLanguageOptions: ReadonlyArray<{
   value: LanguageVarious
   label: string
   flag: string
-}> = [
-  { value: 'ar-YE', label: 'العربية', flag: '🇾🇪' },
-  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-  { value: 'en-US', label: 'English', flag: '🇺🇸' },
-  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-]
+}> = APP_LANGUAGE_FLAGS.map(({ value, flag }) => ({ value, flag, label: languageNativeNameMap[value] }))
 
 export function isAppLanguage(value: string | null | undefined): value is LanguageVarious {
   return appLanguageOptions.some((option) => option.value === value)

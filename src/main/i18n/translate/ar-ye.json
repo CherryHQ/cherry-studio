@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "[to be translated]:OpenAI-, Anthropic- and Gemini-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)",
+      "language_switcher_label": "[to be translated]:Documentation language",
+      "operations": {
+        "chat_completions": "[to be translated]:Create a chat completion. Request and response bodies follow the OpenAI Chat Completions format; set `stream: true` for incremental output.",
+        "count_tokens": "[to be translated]:Estimate how many input tokens a set of Anthropic-format messages uses.",
+        "generate_content": "[to be translated]:Generate content through Gemini's `generateContent` method. Request and response bodies follow the Gemini API format; `streamGenerateContent` is served on the same path.",
+        "get_knowledge_base": "[to be translated]:Fetch a single knowledge base by ID.",
+        "health": "[to be translated]:Service health, current time and version. No authentication required.",
+        "info": "[to be translated]:API name, version and the main endpoints. No authentication required.",
+        "list_knowledge_bases": "[to be translated]:List the knowledge bases available in this Cherry Studio instance.",
+        "list_models": "[to be translated]:List the models available through this gateway, in the OpenAI models format.",
+        "messages": "[to be translated]:Create a message. Request and response bodies follow the Anthropic Messages format; set `stream: true` for incremental output.",
+        "responses": "[to be translated]:Create a response. Request and response bodies follow the OpenAI Responses format.",
+        "search_knowledge_bases": "[to be translated]:Search one or more knowledge bases and return the matching document chunks."
+      },
+      "tags": {
+        "anthropic": "[to be translated]:Anthropic-compatible endpoints. Point an Anthropic SDK at this gateway's base URL to use them.",
+        "cherry": "[to be translated]:Cherry Studio's own endpoints: knowledge bases, service info and health check.",
+        "gemini": "[to be translated]:Gemini-compatible endpoints, served under `/v1beta` like the upstream API.",
+        "openai": "[to be translated]:OpenAI-compatible endpoints. Point an OpenAI SDK at this gateway's base URL to use them."
+      }
+    }
+  },
   "appMenu": {
     "about": "حول",
     "close": "إغلاق النافذة",

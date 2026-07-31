@@ -482,7 +482,7 @@ export function SelectorShell({
                   className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
                   data-selector-shell-chrome="search">
                   <div className="relative min-w-0 flex-1">
-                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground/60" />
+                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground" />
                     <Input
                       type="text"
                       ref={setSearchInputElement}
@@ -495,7 +495,7 @@ export function SelectorShell({
                       className={cn(
                         'h-7 rounded-none border-0 bg-transparent! py-0 pr-6 pl-5 text-xs leading-7 shadow-none transition-none md:text-xs dark:bg-transparent!',
                         'focus-visible:border-transparent focus-visible:ring-0',
-                        'placeholder:text-muted-foreground/50'
+                        'placeholder:text-muted-foreground'
                       )}
                       data-testid={search.dataTestId}
                       onChange={(event) => search.onChange(event.target.value)}
@@ -507,7 +507,7 @@ export function SelectorShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t('common.clear')}
-                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground/55 hover:bg-accent/40 hover:text-foreground/75"
+                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           search.onChange('')
@@ -531,7 +531,7 @@ export function SelectorShell({
                         className={cn(
                           'size-6 shrink-0 rounded-md bg-transparent p-0 shadow-none',
                           multiSelect.checked
-                            ? 'bg-accent text-foreground'
+                            ? 'bg-accent text-accent-foreground'
                             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                         )}
                         onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
@@ -560,7 +560,7 @@ export function SelectorShell({
                   <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
                     <span className="truncate">{multiSelect.label}</span>
                     {multiSelect.hint ? (
-                      <span className="truncate text-muted-foreground/60">{multiSelect.hint}</span>
+                      <span className="truncate text-muted-foreground">{multiSelect.hint}</span>
                     ) : null}
                   </div>
                   <Switch
@@ -594,7 +594,7 @@ export function SelectorShell({
                         className={cn(
                           'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                           selected
-                            ? 'bg-accent/70 text-foreground'
+                            ? 'bg-accent/70 text-accent-foreground'
                             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                         )}>
                         {selected ? (

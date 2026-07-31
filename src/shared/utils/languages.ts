@@ -45,6 +45,23 @@ export const languageEnglishNameMap = Object.fromEntries(
   Object.entries(appLocaleDefinitions).map(([language, definition]) => [language, definition.englishName])
 ) as Record<LanguageVarious, string>
 
+/** Native-script display name for each language. */
+export const languageNativeNameMap: Record<LanguageVarious, string> = {
+  'ar-YE': 'العربية',
+  'zh-CN': '中文',
+  'zh-TW': '中文（繁体）',
+  'en-US': 'English',
+  'de-DE': 'Deutsch',
+  'ja-JP': '日本語',
+  'ru-RU': 'Русский',
+  'el-GR': 'Ελληνικά',
+  'es-ES': 'Español',
+  'fr-FR': 'Français',
+  'pt-PT': 'Português',
+  'ro-RO': 'Română',
+  'vi-VN': 'Tiếng Việt'
+}
+
 export const defaultLanguage: LanguageVarious = 'en-US'
 
 const supportedLanguages = Object.keys(appLocaleDefinitions) as LanguageVarious[]

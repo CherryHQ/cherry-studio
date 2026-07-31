@@ -438,7 +438,7 @@ const ExpandedToolResponseContent: FC<{
 const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
     className={[
-      'border-none [--status-color-error:color-mix(in_oklch,var(--foreground)_66.6667%,transparent)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
+      'border-none [--status-color-error:var(--muted-foreground)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -479,7 +479,7 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
   <Flex
     className={[
-      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
+      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-muted-foreground transition-colors duration-150 group-hover/tool:text-foreground',
       className
     ]
       .filter(Boolean)
@@ -496,7 +496,7 @@ const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWi
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2',
       className
     ]
       .filter(Boolean)
