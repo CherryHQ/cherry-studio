@@ -97,6 +97,15 @@ export interface KnowledgeIndexSearchInput {
   alpha?: number
 }
 
+/** Independent retrieval lanes used to build a bounded reranker candidate set. */
+export interface KnowledgeIndexRerankCandidateSearchInput {
+  queryText: string
+  queryEmbedding: number[]
+  rawTopK: number
+  projectionTopK: number
+  candidateCap: number
+}
+
 /** One search hit. `score` is higher-is-better; its semantics depend on `mode`. */
 export interface KnowledgeIndexSearchMatch {
   unitId: string

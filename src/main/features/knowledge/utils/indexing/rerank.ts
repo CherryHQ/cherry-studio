@@ -11,6 +11,11 @@ const logger = loggerService.withContext('KnowledgeRerank')
 // wrong model) rather than a transient blip — these will keep failing every search.
 const PERSISTENT_RERANK_STATUS_CODES = new Set([401, 403, 404])
 
+export interface KnowledgeRerankOutcome {
+  results: KnowledgeSearchResult[]
+  applied: boolean
+}
+
 function isPersistentRerankMisconfig(error: unknown): boolean {
   return APICallError.isInstance(error) && PERSISTENT_RERANK_STATUS_CODES.has(error.statusCode ?? 0)
 }
@@ -42,7 +47,7 @@ async function rerankWithAiService(
   query: string,
   searchResults: KnowledgeSearchResult[],
   topN: number
-): Promise<KnowledgeSearchResult[]> {
+): Promise<KnowledgeRerankOutcome> {
   const parsed = UniqueModelIdSchema.safeParse(base.rerankModelId)
   if (!parsed.success) {
     // A malformed model id fails identically on every search, so search is silently
@@ -51,7 +56,7 @@ async function rerankWithAiService(
       baseId: base.id,
       rerankModelId: base.rerankModelId
     })
-    return searchResults
+    return { results: searchResults, applied: false }
   }
 
   try {
@@ -62,7 +67,7 @@ async function rerankWithAiService(
       topN
     })
 
-    return mergeRerankResults(searchResults, result.ranking)
+    return { results: mergeRerankResults(searchResults, result.ranking), applied: true }
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     const context = {
@@ -78,7 +83,7 @@ async function rerankWithAiService(
     } else {
       logger.warn('Knowledge rerank failed, returning vector search results', normalizedError, context)
     }
-    return searchResults
+    return { results: searchResults, applied: false }
   }
 }
 
@@ -87,9 +92,9 @@ export async function rerankKnowledgeSearchResults(
   query: string,
   searchResults: KnowledgeSearchResult[],
   topN: number
-): Promise<KnowledgeSearchResult[]> {
+): Promise<KnowledgeRerankOutcome> {
   if (!base.rerankModelId || searchResults.length === 0) {
-    return searchResults
+    return { results: searchResults, applied: false }
   }
 
   // topN comes from the caller's resolved search topK (KnowledgeService.search), NOT a second

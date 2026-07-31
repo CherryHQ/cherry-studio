@@ -74,6 +74,90 @@ describe('KnowledgeIndexStore.search', () => {
     expect(matches[0].text).not.toBe(projectionText)
   })
 
+  it('builds independent raw and projection lanes before applying the candidate cap', async () => {
+    await indexMaterial('raw-1', 'raw-1.md', 'raw first', [1, 0, 0])
+    await indexMaterial('raw-2', 'raw-2.md', 'raw second', [0.8, 0.2, 0])
+
+    for (const [index, vector] of [
+      [1, [1, 0, 0]],
+      [2, [0.99, 0.01, 0]]
+    ] as const) {
+      const rawText = `projection raw ${index}`
+      const projectionText = `projection ${index}`
+      await store.rebuildMaterial(`projection-${index}`, {
+        material: { relativePath: `projection-${index}.md` },
+        content: { text: rawText },
+        units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+        usesEmbeddings: true,
+        projections: [{ unitIndex: 0, text: projectionText }],
+        embeddings: [
+          { embeddingTextHash: hashEmbeddingText(rawText), vector: [0, 1, 0] },
+          { embeddingTextHash: hashEmbeddingText(projectionText), vector: [...vector] }
+        ]
+      })
+    }
+
+    const matches = await store.searchRerankCandidates({
+      queryText: 'no lexical match',
+      queryEmbedding: [1, 0, 0],
+      rawTopK: 2,
+      projectionTopK: 2,
+      candidateCap: 3
+    })
+
+    // raw-2 has a lower cosine score than both projection hits. A global max-fusion
+    // top-3 would drop it, while independent lane quotas must retain it.
+    expect(matches?.map((match) => match.materialId)).toEqual(['raw-1', 'raw-2', 'projection-1'])
+  })
+
+  it('deduplicates projection hits to raw units and fills only spare capacity with BM25', async () => {
+    const rawText = 'authoritative raw evidence'
+    await store.rebuildMaterial('projected', {
+      material: { relativePath: 'projected.md' },
+      content: { text: rawText },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+      usesEmbeddings: true,
+      projections: [
+        { unitIndex: 0, text: 'semantic fact one' },
+        { unitIndex: 0, text: 'semantic fact two' }
+      ],
+      embeddings: [
+        { embeddingTextHash: hashEmbeddingText(rawText), vector: [1, 0, 0] },
+        { embeddingTextHash: hashEmbeddingText('semantic fact one'), vector: [1, 0, 0] },
+        { embeddingTextHash: hashEmbeddingText('semantic fact two'), vector: [0.99, 0.01, 0] }
+      ]
+    })
+    await indexMaterial('lexical-1', 'lexical-1.md', 'lexical short', [0, 1, 0])
+    await indexMaterial('lexical-2', 'lexical-2.md', 'lexical evidence longer', [0, 0, 1])
+
+    const matches = await store.searchRerankCandidates({
+      queryText: 'lexical',
+      queryEmbedding: [1, 0, 0],
+      rawTopK: 1,
+      projectionTopK: 2,
+      candidateCap: 3
+    })
+
+    expect(matches).toHaveLength(3)
+    expect(matches?.map((match) => match.materialId)).toEqual(['projected', 'lexical-1', 'lexical-2'])
+    expect(matches?.[0].text).toBe(rawText)
+    expect(matches?.every((match) => !match.text.startsWith('semantic fact'))).toBe(true)
+  })
+
+  it('signals fallback when the index has no retrieval projections', async () => {
+    await indexMaterial('raw', 'raw.md', 'raw evidence', [1, 0, 0])
+
+    await expect(
+      store.searchRerankCandidates({
+        queryText: 'raw',
+        queryEmbedding: [1, 0, 0],
+        rawTopK: 50,
+        projectionTopK: 150,
+        candidateCap: 200
+      })
+    ).resolves.toBeNull()
+  })
+
   it('keeps retrieval projections out of the BM25 lane', async () => {
     const rawText = 'The deployment policy is documented here.'
     const projectionText = 'two approvers release'

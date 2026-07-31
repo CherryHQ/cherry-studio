@@ -46,6 +46,7 @@ const {
   fsStatMock,
   listMaterialUnitsMock,
   storeSearchMock,
+  storeSearchRerankCandidatesMock,
   getMaterialByRelativePathMock,
   readMaterialContentMock,
   probeKnowledgeFileMock,
@@ -84,6 +85,7 @@ const {
   fsStatMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
   storeSearchMock: vi.fn(),
+  storeSearchRerankCandidatesMock: vi.fn(),
   getMaterialByRelativePathMock: vi.fn(),
   readMaterialContentMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
@@ -366,17 +368,22 @@ describe('KnowledgeService', () => {
     listMock.mockResolvedValue([])
     getIndexStoreMock.mockResolvedValue({
       search: storeSearchMock,
+      searchRerankCandidates: storeSearchRerankCandidatesMock,
       listMaterialUnits: listMaterialUnitsMock,
       getMaterialByRelativePath: getMaterialByRelativePathMock,
       readMaterialContent: readMaterialContentMock
     })
     listMaterialUnitsMock.mockResolvedValue([])
     storeSearchMock.mockResolvedValue([])
+    storeSearchRerankCandidatesMock.mockResolvedValue(null)
     getMaterialByRelativePathMock.mockResolvedValue(null)
     readMaterialContentMock.mockResolvedValue(null)
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
-    rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
+    rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => ({
+      results,
+      applied: false
+    }))
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -2333,14 +2340,17 @@ describe('KnowledgeService', () => {
     const base = createBase({ rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
     knowledgeBaseGetByIdMock.mockReturnValue(base)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
-    storeSearchMock.mockResolvedValueOnce([
+    storeSearchRerankCandidatesMock.mockResolvedValueOnce([
       { unitId: 'chunk-1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'vector high rerank low', score: 0.8 },
       { unitId: 'chunk-2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'vector low rerank high', score: 0.2 }
     ])
-    rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => [
-      { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
-      { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
-    ])
+    rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => ({
+      results: [
+        { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
+        { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
+      ],
+      applied: true
+    }))
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-2', rank: 1, score: 0.9 }),
@@ -2357,6 +2367,54 @@ describe('KnowledgeService', () => {
       // number of candidates the search then trims to (see rerank topN fallback fix).
       base.documentCount
     )
+    expect(storeSearchRerankCandidatesMock).toHaveBeenCalledWith({
+      queryText: 'hello',
+      queryEmbedding: [0.1, 0.2, 0.3],
+      rawTopK: 50,
+      projectionTopK: 150,
+      candidateCap: 200
+    })
+    expect(storeSearchMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the existing hybrid search when dual-lane reranking is not applied', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ rerankModelId: 'invalid-model' }))
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    storeSearchRerankCandidatesMock.mockResolvedValueOnce([
+      { unitId: 'projection-first', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'projection candidate', score: 0.9 }
+    ])
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'hybrid-first', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'hybrid candidate', score: 0.8 }
+    ])
+
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+      expect.objectContaining({ chunkId: 'hybrid-first', score: 0.8 })
+    ])
+    expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledTimes(1)
+    expect(storeSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'hybrid', queryEmbedding: [0.1, 0.2, 0.3] })
+    )
+  })
+
+  it('preserves existing hybrid reranking when no retrieval projections exist', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ rerankModelId: 'jina::jina-reranker-v2-base-multilingual' }))
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    storeSearchRerankCandidatesMock.mockResolvedValueOnce(null)
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'hybrid-first', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hybrid candidate', score: 0.8 }
+    ])
+    rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => ({
+      results: [{ ...results[0], score: 0.95, scoreKind: 'relevance' }],
+      applied: true
+    }))
+
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+      expect.objectContaining({ chunkId: 'hybrid-first', score: 0.95, scoreKind: 'relevance' })
+    ])
+    expect(storeSearchMock).toHaveBeenCalledTimes(1)
+    expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledTimes(1)
   })
 
   it('filters search results for missing or non-completed items', async () => {

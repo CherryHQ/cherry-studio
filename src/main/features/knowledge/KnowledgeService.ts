@@ -65,6 +65,8 @@ const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 /** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
+const KNOWLEDGE_RERANK_RAW_TOP_K = 50
+const KNOWLEDGE_RERANK_PROJECTION_TOP_K = 150
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
@@ -536,6 +538,33 @@ export class KnowledgeService extends BaseService {
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
+    let skipDefaultRerank = false
+
+    if (base.rerankModelId && mode === 'hybrid' && queryEmbedding) {
+      const rerankCandidateMatches = await this.runStoreOperation(store, baseId, 'search', () =>
+        store.searchRerankCandidates({
+          queryText: query,
+          queryEmbedding,
+          rawTopK: KNOWLEDGE_RERANK_RAW_TOP_K,
+          projectionTopK: KNOWLEDGE_RERANK_PROJECTION_TOP_K,
+          candidateCap: KNOWLEDGE_SEARCH_CANDIDATE_CAP
+        })
+      )
+
+      if (rerankCandidateMatches) {
+        const rerankCandidates = this.toVisibleSearchResults(baseId, rerankCandidateMatches, 'ranking')
+        const rerankOutcome = await rerankKnowledgeSearchResults(base, query, rerankCandidates, resolvedTopK)
+        if (rerankOutcome.applied) {
+          const topReranked = this.trimToTopK(rerankOutcome.results, resolvedTopK, baseId)
+          return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
+        }
+
+        // Invalid configuration and provider failures must fall back to the established
+        // hybrid ranking, not expose the lane-concatenation order as a final result.
+        skipDefaultRerank = true
+      }
+    }
+
     const matches = await this.runStoreOperation(store, baseId, 'search', () =>
       store.search({
         queryText: query,
@@ -548,10 +577,10 @@ export class KnowledgeService extends BaseService {
     const scoreKind = getInitialSearchScoreKind(mode)
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
 
-    if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults, resolvedTopK)
+    if (base.rerankModelId && !skipDefaultRerank) {
+      const rerankOutcome = await rerankKnowledgeSearchResults(base, query, visibleSearchResults, resolvedTopK)
       // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
-      const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
+      const topReranked = this.trimToTopK(rerankOutcome.results, resolvedTopK, baseId)
       return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
     } else {
       // If we don't need to rerank, we can just trim the results right here.

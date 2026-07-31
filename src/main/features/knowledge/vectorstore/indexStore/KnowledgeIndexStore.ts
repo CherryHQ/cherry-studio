@@ -8,6 +8,7 @@ import {
 } from './hashing'
 import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {
+  KnowledgeIndexRerankCandidateSearchInput,
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
   KnowledgeMaterialRef,
@@ -455,6 +456,28 @@ export class KnowledgeIndexStore {
   }
 
   /**
+   * Build reranker candidates from independent raw-vector and retrieval-projection
+   * lanes. Raw units keep their own quota even when projections score higher;
+   * projections resolve to their authoritative raw bodies before leaving the store.
+   * BM25 only fills capacity left after unit-level deduplication.
+   *
+   * Returns null when no projection is searchable so callers can preserve the
+   * established max-fusion hybrid path for bases indexed before projections existed.
+   */
+  async searchRerankCandidates(
+    input: KnowledgeIndexRerankCandidateSearchInput
+  ): Promise<KnowledgeIndexSearchMatch[] | null> {
+    const projections = this.projectionVectorSearch(input.queryEmbedding, input.projectionTopK)
+    if (projections.length === 0) {
+      return null
+    }
+
+    const raw = this.rawVectorSearch(input.queryEmbedding, input.rawTopK)
+    const bm25 = this.bm25Search(input.queryText, input.candidateCap)
+    return mergeUniqueCandidates([raw, projections, bm25], input.candidateCap)
+  }
+
+  /**
    * Return space a large delete freed back to the OS (see {@link SqliteDriver.reclaim}).
    * Best-effort; only VACUUMs when the freelist crossed the driver's size threshold.
    *
@@ -581,6 +604,55 @@ export class KnowledgeIndexStore {
     return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
   }
 
+  private rawVectorSearch(queryEmbedding: number[], topK: number): KnowledgeIndexSearchMatch[] {
+    const result = this.driver.execute(
+      `WITH distances AS (
+         SELECT st.target_id AS unit_id,
+                ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
+         FROM search_text st
+         JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
+         WHERE st.target_type = 'search_unit' AND st.kind = 'body'
+       )
+       SELECT su.unit_id, su.material_id, su.unit_index, body.text AS body, distances.dist
+       FROM distances
+       JOIN search_unit su ON su.unit_id = distances.unit_id
+       JOIN search_text body
+         ON body.target_id = su.unit_id AND body.target_type = 'search_unit' AND body.kind = 'body'
+       WHERE distances.dist IS NOT NULL
+       ORDER BY distances.dist, su.unit_id
+       LIMIT ?`,
+      [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
+    )
+    return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
+  }
+
+  private projectionVectorSearch(queryEmbedding: number[], topK: number): KnowledgeIndexSearchMatch[] {
+    const result = this.driver.execute(
+      `WITH distances AS (
+         SELECT rp.unit_id,
+                ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
+         FROM retrieval_projection rp
+         JOIN embedding e ON e.embedding_text_hash = rp.embedding_text_hash
+       ),
+       best AS (
+         SELECT unit_id, MIN(dist) AS dist
+         FROM distances
+         WHERE dist IS NOT NULL
+         GROUP BY unit_id
+       )
+       SELECT su.unit_id, su.material_id, su.unit_index, body.text AS body, best.dist
+       FROM best
+       JOIN search_unit su ON su.unit_id = best.unit_id
+       JOIN search_text body
+         ON body.target_id = su.unit_id AND body.target_type = 'search_unit' AND body.kind = 'body'
+       WHERE best.dist IS NOT NULL
+       ORDER BY best.dist, su.unit_id
+       LIMIT ?`,
+      [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
+    )
+    return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
+  }
+
   private bm25Search(queryText: string, topK: number): KnowledgeIndexSearchMatch[] {
     // Short tokens (notably 1–2 char CJK words) produce no trigram, so MATCH would
     // silently return nothing — route those queries to the LIKE fallback instead.
@@ -678,6 +750,28 @@ function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSe
     text: row.body as string,
     score
   }
+}
+
+function mergeUniqueCandidates(
+  lanes: KnowledgeIndexSearchMatch[][],
+  candidateCap: number
+): KnowledgeIndexSearchMatch[] {
+  const candidates: KnowledgeIndexSearchMatch[] = []
+  const seenUnitIds = new Set<string>()
+
+  for (const lane of lanes) {
+    for (const match of lane) {
+      if (candidates.length >= candidateCap) {
+        return candidates
+      }
+      if (!seenUnitIds.has(match.unitId)) {
+        seenUnitIds.add(match.unitId)
+        candidates.push(match)
+      }
+    }
+  }
+
+  return candidates
 }
 
 /**

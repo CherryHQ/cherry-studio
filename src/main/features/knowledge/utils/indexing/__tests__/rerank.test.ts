@@ -108,7 +108,7 @@ describe('knowledge rerank runtime', () => {
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: null }), 'hello', searchResults, 2)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual({ results: searchResults, applied: false })
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
   })
 
@@ -120,7 +120,14 @@ describe('knowledge rerank runtime', () => {
       ]
     })
 
-    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults(), 2)
+    const { results: result, applied } = await rerankKnowledgeSearchResults(
+      createKnowledgeBase(),
+      'hello',
+      createSearchResults(),
+      2
+    )
+
+    expect(applied).toBe(true)
 
     expect(mocks.aiRerankMock).toHaveBeenCalledWith({
       uniqueModelId: 'jina::jina-reranker-v2-base-multilingual',
@@ -149,7 +156,12 @@ describe('knowledge rerank runtime', () => {
       ]
     })
 
-    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults(), 2)
+    const { results: result } = await rerankKnowledgeSearchResults(
+      createKnowledgeBase(),
+      'hello',
+      createSearchResults(),
+      2
+    )
 
     expect(
       result.map((item) => ({
@@ -169,7 +181,12 @@ describe('knowledge rerank runtime', () => {
       ranking: [{ originalIndex: 1, score: 0.9, document: 'beta' }]
     })
 
-    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults(), 2)
+    const { results: result } = await rerankKnowledgeSearchResults(
+      createKnowledgeBase(),
+      'hello',
+      createSearchResults(),
+      2
+    )
 
     expect(result.map((item) => item.chunkId)).toEqual(['chunk-2'])
   })
@@ -196,7 +213,7 @@ describe('knowledge rerank runtime', () => {
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: 'invalid-model' }), 'hello', searchResults, 2)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual({ results: searchResults, applied: false })
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
     expect(mocks.errorMock).toHaveBeenCalledWith('Skipping knowledge rerank because rerank model id is invalid', {
       baseId: '11111111-1111-4111-8111-111111111111',
@@ -208,9 +225,10 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(new Error('upstream unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, 2)).resolves.toBe(
-      searchResults
-    )
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, 2)).resolves.toEqual({
+      results: searchResults,
+      applied: false
+    })
     // The Error instance itself is logged (stack/cause preserved), with the
     // structured context alongside.
     expect(mocks.warnMock).toHaveBeenCalledWith(
@@ -230,9 +248,10 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(503, 'Service Unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, 2)).resolves.toBe(
-      searchResults
-    )
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, 2)).resolves.toEqual({
+      results: searchResults,
+      applied: false
+    })
     expect(mocks.warnMock).toHaveBeenCalledTimes(1)
     expect(mocks.errorMock).not.toHaveBeenCalled()
   })
@@ -245,9 +264,10 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(statusCode, message))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, 2)).resolves.toBe(
-      searchResults
-    )
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, 2)).resolves.toEqual({
+      results: searchResults,
+      applied: false
+    })
     expect(mocks.errorMock).toHaveBeenCalledWith(
       'Knowledge rerank failed, returning vector search results',
       expect.objectContaining({ message }),
