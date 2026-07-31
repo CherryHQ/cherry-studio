@@ -132,7 +132,6 @@ describe('useMainWindowNavigation', () => {
     render(<MainWindowNavigationHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {

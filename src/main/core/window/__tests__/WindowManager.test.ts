@@ -1481,15 +1481,6 @@ describe('WindowManager', () => {
       expect(wm.getInitData(id)).toBeNull()
     })
 
-    it('clears acknowledged init data', () => {
-      const id = wm.open('default' as never)
-      wm.setInitData(id, { key: 'value' })
-
-      wm.clearInitData(id)
-
-      expect(wm.getInitData(id)).toBeNull()
-    })
-
     it('clears init data on window close', () => {
       const id = wm.open('default' as never)
       wm.setInitData(id, { key: 'value' })

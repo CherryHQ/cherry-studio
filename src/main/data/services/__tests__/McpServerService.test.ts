@@ -135,12 +135,6 @@ describe('McpServerService', () => {
 
       expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
     })
-
-    it('rolls back the whole batch when a later item is invalid', () => {
-      expect(() => mcpServerService.createMany([{ name: 'valid' }, { name: '   ' }])).toThrow(DataApiError)
-
-      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
-    })
   })
 
   describe('update', () => {

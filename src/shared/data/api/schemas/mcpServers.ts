@@ -117,7 +117,6 @@ export type McpServerSchemas = {
     }
   }
 
-  /** Create multiple MCP servers atomically. */
   '/mcp-servers/batch': {
     POST: {
       body: CreateMcpServersDto

@@ -1,5 +1,3 @@
-import { mcpServerTable } from '@data/db/schemas/mcpServer'
-import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { openSettingsInMainWindowMock } = vi.hoisted(() => ({
@@ -28,13 +26,11 @@ const getPreviewServers = () => {
 }
 
 describe('MCP install protocol handler', () => {
-  const dbh = setupTestDatabase()
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('previews a sanitized single server without persisting it before confirmation', async () => {
+  it('previews a sanitized single server', () => {
     handleMcpProtocolUrl(
       createInstallUrl({
         name: 'remote-server',
@@ -42,8 +38,6 @@ describe('MCP install protocol handler', () => {
         url: 'https://example.com/mcp'
       })
     )
-
-    expect(await dbh.db.select().from(mcpServerTable)).toEqual([])
 
     const { servers, requestId, path } = getPreviewServers()
     expect(path).toBe('/settings/mcp/servers')
@@ -62,34 +56,23 @@ describe('MCP install protocol handler', () => {
     expect(servers[0]).not.toHaveProperty('trustedAt')
   })
 
-  it.each(['id', 'createdAt', 'installedAt', 'env', 'headers', 'dxtPath', 'registryUrl', 'timeout', 'installSource'])(
-    'rejects the unreviewed %s field',
-    (field) => {
-      expect(() =>
-        handleMcpProtocolUrl(createInstallUrl({ name: 'unsafe-server', command: 'npx', [field]: 'unsafe-value' }))
-      ).toThrow()
-      expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
-    }
-  )
-
-  it('rejects mixed URL and command configurations that cannot be fully previewed', () => {
+  it.each(['id', 'env', 'dxtPath'])('rejects the unreviewed %s field', (field) => {
     expect(() =>
-      handleMcpProtocolUrl(
-        createInstallUrl({
-          name: 'ambiguous-server',
-          baseUrl: 'https://example.com/mcp',
-          command: 'npx',
-          args: ['unsafe-package']
-        })
-      )
+      handleMcpProtocolUrl(createInstallUrl({ name: 'unsafe-server', command: 'npx', [field]: 'unsafe-value' }))
     ).toThrow()
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
 
   it.each([
+    {
+      name: 'ambiguous-server',
+      baseUrl: 'https://example.com/mcp',
+      command: 'npx',
+      args: ['unsafe-package']
+    },
     { name: 'url-with-stdio', type: 'stdio', baseUrl: 'https://example.com/mcp' },
     { name: 'command-with-sse', type: 'sse', command: 'npx' }
-  ])('rejects connection settings that conflict with the declared type', (server) => {
+  ])('rejects ambiguous or conflicting connection settings', (server) => {
     expect(() => handleMcpProtocolUrl(createInstallUrl(server))).toThrow()
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })

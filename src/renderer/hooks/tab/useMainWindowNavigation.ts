@@ -123,7 +123,6 @@ export function useMainWindowNavigation() {
 
     handledNavigationRequestIdRef.current = initData.requestId
     handleRoute(initData.to)
-    void ipcApi.request('navigation.ack_open_route', { requestId: initData.requestId })
   }, [initData, handleRoute])
 
   useMainRouteEventBridge(handleRoute)

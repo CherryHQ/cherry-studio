@@ -16,19 +16,16 @@ import { useTranslation } from 'react-i18next'
 import { getCommandPreview } from './utils'
 
 interface McpProtocolInstallDialogProps {
-  open: boolean
   servers: CreateMcpServerDto[]
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
   onInstall: () => Promise<void>
 }
 
-const McpProtocolInstallDialog = ({ open, servers, onOpenChange, onInstall }: McpProtocolInstallDialogProps) => {
+const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolInstallDialogProps) => {
   const { t } = useTranslation()
   const [installing, setInstalling] = useState(false)
 
   const handleInstall = async () => {
-    if (installing) return
-
     setInstalling(true)
     try {
       await onInstall()
@@ -38,13 +35,13 @@ const McpProtocolInstallDialog = ({ open, servers, onOpenChange, onInstall }: Mc
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !installing && onOpenChange(next)}>
+    <Dialog open onOpenChange={(open) => !open && !installing && onClose()}>
       <DialogContent size="lg" closeOnOverlayClick={!installing} className="flex max-h-[70vh] flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('settings.mcp.protocolInstall.title')}</DialogTitle>
         </DialogHeader>
 
-        <Scrollbar className="min-h-0 flex-1 pr-3">
+        <Scrollbar className="min-h-0 flex-1">
           <div className="flex flex-col gap-3">
             {servers.map((server, index) => {
               const serverType = server.type ?? (server.baseUrl ? 'sse' : 'stdio')
@@ -76,7 +73,7 @@ const McpProtocolInstallDialog = ({ open, servers, onOpenChange, onInstall }: Mc
         </Scrollbar>
 
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={installing} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" disabled={installing} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button

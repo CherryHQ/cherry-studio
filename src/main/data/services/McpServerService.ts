@@ -101,10 +101,6 @@ export class McpServerService {
     return rowToMcpServer(row)
   }
 
-  /**
-   * Create multiple MCP servers atomically after checking names against both
-   * the request and the latest database state.
-   */
   createMany(dtos: CreateMcpServerDto[]): McpServer[] {
     const created = application.get('DbService').withWriteTx((tx) => {
       const names = new Set<string>()
@@ -116,17 +112,13 @@ export class McpServerService {
         names.add(dto.name)
       }
 
-      const existingNames = new Set(
-        tx
-          .select({ name: mcpServerTable.name })
-          .from(mcpServerTable)
-          .where(inArray(mcpServerTable.name, [...names]))
-          .all()
-          .map(({ name }) => name)
-      )
-      const duplicateName = [...names].find((name) => existingNames.has(name))
-      if (duplicateName) {
-        throw DataApiErrorFactory.conflict(`MCP server '${duplicateName}' already exists`, 'McpServer')
+      const existing = tx
+        .select({ name: mcpServerTable.name })
+        .from(mcpServerTable)
+        .where(inArray(mcpServerTable.name, [...names]))
+        .get()
+      if (existing) {
+        throw DataApiErrorFactory.conflict(`MCP server '${existing.name}' already exists`, 'McpServer')
       }
 
       return tx

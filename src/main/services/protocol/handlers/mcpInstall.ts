@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
-import { type CreateMcpServerDto, CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
+import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
@@ -46,14 +46,13 @@ function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpS
 
   const protocolServer = ProtocolMcpServerSchema.parse(candidate)
 
-  return CreateMcpServerSchema.parse({
+  return {
     ...protocolServer,
     installSource: 'protocol',
     isTrusted: false,
     isActive: false,
-    trustedAt: undefined,
     installedAt: Date.now()
-  })
+  }
 }
 
 function parseMcpServerDtos(value: unknown): CreateMcpServerDto[] {
@@ -76,7 +75,6 @@ function parseMcpServerDtos(value: unknown): CreateMcpServerDto[] {
 }
 
 export function handleMcpProtocolUrl(url: URL) {
-  const params = new URLSearchParams(url.search)
   switch (url.pathname) {
     case '/install': {
       // jsonConfig example:
@@ -93,7 +91,7 @@ export function handleMcpProtocolUrl(url: URL) {
       // }
       // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
 
-      const data = params.get('servers')
+      const data = url.searchParams.get('servers')
 
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')

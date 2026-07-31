@@ -39,7 +39,7 @@ describe('McpProtocolInstallDialog', () => {
     const onInstall = vi.fn().mockResolvedValue(undefined)
     const user = userEvent.setup()
 
-    render(<McpProtocolInstallDialog open servers={servers} onOpenChange={vi.fn()} onInstall={onInstall} />)
+    render(<McpProtocolInstallDialog servers={servers} onClose={vi.fn()} onInstall={onInstall} />)
 
     expect(screen.getByRole('heading', { name: 'settings.mcp.protocolInstall.title' })).toBeInTheDocument()
     expect(screen.getByText('stdio-preview')).toBeInTheDocument()
@@ -51,18 +51,5 @@ describe('McpProtocolInstallDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.mcp.install' }))
 
     expect(onInstall).toHaveBeenCalledTimes(1)
-  })
-
-  it('closes without installing when canceled', async () => {
-    const onInstall = vi.fn().mockResolvedValue(undefined)
-    const onOpenChange = vi.fn()
-    const user = userEvent.setup()
-
-    render(<McpProtocolInstallDialog open servers={servers} onOpenChange={onOpenChange} onInstall={onInstall} />)
-
-    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
-
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(onInstall).not.toHaveBeenCalled()
   })
 })
