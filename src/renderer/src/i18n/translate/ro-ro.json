@@ -316,7 +316,7 @@
       },
       "placeholder": "Selectează calea bash.exe",
       "success": "Git Bash a fost detectat cu succes!",
-      "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
+      "tooltip": "Git Bash este opțional pe Windows. Dacă nu este configurat sau disponibil, agentul folosește PowerShell."
     },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",

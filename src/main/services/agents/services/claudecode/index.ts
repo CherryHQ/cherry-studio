@@ -52,6 +52,7 @@ import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { mergeUserEnvironmentVariables, withPreferredWindowsShellEnvironment } from './runtimeEnv'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 import { getFirstConfiguredApiKey, with1mContextSuffix } from './utils'
@@ -204,7 +205,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     const sdkModelId = with1mContextSuffix(modelInfo.modelId, provider.anthropicApiHost)
     const customHeaders = getAnthropicCustomHeaders(provider.extra_headers)
 
-    const env = {
+    const baseEnv: Record<string, string> = {
       ...loginShellEnv,
       ...getProxyEnvironment(process.env),
       // prevent claude agent sdk using bedrock api
@@ -231,41 +232,15 @@ class ClaudeCodeService implements AgentServiceInterface {
       // project-level skill loading layer — no need to point CLAUDE_CONFIG_DIR at the workspace.
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
       ENABLE_TOOL_SEARCH: 'auto',
-      CHERRY_STUDIO_BUN_PATH: bunPath,
-      ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+      CHERRY_STUDIO_BUN_PATH: bunPath
     }
 
-    // Merge user-defined environment variables from session configuration
-    const userEnvVars = session.configuration?.env_vars
-    if (userEnvVars && typeof userEnvVars === 'object') {
-      const BLOCKED_ENV_KEYS = new Set([
-        'ANTHROPIC_API_KEY',
-        'ANTHROPIC_AUTH_TOKEN',
-        'ANTHROPIC_BASE_URL',
-        'ANTHROPIC_MODEL',
-        'ANTHROPIC_DEFAULT_OPUS_MODEL',
-        'ANTHROPIC_DEFAULT_SONNET_MODEL',
-        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-        'ELECTRON_RUN_AS_NODE',
-        'ELECTRON_NO_ATTACH_CONSOLE',
-        'CLAUDE_CONFIG_DIR',
-        'CLAUDE_CODE_USE_BEDROCK',
-        'CLAUDE_CODE_GIT_BASH_PATH',
-        'CHERRY_STUDIO_NODE_PROXY_RULES',
-        'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
-        'NODE_OPTIONS',
-        '__PROTO__',
-        'CONSTRUCTOR',
-        'PROTOTYPE'
-      ])
-      for (const [key, value] of Object.entries(userEnvVars)) {
-        const upperKey = key.toUpperCase()
-        if (BLOCKED_ENV_KEYS.has(upperKey)) {
-          logger.warn('Blocked user env var override for system-critical variable', { key })
-        } else if (typeof value === 'string') {
-          env[key] = value
-        }
-      }
+    const shellEnvironment = withPreferredWindowsShellEnvironment(baseEnv, customGitBashPath)
+    const userEnvironment = mergeUserEnvironmentVariables(shellEnvironment.env, session.configuration?.env_vars)
+    const env = userEnvironment.env
+
+    for (const key of userEnvironment.blockedKeys) {
+      logger.warn('Blocked user env var override for system-critical variable', { key })
     }
 
     const errorChunks: string[] = []
@@ -517,10 +492,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         ]
       },
       disallowedTools: [
-        ...GLOBALLY_DISALLOWED_TOOLS,
-        ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
-        // Cherry Assistant is a read-only guide; it should not ask users questions via tool
-        ...(isAssistant ? ['AskUserQuestion'] : [])
+        ...new Set([
+          ...GLOBALLY_DISALLOWED_TOOLS,
+          ...shellEnvironment.disallowedTools,
+          ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
+          // Cherry Assistant is a read-only guide; it should not ask users questions via tool
+          ...(isAssistant ? ['AskUserQuestion'] : [])
+        ])
       ],
       ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})

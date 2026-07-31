@@ -316,7 +316,7 @@
       },
       "placeholder": "Sélectionner le chemin de bash.exe",
       "success": "Git Bash détecté avec succès !",
-      "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
+      "tooltip": "Git Bash est facultatif sous Windows. S’il n’est pas configuré ou disponible, l’agent utilise PowerShell."
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",

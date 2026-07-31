@@ -316,7 +316,7 @@
       },
       "placeholder": "Wählen Sie den Pfad zu bash.exe",
       "success": "Git Bash erfolgreich erkannt!",
-      "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
+      "tooltip": "Git Bash ist unter Windows optional. Wenn es nicht konfiguriert oder nicht verfügbar ist, verwendet der Agent PowerShell."
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",

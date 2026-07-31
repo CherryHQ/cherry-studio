@@ -316,7 +316,7 @@
       },
       "placeholder": "Select bash.exe path",
       "success": "Git Bash detected successfully!",
-      "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Git Bash is optional on Windows. If it is not configured or unavailable, the Agent uses PowerShell."
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",

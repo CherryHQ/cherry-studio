@@ -316,7 +316,7 @@
       },
       "placeholder": "bash.exeのパスを選択",
       "success": "Git Bashが正常に検出されました！",
-      "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
+      "tooltip": "Windows では Git Bash は任意です。設定されていない、または利用できない場合、エージェントは PowerShell を使用します。"
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",

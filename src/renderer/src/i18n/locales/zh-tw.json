@@ -316,7 +316,7 @@
       },
       "placeholder": "選擇 bash.exe 路徑",
       "success": "成功偵測到 Git Bash！",
-      "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
+      "tooltip": "Git Bash 在 Windows 上是選用設定；若未設定或無法使用，Agent 將使用 PowerShell。"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",

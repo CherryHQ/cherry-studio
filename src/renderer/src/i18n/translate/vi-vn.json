@@ -316,7 +316,7 @@
       },
       "placeholder": "Chọn đường dẫn bash.exe",
       "success": "Git Bash đã được phát hiện thành công!",
-      "tooltip": "Git Bash là bắt buộc để chạy các agent trên Windows. Cài đặt từ git-scm.com nếu chưa có."
+      "tooltip": "Git Bash là tùy chọn trên Windows. Nếu chưa được cấu hình hoặc không khả dụng, agent sẽ sử dụng PowerShell."
     },
     "input": {
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",

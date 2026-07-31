@@ -316,7 +316,7 @@
       },
       "placeholder": "选择 bash.exe 路径",
       "success": "成功检测到 Git Bash！",
-      "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
+      "tooltip": "Git Bash 在 Windows 上是可选配置；如果未配置或不可用，智能体将使用 PowerShell。"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
