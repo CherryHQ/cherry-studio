@@ -21,7 +21,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const S3Settings: FC = () => {
   const [, setS3AutoSync] = usePreference('data.backup.s3.auto_sync')
@@ -81,7 +81,7 @@ const S3Settings: FC = () => {
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
             content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {s3Sync?.lastSyncTime && (

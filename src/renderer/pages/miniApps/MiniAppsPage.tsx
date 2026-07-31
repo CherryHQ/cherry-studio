@@ -17,7 +17,7 @@ import MiniAppSettingsPanel from './MiniAppSettings/MiniAppSettingsPanel'
 import { useMiniAppVisibility } from './MiniAppSettings/useMiniAppVisibility'
 import NewMiniAppPanel from './NewMiniAppPanel'
 
-const MINI_APPS_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const MINI_APPS_LOADING_COLOR = 'var(--muted-foreground)'
 
 const MiniAppsPage: FC = () => {
   const { t } = useTranslation()

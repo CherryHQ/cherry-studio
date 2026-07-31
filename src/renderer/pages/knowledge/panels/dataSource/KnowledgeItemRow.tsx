@@ -237,7 +237,7 @@ const KnowledgeItemRow = ({
             {title}
           </span>
         </div>
-        <div role="gridcell" className="truncate text-foreground-secondary text-xs">
+        <div role="gridcell" className="truncate text-muted-foreground text-xs">
           {typeLabel}
         </div>
         <div role="gridcell">
@@ -247,7 +247,7 @@ const KnowledgeItemRow = ({
             embeddingProgress={item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
           />
         </div>
-        <div role="gridcell" className="truncate text-foreground-muted text-xs">
+        <div role="gridcell" className="truncate text-foreground-tertiary text-xs">
           {updatedAt}
         </div>
         <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>

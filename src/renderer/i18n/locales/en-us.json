@@ -1267,10 +1267,6 @@
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
       },
-      "max_tool_calls": {
-        "label": "Max Tool Calls",
-        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
-      },
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
@@ -1476,9 +1472,8 @@
       "image_preview_failed": "Image preview failed",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
-      "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Clear Context"
       },
@@ -1619,13 +1614,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}",
         "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
@@ -2594,6 +2584,10 @@
     "user": "User"
   },
   "file_preview": {
+    "directory": {
+      "description": "Select a file in this folder to preview it.",
+      "title": "This is a folder"
+    },
     "html": {
       "empty": {
         "description": "This HTML file has no content.",
@@ -2659,6 +2653,10 @@
         "description": "Text files larger than {{limit}} MiB cannot be previewed.",
         "title": "File is too large"
       }
+    },
+    "unavailable": {
+      "description": "The file may have been moved, deleted, or cannot be accessed.",
+      "title": "File unavailable"
     },
     "unsupported": {
       "action": "Open with default app",
@@ -5224,6 +5222,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7707,6 +7706,13 @@
         "topup": "Top Up",
         "usage_title": "Usage",
         "usage_unit": "tokens"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Open Token Factory",
+          "description": "Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
+          "title": "$10 in free daily API credits"
+        }
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",

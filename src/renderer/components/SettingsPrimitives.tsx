@@ -65,7 +65,7 @@ export const SettingSubtitle = ({
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2.5 text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mt-2.5 text-muted-foreground text-xs', className)} {...props} />
 )
 
 export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -84,11 +84,11 @@ export const SettingHelpTextRow = ({ className, ...props }: React.ComponentProps
 )
 
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-[11px] text-foreground/40', className)} {...props} />
+  <div className={cn('text-[11px] text-muted-foreground', className)} {...props} />
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-  <a className={cn('cursor-pointer text-[11px] text-primary hover:underline', className)} {...props} />
+  <a className={cn('cursor-pointer text-[11px] text-link hover:underline', className)} {...props} />
 )
 
 export const SettingTitleExternalLink = ({
@@ -100,7 +100,7 @@ export const SettingTitleExternalLink = ({
   <a
     target={target}
     rel={rel}
-    className={cn('inline-flex items-center text-primary hover:underline', className)}
+    className={cn('inline-flex items-center text-link hover:underline', className)}
     {...props}
   />
 )
@@ -121,7 +121,7 @@ export const SettingGroup = ({
     className={cn(
       variant === 'card'
         ? 'mt-4 rounded-xl border border-border bg-card p-4 first:mt-0'
-        : 'mt-2 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
+        : 'mt-2 border-border-subtle border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
       className
     )}
     {...props}

@@ -105,14 +105,14 @@ describe('ActionWindow surface', () => {
     const pinButton = container.querySelector('.lucide-pin')?.closest('button')
     fireEvent.click(pinButton!)
 
-    expect(pinButton).toHaveClass('bg-accent', 'text-foreground', 'hover:bg-accent')
+    expect(pinButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
     expect(pinButton).not.toHaveClass('bg-primary/10', 'text-primary')
-    expect(container.querySelector('.lucide-pin')).toHaveClass('text-foreground')
+    expect(container.querySelector('.lucide-pin')).toHaveClass('text-accent-foreground')
 
     const opacityButton = container.querySelector('.lucide-droplet')?.closest('button')
     fireEvent.click(opacityButton!)
 
-    expect(opacityButton).toHaveClass('bg-accent', 'text-foreground', 'hover:bg-accent')
+    expect(opacityButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
     expect(opacityButton).not.toHaveClass('bg-primary/10', 'text-primary')
     const opacitySlider = container.querySelector('[data-slot="slider"]')
 

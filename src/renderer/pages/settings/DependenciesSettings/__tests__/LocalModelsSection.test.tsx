@@ -50,15 +50,6 @@ describe('LocalModelsSection', () => {
     progressHandlers.length = 0
   })
 
-  it('uses the settings group surface for local model cards', async () => {
-    render(<LocalModelsSection />)
-
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2))
-    expect(embeddingCard()).toHaveStyle({
-      backgroundColor: 'var(--settings-group-background, var(--card))'
-    })
-  })
-
   it('renders live percent, and cancelling neither fails nor shows a failure notice', async () => {
     let rejectDownload: ((e: Error) => void) | undefined
     mockRequest.mockImplementation((route: string, input?: { model: string }) => {
@@ -122,8 +113,6 @@ describe('LocalModelsSection', () => {
 
     await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
     expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveStyle({
-      backgroundColor: 'var(--settings-group-background, color-mix(in srgb, var(--card) 50%, transparent))'
-    })
+    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 })

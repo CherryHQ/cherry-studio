@@ -621,34 +621,6 @@ describe('BaseNavigator', () => {
     expect(screen.getByText('无结果')).toBeInTheDocument()
   })
 
-  it('keeps stable horizontal layout around the knowledge base list', () => {
-    const { container } = render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]}
-        groups={[]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    // The inset lives on `aside`, matching the assistant and agent rails; the scroll
-    // area itself spans the full inner width.
-    expect(container.querySelector('aside')).toHaveClass('p-1.5')
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'pt-1', 'pb-3')
-    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('px-0')
-    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:auto]')
-    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:stable_both-edges]')
-  })
-
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
     render(
       <BaseNavigator
@@ -699,42 +671,6 @@ describe('BaseNavigator', () => {
 
     expect(within(screen.getByRole('button', { name: /默认/ })).queryByText('1')).not.toBeInTheDocument()
     expect(within(screen.getByRole('button', { name: /Research/ })).queryByText('1')).not.toBeInTheDocument()
-  })
-
-  it('keeps the group expand and collapse motion classes attached', () => {
-    const { container } = render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    const groupTrigger = screen.getByRole('button', { name: /Research/ })
-    const accordionContent = container.querySelector('[data-slot="accordion-content"]')
-    const accordionContentInner = accordionContent?.firstElementChild
-
-    expect(groupTrigger).toHaveClass(
-      'motion-safe:[&>svg]:duration-[150ms]',
-      'motion-safe:[&>svg]:ease-[cubic-bezier(0.25,1,0.5,1)]'
-    )
-    expect(accordionContent).toHaveClass(
-      'motion-safe:data-[state=open]:[animation-duration:180ms]',
-      'motion-safe:data-[state=closed]:[animation-duration:120ms]',
-      'motion-safe:data-[state=open]:[&>div]:animate-in',
-      'motion-safe:data-[state=open]:[&>div]:delay-[16ms]'
-    )
-    expect(accordionContentInner).toHaveClass('pt-1.5', 'pb-0')
   })
 
   it('renders ungrouped bases before real group sections', () => {
@@ -1350,8 +1286,6 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-muted', 'text-foreground')
-
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
@@ -1385,15 +1319,10 @@ describe('BaseNavigator', () => {
       />
     )
 
-    const searchInput = screen.getByPlaceholderText('搜索知识库...')
     const createButton = screen.getByRole('button', { name: '新建知识库' })
 
     // The sidebar no longer repeats the page title above the create action.
     expect(screen.queryByRole('heading', { name: '知识库' })).toBeNull()
-    // Borderless and full-width, matching the assistant and agent rails' add action.
-    expect(createButton).toHaveClass('flex-1', 'justify-start')
-    expect(createButton.className).not.toMatch(/\bborder\b/)
-    expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createButton)
 

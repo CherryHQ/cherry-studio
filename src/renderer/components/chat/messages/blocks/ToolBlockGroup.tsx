@@ -59,7 +59,7 @@ function getItemEffectiveStatus(
 // ============ Sub-Components ============
 
 const LIVE_HEADER_MIN_DURATION_MS = 1200
-const TOOL_GROUP_PROGRESS_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const TOOL_GROUP_PROGRESS_COLOR = 'var(--foreground-tertiary)'
 
 type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }
@@ -95,7 +95,7 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.Write]: FileText
 }
 const TOOL_GROUP_ICON_CLASS_NAME =
-  'size-3.5 text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
+  'size-3.5 text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
 
 type ToolGroupTool = ToolRenderItem['toolResponse']['tool']
 type McpActivityAction = 'analyze' | 'create' | 'delete' | 'execute' | 'modify' | 'search' | 'send' | 'view'
@@ -449,7 +449,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         {icon && (
           <span
             aria-hidden="true"
-            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
             {icon}
           </span>
@@ -457,10 +457,10 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         <div className="min-w-0 overflow-hidden">{content}</div>
         {elapsedText && (
           <>
-            <span aria-hidden="true" className="shrink-0 text-muted-foreground/40">
+            <span aria-hidden="true" className="shrink-0 text-foreground-tertiary">
               ·
             </span>
-            <span className="shrink-0 whitespace-nowrap text-muted-foreground/55 transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {elapsedText}
             </span>
           </>
@@ -470,7 +470,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     const renderSemanticTitle = (title: React.ReactNode, icon?: React.ReactNode, key?: React.Key) =>
       renderWithElapsed(
         <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
-          <span className="block truncate font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="block truncate font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {title}
           </span>
           {isLiveProgress && (
@@ -490,7 +490,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
         <div className="flex items-center text-[13px]">
-          <span className="whitespace-nowrap font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="whitespace-nowrap font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </span>
         </div>,
@@ -503,7 +503,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
-          <PlaceholderShimmerText className="truncate font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <PlaceholderShimmerText className="truncate font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </PlaceholderShimmerText>
         </div>
@@ -556,7 +556,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         {(summaryIcon || showContentIcon) && (
           <span
             aria-hidden="true"
-            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
             {summaryIcon ?? (
               <ToolGroupContentIcon
@@ -568,17 +568,17 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         )}
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
-            <span className="whitespace-nowrap font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="whitespace-nowrap font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {fallbackLabel}
             </span>
           </div>
         </div>
         {elapsedText && (
           <>
-            <span aria-hidden="true" className="shrink-0 text-muted-foreground/40">
+            <span aria-hidden="true" className="shrink-0 text-foreground-tertiary">
               ·
             </span>
-            <span className="shrink-0 whitespace-nowrap text-muted-foreground/55 transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {elapsedText}
             </span>
           </>
@@ -652,7 +652,7 @@ export const ToolBlockGroup = React.memo(
             withScrollAnchor(() => setIsExpanded(nextIsExpanded), { settleAfterMs: 220 })
           }}>
           <AccordionItem value="tools" className="border-0 first:border-t-0">
-            <AccordionTrigger className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:rotate-0 [&[data-state=open]>svg]:opacity-60">
+            <AccordionTrigger className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:rotate-0 [&[data-state=open]>svg]:opacity-60">
               <div className="min-w-0 overflow-hidden">
                 <ToolBlockGroupHeaderContent
                   items={items}
