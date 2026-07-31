@@ -254,7 +254,7 @@ const McpFieldGroup = ({
   singleColumn ? <McpFormGrid className={singleColumnGridClassName}>{children}</McpFormGrid> : children
 
 const inlineSettingItemClassName =
-  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
+  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border px-3'
 
 const codeAreaClassName = 'max-h-40 min-h-21 px-3 py-2 font-mono text-sm leading-5'
 
@@ -562,7 +562,7 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-muted text-xs">s</span>
+                <span className="text-foreground-tertiary text-xs">s</span>
               </div>
             </FormControl>
           </FormItem>

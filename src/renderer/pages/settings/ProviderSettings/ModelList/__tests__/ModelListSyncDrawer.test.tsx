@@ -388,7 +388,11 @@ describe('ModelListSyncDrawer', () => {
     expect(tabs[0]).toHaveAccessibleName('models.all')
     expect(tabs[1]).toBe(staleTab)
     expect(tabList).toHaveClass('overflow-y-hidden', '[scrollbar-width:none]', '[&::-webkit-scrollbar]:hidden')
-    expect(staleTab).toHaveClass('cursor-pointer', 'text-error-text', 'data-[state=active]:bg-error-bg')
+    expect(staleTab).toHaveClass(
+      'cursor-pointer',
+      'text-error-subtle-foreground',
+      'data-[state=active]:bg-error-subtle'
+    )
 
     fireEvent.scroll(tabList, { target: { scrollLeft: 120 } })
     await user.click(staleTab)

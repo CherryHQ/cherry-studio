@@ -89,11 +89,11 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       case 'string':
         return 'border-primary/30 bg-primary/10 text-primary'
       case 'number':
-        return 'border-success/30 bg-success/10 text-success'
+        return 'border-success-border bg-success-subtle text-success-subtle-foreground'
       case 'boolean':
         return 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400'
       case 'object':
-        return 'border-warning/30 bg-warning/10 text-warning'
+        return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
       case 'array':
         return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
       default:
@@ -256,7 +256,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       id: 'autoApprove',
       header: () => (
         <Flex className="items-center justify-center gap-1">
-          <Zap size={14} color="red" />
+          <Zap size={14} color="var(--error)" />
           <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
         </Flex>
       ),
