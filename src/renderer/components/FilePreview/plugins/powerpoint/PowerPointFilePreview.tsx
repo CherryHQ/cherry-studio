@@ -2,8 +2,6 @@ import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
-import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -85,7 +83,7 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
   }
 }
 
-export default function PowerPointFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+export default function PowerPointFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
@@ -180,11 +178,6 @@ export default function PowerPointFilePreview({ filePath, fileName, refreshKey }
 
     void (async () => {
       try {
-        // Preflight the size via metadata (a stat, not a read) so oversized files
-        // are rejected before we allocate + IPC-transfer the whole presentation.
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath))
-        if (!metadata) throw new Error('Failed to read file metadata: ' + filePath)
-        if (cancelled) return
         assertSourceSize(metadata.size)
 
         const pptxData = toUint8Array(await window.api.fs.read(filePath))
@@ -274,7 +267,7 @@ export default function PowerPointFilePreview({ filePath, fileName, refreshKey }
       viewer?.destroy()
       container.innerHTML = ''
     }
-  }, [filePath, focusContainer, refreshKey, setPreviewControlsBusy])
+  }, [filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
 
   const hasPages = !error && pageCount > 0
 
@@ -299,12 +292,15 @@ export default function PowerPointFilePreview({ filePath, fileName, refreshKey }
         <div
           data-testid="powerpoint-file-preview"
           className="relative h-full min-h-0 w-full overflow-hidden bg-background">
+          {/* Must stay in-flow (not `absolute inset-0`): PptxViewer overwrites the
+              container's inline `position`, which would void inset sizing and let the
+              element grow to its content height — killing the scrollbar. */}
           <div
             ref={containerRef}
             data-testid="pptx-viewer-container"
             role="region"
             aria-label={fileName}
-            className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             tabIndex={0}
           />
           {loading ? (

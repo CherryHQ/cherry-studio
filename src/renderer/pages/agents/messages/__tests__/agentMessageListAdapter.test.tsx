@@ -340,7 +340,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
-    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
@@ -365,12 +364,6 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.showInFolder?.('/Users/me/report.md')
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
-
-    void value?.actions.isDirectory?.('dist/assets')
-    expect(ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', {
-      kind: 'path',
-      path: '/tmp/workspace/dist/assets'
-    })
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({
@@ -420,11 +413,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
-  // Regression: the right pane's tool-flow list used to build the provider without
-  // `workspacePath`, so workspace-relative tool output stayed relative. The metadata
-  // probe then rejected it, `ClickableFilePath` reported `open_file_error`, and the
-  // file never fell through to the artifact preview pane.
-  it('fails the directory probe closed when a relative path has no workspace root', async () => {
+  it('rejects unresolved relative paths when no workspace root is available', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -449,22 +438,10 @@ describe('useAgentMessageListProviderValue', () => {
     }
     render(<Probe />)
 
-    // Resolves false instead of rejecting, and never reaches IPC: the caller
-    // routes the click to the preview pane, which reports its own state.
-    await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
-    expect(ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
-
-    // An absolute path still probes normally without a workspace root.
-    await expect(value?.actions.isDirectory?.('/Users/me/report.md')).resolves.toBe(false)
-    expect(ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', {
-      kind: 'path',
-      path: '/Users/me/report.md'
-    })
-
-    // Actions the user explicitly triggered must surface the failure instead of
-    // silently doing nothing, so the shared error toast still fires.
     expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(() => value?.actions.showInFolder?.('dist/report.md')).toThrow(/absolute path/i)
     expect(window.api.file.openPath).not.toHaveBeenCalled()
+    expect(window.api.file.showInFolder).not.toHaveBeenCalled()
   })
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {

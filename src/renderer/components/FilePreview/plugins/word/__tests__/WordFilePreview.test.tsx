@@ -27,18 +27,11 @@ const mocks = vi.hoisted(() => {
   return {
     createValidDocxBytes,
     fsRead: vi.fn(),
-    getMetadata: vi.fn(),
     loggerError: vi.fn(),
     renderAsync: vi.fn(),
     MockIntersectionObserver
   }
 })
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: (route: string, input: unknown) => (route === 'file.get_metadata' ? mocks.getMetadata(input) : undefined)
-  }
-}))
 
 vi.mock('docx-preview', () => ({
   renderAsync: mocks.renderAsync
@@ -79,7 +72,6 @@ const filePath = '/tmp/documents/report.docx' as AbsoluteFilePath
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.fsRead.mockResolvedValue(mocks.createValidDocxBytes())
-  mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
     body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
   })
@@ -98,7 +90,7 @@ afterEach(() => {
 
 describe('WordFilePreview', () => {
   it('loads and renders DOCX pages with a centered standalone toolbar', async () => {
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
+    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
     await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
@@ -136,7 +128,7 @@ describe('WordFilePreview', () => {
         '<section><a href="javascript:alert(1)">unsafe</a><a href="https://example.com">safe</a></section>'
     })
 
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
+    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
 
     const unsafeLink = await screen.findByText('unsafe')
     expect(unsafeLink).not.toHaveAttribute('href')
@@ -145,9 +137,14 @@ describe('WordFilePreview', () => {
   })
 
   it('rejects oversized DOCX via metadata before reading bytes', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 25 * 1024 * 1024 + 1 })
-
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
+    render(
+      <WordFilePreview
+        filePath={filePath}
+        fileName="report.docx"
+        metadata={{ size: 25 * 1024 * 1024 + 1 }}
+        refreshKey={0}
+      />
+    )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(mocks.fsRead).not.toHaveBeenCalled()
@@ -158,33 +155,22 @@ describe('WordFilePreview', () => {
     const error = new Error('corrupt docx')
     mocks.fsRead.mockRejectedValueOnce(error)
 
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
+    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
     expect(mocks.loggerError).toHaveBeenCalledWith(`Failed to load DOCX preview: ${filePath}`, error)
   })
 
-  it('shows the error state and skips the read when metadata is null', async () => {
-    mocks.getMetadata.mockResolvedValueOnce(null)
-
-    render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.renderAsync).not.toHaveBeenCalled()
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      `Failed to load DOCX preview: ${filePath}`,
-      expect.objectContaining({ message: `Failed to read file metadata: ${filePath}` })
-    )
-  })
-
   it('reloads the file when refreshKey changes', async () => {
-    const view = render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
+    const view = render(
+      <WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />
+    )
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
 
-    view.rerender(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={1} />)
+    view.rerender(
+      <WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={1} />
+    )
 
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
   })

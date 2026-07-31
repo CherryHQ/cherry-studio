@@ -1,7 +1,5 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
-import { createFilePathHandle } from '@shared/utils/file'
 import { renderAsync } from 'docx-preview'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -61,7 +59,7 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
-export default function WordFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+export default function WordFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -132,11 +130,6 @@ export default function WordFilePreview({ filePath, fileName, refreshKey }: File
 
     void (async () => {
       try {
-        // Preflight the size via metadata (a stat, not a read) so oversized files
-        // are rejected before we allocate + IPC-transfer the whole document.
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath))
-        if (!metadata) throw new Error('Failed to read file metadata: ' + filePath)
-        if (!isCurrent()) return
         assertSourceSize(metadata.size)
 
         const docxData = toUint8Array(await window.api.fs.read(filePath))
@@ -191,7 +184,7 @@ export default function WordFilePreview({ filePath, fileName, refreshKey }: File
       styleContainer.innerHTML = ''
       stagingHost.remove()
     }
-  }, [filePath, focusContainer, refreshKey])
+  }, [filePath, focusContainer, metadata.size, refreshKey])
 
   useEffect(() => {
     const scrollRoot = containerRef.current

@@ -146,10 +146,10 @@ export function ComposerSpeedControl({
                 getThumbAriaValueText={() => effortLabel}
                 className={cn(
                   'h-8',
-                  '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner dark:[&_[data-slot=slider-track]]:bg-neutral-700!',
+                  '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
                   '[&_[data-slot=slider-range]]:bg-primary',
                   '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
-                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm dark:[&_[data-slot=slider-thumb]]:bg-neutral-100!',
+                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
                 onValueChange={([index]) => {

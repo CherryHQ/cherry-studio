@@ -99,10 +99,10 @@ function formatTime(ts: number): string {
 }
 
 const LOG_LEVEL_COLORS: Record<string, string> = {
-  error: '#ff4d4f',
-  warn: '#faad14',
-  info: '#1677ff',
-  debug: '#8c8c8c'
+  error: 'var(--error)',
+  warn: 'var(--warning)',
+  info: 'var(--info)',
+  debug: 'var(--foreground-tertiary)'
 }
 
 const NO_AGENT_VALUE = '__none'
@@ -166,7 +166,9 @@ const ChannelLogModal: FC<{
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
-              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c' }}>[{entry.level.toUpperCase()}]</span>
+              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? 'var(--foreground-tertiary)' }}>
+                [{entry.level.toUpperCase()}]
+              </span>
               <span className="break-all">{entry.message}</span>
             </div>
           ))}
@@ -291,14 +293,14 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   </SelectContent>
                 </Select>
                 {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
-                <div className="mt-2 flex items-center gap-1.5 text-foreground-muted text-xs">
+                <div className="mt-2 flex items-center gap-1.5 text-muted-foreground text-xs">
                   <span>{t('agent.session.display.workdir')}</span>
                   <WorkspaceSelector
                     value={workspaceId}
                     onChange={handleWorkspaceChange}
                     align="start"
                     trigger={
-                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-foreground-muted">
+                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-muted-foreground">
                         {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
                         <span className="max-w-40 truncate">{workspaceLabel}</span>
                         <ChevronDown className="size-3.5" />
@@ -347,7 +349,7 @@ const ChannelInstanceRow: FC<{
     if (isConnected) {
       statusColor = 'bg-success'
       statusTag = (
-        <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
+        <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-3.5">
           {t('agent.channels.connected')}
         </Badge>
       )
@@ -564,7 +566,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
                 {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
                 <span className="truncate">{channelDef.name}</span>
               </SettingTitle>
-              <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
+              <p className="mt-1.5 mb-0 text-muted-foreground text-xs">
                 {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
               </p>
             </div>

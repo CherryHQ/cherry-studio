@@ -146,7 +146,7 @@ import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
 import { hash as internalHash } from './internal/content/hash'
-import { read as internalRead } from './internal/content/read'
+import { read as internalRead, readChunk as internalReadChunk } from './internal/content/read'
 import {
   createWriteStream as internalCreateWriteStream,
   write as internalWrite,
@@ -439,6 +439,9 @@ export interface IFileManager {
   read(id: FileEntryId, options: { encoding: 'base64' }): Promise<ReadResult<string>>
   /** Read file content as binary. */
   read(id: FileEntryId, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
+
+  /** Read a byte range without loading the complete file. */
+  readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>>
 
   /** Create a readable stream. */
   createReadStream(id: FileEntryId): Promise<Readable>
@@ -833,6 +836,10 @@ export class FileManager extends BaseService implements IFileManager {
     // Single overload-erasing call site keeps the dispatcher simple; the public
     // overloads above narrow the return type for type-safe call sites.
     return internalRead(this.deps, id, options as { encoding?: 'text' })
+  }
+
+  async readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>> {
+    return internalReadChunk(this.deps, id, offset, length)
   }
 
   /**

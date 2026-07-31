@@ -85,7 +85,7 @@ const WebSearchSettings: FC = () => {
                             providerId={entry.provider.id}
                             providerName={entry.provider.name}
                             size={22}
-                            className="shrink-0 rounded-lg border border-border/30"
+                            className="shrink-0 rounded-lg border border-border-subtle"
                           />
                         }
                         className={settingsSubmenuItemClassName}

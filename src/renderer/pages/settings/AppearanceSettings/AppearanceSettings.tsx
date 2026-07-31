@@ -534,7 +534,7 @@ const AppearanceSettings: FC = () => {
         {hasV1CustomCssMarker(customCss) && (
           <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
         )}
-        <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
+        <div className="mt-4 overflow-hidden rounded-lg border border-border-subtle">
           <CodeEditor
             theme={activeCmTheme}
             fontSize={fontSize - 1}

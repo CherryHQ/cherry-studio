@@ -200,4 +200,18 @@ describe('useMainWindowNavigation', () => {
 
     expect(mocks.openTab).toHaveBeenCalledWith('/agents')
   })
+
+  it('removes the main-route event bridge on unmount', () => {
+    const { unmount } = render(<MainWindowNavigationHarness />)
+    unmount()
+
+    const event = new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
+      cancelable: true,
+      detail: { path: '/agents' }
+    })
+    window.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
 })

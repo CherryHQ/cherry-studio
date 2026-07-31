@@ -50,7 +50,6 @@ const mocks = vi.hoisted(() => {
     buildPresentation: vi.fn(),
     destroy: vi.fn(),
     fsRead: vi.fn(),
-    getMetadata: vi.fn(),
     goToSlide: vi.fn(),
     load: vi.fn(),
     loggerError: vi.fn(),
@@ -99,12 +98,6 @@ const mocks = vi.hoisted(() => {
   return { ...state, createMockPresentation, MockPptxViewer }
 })
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: (route: string, input: unknown) => (route === 'file.get_metadata' ? mocks.getMetadata(input) : undefined)
-  }
-}))
-
 vi.mock('@aiden0z/pptx-renderer', () => ({
   buildPresentation: mocks.buildPresentation,
   parseZipLazyMedia: mocks.parseZipLazyMedia,
@@ -147,7 +140,6 @@ const filePath = '/tmp/presentations/roadmap.pptx' as AbsoluteFilePath
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
-  mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
   mocks.parseZipLazyMedia.mockResolvedValue(mocks.mockFiles)
   mocks.buildPresentation.mockImplementation(() => mocks.createMockPresentation())
   Object.defineProperty(window, 'api', {
@@ -160,7 +152,9 @@ afterEach(cleanup)
 
 describe('PowerPointFilePreview', () => {
   it('loads and renders PPTX slides with a centered standalone toolbar', async () => {
-    render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
+    render(
+      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+    )
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
@@ -190,7 +184,9 @@ describe('PowerPointFilePreview', () => {
   })
 
   it('removes external media relationships before loading the viewer', async () => {
-    render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
+    render(
+      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+    )
 
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
 
@@ -201,9 +197,14 @@ describe('PowerPointFilePreview', () => {
   })
 
   it('rejects oversized PPTX via metadata before reading bytes', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 25 * 1024 * 1024 + 1 })
-
-    render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
+    render(
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 25 * 1024 * 1024 + 1 }}
+        refreshKey={0}
+      />
+    )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(mocks.fsRead).not.toHaveBeenCalled()
@@ -214,34 +215,25 @@ describe('PowerPointFilePreview', () => {
     const error = new Error('corrupt pptx')
     mocks.fsRead.mockRejectedValueOnce(error)
 
-    render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
+    render(
+      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+    )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
     expect(mocks.loggerError).toHaveBeenCalledWith(`Failed to load PPTX preview: ${filePath}`, error)
   })
 
-  it('shows the error state and skips the read when metadata is null', async () => {
-    mocks.getMetadata.mockResolvedValueOnce(null)
-
-    render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      `Failed to load PPTX preview: ${filePath}`,
-      expect.objectContaining({ message: `Failed to read file metadata: ${filePath}` })
-    )
-  })
-
   it('rebuilds and destroys the viewer when refreshKey changes', async () => {
-    const view = render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
+    const view = render(
+      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+    )
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
 
-    view.rerender(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={1} />)
+    view.rerender(
+      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={1} />
+    )
 
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2))

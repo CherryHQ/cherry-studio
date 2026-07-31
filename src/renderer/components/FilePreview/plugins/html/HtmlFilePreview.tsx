@@ -1,12 +1,12 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import HtmlPreviewFrame, {
+  HTML_PREVIEW_IFRAME_SANDBOX,
   HTML_PREVIEW_RESTRICTED_CSP,
   HTML_PREVIEW_RESTRICTED_SANDBOX
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
-import { ipcApi } from '@renderer/ipc'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
-import { createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
+import { toSafeFileUrl } from '@shared/utils/file'
 import FileCode from 'lucide-react/dist/esm/icons/file-code'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -14,13 +14,22 @@ import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 're
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import type { FilePreviewPluginProps } from '../../types'
+import type { FilePreviewPluginProps, FilePreviewType } from '../../types'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
 const logger = loggerService.withContext('HtmlFilePreview')
 const HTML_PREVIEW_MAX_SIZE_MIB = 2
 const HTML_PREVIEW_MAX_SIZE_BYTES = HTML_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const HTML_PREVIEW_POLICIES = {
+  artifact: {
+    sandbox: HTML_PREVIEW_IFRAME_SANDBOX
+  },
+  file: {
+    csp: HTML_PREVIEW_RESTRICTED_CSP,
+    sandbox: HTML_PREVIEW_RESTRICTED_SANDBOX
+  }
+} as const satisfies Record<FilePreviewType, { csp?: string; sandbox: string }>
 
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
@@ -87,9 +96,10 @@ interface HtmlPreviewContentProps {
   fileName: string
   baseUrl: string
   mode: HtmlFilePreviewMode
+  previewType: FilePreviewType
 }
 
-function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewContentProps): ReactNode {
+function HtmlPreviewContent({ loadState, fileName, baseUrl, mode, previewType }: HtmlPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <HtmlPreviewLoading />
   if (loadState.status === 'error') return <HtmlPreviewError />
   if (loadState.status === 'too_large') return <HtmlPreviewTooLarge />
@@ -111,27 +121,26 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
 
   if (loadState.content.trim().length === 0) return <HtmlPreviewEmpty />
 
-  // Local files are untrusted: use the fully-restricted, script-less sandbox plus a strict
-  // CSP. Because the main window runs with `webSecurity: false`, dropping `allow-same-origin`
-  // alone is not a boundary — only running no scripts reliably keeps a malicious file from
-  // reaching `parent.api` to read/exfiltrate other local files.
+  const policy = HTML_PREVIEW_POLICIES[previewType]
+
   return (
     <div className="h-full bg-white [&>div]:bg-white [&_iframe]:bg-white">
-      <HtmlPreviewFrame
-        html={loadState.content}
-        title={fileName}
-        baseUrl={baseUrl}
-        sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
-        csp={HTML_PREVIEW_RESTRICTED_CSP}
-      />
+      <HtmlPreviewFrame html={loadState.content} title={fileName} baseUrl={baseUrl} {...policy} />
     </div>
   )
 }
 
-export default function HtmlFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+export default function HtmlFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  type = 'file'
+}: FilePreviewPluginProps) {
   const [mode, setMode] = useState<HtmlFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<HtmlFileLoadState>({ status: 'loading' })
   const baseUrl = useMemo(() => toSafeFileUrl(filePath, getFilePreviewExtension(filePath)), [filePath])
+  const effectiveMode = type === 'artifact' ? 'preview' : mode
 
   useEffect(() => {
     let cancelled = false
@@ -139,10 +148,6 @@ export default function HtmlFilePreview({ filePath, fileName, refreshKey }: File
 
     void (async () => {
       try {
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath))
-        if (!metadata) throw new Error('Failed to read file metadata: ' + filePath)
-        if (cancelled) return
-
         if (metadata.size > HTML_PREVIEW_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
@@ -161,13 +166,21 @@ export default function HtmlFilePreview({ filePath, fileName, refreshKey }: File
     return () => {
       cancelled = true
     }
-  }, [filePath, refreshKey])
+  }, [filePath, metadata.size, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>
-      <HtmlFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
+      {type === 'file' ? (
+        <HtmlFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
+      ) : null}
       <FilePreviewLayout.Content>
-        <HtmlPreviewContent loadState={loadState} fileName={fileName} baseUrl={baseUrl} mode={mode} />
+        <HtmlPreviewContent
+          loadState={loadState}
+          fileName={fileName}
+          baseUrl={baseUrl}
+          mode={effectiveMode}
+          previewType={type}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

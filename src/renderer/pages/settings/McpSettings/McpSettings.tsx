@@ -532,7 +532,7 @@ const McpSettings: React.FC = () => {
     children: (
       <LogList>
         {logs.length === 0 && (
-          <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
         )}
         {logs.map((log, idx) => (
           <LogItem key={`${log.timestamp}-${idx}`}>
@@ -631,13 +631,13 @@ const McpSettings: React.FC = () => {
             </div>
           </Scrollbar>
           {activeTabValue === 'settings' && (
-            <div className="flex min-h-14 shrink-0 items-center border-border/60 border-t px-6">
+            <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 -mt-1 hover:!bg-destructive/10 hover:!text-destructive rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
@@ -676,7 +676,10 @@ const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>)
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-foreground', className)} {...props} />
+  <div
+    className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-card-foreground', className)}
+    {...props}
+  />
 )
 
 const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -684,7 +687,7 @@ const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-muted text-xs', className)} {...props} />
+  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -712,7 +715,7 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
     case 'stdout':
       return 'border-info-border bg-info-subtle text-info-subtle-foreground'
     default:
-      return 'border-border/60 bg-muted text-muted-foreground'
+      return 'border-border-subtle bg-muted text-muted-foreground'
   }
 }
 
@@ -745,9 +748,9 @@ const McpRuntimeStatusBadge = ({
   <span
     className={cn(
       'inline-flex h-4.5 items-center rounded-[9px] px-1.5 text-[11px] leading-4.5',
-      state === 'connected' && 'bg-success/10 text-success',
-      state === 'connecting' && 'bg-warning/10 text-warning',
-      state === 'error' && 'bg-destructive/10 text-destructive',
+      state === 'connected' && 'border border-success-border bg-success-subtle text-success-subtle-foreground',
+      state === 'connecting' && 'border border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+      state === 'error' && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
       state === 'disabled' && 'bg-muted text-muted-foreground',
       className
     )}

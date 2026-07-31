@@ -30,7 +30,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -119,10 +118,8 @@ interface AgentMessageListParams {
  * workspace as the root for relative input.
  *
  * Returns `null` when no absolute path exists — the only real case being a
- * relative path with no workspace root to resolve it against. Nullable rather
- * than throwing because the two consumer kinds want opposite things: the
- * `isDirectory` probe must fail closed (see `ClickableFilePath`'s contract),
- * while the open/reveal actions must surface a failure to the user.
+ * relative path with no workspace root to resolve it against. The user-facing
+ * open/reveal actions turn that into an error so the shared UI can report it.
  *
  * `workspacePath` arrives as a bare `string`: main normalizes and enforces
  * absoluteness before persisting (`@main/utils/agentWorkspacePath`), but
@@ -284,20 +281,6 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
-  const isDirectory = useCallback(
-    async (path: string) => {
-      // Fail closed: `ClickableFilePath` documents this probe as resolving
-      // `false` for anything it cannot stat, so an unresolvable path routes to
-      // the preview pane (which reports its own missing/unreadable state)
-      // instead of surfacing an error toast.
-      const resolved = resolveWorkspaceFilePath(workspacePath, path)
-      if (!resolved) return false
-      const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(resolved))
-      return meta?.kind === 'directory'
-    },
-    [workspacePath]
-  )
-
   const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
     const open = leafCapabilities.openInExternalApp
     if (!open) return undefined
@@ -455,7 +438,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
-      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -473,7 +455,6 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
-      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
