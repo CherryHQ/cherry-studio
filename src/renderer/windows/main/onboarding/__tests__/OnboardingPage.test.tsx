@@ -589,7 +589,7 @@ describe('OnboardingPage', () => {
 
     expect(welcomeContent?.parentElement).toHaveClass('pb-20')
     expect(logo.nextElementSibling).toHaveClass('mt-5', 'flex', 'flex-col', 'gap-2')
-    expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-foreground-secondary')
+    expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-muted-foreground')
     expect(primaryAction.parentElement).toHaveClass('mt-8')
     expect(primaryAction).toHaveClass('rounded-xl')
     expect(secondaryAction).toHaveClass('rounded-xl')

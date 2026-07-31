@@ -139,11 +139,16 @@
         "description": "Λάβετε και απαντήστε σε μηνύματα μέσω WeChat χρησιμοποιώντας το iLink Bot API.",
         "disconnected": "Αποσυνδέθηκε",
         "loginHint": "Η πρώτη σύνδεση απαιτεί σάρωση κωδικού QR. Ελέγξτε τα αρχεία καταγραφής της εφαρμογής για τη διεύθυνση URL σύνδεσης.",
+        "qrExpired": "Ο κωδικός QR έληξε. Προσπαθήστε ξανά εναλλάσσοντας το κανάλι.",
         "qrHint": "Άνοιξε το WeChat στο κινητό σου και σάρωσε τον κωδικό QR για να συνδεθείς.",
         "qrTitle": "Σύνδεση με QR code στο WeChat",
         "title": "WeChat",
         "whoamiTip": "Συμβουλή: Στείλτε /whoami στο WeChat για να λάβετε το αναγνωριστικό ενός χρήστη."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
@@ -320,16 +325,25 @@
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",
         "no_subagents": "Καμία υπο-αντιπροσωπεία",
-        "subagents": "Υπο-πράκτορες"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Υπο-πράκτορες",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Δραστηριότητα",
         "agent": "Πράκτορας",
         "context": "Συμφραζόμενα",
         "no_tasks": "Κανένα ενεργό καθήκον",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Επιλεγμένο εργαλείο",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
         "tasks": "Εργασίες",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Ενεργός",
         "tools_done": "Έγινε",
         "tools_failed": "Απέτυχε",
@@ -434,6 +448,7 @@
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
+        "unknown_agent_tip": "Αυτή είναι μια ιστορική ομάδα συνεδριών χωρίς πράκτορα, όχι ένας πραγματικός πράκτορας. Είναι μόνο για προβολή και δεν μπορεί να συνεχίσει την εκτέλεση.",
         "yesterday": "Χθες"
       },
       "label_one": "Συνεδρία",
@@ -613,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Οι επεξεργασίες αρχείων και οι λειτουργίες του συστήματος αρχείων εγκρίνονται αυτόματα.",
-            "title": "Αυτόματη αποδοχή επεξεργασιών αρχείων"
+            "description": "Επεξεργάζεται αρχεία ελεύθερα. Ρωτά πριν από εντολές.",
+            "title": "Αυτόματη αποδοχή επεξεργασιών"
+          },
+          "auto": {
+            "description": "Εκτελείται χωρίς συνήθεις ερωτήσεις. Ένας έλεγχος ασφαλείας μπλοκάρει επικίνδυνες ενέργειες.",
+            "title": "Έγκριση για μένα"
           },
           "bypassPermissions": {
-            "description": "Όλα τα αιτήματα άδειας παραλείπονται — χρησιμοποιήστε με προσοχή.",
-            "title": "Παράκαμψη ελέγχων αδειών",
+            "description": "Παρακάμπτει τους ελέγχους δικαιωμάτων. Μπορεί να διαγράψει αρχεία και να χρησιμοποιήσει το δίκτυο.",
+            "title": "Πλήρης πρόσβαση",
             "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση."
           },
           "confirmChange": {
@@ -626,14 +645,14 @@
             "title": "Αλλαγή λειτουργίας δικαιωμάτων;"
           },
           "default": {
-            "description": "Ισχύουν οι κανονικοί έλεγχοι δικαιωμάτων.",
-            "title": "Προεπιλογή (να ερωτηθώ πριν συνεχίσω)"
+            "description": "Ρωτά πριν από την επεξεργασία αρχείων ή την εκτέλεση εντολών.",
+            "title": "Ερώτηση πριν από ενέργειες"
           },
           "helper": "Καθορίζει πώς ο πράκτορας διαχειρίζεται την εξουσιοδότηση χρήσης εργαλείων",
           "placeholder": "Επιλέξτε λειτουργία αδειών",
           "plan": {
-            "description": "Ο Claude μπορεί να χρησιμοποιεί μόνο εργαλεία μόνο για ανάγνωση και παρουσιάζει ένα σχέδιο πριν από την εκτέλεση.",
-            "title": "Λειτουργία σχεδιασμού (έρχεται σύντομα)"
+            "description": "Σχεδιάζει χωρίς να επεξεργάζεται αρχεία. Εκτελούνται μόνο εντολές ανάγνωσης ή εγκεκριμένες.",
+            "title": "Μόνο σχεδιασμός"
           },
           "title": "Λειτουργία αδειών"
         },
@@ -669,6 +688,14 @@
       }
     },
     "sidebar_title": "Πράκτορες",
+    "speed": {
+      "effort": "Προσπάθεια",
+      "fast": "Γρήγορα",
+      "faster": "Πιο γρήγορα",
+      "label": "Ταχύτητα",
+      "smarter": "Εξυπνότερος",
+      "title": "Ρυθμίσεις απόκρισης"
+    },
     "tasks": {
       "add": "Προσθήκη εργασίας",
       "cancel": "Ακύρωση",
@@ -1557,6 +1584,7 @@
         },
         "open_file": "Άνοιγμα Αρχείου",
         "open_file_error": "Αποτυχία ανοίγματος αρχείου: {{path}}",
+        "open_with": "Άνοιγμα με",
         "reveal_in_finder": "Εμφάνιση στον Finder"
       },
       "topics": "Θέματα",
@@ -1932,6 +1960,7 @@
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_assistant": "Αποσυνδεδεμένος Βοηθός",
+        "unknown_assistant_tip": "Αυτή είναι μια ιστορική ομάδα συνομιλίας χωρίς βοηθό, όχι ένας πραγματικός βοηθός. Μετακινήστε τη συνομιλία σε έναν υπάρχοντα βοηθό για να συνεχίσετε.",
         "yesterday": "Χθες"
       },
       "list": "Λίστα θεμάτων",
@@ -2299,6 +2328,12 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "group": {
+      "create": "Νέα Ομάδα",
+      "create_failed": "Αποτυχία δημιουργίας ομάδας",
+      "name_placeholder": "Εισαγάγετε το όνομα της ομάδας...",
+      "name_required": "Απαιτείται όνομα ομάδας"
+    },
     "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
@@ -3432,6 +3467,7 @@
         "json_invalid": "Μη έγκυρη μορφή JSON",
         "max_tokens": "Μέγιστα διακριτά σύμβολα",
         "max_tool_calls": "Μέγιστες κλήσεις εργαλείων",
+        "max_tool_calls_default": "Προεπιλογή ({{count}} γύροι)",
         "mcp_mode": "Λειτουργία MCP",
         "model": "Προεπιλεγμένο μοντέλο",
         "model_clear": "Καθαρό",
@@ -3447,8 +3483,7 @@
         "tags": "Ετικέτες",
         "temperature": "Θερμοκρασία",
         "title": "Βασικές ρυθμίσεις",
-        "top_p": "Top-P",
-        "unlimited": "Απεριόριστο"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Βιβλιοθήκη",
       "dialogs": {
@@ -3822,6 +3857,7 @@
     },
     "citation": "{{count}} αναφορές",
     "citations": "Περιεχόμενα αναφοράς",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Αντιγράφηκε",
     "copy": {
       "failed": "Η αντιγραφή απέτυχε",
@@ -4103,6 +4139,7 @@
         "write": "Αποθήκευση",
         "writing": "Αποθήκευση"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
@@ -4134,6 +4171,7 @@
         "tool": "Εργαλείο",
         "webFetch": "Ανάκτηση Ιστού",
         "webSearch": "Αναζήτηση στον Ιστό",
+        "workflow": "[to be translated]:Workflow",
         "write": "Γράψε"
       },
       "noData": "Δεν υπάρχουν διαθέσιμα δεδομένα για αυτό το εργαλείο",
@@ -4191,6 +4229,15 @@
         "plan_other": "{{count}} σχέδια",
         "result_one": "{{count}} αποτέλεσμα",
         "result_other": "{{count}} αποτελέσματα"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -5738,6 +5785,7 @@
         "button": "Προβολή",
         "title": "Ημερολόγιο Ενημερώσεων"
       },
+      "repository": "Αποθετήριο GitHub",
       "social": {
         "title": "Κοινωνικά Λογαριασμοί"
       },
@@ -6597,7 +6645,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Η απενεργοποίηση της υλικοποιημένης επιτάχυνσης απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να επανεκκινήσετε τώρα;",
+        "content_disable": "Η απενεργοποίηση της επιτάχυνσης υλικού απαιτεί επανεκκίνηση της εφαρμογής για να εφαρμοστεί. Θέλετε να επανεκκινήσετε τώρα;",
+        "content_enable": "Η ενεργοποίηση της επιτάχυνσης υλικού απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να επανεκκινήσετε τώρα;",
         "title": "Απαιτείται επανεκκίνηση της εφαρμογής"
       },
       "title": "Απενεργοποίηση επιτάχυνσης υλικού"
@@ -6652,9 +6701,6 @@
           "dxtFile": "Αρχείο Πακέτου DXT",
           "dxtHelp": "Επιλέξτε ένα αρχείο .dxt που περιέχει διακομιστή MCP",
           "dxtProcessFailed": "Αποτυχία επεξεργασίας αρχείου DXT",
-          "error": {
-            "multipleServers": "Δεν είναι δυνατή η εισαγωγή από πολλαπλούς διακομιστές"
-          },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
           "json": "Εισαγωγή από JSON",
           "mcpb": "Εισαγωγή Δέσμης MCPB",
@@ -6808,6 +6854,15 @@
       "providers": "Πάροχοι",
       "registry": "Πηγή Διαχείρισης πακέτων",
       "registryDefault": "Προεπιλεγμένη",
+      "registryOptions": {
+        "custom": "Προσαρμοσμένο",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Τσινγκχουά",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Επιλέξτε την πηγή για την εγκατάσταση πακέτων, για να αντιμετωπιστούν προβλήματα δικτύου από την προεπιλεγμένη πηγή.",
       "requiresConfig": "Απαιτείται Διαμόρφωση",
       "resources": {
@@ -6983,6 +7038,7 @@
         "display": "Διαχείριση οθόνης",
         "preferences": "Προτιμήσεις"
       },
+      "hide_app": "Απόκρυψη {{name}}",
       "open_link_external": {
         "description": "Όταν είναι ενεργοποιημένο, οι σύνδεσμοι που ανοίγουν ένα νέο παράθυρο μέσα σε μια μίνι εφαρμογή ανοίγουν στον προεπιλεγμένο σας περιηγητή",
         "title": "Άνοιγμα νέου παραθύρου σύνδεσης στον περιηγητή"
@@ -6995,6 +7051,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
+      "show_app": "Εμφάνιση {{name}}",
       "title": "Ρυθμίσεις Mini Apps",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },

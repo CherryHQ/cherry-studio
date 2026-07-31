@@ -113,7 +113,7 @@ describe('FileList', () => {
     expect(firstRow).toHaveClass('grid', 'h-10', 'rounded-md', 'px-2.5')
     expect(firstRow).not.toHaveClass('border-b')
     const format = screen.getByText(getFormatLabel(file.format))
-    expect(format).toHaveClass('text-foreground-secondary', 'text-xs')
+    expect(format).toHaveClass('text-muted-foreground', 'text-xs')
     expect(format).not.toHaveClass('rounded-md', 'border-border-subtle', 'bg-background-subtle')
     expect(virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0].estimateSize()).toBe(44)
   })
@@ -185,13 +185,21 @@ describe('FileList', () => {
     expect(onSelect).toHaveBeenCalledWith(file.id)
   })
 
+  it('uses the selected border only for the checked checkbox state', () => {
+    render(<FileList {...fileListProps(null)} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    expect(checkbox).toHaveClass('data-[state=checked]:border-border-selected')
+    expect(checkbox).not.toHaveClass('border-border-selected')
+  })
+
   it('opens files through the existing action', () => {
     const onOpen = vi.fn()
 
     render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
 
     const openButton = screen.getByRole('button', { name: 'files.open' })
-    expect(openButton).toHaveClass('size-6', '!text-muted-foreground/70')
+    expect(openButton).toHaveClass('size-6', '!text-muted-foreground')
     fireEvent.click(openButton)
 
     expect(onOpen).toHaveBeenCalledWith(file)
@@ -296,7 +304,7 @@ describe('FileListHeader', () => {
 
     expect(header).toHaveClass('grid', 'mx-3', 'mb-2', 'h-10', 'shrink-0', 'border-border', 'border-b', 'px-2.5')
     expect(header).not.toHaveClass('sticky', 'bg-card', 'bg-background')
-    expect(activeSort).toHaveClass('!text-foreground-muted')
-    expect(inactiveSort).toHaveClass('!text-foreground-muted')
+    expect(activeSort).toHaveClass('!text-muted-foreground')
+    expect(inactiveSort).toHaveClass('!text-muted-foreground')
   })
 })

@@ -101,8 +101,7 @@
 }
 
 .markdown li::marker {
-  /* 90% foreground × 4/9 preserves the previous 40% muted ink. */
-  color: color-mix(in srgb, var(--foreground) 44.4444%, transparent);
+  color: var(--foreground-tertiary);
 }
 
 .markdown li > ul,
@@ -231,7 +230,7 @@
 
 .markdown a,
 .markdown .link {
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
   cursor: pointer;
 }
@@ -298,7 +297,7 @@
   vertical-align: super;
   line-height: 0;
   margin: 0 2px;
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
 }
 
@@ -322,7 +321,7 @@
 }
 
 .footnotes a {
-  color: var(--primary);
+  color: var(--link);
 }
 
 .footnotes ol {
@@ -350,7 +349,7 @@
   vertical-align: super;
   line-height: 0;
   margin-left: 5px;
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
 }
 

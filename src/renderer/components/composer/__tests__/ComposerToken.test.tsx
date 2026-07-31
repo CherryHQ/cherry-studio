@@ -19,6 +19,20 @@ import {
 } from '../tokens'
 import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } from '../tokenView'
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
+}))
+
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
+  default: ({ hostname, alt }: { hostname: string; alt: string }) => (
+    <img data-testid="favicon" data-hostname={hostname} alt={alt} />
+  )
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const PopoverContext = React.createContext<{
@@ -188,6 +202,8 @@ vi.mock('react-i18next', () => ({
 const readPastedTextMock = vi.fn()
 
 beforeEach(() => {
+  ipcRequestMock.mockReset()
+  ipcRequestMock.mockResolvedValue(undefined)
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -437,13 +453,12 @@ describe('ComposerToken', () => {
     expect(popoverContent).not.toHaveTextContent('PNG')
     expect(popoverContent).not.toHaveTextContent('2 KB')
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toHaveClass(
-      'bg-neutral-100',
-      'dark:bg-neutral-800',
-      'text-foreground-secondary',
+      'bg-muted',
+      'text-muted-foreground',
       'text-sm'
     )
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).not.toHaveClass(
-      'text-muted-foreground'
+      'text-foreground-tertiary'
     )
   })
 
@@ -490,9 +505,8 @@ describe('ComposerToken', () => {
     expect(removeButton).toHaveClass(
       'size-full',
       'rounded-[5px]',
-      'bg-neutral-100',
+      'bg-muted',
       'text-foreground',
-      'dark:bg-neutral-800',
       'opacity-0',
       'group-hover/composer-token:pointer-events-auto',
       'group-hover/composer-token:opacity-100'
@@ -587,11 +601,7 @@ describe('ComposerToken', () => {
     expect(token).not.toHaveClass('align-baseline')
     expect(token).not.toHaveClass('border-destructive', 'bg-error-subtle')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
-    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass(
-      'bg-neutral-100',
-      'text-foreground',
-      'dark:bg-neutral-800'
-    )
+    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('bg-muted', 'text-foreground')
     expect(token?.querySelector('[data-composer-token-remove]')).not.toHaveClass(
       'bg-transparent',
       'text-current',
@@ -736,13 +746,7 @@ describe('ComposerToken', () => {
     const removeButton = container.querySelector('[data-composer-token-remove]') as HTMLButtonElement
     expect(removeButton).toBeInTheDocument()
     expect(removeButton).toHaveAttribute('aria-label', '删除')
-    expect(removeButton).toHaveClass(
-      'size-full',
-      'rounded-[5px]',
-      'bg-neutral-100',
-      'text-foreground',
-      'dark:bg-neutral-800'
-    )
+    expect(removeButton).toHaveClass('size-full', 'rounded-[5px]', 'bg-muted', 'text-foreground')
     expect(removeButton).not.toHaveClass(
       'bg-transparent',
       'dark:text-black',
@@ -1056,6 +1060,58 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
+  it('renders pasted links with the default icon, identifiable label, and removable open action', () => {
+    const url = 'https://www.example.com/docs'
+    const onRemove = vi.fn()
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url
+        }}
+        onRemove={onRemove}
+        removeLabel="删除"
+      />
+    )
+
+    const link = screen.getByRole('link', { name: url })
+    expect(link).toHaveTextContent('example.com/docs')
+    expect(link).toHaveClass('text-primary', 'cursor-pointer')
+    expect(link.querySelector('svg')).toHaveClass('size-[1em]', 'text-current', 'opacity-80')
+    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-composer-link-favicon]')).not.toBeInTheDocument()
+    fireEvent.click(link)
+    expect(ipcRequestMock).toHaveBeenCalledWith('system.shell.open_website', url)
+
+    fireEvent.click(container.querySelector('[data-composer-token-remove]') as HTMLButtonElement)
+    expect(onRemove).toHaveBeenCalledTimes(1)
+    expect(ipcRequestMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders sent links with a constrained favicon', () => {
+    const url = 'https://www.example.com/docs'
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url
+        }}
+        readOnly
+      />
+    )
+
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.example.com')
+    expect(container.querySelector('[data-composer-link-favicon]')).toHaveClass(
+      'size-[1em]',
+      'overflow-hidden',
+      '[&>img]:size-full!'
+    )
+  })
+
   it('renders knowledge tokens without a popover and exposes inline remove on the icon', () => {
     const onRemove = vi.fn()
     const { container } = render(
@@ -1135,13 +1191,13 @@ describe('ComposerToken', () => {
 
     const token = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
     expect(token).toHaveClass('text-info')
-    expect(token).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
+    expect(token).not.toHaveClass('border-info-border', 'bg-info-subtle', 'rounded-md', 'ring-1')
 
     rerender(<ComposerToken token={promptVariableToken} selected />)
 
     const selectedToken = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
     expect(selectedToken).toHaveClass('text-primary', 'underline', 'decoration-primary/40', 'underline-offset-2')
-    expect(selectedToken).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
+    expect(selectedToken).not.toHaveClass('border-info-border', 'bg-info-subtle', 'rounded-md', 'ring-1')
   })
 
   it('rejects unsupported token kinds', () => {

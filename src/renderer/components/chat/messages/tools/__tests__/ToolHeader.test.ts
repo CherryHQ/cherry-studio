@@ -49,7 +49,10 @@ const translations: Record<string, string> = {
   'message.tools.labels.taskList': 'List tasks',
   'message.tools.labels.taskOutput': 'View task output',
   'message.tools.labels.taskStop': 'Stop task',
-  'message.tools.labels.taskUpdate': 'Update task'
+  'message.tools.labels.taskUpdate': 'Update task',
+  'message.tools.workflow.orchestrating': 'Orchestrating workflow',
+  'message.tools.workflow.started': 'Started workflow',
+  'message.tools.workflow.workflow': 'workflow'
 }
 
 const t = (key: string, options?: Record<string, string>) => {
@@ -198,6 +201,17 @@ describe('getReadableToolActivity', () => {
       description: 'Task 1'
     })
   })
+
+  it('describes Workflow as orchestration instead of a generic tool call', () => {
+    expect(getReadableToolActivity(AgentToolsType.Workflow, { name: 'review-pr' }, true, t)).toEqual({
+      label: 'Orchestrating workflow',
+      description: 'review-pr'
+    })
+    expect(getReadableToolActivity(AgentToolsType.Workflow, {}, false, t)).toEqual({
+      label: 'Started workflow',
+      description: 'workflow'
+    })
+  })
 })
 
 describe('ToolHeader', () => {
@@ -277,7 +291,7 @@ describe('ToolHeader', () => {
     )
 
     const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-foreground-secondary')
+    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-muted-foreground')
     expect(commandPreview.querySelector('span')).toBeNull()
   })
 

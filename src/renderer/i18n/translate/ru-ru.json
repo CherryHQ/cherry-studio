@@ -139,11 +139,16 @@
         "description": "Получайте и отвечайте на сообщения через WeChat с помощью iLink Bot API.",
         "disconnected": "Отключено",
         "loginHint": "Первый вход требует сканирования QR-кода. Проверьте журналы приложения для получения URL-адреса входа.",
+        "qrExpired": "QR-код истёк. Повторите попытку, переключив канал.",
         "qrHint": "Откройте WeChat на телефоне, отсканируйте QR-код для входа.",
         "qrTitle": "Вход по QR-коду WeChat",
         "title": "WeChat",
         "whoamiTip": "Совет: Отправьте /whoami в WeChat, чтобы получить ID пользователя."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} ещё",
         "no_artifacts": "Нет заявленных результатов",
         "no_subagents": "Без субагентов",
-        "subagents": "Субагенты"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Субагенты",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Деятельность",
         "agent": "Агент",
         "context": "Контекст",
         "no_tasks": "Нет активных задач",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Выбранный инструмент",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} завершено",
         "tasks": "Задачи",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Активный",
         "tools_done": "Готово",
         "tools_failed": "Не удалось",
@@ -434,6 +448,7 @@
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
+        "unknown_agent_tip": "Это историческая группа сеансов без агента, а не фактический агент. Она доступна только для просмотра и не может продолжить работу.",
         "yesterday": "Вчера"
       },
       "label_one": "Сессия",
@@ -613,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Редактирование файлов и операции с файловой системой автоматически одобряются.",
-            "title": "Автоматически принимать изменения файлов"
+            "description": "Свободно редактирует файлы. Спрашивает перед командами.",
+            "title": "Автоматически принимать правки"
+          },
+          "auto": {
+            "description": "Работает без обычных запросов. Проверка безопасности блокирует рискованные действия.",
+            "title": "Одобрять за меня"
           },
           "bypassPermissions": {
-            "description": "Все запросы разрешений пропускаются — используйте с осторожностью.",
-            "title": "Обход проверки разрешений",
+            "description": "Пропускает проверки разрешений. Может удалять файлы и использовать сеть.",
+            "title": "Полный доступ",
             "warning": "Использовать с осторожностью — все инструменты будут запущены без запроса подтверждения."
           },
           "confirmChange": {
@@ -626,14 +645,14 @@
             "title": "Изменить режим разрешений?"
           },
           "default": {
-            "description": "Применяются обычные проверки разрешений.",
-            "title": "По умолчанию (спросить перед продолжением)"
+            "description": "Спрашивает перед редактированием файлов или выполнением команд.",
+            "title": "Спрашивать перед действием"
           },
           "helper": "Определяет, как агент обрабатывает авторизацию использования инструментов",
           "placeholder": "Выбрать режим разрешений",
           "plan": {
-            "description": "Claude может использовать только инструменты только для чтения и представляет план перед выполнением.",
-            "title": "Режим планирования (скоро появится)"
+            "description": "Планирует, не редактируя файлы. Выполняются только команды чтения или проверенные.",
+            "title": "Только планирование"
           },
           "title": "Режим разрешений"
         },
@@ -669,6 +688,14 @@
       }
     },
     "sidebar_title": "Агенты",
+    "speed": {
+      "effort": "Усилие",
+      "fast": "Быстро",
+      "faster": "Быстрее",
+      "label": "Скорость",
+      "smarter": "Умнее",
+      "title": "Настройки ответа"
+    },
     "tasks": {
       "add": "Добавить задачу",
       "cancel": "Отмена",
@@ -1557,6 +1584,7 @@
         },
         "open_file": "Открыть файл",
         "open_file_error": "Не удалось открыть файл: {{path}}",
+        "open_with": "Открыть с помощью",
         "reveal_in_finder": "Показать в Finder"
       },
       "topics": " Топики ",
@@ -1932,6 +1960,7 @@
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_assistant": "Несвязанный помощник",
+        "unknown_assistant_tip": "Это историческая группа переписки без ассистента, а не реальный ассистент. Переместите переписку в существующего ассистента, чтобы продолжить.",
         "yesterday": "Вчера"
       },
       "list": "Список топиков",
@@ -2299,6 +2328,12 @@
     "generate_random_seed": "Сгенерировать случайное зерно",
     "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
+    "group": {
+      "create": "Новая группа",
+      "create_failed": "Не удалось создать группу",
+      "name_placeholder": "Введите название группы...",
+      "name_required": "Название группы обязательно"
+    },
     "help": "Помощь",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
@@ -3432,6 +3467,7 @@
         "json_invalid": "Неверный формат JSON",
         "max_tokens": "Максимальное количество токенов",
         "max_tool_calls": "Максимальное количество вызовов инструментов",
+        "max_tool_calls_default": "По умолчанию ({{count}} раундов)",
         "mcp_mode": "Режим MCP",
         "model": "Модель по умолчанию",
         "model_clear": "Очистить",
@@ -3447,8 +3483,7 @@
         "tags": "Теги",
         "temperature": "Температура",
         "title": "Базовые настройки",
-        "top_p": "Top-P",
-        "unlimited": "Безлимитный"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Библиотека",
       "dialogs": {
@@ -3822,6 +3857,7 @@
     },
     "citation": "{{count}} цитат",
     "citations": "Содержание цитат",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Скопировано!",
     "copy": {
       "failed": "Не удалось скопировать",
@@ -4103,6 +4139,7 @@
         "write": "Сохранить",
         "writing": "Сохранение"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
@@ -4134,6 +4171,7 @@
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
         "webSearch": "Поиск в интернете",
+        "workflow": "[to be translated]:Workflow",
         "write": "Написать"
       },
       "noData": "Нет доступных данных для этого инструмента",
@@ -4191,6 +4229,15 @@
         "plan_other": "{{count}} планов",
         "result_one": "{{count}} результат",
         "result_other": "{{count}} результатов"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -5738,6 +5785,7 @@
         "button": "Релизы",
         "title": "Заметки о релизах"
       },
+      "repository": "Репозиторий GitHub",
       "social": {
         "title": "Социальные аккаунты"
       },
@@ -6597,7 +6645,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Отключение аппаратного ускорения требует перезапуска приложения для вступления в силу. Перезапустить приложение?",
+        "content_disable": "Отключение аппаратного ускорения требует перезапуска приложения для вступления в силу. Хотите перезапустить сейчас?",
+        "content_enable": "Включение аппаратного ускорения требует перезапуска приложения для вступления в силу. Хотите перезапустить сейчас?",
         "title": "Требуется перезапуск"
       },
       "title": "Отключить аппаратное ускорение"
@@ -6652,9 +6701,6 @@
           "dxtFile": "DXT-пакет",
           "dxtHelp": "Выберите .dxt файл, содержащий MCP сервер",
           "dxtProcessFailed": "Не удалось обработать DXT-файл",
-          "error": {
-            "multipleServers": "Невозможно импортировать с нескольких серверов"
-          },
           "invalid": "Неверный ввод, проверьте формат JSON",
           "json": "Импорт из JSON",
           "mcpb": "Импортировать пакет MCPB",
@@ -6808,6 +6854,15 @@
       "providers": "Поставщики",
       "registry": "Реестр пакетов",
       "registryDefault": "По умолчанию",
+      "registryOptions": {
+        "custom": "Пользовательский",
+        "npmTaobao": "Зеркало NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Облако Huawei",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Цинхуа",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Выберите реестр для установки пакетов, если возникают проблемы с сетью при использовании реестра по умолчанию.",
       "requiresConfig": "Требуется настройка",
       "resources": {
@@ -6983,6 +7038,7 @@
         "display": "Управление дисплеем",
         "preferences": "Предпочтения"
       },
+      "hide_app": "Скрыть {{name}}",
       "open_link_external": {
         "description": "Когда включено, ссылки, открывающие новое окно внутри мини-приложения, открываются в вашем браузере по умолчанию",
         "title": "Открывать новые окна в браузере"
@@ -6995,6 +7051,7 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
+      "show_app": "Показать {{name}}",
       "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
     },

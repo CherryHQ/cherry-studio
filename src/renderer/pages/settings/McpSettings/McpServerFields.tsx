@@ -77,21 +77,22 @@ export const MCP_FORM_DEFAULT_VALUES: McpFormValues = {
 }
 
 export interface Registry {
-  name: string
+  /** i18n key under `settings.mcp.registryOptions` for the display name. */
+  nameKey: string
   url: string
 }
 
 export const NpmRegistry: Registry[] = [
-  { name: '淘宝 NPM Mirror', url: 'https://registry.npmmirror.com' },
-  { name: '自定义', url: 'custom' }
+  { nameKey: 'settings.mcp.registryOptions.npmTaobao', url: 'https://registry.npmmirror.com' },
+  { nameKey: 'settings.mcp.registryOptions.custom', url: 'custom' }
 ]
 
 export const PipRegistry: Registry[] = [
-  { name: '清华大学', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
-  { name: '阿里云', url: 'http://mirrors.aliyun.com/pypi/simple/' },
-  { name: '中国科学技术大学', url: 'https://mirrors.ustc.edu.cn/pypi/simple/' },
-  { name: '华为云', url: 'https://repo.huaweicloud.com/repository/pypi/simple/' },
-  { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
+  { nameKey: 'settings.mcp.registryOptions.pipTsinghua', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
+  { nameKey: 'settings.mcp.registryOptions.pipAliyun', url: 'http://mirrors.aliyun.com/pypi/simple/' },
+  { nameKey: 'settings.mcp.registryOptions.pipUstc', url: 'https://mirrors.ustc.edu.cn/pypi/simple/' },
+  { nameKey: 'settings.mcp.registryOptions.pipHuawei', url: 'https://repo.huaweicloud.com/repository/pypi/simple/' },
+  { nameKey: 'settings.mcp.registryOptions.pipTencent', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
 export const registryForCommand = (command: string): Registry[] | undefined => {
@@ -217,7 +218,7 @@ const McpFieldGroup = ({
   singleColumn ? <McpFormGrid className={singleColumnGridClassName}>{children}</McpFormGrid> : children
 
 const inlineSettingItemClassName =
-  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
+  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border px-3'
 
 const codeAreaClassName = 'max-h-40 min-h-21 px-3 py-2 font-mono text-sm leading-5'
 
@@ -435,7 +436,7 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
                   {registry.map((reg) => (
                     <label key={reg.url} className="flex items-center gap-2 text-sm">
                       <RadioGroupItem value={reg.url} />
-                      {reg.name}
+                      {t(reg.nameKey)}
                     </label>
                   ))}
                 </RadioGroup>
@@ -524,7 +525,7 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-muted text-xs">s</span>
+                <span className="text-foreground-tertiary text-xs">s</span>
               </div>
             </FormControl>
           </FormItem>

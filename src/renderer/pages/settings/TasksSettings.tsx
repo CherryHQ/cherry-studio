@@ -1541,7 +1541,7 @@ const TasksSettings: FC = () => {
                     asChild
                     size="sm"
                     variant="outline"
-                    className="rounded-lg border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35">
+                    className="rounded-lg border-border-subtle px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35">
                     <Link to="/settings/scheduled-tasks/$taskId" params={{ taskId: task.id }}>
                       <ItemContent>
                         <ItemTitle>{task.name}</ItemTitle>

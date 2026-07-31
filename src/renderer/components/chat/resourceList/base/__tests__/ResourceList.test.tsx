@@ -1296,7 +1296,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-inherit')
-    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('hover:text-muted-foreground/70')
+    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('text-muted-foreground')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
@@ -1823,7 +1823,7 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
     expect(showMoreButton.parentElement).toHaveClass('pl-9')
-    expect(showMoreButton).toHaveClass('text-muted-foreground/55', 'hover:text-inherit')
+    expect(showMoreButton).toHaveClass('text-muted-foreground', 'hover:text-inherit')
     expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
 
@@ -2604,7 +2604,7 @@ describe('ResourceList', () => {
     expect(screen.getByText(String(ITEMS.length))).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search resources')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Filter' })).toHaveClass(
-      'text-foreground/70!',
+      'text-muted-foreground!',
       'hover:text-foreground!',
       'data-[state=open]:text-foreground!',
       '[&_.lucide:not(.lucide-custom)]:text-current!',

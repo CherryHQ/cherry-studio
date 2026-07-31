@@ -22,6 +22,10 @@ const filePreviewMocks = vi.hoisted(() => ({
   render: vi.fn()
 }))
 
+const imagePreviewMocks = vi.hoisted(() => ({
+  show: vi.fn().mockResolvedValue(undefined)
+}))
+
 vi.mock('@renderer/components/FilePreview', () => ({
   FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
     filePreviewMocks.render(props)
@@ -30,6 +34,12 @@ vi.mock('@renderer/components/FilePreview', () => ({
         {header}
       </div>
     )
+  }
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewMocks.show
   }
 }))
 
@@ -1220,7 +1230,7 @@ describe('FilesPage file operations', () => {
     expect(screen.getByDisplayValue('photo.png')).toBeInTheDocument()
   })
 
-  it('opens the embedded preview when clicking an image in the image grid', async () => {
+  it('opens the shared image preview when clicking an image in the image grid', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
@@ -1233,8 +1243,9 @@ describe('FilesPage file operations', () => {
     fireEvent.click(await screen.findByAltText('photo.png'))
 
     await waitFor(() => {
-      expect(filePreviewMocks.render).toHaveBeenCalledWith({ filePath: '/tmp/photo.png', refreshKey: 0 })
+      expect(imagePreviewMocks.show).toHaveBeenCalledWith('file:///tmp/photo.png')
     })
-    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/photo.png')
+    expect(filePreviewMocks.render).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
   })
 })

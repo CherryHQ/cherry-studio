@@ -52,7 +52,7 @@ const SettingsPage: FC = () => {
       data-ui="settings.view"
       className={cn(
         'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
         <div

@@ -1006,7 +1006,7 @@ describe('ChatComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
-    expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(webSearchButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(webSearchButton)
@@ -2745,6 +2745,39 @@ describe('ChatComposer', () => {
       expect(cacheService.setCasual).toHaveBeenCalledWith(
         'inputbar-draft',
         { text: 'quoted text', tokens: [quoteToken], files: [] },
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('persists token-only draft changes when the serialized text stays unchanged', async () => {
+    const url = 'https://example.com'
+    const linkToken = {
+      id: 'link:https://example.com/',
+      kind: 'link',
+      label: 'example.com',
+      promptText: url,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange(url)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(url))
+    vi.mocked(cacheService.setCasual).mockClear()
+
+    mocks.getDraft.mockReturnValue({ text: url, tokens: [linkToken] })
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([linkToken])
+    })
+
+    await waitFor(() => {
+      expect(cacheService.setCasual).toHaveBeenCalledWith(
+        'inputbar-draft',
+        { text: url, tokens: [linkToken], files: [] },
         expect.any(Number)
       )
     })
