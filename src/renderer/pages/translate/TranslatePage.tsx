@@ -876,7 +876,7 @@ const TranslatePage: FC = () => {
       <Navbar />
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b p-3">
+        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b p-3">
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
@@ -893,7 +893,7 @@ const TranslatePage: FC = () => {
             <button
               type="button"
               onClick={onAbort}
-              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-secondary-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
               <CirclePause size={14} className="lucide-custom" />
               <span>{t('common.stop')}</span>
             </button>
@@ -906,7 +906,7 @@ const TranslatePage: FC = () => {
                 'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 couldTranslate
                   ? 'bg-primary text-primary-foreground hover:opacity-90'
-                  : 'cursor-not-allowed bg-muted text-foreground-muted'
+                  : 'cursor-not-allowed bg-muted text-foreground-disabled'
               )}>
               <Languages size={14} className="lucide-custom" />
               <span>{t('translate.button.translate')}</span>
@@ -953,7 +953,7 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              className={historyOpen ? 'text-foreground' : 'text-foreground-muted hover:text-foreground'}
+              className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setHistoryOpen((open) => {
                   const next = !open
@@ -968,7 +968,7 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              className={settingsOpen ? 'text-foreground' : 'text-foreground-muted hover:text-foreground'}
+              className={settingsOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setSettingsOpen((open) => {
                   const next = !open
@@ -987,7 +987,7 @@ const TranslatePage: FC = () => {
           <Suspense
             fallback={
               <div className="flex min-h-0 flex-1 items-center justify-center" aria-busy="true">
-                <LoaderCircle size={20} className="animate-spin text-foreground-muted" />
+                <LoaderCircle size={20} className="animate-spin text-muted-foreground" />
               </div>
             }>
             <PdfTranslationView
@@ -1047,7 +1047,7 @@ const TranslatePage: FC = () => {
                 selecting={selecting}
               />
             </section>
-            <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-l">
+            <section className="flex min-h-0 min-w-0 flex-col border-border-subtle border-l">
               <TranslateOutputPane
                 ref={outputTextRef}
                 translatedContent={translateOutput}

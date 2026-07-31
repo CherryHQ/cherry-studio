@@ -293,7 +293,7 @@ const PdfTranslationView = ({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="shrink-0 text-foreground-muted hover:text-foreground"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
                   aria-label={t('translate.pdf.action.close')}
                   onClick={close}>
                   <X size={14} />
@@ -306,7 +306,7 @@ const PdfTranslationView = ({
         <PdfPane
           header={
             <>
-              <span className="shrink-0 text-foreground-muted text-xs">
+              <span className="shrink-0 text-muted-foreground text-xs">
                 {textFallback ? t('translate.pdf.pane.translated_text') : t('translate.pdf.pane.translated')}
               </span>
               <span className="flex-1" />
@@ -431,10 +431,10 @@ const PdfPane = ({
   <section
     className={
       bordered
-        ? 'flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l'
+        ? 'flex min-h-0 min-w-0 flex-col border-border-subtle border-t lg:border-t-0 lg:border-l'
         : 'flex min-h-0 min-w-0 flex-col'
     }>
-    <div className="flex min-h-10 shrink-0 items-center gap-3 border-border-muted border-b px-3 py-1.5">{header}</div>
+    <div className="flex min-h-10 shrink-0 items-center gap-3 border-border-subtle border-b px-3 py-1.5">{header}</div>
     <div className="min-h-0 flex-1">{children}</div>
   </section>
 )

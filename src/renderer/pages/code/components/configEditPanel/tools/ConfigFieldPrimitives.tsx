@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={cn('min-w-0 flex-1', className)}>
-      <span className="mb-1 block text-[10px] text-muted-foreground/60">{label}</span>
+      <span className="mb-1 block text-[10px] text-muted-foreground">{label}</span>
       {children}
     </div>
   )

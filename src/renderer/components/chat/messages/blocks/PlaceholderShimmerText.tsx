@@ -6,7 +6,7 @@ export function PlaceholderShimmerText({ className, style, ...props }: Component
       className={['animation-shimmer motion-reduce:!animate-none', className].filter(Boolean).join(' ')}
       style={
         {
-          // 90% foreground × 2/3 preserves the previous 60% secondary ink.
+          // These owner-local colors are animation stops, not content foreground roles.
           '--animation-shimmer-mid': 'color-mix(in srgb, var(--foreground) 66.6667%, transparent)',
           '--animation-shimmer-end': 'color-mix(in srgb, var(--animation-shimmer-mid) 35%, transparent)',
           ...style
