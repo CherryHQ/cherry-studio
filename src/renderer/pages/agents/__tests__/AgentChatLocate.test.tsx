@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
+const translateMock = vi.hoisted(() => (key: string) => key)
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -198,7 +200,10 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 })
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
+  usePreference: (key: string) => [
+    key === 'chat.narrow_mode' || key === 'feature.conversation_greeting.enabled' ? false : 'none',
+    vi.fn()
+  ]
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -299,7 +304,7 @@ vi.mock('../messages/agentMessageListAdapter', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: translateMock })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({

@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const translateMock = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
@@ -434,7 +435,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.developer_mode.enabled') return [true, vi.fn()]
-    return [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
+    return [key === 'chat.narrow_mode' || key === 'feature.conversation_greeting.enabled' ? false : 'none', vi.fn()]
   }
 }))
 
@@ -541,7 +542,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: translateMock })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({

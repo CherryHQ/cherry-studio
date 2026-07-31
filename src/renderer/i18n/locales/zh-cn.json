@@ -198,6 +198,11 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
+      "local_greetings": {
+        "plan": "告诉我你想达成的结果，我来帮你制定计划。",
+        "progress": "今天有什么任务需要我帮你推进？",
+        "research": "需要我帮你调研、规划，还是起草内容？"
+      },
       "welcome_title": "今天想做点什么？"
     },
     "icon": {
@@ -1437,6 +1442,11 @@
       "view_full_content": "查看完整内容"
     },
     "home": {
+      "local_greetings": {
+        "casual": "今天有什么想聊聊的吗？",
+        "explore": "今天想一起探索点什么？",
+        "play": "想来个轻松的话题，还是玩个小游戏？"
+      },
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
@@ -7362,6 +7372,10 @@
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Chat 和 Agent 的本地动态问候语会在您的设备上生成，关闭此选项时仍可使用。当前显示的问候语会作为不可信上下文随第一条消息发送，让您选择的模型能理解“好”等简短回复；开发者模式的追踪记录可能会保存该内容。开启后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区；若不可用，则明确标注并使用从应用语言推导的地区作为后备信息。国家或地区提示、您的姓名、应用语言、本地日期和时间、时区、Chat 或 Agent 模式、基础后备问候语及上一条问候语会发送给固定的内置 CherryAI Qwen 模型进行情境增强。此选项默认关闭。",
+        "title": "AI 增强的情境问候语"
+      },
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
     },
