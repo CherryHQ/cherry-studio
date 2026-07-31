@@ -53,6 +53,7 @@ const PROVIDERS_PATH = path.join(__dirname, '../data/providers.json')
 const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json')
 const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
 const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-models.gen.ts')
+const SERVER_TOOL_CONSTRAINTS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-constraints.gen.ts')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
@@ -149,6 +150,57 @@ function buildServerToolModelsGen(models: Map<string, any>): string {
     '',
     'export const SERVER_TOOL_MODEL_IDS: Partial<Record<ServerTool, readonly string[]>> =',
     `  ${JSON.stringify(modelIds, null, 2)}`,
+    ''
+  ].join('\n')
+}
+
+/**
+ * Compile creator server-tool constraint declarations into exact catalog ids.
+ * Mixing is prefix-based (like `collectServerToolModels`); effort constraints
+ * are generation-only regex over the owning creator's ids, mirroring the
+ * reasoning effort-vocabulary declarations.
+ */
+function collectServerToolConstraints(models: Map<string, any>): {
+  functionMixingIds: string[]
+  webSearchUnsupportedEfforts: Record<string, string[]>
+} {
+  const functionMixingIds: string[] = []
+  const webSearchUnsupportedEfforts: Record<string, string[]> = {}
+  for (const model of models.values()) {
+    const creator = creatorById.get(model.ownedBy)
+    if (!creator) continue
+    if ((creator.serverToolFunctionMixing ?? []).some((prefix) => prefixHit(model.id, prefix))) {
+      functionMixingIds.push(model.id)
+    }
+    for (const rule of creator.webSearchUnsupportedEfforts ?? []) {
+      if (new RegExp(rule.pattern).test(model.id)) {
+        webSearchUnsupportedEfforts[model.id] = [
+          ...new Set([...(webSearchUnsupportedEfforts[model.id] ?? []), ...rule.efforts])
+        ].sort()
+      }
+    }
+  }
+  return { functionMixingIds: functionMixingIds.sort(), webSearchUnsupportedEfforts }
+}
+
+/** Runtime artifact for per-model server-tool constraints. */
+function buildServerToolConstraintsGen(models: Map<string, any>): string {
+  const { functionMixingIds, webSearchUnsupportedEfforts } = collectServerToolConstraints(models)
+  return [
+    '/**',
+    ' * GENERATED FILE — DO NOT EDIT.',
+    ' *',
+    ' * Compiled from `Creator.serverToolFunctionMixing` and `Creator.webSearchUnsupportedEfforts`',
+    ' * declarations by scripts/generate-catalog.ts — edit the creator and run `pnpm generate`.',
+    ' */',
+    '',
+    '/** Models whose provider-native tools coexist with function declarations in one request. */',
+    'export const SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS: readonly string[] =',
+    `  ${JSON.stringify(functionMixingIds, null, 2)}`,
+    '',
+    '/** Reasoning efforts the provider-native web-search tool rejects, by model id. */',
+    'export const WEB_SEARCH_UNSUPPORTED_EFFORTS: Readonly<Record<string, readonly string[]>> =',
+    `  ${JSON.stringify(sortKeys(webSearchUnsupportedEfforts), null, 2)}`,
     ''
   ].join('\n')
 }
@@ -594,4 +646,7 @@ void (async () => {
 
   fs.writeFileSync(SERVER_TOOL_MODELS_GEN_PATH, serverToolModelsGen)
   console.log(`WROTE ${SERVER_TOOL_MODELS_GEN_PATH}.`)
+
+  fs.writeFileSync(SERVER_TOOL_CONSTRAINTS_GEN_PATH, buildServerToolConstraintsGen(models))
+  console.log(`WROTE ${SERVER_TOOL_CONSTRAINTS_GEN_PATH}.`)
 })()

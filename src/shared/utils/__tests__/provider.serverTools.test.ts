@@ -207,7 +207,7 @@ describe('conflict-aware routing', () => {
 
 describe('finalizeWebToolRoutes', () => {
   const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-  const gemini3 = model('gemini-3-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+  const gemini3 = model('gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
   const geminiProvider = { id: 'gemini', serverTools: [] } as unknown as Provider
   const openrouterLike = { id: 'openrouter', serverTools: [] } as unknown as Provider
 

@@ -61,8 +61,22 @@ export default defineCreator({
       'gemini-flash-latest',
       'gemini-pro-latest',
       'gemini-flash-lite-latest'
+    ],
+    // URL context serves the same lines as search grounding (ai.google.dev url-context).
+    'url-context': [
+      'gemini-2',
+      'gemini-3-flash',
+      'gemini-3-pro',
+      'gemini-3-5-flash',
+      'gemini-3-5-pro',
+      'gemini-flash-latest',
+      'gemini-pro-latest',
+      'gemini-flash-lite-latest'
     ]
   },
+  // Pre-3 Gemini rejects requests mixing its native tools with function
+  // declarations; Gemini 3 combines them (ai.google.dev function-calling).
+  serverToolFunctionMixing: ['gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
   models: [
     {
       id: 'gemini-2-5-flash-image',

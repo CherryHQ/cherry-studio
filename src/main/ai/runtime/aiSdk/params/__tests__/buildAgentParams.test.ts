@@ -150,9 +150,9 @@ describe('buildAgentParams provider resolution', () => {
       serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
     })
     const model = makeModel({
-      id: 'gemini::gemini-3-pro',
+      id: 'gemini::gemini-3-pro-preview',
       providerId: 'gemini',
-      apiModelId: 'gemini-3-pro',
+      apiModelId: 'gemini-3-pro-preview',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
     const assistant = makeAssistant({ settings: { enableWebSearch: true } })

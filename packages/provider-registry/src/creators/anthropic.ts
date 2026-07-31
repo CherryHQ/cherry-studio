@@ -76,6 +76,15 @@ export default defineCreator({
       'claude-3-5-haiku',
       'claude-3-5-sonnet',
       'claude-3-7-sonnet'
+    ],
+    // web_fetch serves the same SKU lines as web_search (docs.claude.com web-fetch-tool).
+    'url-context': [
+      'claude-opus-4',
+      'claude-sonnet-4',
+      'claude-haiku-4',
+      'claude-3-5-haiku',
+      'claude-3-5-sonnet',
+      'claude-3-7-sonnet'
     ]
   }
 })

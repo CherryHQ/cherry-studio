@@ -21,6 +21,10 @@ import { describe, expect, it } from 'vitest'
 import { canonOf } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
+import {
+  SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS,
+  WEB_SEARCH_UNSUPPORTED_EFFORTS
+} from '../patterns/server-tool-constraints.gen'
 import { PROVIDERS } from '../providers'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
@@ -125,6 +129,21 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     // `pnpm generate` — or a hand edit of the .gen file — both fail here.
     const expected = CREATORS.flatMap((c) => c.reasoningFamilies ?? [])
     expect(REASONING_FAMILY_RULES.map(stable)).toEqual(expected.map(stable))
+  })
+
+  it('server-tool-constraints.gen.ts reflects the creator constraint declarations', () => {
+    // The gen file stores ids expanded against the upstream model universe, so a
+    // full mirror compare would be flaky (unlike reasoning-families). This checks
+    // the deterministic half: a declaration must produce entries, and every
+    // declared pattern/prefix must have hit at least one committed id.
+    const declaresMixing = CREATORS.some((c) => (c.serverToolFunctionMixing ?? []).length > 0)
+    expect(SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS.length > 0).toBe(declaresMixing)
+
+    const declaredEfforts = new Set(
+      CREATORS.flatMap((c) => c.webSearchUnsupportedEfforts ?? []).flatMap((r) => r.efforts)
+    )
+    const generatedEfforts = new Set(Object.values(WEB_SEARCH_UNSUPPORTED_EFFORTS).flat())
+    expect([...generatedEfforts].sort()).toEqual([...declaredEfforts].sort())
   })
 
   it('every creator reasoningFamilies rule is schema-valid', () => {

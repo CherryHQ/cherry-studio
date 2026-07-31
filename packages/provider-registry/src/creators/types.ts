@@ -43,6 +43,19 @@ export interface Creator {
    */
   serverTools?: Partial<Record<ServerTool, string[]>>
   /**
+   * Canonical id-prefixes of THIS creator's models whose provider-native tools
+   * coexist with function declarations in one request (e.g. Gemini 3+). Absent
+   * models default to conflict-prone — the safe direction for unknown SKUs.
+   * Compiled into `server-tool-constraints.gen.ts`.
+   */
+  serverToolFunctionMixing?: string[]
+  /**
+   * Reasoning efforts the provider-native web-search tool rejects, declared as
+   * id patterns over THIS creator's models (generation-only regex, expanded to
+   * exact ids — mirrors the effort-vocabulary declarations above).
+   */
+  webSearchUnsupportedEfforts?: Array<{ pattern: string; efforts: string[] }>
+  /**
    * Curated reasoning knowledge as DATA (no runtime regex module): the single
    * rule table for THIS creator's id patterns. PROFILE rules (default) assert
    * "this SKU reasons" — with knobs (effort vocabulary / thinking toggle /

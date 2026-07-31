@@ -1,24 +1,18 @@
 import {
   isServerToolModelEligible as isRegistryServerToolModelEligible,
+  isWebSearchEffortUnsupported,
   matchVendor,
   SERVER_TOOL,
   SERVER_TOOL_MODEL_SCOPE,
   type ServerTool,
-  type ServerToolConfig
+  type ServerToolConfig,
+  supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import {
-  isAnthropicModel,
-  isFunctionCallingModel,
-  isGeminiModel,
-  isGPT5SeriesReasoningModel,
-  isNonChatModel,
-  isPureGenerateImageModel,
-  isWebToolConflictProneGeminiModel
-} from './model'
+import { isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
 // Azure/Vertex/Bedrock reuse other vendors' endpoint protocols, so authType
@@ -252,7 +246,11 @@ export function isBuiltinWebFetchAvailable(model: Model, provider: Pick<Provider
   const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)
   if (!tool || !serverToolServesModelVendor(tool, model)) return false
 
-  return !isPureGenerateImageModel(model) && (isGeminiModel(model) || isAnthropicModel(model))
+  if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
+    return !isNonChatModel(model)
+  }
+
+  return isServerToolModelEligible(model, SERVER_TOOL.URL_CONTEXT)
 }
 
 /**
@@ -291,12 +289,13 @@ export function resolveWebToolRoutes(
     supportsClientTools &&
     provider !== undefined &&
     isGeminiWebSearchProvider(provider) &&
-    isWebToolConflictProneGeminiModel(model)
+    isGeminiModel(model) &&
+    !supportsServerToolFunctionMixing(getRawModelId(model))
   const openaiMinimalConflict =
-    options.reasoningEffort === 'minimal' &&
+    options.reasoningEffort !== undefined &&
     provider !== undefined &&
     (isOpenAIProvider(provider) || isOpenAIChatProvider(provider) || isAzureOpenAIProvider(provider)) &&
-    isGPT5SeriesReasoningModel(model)
+    isWebSearchEffortUnsupported(getRawModelId(model), options.reasoningEffort)
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
   const serverFetchAvailable = serverFetchEligible && !googleToolConflict
@@ -365,7 +364,9 @@ export function finalizeWebToolRoutes(
   provider: Provider,
   hasFunctionTools: boolean
 ): WebToolRoutes {
-  if (!hasFunctionTools || !isWebToolConflictProneGeminiModel(model)) return routes
+  if (!hasFunctionTools || !isGeminiModel(model) || supportsServerToolFunctionMixing(getRawModelId(model))) {
+    return routes
+  }
 
   let next = routes
   if (next.webFetch === 'server') {
