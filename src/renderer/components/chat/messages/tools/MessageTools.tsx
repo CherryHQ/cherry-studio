@@ -1,6 +1,7 @@
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { normalizeToolOutputResponse } from '@renderer/utils/message/toolOutput'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { useMemo } from 'react'
 
@@ -8,7 +9,7 @@ import { isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent
 import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
-import { normalizeToolErrorResponse, normalizeToolOutputResponse } from './toolResponse'
+import { normalizeToolErrorResponse } from './toolResponse'
 
 interface Props {
   toolResponse: McpToolResponse | NormalToolResponse

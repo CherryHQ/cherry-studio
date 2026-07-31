@@ -5,6 +5,12 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import {
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -58,6 +64,12 @@ import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSu
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
+const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
+  WEB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  KB_READ_TOOL_NAME
+])
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
@@ -104,9 +116,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
-    : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
+    : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
   const { endpointType } = resolvedEndpoint
@@ -167,7 +179,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
+  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries, hasCitableTools })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -266,6 +278,7 @@ export async function resolveTools(
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
+  hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
 }> {
   let mcpIdList = request.mcpToolIds
@@ -299,6 +312,7 @@ export async function resolveTools(
   // callers (the API gateway). Merged here so they share the registry/defer-exposition
   // path instead of being mutated onto raw SDK params.
   const clientTools = request.callOverrides?.tools
+  const clientToolNames = new Set(Object.keys(clientTools ?? {}))
   if (clientTools && Object.keys(clientTools).length > 0) {
     tools = {
       ...tools,
@@ -309,7 +323,10 @@ export async function resolveTools(
   const requestRegistry = new ToolRegistry()
   for (const entry of activeEntries) requestRegistry.register(entry)
   const exposed = applyDeferExposition(tools, requestRegistry, model.contextWindow)
-  return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
+  const hasCitableTools = activeEntries.some(
+    (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
+  )
+  return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, hasCitableTools, mcpToolIds }
 }
 
 /**
