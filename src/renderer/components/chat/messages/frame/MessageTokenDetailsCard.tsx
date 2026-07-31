@@ -57,13 +57,13 @@ function InspectableMetricBar({
         {activeSegment ? (
           <>
             <span className="truncate font-medium text-foreground">{activeSegment.label}</span>
-            <span className="shrink-0 text-foreground-secondary tabular-nums">
+            <span className="shrink-0 text-muted-foreground tabular-nums">
               {formatValue(activeSegment.value)} · {formatPercent(activeSegment.value / total)}
             </span>
           </>
         ) : (
           <>
-            <span className="truncate text-foreground-secondary">{title}</span>
+            <span className="truncate text-muted-foreground">{title}</span>
             {summary ? <span className="shrink-0 text-foreground tabular-nums">{summary}</span> : null}
           </>
         )}
@@ -103,11 +103,11 @@ function InspectableMetricBar({
         {visibleSegments.map((segment) => (
           <div
             key={segment.id}
-            className="inline-flex items-center gap-1.5 text-[11px] text-foreground-muted leading-4">
+            className="inline-flex items-center gap-1.5 text-[11px] text-foreground-tertiary leading-4">
             <span className={cn('size-1.5 rounded-full', segment.colorClassName)} aria-hidden="true" />
             <span>{segment.label}</span>
             {showAllDetails ? (
-              <span className="text-foreground-secondary tabular-nums">
+              <span className="text-muted-foreground tabular-nums">
                 {formatValue(segment.value)} · {formatPercent(segment.value / total)}
               </span>
             ) : null}
@@ -195,7 +195,7 @@ function PerformanceTimeline({
         const intervals = performance.intervals.filter((interval) => interval.lane === lane.id)
         return (
           <div key={lane.id} className="grid grid-cols-[4.5rem_1fr] items-center gap-2">
-            <span className="truncate text-[11px] text-foreground-muted leading-4">{laneLabel(lane.id)}</span>
+            <span className="truncate text-[11px] text-foreground-tertiary leading-4">{laneLabel(lane.id)}</span>
             <div className="relative h-3 overflow-hidden rounded-sm bg-background-subtle">
               {intervals.map((interval) => {
                 const left = Math.max(0, ((interval.startedAt - performance.startedAt!) / total) * 100)
@@ -323,7 +323,7 @@ const MessageTokenDetailsCard = ({
           <ModelAvatar
             model={model}
             size={32}
-            className="-outline-offset-1 shrink-0 outline outline-1 outline-black/10 dark:outline-white/10"
+            className="-outline-offset-1 shrink-0 outline outline-1 outline-border"
           />
         ) : null}
         <div className="min-w-0 flex-1">
@@ -331,14 +331,14 @@ const MessageTokenDetailsCard = ({
             {model?.name ?? model?.id ?? message.modelId}
           </div>
           {providerName ? (
-            <div className="truncate text-foreground-secondary text-xs leading-5" title={providerName}>
+            <div className="truncate text-muted-foreground text-xs leading-5" title={providerName}>
               {providerName}
             </div>
           ) : null}
           {createdAtLabel ? (
             <time
               dateTime={message.createdAt}
-              className="block truncate text-[11px] text-foreground-muted leading-4"
+              className="block truncate text-[11px] text-foreground-tertiary leading-4"
               title={createdAtLabel}>
               {createdAtLabel}
             </time>
@@ -346,15 +346,15 @@ const MessageTokenDetailsCard = ({
         </div>
       </header>
 
-      <div className="space-y-2 border-border-muted border-t p-3">
+      <div className="space-y-2 border-border-subtle border-t p-3">
         {costLabel ? (
           <div
             data-testid="message-cost"
             className="flex h-5 min-w-0 items-center justify-between gap-3 text-xs leading-5">
-            <span className="truncate text-foreground-secondary">{t('chat.message.token_details.cost')}</span>
+            <span className="truncate text-muted-foreground">{t('chat.message.token_details.cost')}</span>
             <span className="flex shrink-0 items-baseline gap-1.5">
               {costSourceLabel ? (
-                <span className="text-[11px] text-foreground-muted leading-4">{costSourceLabel}</span>
+                <span className="text-[11px] text-foreground-tertiary leading-4">{costSourceLabel}</span>
               ) : null}
               <span className="text-foreground tabular-nums">{costLabel}</span>
             </span>
@@ -404,10 +404,10 @@ const MessageTokenDetailsCard = ({
         {performance.modelTokensPerSecond !== undefined ||
         performance.endToEndTokensPerSecond !== undefined ||
         performance.totalDurationMs !== undefined ? (
-          <section className="space-y-1 border-border-muted border-t pt-2" data-testid="message-performance-summary">
+          <section className="space-y-1 border-border-subtle border-t pt-2" data-testid="message-performance-summary">
             {performance.modelTokensPerSecond !== undefined ? (
               <div className="flex items-center justify-between gap-3 text-xs leading-5">
-                <span className="text-foreground-secondary">{t('chat.message.token_details.model_throughput')}</span>
+                <span className="text-muted-foreground">{t('chat.message.token_details.model_throughput')}</span>
                 <span className="text-foreground tabular-nums">
                   {t('chat.message.token_details.tokens_per_second_value', {
                     value: decimalFormatter.format(performance.modelTokensPerSecond)
@@ -417,9 +417,7 @@ const MessageTokenDetailsCard = ({
             ) : null}
             {performance.endToEndTokensPerSecond !== undefined ? (
               <div className="flex items-center justify-between gap-3 text-xs leading-5">
-                <span className="text-foreground-secondary">
-                  {t('chat.message.token_details.end_to_end_throughput')}
-                </span>
+                <span className="text-muted-foreground">{t('chat.message.token_details.end_to_end_throughput')}</span>
                 <span className="text-foreground tabular-nums">
                   {t('chat.message.token_details.tokens_per_second_value', {
                     value: decimalFormatter.format(performance.endToEndTokensPerSecond)
@@ -429,7 +427,7 @@ const MessageTokenDetailsCard = ({
             ) : null}
             {performance.totalDurationMs !== undefined ? (
               <div className="flex items-center justify-between gap-3 text-xs leading-5">
-                <span className="text-foreground-secondary">{t('chat.message.token_details.total_duration')}</span>
+                <span className="text-muted-foreground">{t('chat.message.token_details.total_duration')}</span>
                 <span className="text-foreground tabular-nums">{formatMilliseconds(performance.totalDurationMs)}</span>
               </div>
             ) : null}

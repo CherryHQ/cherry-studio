@@ -2,7 +2,6 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
-import { createFilePathHandle } from '@shared/utils/file'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -102,7 +101,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   )
 }
 
-export default function TextFilePreview({ filePath, refreshKey }: FilePreviewPluginProps) {
+export default function TextFilePreview({ filePath, metadata, refreshKey }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
 
   useEffect(() => {
@@ -111,9 +110,6 @@ export default function TextFilePreview({ filePath, refreshKey }: FilePreviewPlu
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
-        if (cancelled) return
-
         if (metadata.size === 0) {
           setLoadState({ status: 'empty' })
           return
@@ -137,7 +133,7 @@ export default function TextFilePreview({ filePath, refreshKey }: FilePreviewPlu
     return () => {
       cancelled = true
     }
-  }, [filePath, refreshKey])
+  }, [filePath, metadata.size, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>

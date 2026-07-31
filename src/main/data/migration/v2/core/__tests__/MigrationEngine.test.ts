@@ -1,5 +1,6 @@
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,12 @@ import type { MigrationPaths } from '../MigrationPaths'
 
 vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
+}))
+
+// The engine imports the boot-config singleton for skipMigration; keep the real
+// service (and its file I/O) out of these unit tests.
+vi.mock('@main/data/bootConfig', () => ({
+  bootConfigService: { set: vi.fn(), persist: vi.fn() }
 }))
 
 // Let initialize() run without opening a real SQLite file: a bare fake DB whose
@@ -237,14 +244,6 @@ describe('MigrationEngine', () => {
     })
   })
 
-  it('marks migration completed when the user skips migration', async () => {
-    const markSpy = vi.spyOn(engine as any, 'markCompleted').mockResolvedValue(undefined)
-
-    await engine.skipMigration()
-
-    expect(markSpy).toHaveBeenCalledOnce()
-  })
-
   it('marks completed after global validation succeeds', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('agents', 1, events)
@@ -263,7 +262,7 @@ describe('MigrationEngine', () => {
 
   it('clears new architecture tables inside one transaction', async () => {
     const runFn = vi.fn()
-    const deleteFn = vi.fn(() => ({ run: runFn }))
+    const deleteFn = vi.fn(() => ({ run: runFn, where: vi.fn(() => ({ run: runFn })) }))
     const transactionFn = vi.fn((fn: (tx: unknown) => void) => {
       fn({ delete: deleteFn })
     })
@@ -284,7 +283,9 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
+    // Every counted table is deleted, plus the filtered job_schedule delete
+    // (which is not part of the count loop).
+    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length + 1)
     expect(db).not.toHaveProperty('delete')
   })
 
@@ -299,7 +300,8 @@ describe('MigrationEngine', () => {
         fn({
           delete: (table: unknown) => {
             deletedTables.push(table)
-            return { run: vi.fn() }
+            const run = vi.fn()
+            return { run, where: vi.fn(() => ({ run })) }
           }
         })
       )
@@ -314,5 +316,6 @@ describe('MigrationEngine', () => {
     expect(deletedTables).toContain(groupTable)
     expect(deletedTables).toContain(entityTagTable)
     expect(deletedTables).toContain(tagTable)
+    expect(deletedTables).toContain(jobScheduleTable)
   })
 })

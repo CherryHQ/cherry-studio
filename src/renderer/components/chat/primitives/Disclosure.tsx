@@ -37,7 +37,7 @@ export function Disclosure({
         collapsible
         onValueChange={(value) => onOpenChange?.(value === itemValue)}
         {...controlledProps}>
-        <AccordionItem value={itemValue} className="border-border/60">
+        <AccordionItem value={itemValue} className="border-border-subtle">
           <AccordionTrigger className={cn('px-3 py-2 text-sm', triggerClassName)}>
             <span className="min-w-0 text-left">
               <span className="block truncate">{title}</span>

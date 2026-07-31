@@ -3,6 +3,7 @@ import {
   dispatchHandle,
   getMetadataByPath,
   readByPath,
+  readChunkByPath,
   safeOpen,
   showInFolder as showPathInFolder,
   writeIfUnchangedByPath
@@ -22,10 +23,17 @@ import type { CreateInternalEntryIpcParams } from '@shared/types/file'
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.read': async ({ handle, options }) => {
     const fileManager = application.get('FileManager')
+    if (options.mode === 'range') {
+      return dispatchHandle(
+        handle as FileHandle,
+        (entryId) => fileManager.readChunk(entryId, options.offset, options.length),
+        (path) => readChunkByPath(path, options.offset, options.length)
+      )
+    }
     return dispatchHandle(
       handle as FileHandle,
-      (entryId) => fileManager.read(entryId, options),
-      (path) => readByPath(path, options)
+      (entryId) => fileManager.read(entryId, { encoding: options.encoding }),
+      (path) => readByPath(path, { encoding: options.encoding })
     )
   },
   'file.write_if_unchanged': async ({ path, data, expectedVersion }) => {

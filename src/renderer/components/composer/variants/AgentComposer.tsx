@@ -81,7 +81,7 @@ import {
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
-  getAgentManagedDraftTokens,
+  getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
@@ -104,6 +104,7 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -248,6 +249,16 @@ type AgentComposerSessionSnapshot = {
   workspaceId?: string | null
 }
 
+export interface AgentComposerSendBody {
+  agentId: string
+  sessionId: string
+  userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
+  reasoningEffort?: ThinkingOption
+  fastMode?: boolean
+}
+
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+
 type Props = {
   agentId: string
   sessionId: string
@@ -256,7 +267,7 @@ type Props = {
   resolvedModel?: Model
   resolvedWorkspaceWarning?: string | null
   externalContextControls?: boolean
-  sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
   captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
@@ -459,6 +470,12 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       <span
         aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
         aria-busy={isCompacting || undefined}
+        // The cached reading is only refreshed when a turn settles, so it goes stale mid-turn. Main
+        // throttles this and answers on the shared-cache key; a session with no live connection
+        // keeps showing its last reading.
+        onPointerEnter={() => {
+          void ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+        }}
         className={cn(
           'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]',
           isCompacting && 'animate-pulse'
@@ -650,7 +667,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateModel } = useUpdateAgent()
+  const { updateAgent, updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -686,8 +703,42 @@ const AgentComposerInner = ({
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
   }
 
-  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
-  const previousModelIdRef = useRef(model?.id)
+  const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
+  const canonicalReasoningEffort = model
+    ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
+    : configuredReasoningEffort
+  const [reasoningOverride, setReasoningOverride] = useState<{
+    agentId: string
+    value: ThinkingOption
+    version: number
+    canonicalAtMutationStart?: ThinkingOption
+  } | null>(null)
+  const reasoningMutationVersionRef = useRef(0)
+  const pendingReasoningEditRef = useRef<{
+    agentId: string
+    version: number
+    effort: ThinkingOption
+  } | null>(null)
+  const activeReasoningOverride =
+    reasoningOverride &&
+    reasoningOverride.agentId === agent?.id &&
+    (reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort)
+      ? reasoningOverride
+      : null
+  useEffect(() => {
+    if (
+      !reasoningOverride ||
+      reasoningOverride.agentId !== agent?.id ||
+      reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort
+    ) {
+      return
+    }
+    setReasoningOverride((current) => (current === reasoningOverride ? null : current))
+  }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
+  const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
+  const [fastMode, setFastMode] = useState(false)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
@@ -709,10 +760,8 @@ const AgentComposerInner = ({
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
   useEffect(() => {
-    if (previousModelIdRef.current === model?.id) return
-    previousModelIdRef.current = model?.id
-    setReasoningEffort((current) => (model ? (resolveReasoningEffortForModel(model, current) ?? 'default') : 'default'))
-  }, [model])
+    if (model?.supportsFastMode !== true) setFastMode(false)
+  }, [model?.supportsFastMode])
 
   const setText = useCallback(
     (nextText: string, options: { persist?: boolean; tokens?: readonly ComposerSerializedToken[] } = {}) => {
@@ -730,7 +779,7 @@ const AgentComposerInner = ({
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(historyDraft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
@@ -952,12 +1001,48 @@ const AgentComposerInner = ({
 
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
-      if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
-      const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
-      if (!updatedAgent) return
-      setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
+      if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
+
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
+      const pendingReasoningEdit =
+        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
+      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
+      const previousReasoningOverride = activeReasoningOverride
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        agentId: agent.id,
+        value: nextReasoningEffort,
+        version
+      })
+
+      const updatedAgent = await updateModel(
+        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
+        { showSuccessToast: false }
+      )
+      if (!updatedAgent) {
+        setReasoningOverride((current) => {
+          if (current?.agentId !== agent.id || current.version !== version) return current
+          if (!previousReasoningOverride) return null
+
+          const previousEditStillPending =
+            pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
+            pendingReasoningEditRef.current.version === previousReasoningOverride.version
+          return previousEditStillPending || previousReasoningOverride.canonicalAtMutationStart !== undefined
+            ? previousReasoningOverride
+            : { ...previousReasoningOverride, canonicalAtMutationStart: canonicalReasoningEffort }
+        })
+        return
+      }
+      if (
+        pendingReasoningEdit &&
+        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
+        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
+      ) {
+        pendingReasoningEditRef.current = null
+      }
+      setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [agentId, canChangeModel, model?.id, updateModel]
+    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -985,9 +1070,46 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
-  const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: setReasoningEffort }),
-    [reasoningEffort]
+  const handleReasoningEffortChange = useCallback(
+    (option: ThinkingOption) => {
+      if (!agent) return
+
+      const canonicalAtMutationStart = canonicalReasoningEffort
+      const version = ++reasoningMutationVersionRef.current
+      pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
+      setReasoningOverride({
+        agentId: agent.id,
+        value: option,
+        version
+      })
+
+      void updateAgent(
+        {
+          id: agent.id,
+          configuration: { reasoning_effort: option }
+        },
+        { showSuccessToast: false }
+      ).then((updatedAgent) => {
+        if (!updatedAgent) return
+
+        if (
+          pendingReasoningEditRef.current?.agentId === agent.id &&
+          pendingReasoningEditRef.current.version === version
+        ) {
+          pendingReasoningEditRef.current = null
+        }
+        setReasoningOverride((current) =>
+          current?.agentId === agent.id && current.version === version
+            ? {
+                ...current,
+                value: updatedAgent.configuration?.reasoning_effort ?? 'default',
+                canonicalAtMutationStart
+              }
+            : current
+        )
+      })
+    },
+    [agent, canonicalReasoningEffort, updateAgent]
   )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
@@ -996,7 +1118,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(draftTokens)
+      const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
@@ -1039,7 +1161,10 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({ reasoningEffort })
+        extra: () => ({
+          reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
+        })
       })
       if (!payload) return null
 
@@ -1052,7 +1177,7 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [files, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1068,7 +1193,8 @@ const AgentComposerInner = ({
               agentId,
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
-              reasoningEffort: payload.reasoningEffort
+              reasoningEffort: payload.reasoningEffort,
+              ...(payload.fastMode ? { fastMode: true } : {})
             }
           }
         )
@@ -1124,11 +1250,11 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
-  // skill subset and managed file/knowledge/skill state before dropping it from the queue.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
+  // state and the managed file/knowledge/skill selections before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getAgentManagedDraftTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)
@@ -1138,8 +1264,10 @@ const AgentComposerInner = ({
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
@@ -1313,7 +1441,18 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    <>
+      {model ? (
+        <ComposerSpeedControl
+          model={model}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={handleReasoningEffortChange}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </>
   )
 
   return (
@@ -1321,9 +1460,7 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && (
-        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
-      )}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
@@ -1348,30 +1485,32 @@ const AgentComposerInner = ({
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
-                  else toast.error(t('chat.input.send_failed'))
-                }}
-                onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-              />
-            ) : undefined
+            <>
+              {queuedFollowups.length > 0 ? (
+                <QueuedFollowupsDock
+                  items={queuedFollowups}
+                  paused={followupPaused}
+                  onTogglePause={() => setFollowupPaused(!followupPaused)}
+                  onSteer={async (id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    // Only drop the item once the send actually succeeds; a failed manual
+                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent) removeFollowup(id)
+                    else toast.error(t('chat.input.send_failed'))
+                  }}
+                  onEdit={(id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                  }}
+                  onRemove={removeFollowup}
+                  onReorder={reorderFollowups}
+                />
+              ) : undefined}
+            </>
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
