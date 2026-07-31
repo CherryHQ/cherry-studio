@@ -248,6 +248,20 @@ export async function resolveProviderAiSdkConfig(
         }
       }))
     },
+    {
+      match: (p, id) =>
+        (id === 'openai-compatible' || id === 'minimax') &&
+        endpointType === ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH &&
+        matchesPreset(p, 'minimax'),
+      build: withSelectedApiKey((ctx) => ({
+        providerId: 'minimax',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      }))
+    },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
