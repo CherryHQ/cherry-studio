@@ -360,6 +360,7 @@ export const ResourceGrid: FC<Props> = ({
                 </SettingTitle>
                 <CollapsibleSearchBar
                   onSearch={onSearchChange}
+                  value={search}
                   placeholder={t('library.toolbar.search_placeholder')}
                   tooltip={t('common.search')}
                   maxWidth={220}

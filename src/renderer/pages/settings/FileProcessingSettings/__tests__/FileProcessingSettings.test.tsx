@@ -449,13 +449,14 @@ describe('processing settings pages', () => {
   })
 
   it('keeps API host drafts when another field save rerenders the same processor', async () => {
+    const user = userEvent.setup()
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
     fireEvent.change(apiHostInput, {
       target: { value: 'https://draft.example.com' }
     })

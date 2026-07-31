@@ -1424,6 +1424,7 @@ const TasksSettings: FC = () => {
           </SettingTitle>
           <CollapsibleSearchBar
             onSearch={setSearchQuery}
+            value={searchQuery}
             placeholder={t('settings.scheduledTasks.searchPlaceholder')}
             tooltip={t('settings.scheduledTasks.search')}
             clearLabel={t('common.clear')}

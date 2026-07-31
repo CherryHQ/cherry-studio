@@ -456,7 +456,8 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       showArrow={false}
       classNames={{
         placeholder: 'inline-grid',
-        content: 'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md'
+        content:
+          'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
       }}
       content={
         <ContextUsageSummary
