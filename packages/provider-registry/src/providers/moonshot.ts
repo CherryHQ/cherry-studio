@@ -16,6 +16,9 @@ export default openaiCompatible({
     }
   },
   anthropic: 'https://api.moonshot.cn/anthropic',
+  // Kimi's $web_search builtin (platform.kimi.com use-web-search), delivered by
+  // the moonshot extension's echo tool + builtin_function body rewrite.
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['kimi'] }],
   website: {
     apiKey: 'https://platform.moonshot.cn/console/api-keys',
     docs: 'https://platform.moonshot.cn/docs/',

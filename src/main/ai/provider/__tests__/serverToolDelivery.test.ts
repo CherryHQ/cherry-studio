@@ -59,6 +59,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   dashscope: { 'web-search': { kind: 'provider-options' } },
   // web_search marker via providerOptions, moved into `tools` by transformZhipuRequestBody.
   zhipu: { 'web-search': { kind: 'provider-options' } },
+  // $web_search echo tool injected by the moonshot extension factory.
+  moonshot: { 'web-search': factories('moonshot') },
   poe: { 'web-search': { kind: 'provider-options' } },
   gateway: { 'web-search': { kind: 'gateway-mapped' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },

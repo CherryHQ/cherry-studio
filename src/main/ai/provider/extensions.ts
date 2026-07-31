@@ -41,6 +41,12 @@ import {
 } from './custom/localEmbedding/localEmbeddingProvider'
 import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
+import {
+  createMoonshotProvider,
+  kimiWebSearchEchoTool,
+  type MoonshotProvider,
+  type MoonshotProviderSettings
+} from './custom/moonshotProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
 import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
@@ -187,6 +193,24 @@ export const MinimaxExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: createMinimaxProvider
 } as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
+
+/**
+ * Moonshot (Kimi) — OpenAI-compatible chat whose transformRequestBody rewrites
+ * the `$web_search` declaration to Kimi's builtin_function shape; the factory
+ * injects the echo tool that rides the standard agent loop (see moonshotProvider.ts).
+ */
+export const MoonshotExtension = ProviderExtension.create({
+  name: 'moonshot',
+  supportsImageGeneration: false,
+  create: createMoonshotProvider,
+  toolFactories: {
+    // The echo tool carries no provider-derived state, so neither the provider
+    // nor a config is read (same shape as openrouter's factory).
+    webSearch: () => () => ({
+      tools: { $web_search: kimiWebSearchEchoTool }
+    })
+  }
+} as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)
 
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
 export const AiHubMixExtension = ProviderExtension.create({
@@ -337,6 +361,7 @@ export const extensions = [
   CerebrasExtension,
   OllamaExtension,
   MinimaxExtension,
+  MoonshotExtension,
   AiHubMixExtension,
   NewApiExtension,
   PpioExtension,

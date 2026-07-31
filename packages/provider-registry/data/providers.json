@@ -1066,7 +1066,14 @@
           "official": "https://www.moonshot.cn/"
         }
       },
-      "name": "Moonshot AI"
+      "name": "Moonshot AI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["kimi"]
+        }
+      ]
     },
     {
       "apiFeatures": {
@@ -2048,5 +2055,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "30677faaca8c8f40"
+  "version": "b91fc56a75616a0f"
 }

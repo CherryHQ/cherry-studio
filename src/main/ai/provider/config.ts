@@ -220,6 +220,21 @@ export async function resolveProviderAiSdkConfig(
         return config
       })
     },
+    // Moonshot chat routes to its extension so the `$web_search` echo-tool factory
+    // resolves under providerId 'moonshot'; the provider's transformRequestBody
+    // rewrites the declaration to Kimi's builtin_function shape (moonshotProvider.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'moonshot'),
+      build: withSelectedApiKey((ctx) => ({
+        providerId: 'moonshot',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          ...buildCommonOptions(ctx),
+          includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+        }
+      }))
+    },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own

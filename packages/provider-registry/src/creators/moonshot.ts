@@ -8,7 +8,9 @@ export default defineCreator({
   modelsDevProviders: ['moonshotai', 'moonshotai-cn'],
   families: ['kimi'],
   idPrefixes: ['kimi', 'moonshot'],
-  models: [{ id: 'kimi-k2', serverTools: ['web-search'] }],
+  // $web_search serves the kimi-k2/k3 lines and the latest alias
+  // (platform.kimi.com/docs/guide/use-web-search).
+  serverTools: { 'web-search': ['kimi-k2', 'kimi-k3', 'kimi-latest'] },
   reasoningFamilies: [
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com
     // claude-code guide: requests without it are rejected) — always-on, the
