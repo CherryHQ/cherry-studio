@@ -61,6 +61,12 @@ describe('MessageTool', () => {
     expect(screen.getByTestId('knowledge-tool')).toBeInTheDocument()
   })
 
+  it('routes an unknown prefixed provider tool to the Agent generic-renderer path', () => {
+    render(<MessageTool block={createBlock('builtin_FutureProviderTool', 'provider')} />)
+
+    expect(screen.getByTestId('agent-tool')).toHaveTextContent('Agent: builtin_FutureProviderTool')
+  })
+
   it('keeps an unknown builtin tool unrendered', () => {
     const { container } = render(<MessageTool block={createBlock('builtin_future_tool', 'builtin')} />)
 

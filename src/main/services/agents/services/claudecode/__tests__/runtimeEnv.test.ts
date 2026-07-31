@@ -77,6 +77,16 @@ describe('mergeUserEnvironmentVariables', () => {
     'grpc_proxy'
   ] as const
 
+  const scrubbedClaudeEnvKeys = [
+    ['Claude_Code_OAuth_Token', 'CLAUDE_CODE_OAUTH_TOKEN'],
+    ['claude_code_oauth_token_file_descriptor', 'CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR'],
+    ['Claude_Code_Use_Vertex', 'CLAUDE_CODE_USE_VERTEX'],
+    ['claude_code_use_foundry', 'CLAUDE_CODE_USE_FOUNDRY'],
+    ['Claude_Code_Use_Anthropic_Aws', 'CLAUDE_CODE_USE_ANTHROPIC_AWS'],
+    ['claude_code_use_gateway', 'CLAUDE_CODE_USE_GATEWAY'],
+    ['Claude_Code_Use_Mantle', 'CLAUDE_CODE_USE_MANTLE']
+  ] as const
+
   it.each(proxyKeys)('allows %s to override an existing process value', (key) => {
     const result = mergeUserEnvironmentVariables({ [key]: 'process-value' }, { [key]: 'agent-value' }, false)
 
@@ -138,6 +148,74 @@ describe('mergeUserEnvironmentVariables', () => {
     const result = mergeUserEnvironmentVariables({ KEEP: 'base' }, { [key]: 'override' }, false)
 
     expect(result).toEqual({ env: { KEEP: 'base' }, blockedKeys: [key] })
+  })
+
+  it.each(scrubbedClaudeEnvKeys)(
+    'removes inherited Claude authentication/backend variable %s case-insensitively',
+    (inheritedKey, canonicalKey) => {
+      const env = {
+        [inheritedKey]: 'inherited-override',
+        ANTHROPIC_AUTH_TOKEN: 'application-token',
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTP_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, false)
+
+      expect(result).toEqual({
+        env: {
+          ANTHROPIC_AUTH_TOKEN: 'application-token',
+          ANTHROPIC_BASE_URL: 'https://application.example.com',
+          HTTP_PROXY: 'http://proxy.example.com',
+          LOGIN_SHELL_VAR: 'kept'
+        },
+        blockedKeys: []
+      })
+      expect(Object.keys(result.env).map((key) => key.toUpperCase())).not.toContain(canonicalKey)
+      expect(env).toHaveProperty(inheritedKey, 'inherited-override')
+    }
+  )
+
+  it.each(scrubbedClaudeEnvKeys)(
+    'blocks Agent-provided Claude authentication/backend variable %s case-insensitively',
+    (userKey, canonicalKey) => {
+      const userEnv = { [userKey]: 'agent-override', AGENT_VAR: 'kept' }
+
+      const result = mergeUserEnvironmentVariables({ BASE_VAR: 'kept' }, userEnv, false)
+
+      expect(result).toEqual({
+        env: { BASE_VAR: 'kept', AGENT_VAR: 'kept' },
+        blockedKeys: [userKey]
+      })
+      expect(userKey.toUpperCase()).toBe(canonicalKey)
+      expect(userEnv).toEqual({ [userKey]: 'agent-override', AGENT_VAR: 'kept' })
+    }
+  )
+
+  it('keeps application-provided Claude values while removing inherited Windows casing aliases', () => {
+    const env = {
+      anthropic_auth_token: 'inherited-token',
+      ANTHROPIC_AUTH_TOKEN: 'application-token',
+      Anthropic_Base_Url: 'https://inherited.example.com',
+      ANTHROPIC_BASE_URL: 'https://application.example.com',
+      HTTPS_PROXY: 'http://proxy.example.com',
+      LOGIN_SHELL_VAR: 'kept'
+    }
+
+    const result = mergeUserEnvironmentVariables(env, undefined, true)
+
+    expect(result).toEqual({
+      env: {
+        ANTHROPIC_AUTH_TOKEN: 'application-token',
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      },
+      blockedKeys: []
+    })
+    expect(env).toHaveProperty('anthropic_auth_token', 'inherited-token')
+    expect(env).toHaveProperty('Anthropic_Base_Url', 'https://inherited.example.com')
   })
 
   it('returns every blocked key while still merging normal variables', () => {
