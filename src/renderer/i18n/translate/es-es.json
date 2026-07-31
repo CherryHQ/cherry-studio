@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "Se ejecuta sin preguntas rutinarias. Una comprobación de seguridad bloquea las acciones arriesgadas.",
-            "title": "Aprobar por mí"
+            "title": "Aprobar por mí",
+            "warning": "Requiere un modelo compatible; otros pueden ignorarlo o seguir preguntando."
           },
           "bypassPermissions": {
             "description": "Omite las comprobaciones de permisos. Puede eliminar archivos y usar la red.",

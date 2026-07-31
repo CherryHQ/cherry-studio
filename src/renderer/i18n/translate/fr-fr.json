@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
-            "title": "Approuver pour moi"
+            "title": "Approuver pour moi",
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",

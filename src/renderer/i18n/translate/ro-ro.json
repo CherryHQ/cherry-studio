@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
-            "title": "Aprobă în locul meu"
+            "title": "Aprobă în locul meu",
+            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe."
           },
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
