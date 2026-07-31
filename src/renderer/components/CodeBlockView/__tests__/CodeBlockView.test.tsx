@@ -86,6 +86,25 @@ describe('CodeBlockView', () => {
     )
   })
 
+  it('caps the height and hides the toolbar in display-only mode', () => {
+    render(
+      <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
+        {'<h1>Hello</h1>'}
+      </CodeBlockView>
+    )
+
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
+    expect(screen.queryByTestId('code-toolbar')).not.toBeInTheDocument()
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: true,
+        expanded: false,
+        maxHeight: '350px'
+      }),
+      undefined
+    )
+  })
+
   it('renders the editor and save tool when editable and the code editor setting are enabled', () => {
     render(
       <CodeBlockView language="javascript" editable onSave={vi.fn()}>

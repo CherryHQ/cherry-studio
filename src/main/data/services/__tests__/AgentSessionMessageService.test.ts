@@ -12,6 +12,14 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
+  notifyDataApiDataChangeMock: vi.fn()
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: notifyDataApiDataChangeMock
+}))
+
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
 const ASSISTANT_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002'
@@ -39,6 +47,7 @@ describe('AgentSessionMessageService', () => {
   }
 
   beforeEach(async () => {
+    notifyDataApiDataChangeMock.mockClear()
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
   })
 
@@ -70,6 +79,44 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       expect(row.status).toBe('error')
+    })
+  })
+
+  it('atomically settles a persisted background tool approval with the user-updated input', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+    const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
+
+    expect(
+      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        approvalId: 'approval-1',
+        approved: true,
+        updatedInput
+      })
+    ).toBe(true)
+
+    const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.data.parts?.[0]).toMatchObject({
+      state: 'approval-responded',
+      input: updatedInput,
+      approval: { id: 'approval-1', approved: true }
     })
   })
 
@@ -131,6 +178,48 @@ describe('AgentSessionMessageService', () => {
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
 
+  it('publishes the data change derived from an inserted or updated message', () => {
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'hello' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        entityIds: [USER_MESSAGE_ID]
+      }
+    ])
+
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'updated' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [USER_MESSAGE_ID]
+      }
+    ])
+  })
+
   it('reads and updates message data within the owning Agent session', async () => {
     const otherSessionId = 'session-other-update'
     await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
@@ -165,6 +254,55 @@ describe('AgentSessionMessageService', () => {
     expect(() =>
       agentSessionMessageService.updateSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID, { data })
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
+  })
+
+  it('replaces parts on the original assistant row', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit' }
+            }
+          ]
+        }
+      }
+    })
+
+    agentSessionMessageService.replaceMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, [
+      {
+        type: 'tool-Agent',
+        toolCallId: 'task-root',
+        state: 'input-available',
+        input: { prompt: 'Audit' }
+      },
+      {
+        type: 'text',
+        text: 'Subagent finished',
+        providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
+      }
+    ])
+
+    const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.status).toBe('success')
+    expect(saved.data.parts).toEqual([
+      expect.objectContaining({ toolCallId: 'task-root' }),
+      expect.objectContaining({ type: 'text', text: 'Subagent finished' })
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [ASSISTANT_MESSAGE_ID]
+      }
+    ])
   })
 
   it('uses one timestamp for a batch of newly saved messages', async () => {

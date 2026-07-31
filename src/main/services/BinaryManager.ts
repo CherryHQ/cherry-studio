@@ -243,6 +243,9 @@ export class BinaryManager extends BaseService {
   protected async onInit() {
     this.isShuttingDown = false
     this.normalizationPromise = null
+    // Prime the process-wide login-shell snapshot for system tool discovery, CLIs, MCP, and agent
+    // runtimes. Do not await it: consumers share shellEnv's memoized in-flight capture.
+    void getRawShellEnv()
     // Install-env invalidation subscription: this Background service depends on
     // PreferenceService, a BeforeReady service. A Background onInit is fire-and-forget
     // and races BeforeReady/WhenReady (Application.bootstrap sets isBootstrapped only

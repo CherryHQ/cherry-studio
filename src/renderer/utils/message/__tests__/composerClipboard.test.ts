@@ -889,6 +889,37 @@ describe('composer clipboard', () => {
     ])
   })
 
+  it('copies link tokens as their original URL and preserves the private token for paste restoration', () => {
+    const url = 'https://www.example.com/docs'
+    const content = createComposerRichClipboardContentFromDraft({
+      text: url,
+      tokens: [
+        {
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url,
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    expect(content?.plainText).toBe(url)
+    expect(readComposerClipboardFragment(content!.customFormats![COMPOSER_CLIPBOARD_FRAGMENT_MIME])?.segments).toEqual([
+      {
+        type: 'token',
+        fallbackText: url,
+        token: {
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url
+        }
+      }
+    ])
+  })
+
   it('returns no rich clipboard content for plain drafts and downgrades unsafe selected tokens', () => {
     expect(createComposerRichClipboardContentFromDraft({ text: 'plain text', tokens: [] })).toBeNull()
 

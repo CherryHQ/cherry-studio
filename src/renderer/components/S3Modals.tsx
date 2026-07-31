@@ -97,6 +97,7 @@ export function S3BackupModal({
           <DialogTitle>{t('settings.data.s3.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={t('settings.data.s3.backup.modal.filename.placeholder')}

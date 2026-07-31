@@ -101,6 +101,9 @@ vi.mock('@renderer/hooks/useGroups', () => ({
       }
     ],
     isLoading: false
+  }),
+  useGroupMutations: () => ({
+    createGroup: vi.fn()
   })
 }))
 

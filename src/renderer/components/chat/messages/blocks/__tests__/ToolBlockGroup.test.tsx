@@ -118,6 +118,17 @@ const skillDoneItem = {
   }
 } as ToolRenderItem
 
+const workflowDoneItem = {
+  ...readDoneItem,
+  id: 'tool-workflow',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-workflow',
+    toolCallId: 'tool-workflow',
+    tool: { id: 'tool-workflow', name: 'Workflow', type: 'builtin' }
+  }
+} as ToolRenderItem
+
 const webSearchDoneItem = {
   ...readDoneItem,
   id: 'tool-web-search',
@@ -316,6 +327,12 @@ describe('ToolBlockGroup', () => {
     render(<ToolBlockGroup items={[skillDoneItem]} />)
 
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-tool-case')).not.toBeNull()
+  })
+
+  it('uses the Workflow icon for a Workflow tool group', () => {
+    render(<ToolBlockGroup items={[workflowDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-workflow')).not.toBeNull()
   })
 
   it('uses a readable title and web icon for a web-search tool group', () => {
