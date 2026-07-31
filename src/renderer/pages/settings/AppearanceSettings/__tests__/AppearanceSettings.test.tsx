@@ -325,7 +325,13 @@ describe('AppearanceSettings selectors', () => {
       expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
     })
 
-    expect(screen.getByRole('button', { name: 'settings.theme.light' })).toHaveAttribute('aria-pressed', 'true')
+    const lightThemeButton = screen.getByRole('button', { name: 'settings.theme.light' })
+    const lightThemePreview = lightThemeButton.firstElementChild
+    const lightThemeLabel = lightThemePreview?.nextElementSibling
+
+    expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(lightThemePreview).toHaveClass('border-primary', 'ring-2')
+    expect(lightThemeLabel).toHaveTextContent('settings.theme.light')
     expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')
 

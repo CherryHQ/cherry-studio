@@ -638,13 +638,17 @@ const ThemePreviewSelector = ({
           aria-label={option.label}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
-          className={cn(
-            'min-w-0 cursor-pointer rounded-lg border border-border bg-background-subtle p-1.5 text-foreground outline-none transition-colors',
-            'hover:border-border-strong hover:bg-accent',
-            'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-            'aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/20'
-          )}>
-          <ThemePreview mode={option.value} />
+          className="group min-w-0 cursor-pointer rounded-lg pb-1.5 text-foreground outline-none">
+          <div
+            className={cn(
+              'rounded-lg border bg-background-subtle p-1.5 transition-colors',
+              'group-focus-visible:border-ring group-focus-visible:ring-3 group-focus-visible:ring-ring/50',
+              value === option.value
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-border group-hover:border-border-strong group-hover:bg-accent'
+            )}>
+            <ThemePreview mode={option.value} />
+          </div>
           <span className="mt-2 flex items-center justify-center gap-1.5 text-sm">
             <Icon className="size-4" />
             <span className="truncate">{option.label}</span>
