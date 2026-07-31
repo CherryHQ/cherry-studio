@@ -241,6 +241,16 @@ export const isGPT52SeriesModel = (model: Model): boolean =>
 /** GPT-5 family models support verbosity */
 export const isSupportVerbosityModel = isGPT5FamilyModel
 
+/**
+ * OpenAI reasoning models (o-series and the GPT-5 family) reject the `stop`
+ * parameter on Chat Completions with `invalid_request` — stop sequences must
+ * be dropped for them, not forwarded.
+ */
+export const isSupportStopSequencesModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model))
+  return !(/^o[134](?:-|$)/.test(id) || isGPT5FamilyModel(model))
+}
+
 /** Check if model supports flex service tier */
 export const isSupportFlexServiceTierModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model))

@@ -17,6 +17,7 @@ import {
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel,
+  isSupportStopSequencesModel,
   isSupportTemperatureModel,
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
@@ -125,6 +126,12 @@ export function filterStandardParams(
   if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
+    return rest
+  }
+
+  if ('stopSequences' in standardParams && !isSupportStopSequencesModel(model)) {
+    const { stopSequences, ...rest } = standardParams
+    logger.info(`Model ${model.id} does not support stop sequences, dropping ${JSON.stringify(stopSequences)}`)
     return rest
   }
 

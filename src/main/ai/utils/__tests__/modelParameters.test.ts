@@ -135,6 +135,27 @@ describe('filterStandardParams', () => {
     const input = { topK: 40 }
     expect(filterStandardParams(input, makeModel())).toBe(input)
   })
+
+  it('drops stopSequences for GPT-5 family models (provider-prefixed api model id)', () => {
+    // Regression: the Claude Agent SDK auto-mode classifier sends `stop_sequences`;
+    // GPT-5 family chat/completions rejects `stop` with 400 invalid_request.
+    const model = makeModel({ id: 'cherryin::openai/gpt-5.6-luna', providerId: 'cherryin' })
+    expect(filterStandardParams({ stopSequences: ['</block>'], temperature: 0.2 }, model)).toEqual({
+      temperature: 0.2
+    })
+  })
+
+  it('drops stopSequences for o-series reasoning models', () => {
+    const model = makeModel({ id: 'openai::o3-mini' })
+    expect(filterStandardParams({ stopSequences: ['STOP'] }, model)).toEqual({})
+  })
+
+  it('keeps stopSequences for models that support them', () => {
+    const input = { stopSequences: ['</block>'] }
+    expect(filterStandardParams(input, makeModel({ id: 'anthropic::claude-haiku-4-5', providerId: 'anthropic' }))).toBe(
+      input
+    )
+  })
 })
 
 describe('getMaxTokens', () => {

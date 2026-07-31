@@ -283,6 +283,16 @@ describe('applyCallOverrides', () => {
     expect(result.standardParams.topK).toBe(40)
   })
 
+  it('drops stopSequences for GPT-5 family models via filterStandardParams', () => {
+    const result = applyCallOverrides(
+      base(),
+      { stopSequences: ['</block>'], maxOutputTokens: 2112 },
+      makeModel({ id: 'cherryin::openai/gpt-5.6-luna', providerId: 'cherryin' })
+    )
+    expect(result.standardParams.maxOutputTokens).toBe(2112)
+    expect(result.standardParams).not.toHaveProperty('stopSequences')
+  })
+
   it('merges providerOptions per provider without clobbering other providers', () => {
     const result = applyCallOverrides(
       { standardParams: {}, providerOptions: { openai: { reasoningEffort: 'low' } } },
