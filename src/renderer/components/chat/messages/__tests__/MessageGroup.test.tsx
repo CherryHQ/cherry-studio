@@ -448,6 +448,30 @@ describe('MessageGroup', () => {
     expect(footer.closest('.message-body-column')).toBe(contentContainer.closest('.message-body-column'))
   })
 
+  it('keeps the latest assistant footer visible', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup isLatestAssistantGroup messages={messages} topic={topic} />)
+
+    const footer = container.querySelector('#message-msg-1 .MessageFooter')
+
+    expect(footer).toHaveClass('opacity-100')
+    expect(footer).not.toHaveClass('opacity-0')
+  })
+
+  it('reveals historical assistant footers on hover or keyboard focus', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup isLatestAssistantGroup={false} messages={messages} topic={topic} />)
+
+    const footer = container.querySelector('#message-msg-1 .MessageFooter')
+
+    expect(footer).toHaveClass('opacity-0', 'group-hover/message:opacity-100', 'focus-within:opacity-100')
+    expect(footer).not.toHaveClass('opacity-100')
+  })
+
   it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
     const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
     const topic = { id: 'topic-1' } as Topic
