@@ -8,6 +8,9 @@
  * data would be written twice.
  */
 
+import { desc, eq, ne, sql } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import {
   ENDPOINT_TYPE,
@@ -34,8 +37,6 @@ import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { EndpointDialect } from '@shared/data/types/provider'
-import { desc, eq, ne, sql } from 'drizzle-orm'
-import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'

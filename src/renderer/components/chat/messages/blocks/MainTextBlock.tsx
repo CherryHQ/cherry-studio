@@ -1,3 +1,8 @@
+import { ChevronDown, Code2 } from 'lucide-react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { Components } from 'streamdown'
+
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
@@ -18,10 +23,6 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { ChevronDown, Code2 } from 'lucide-react'
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import type { Components } from 'streamdown'
 
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
@@ -74,11 +75,11 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
 
   return (
     <span
-      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 overflow-hidden align-baseline text-primary leading-[inherit]"
+      className="mx-0.5 inline-flex max-w-52 items-baseline gap-1 overflow-hidden align-baseline leading-[inherit] text-primary select-none"
       data-composer-token-kind={token.kind}
       title={title}>
       <Icon className="size-[1em] shrink-0 translate-y-[0.08em] text-current opacity-80" />
-      <span className="whitespace-nowrap! min-w-0 truncate break-normal">{token.label}</span>
+      <span className="min-w-0 truncate break-normal whitespace-nowrap!">{token.label}</span>
     </span>
   )
 }
@@ -283,7 +284,7 @@ function CollapsibleUserMessageContent({
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
-        className="max-w-full has-[.code-block]:w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        className="max-w-full has-[.code-block]:w-full [&_.markdown>*:last-child]:mb-0! [&>*:last-child]:mb-0!">
         {children}
       </div>
       {isCollapsible && (
@@ -294,7 +295,7 @@ function CollapsibleUserMessageContent({
           data-user-message-content-toggle
           className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle, { enterReadingMode: !isExpanded })}>
-          <span className="shrink-0 font-normal leading-5">
+          <span className="shrink-0 leading-5 font-normal">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
           </span>
           <ChevronDown

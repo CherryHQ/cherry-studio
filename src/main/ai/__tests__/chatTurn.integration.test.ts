@@ -1,6 +1,7 @@
-import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { markTrustedLocalToolTerminalFailure } from '../runtime/aiSdk/loop/localToolTerminalOutcome'
 import { makeModel, makeProvider } from './fixtures'

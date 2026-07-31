@@ -2,12 +2,13 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import type { DbType } from '@data/db/types'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import type { DbType } from '@data/db/types'
 
 /**
  * Do migrations that rebuild populated tables preserve real data and derive

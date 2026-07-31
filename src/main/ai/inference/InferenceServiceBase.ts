@@ -1,12 +1,13 @@
 import { Worker } from 'node:worker_threads'
 
+import PQueue from 'p-queue'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
 import { onnxRuntimeBinaryService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
-import PQueue from 'p-queue'
 
 import { resolveLocalInferenceProfile } from './inferenceAcceleration'
 import type {

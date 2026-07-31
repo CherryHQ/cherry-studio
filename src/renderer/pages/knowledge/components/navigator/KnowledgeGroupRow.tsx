@@ -1,9 +1,10 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { MoreHorizontal, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
 import type { KnowledgeGroupRowProps } from './types'
@@ -80,7 +81,7 @@ const KnowledgeGroupRow = ({ group, onRenameGroup, onCreateBase, onDeleteGroup }
                   size="icon-sm"
                   aria-label={t('common.more')}
                   className={cn(
-                    'size-6 min-h-6 min-w-6 rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
+                    'size-6 min-h-6 min-w-6 rounded-md p-0 text-muted-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 hover:bg-accent hover:text-foreground [&_svg]:size-3.5',
                     moreMenuOpen ? 'opacity-100' : 'opacity-0'
                   )}>
                   <MoreHorizontal />

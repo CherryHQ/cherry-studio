@@ -1,11 +1,4 @@
 import '@renderer/assets/styles/vendor/pdf-viewer.css'
-
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -21,6 +14,13 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -591,7 +591,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
               {status === 'loading' ? (
                 <div
                   role="status"
-                  className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+                  className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
                   <LoaderCircle className="size-4 animate-spin" aria-hidden />
                   <span>{t('file_preview.loading')}</span>
                 </div>

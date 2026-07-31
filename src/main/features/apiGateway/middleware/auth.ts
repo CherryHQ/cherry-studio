@@ -1,5 +1,6 @@
-import { application } from '@application'
 import crypto from 'crypto'
+
+import { application } from '@application'
 
 const isValidToken = (token: string, apiKey: string): boolean => {
   const tokenBuf = Buffer.from(token, 'utf8')

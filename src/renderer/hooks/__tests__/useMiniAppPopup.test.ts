@@ -1,10 +1,11 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 // Mock side-effect dependencies BEFORE importing the hook
 vi.mock('@renderer/utils/webviewStateManager', () => ({

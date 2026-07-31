@@ -1,5 +1,6 @@
-import { WindowType } from '@main/core/window/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowType } from '@main/core/window/types'
 
 const { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiServiceMock } = vi.hoisted(() => {
   const mainWindowServiceMock = {

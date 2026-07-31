@@ -1,3 +1,8 @@
+import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -34,10 +39,6 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
@@ -161,10 +162,10 @@ const ChannelLogModal: FC<{
         </DialogHeader>
         <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
           {logs.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground text-xs">{t('agent.channels.noLogs')}</div>
+            <div className="py-8 text-center text-xs text-muted-foreground">{t('agent.channels.noLogs')}</div>
           )}
           {logs.map((entry, i) => (
-            <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
+            <div key={i} className="flex gap-2 py-px whitespace-pre-wrap">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
               <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? 'var(--foreground-tertiary)' }}>
                 [{entry.level.toUpperCase()}]
@@ -293,7 +294,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   </SelectContent>
                 </Select>
                 {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
-                <div className="mt-2 flex items-center gap-1.5 text-muted-foreground text-xs">
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span>{t('agent.session.display.workdir')}</span>
                   <WorkspaceSelector
                     value={workspaceId}
@@ -349,7 +350,7 @@ const ChannelInstanceRow: FC<{
     if (isConnected) {
       statusColor = 'bg-success'
       statusTag = (
-        <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-3.5">
+        <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] leading-3.5 text-success-subtle-foreground">
           {t('agent.channels.connected')}
         </Badge>
       )
@@ -357,7 +358,7 @@ const ChannelInstanceRow: FC<{
       statusColor = 'bg-error'
       statusTag = (
         <Tooltip title={hasError}>
-          <Badge className="border-error-border bg-error-subtle px-1.5 py-0 text-[10px] text-error-subtle-foreground leading-3.5">
+          <Badge className="border-error-border bg-error-subtle px-1.5 py-0 text-[10px] leading-3.5 text-error-subtle-foreground">
             {t('agent.channels.error')}
           </Badge>
         </Tooltip>
@@ -366,14 +367,14 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <div className="flex items-center gap-3 border-border border-b-[0.5px] px-1 py-2.5 last:border-b-0">
+    <div className="flex items-center gap-3 border-b-[0.5px] border-border px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
           {channel.name}
           {statusTag}
         </div>
-        <div className="truncate text-foreground-400 text-xs">
+        <div className="text-foreground-400 truncate text-xs">
           {agentName && <span className="mr-2 text-info">{agentName}</span>}
           {summary}
         </div>
@@ -565,7 +566,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
                 {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
                 <span className="truncate">{channelDef.name}</span>
               </SettingTitle>
-              <p className="mt-1.5 mb-0 text-muted-foreground text-xs">
+              <p className="mt-1.5 mb-0 text-xs text-muted-foreground">
                 {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
               </p>
             </div>

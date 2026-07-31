@@ -1,6 +1,7 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { MessageKnowledgeSearchToolTitle } from '../MessageKnowledgeSearch'
 

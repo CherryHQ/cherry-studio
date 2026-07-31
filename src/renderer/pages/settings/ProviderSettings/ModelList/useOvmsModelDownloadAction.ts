@@ -1,6 +1,7 @@
-import { useProvider } from '@renderer/hooks/useProvider'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useProvider } from '@renderer/hooks/useProvider'
 
 import DownloadOvmsModelPopup from './DownloadOvmsModelPopup'
 

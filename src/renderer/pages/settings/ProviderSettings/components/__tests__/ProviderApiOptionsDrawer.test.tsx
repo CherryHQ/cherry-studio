@@ -1,6 +1,7 @@
-import type * as ProviderUtils from '@shared/utils/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ProviderUtils from '@shared/utils/provider'
 
 import ProviderApiOptionsDrawer from '../ProviderApiOptionsDrawer'
 

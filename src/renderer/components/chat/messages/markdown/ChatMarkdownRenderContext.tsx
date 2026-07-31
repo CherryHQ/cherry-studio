@@ -1,5 +1,6 @@
-import type { Citation } from '@renderer/types/message'
 import { createContext, type ReactNode, use, useMemo } from 'react'
+
+import type { Citation } from '@renderer/types/message'
 
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 

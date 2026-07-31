@@ -8,9 +8,10 @@
  * are pinned here so a regression to either is caught at the chokepoint.
  */
 
+import { describe, expect, it, vi } from 'vitest'
+
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it, vi } from 'vitest'
 
 import type { DanglingCache } from '../../danglingCache'
 import type { FileManagerDeps } from '../deps'

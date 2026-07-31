@@ -1,10 +1,11 @@
+import { ChevronDown } from 'lucide-react'
+import { useMemo } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown } from 'lucide-react'
-import { useMemo } from 'react'
 
 export { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 
@@ -63,11 +64,11 @@ export const KnowledgeModelSelect = ({
           aria-label={ariaLabel}
           aria-invalid={invalid || undefined}
           className={cn(
-            'h-8 w-full min-w-0 justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+            'h-8 w-full min-w-0 justify-between gap-2 rounded-md px-3 text-sm font-normal shadow-none',
             'aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
             hasValue ? 'text-foreground' : 'text-muted-foreground',
             invalid &&
-              'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
+              'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-expanded:ring-error/40 dark:aria-invalid:ring-error/40'
           )}>
           <span className="min-w-0 truncate text-left">{triggerLabel}</span>
           <ChevronDown className="size-4 shrink-0 opacity-50" />

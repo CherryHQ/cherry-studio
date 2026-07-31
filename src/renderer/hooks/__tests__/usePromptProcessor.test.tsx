@@ -1,6 +1,7 @@
-import type * as PromptUtilsModule from '@renderer/utils/prompt'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as PromptUtilsModule from '@renderer/utils/prompt'
 
 vi.mock('@renderer/utils/prompt', async (importOriginal) => {
   const actual = await importOriginal<typeof PromptUtilsModule>()

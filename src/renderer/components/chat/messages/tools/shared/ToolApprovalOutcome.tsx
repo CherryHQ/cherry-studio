@@ -1,6 +1,7 @@
-import type { ToolApprovalOutcome as ToolApprovalOutcomeValue } from '@renderer/types/mcpTool'
 import { CircleX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import type { ToolApprovalOutcome as ToolApprovalOutcomeValue } from '@renderer/types/mcpTool'
 
 interface Props {
   approval?: ToolApprovalOutcomeValue

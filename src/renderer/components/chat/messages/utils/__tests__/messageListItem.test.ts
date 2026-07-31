@@ -1,5 +1,6 @@
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../../types'
 import {

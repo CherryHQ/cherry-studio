@@ -1,3 +1,8 @@
+import path from 'path'
+
+import { and, asc, count, desc, eq } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -18,9 +23,6 @@ import {
   AgentWorkspaceTypeSchema,
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, count, desc, eq } from 'drizzle-orm'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }

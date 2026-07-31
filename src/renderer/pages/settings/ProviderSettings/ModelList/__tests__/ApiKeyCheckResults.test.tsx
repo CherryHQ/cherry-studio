@@ -1,9 +1,10 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { ApiKeyWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { ApiKeyWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 
 import ApiKeyCheckResults from '../ApiKeyCheckResults'
 

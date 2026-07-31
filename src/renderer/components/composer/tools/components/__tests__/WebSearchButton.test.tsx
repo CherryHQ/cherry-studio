@@ -1,15 +1,15 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import WebSearchButton from '../WebSearchButton'
 

@@ -22,8 +22,6 @@
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
-import { loggerService } from '@logger'
-import type { RetryPartData } from '@shared/data/types/uiParts'
 import { APICallError } from 'ai'
 import {
   isErrorAttempt,
@@ -34,6 +32,9 @@ import {
   type RetryContext
 } from 'ai-retry'
 import { createRetryableModel, error } from 'ai-retry/language-model'
+
+import { loggerService } from '@logger'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
 
@@ -112,13 +113,11 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     // Same-model transient retry on retryable errors: honors Retry-After headers,
     // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
     // holds since retryCount >= 1.)
-    error
-      .isRetryable(true)
-      .retry({
-        maxAttempts: retryCount + 1,
-        delay: RETRY_BASE_DELAY_MS,
-        ...(backoffEnabled && { backoffFactor: 2 })
-      }),
+    error.isRetryable(true).retry({
+      maxAttempts: retryCount + 1,
+      delay: RETRY_BASE_DELAY_MS,
+      ...(backoffEnabled && { backoffFactor: 2 })
+    }),
     // Cross-model fallback, tried in user-configured order (one attempt each).
     // Resolved lazily on first failure (memoized) so the happy path pays nothing;
     // each fallback carries its own middleware + params (a per-retry override).

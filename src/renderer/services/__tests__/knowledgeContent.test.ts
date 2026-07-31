@@ -1,7 +1,8 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { processMessagesContent } from '@renderer/services/knowledgeContent'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { CONTENT_TYPES } from '@renderer/utils/knowledge'
-import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/hooks/useTopic', () => ({
   getTopicMessages: vi.fn()

@@ -1,5 +1,6 @@
 import type { Attributes as OTelAttributes, AttributeValue as OTelAttributeValue, Link } from '@opentelemetry/api'
 import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
+
 import type { Attributes, AttributeValue, SpanEntity, TokenUsage } from '@shared/data/types/trace'
 
 export interface ClaudeCodeTraceContext {

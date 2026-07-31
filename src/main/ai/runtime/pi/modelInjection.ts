@@ -10,11 +10,12 @@
  * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
+import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+
 import { application } from '@application'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'

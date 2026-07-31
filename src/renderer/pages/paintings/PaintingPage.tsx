@@ -1,7 +1,8 @@
-import { useCache } from '@data/hooks/useCache'
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useCache } from '@data/hooks/useCache'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
@@ -138,9 +139,9 @@ const PaintingPage: FC = () => {
                 {showTemplateShowcase && (
                   <section
                     data-testid="painting-template-stage"
-                    className="absolute inset-0 z-0 mx-auto flex min-h-0 w-full max-w-5xl items-center justify-center overflow-hidden px-3 pt-3 pb-36 [container-type:size]">
+                    className="[container-type:size] absolute inset-0 z-0 mx-auto flex min-h-0 w-full max-w-5xl items-center justify-center overflow-hidden px-3 pt-3 pb-36">
                     <div className="flex h-full max-h-80 min-h-0 w-full flex-col items-center">
-                      <h1 className="max-w-xl shrink-0 text-center font-bold tracking-tight [font-size:clamp(var(--font-size-heading-sm),4cqw,var(--font-size-heading-md))] [line-height:1.1]">
+                      <h1 className="max-w-xl shrink-0 text-center [font-size:clamp(var(--font-size-heading-sm),4cqw,var(--font-size-heading-md))] [line-height:1.1] font-bold tracking-tight">
                         {t('paintings.showcase.title')}
                       </h1>
 
@@ -156,7 +157,7 @@ const PaintingPage: FC = () => {
                           <Artboard painting={composerPainting} isLoading={false} />
                         )}
 
-                        <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-muted-foreground text-xs leading-5">
+                        <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-xs leading-5 text-muted-foreground">
                           {t('paintings.showcase.caption')}
                         </p>
                       </div>

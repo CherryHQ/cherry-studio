@@ -1,22 +1,16 @@
 {
   "name": "@cherrystudio/dsh-bridge",
   "version": "0.0.1-alpha.1",
-  "description": "Cherry Studio control-plane plugin for the dsh (DeepSeek Harness) runtime",
   "private": true,
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.cts",
-  "scripts": {
-    "build": "tsdown",
-    "clean": "rm -rf dist",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "author": "Cherry Studio",
+  "description": "Cherry Studio control-plane plugin for the dsh (DeepSeek Harness) runtime",
   "license": "MIT",
+  "author": "Cherry Studio",
   "files": [
     "dist/**/*"
   ],
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
   "exports": {
     ".": {
       "import": {
@@ -30,6 +24,12 @@
       "default": "./dist/index.mjs"
     },
     "./plugin": "./dist/runtime/cherry-bridge.mjs"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",

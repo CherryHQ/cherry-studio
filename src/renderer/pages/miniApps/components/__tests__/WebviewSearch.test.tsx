@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import WebviewSearch from '../WebviewSearch'
 

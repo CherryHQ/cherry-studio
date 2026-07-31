@@ -17,13 +17,14 @@
 
 import { fileURLToPath } from 'node:url'
 
+import mime from 'mime'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 

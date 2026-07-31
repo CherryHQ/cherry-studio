@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import {
   type CanonicalParamKey,
   IMAGE_PARAM_CATALOG,
@@ -5,7 +7,6 @@ import {
   type ImageGenerationSupport,
   type SupportSpec
 } from '@cherrystudio/provider-registry'
-import * as z from 'zod'
 
 const MAX_INPUT_IMAGES = 1
 

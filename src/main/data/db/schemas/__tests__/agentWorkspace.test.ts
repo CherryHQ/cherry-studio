@@ -1,7 +1,8 @@
-import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 
 describe('agentWorkspaceTable', () => {
   const dbh = setupTestDatabase()

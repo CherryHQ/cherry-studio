@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -14,8 +17,6 @@ import { toast } from '@renderer/services/toast'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { isWin } from '@renderer/utils/platform'
 import { defaultLanguage } from '@shared/utils/languages'
-import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWindowRuntime')
 

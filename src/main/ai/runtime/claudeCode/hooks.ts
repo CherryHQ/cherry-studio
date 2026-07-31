@@ -12,6 +12,7 @@
  */
 
 import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'

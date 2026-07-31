@@ -6,6 +6,9 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import { tool, zodSchema } from 'ai'
+
 import type {
   ChatCompletionAssistantMessageParam,
   ChatCompletionMessageParam,
@@ -16,8 +19,6 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'

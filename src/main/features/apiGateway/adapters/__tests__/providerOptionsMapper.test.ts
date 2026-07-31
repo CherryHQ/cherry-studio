@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   type ProtoReasoningSupport,
   REASONING_FORMAT_PROFILES,
@@ -6,7 +8,6 @@ import {
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   mapAnthropicThinkingToProviderOptions,

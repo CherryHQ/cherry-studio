@@ -1,10 +1,11 @@
-import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic } from '@shared/data/types/topic'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Topic } from '@shared/data/types/topic'
 
 import deDE from '../../../i18n/locales/de-de.json'
 import elGR from '../../../i18n/locales/el-gr.json'

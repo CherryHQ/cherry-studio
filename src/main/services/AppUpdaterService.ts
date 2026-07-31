@@ -1,3 +1,9 @@
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
+import { app, net } from 'electron'
+import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { AppUpdater, autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
@@ -16,11 +22,6 @@ import {
   parseReleaseHistory,
   type ReleaseNotesEntry
 } from '@shared/utils/releaseNotes'
-import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken } from 'builder-util-runtime'
-import { app, net } from 'electron'
-import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
-import { AppUpdater, autoUpdater } from 'electron-updater'
 
 const logger = loggerService.withContext('AppUpdaterService')
 

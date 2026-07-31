@@ -1,5 +1,23 @@
 import { isDeepStrictEqual } from 'node:util'
 
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  type SQL,
+  sql,
+  type SQLWrapper
+} from 'drizzle-orm'
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -42,23 +60,6 @@ import type {
   MessageStats
 } from '@shared/data/types/message'
 import type { Currency } from '@shared/data/types/model'
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  gte,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  or,
-  type SQL,
-  sql,
-  type SQLWrapper
-} from 'drizzle-orm'
-import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
@@ -671,7 +672,11 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
     .limit(limit + 1)
     .all()
   const count =
-    db.select({ count: sql<number>`count(*)` }).from(aiUsageRecordTable).where(filterWhere).get()?.count ?? 0
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(aiUsageRecordTable)
+      .where(filterWhere)
+      .get()?.count ?? 0
   const pageRows = rows.slice(0, limit)
   const tail = pageRows.at(-1)
 

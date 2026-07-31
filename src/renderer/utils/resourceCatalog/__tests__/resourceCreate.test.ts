@@ -1,5 +1,6 @@
-import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
+
+import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
 

@@ -1,6 +1,7 @@
-import type { ActiveExecution } from '@shared/ai/transport'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ActiveExecution } from '@shared/ai/transport'
 
 import type { MessageListItem } from '../../components/chat/messages/types'
 import { useIsActiveTurnTarget } from '../useIsActiveTurnTarget'

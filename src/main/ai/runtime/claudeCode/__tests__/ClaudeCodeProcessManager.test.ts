@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   BaseService,
   DependsOn,
@@ -10,7 +12,6 @@ import {
   ServiceContainer,
   ServicePhase
 } from '@main/core/lifecycle'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClaudeCodeProcessManager, type SpawnProcess } from '../ClaudeCodeProcessManager'
 

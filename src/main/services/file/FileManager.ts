@@ -125,6 +125,8 @@ import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
@@ -146,7 +148,6 @@ import type {
 } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
-import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
 import { hash as internalHash } from './internal/content/hash'

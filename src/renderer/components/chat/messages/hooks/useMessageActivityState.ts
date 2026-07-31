@@ -1,3 +1,5 @@
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+
 import type {
   MessageActivityState,
   MessageActivityStore,
@@ -6,7 +8,6 @@ import type {
 import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 
 const INACTIVE_MESSAGE_ACTIVITY_STATE: MessageActivityState = Object.freeze({
   isProcessing: false,

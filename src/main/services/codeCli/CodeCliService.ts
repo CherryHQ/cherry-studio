@@ -1,5 +1,9 @@
+import { execFile, spawn } from 'child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'util'
+
+import { app } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -35,9 +39,6 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
-import { execFile, spawn } from 'child_process'
-import { app } from 'electron'
-import { promisify } from 'util'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'

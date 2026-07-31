@@ -1,10 +1,11 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { asc } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
-import { setupTestDatabase } from '@test-helpers/db'
-import { asc } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { PromptMigrator } from '../PromptMigrator'

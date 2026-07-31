@@ -1,8 +1,3 @@
-import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type { McpTool } from '@renderer/types/tool'
-import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import {
   Bot,
   DoorOpen,
@@ -25,6 +20,12 @@ import {
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Flex, Tooltip } from '@cherrystudio/ui'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'

@@ -1,5 +1,6 @@
-import { Placeholder } from '@renderer/components/RichEditor/extensions/placeholder'
 import type { EditorOptions } from '@tiptap/core'
+
+import { Placeholder } from '@renderer/components/RichEditor/extensions/placeholder'
 
 import {
   ComposerDocument,

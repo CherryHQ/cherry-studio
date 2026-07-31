@@ -1,9 +1,10 @@
+import { act, render, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { act, render, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 

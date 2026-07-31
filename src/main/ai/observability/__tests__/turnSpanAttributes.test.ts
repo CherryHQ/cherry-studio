@@ -1,6 +1,7 @@
 import type { Span } from '@opentelemetry/api'
-import type { UniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { applyTurnInputAttributes, applyTurnOutputAttributes } from '../turnSpanAttributes'
 
@@ -25,7 +26,6 @@ describe('applyTurnInputAttributes', () => {
         { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'first' }] },
         { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'answer' }] },
         { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'second question' }] }
-        // biome-ignore lint/suspicious/noExplicitAny: minimal UIMessage fixture
       ] as any
     })
 
@@ -68,7 +68,6 @@ describe('applyTurnOutputAttributes', () => {
         { type: 'text', text: 'answer' },
         { type: 'dynamic-tool' }
       ]
-      // biome-ignore lint/suspicious/noExplicitAny: minimal CherryUIMessage fixture
     } as any)
 
     expect(attributes.outputs).toBe('the answer')
@@ -77,7 +76,6 @@ describe('applyTurnOutputAttributes', () => {
 
   it('omits tool-call count when there are no tool parts', () => {
     const { span, attributes } = fakeSpan()
-    // biome-ignore lint/suspicious/noExplicitAny: minimal fixture
     applyTurnOutputAttributes(span, { id: 'a', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] } as any)
     expect(attributes.outputs).toBe('hi')
     expect(attributes['cs.tool_calls']).toBeUndefined()

@@ -1,9 +1,10 @@
-import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
-import type { UpdateOffer } from '@renderer/hooks/useMiniAppUpdate'
-import { type LocalizedText, resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { CheckCircle2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
+import type { UpdateOffer } from '@renderer/hooks/useMiniAppUpdate'
+import { type LocalizedText, resolveLocalizedText } from '@shared/types/miniAppManifest'
 
 /**
  * Main flags a rename when ANY locale differs; read in a locale that did not change, the

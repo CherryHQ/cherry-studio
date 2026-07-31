@@ -1,7 +1,8 @@
-import type { SpanEntity } from '@shared/data/types/trace'
-import type { TraceDataCursor } from '@shared/data/types/trace'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { SpanEntity } from '@shared/data/types/trace'
+import type { TraceDataCursor } from '@shared/data/types/trace'
 
 import SpanDetail from './SpanDetail'
 import TraceTree from './TraceTree'

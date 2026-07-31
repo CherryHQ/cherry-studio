@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { NutstorePathSelector } from '@renderer/components/NutstorePathSelector'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { useTranslation } from 'react-i18next'
 
 type Props = Nutstore.Fs & PopupInjectedProps<string | null>
 

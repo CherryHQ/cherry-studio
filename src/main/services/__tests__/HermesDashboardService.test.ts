@@ -2,9 +2,10 @@ import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type * as NodeFsPromises from 'node:fs/promises'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import type * as ProcessRunner from '@main/utils/processRunner'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),

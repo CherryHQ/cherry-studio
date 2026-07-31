@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * notifyDataApiDataChange unit tests (unified application mock).
  *
@@ -11,7 +13,6 @@
 import { application } from '@application'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { notifyDataApiDataChange } from '../dataApiDataChange'
 

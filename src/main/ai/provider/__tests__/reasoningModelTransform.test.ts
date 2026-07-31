@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createExecutor } from '@cherrystudio/ai-core'
 import {
   applyReasoningModelMaxTokensConversion,
@@ -6,7 +8,6 @@ import {
 } from '@cherrystudio/ai-sdk-provider'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'

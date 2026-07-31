@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
+import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import type { UIMessageChunk } from 'ai'
+
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
@@ -20,7 +23,6 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
-import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -35,7 +37,6 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'

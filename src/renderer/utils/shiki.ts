@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
 import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
 import type { SpecialLanguage, ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
+
+import { loggerService } from '@logger'
 
 import { AsyncInitializer } from './asyncInitializer'
 

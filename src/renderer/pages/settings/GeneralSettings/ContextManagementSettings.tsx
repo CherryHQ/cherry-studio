@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EditableNumber, InfoTooltip, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
@@ -15,8 +18,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const chatModelFilter = (model: Model) => !isNonChatModel(model)
 

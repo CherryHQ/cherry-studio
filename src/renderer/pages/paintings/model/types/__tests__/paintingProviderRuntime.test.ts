@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { resolvePaintingApiHost } from '../paintingProviderRuntime'
 

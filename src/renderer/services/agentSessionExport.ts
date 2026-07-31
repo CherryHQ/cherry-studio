@@ -1,3 +1,5 @@
+import i18next from 'i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { exportMarkdownContentAsFile, messagesToMarkdown } from '@renderer/services/ExportService'
@@ -15,7 +17,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import i18next from 'i18next'
 
 const logger = loggerService.withContext('agentSessionExport')
 

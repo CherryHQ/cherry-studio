@@ -1,6 +1,7 @@
-import { EditableNumber } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { EditableNumber } from '@cherrystudio/ui'
 
 const meta: Meta<typeof EditableNumber> = {
   title: 'Components/Composites/editable-number',

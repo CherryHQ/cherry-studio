@@ -1,6 +1,10 @@
 import '@data/services/AgentSessionMessageService'
-
 import { randomUUID } from 'node:crypto'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq, sql } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -26,10 +30,6 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq, sql } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))

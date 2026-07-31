@@ -1,3 +1,7 @@
+import { Clock, FolderOpen, ToolCase } from 'lucide-react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { ipcApi } from '@renderer/ipc'
@@ -5,9 +9,6 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Clock, FolderOpen, ToolCase } from 'lucide-react'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { SkillFileBrowser } from './SkillFileBrowser'
 

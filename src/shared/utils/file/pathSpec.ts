@@ -41,8 +41,9 @@
  * to.
  */
 
-import { isValidPosixFileName, isValidWindowsFileName } from '@shared/utils/file/filename'
 import * as z from 'zod'
+
+import { isValidPosixFileName, isValidWindowsFileName } from '@shared/utils/file/filename'
 
 /** A path decomposed by one platform's syntax rules. */
 export interface ParsedPath {

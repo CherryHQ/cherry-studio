@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -47,7 +48,6 @@ vi.mock('../wechat/WeChatProtocol', () => ({
 
 // Import the module to trigger self-registration side effect
 import '../wechat/WeChatAdapter'
-
 import { registerAdapterFactory } from '../../ChannelManager'
 
 function getFactory() {

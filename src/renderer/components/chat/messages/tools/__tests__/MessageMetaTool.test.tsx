@@ -1,7 +1,8 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18n from 'i18next'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import MessageMetaTool from '../meta/MessageMetaTool'
 

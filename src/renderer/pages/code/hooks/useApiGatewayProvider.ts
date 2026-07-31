@@ -1,11 +1,12 @@
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DEFAULT_GATEWAY_HOST = '127.0.0.1'
 const DEFAULT_GATEWAY_PORT = 23333

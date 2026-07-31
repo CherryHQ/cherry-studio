@@ -1,9 +1,10 @@
-import type * as RendererConstantModule from '@renderer/utils/platform'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
 import useSWR, { unstable_serialize } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 
 import { createSWRTestWrapper } from './testUtils'
 

@@ -3,15 +3,16 @@ import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, w
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { ZipArchive } from 'archiver'
+import StreamZip from 'node-stream-zip'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
-import { ZipArchive } from 'archiver'
-import StreamZip from 'node-stream-zip'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   ChatArchiveName,
@@ -1150,13 +1151,13 @@ describe('DiagnosticBundleService', () => {
 
   it('preserves a destination created while the bundle archive is finalizing', async () => {
     const originalFinalize = ZipArchive.prototype.finalize
-    const finalizeSpy = vi.spyOn(ZipArchive.prototype, 'finalize').mockImplementation(async function (
-      this: ZipArchive
-    ) {
-      const finalized = originalFinalize.call(this)
-      await writeFile(destination, 'external file')
-      return finalized
-    })
+    const finalizeSpy = vi
+      .spyOn(ZipArchive.prototype, 'finalize')
+      .mockImplementation(async function (this: ZipArchive) {
+        const finalized = originalFinalize.call(this)
+        await writeFile(destination, 'external file')
+        return finalized
+      })
     const service = new DiagnosticBundleService()
 
     try {

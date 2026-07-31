@@ -27,6 +27,8 @@
  * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
  */
 
+import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
+
 import { application } from '@application'
 import { entityTagTable, type TagRow, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -36,7 +38,6 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Tag } from '@shared/data/types/tag'
-import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
 

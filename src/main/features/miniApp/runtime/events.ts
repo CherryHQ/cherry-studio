@@ -7,9 +7,10 @@
  * and shipping it anyway teaches authors to rely on it.
  */
 
+import { webContents } from 'electron'
+
 import { application } from '@application'
 import { MINI_APP_EVENT_CHANNEL, type MiniAppEvent } from '@shared/ipc/schemas/miniAppBridge'
-import { webContents } from 'electron'
 
 /** @returns how many live guests received it — 0 is normal, not an error. */
 export function emitToApp(appId: string, event: MiniAppEvent, payload?: unknown): number {

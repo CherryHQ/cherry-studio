@@ -1,8 +1,9 @@
-import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const dataApiMocks = vi.hoisted(() => ({
   useDataChange: vi.fn(),

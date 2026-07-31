@@ -8,8 +8,9 @@ import type {
   ToolResultMessage
 } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DSH_TRANSPORT, DshStreamAdapter } from '../dshStreamAdapter'
 

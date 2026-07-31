@@ -55,11 +55,9 @@ beforeEach(() => {
   vi.resetModules()
   requestSingleInstanceLockMock.mockReset().mockReturnValue(true)
   applicationQuitMock.mockReset()
-  processExitMock
-    .mockReset()
-    .mockImplementation((code) => {
-      throw new ProcessExitSentinel(code)
-    })
+  processExitMock.mockReset().mockImplementation((code) => {
+    throw new ProcessExitSentinel(code)
+  })
   // Swap process.exit with our observable stub.
   ;(process as unknown as { exit: typeof processExitMock }).exit = processExitMock
 })

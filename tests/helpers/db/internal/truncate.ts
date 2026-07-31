@@ -1,6 +1,7 @@
-import type { DbType } from '@data/db/types'
 import type Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
+
+import type { DbType } from '@data/db/types'
 
 interface MasterRow {
   name: string

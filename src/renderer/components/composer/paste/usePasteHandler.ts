@@ -1,6 +1,7 @@
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
+
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import pasteHandling from './pasteHandling'
 

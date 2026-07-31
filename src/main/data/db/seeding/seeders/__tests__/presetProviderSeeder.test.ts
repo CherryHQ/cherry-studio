@@ -7,11 +7,12 @@
  * provider IDs and only inserts genuinely new rows.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it, vi } from 'vitest'
+
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it, vi } from 'vitest'
 
 // Fake registry providers — two preset providers: 'openai' and 'anthropic'.
 vi.mock('@cherrystudio/provider-registry/node', () => {

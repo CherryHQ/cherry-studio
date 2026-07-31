@@ -1,8 +1,9 @@
-import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type React from 'react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import {

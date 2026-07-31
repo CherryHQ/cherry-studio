@@ -1,8 +1,9 @@
-import type { ProtocolMcpInstallRequest, ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ProtocolMcpInstallRequest, ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import McpServersList from '../McpServersList'
 

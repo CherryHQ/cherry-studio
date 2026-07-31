@@ -1,6 +1,7 @@
+import * as React from 'react'
+
 // Original path: src/renderer/components/editable-number/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
-import * as React from 'react'
 
 export interface EditableNumberProps {
   value?: number | null
@@ -179,7 +180,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   const shouldRenderDisplayValue = Boolean(formatter || prefix || suffix)
   const inputAlignClass = align === 'start' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'
   const inputClassName = cn(
-    'border-input bg-background w-full rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+    'w-full [appearance:textfield] rounded-md border border-input bg-background px-3 text-sm shadow-xs transition-[color,box-shadow] outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
     'focus-visible:border-primary',
     'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
     sizeClasses[size],
@@ -219,8 +220,8 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
         <div
           className={cn(
             // Click-through: the input keeps the layout box and every interaction.
-            'absolute inset-0 pointer-events-none',
-            'border-input bg-background flex w-full items-center rounded-md border px-3 text-sm shadow-xs',
+            'pointer-events-none absolute inset-0',
+            'flex w-full items-center rounded-md border border-input bg-background px-3 text-sm shadow-xs',
             disabled && 'cursor-not-allowed opacity-50',
             alignClasses[align],
             sizeClasses[size],

@@ -1,9 +1,10 @@
-import { Badge, Button, Tooltip } from '@cherrystudio/ui'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { ListMinus, ListPlus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge, Button, Tooltip } from '@cherrystudio/ui'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'

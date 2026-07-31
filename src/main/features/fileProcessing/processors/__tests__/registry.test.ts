@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { FILE_PROCESSOR_FEATURES } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
-import { describe, expect, it, vi } from 'vitest'
 
 type Platform = {
   isLinux: boolean

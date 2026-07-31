@@ -1,6 +1,9 @@
 import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 
+import type { Browser, Service } from 'bonjour-service'
+import Bonjour from 'bonjour-service'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -15,8 +18,6 @@ import type {
   LanTransferState
 } from '@shared/types/lanTransfer'
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/types/lanTransfer'
-import type { Browser, Service } from 'bonjour-service'
-import Bonjour from 'bonjour-service'
 
 import {
   abortTransfer,

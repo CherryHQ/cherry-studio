@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
@@ -12,6 +11,9 @@ import type {
   ProviderConfig,
   ToolDefinition
 } from '@earendil-works/pi-coding-agent'
+import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -33,7 +35,6 @@ import {
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
-import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {

@@ -1,3 +1,8 @@
+import { Check, ChevronsLeft, Copy } from 'lucide-react'
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Field,
@@ -15,10 +20,6 @@ import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
-import { Check, ChevronsLeft, Copy } from 'lucide-react'
-import type { FC } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { buildSpanView, type SpanDetailRow, type SpanTab } from './spanPresenters'
 import type { TraceNode } from './traceNode'
@@ -75,7 +76,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 text-xs">
       <div className="mb-3 flex min-w-0 shrink-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-medium text-foreground text-sm">{t('trace.spanDetail')}</div>
+          <div className="text-sm font-medium text-foreground">{t('trace.spanDetail')}</div>
           <div className="mt-1 truncate text-muted-foreground">{node.name}</div>
         </div>
         <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => onShowList(true)}>
@@ -137,12 +138,12 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
 
 function DetailField({ row }: { row: SpanDetailRow }) {
   return (
-    <Field orientation="horizontal" className="border-border-subtle border-t px-3 py-2 first:border-t-0">
-      <FieldContent className="min-w-24 max-w-32 shrink-0 gap-0">
-        <FieldTitle className="font-normal text-muted-foreground text-xs">{row.label}</FieldTitle>
+    <Field orientation="horizontal" className="border-t border-border-subtle px-3 py-2 first:border-t-0">
+      <FieldContent className="max-w-32 min-w-24 shrink-0 gap-0">
+        <FieldTitle className="text-xs font-normal text-muted-foreground">{row.label}</FieldTitle>
       </FieldContent>
       {row.content ?? (
-        <FieldDescription className="min-w-0 flex-1 break-words text-foreground text-xs">{row.value}</FieldDescription>
+        <FieldDescription className="min-w-0 flex-1 text-xs break-words text-foreground">{row.value}</FieldDescription>
       )}
     </Field>
   )

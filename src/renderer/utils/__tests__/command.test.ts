@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { findCommandDefinition } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
-import { describe, expect, it } from 'vitest'
 
 import { getCommandShortcutLabel, resolveCommandDisplayState } from '../command'
 

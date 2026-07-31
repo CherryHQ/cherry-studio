@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+
 // Integration tests for `PaintingMigrator`, run against a real SQLite DB via
 // `setupTestDatabase()` so the production migrations, FK constraints, and
 // transaction semantics all apply.
@@ -22,9 +26,6 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
 
 import { PaintingMigrator } from '../PaintingMigrator'
 

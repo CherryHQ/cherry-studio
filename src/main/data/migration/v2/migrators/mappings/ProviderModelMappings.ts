@@ -2,6 +2,8 @@
  * Provider/model migration transforms for Redux llm -> SQLite user tables.
  */
 
+import { v4 as uuidv4 } from 'uuid'
+
 import {
   CURRENCY,
   type Currency,
@@ -18,7 +20,6 @@ import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointDialect, ProviderSettings } from '@shared/data/types/provider'
 import { isBareVertexApiHost } from '@shared/utils/api'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
 

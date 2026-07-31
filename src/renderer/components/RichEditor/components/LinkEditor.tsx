@@ -1,7 +1,8 @@
-import { Button, Flex, Input } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/hooks/useTheme'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Flex, Input } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 interface LinkEditorProps {
   /** Whether the editor is visible */

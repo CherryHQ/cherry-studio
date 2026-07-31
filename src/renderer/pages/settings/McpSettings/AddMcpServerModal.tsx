@@ -1,3 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { ImportIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   Button,
   CodeEditor,
@@ -17,7 +25,6 @@ import {
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -29,12 +36,6 @@ import { parseJSON } from '@renderer/utils/json'
 import { objectKeys } from '@renderer/utils/object'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { ImportIcon } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 import { resolveMcpPackageIconUrl, resolveMcpPackagePathPlaceholders, resolveMcpPackageVersion } from './mcpPackage'
 import { toCreateMcpServerDto } from './utils'
@@ -436,7 +437,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 </span>
               </div>
             </Dropzone>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {t(
                 importMethod === 'mcpb'
                   ? 'settings.mcp.addServer.importFrom.mcpbHelp'

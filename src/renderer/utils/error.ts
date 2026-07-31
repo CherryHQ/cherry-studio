@@ -1,4 +1,12 @@
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { NoSuchToolError } from 'ai'
+import { AISDKError } from 'ai'
+import { InvalidToolInputError } from 'ai'
+import { type AxiosError, isAxiosError } from 'axios'
+import { t } from 'i18next'
+import type * as z from 'zod'
+import { ZodError } from 'zod'
+
 import { type AgentServerError, AgentServerErrorSchema } from '@renderer/types/agent'
 import type {
   AiSdkErrorUnion,
@@ -10,13 +18,6 @@ import type {
 import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
-import type { NoSuchToolError } from 'ai'
-import { AISDKError } from 'ai'
-import { InvalidToolInputError } from 'ai'
-import { type AxiosError, isAxiosError } from 'axios'
-import { t } from 'i18next'
-import type * as z from 'zod'
-import { ZodError } from 'zod'
 
 import { formatErrorDetails } from './errorDetails'
 import { parseJSON } from './json'

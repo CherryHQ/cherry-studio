@@ -4,6 +4,9 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
+import type { UIMessage } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
+
 import { application } from '@application'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
@@ -16,8 +19,6 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { UIMessage } from 'ai'
-import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'

@@ -2,9 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 

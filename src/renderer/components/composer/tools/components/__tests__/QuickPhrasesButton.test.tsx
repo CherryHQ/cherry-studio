@@ -1,7 +1,8 @@
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
 

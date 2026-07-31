@@ -2,36 +2,47 @@
   "name": "@cherrystudio/ai-sdk-provider",
   "version": "0.1.6",
   "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
-  "keywords": ["ai-sdk", "provider", "cherryin", "vercel-ai-sdk", "cherry-studio"],
-  "author": "Cherry Studio",
-  "license": "MIT",
+  "keywords": [
+    "ai-sdk",
+    "cherry-studio",
+    "cherryin",
+    "provider",
+    "vercel-ai-sdk"
+  ],
   "homepage": "https://github.com/CherryHQ/cherry-studio",
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
+  },
+  "license": "MIT",
+  "author": "Cherry Studio",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CherryHQ/cherry-studio.git",
     "directory": "packages/ai-sdk-provider"
   },
-  "bugs": {
-    "url": "https://github.com/CherryHQ/cherry-studio/issues"
-  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.mts",
-  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    }
+  },
   "scripts": {
     "build": "tsdown",
-    "dev": "pnpm --workspace-root exec tsc -w -p packages/ai-sdk-provider/tsconfig.json",
     "clean": "rm -rf dist",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/ai-sdk-provider/tsconfig.json",
+    "prepublishOnly": "pnpm build",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "prepublishOnly": "pnpm build"
-  },
-  "peerDependencies": {
-    "@ai-sdk/anthropic": "^3.0.71",
-    "@ai-sdk/google": "^3.0.113",
-    "@ai-sdk/openai": "^3.0.53",
-    "@ai-sdk/openai-compatible": "^2.0.72"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-sdk/provider": "^3.0.15",
@@ -42,16 +53,13 @@
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^3.2.7"
   },
-  "sideEffects": false,
+  "peerDependencies": {
+    "@ai-sdk/anthropic": "^3.0.71",
+    "@ai-sdk/google": "^3.0.113",
+    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/openai-compatible": "^2.0.72"
+  },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.mjs"
-    }
   }
 }

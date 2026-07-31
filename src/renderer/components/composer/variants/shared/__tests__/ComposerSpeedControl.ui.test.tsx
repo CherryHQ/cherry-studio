@@ -1,9 +1,10 @@
-import type { ThinkingOption } from '@renderer/types/reasoning'
-import { type Model, MODEL_CAPABILITY, type ServiceTierSelection } from '@shared/data/types/model'
 import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ThinkingOption } from '@renderer/types/reasoning'
+import { type Model, MODEL_CAPABILITY, type ServiceTierSelection } from '@shared/data/types/model'
 
 import {
   ComposerSpeedControl,

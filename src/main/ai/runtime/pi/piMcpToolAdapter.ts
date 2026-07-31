@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto'
 
-import { application } from '@application'
-import { mcpServerService } from '@data/services/McpServerService'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { loggerService } from '@logger'
-import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, ContentBlock, Tool } from '@modelcontextprotocol/sdk/types.js'
+
+import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
+import { loggerService } from '@logger'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
 const logger = loggerService.withContext('PiMcpToolAdapter')

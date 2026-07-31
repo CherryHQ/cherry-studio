@@ -1,3 +1,8 @@
+import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -5,10 +10,6 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
-import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LocalModelsSection')
 

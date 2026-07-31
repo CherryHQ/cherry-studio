@@ -12,9 +12,10 @@
  * would otherwise send unsupported audio/video → provider error.
  */
 
+import type { ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
+
 import type { Model } from '@shared/data/types/model'
 import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
-import type { ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
 
 import type { TokenDialect } from '../tokens/dialect'
 

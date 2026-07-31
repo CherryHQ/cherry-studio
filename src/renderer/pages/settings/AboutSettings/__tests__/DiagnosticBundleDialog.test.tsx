@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { OutputFor } from '@shared/ipc/types'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { OutputFor } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),

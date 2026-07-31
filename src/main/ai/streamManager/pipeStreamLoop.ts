@@ -16,8 +16,9 @@
  *    callers tracking provider-side completion time aren't inflated.
  */
 
-import { type CherryUIMessage } from '@shared/data/types/message'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
+
+import { type CherryUIMessage } from '@shared/data/types/message'
 
 export interface PipeStreamLoopOptions {
   onChunk: (chunk: UIMessageChunk) => void

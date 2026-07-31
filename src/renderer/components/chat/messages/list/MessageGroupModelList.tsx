@@ -1,7 +1,8 @@
-import { RowFlex, Scrollbar, SegmentedControl, Tooltip } from '@cherrystudio/ui'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
+
+import { RowFlex, Scrollbar, SegmentedControl, Tooltip } from '@cherrystudio/ui'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel, isMessageListItemProcessing } from '../utils/messageListItem'

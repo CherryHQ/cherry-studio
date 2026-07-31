@@ -1,6 +1,7 @@
+import i18next from 'i18next'
+
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
-import i18next from 'i18next'
 
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 

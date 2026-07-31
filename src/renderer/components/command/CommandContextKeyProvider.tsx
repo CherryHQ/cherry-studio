@@ -1,3 +1,5 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import {
   ContextKeyRegisterContext,
@@ -7,7 +9,6 @@ import {
 } from '@renderer/hooks/command'
 import type { ContextValue } from '@shared/types/command'
 import { ContextKeyService } from '@shared/utils/command'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 interface ContextEntry {
   id: number

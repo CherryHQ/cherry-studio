@@ -1,12 +1,13 @@
+import { ChevronDown } from 'lucide-react'
+import { useId, useLayoutEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
-import { ChevronDown } from 'lucide-react'
-import { useId, useLayoutEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'

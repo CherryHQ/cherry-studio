@@ -1,3 +1,7 @@
+import { X } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniApp from '@renderer/components/MiniApp/MiniApp'
@@ -5,9 +9,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-import { X } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 // Column count follows the pane width: a detached mini app window can be
 // resized down to ~400px, leaving each half far narrower than a fixed grid.

@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import {
   type AxisLayout,

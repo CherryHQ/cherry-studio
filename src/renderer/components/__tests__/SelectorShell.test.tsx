@@ -1,8 +1,9 @@
-import { PortalContainerProvider } from '@cherrystudio/ui'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { PortalContainerProvider } from '@cherrystudio/ui'
 
 const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
   openAutoFocusEvents: [] as Array<{ preventDefault: ReturnType<typeof vi.fn>; defaultPrevented: boolean }>,

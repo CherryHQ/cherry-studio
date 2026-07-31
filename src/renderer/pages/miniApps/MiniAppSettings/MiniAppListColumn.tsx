@@ -1,9 +1,10 @@
-import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
-import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 interface Props {
   title: string

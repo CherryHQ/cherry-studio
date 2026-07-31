@@ -28,7 +28,7 @@ export function ImagePreviewImage({
   return (
     <img
       alt={item.alt ?? item.title ?? ''}
-      className={cn('block max-h-full max-w-full select-none object-contain', className)}
+      className={cn('block max-h-full max-w-full object-contain select-none', className)}
       draggable={false}
       src={item.src}
       style={{ ...style, transform: transformValue, transformOrigin: 'center', willChange: 'transform' }}

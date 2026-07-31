@@ -1,3 +1,7 @@
+import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ButtonGroup,
@@ -19,9 +23,6 @@ import type {
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
-import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type BoundedTimeRange,

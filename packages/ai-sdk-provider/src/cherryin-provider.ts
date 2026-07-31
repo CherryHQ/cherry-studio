@@ -2,6 +2,7 @@ import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import type { OpenAIProviderSettings } from '@ai-sdk/openai'
+import { OpenAICompatibleChatLanguageModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
   OpenAICompletionLanguageModel,
   OpenAIEmbeddingModel,
@@ -10,7 +11,6 @@ import {
   OpenAISpeechModel,
   OpenAITranscriptionModel
 } from '@ai-sdk/openai/internal'
-import { OpenAICompatibleChatLanguageModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
   type EmbeddingModelV3,
   type ImageModelV3,

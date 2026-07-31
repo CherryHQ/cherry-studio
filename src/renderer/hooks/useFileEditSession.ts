@@ -1,3 +1,7 @@
+import { debounce } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR, { useSWRConfig } from 'swr'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { FileTextLineEnding, UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
@@ -6,9 +10,6 @@ import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FileVersion } from '@shared/types/file'
-import { debounce } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import useSWR, { useSWRConfig } from 'swr'
 
 const logger = loggerService.withContext('useFileEditSession')
 

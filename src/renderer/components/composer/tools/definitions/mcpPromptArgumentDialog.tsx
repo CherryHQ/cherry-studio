@@ -1,3 +1,6 @@
+import { type FormEvent, useEffect, useId, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -13,8 +16,6 @@ import {
   RequiredMark
 } from '@cherrystudio/ui'
 import type { McpPrompt } from '@shared/types/mcp'
-import { type FormEvent, useEffect, useId, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export function mcpPromptNeedsArgumentForm(prompt: Pick<McpPrompt, 'arguments'>): boolean {
   return (prompt.arguments ?? []).length > 0

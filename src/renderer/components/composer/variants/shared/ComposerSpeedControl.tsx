@@ -1,11 +1,12 @@
+import { ChevronDown, Gauge, Zap } from 'lucide-react'
+import { type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
-import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { type ReactNode, useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
   'default',

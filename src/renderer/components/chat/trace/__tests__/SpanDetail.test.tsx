@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 
 import SpanDetail from '../SpanDetail'
 import type { TraceNode } from '../traceNode'

@@ -1,4 +1,3 @@
-import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { LucideIcon } from 'lucide-react'
 import {
   Code,
@@ -11,6 +10,8 @@ import {
   NotepadText,
   Palette
 } from 'lucide-react'
+
+import type { SidebarAppId } from '@renderer/utils/sidebar'
 
 /**
  * Icon component for each built-in sidebar app. Keyed by the `SidebarAppId` union so the

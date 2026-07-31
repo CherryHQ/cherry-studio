@@ -1,8 +1,9 @@
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'
+
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isEmoji } from '@renderer/utils/naming'
-import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'
 
 export const MESSAGE_AVATAR_SIZE = 30
 export const MESSAGE_EMOJI_AVATAR_FONT_SIZE = 17

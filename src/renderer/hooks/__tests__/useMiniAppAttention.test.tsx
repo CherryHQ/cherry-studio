@@ -1,6 +1,7 @@
-import { cacheService } from '@data/CacheService'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
 
 const ipc = vi.hoisted(() => ({
   // Typed with a route argument so `mock.calls` can be filtered by route below.

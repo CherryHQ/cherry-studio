@@ -1,3 +1,5 @@
+import type { ReactElement, ReactNode } from 'react'
+
 import type {
   QuickPanelContextType,
   QuickPanelInputAdapter,
@@ -5,7 +7,6 @@ import type {
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
-import type { ReactElement, ReactNode } from 'react'
 
 export type ComposerToolLauncherKind = 'command' | 'panel' | 'dialog' | 'group'
 

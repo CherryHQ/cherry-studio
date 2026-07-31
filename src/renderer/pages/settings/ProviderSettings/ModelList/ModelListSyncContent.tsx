@@ -1,9 +1,10 @@
-import { Input } from '@cherrystudio/ui'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { Search, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Input } from '@cherrystudio/ui'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelSyncPreviewPanel from './ModelSyncPreviewPanel'

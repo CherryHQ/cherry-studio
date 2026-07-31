@@ -116,9 +116,10 @@ vi.mock('electron', () => {
   }
 })
 
-import { application } from '@application'
 import { BrowserWindow, nativeTheme } from 'electron'
 import { beforeEach } from 'vitest'
+
+import { application } from '@application'
 
 import { CdpBrowserController } from '../browser'
 

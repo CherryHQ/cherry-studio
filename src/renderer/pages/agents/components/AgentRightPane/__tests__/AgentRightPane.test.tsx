@@ -1,15 +1,3 @@
-import {
-  HoverCard as RealHoverCard,
-  HoverCardContent as RealHoverCardContent,
-  HoverCardTrigger as RealHoverCardTrigger
-} from '@cherrystudio/ui/components'
-import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
-import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
-import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { PhysicalFileMetadata } from '@shared/types/file'
-import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
@@ -22,6 +10,19 @@ import type {
 } from 'react'
 import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  HoverCard as RealHoverCard,
+  HoverCardContent as RealHoverCardContent,
+  HoverCardTrigger as RealHoverCardTrigger
+} from '@cherrystudio/ui/components'
+import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
+import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { PhysicalFileMetadata } from '@shared/types/file'
+import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 

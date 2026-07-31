@@ -1,8 +1,9 @@
-import { Kbd, NormalTooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { t } from 'i18next'
 import { Check, ChevronRight } from 'lucide-react'
 import { type ReactElement, type ReactNode, type Ref, useState } from 'react'
+
+import { Kbd, NormalTooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { QUICK_PANEL_ROW_HEIGHT } from './heights'
 

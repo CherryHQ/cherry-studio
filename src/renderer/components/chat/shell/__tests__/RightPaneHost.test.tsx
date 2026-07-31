@@ -1,8 +1,9 @@
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,

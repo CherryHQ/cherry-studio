@@ -1,3 +1,5 @@
+import { isToolUIPart } from 'ai'
+
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
@@ -21,7 +23,6 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
-import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('ipc/ai')
 

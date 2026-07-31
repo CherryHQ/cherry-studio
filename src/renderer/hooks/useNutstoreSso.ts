@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { useCallback, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useNutstoreSso')
 const NUTSTORE_SSO_TIMEOUT_MS = 5 * 60 * 1000

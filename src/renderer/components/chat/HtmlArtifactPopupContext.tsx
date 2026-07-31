@@ -1,5 +1,6 @@
-import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import { createContext, lazy, type ReactNode, Suspense, use, useCallback, useMemo, useState } from 'react'
+
+import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 
 export interface HtmlArtifactPopupSession {
   artifactId: string

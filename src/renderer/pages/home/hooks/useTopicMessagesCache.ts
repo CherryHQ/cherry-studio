@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 /**
  * Optimistic-cache helpers for the `/topics/:topicId/messages` infinite key.
  *
@@ -24,8 +27,6 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { useCallback } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 /** Drop messages matching `removedIds` from items and sibling groups. */
 function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {

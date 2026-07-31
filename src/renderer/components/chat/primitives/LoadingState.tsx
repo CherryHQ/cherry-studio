@@ -1,7 +1,8 @@
-import { Skeleton } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Loader2 } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
+
+import { Skeleton } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type LoadingStateVariant = 'spinner' | 'skeleton'
 
@@ -40,13 +41,13 @@ export function LoadingState({
       data-slot="chat-loading-state"
       role="status"
       aria-live="polite"
-      className={cn('flex min-w-0 items-center gap-2 text-muted-foreground text-sm', className)}
+      className={cn('flex min-w-0 items-center gap-2 text-sm text-muted-foreground', className)}
       {...props}>
       <Loader2 className="size-4 shrink-0 animate-spin" />
       {(label || description) && (
         <span className="min-w-0">
           {label && <span className="block truncate text-foreground">{label}</span>}
-          {description && <span className="block truncate text-muted-foreground text-xs">{description}</span>}
+          {description && <span className="block truncate text-xs text-muted-foreground">{description}</span>}
         </span>
       )}
     </div>

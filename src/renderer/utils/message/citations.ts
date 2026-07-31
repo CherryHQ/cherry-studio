@@ -22,6 +22,9 @@
  * prefers that path whenever reference metadata is present.
  */
 
+import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
+
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import {
@@ -47,8 +50,6 @@ import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
-import { getToolName, isToolUIPart } from 'ai'
 
 import { extractOutputMetadata, normalizeToolOutputResponse, type ToolMetadata } from './toolOutput'
 

@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useManagedToolStatus')
 

@@ -1,8 +1,9 @@
+import { sql } from 'drizzle-orm'
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelType } from '@shared/data/types/channel'
-import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -26,7 +27,10 @@ export const agentChannelTable = sqliteTable(
     workspace: text({ mode: 'json' }).$type<AgentSessionWorkspaceSource>().notNull(),
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
-    activeChatIds: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    activeChatIds: text({ mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
     permissionMode: text().$type<AgentPermissionMode | null>(),
     ...createUpdateTimestamps
   },

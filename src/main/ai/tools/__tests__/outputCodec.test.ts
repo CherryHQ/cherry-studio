@@ -1,5 +1,6 @@
-import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 import { describe, expect, it } from 'vitest'
+
+import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 
 import { makeEntitiesCodec, makeTextFieldCodec } from '../outputCodec'
 

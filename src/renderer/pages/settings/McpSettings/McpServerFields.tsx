@@ -1,3 +1,9 @@
+import type React from 'react'
+import { useCallback, useState } from 'react'
+import type { DefaultValues, UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   FormControl,
   FormField,
@@ -20,11 +26,6 @@ import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import type React from 'react'
-import { useCallback, useState } from 'react'
-import type { DefaultValues, UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 export const buildMcpSchema = (t: (key: string) => string) =>
   z

@@ -1,3 +1,6 @@
+import type { PropsWithChildren } from 'react'
+import React, { useEffect, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ThemeContext } from '@renderer/hooks/useTheme'
@@ -5,8 +8,6 @@ import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { PropsWithChildren } from 'react'
-import React, { useEffect, useState } from 'react'
 
 interface ThemeProviderProps extends PropsWithChildren {
   defaultTheme?: ThemeMode

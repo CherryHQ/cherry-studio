@@ -1,5 +1,6 @@
-import { Markdown } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { Markdown } from '@cherrystudio/ui'
 
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'

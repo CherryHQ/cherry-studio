@@ -1,10 +1,11 @@
-import { useMutation } from '@data/hooks/useDataApi'
-import i18n from '@renderer/i18n/resolver'
-import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useMutation } from '@data/hooks/useDataApi'
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 
 // `vi.hoisted`: `vi.mock` is hoisted above every `const`, so a factory closing over a
 // plain `const request` hits the TDZ on first import of the mocked module.

@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -11,8 +14,6 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
@@ -84,7 +85,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={siyuanApiUrl || ''}
@@ -104,7 +105,7 @@ const SiyuanSettings: FC = () => {
             onClick={handleSiyuanHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
             <Input
               type="password"
@@ -123,7 +124,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={siyuanBoxId || ''}
@@ -135,7 +136,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={siyuanRootPath || ''}

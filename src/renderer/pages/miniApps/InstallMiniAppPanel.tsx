@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Button,
@@ -13,9 +17,6 @@ import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsen
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /** Enough shape to be worth a request: a scheme and a host. Main still decides https and the rest. */
 const looksLikeUrl = (value: string): boolean => {

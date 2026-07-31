@@ -2,10 +2,11 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { saveAttachmentInputSchema, saveAttachmentToWorkspace } from '../saveAttachment'
 

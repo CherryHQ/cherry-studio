@@ -1,3 +1,7 @@
+import { Pin } from 'lucide-react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
@@ -5,9 +9,6 @@ import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
-import { Pin } from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SubWindowControls')
 

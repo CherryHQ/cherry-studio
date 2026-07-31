@@ -1,6 +1,15 @@
+import type { Client } from '@notionhq/client'
+import type { markdownToBlocks } from '@tryfabric/martian'
+import dayjs from 'dayjs'
+import DOMPurify from 'dompurify'
+import type { Blockquote } from 'mdast'
+import type { appendBlocks } from 'notion-helper'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { Client } from '@notionhq/client'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -30,14 +39,6 @@ import {
 import type { ContentHash } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import type { markdownToBlocks } from '@tryfabric/martian'
-import dayjs from 'dayjs'
-import DOMPurify from 'dompurify'
-import type { Blockquote } from 'mdast'
-import type { appendBlocks } from 'notion-helper'
-import remarkParse from 'remark-parse'
-import { unified } from 'unified'
-import { visit } from 'unist-util-visit'
 
 import {
   collectExportableImages,

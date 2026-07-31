@@ -1,5 +1,6 @@
-import type { Model } from '@shared/data/types/model'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+
+import type { Model } from '@shared/data/types/model'
 
 interface UseMentionedModelSelectorParams {
   /** Whether the mentioned-model selector UI is in use (chat home / placement). */

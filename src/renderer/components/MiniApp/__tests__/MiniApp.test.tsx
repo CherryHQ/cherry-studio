@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const calculatorApp: MiniAppType = {
   kind: 'site',

@@ -1,9 +1,10 @@
+import { isUndefined, omitBy } from 'es-toolkit/compat'
+import { useCallback } from 'react'
+
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
 import type { Painting } from '@shared/data/types/painting'
-import { isUndefined, omitBy } from 'es-toolkit/compat'
-import { useCallback } from 'react'
 
 export function usePaintings(query?: ListPaintingsQueryParams) {
   const filtered = query ? (omitBy(query, isUndefined) as ListPaintingsQueryParams) : undefined

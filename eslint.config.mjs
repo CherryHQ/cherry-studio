@@ -3,9 +3,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import tseslint from '@electron-toolkit/eslint-config-ts'
-import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
-import { defineConfig } from 'eslint/config'
+import eslint from '@eslint/js'
 import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
 import importX from 'eslint-plugin-import-x'
 import importZod from 'eslint-plugin-import-zod'
@@ -13,6 +12,7 @@ import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
+import { defineConfig } from 'eslint/config'
 
 // --- renderer dependency-direction boundary gate (import-x/no-restricted-paths) ---
 const RENDERER_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
@@ -47,10 +47,7 @@ const serviceBarrelZones = serviceTopics.map((topic) => ({
     `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
     `src/renderer/services/*` // flat files at the services/ root
   ],
-  from: [
-    `src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`,
-    `src/renderer/services/${topic}/!(index)/**/*`
-  ],
+  from: [`src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`, `src/renderer/services/${topic}/!(index)/**/*`],
   message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. architecture/renderer.md §3.1/§5.`
 }))
 
@@ -158,7 +155,8 @@ const resolveBarrelSpec = (spec, fromFile) => {
   else if (spec.startsWith('@renderer/')) base = path.join(SRC_DIR, 'renderer', spec.slice(10))
   else if (spec.startsWith('@main/')) base = path.join(SRC_DIR, 'main', spec.slice(6))
   else if (spec.startsWith('@shared/')) base = path.join(SRC_DIR, 'shared', spec.slice(8))
-  else if (spec.startsWith('@data/')) base = path.join(SRC_DIR, proc === 'main' ? 'main' : 'renderer', 'data', spec.slice(6))
+  else if (spec.startsWith('@data/'))
+    base = path.join(SRC_DIR, proc === 'main' ? 'main' : 'renderer', 'data', spec.slice(6))
   let resolved = null
   if (base) {
     for (const c of [`${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts'), path.join(base, 'index.tsx'), base]) {
@@ -183,7 +181,11 @@ const barrelPlugin = {
       create(ctx) {
         return {
           ExportAllDeclaration(node) {
-            if (node.source) ctx.report({ node, message: 'No `export *` — use explicit named re-exports (naming-conventions.md §6.4 rule 1).' })
+            if (node.source)
+              ctx.report({
+                node,
+                message: 'No `export *` — use explicit named re-exports (naming-conventions.md §6.4 rule 1).'
+              })
           }
         }
       }
@@ -198,20 +200,41 @@ const barrelPlugin = {
         return {
           Program(node) {
             const stmt = node.body.find((s) => !/^(?:Import|Export)/.test(s.type))
-            if (stmt) ctx.report({ node: stmt, message: 'A barrel is pure re-export — no top-level statements; move logic to a named file (naming-conventions.md §6.4 rule 1).' })
+            if (stmt)
+              ctx.report({
+                node: stmt,
+                message:
+                  'A barrel is pure re-export — no top-level statements; move logic to a named file (naming-conventions.md §6.4 rule 1).'
+              })
           },
           ImportDeclaration(node) {
             if (!node.specifiers.length)
-              ctx.report({ node, message: 'A barrel is pure re-export — no side-effect imports; registration belongs in a named module (naming-conventions.md §6.4 rule 1).' })
+              ctx.report({
+                node,
+                message:
+                  'A barrel is pure re-export — no side-effect imports; registration belongs in a named module (naming-conventions.md §6.4 rule 1).'
+              })
           },
           ExportDefaultDeclaration(node) {
-            ctx.report({ node, message: 'A barrel is pure re-export — no `export default` implementation; use a named file (naming-conventions.md §6.4).' })
+            ctx.report({
+              node,
+              message:
+                'A barrel is pure re-export — no `export default` implementation; use a named file (naming-conventions.md §6.4).'
+            })
           },
           ExportNamedDeclaration(node) {
             if (node.declaration)
-              ctx.report({ node, message: 'A barrel is pure re-export — no local declarations; move implementation to a named file (naming-conventions.md §6.4).' })
+              ctx.report({
+                node,
+                message:
+                  'A barrel is pure re-export — no local declarations; move implementation to a named file (naming-conventions.md §6.4).'
+              })
             else if (!node.source && node.specifiers.length)
-              ctx.report({ node, message: 'A barrel re-exports from other modules — it must not export local bindings (naming-conventions.md §6.4).' })
+              ctx.report({
+                node,
+                message:
+                  'A barrel re-exports from other modules — it must not export local bindings (naming-conventions.md §6.4).'
+              })
           }
         }
       }
@@ -225,7 +248,11 @@ const barrelPlugin = {
         if (!/[\\/]index\.tsx$/.test(f)) return {}
         return {
           Program(node) {
-            ctx.report({ node, message: 'No `index.tsx` — a barrel is `index.ts` (re-export has no JSX); a component uses a named file; a TanStack index route uses the flat dot form `<segment>.index.tsx` (naming-conventions.md §6.4).' })
+            ctx.report({
+              node,
+              message:
+                'No `index.tsx` — a barrel is `index.ts` (re-export has no JSX); a component uses a named file; a TanStack index route uses the flat dot form `<segment>.index.tsx` (naming-conventions.md §6.4).'
+            })
           }
         }
       }
@@ -241,13 +268,17 @@ const barrelPlugin = {
             if (!node.source) return
             for (const s of node.specifiers)
               if (s.exported && s.exported.name === 'default')
-                ctx.report({ node: s, message: 'A barrel exposes named exports — name it (`export { default as Foo } from`), do not forward a bare default (naming-conventions.md §6.4 rule 1).' })
+                ctx.report({
+                  node: s,
+                  message:
+                    'A barrel exposes named exports — name it (`export { default as Foo } from`), do not forward a bare default (naming-conventions.md §6.4 rule 1).'
+                })
           }
         }
       }
     },
     // 2 — closed boundary: outside code must import a barrel's index, never its internals.
-    'closed': {
+    closed: {
       meta: { type: 'problem', schema: [] },
       create(ctx) {
         const f = barrelFilename(ctx)
@@ -256,7 +287,10 @@ const barrelPlugin = {
           if (!tgt) return
           const d = outermostCrossedBarrelDir(tgt, f)
           if (!d || tgt === path.join(d, 'index.ts')) return
-          ctx.report({ node, message: `Deep import into barrel \`${path.relative(SRC_DIR, d)}\` — import its index, not its internals (naming-conventions.md §6.4 rule 2).` })
+          ctx.report({
+            node,
+            message: `Deep import into barrel \`${path.relative(SRC_DIR, d)}\` — import its index, not its internals (naming-conventions.md §6.4 rule 2).`
+          })
         }
         return {
           ImportDeclaration(node) {
@@ -286,7 +320,10 @@ const barrelPlugin = {
           if (!tgt) return
           const d2 = innermostBarrelDir(tgt)
           if (!d2 || d2 === db) return
-          ctx.report({ node, message: `A barrel must not re-export another barrel \`${path.relative(SRC_DIR, d2)}\` — let each unit own its door (naming-conventions.md §6.4 rule 3).` })
+          ctx.report({
+            node,
+            message: `A barrel must not re-export another barrel \`${path.relative(SRC_DIR, d2)}\` — let each unit own its door (naming-conventions.md §6.4 rule 3).`
+          })
         }
         return {
           ExportNamedDeclaration(node) {
@@ -308,7 +345,11 @@ const barrelPlugin = {
         if (!BARREL_BUCKET_ROOT_RE.test(barrelFilename(ctx))) return {}
         return {
           Program(node) {
-            ctx.report({ node, message: 'Bucket roots (types/utils/services) carry no barrel — import the specific file/topic (naming-conventions.md §6.4 rule 3 / §4.8).' })
+            ctx.report({
+              node,
+              message:
+                'Bucket roots (types/utils/services) carry no barrel — import the specific file/topic (naming-conventions.md §6.4 rule 3 / §4.8).'
+            })
           }
         }
       }
@@ -334,13 +375,61 @@ const isModuleFileStem = (s) => {
 const NAMING_EXEMPT_DIRS = new Set(['__tests__', '__mocks__', '__snapshots__'])
 // First matching prefix wins; unmanaged zones bail before the generic renderer/src zones.
 const NAMING_ZONES = [
-  { prefix: 'packages/ui/', root: 2, label: 'packages/ui', dir: isKebabName, dirExpect: 'kebab-case', file: isKebabName, fileExpect: 'kebab-case' },
-  { prefix: 'src/renderer/routes/', root: 3, label: 'routes', dir: (s) => isKebabName(s) || isRouteToken(s), dirExpect: 'kebab-case', file: (s) => isKebabName(s) || isRouteToken(s), fileExpect: 'kebab-case' },
+  {
+    prefix: 'packages/ui/',
+    root: 2,
+    label: 'packages/ui',
+    dir: isKebabName,
+    dirExpect: 'kebab-case',
+    file: isKebabName,
+    fileExpect: 'kebab-case'
+  },
+  {
+    prefix: 'src/renderer/routes/',
+    root: 3,
+    label: 'routes',
+    dir: (s) => isKebabName(s) || isRouteToken(s),
+    dirExpect: 'kebab-case',
+    file: (s) => isKebabName(s) || isRouteToken(s),
+    fileExpect: 'kebab-case'
+  },
   { prefix: 'src/renderer/assets/', unmanaged: true },
-  { prefix: 'src/renderer/', root: 2, label: 'src/renderer', dir: (s) => isCamelName(s) || isPascalName(s), dirExpect: 'camelCase (module) or PascalCase (component)', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
-  { prefix: 'src/main/', root: 2, label: 'src/main', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
-  { prefix: 'src/shared/', root: 2, label: 'src/shared', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
-  { prefix: 'src/preload/', root: 2, label: 'src/preload', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' }
+  {
+    prefix: 'src/renderer/',
+    root: 2,
+    label: 'src/renderer',
+    dir: (s) => isCamelName(s) || isPascalName(s),
+    dirExpect: 'camelCase (module) or PascalCase (component)',
+    file: isModuleFileStem,
+    fileExpect: 'camelCase or PascalCase'
+  },
+  {
+    prefix: 'src/main/',
+    root: 2,
+    label: 'src/main',
+    dir: isCamelName,
+    dirExpect: 'camelCase',
+    file: isModuleFileStem,
+    fileExpect: 'camelCase or PascalCase'
+  },
+  {
+    prefix: 'src/shared/',
+    root: 2,
+    label: 'src/shared',
+    dir: isCamelName,
+    dirExpect: 'camelCase',
+    file: isModuleFileStem,
+    fileExpect: 'camelCase or PascalCase'
+  },
+  {
+    prefix: 'src/preload/',
+    root: 2,
+    label: 'src/preload',
+    dir: isCamelName,
+    dirExpect: 'camelCase',
+    file: isModuleFileStem,
+    fileExpect: 'camelCase or PascalCase'
+  }
 ]
 const namingReportedDirs = new Set()
 
@@ -364,12 +453,18 @@ const namingPlugin = {
               const dirRel = parts.slice(0, zone.root + i + 1).join('/')
               if (namingReportedDirs.has(dirRel)) continue
               namingReportedDirs.add(dirRel)
-              ctx.report({ node, message: `Directory \`${dirRel}\`: segment \`${seg}\` must be ${zone.dirExpect} under ${zone.label} (naming-conventions.md §4).` })
+              ctx.report({
+                node,
+                message: `Directory \`${dirRel}\`: segment \`${seg}\` must be ${zone.dirExpect} under ${zone.label} (naming-conventions.md §4).`
+              })
             }
             if (/^index\.tsx?$/.test(fileName) || /\.d\.ts$/.test(fileName)) return // index.* owned by barrel/*; *.d.ts by §3.5
             const stem = fileName.split('.')[0]
             if (!stem || zone.file(stem)) return
-            ctx.report({ node, message: `File \`${fileName}\`: name \`${stem}\` must be ${zone.fileExpect} under ${zone.label} (naming-conventions.md §3).` })
+            ctx.report({
+              node,
+              message: `File \`${fileName}\`: name \`${stem}\` must be ${zone.fileExpect} under ${zone.label} (naming-conventions.md §3).`
+            })
           }
         }
       }
@@ -454,8 +549,7 @@ export default defineConfig([
         process.env.CI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
-          message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+          message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
         }
       ]
     }
@@ -473,12 +567,7 @@ export default defineConfig([
   // rather than routing through validation.
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: [
-      'src/main/services/file/tree/**',
-      'src/**/__tests__/**',
-      'src/**/__mocks__/**',
-      'src/**/*.test.*'
-    ],
+    ignores: ['src/main/services/file/tree/**', 'src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*'],
     plugins: {
       'filepath-brand': {
         rules: {
@@ -492,7 +581,7 @@ export default defineConfig([
               },
               messages: {
                 noAsFilePath:
-                  '`as AbsoluteFilePath` forges the brand, skipping AbsoluteFilePathSchema\'s absolute-path validation. Build it with AbsoluteFilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.',
+                  "`as AbsoluteFilePath` forges the brand, skipping AbsoluteFilePathSchema's absolute-path validation. Build it with AbsoluteFilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.",
                 noAsCanonicalFilePath:
                   '`as CanonicalFilePath` forges the brand, skipping canonicalization — a non-canonical value silently becomes a ghost-duplicate dedup key. Build it with canonicalizeFilePath(value) instead, or justify the sanctioned producer with an eslint-disable + reason.'
               }
@@ -685,7 +774,10 @@ export default defineConfig([
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
-      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+      ]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
@@ -702,19 +794,15 @@ export default defineConfig([
           basePath: RENDERER_DIRNAME,
           zones: [
             {
-              target: [
-                'src/renderer/components',
-                'src/renderer/hooks',
-                'src/renderer/services',
-                'src/renderer/utils'
-              ],
+              target: ['src/renderer/components', 'src/renderer/hooks', 'src/renderer/services', 'src/renderer/utils'],
               from: ['src/renderer/pages', 'src/renderer/windows'],
               message: 'Shared buckets must not import pages/windows (reverse layer edge). architecture/renderer.md §7.'
             },
             {
               target: 'src/renderer/utils',
               from: ['src/renderer/components', 'src/renderer/hooks'],
-              message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. architecture/renderer.md §3.'
+              message:
+                'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. architecture/renderer.md §3.'
             },
             // @logger is a §2 primitive that physically lives under services/; keep it out of the restricted glob.
             {

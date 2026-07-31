@@ -1,3 +1,7 @@
+import { List, SquareCheckBig } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   type ComboboxOption,
@@ -26,9 +30,6 @@ import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } f
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
-import { List, SquareCheckBig } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type FileProcessingMenuEntry,

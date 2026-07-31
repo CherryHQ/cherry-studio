@@ -1,3 +1,7 @@
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
@@ -6,9 +10,6 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import {
   resourceDialogCloseButtonClassName,

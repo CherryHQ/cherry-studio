@@ -1,5 +1,6 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 export function useComposerFocusRequest(activeTopicId: string | null | undefined) {
   const requestedTopicIdRef = useRef<string | null>(null)

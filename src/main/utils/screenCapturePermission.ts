@@ -8,9 +8,10 @@
  * OCR and media-protocol modules into every app launch.
  */
 
+import { shell, systemPreferences } from 'electron'
+
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
-import { shell, systemPreferences } from 'electron'
 
 const logger = loggerService.withContext('screenCapturePermission')
 

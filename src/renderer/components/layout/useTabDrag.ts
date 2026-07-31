@@ -1,7 +1,8 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
 

@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,

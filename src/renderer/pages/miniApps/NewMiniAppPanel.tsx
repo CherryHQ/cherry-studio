@@ -1,3 +1,8 @@
+import { Globe, type LucideIcon, Package, Upload } from 'lucide-react'
+import type { ChangeEvent, FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -23,10 +28,6 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Globe, type LucideIcon, Package, Upload } from 'lucide-react'
-import type { ChangeEvent, FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { InstallMiniAppPicker } from './InstallMiniAppPanel'
 

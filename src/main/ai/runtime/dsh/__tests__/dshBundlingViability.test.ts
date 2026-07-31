@@ -2,8 +2,9 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { type DshRuntimeEntrySpecifier, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
+
+import { type DshRuntimeEntrySpecifier, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
 

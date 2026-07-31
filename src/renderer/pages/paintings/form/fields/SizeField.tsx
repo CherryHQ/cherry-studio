@@ -1,5 +1,6 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { Input, RowFlex } from '@cherrystudio/ui'
 
 import { optionalFiniteNumber } from '../../form/fieldValue'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'

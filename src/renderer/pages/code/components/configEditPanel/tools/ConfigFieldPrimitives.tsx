@@ -1,7 +1,8 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (

@@ -1,8 +1,9 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
 import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
 
 export type SidebarFilter =
   | { kind: 'library'; value: 'all' | 'trash' }
@@ -52,12 +53,12 @@ export function FileSidebar({
         icon={<Icon />}
         label={entry.label(t)}
         suffix={
-          count !== undefined && count > 0 ? <span className="text-muted-foreground text-xs">{count}</span> : null
+          count !== undefined && count > 0 ? <span className="text-xs text-muted-foreground">{count}</span> : null
         }
         active={active}
         onClick={() => onFilterChange({ kind: entry.kind, value: entry.value } as SidebarFilter)}
         labelClassName="group-data-[active=true]:font-medium"
-        className="hover:!bg-muted data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!border-transparent data-[active=true]:!text-foreground h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground text-sm [&_svg]:size-4 [&_svg]:text-foreground"
+        className="h-8 rounded-[10px] border-transparent px-2.5 text-sm font-normal text-foreground hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground"
       />
     )
   }
@@ -65,11 +66,11 @@ export function FileSidebar({
   return (
     <aside
       data-ui="files.navigation"
-      className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 select-none flex-col border-border border-r-[0.5px]">
+      className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 flex-col border-r-[0.5px] border-border select-none">
       <PageHeader title={t('files.title')} />
       <Scrollbar className="min-h-0 flex-1">
         <MenuList className="gap-0.5 px-2.5 pb-2.5">
-          <div className="px-2.5 pb-0.5 text-muted-foreground text-xs">{t('files.type')}</div>
+          <div className="px-2.5 pb-0.5 text-xs text-muted-foreground">{t('files.type')}</div>
           {TYPE_ENTRIES.map(renderEntry)}
           <MenuDivider className="my-1 bg-transparent" />
           {LIBRARY_ENTRIES.map(renderEntry)}

@@ -1,5 +1,6 @@
-import type { InstalledSkill, LocalSkill, SkillResult, SystemSkillCandidate } from '@shared/types/skill'
 import * as z from 'zod'
+
+import type { InstalledSkill, LocalSkill, SkillResult, SystemSkillCandidate } from '@shared/types/skill'
 
 import { defineRoute } from '../define'
 

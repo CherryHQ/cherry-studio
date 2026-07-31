@@ -10,10 +10,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { fileTypeFromBuffer } from 'file-type'
+
 import { loggerService } from '@logger'
 import { setInstalledMiniAppLogo } from '@main/services/entityLogo'
 import type { MiniAppManifest } from '@shared/types/miniAppManifest'
-import { fileTypeFromBuffer } from 'file-type'
 
 const logger = loggerService.withContext('miniAppIcon')
 

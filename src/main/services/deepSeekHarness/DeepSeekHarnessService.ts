@@ -1,5 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -16,7 +18,6 @@ import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGate
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 import { redactLiteral, redactSecretText } from '@shared/utils/redaction'
-import { Mutex } from 'async-mutex'
 
 import {
   createDeepSeekHarnessDirectIdentity,

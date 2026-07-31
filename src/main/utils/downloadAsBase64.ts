@@ -1,8 +1,9 @@
+import { net } from 'electron'
+import { fileTypeFromBuffer } from 'file-type'
+
 import { loggerService } from '@logger'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/utils/constants'
-import { net } from 'electron'
-import { fileTypeFromBuffer } from 'file-type'
 
 const logger = loggerService.withContext('downloadAsBase64')
 

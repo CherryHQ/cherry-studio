@@ -23,7 +23,6 @@ vi.mock('ws', () => {
 })
 
 import '../qq/QqAdapter'
-
 import { registerAdapterFactory } from '../../ChannelManager'
 
 // Capture the factory at module load — `registerAdapterFactory('qq', …)` runs once on import,

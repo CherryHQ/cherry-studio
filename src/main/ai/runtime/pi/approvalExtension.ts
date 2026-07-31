@@ -26,6 +26,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
+
 import { loggerService } from '@logger'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'

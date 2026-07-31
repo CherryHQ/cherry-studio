@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 
-import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
 
 /**
  * A stand-in for the real `worker_threads` Worker: captures the lifecycle event

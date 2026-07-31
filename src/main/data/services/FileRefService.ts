@@ -9,6 +9,8 @@
  * DataApi and the file sweep need one.
  */
 
+import { asc, count, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
 import {
   agentSessionMessageFileRefTable,
@@ -38,7 +40,6 @@ import {
   providerLogoRef,
   translateHistorySourceType
 } from '@shared/data/types/file'
-import { asc, count, eq, inArray } from 'drizzle-orm'
 
 export interface FileRefSourceKey {
   readonly sourceType: FileRefSourceType

@@ -1,3 +1,18 @@
+import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import {
+  type ComponentType,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type MouseEventHandler,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
@@ -16,20 +31,6 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
-import {
-  type ComponentType,
-  type FocusEvent as ReactFocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  type MouseEventHandler,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import { parseComposerLink } from '../linkToken'
@@ -122,7 +123,7 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 leading-none text-current opacity-0 transition-opacity outline-none',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -215,7 +216,7 @@ function renderActiveComposerTokenElement({
   return (
     <span
       className={cn(
-        'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
+        'group/composer-token mx-0.5 inline-flex items-baseline gap-1 align-baseline leading-[inherit] select-none',
         maxWidthClassName,
         colorClassName,
         readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
@@ -226,7 +227,7 @@ function renderActiveComposerTokenElement({
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}
       {...interactionProps}>
-      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
           icon={token.icon ? token.icon : icon}
           removeLabel={removeLabel}
@@ -400,12 +401,12 @@ function PastedTextTokenPreviewCard({
   return (
     <div className="w-80 overflow-hidden text-left">
       <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
-        <pre className="m-0 whitespace-pre-wrap break-words p-3 font-[inherit] text-popover-foreground text-xs leading-5">
+        <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
       </Scrollbar>
       {secondaryAction && (
-        <div className="flex justify-end border-border-subtle border-t p-2" data-file-token-actions="">
+        <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}
         </div>
       )}
@@ -459,7 +460,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        className="bg-muted px-5 py-4 text-center text-sm text-muted-foreground"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -482,9 +483,9 @@ function FileTokenPreviewCard({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
           data-file-token-actions={hasActions ? '' : undefined}>
           <div className="flex h-6 min-w-0 items-center">
-            <span className="truncate font-semibold text-popover-foreground text-sm leading-5">{label}</span>
+            <span className="truncate text-sm leading-5 font-semibold text-popover-foreground">{label}</span>
           </div>
-          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground">
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
@@ -782,7 +783,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle text-xs leading-[inherit] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
         'group-focus-visible:border-primary',
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',
@@ -815,7 +816,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
         />
       </span>
       {props.children ?? (
-        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
           {label}
         </span>
       )}
@@ -883,7 +884,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline text-xs leading-[inherit] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
         'group-focus-visible:border-primary',
         props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         'border-border bg-background hover:bg-accent',
@@ -894,7 +895,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
       <span
-        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent text-muted-foreground leading-none"
+        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent leading-none text-muted-foreground"
         data-folder-token-icon="">
         <InlineTokenIconSlot
           icon={props.token.icon ? props.token.icon : <Folder className={tokenIconClassName} aria-hidden />}
@@ -905,7 +906,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
         />
       </span>
       {props.children ?? (
-        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
           {props.token.label}
         </span>
       )}

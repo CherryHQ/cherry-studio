@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 
+import type { UIMessage } from 'ai'
+
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { UIMessage } from 'ai'
 
 export function createAssistantFileAttachmentHandle(fileEntryId: string): string {
   const digest = createHash('sha256').update(fileEntryId).digest('hex').slice(0, 16)

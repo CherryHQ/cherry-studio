@@ -1,9 +1,10 @@
-import { preferenceTable } from '@data/db/schemas/preference'
-import { seeders } from '@data/db/seeding/seederRegistry'
-import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { preferenceTable } from '@data/db/schemas/preference'
+import { seeders } from '@data/db/seeding/seederRegistry'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 
 const CLIENT_WEB_TOOLS_PREFERRED_KEY = 'chat.web_search.client_tools_preferred'
 const WEB_SEARCH_PREFERENCE_SEEDERS = seeders.filter(

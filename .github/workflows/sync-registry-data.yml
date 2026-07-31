@@ -28,12 +28,12 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/sync-registry-data.yml'
-      - 'packages/provider-registry/data/**'
-      - 'scripts/buildRegistrySyncRequest.js'
+      - ".github/workflows/sync-registry-data.yml"
+      - "packages/provider-registry/data/**"
+      - "scripts/buildRegistrySyncRequest.js"
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
-      - 'packages/provider-registry/src/registry-loader.ts'
+      - "packages/provider-registry/src/registry-loader.ts"
   release:
     types: [published]
   workflow_dispatch:

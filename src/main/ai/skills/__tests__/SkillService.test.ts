@@ -4,6 +4,12 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import AdmZip from 'adm-zip'
+import { eq } from 'drizzle-orm'
+import { net } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -14,11 +20,6 @@ import { isWin } from '@main/core/platform'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import AdmZip from 'adm-zip'
-import { eq } from 'drizzle-orm'
-import { net } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 

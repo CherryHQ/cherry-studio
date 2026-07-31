@@ -1,4 +1,5 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
+
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'

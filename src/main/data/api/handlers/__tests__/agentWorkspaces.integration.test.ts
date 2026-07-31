@@ -1,5 +1,10 @@
 import '@data/services/AgentTaskService'
 import '@data/services/AgentSessionMessageService'
+import path from 'path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 import { application } from '@application'
 import { agentWorkspaceHandlers } from '@data/api/handlers/agentWorkspaces'
@@ -12,10 +17,6 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import path from 'path'
-import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('agentWorkspaceHandlers integration', () => {
   const dbh = setupTestDatabase()

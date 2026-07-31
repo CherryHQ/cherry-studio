@@ -1,8 +1,9 @@
-import { Scrollbar } from '@cherrystudio/ui'
-import type { CodeCli } from '@shared/types/codeCli'
 import { Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types'

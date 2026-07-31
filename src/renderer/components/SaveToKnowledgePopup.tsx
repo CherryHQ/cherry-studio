@@ -1,3 +1,7 @@
+import { Check } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ColFlex,
@@ -31,9 +35,6 @@ import type { ContentType, MessageContentStats, TopicContentStats } from '@rende
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
 import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
-import { Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
 
@@ -425,7 +426,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
   const renderEmptyState = () => (
     <div className="flex min-h-[100px] items-center justify-center text-center">
-      <span className="text-muted-foreground text-sm">{uiState.message}</span>
+      <span className="text-sm text-muted-foreground">{uiState.message}</span>
     </div>
   )
 
@@ -444,7 +445,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
           value={selectedBaseId}
         />
         {!formState.hasValidBase && selectedBaseId && (
-          <p className="text-destructive text-xs">{t('chat.save.knowledge.error.invalid_base')}</p>
+          <p className="text-xs text-destructive">{t('chat.save.knowledge.error.invalid_base')}</p>
         )}
       </div>
 
@@ -483,7 +484,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       {!isNoteMode && (
         <div className="mt-4 flex min-h-10 items-center rounded-md bg-muted p-3">
           {formState.selectedCount > 0 && (
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               {t(
                 isConversationMode
                   ? 'chat.save.topic.knowledge.select.content.selected_tip'
@@ -496,10 +497,10 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
             </span>
           )}
           {formState.hasNoSelection && (
-            <span className="text-warning text-xs">{t('chat.save.knowledge.error.no_content_selected')}</span>
+            <span className="text-xs text-warning">{t('chat.save.knowledge.error.no_content_selected')}</span>
           )}
           {!formState.hasNoSelection && formState.selectedCount === 0 && (
-            <span className="text-muted-foreground text-xs opacity-0">&nbsp;</span>
+            <span className="text-xs text-muted-foreground opacity-0">&nbsp;</span>
           )}
         </div>
       )}

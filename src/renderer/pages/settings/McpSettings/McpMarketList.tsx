@@ -1,3 +1,8 @@
+import { ExternalLink } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Composio,
   Glama,
@@ -11,10 +16,6 @@ import {
 } from '@cherrystudio/ui/icons/providers'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import { ExternalLink } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const mcpMarkets = [
   {

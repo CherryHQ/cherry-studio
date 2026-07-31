@@ -19,13 +19,14 @@
  * See `docs/references/data/data-ordering-guide.md` for the end-to-end flow.
  */
 
+import { useCallback, useRef, useState } from 'react'
+
 import { type ParamsOption, useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
 import type { ApiPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import { useCallback, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useReorder')
 
@@ -132,13 +133,14 @@ export interface UseReorderResult {
   isPending: boolean
 }
 
-type ReorderParamsOption<TCollection extends TemplateApiPaths> = ParamsOption<TCollection, 'GET'> extends infer TParams
-  ? TParams extends { params: infer TPathParams }
-    ? 'id' extends keyof TPathParams
-      ? never
+type ReorderParamsOption<TCollection extends TemplateApiPaths> =
+  ParamsOption<TCollection, 'GET'> extends infer TParams
+    ? TParams extends { params: infer TPathParams }
+      ? 'id' extends keyof TPathParams
+        ? never
+        : TParams
       : TParams
-    : TParams
-  : never
+    : never
 
 /**
  * Build optimistic drag-and-drop reorder handlers on top of `useMutation`.

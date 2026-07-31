@@ -1,8 +1,9 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import type { RequestScope } from '../../scope'
 import {

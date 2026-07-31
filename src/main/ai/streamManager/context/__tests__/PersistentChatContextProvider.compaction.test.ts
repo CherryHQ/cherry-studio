@@ -7,10 +7,11 @@
  *   4. multiple markers on path → deepest wins
  */
 
-import type * as AiCore from '@cherrystudio/ai-core'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as AiCore from '@cherrystudio/ai-core'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).

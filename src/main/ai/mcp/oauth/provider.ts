@@ -1,5 +1,3 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
 import type { OAuthClientProvider, OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth'
 import type {
   OAuthClientInformation,
@@ -8,6 +6,9 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth'
 import open from 'open'
 import { sanitizeUrl } from 'strict-url-sanitise'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 
 import { JsonFileStorage } from './storage'
 import type { OAuthProviderOptions } from './types'

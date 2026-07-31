@@ -1,6 +1,7 @@
-import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 
 const invalidateMock = vi.hoisted(() => vi.fn())
 const refetchMock = vi.hoisted(() => vi.fn())

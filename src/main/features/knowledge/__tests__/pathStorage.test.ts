@@ -4,8 +4,9 @@
 // helpers (the guard itself is private).
 import path from 'node:path'
 
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 // Legitimately branded, not a type lie: `../escape.md` IS a relative POSIX path.
 // Containment is the knowledge layer's rule, so a traversal reaches these helpers

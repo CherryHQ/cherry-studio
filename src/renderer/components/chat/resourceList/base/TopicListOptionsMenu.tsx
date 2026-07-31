@@ -1,7 +1,8 @@
-import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 import { Bot, Clock, History } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
 

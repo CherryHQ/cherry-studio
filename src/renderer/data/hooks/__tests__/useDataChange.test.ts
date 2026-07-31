@@ -1,3 +1,6 @@
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * useDataChange hook tests (real hook implementation).
  *
@@ -9,8 +12,6 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Tests exercise the real hook; the global renderer setup otherwise replaces
 // the useDataApi module with a mock for consuming components.
