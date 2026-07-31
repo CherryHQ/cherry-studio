@@ -108,7 +108,7 @@
 
   /* Card & Popover */
   --cs-card: var(--cs-neutral-900);
-  --cs-popover: var(--cs-black);
+  --cs-popover: var(--cs-neutral-800);
 
   /* Border */
   --cs-border: oklch(1 0 0 / 0.1);
