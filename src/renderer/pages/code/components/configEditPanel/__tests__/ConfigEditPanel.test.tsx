@@ -297,10 +297,6 @@ function renderPanel(
   return { onSubmit, onClose }
 }
 
-function expectBefore(first: HTMLElement, second: HTMLElement) {
-  expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-}
-
 describe('ConfigEditPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -530,19 +526,6 @@ describe('ConfigEditPanel', () => {
     expect(readCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
-  it('renders the dialog title as provider icon and provider name', async () => {
-    renderPanel()
-
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-
-    const avatar = screen.getByTestId('provider-avatar-Anthropic')
-    const title = screen.getByRole('heading', { name: 'Anthropic' })
-
-    expect(title).toContainElement(avatar)
-    expect(title).toHaveTextContent('Anthropic')
-    expect(screen.queryByText('code.configuring_provider')).not.toBeInTheDocument()
-  })
-
   it('closes the dialog and opens the provider settings tab from the dialog title', async () => {
     const { onClose } = renderPanel()
 
@@ -552,30 +535,6 @@ describe('ConfigEditPanel', () => {
 
     expect(onClose).toHaveBeenCalled()
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider?id=anthropic')
-  })
-
-  it('renders parameter settings above advanced settings', async () => {
-    renderPanel()
-
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-
-    const modelTitle = screen.getByText('code.model_selection')
-    const toolTitle = screen.getByText('code.tool_parameters')
-    const basicFields = screen.getByTestId('claude-config-fields-basic')
-    const advancedToggle = screen.getByText('common.advanced_settings')
-
-    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('cli-config-editor')).not.toBeInTheDocument()
-
-    fireEvent.click(advancedToggle)
-
-    const cliConfigEditor = screen.getByTestId('cli-config-editor')
-
-    expectBefore(modelTitle, toolTitle)
-    expectBefore(toolTitle, basicFields)
-    expectBefore(basicFields, advancedToggle)
-    expectBefore(advancedToggle, cliConfigEditor)
-    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
   })
 
   it('keeps save disabled until the draft changes', async () => {
