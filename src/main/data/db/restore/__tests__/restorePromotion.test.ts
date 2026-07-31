@@ -450,29 +450,26 @@ describe('runRestorePromotion', () => {
     ['single dot (resolves to staging root)', '.'],
     ['double dot', '..'],
     ['mid traversal', 'foo/../../out']
-  ] as Array<[string, string]>)(
-    'refuses terminal cleanup for traversal restoreId (%s)',
-    async (_label, restoreId) => {
-      makeDb(livePath(), 'old')
-      const sentinel = join(userData, 'outside-sentinel.txt')
-      writeFileSync(sentinel, 'keep')
-      const journal = await buildJournal({
-        state: 'completed',
-        step: 'integrity-ok',
-        chain: [{ folderMillis: 1, hash: 'x' }]
-      })
-      writeRestoreJournal({ ...journal, restoreId } as RestoreJournal)
+  ] as Array<[string, string]>)('refuses terminal cleanup for traversal restoreId (%s)', async (_label, restoreId) => {
+    makeDb(livePath(), 'old')
+    const sentinel = join(userData, 'outside-sentinel.txt')
+    writeFileSync(sentinel, 'keep')
+    const journal = await buildJournal({
+      state: 'completed',
+      step: 'integrity-ok',
+      chain: [{ folderMillis: 1, hash: 'x' }]
+    })
+    writeRestoreJournal({ ...journal, restoreId } as RestoreJournal)
 
-      cleanupTerminalRestoreArtifacts()
+    cleanupTerminalRestoreArtifacts()
 
-      // Sentinel outside the staging root survives every traversal shape;
-      // the terminal journal is retained for retry on the next launch.
-      // (Empty-string id is rejected earlier by the z.string().min(1) schema,
-      // so it never reaches this FS guard.)
-      expect(existsSync(sentinel)).toBe(true)
-      expect(journalState()).toBe('completed')
-    }
-  )
+    // Sentinel outside the staging root survives every traversal shape;
+    // the terminal journal is retained for retry on the next launch.
+    // (Empty-string id is rejected earlier by the z.string().min(1) schema,
+    // so it never reaches this FS guard.)
+    expect(existsSync(sentinel)).toBe(true)
+    expect(journalState()).toBe('completed')
+  })
 
   it('promotes a valid staged restore end to end (DB swap + manifest + terminal journal)', async () => {
     makeDb(livePath(), 'old')
