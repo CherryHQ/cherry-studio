@@ -146,7 +146,7 @@ describe('tool-loop termination', () => {
     const cap = createToolCallLimitStopCondition(3)
     const steer = trackSteerYieldStopCondition(() => true)
     const stopWhen = [cap, steer]
-    await Promise.all(stopWhen.map((condition) => condition({ steps })))
+    stopWhen.forEach((condition) => condition({ steps }))
 
     expect(resolveToolLoopTerminalError({ steps, stopWhen })).toBeUndefined()
   })

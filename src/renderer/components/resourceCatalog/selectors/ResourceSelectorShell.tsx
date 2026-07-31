@@ -373,7 +373,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const wasOpenRef = useRef(false)
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      void onOpenRef.current?.()
+      onOpenRef.current?.()
     }
     wasOpenRef.current = open
   }, [open])

@@ -2583,7 +2583,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
-    const { message: nextMessage, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode = false } = pendingTurn
+    const { message: nextMessage, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode } = pendingTurn
     const trustedNotifyChannels = pendingTurn.trustedNotifyChannels
 
     // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK

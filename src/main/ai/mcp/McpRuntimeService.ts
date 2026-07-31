@@ -804,7 +804,11 @@ export class McpRuntimeService extends BaseService {
     // promise lets a successful connect land in `this.clients` (so the loop below
     // closes it); a failed connect just settles and is dropped.
     const pendingKeys = Array.from(this.pendingClients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(pendingKeys.map((key) => this.pendingClients.get(key)?.catch(() => undefined)))
+    const pendingConnections = pendingKeys.flatMap((key) => {
+      const pendingConnection = this.pendingClients.get(key)
+      return pendingConnection ? [pendingConnection.catch(() => undefined)] : []
+    })
+    await Promise.all(pendingConnections)
 
     const serverKeys = Array.from(this.clients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
     await Promise.all(serverKeys.map((key) => this.closeClient(key)))

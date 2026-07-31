@@ -226,7 +226,7 @@ function ShowPasswordButton({
   type,
   setType,
   size = 'md',
-  disabled = false
+  disabled
 }: {
   type: 'text' | 'password'
   setType: React.Dispatch<React.SetStateAction<'text' | 'password'>>
