@@ -8,6 +8,21 @@ const MANAGED_SHELL_KEYS = [
   'POWERSHELL_TELEMETRY_OPTOUT'
 ] as const
 
+const APPLICATION_MODEL_KEYS = [
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL'
+] as const
+
+const SCRUBBED_MODEL_KEYS = [
+  'ANTHROPIC_SMALL_FAST_MODEL',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
+  'ANTHROPIC_DEFAULT_FABLE_MODEL'
+] as const
+
+const SCRUBBED_SHELL_KEYS = ['CLAUDE_CODE_SHELL', 'CLAUDE_CODE_SHELL_PREFIX'] as const
+
 describe('withPreferredWindowsShellEnvironment', () => {
   const staleShellEnv = {
     KeepMe: 'kept',
@@ -103,6 +118,180 @@ describe('mergeUserEnvironmentVariables', () => {
     ['Claude_Code_Use_Ccr_V2', 'CLAUDE_CODE_USE_CCR_V2'],
     ['claude_code_websocket_auth_file_descriptor', 'CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR']
   ] as const
+
+  it.each(SCRUBBED_MODEL_KEYS)(
+    'removes inherited active model selector %s case-insensitively without mutating the input',
+    (canonicalKey) => {
+      const inheritedKey = canonicalKey.toLowerCase()
+      const env = {
+        [inheritedKey]: 'inherited-model',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, false)
+
+      expect(result).toEqual({
+        env: { HTTPS_PROXY: 'http://proxy.example.com', LOGIN_SHELL_VAR: 'kept' },
+        blockedKeys: []
+      })
+      expect(Object.keys(result.env).map((key) => key.toUpperCase())).not.toContain(canonicalKey)
+      expect(env).toEqual({
+        [inheritedKey]: 'inherited-model',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+    }
+  )
+
+  it.each(SCRUBBED_MODEL_KEYS)(
+    'blocks Agent-provided active model selector %s case-insensitively without mutating the input',
+    (canonicalKey) => {
+      const userKey = canonicalKey.toLowerCase()
+      const userEnv = { [userKey]: 'agent-model', AGENT_VAR: 'kept' }
+
+      const result = mergeUserEnvironmentVariables({ BASE_VAR: 'kept' }, userEnv, false)
+
+      expect(result).toEqual({
+        env: { BASE_VAR: 'kept', AGENT_VAR: 'kept' },
+        blockedKeys: [userKey]
+      })
+      expect(userEnv).toEqual({ [userKey]: 'agent-model', AGENT_VAR: 'kept' })
+    }
+  )
+
+  it.each(
+    SCRUBBED_SHELL_KEYS.flatMap(
+      (canonicalKey) =>
+        [
+          [canonicalKey, false],
+          [canonicalKey, true]
+        ] as const
+    )
+  )(
+    'removes inherited shell wrapper %s case-insensitively when windows=%s without mutating the input',
+    (canonicalKey, windows) => {
+      const inheritedKey = canonicalKey.toLowerCase()
+      const env = {
+        [inheritedKey]: 'inherited-shell',
+        HTTP_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, windows)
+
+      expect(result).toEqual({
+        env: { HTTP_PROXY: 'http://proxy.example.com', LOGIN_SHELL_VAR: 'kept' },
+        blockedKeys: []
+      })
+      expect(Object.keys(result.env).map((key) => key.toUpperCase())).not.toContain(canonicalKey)
+      expect(env).toEqual({
+        [inheritedKey]: 'inherited-shell',
+        HTTP_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+    }
+  )
+
+  it.each(
+    SCRUBBED_SHELL_KEYS.flatMap(
+      (canonicalKey) =>
+        [
+          [canonicalKey, false],
+          [canonicalKey, true]
+        ] as const
+    )
+  )(
+    'blocks Agent-provided shell wrapper %s case-insensitively when windows=%s without mutating the input',
+    (canonicalKey, windows) => {
+      const userKey = canonicalKey.toLowerCase()
+      const userEnv = { [userKey]: 'agent-shell', AGENT_VAR: 'kept' }
+
+      const result = mergeUserEnvironmentVariables({ BASE_VAR: 'kept' }, userEnv, windows)
+
+      expect(result).toEqual({
+        env: { BASE_VAR: 'kept', AGENT_VAR: 'kept' },
+        blockedKeys: [userKey]
+      })
+      expect(userEnv).toEqual({ [userKey]: 'agent-shell', AGENT_VAR: 'kept' })
+    }
+  )
+
+  it.each(APPLICATION_MODEL_KEYS)(
+    'keeps application model %s in canonical casing while removing an inherited casing alias',
+    (canonicalKey) => {
+      const inheritedKey = canonicalKey.toLowerCase()
+      const env = {
+        [inheritedKey]: 'inherited-model',
+        [canonicalKey]: 'application-model',
+        grpc_proxy: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, false)
+
+      expect(result).toEqual({
+        env: {
+          [canonicalKey]: 'application-model',
+          grpc_proxy: 'http://proxy.example.com',
+          LOGIN_SHELL_VAR: 'kept'
+        },
+        blockedKeys: []
+      })
+      expect(env).toEqual({
+        [inheritedKey]: 'inherited-model',
+        [canonicalKey]: 'application-model',
+        grpc_proxy: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+    }
+  )
+
+  it.each([
+    ['Git Bash', 'C:\\Git\\bin\\bash.exe', { CLAUDE_CODE_GIT_BASH_PATH: 'C:\\Git\\bin\\bash.exe' }, []],
+    [
+      'PowerShell',
+      null,
+      { CLAUDE_CODE_USE_POWERSHELL_TOOL: '1', POWERSHELL_TELEMETRY_OPTOUT: '1' },
+      ['Bash', 'builtin_Bash']
+    ]
+  ] as const)(
+    'keeps the %s helper output authoritative after shell wrapper scrubbing',
+    (_, gitBashPath, shellEnv, tools) => {
+      const inheritedEnv = {
+        claude_code_shell: 'inherited-shell',
+        Claude_Code_Shell_Prefix: 'inherited-prefix',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+      const userEnv = {
+        CLAUDE_CODE_SHELL: 'agent-shell',
+        claude_code_shell_prefix: 'agent-prefix',
+        AGENT_VAR: 'kept'
+      }
+
+      const merged = mergeUserEnvironmentVariables(inheritedEnv, userEnv, true)
+      const result = withPreferredWindowsShellEnvironment(merged.env, gitBashPath, true)
+
+      expect(merged).toEqual({
+        env: { LOGIN_SHELL_VAR: 'kept', AGENT_VAR: 'kept' },
+        blockedKeys: ['CLAUDE_CODE_SHELL', 'claude_code_shell_prefix']
+      })
+      expect(result).toEqual({
+        env: { LOGIN_SHELL_VAR: 'kept', AGENT_VAR: 'kept', ...shellEnv },
+        disallowedTools: tools
+      })
+      expect(inheritedEnv).toEqual({
+        claude_code_shell: 'inherited-shell',
+        Claude_Code_Shell_Prefix: 'inherited-prefix',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+      expect(userEnv).toEqual({
+        CLAUDE_CODE_SHELL: 'agent-shell',
+        claude_code_shell_prefix: 'agent-prefix',
+        AGENT_VAR: 'kept'
+      })
+    }
+  )
 
   it.each(proxyKeys)('allows %s to override an existing process value', (key) => {
     const result = mergeUserEnvironmentVariables({ [key]: 'process-value' }, { [key]: 'agent-value' }, false)

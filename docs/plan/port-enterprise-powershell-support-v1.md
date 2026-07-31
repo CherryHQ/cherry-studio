@@ -461,7 +461,7 @@ git status --short
 
 **阶段验证 review**：由 clean-context Validation Reviewer 对照 D1、D6、D8、D9、全部非目标、invariant 1/3/6、diff、validation ledger 和三个 Writer 的并行分派证据做有界验证。
 
-### 阶段 3 — Native 模型与 shell 托管边界补全 〔状态：待执行〕
+### 阶段 3 — Native 模型与 shell 托管边界补全 〔状态：✅ 已完成〕
 
 **阶段依赖**：依赖阶段 0–2、计划符合性 PASS，以及计划 v1 三轮 full review 已提交并复核的认证、remote/bridge、provider fallback 与 opaque ID 修复。D10 已冻结当前 native `2.1.185` 的 active 键集合，本阶段不再引入新产品决策。
 
