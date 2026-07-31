@@ -81,7 +81,7 @@ export async function executeCommand(
   command: string,
   args: string[],
   options?: {
-    /** Capture and return stdout (default: false) */
+    /** Capture and return stdout (default: true) */
     capture?: boolean
     /** Environment variables (defaults to getShellEnv()) */
     env?: NodeJS.ProcessEnv
@@ -120,7 +120,7 @@ export async function executeCommand(
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
       if (code === 0) {
-        resolve(options?.capture ? stdout : '')
+        resolve(options?.capture !== false ? stdout : '')
       } else {
         reject(new Error(stderr || `Command failed with code ${code}`))
       }
