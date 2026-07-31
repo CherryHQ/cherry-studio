@@ -19,8 +19,6 @@ const RerankSection = ({ rerankModelId, onRerankModelChange }: RerankSectionProp
         value={rerankModelId}
         placeholder={t('knowledge.rag.rerank_disabled')}
         filter={isRerankModel}
-        allowClear
-        clearAriaLabel={t('knowledge.rag.rerank_disabled')}
         onChange={onRerankModelChange}
       />
     </div>

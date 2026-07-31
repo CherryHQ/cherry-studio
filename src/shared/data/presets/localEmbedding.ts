@@ -3,13 +3,13 @@ import { createUniqueModelId } from '@shared/data/types/model'
 /**
  * Optional, local, in-process text embedding provider (transformers.js +
  * onnxruntime-node). Coexists with the remote-provider embedding route — it is
- * NOT a replacement. Registered as a hidden AI provider/model so the knowledge
- * base can select it while it stays out of the general model lists.
+ * NOT a replacement. Seeded as a built-in AI provider/model so the knowledge
+ * base can offer it before its weights have been downloaded.
  *
  * Runtime model details (HF repo, dtype, runtime device) live in the main
  * process engine (`src/main/ai/provider/custom/localEmbedding`), not here —
  * this module only holds the cross-process identity constants for the local
- * embedding provider/model, shared between the main-process registration and
+ * embedding provider/model, shared between the main-process seeder and
  * the renderer's embedding-dimensions hook.
  */
 export const LOCAL_EMBEDDING_PROVIDER_ID = 'local-embedding' as const

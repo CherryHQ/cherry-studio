@@ -79,8 +79,7 @@ export abstract class LocalModelDownloadService {
     // Coalesce concurrent callers — the settings card and the KB download entry
     // hit the same main-process singleton. Both await the SAME in-flight download,
     // so neither resolves (→ reports ready / runs post-download work like the KB
-    // entry's select()) until it genuinely completes, past the subclass's own
-    // registration + terminal `ready` broadcast.
+    // entry's select()) until it genuinely completes and emits terminal `ready`.
     if (this.inFlight) return this.inFlight
     this.downloading = true
     this.abortController = new AbortController()

@@ -14,6 +14,7 @@ import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
+  type ReactNode,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -30,7 +31,13 @@ import { SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
+import type {
+  FlatListItem,
+  ModelSelectorModelAction,
+  ModelSelectorModelItem,
+  ModelSelectorProps,
+  ModelSelectorSelectionType
+} from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
@@ -43,7 +50,8 @@ const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
-const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
+const DEFAULT_MODEL_ACTIONS: readonly ModelSelectorModelAction[] = []
+const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
@@ -157,6 +165,7 @@ function ModelRow({
   onSelect,
   showCheckbox,
   showPinActions,
+  customActions,
   isPinActionDisabled,
   isSelected,
   detailPortalContainer,
@@ -168,6 +177,7 @@ function ModelRow({
   onSelect: (item: ModelSelectorModelItem) => void
   showCheckbox: boolean
   showPinActions: boolean
+  customActions?: ReactNode
   isPinActionDisabled: boolean
   isSelected: boolean
   detailPortalContainer?: SelectorShellLayout['portalContainer']
@@ -212,6 +222,18 @@ function ModelRow({
       </div>
     ) : null
 
+  const pinAction = showPinActions ? (
+    <ModelSelectorRowActionButton
+      disabled={isPinActionDisabled}
+      aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+      className="size-4 rounded-sm hover:bg-transparent"
+      pinned={item.isPinned}
+      selected={isSelected}
+      onClick={() => onPin(item.modelId)}>
+      <Pin className="size-3" />
+    </ModelSelectorRowActionButton>
+  ) : null
+
   return (
     <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
       <ModelSelectorRow
@@ -222,16 +244,11 @@ function ModelRow({
         leading={leading}
         trailing={trailing}
         actions={
-          showPinActions ? (
-            <ModelSelectorRowActionButton
-              disabled={isPinActionDisabled}
-              aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-              className="size-4 rounded-sm hover:bg-transparent"
-              pinned={item.isPinned}
-              selected={isSelected}
-              onClick={() => onPin(item.modelId)}>
-              <Pin className="size-3" />
-            </ModelSelectorRowActionButton>
+          customActions || pinAction ? (
+            <>
+              {customActions}
+              {pinAction}
+            </>
           ) : undefined
         }
         onSelect={() => onSelect(item)}
@@ -259,6 +276,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     showTagFilter = true,
     showPinnedModels = true,
     showPinActions = true,
+    modelActions = DEFAULT_MODEL_ACTIONS,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
@@ -367,6 +385,11 @@ export function ModelSelector(props: ModelSelectorProps) {
     [multiple, selectionType, selectedValue]
   )
 
+  const modelActionsById = useMemo(
+    () => new Map(modelActions.map((action) => [action.modelId, action])),
+    [modelActions]
+  )
+
   const {
     availableTags,
     isLoading,
@@ -471,6 +494,12 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
+      const modelAction = modelActionsById.get(item.modelId)
+      if (modelAction) {
+        modelAction.onActivate()
+        return
+      }
+
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
@@ -489,7 +518,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, multiple, rawSelectedModelIds, setOpen]
+    [emitSelection, modelActionsById, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
@@ -718,6 +747,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
+            customActions={modelActionsById.get(item.modelId)?.content}
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
             showCheckbox={multiple && multiSelectMode}
@@ -734,6 +764,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleSelectItem,
       handleTogglePin,
       isPinActionDisabled,
+      modelActionsById,
       multiple,
       multiSelectMode,
       setFocusedItemKey,

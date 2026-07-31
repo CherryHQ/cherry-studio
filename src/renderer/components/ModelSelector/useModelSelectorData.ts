@@ -53,7 +53,7 @@ function getModelIdentifier(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: string[]) {
+function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
   if (prioritizedProviderIds.length === 0) {
     return providers
   }

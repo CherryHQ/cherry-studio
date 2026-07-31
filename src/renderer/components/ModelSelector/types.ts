@@ -18,7 +18,8 @@ interface ModelSelectorCommonProps {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
-  prioritizedProviderIds?: string[]
+  modelActions?: readonly ModelSelectorModelAction[]
+  prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
   sideOffset?: number
@@ -30,6 +31,12 @@ interface ModelSelectorCommonProps {
   onMultiSelectModeChange?: (enabled: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
   shortcut?: CommandId
+}
+
+export interface ModelSelectorModelAction {
+  modelId: UniqueModelId
+  content: ReactNode
+  onActivate: () => void
 }
 
 export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {
@@ -98,7 +105,7 @@ export interface UseModelSelectorDataOptions {
   filter?: (model: Model) => boolean
   showTagFilter?: boolean
   showPinnedModels?: boolean
-  prioritizedProviderIds?: string[]
+  prioritizedProviderIds?: readonly string[]
 }
 
 export interface UseModelSelectorDataResult {

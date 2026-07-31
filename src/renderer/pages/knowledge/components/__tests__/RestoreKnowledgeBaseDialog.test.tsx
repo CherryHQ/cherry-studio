@@ -23,9 +23,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProviders(...args)
 }))
 
-vi.mock('../KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
-  KnowledgeModelSelect: ({
+vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
     onChange,

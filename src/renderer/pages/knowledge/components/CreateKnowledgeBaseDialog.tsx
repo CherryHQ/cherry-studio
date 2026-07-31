@@ -27,8 +27,7 @@ import {
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
-import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
-import LocalEmbeddingDownloadButton from './LocalEmbeddingDownloadButton'
+import { KnowledgeEmbeddingModelSelect } from './KnowledgeEmbeddingModelSelect'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -206,25 +205,13 @@ const CreateKnowledgeBaseDialogRoot = ({
 
             <KnowledgeDialogField>
               <Label>{t('knowledge.embedding_model')}</Label>
-              <div className="flex items-center gap-2">
-                {/* The local model is absent from every picker until it is downloaded,
-                    so without this button it would be unreachable when creating a base. */}
-                {values.embeddingModelId === null ? (
-                  <LocalEmbeddingDownloadButton onSelected={handleEmbeddingModelChange} />
-                ) : null}
-                <div className="min-w-0 flex-1">
-                  <KnowledgeModelSelect
-                    aria-label={t('knowledge.embedding_model')}
-                    value={values.embeddingModelId}
-                    placeholder={t('knowledge.not_set')}
-                    filter={isEmbeddingModel}
-                    allowClear
-                    clearAriaLabel={t('common.clear')}
-                    onSettingsNavigate={handleSettingsNavigate}
-                    onChange={handleEmbeddingModelChange}
-                  />
-                </div>
-              </div>
+              <KnowledgeEmbeddingModelSelect
+                aria-label={t('knowledge.embedding_model')}
+                value={values.embeddingModelId}
+                placeholder={t('knowledge.not_set')}
+                onSettingsNavigate={handleSettingsNavigate}
+                onChange={handleEmbeddingModelChange}
+              />
             </KnowledgeDialogField>
 
             {groups.length > 0 ? (

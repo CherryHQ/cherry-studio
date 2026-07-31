@@ -19,20 +19,8 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
 }))
 
-// Stubbed out because the real button probes `local_model.get_status` on mount,
-// which would show up in the ipc assertions below. Its own behavior is covered
-// by LocalEmbeddingDownloadButton.test.tsx.
-vi.mock('../LocalEmbeddingDownloadButton', () => ({
-  default: ({ onSelected }: { onSelected: (id: string) => void }) => (
-    <button type="button" onClick={() => onSelected('local-embedding::qwen3-embedding-0.6b')}>
-      local-download
-    </button>
-  )
-}))
-
-vi.mock('../KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
-  KnowledgeModelSelect: ({
+vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
     onChange,
@@ -53,6 +41,9 @@ vi.mock('../KnowledgeModelSelect', () => ({
       />
       <button type="button" onClick={() => onSettingsNavigate?.(mockSettingsNavigate)}>
         open model settings
+      </button>
+      <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
+        local-model-option
       </button>
     </>
   )
@@ -469,7 +460,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     })
   })
 
-  it('offers the local embedding download only until a model is picked', () => {
+  it('keeps the local embedding entry inside the model selector', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -481,11 +472,11 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'local-download' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
 
-    expect(screen.queryByRole('button', { name: 'local-download' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
   })
 
   it('submits the local embedding model with its fixed dimensions and no probe', async () => {
@@ -508,8 +499,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    // A finished download selects the model through the same handler as the picker.
-    fireEvent.click(screen.getByRole('button', { name: 'local-download' }))
+    fireEvent.click(screen.getByRole('button', { name: 'local-model-option' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>

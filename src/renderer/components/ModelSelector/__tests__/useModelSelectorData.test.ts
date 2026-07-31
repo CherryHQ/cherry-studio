@@ -156,6 +156,20 @@ describe('useModelSelectorData', () => {
     expect(result.current.sortedProviders.map((provider) => provider.id)).toEqual(['google', 'anthropic', 'openai'])
   })
 
+  it('does not synthesize a prioritized provider when it is not registered', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+
+    const { result } = renderHook(() =>
+      useModelSelectorData({ searchText: '', prioritizedProviderIds: ['local-embedding'] })
+    )
+
+    expect(result.current.sortedProviders.map((provider) => provider.id)).toEqual(['openai'])
+    expect(result.current.listItems.some((item) => item.key.includes('local-embedding'))).toBe(false)
+  })
+
   it('renders pinned rows first, in pin order, without provider-group duplicates', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('anthropic')],

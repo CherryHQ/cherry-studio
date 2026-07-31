@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
+import { ModelSelectorRowActionButton } from '../ModelSelectorRow'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -258,6 +259,95 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('runs a model action instead of selecting or closing', async () => {
+    const user = userEvent.setup()
+    const modelId = 'openai::gpt-4' as UniqueModelId
+    const item = makeModelItem(modelId)
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item],
+        selectableModelsById: new Map([[modelId, item.model]])
+      })
+    )
+    const onActivate = vi.fn()
+    const onActionClick = vi.fn()
+    const onSelect = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        selectionType="id"
+        modelActions={[
+          {
+            modelId,
+            onActivate,
+            content: (
+              <ModelSelectorRowActionButton aria-label="Download local model" onClick={onActionClick}>
+                Download
+              </ModelSelectorRowActionButton>
+            )
+          }
+        ]}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await user.click(screen.getByTestId(`model-selector-item-${modelId}`))
+
+    expect(onActivate).toHaveBeenCalledOnce()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    const downloadButton = screen.getByRole('button', { name: 'Download local model' })
+    downloadButton.focus()
+    await user.tab()
+    expect(screen.getByLabelText('models.action.pin')).toHaveFocus()
+    await user.click(downloadButton)
+
+    expect(onActionClick).toHaveBeenCalledOnce()
+    expect(onActivate).toHaveBeenCalledOnce()
+  })
+
+  it('runs the focused model action on Enter without selecting or closing', async () => {
+    const user = userEvent.setup()
+    const modelId = 'openai::gpt-4' as UniqueModelId
+    const item = makeModelItem(modelId)
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item],
+        selectableModelsById: new Map([[modelId, item.model]])
+      })
+    )
+    const onActivate = vi.fn()
+    const onSelect = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        selectionType="id"
+        modelActions={[{ modelId, content: <span>Download local model</span>, onActivate }]}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await waitFor(() => expect(mocks.scrollToIndex).toHaveBeenCalledWith(0, { align: 'start' }))
+    await user.keyboard('{Enter}')
+
+    expect(onActivate).toHaveBeenCalledOnce()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
   it('suppresses only the immediate close caused by a multi-select item click', async () => {

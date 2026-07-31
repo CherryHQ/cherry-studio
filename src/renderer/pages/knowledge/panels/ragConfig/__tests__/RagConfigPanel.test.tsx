@@ -183,7 +183,6 @@ vi.mock('../../../hooks/useEmbeddingDimensions', () => ({
 }))
 
 vi.mock('../../../components/KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
   isRerankModel: () => true,
   KnowledgeModelSelect: ({
     value,
@@ -207,19 +206,31 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
-// Stub the download button as a plain button that fires onSelected with the local
-// model id, so tests can drive the "download finished → auto-select + save" path.
-// Async factory + dynamic import keeps the id out of the hoisted-factory scope rules.
-vi.mock('../../../components/LocalEmbeddingDownloadButton', async () => {
-  const { LOCAL_EMBEDDING_UNIQUE_MODEL_ID: localModelId } = await import('@shared/data/presets/localEmbedding')
-  return {
-    default: ({ onSelected }: { onSelected: (modelId: string) => void }) => (
-      <button type="button" onClick={() => onSelected(localModelId)}>
-        download-local-embedding
+vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
+    value,
+    placeholder,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <div>
+      <span>{value ?? placeholder}</span>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+      <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
+        select-local-embedding
       </button>
-    )
-  }
-})
+    </div>
+  )
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -581,7 +592,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
   })
 
-  it('auto-saves the downloaded local embedding model directly on an empty base', async () => {
+  it('saves the local embedding model on an empty base only after confirmation', async () => {
     const onRestoreBase = vi.fn()
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -603,7 +614,10 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-local-embedding' }))
+    expect(mockSave).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalledWith(
@@ -615,7 +629,7 @@ describe('RagConfigPanel', () => {
     expect(toast.success).toHaveBeenCalledWith('已保存')
   })
 
-  it('enables the downloaded local embedding model in place when a BM25-only base already has items', async () => {
+  it('enables the local embedding model only after confirmation on a BM25-only base', async () => {
     const onRestoreBase = vi.fn()
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -637,7 +651,10 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 5)
 
-    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-local-embedding' }))
+    expect(mockEnableEmbedding).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(mockEnableEmbedding).toHaveBeenCalledWith(

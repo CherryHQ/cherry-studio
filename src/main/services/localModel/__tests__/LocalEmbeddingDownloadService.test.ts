@@ -1,27 +1,23 @@
 import type * as NodeFs from 'node:fs'
 
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loadEmbedding, terminate, terminateThen, registerLocalEmbeddingModel, unregisterMock, readdirSync, rm } =
-  vi.hoisted(() => {
-    const terminate = vi.fn()
-    // terminateThen mirrors the real terminate-then-run-after ordering so the
-    // invocationCallOrder assertions below (terminate before rm) still hold.
-    const terminateThen = vi.fn(async (after: () => Promise<unknown>) => {
-      await terminate()
-      return after()
-    })
-    return {
-      loadEmbedding: vi.fn(),
-      terminate,
-      terminateThen,
-      registerLocalEmbeddingModel: vi.fn(),
-      unregisterMock: vi.fn(),
-      readdirSync: vi.fn(),
-      rm: vi.fn()
-    }
+const { loadEmbedding, terminate, terminateThen, readdirSync, rm } = vi.hoisted(() => {
+  const terminate = vi.fn()
+  // terminateThen mirrors the real terminate-then-run-after ordering so the
+  // invocationCallOrder assertions below (terminate before rm) still hold.
+  const terminateThen = vi.fn(async (after: () => Promise<unknown>) => {
+    await terminate()
+    return after()
   })
+  return {
+    loadEmbedding: vi.fn(),
+    terminate,
+    terminateThen,
+    readdirSync: vi.fn(),
+    rm: vi.fn()
+  }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -43,11 +39,6 @@ vi.mock('node:fs', async () => {
 
 vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => ({
   currentModelSource: () => ({})
-}))
-
-vi.mock('@main/services/localModel/localEmbeddingRegistration', () => ({
-  registerLocalEmbeddingModel,
-  unregisterLocalEmbeddingModelIfUnused: unregisterMock
 }))
 
 // onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
@@ -83,7 +74,6 @@ function fileEntry(name: string): NodeFs.Dirent {
 describe('LocalEmbeddingDownloadService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    registerLocalEmbeddingModel.mockResolvedValue(undefined)
     rm.mockResolvedValue(undefined)
   })
 
@@ -103,7 +93,7 @@ describe('LocalEmbeddingDownloadService', () => {
     })
   })
 
-  it('drives the progress bar off the .onnx weights only, then registers and reports ready', async () => {
+  it('drives the progress bar off the .onnx weights only, then reports ready', async () => {
     loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
       // The tiny sidecar files each sweep 0→100 before the weights start — they must
       // not move the bar; only the .onnx weights (≈99% of the download) drive it.
@@ -129,8 +119,6 @@ describe('LocalEmbeddingDownloadService', () => {
       'local_model.download_progress',
       expect.objectContaining({ file: 'tokenizer.json' })
     )
-    // Only registered once the weights are on disk (lazy equivalent of the boot seeder).
-    expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
     expect(broadcastSpy()).toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ status: 'ready', percent: 100 })
@@ -149,12 +137,12 @@ describe('LocalEmbeddingDownloadService', () => {
     await localEmbeddingDownloadService.download()
 
     // The dataless events must never report 0 — that snapped the full bar back to empty
-    // right before the post-registration 'ready' (the "100% → 0%" flicker).
+    // right before the terminal 'ready' (the "100% → 0%" flicker).
     expect(broadcastSpy()).not.toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ file: READY_FILE, percent: 0 })
     )
-    // 'done' means the weights are fully on disk — keep the bar full through registration.
+    // 'done' means the weights are fully on disk — keep the bar full until terminal ready.
     expect(broadcastSpy()).toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ status: 'done', percent: 100 })
@@ -163,7 +151,19 @@ describe('LocalEmbeddingDownloadService', () => {
 
   describe('remove', () => {
     it('keeps the weights when a knowledge base still references the model', async () => {
-      unregisterMock.mockResolvedValue({ removed: false })
+      const db = application.get('DbService').getDb()
+      vi.mocked(db.select).mockImplementationOnce(() => {
+        const query = {
+          from: vi.fn(),
+          where: vi.fn(),
+          limit: vi.fn(),
+          all: vi.fn(() => [{ id: 'kb-local-embedding' }])
+        }
+        query.from.mockReturnValue(query)
+        query.where.mockReturnValue(query)
+        query.limit.mockReturnValue(query)
+        return query as never
+      })
 
       await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: false })
 
@@ -173,40 +173,13 @@ describe('LocalEmbeddingDownloadService', () => {
     })
 
     it('terminates the worker before deleting the weights when the model is unused', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-
       await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: true })
 
       expect(terminate).toHaveBeenCalledTimes(1)
       expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
       // The worker holds the weights open — release it first or the unlink fails on Windows.
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
-    })
-
-    it('re-registers the model when deleting the weights fails, so files and DB stay consistent', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-      rm.mockRejectedValue(new Error('EBUSY')) // e.g. a Windows lock survives the unlink
-
-      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow('EBUSY')
-
-      // Row already deleted but weights survived → re-register so the leftover weights
-      // don't read as a `ready` model with no user_model row.
-      expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
-    })
-
-    it('logs the original deletion error even when the compensating re-register also fails', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-      rm.mockRejectedValue(new Error('EBUSY'))
-      registerLocalEmbeddingModel.mockRejectedValue(new Error('db down')) // compensation fails too
-
-      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow()
-
-      // The deletion breadcrumb is logged before the re-register runs, so it survives the
-      // re-register throwing over the rethrow.
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-        expect.stringContaining('re-registering'),
-        expect.any(Error)
-      )
+      expect(vi.mocked(application.get('DbService').getDb().delete)).not.toHaveBeenCalled()
     })
   })
 
@@ -232,16 +205,5 @@ describe('LocalEmbeddingDownloadService', () => {
       'local_model.download_progress',
       expect.objectContaining({ status: 'error' })
     )
-  })
-
-  it('cleans up the weights when registration fails, leaving no orphan ready state', async () => {
-    loadEmbedding.mockResolvedValue(undefined) // weights land on disk...
-    registerLocalEmbeddingModel.mockRejectedValue(new Error('db down')) // ...but the row write fails
-
-    await expect(localEmbeddingDownloadService.download()).rejects.toThrow('db down')
-
-    // Weights present + no user_model row would read as `ready` and trip the KB FK on select.
-    expect(terminate).toHaveBeenCalled()
-    expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
   })
 })
