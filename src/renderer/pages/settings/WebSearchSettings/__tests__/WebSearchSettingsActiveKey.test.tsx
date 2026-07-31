@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,8 +23,11 @@ vi.mock('../components/WebSearchGeneralSettings', () => ({
 }))
 
 vi.mock('../components/WebSearchProviderSetting', () => ({
-  WebSearchProviderSetting: ({ entry }: { entry: { provider: { name: string } } }) => (
-    <div>{entry.provider.name} provider-settings</div>
+  WebSearchProviderSetting: ({ children, entry }: { children?: ReactNode; entry: { provider: { name: string } } }) => (
+    <div>
+      {entry.provider.name} provider-settings
+      {children}
+    </div>
   )
 }))
 

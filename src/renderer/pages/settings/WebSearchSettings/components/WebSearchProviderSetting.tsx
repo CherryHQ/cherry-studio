@@ -39,7 +39,7 @@ import type {
 import { useNavigate } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { Activity, ArrowRight, ExternalLink, List, Loader2 } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -58,6 +58,7 @@ type SetCapabilityApiHost = (
 ) => Promise<void>
 
 interface Props {
+  children?: ReactNode
   entry: WebSearchProviderMenuEntry
   entries: WebSearchProviderMenuEntry[]
   providerOverrides: WebSearchProviderOverrides
@@ -87,6 +88,7 @@ function normalizeApiHostInput(value: string): string {
 }
 
 export const WebSearchProviderSetting: FC<Props> = ({
+  children,
   entry,
   entries,
   onSetApiKeys,
@@ -488,6 +490,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
           </>
         )}
       </div>
+      {children}
     </SettingGroup>
   )
 }

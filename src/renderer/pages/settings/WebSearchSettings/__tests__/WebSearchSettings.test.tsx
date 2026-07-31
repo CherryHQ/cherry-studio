@@ -159,21 +159,47 @@ describe('WebSearchSettings', () => {
     screen.getByRole('region', { name: 'settings.tool.websearch.search_provider' })
   const getFetchProviderSection = () =>
     screen.getByRole('region', { name: 'settings.tool.websearch.fetch_urls_provider' })
+  const getAdvancedSettingsTrigger = () =>
+    within(getKeywordProviderSection()).getByRole('button', { name: 'common.advanced_settings' })
+  const openAdvancedSettings = () => {
+    const trigger = getAdvancedSettingsTrigger()
+    if (trigger.getAttribute('aria-expanded') !== 'true') {
+      fireEvent.click(trigger)
+    }
+  }
 
-  it('renders both provider sections before general settings', () => {
+  it('keeps search controls and the blacklist in collapsed advanced settings', () => {
     render(<WebSearchSettings />)
 
-    const generalSettings = screen.getByText('settings.general.label')
     const keywordProviderSection = getKeywordProviderSection()
     const fetchProviderSection = getFetchProviderSection()
+    const advancedSettingsTrigger = getAdvancedSettingsTrigger()
+    const searchResultTitle = within(keywordProviderSection).getByText(
+      'settings.tool.websearch.search_max_result.label'
+    )
+    const blacklistTitle = within(keywordProviderSection).getByText('settings.tool.websearch.blacklist')
+    const compressionControl = within(keywordProviderSection).getByRole('radiogroup', {
+      name: 'settings.tool.websearch.compression.method.label',
+      hidden: true
+    })
 
-    expect(generalSettings).toBeInTheDocument()
-    expect(screen.getByText('settings.tool.websearch.search_max_result.label')).toBeInTheDocument()
+    expect(screen.queryByText('settings.general.label')).not.toBeInTheDocument()
     expect(keywordProviderSection).toBeInTheDocument()
     expect(fetchProviderSection).toBeInTheDocument()
     expect(
-      fetchProviderSection.compareDocumentPosition(generalSettings) & Node.DOCUMENT_POSITION_FOLLOWING
+      keywordProviderSection.compareDocumentPosition(fetchProviderSection) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+    expect(advancedSettingsTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(searchResultTitle).not.toBeVisible()
+    expect(compressionControl).not.toBeVisible()
+    expect(blacklistTitle).not.toBeVisible()
+    expect(
+      within(fetchProviderSection).queryByText('settings.tool.websearch.search_max_result.label')
+    ).not.toBeInTheDocument()
+    expect(
+      within(fetchProviderSection).queryByRole('button', { name: 'common.advanced_settings' })
+    ).not.toBeInTheDocument()
+    expect(within(fetchProviderSection).queryByText('settings.tool.websearch.blacklist')).not.toBeInTheDocument()
     expect(
       within(keywordProviderSection).getByRole('button', {
         name: 'settings.tool.websearch.search_provider'
@@ -184,10 +210,18 @@ describe('WebSearchSettings', () => {
         name: 'settings.tool.websearch.fetch_urls_provider'
       })
     ).toBeInTheDocument()
+
+    fireEvent.click(advancedSettingsTrigger)
+
+    expect(advancedSettingsTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(searchResultTitle).toBeVisible()
+    expect(compressionControl).toBeVisible()
+    expect(blacklistTitle).toBeVisible()
   })
 
   it('syncs clean max-result drafts from external preference changes', () => {
     const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
 
@@ -199,6 +233,7 @@ describe('WebSearchSettings', () => {
 
   it('keeps dirty max-result drafts when maxResults changes externally', () => {
     const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
       target: { value: '10' }
@@ -213,6 +248,7 @@ describe('WebSearchSettings', () => {
 
   it('marks max-result drafts clean after a successful commit', async () => {
     const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
       target: { value: '10' }
@@ -238,6 +274,7 @@ describe('WebSearchSettings', () => {
     ['3.9', 3]
   ])('clamps max-result draft %s to %s on commit', async (value, expected) => {
     render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
       target: { value }
@@ -252,6 +289,7 @@ describe('WebSearchSettings', () => {
 
   it('resets max results to the default value when customized', async () => {
     render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
 
@@ -274,8 +312,9 @@ describe('WebSearchSettings', () => {
 
   it('syncs clean blacklist drafts from external preference changes', () => {
     const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
 
-    const textarea = screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')
+    const textarea = screen.getByLabelText('settings.tool.websearch.blacklist')
     expect(textarea).toHaveValue('')
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.exclude_domains', [
@@ -283,15 +322,14 @@ describe('WebSearchSettings', () => {
     ])
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')).toHaveValue(
-      'https://example.com/*'
-    )
+    expect(screen.getByLabelText('settings.tool.websearch.blacklist')).toHaveValue('https://example.com/*')
   })
 
   it('keeps dirty blacklist drafts when excludeDomains changes externally', () => {
     const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
 
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip'), {
+    fireEvent.change(screen.getByLabelText('settings.tool.websearch.blacklist'), {
       target: { value: 'https://draft.example/*' }
     })
 
@@ -300,15 +338,14 @@ describe('WebSearchSettings', () => {
     ])
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')).toHaveValue(
-      'https://draft.example/*'
-    )
+    expect(screen.getByLabelText('settings.tool.websearch.blacklist')).toHaveValue('https://draft.example/*')
   })
 
   it('marks blacklist drafts clean after a successful save', async () => {
     const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
 
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip'), {
+    fireEvent.change(screen.getByLabelText('settings.tool.websearch.blacklist'), {
       target: { value: 'https://saved.example/*' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
@@ -324,15 +361,14 @@ describe('WebSearchSettings', () => {
     ])
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')).toHaveValue(
-      'https://external.example/*'
-    )
+    expect(screen.getByLabelText('settings.tool.websearch.blacklist')).toHaveValue('https://external.example/*')
   })
 
   it('saves default cutoff limit when cutoff input is cleared', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 5000)
     render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder'), {
       target: { value: '' }
@@ -346,6 +382,7 @@ describe('WebSearchSettings', () => {
   it('saves positive cutoff limit input values', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
     render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder'), {
       target: { value: '3500' }
@@ -360,6 +397,7 @@ describe('WebSearchSettings', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 5000)
     render(<WebSearchSettings />)
+    openAdvancedSettings()
 
     const input = screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder')
     fireEvent.change(input, { target: { value: 'abc' } })
@@ -367,6 +405,32 @@ describe('WebSearchSettings', () => {
     fireEvent.change(input, { target: { value: '-1' } })
 
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(5000)
+  })
+
+  it('switches compression methods using flat options', async () => {
+    const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
+
+    const methodControl = screen.getByRole('radiogroup', {
+      name: 'settings.tool.websearch.compression.method.label'
+    })
+    expect(
+      within(methodControl).getByRole('radio', { name: 'settings.tool.websearch.compression.method.none' })
+    ).toBeChecked()
+
+    fireEvent.click(
+      within(methodControl).getByRole('radio', { name: 'settings.tool.websearch.compression.method.cutoff' })
+    )
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.method')).toBe('cutoff')
+    })
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByRole('radio', { name: 'settings.tool.websearch.compression.method.cutoff' })).toBeChecked()
+    expect(
+      screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder')
+    ).toBeInTheDocument()
   })
 
   it('uses the selected keyword provider as the default', async () => {
