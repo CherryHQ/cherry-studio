@@ -238,7 +238,10 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
-    enabled: opts?.enabled
+    enabled: opts?.enabled,
+    // SWR Infinite revalidates only the first page by default. A load-all source
+    // must refresh every loaded page before publishing its complete snapshot.
+    swrOptions: { revalidateAll: loadAll }
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)

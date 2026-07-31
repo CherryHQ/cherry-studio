@@ -469,6 +469,47 @@ describe('invalidatePathPatterns with live useSWRInfinite', () => {
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
   })
 
+  it('revalidates a changed item on the second loaded page when revalidateAll is enabled', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    let secondPageName = 'Old name'
+    const fetcher = vi.fn(async ([, query]: [string, { cursor?: string }]) =>
+      query.cursor === 'page-2'
+        ? { items: [{ id: 'old-topic', name: secondPageName }], nextCursor: null }
+        : { items: [{ id: 'recent-topic', name: 'Recent topic' }], nextCursor: 'page-2' }
+    )
+    const pagedGetKey = (_pageIndex: number, previousPageData: { nextCursor?: string | null } | null) => {
+      if (previousPageData && !previousPageData.nextCursor) return null
+      return ['/topics', { limit: 1, ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {}) }]
+    }
+
+    const { result } = renderHook(() => useSWRInfinite(pagedGetKey, fetcher, { revalidateAll: true }), {
+      wrapper: Wrapper
+    })
+    await waitFor(() => expect(result.current.data).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.setSize(2)
+    })
+    await waitFor(() => expect(result.current.data).toHaveLength(2))
+    expect(result.current.data?.[1]?.items[0]?.name).toBe('Old name')
+
+    secondPageName = 'New name'
+    const secondPageCallsBeforeInvalidate = fetcher.mock.calls.filter(
+      ([key]) => (key as [string, { cursor?: string }])[1].cursor === 'page-2'
+    ).length
+    const { result: cfg } = renderHook(() => useSWRConfig(), { wrapper: Wrapper })
+
+    await act(async () => {
+      await invalidatePathPatterns(cache as unknown as Cache, cfg.current.mutate, ['/topics'])
+    })
+
+    await waitFor(() => expect(result.current.data?.[1]?.items[0]?.name).toBe('New name'))
+    expect(result.current.data).toHaveLength(2)
+    expect(
+      fetcher.mock.calls.filter(([key]) => (key as [string, { cursor?: string }])[1].cursor === 'page-2')
+    ).toHaveLength(secondPageCallsBeforeInvalidate + 1)
+  })
+
   it('does not refetch when path does not match', async () => {
     const { Wrapper, cache } = makeWrapper()
     const fetcher = vi.fn(async () => ({ items: [], nextCursor: null }))

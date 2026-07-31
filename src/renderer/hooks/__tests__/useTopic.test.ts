@@ -1,11 +1,16 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseWriteCache
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { getTopicMessages, useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
+import { getTopicMessages, useActiveTopic, useLatestTopic, useTopicMutations, useTopics } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -63,6 +68,35 @@ describe('getTopicMessages', () => {
 
     expect(dataApiService.get).toHaveBeenCalledTimes(2)
     expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+})
+
+describe('useTopics', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('revalidates every loaded page for a load-all topic source', () => {
+    renderHook(() => useTopics({ loadAll: true }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
+      query: undefined,
+      limit: 200,
+      enabled: undefined,
+      swrOptions: { revalidateAll: true }
+    })
+  })
+
+  it('keeps progressive topic sources on first-page revalidation', () => {
+    renderHook(() => useTopics())
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
+      query: undefined,
+      limit: 50,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false }
+    })
   })
 })
 
