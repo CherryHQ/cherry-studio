@@ -1472,9 +1472,8 @@
       "image_preview_failed": "圖片預覽失敗",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
-      "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
+      "knowledge_base_unavailable": "選擇具備工具能力的模型",
       "locate_editing_message": "找出原始訊息",
-      "mcp_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
       "new": {
         "context": "清除上下文"
       },

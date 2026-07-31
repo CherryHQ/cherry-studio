@@ -1472,9 +1472,8 @@
       "image_preview_failed": "Bildvorschau fehlgeschlagen",
       "knowledge_base": "Wissensdatenbank",
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
-      "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
+      "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
-      "mcp_unavailable": "Wählen Sie ein modellbasiertes Werkzeug oder aktivieren Sie die Toolnutzung in der Eingabeaufforderung",
       "new": {
         "context": "Kontext löschen {{Command}}"
       },
