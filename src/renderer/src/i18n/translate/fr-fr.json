@@ -640,6 +640,9 @@
         "NotebookRead": {
           "description": "Lit et affiche le contenu des notebooks Jupyter"
         },
+        "PowerShell": {
+          "description": "Exécute des commandes PowerShell dans votre environnement"
+        },
         "Read": {
           "description": "Lit le contenu des fichiers"
         },
@@ -2506,6 +2509,7 @@
         "mcpServerTool": "Outil du serveur MCP",
         "multiEdit": "MultiEdit",
         "notebookEdit": "ÉditionCahier",
+        "powerShell": "PowerShell",
         "readFile": "Lire le fichier",
         "search": "Rechercher",
         "skill": "Compétence",

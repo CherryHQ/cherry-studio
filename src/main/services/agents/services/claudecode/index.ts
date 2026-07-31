@@ -54,6 +54,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { mergeUserEnvironmentVariables, withPreferredWindowsShellEnvironment } from './runtimeEnv'
 import { promptForToolApproval } from './tool-permissions'
+import { getRuntimeAllowedTools } from './tools'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 import { getFirstConfiguredApiKey, with1mContextSuffix } from './utils'
 
@@ -245,7 +246,8 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const errorChunks: string[] = []
 
-    const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
+    const runtimeAllowedTools = getRuntimeAllowedTools(session.allowed_tools, isWin ? 'win32' : process.platform)
+    const sessionAllowedTools = new Set<string>(runtimeAllowedTools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
 
@@ -481,7 +483,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
-      allowedTools: session.allowed_tools,
+      allowedTools: runtimeAllowedTools,
       plugins,
       canUseTool,
       hooks: {

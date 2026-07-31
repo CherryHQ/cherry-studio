@@ -47,6 +47,7 @@ const useBuiltinToolDescription = () => {
       MultiEdit: t('agent.tools.builtin.MultiEdit.description'),
       NotebookEdit: t('agent.tools.builtin.NotebookEdit.description'),
       NotebookRead: t('agent.tools.builtin.NotebookRead.description'),
+      PowerShell: t('agent.tools.builtin.PowerShell.description'),
       Read: t('agent.tools.builtin.Read.description'),
       Task: t('agent.tools.builtin.Task.description'),
       TodoWrite: t('agent.tools.builtin.TodoWrite.description'),
@@ -170,7 +171,8 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
             filteredTools.map((tool) => {
               const isAuto = autoToolIds.includes(tool.id)
               const isApproved = approvedToolIds.includes(tool.id)
-              const toolDescription = tool.type === 'builtin' ? getBuiltinToolDescription(tool.id) : tool.description
+              const toolDescription =
+                tool.type === 'builtin' ? (getBuiltinToolDescription(tool.id) ?? tool.description) : tool.description
               return (
                 <Card
                   key={tool.id}

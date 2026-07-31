@@ -640,6 +640,9 @@
         "NotebookRead": {
           "description": "Διαβάζει και εμφανίζει το περιεχόμενο των Jupyter notebook"
         },
+        "PowerShell": {
+          "description": "Εκτελεί εντολές PowerShell στο περιβάλλον σας"
+        },
         "Read": {
           "description": "Διαβάζει τα περιεχόμενα των αρχείων"
         },
@@ -2506,6 +2509,7 @@
         "mcpServerTool": "Εργαλείο Διακομιστή MCP",
         "multiEdit": "ΠολλαπλήΕπεξεργασία",
         "notebookEdit": "ΣημειωματάριοΕπεξεργασία",
+        "powerShell": "PowerShell",
         "readFile": "Διάβασε Αρχείο",
         "search": "Αναζήτηση",
         "skill": "Δεξιότητα",

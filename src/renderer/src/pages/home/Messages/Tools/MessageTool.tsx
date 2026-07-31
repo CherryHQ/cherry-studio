@@ -37,7 +37,7 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
       default:
         return null
     }
-  } else if (isAgentTool(toolName as AgentToolsType)) {
+  } else if (isAgentTool(toolName as AgentToolsType) || toolType === 'provider') {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
   return null

@@ -29,6 +29,66 @@ describe('stripLocalCommandTags', () => {
 })
 
 describe('Claude → AiSDK transform', () => {
+  it('preserves PowerShell call metadata, command arguments, and result output', () => {
+    const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
+    const messages: SDKMessage[] = [
+      {
+        ...baseStreamMetadata,
+        type: 'assistant',
+        uuid: uuid(30),
+        message: {
+          id: 'msg-powershell',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-test',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool-powershell',
+              name: 'PowerShell',
+              input: { command: 'Get-ChildItem -Force' }
+            }
+          ],
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+          usage: { input_tokens: 2, output_tokens: 3 }
+        }
+      } as unknown as SDKMessage,
+      {
+        ...baseStreamMetadata,
+        type: 'user',
+        uuid: uuid(31),
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool-powershell',
+              content: 'Directory: C:\\workspace',
+              is_error: false
+            }
+          ]
+        }
+      } as SDKMessage
+    ]
+
+    const parts = messages.flatMap((message) => transformSDKMessageToStreamParts(message, state))
+    const toolCall = parts.find((part) => part.type === 'tool-call')
+    const toolResult = parts.find((part) => part.type === 'tool-result')
+
+    expect(toolCall).toMatchObject({
+      type: 'tool-call',
+      toolName: 'PowerShell',
+      input: { command: 'Get-ChildItem -Force' }
+    })
+    expect(toolResult).toMatchObject({
+      type: 'tool-result',
+      toolName: 'PowerShell',
+      input: { command: 'Get-ChildItem -Force' },
+      output: 'Directory: C:\\workspace'
+    })
+  })
+
   it('handles tool call streaming lifecycle', () => {
     const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
     const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
