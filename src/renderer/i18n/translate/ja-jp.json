@@ -6846,7 +6846,7 @@
         "requiredField": "必須フィールド"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "MCPをインストール"
       },
       "protocolInstallWarning": {
         "command": "起動コマンド",

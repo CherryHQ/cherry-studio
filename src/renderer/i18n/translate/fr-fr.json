@@ -6846,7 +6846,7 @@
         "requiredField": "Champ obligatoire"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "Installer MCP"
       },
       "protocolInstallWarning": {
         "command": "Commande de démarrage",

@@ -6846,7 +6846,7 @@
         "requiredField": "Câmp obligatoriu"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "Instalează MCP"
       },
       "protocolInstallWarning": {
         "command": "Comandă pornire",

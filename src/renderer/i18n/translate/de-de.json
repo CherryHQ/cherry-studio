@@ -6846,7 +6846,7 @@
         "requiredField": "Pflichtfeld"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "MCP installieren"
       },
       "protocolInstallWarning": {
         "command": "Startbefehl",

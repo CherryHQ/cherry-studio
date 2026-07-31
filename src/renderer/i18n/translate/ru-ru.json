@@ -6846,7 +6846,7 @@
         "requiredField": "Обязательное поле"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "Установить MCP"
       },
       "protocolInstallWarning": {
         "command": "Команда запуска",

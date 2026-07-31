@@ -6846,7 +6846,7 @@
         "requiredField": "Υποχρεωτικό πεδίο"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "Εγκατάσταση MCP"
       },
       "protocolInstallWarning": {
         "command": "Εντολή εκκίνησης",

@@ -6846,7 +6846,7 @@
         "requiredField": "必填欄位"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "安裝 MCP"
       },
       "protocolInstallWarning": {
         "command": "啟動命令",

@@ -6846,7 +6846,7 @@
         "requiredField": "Trường bắt buộc"
       },
       "protocolInstall": {
-        "title": "[to be translated]:Install MCP"
+        "title": "Cài đặt MCP"
       },
       "protocolInstallWarning": {
         "command": "Lệnh khởi động",
