@@ -41,7 +41,7 @@ export const fileEntryTable = sqliteTable(
      * live value is read via File IPC `getMetadata`.
      */
     size: integer(),
-    /** Algorithm-tagged content hash for internal files. Null while legacy rows await backfill. */
+    /** Algorithm-tagged internal-content hash. Null means unknown, in-flight, or awaiting repair. */
     contentHash: text(),
 
     // ─── External ───

@@ -1,5 +1,5 @@
 import type { JobHandler } from '@main/core/job/types'
-import { hash as fsHash } from '@main/utils/file'
+import { hashWithSize } from '@main/utils/file'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 
 import type { FileManagerDeps } from '../internal/deps'
@@ -24,7 +24,7 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw signal.reason ?? new DOMException('aborted', 'AbortError')
 }
 
-/** Backfill nullable hashes on pre-feature internal rows using keyset pagination. */
+/** Rebuild unknown internal size/hash metadata using keyset pagination. */
 export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobHandler<Record<string, never>> {
   return {
     recovery: 'singleton',
@@ -53,9 +53,9 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
           throwIfAborted(ctx.signal)
 
           await deps.contentWriteLock.runExclusive(entry.id, async () => {
-            let contentHash: ContentHash
+            let metadata: { contentHash: ContentHash; size: number }
             try {
-              contentHash = await fsHash(resolvePhysicalPath(entry), ctx.signal)
+              metadata = await hashWithSize(resolvePhysicalPath(entry), ctx.signal)
             } catch (error) {
               if (ctx.signal.aborted) throwIfAborted(ctx.signal)
               const code = (error as NodeJS.ErrnoException).code
@@ -74,7 +74,7 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
             }
 
             throwIfAborted(ctx.signal)
-            if (deps.fileEntryService.updateContentHashIfMissing(entry.id, contentHash)) {
+            if (deps.fileEntryService.repairInternalContentMetadataIfUnknown(entry.id, metadata)) {
               hashed++
             } else if (deps.fileEntryService.findById(entry.id) === null) {
               ctx.logger.warn('contentHash backfill: entry vanished before persist (concurrent delete)', {

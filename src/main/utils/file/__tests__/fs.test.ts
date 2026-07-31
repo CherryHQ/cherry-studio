@@ -7,11 +7,13 @@ import { ContentHashSchema } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hashContent } from '../contentHash'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   copy as fsCopy,
   createAtomicWriteStream,
+  createPreparedAtomicWriteStream,
   download as fsDownload,
   ensureDir,
   exists,
@@ -20,6 +22,7 @@ import {
   mkdir as fsMkdir,
   move as fsMove,
   PathStaleVersionError,
+  prepareAtomicWrite,
   probeReadable,
   read,
   readChunk,
@@ -477,6 +480,93 @@ describe('atomicWriteFile', () => {
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
     expect(await readFile(target, 'utf-8')).toBe('baseline')
+  })
+})
+
+describe('PreparedAtomicWrite', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-prepared-write-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('derives size and hash from the prepared bytes and commits idempotently', async () => {
+    const target = path.join(tmp, 'prepared.bin') as AbsoluteFilePath
+    await writeFile(target, 'old')
+    const bytes = new Uint8Array([1, 2, 3, 4])
+
+    const prepared = await prepareAtomicWrite(target, bytes)
+    expect(prepared).toMatchObject({
+      target,
+      size: bytes.byteLength,
+      contentHash: hashContent(bytes),
+      state: 'prepared'
+    })
+    expect(await readFile(target, 'utf-8')).toBe('old')
+
+    const firstVersion = await prepared.commit()
+    expect(prepared.state).toBe('committed')
+    expect(Array.from(await readFile(target))).toEqual(Array.from(bytes))
+    await expect(prepared.commit()).resolves.toEqual(firstVersion)
+    await expect(prepared.abort()).resolves.toBeUndefined()
+  })
+
+  it('aborts idempotently without replacing the target and cannot commit afterward', async () => {
+    const target = path.join(tmp, 'aborted.txt') as AbsoluteFilePath
+    await writeFile(target, 'old')
+    const prepared = await prepareAtomicWrite(target, 'new')
+
+    await prepared.abort()
+    await prepared.abort()
+
+    expect(prepared.state).toBe('aborted')
+    expect(await readFile(target, 'utf-8')).toBe('old')
+    expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+    await expect(prepared.commit()).rejects.toThrow(/already aborted/)
+  })
+
+  it('serializes concurrent commit and abort calls onto one terminal transition', async () => {
+    const target = path.join(tmp, 'concurrent.txt') as AbsoluteFilePath
+    await writeFile(target, 'old')
+    const prepared = await prepareAtomicWrite(target, 'new')
+
+    const [firstVersion, secondVersion] = await Promise.all([
+      prepared.commit(),
+      prepared.commit(),
+      prepared.abort().then(() => undefined)
+    ])
+
+    expect(firstVersion).toEqual(secondVersion)
+    expect(prepared.state).toBe('committed')
+    expect(await readFile(target, 'utf-8')).toBe('new')
+    expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+  })
+
+  it('incrementally hashes stream chunks and leaves commit under caller control', async () => {
+    const target = path.join(tmp, 'stream.bin') as AbsoluteFilePath
+    const bytes = Buffer.from('incremental payload')
+    let prepared: Awaited<ReturnType<typeof prepareAtomicWrite>> | undefined
+    const stream = createPreparedAtomicWriteStream(target, async (result) => {
+      prepared = result
+    })
+
+    stream.write(bytes.subarray(0, 5))
+    stream.end(bytes.subarray(5))
+    await new Promise<void>((resolve, reject) => {
+      stream.once('finish', resolve)
+      stream.once('error', reject)
+    })
+
+    expect(prepared).toMatchObject({
+      size: bytes.byteLength,
+      contentHash: hashContent(bytes),
+      state: 'prepared'
+    })
+    expect(await exists(target)).toBe(false)
+    await prepared!.commit()
+    expect(await readFile(target)).toEqual(bytes)
   })
 })
 

@@ -235,6 +235,7 @@
           "discard_and_continue": "Loại bỏ và tiếp tục",
           "title": "Hủy bỏ các thay đổi chưa lưu?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Không thể tải lại nội dung tệp mới nhất.",
         "save_failed": "Không thể lưu tệp này. Tính năng tự động lưu đã tạm dừng cho đến khi bạn thử lại hoặc hủy bỏ các thay đổi.",
         "unsaved": "Chưa lưu",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Không thể lưu vì ghi chú không tải được",
     "save_failed": "Không lưu được ghi chú",
     "save_failure": {
-      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng."
+      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Tên+Nội dung",

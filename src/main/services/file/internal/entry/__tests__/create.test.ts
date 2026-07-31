@@ -92,17 +92,19 @@ describe('internal/entry/create.createInternal', () => {
       expect(candidateSpy).not.toHaveBeenCalled()
     })
 
-    it('persists a caller-provided valid content hash without recomputing it', async () => {
-      const contentHash = 'sha256-truncated:deadbeef00'
+    it('derives the hash from actual bytes even if an untyped caller injects contentHash', async () => {
+      const suppliedHash = 'xxh3-64:deadbeefdeadbeef'
+      const data = new Uint8Array([0x01])
       const entry = await createInternal(deps, {
         source: 'bytes',
-        data: new Uint8Array([0x01]),
+        data,
         name: 'provided',
         ext: 'bin',
-        contentHash
+        contentHash: suppliedHash
       } as never)
       if (entry.origin !== 'internal') throw new Error('expected internal entry')
-      expect(entry.contentHash).toBe(contentHash)
+      expect(entry.contentHash).toBe(hashContent(data))
+      expect(entry.contentHash).not.toBe(suppliedHash)
     })
 
     it('writes a row that survives schema parse (brand contract)', async () => {

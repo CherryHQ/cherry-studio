@@ -235,6 +235,7 @@
           "discard_and_continue": "Отменить и продолжить",
           "title": "Отменить несохранённые изменения?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Не удалось перезагрузить последнее содержимое файла.",
         "save_failed": "Не удалось сохранить этот файл. Автоматическое сохранение приостановлено до тех пор, пока вы не повторите попытку или не отмените изменения.",
         "unsaved": "Несохранённый",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Сохранение заблокировано, так как не удалось загрузить заметку",
     "save_failed": "Не удалось сохранить заметку",
     "save_failure": {
-      "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено."
+      "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Название+содержание",

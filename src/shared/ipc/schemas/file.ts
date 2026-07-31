@@ -8,9 +8,11 @@ import {
 } from '@shared/data/types/file'
 import {
   AbsoluteFilePathSchema,
+  Base64StringSchema,
   FileVersionSchema,
   PhysicalFileMetadataSchema,
-  SafeExtSchema
+  SafeExtSchema,
+  UrlStringSchema
 } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -60,39 +62,32 @@ const binaryReadResultSchema = z.strictObject({
 })
 
 const writeIfUnchangedInputSchema = z.strictObject({
-  path: AbsoluteFilePathSchema,
+  handle: FileHandleSchema,
   data: uint8ArraySchema,
-  expectedVersion: FileVersionSchema
+  expectedVersion: FileVersionSchema,
+  expectedContentHash: ContentHashSchema.optional()
 })
 
-// TODO(file-ipc): Unify these schemas with the branded transport types in
-// `src/shared/types/file/ipc.ts`. `AbsoluteFilePath`, `Base64String`, and `UrlString` are
-// TS-only aliases while their runtime schemas live elsewhere, so a successful
-// Zod parse still cannot prove `CreateInternalEntryIpcParams` without an `as`
-// cast in the handler. Keeping the type and schema definitions separate risks
-// future drift; refactor them to share one source of truth before migrating the
-// remaining File IPC surface.
-const createInternalEntryInputSchema = z.discriminatedUnion('source', [
+export const createInternalEntryInputSchema = z.discriminatedUnion('source', [
   z.strictObject({
     source: z.literal('path'),
-    path: AbsoluteFilePathSchema,
-    contentHash: ContentHashSchema.optional()
+    path: AbsoluteFilePathSchema
   }),
-  z.strictObject({ source: z.literal('url'), url: z.url(), contentHash: ContentHashSchema.optional() }),
+  z.strictObject({ source: z.literal('url'), url: UrlStringSchema }),
   z.strictObject({
     source: z.literal('base64'),
-    data: z.string().min(1),
-    name: SafeNameSchema.optional(),
-    contentHash: ContentHashSchema.optional()
+    data: Base64StringSchema,
+    name: SafeNameSchema.optional()
   }),
   z.strictObject({
     source: z.literal('bytes'),
-    data: z.instanceof(Uint8Array),
+    data: uint8ArraySchema,
     name: SafeNameSchema,
-    ext: SafeExtSchema.nullable(),
-    contentHash: ContentHashSchema.optional()
+    ext: SafeExtSchema.nullable()
   })
 ])
+
+export type CreateInternalEntryInput = z.infer<typeof createInternalEntryInputSchema>
 
 const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)

@@ -3,8 +3,9 @@
  * for user-provided absolute paths.
  *
  * Pure functions taking `FileManagerDeps` as the first argument. Each source
- * variant resolves to a normalized `{ name, ext, bytes }` triple, then writes
- * via `atomicWriteFile` and inserts the row through `fileEntryService.create`.
+ * variant resolves to normalized display metadata plus a prepared writer,
+ * then commits the prepared bytes and inserts their derived size/hash through
+ * `fileEntryService.create`.
  * On DB failure the just-written physical file is best-effort unlinked so the
  * `{userData}/Data/Files/` tree never carries orphan internal blobs from a failed
  * create flow.
@@ -15,11 +16,10 @@ import { realpath } from 'node:fs/promises'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
-  atomicWriteFile,
-  copy as fsCopy,
-  download,
-  hash as fsHash,
-  hashContent,
+  prepareAtomicCopy,
+  prepareAtomicDownload,
+  prepareAtomicWrite,
+  type PreparedAtomicWrite,
   remove as fsRemove,
   stat as fsStat
 } from '@main/utils/file'
@@ -63,8 +63,7 @@ async function bestEffortCleanup(physical: AbsoluteFilePath, context: string): P
 interface NormalisedSource {
   name: string
   ext: string | null
-  bytes?: Uint8Array
-  writeTo(target: AbsoluteFilePath): Promise<void>
+  prepare(target: AbsoluteFilePath): Promise<PreparedAtomicWrite>
 }
 
 const BASE64_DATA_URI = /^data:([^;,]+);base64,(.+)$/
@@ -75,8 +74,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name,
       ext: params.ext,
-      bytes: data,
-      writeTo: (target) => atomicWriteFile(target, data)
+      prepare: (target) => prepareAtomicWrite(target, data)
     }
   }
   if (params.source === 'base64') {
@@ -91,8 +89,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name ?? `Pasted ${new Date().toISOString().slice(0, 10)}`,
       ext: ext ?? null,
-      bytes: new Uint8Array(bytes),
-      writeTo: (target) => atomicWriteFile(target, new Uint8Array(bytes))
+      prepare: (target) => prepareAtomicWrite(target, new Uint8Array(bytes))
     }
   }
   if (params.source === 'path') {
@@ -100,7 +97,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: basenameWithoutExt(src),
       ext: extWithoutDot(src),
-      writeTo: (target) => fsCopy(src, target)
+      prepare: (target) => prepareAtomicCopy(src, target)
     }
   }
   // url
@@ -108,7 +105,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
   return {
     name: urlTail(url),
     ext: extWithoutDot(url),
-    writeTo: (target) => download(url, target)
+    prepare: (target) => prepareAtomicDownload(url, target)
   }
 }
 
@@ -151,13 +148,11 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const id = uuidv7()
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
   const physical = AbsoluteFilePathSchema.parse(application.getPath('feature.files.data', filename))
-  await source.writeTo(physical)
-  let stats
-  let contentHash
+  const prepared = await source.prepare(physical)
   try {
-    stats = await fsStat(physical)
-    contentHash = params.contentHash ?? (source.bytes ? hashContent(source.bytes) : await fsHash(physical))
+    await prepared.commit()
   } catch (err) {
+    await prepared.abort()
     await bestEffortCleanup(physical, 'createInternal:metadata-failed')
     throw err
   }
@@ -167,8 +162,8 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       origin: 'internal',
       name: source.name,
       ext: source.ext,
-      size: stats.size,
-      contentHash
+      size: prepared.size,
+      contentHash: prepared.contentHash
     })
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })

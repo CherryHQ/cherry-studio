@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
+  assertOutsideManagedStorageMutationMock,
   getMetadataByPathMock,
   readByPathMock,
   readChunkByPathMock,
@@ -13,6 +14,7 @@ const {
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  assertOutsideManagedStorageMutationMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
@@ -25,6 +27,23 @@ vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
   return {
+    ContentCommittedMetadataPendingError: class ContentCommittedMetadataPendingError extends Error {
+      constructor(
+        readonly entryId: string,
+        readonly version: { mtime: number; size: number }
+      ) {
+        super('metadata pending')
+      }
+    },
+    StaleVersionError: class StaleVersionError extends Error {
+      constructor(
+        readonly expected: { mtime: number; size: number },
+        readonly current: { mtime: number; size: number }
+      ) {
+        super('stale')
+      }
+    },
+    assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
@@ -35,6 +54,7 @@ vi.mock('@main/services/file', async () => {
   }
 })
 
+import { ContentCommittedMetadataPendingError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 
@@ -67,6 +87,7 @@ const fileManager = {
   readChunk: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
+  writeIfUnchanged: vi.fn(),
   batchCreateInternalEntries: vi.fn()
 }
 
@@ -126,7 +147,7 @@ describe('fileHandlers', () => {
     await expect(
       fileHandlers['file.write_if_unchanged'](
         {
-          path: '/tmp/report.md' as AbsoluteFilePath,
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
           data,
           expectedVersion
         },
@@ -134,7 +155,29 @@ describe('fileHandlers', () => {
       )
     ).resolves.toBe(nextVersion)
 
-    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion)
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion, undefined)
+  })
+
+  it('writes a managed entry through FileManager', async () => {
+    const data = new Uint8Array([5, 6])
+    const expectedVersion = { mtime: 1, size: 4 }
+    const nextVersion = { mtime: 2, size: 2 }
+    fileManager.writeIfUnchanged.mockResolvedValueOnce(nextVersion)
+
+    await expect(
+      fileHandlers['file.write_if_unchanged'](
+        {
+          handle: { kind: 'entry', entryId: ids[0] },
+          data,
+          expectedVersion
+        },
+        ctx
+      )
+    ).resolves.toBe(nextVersion)
+
+    expect(fileManager.writeIfUnchanged).toHaveBeenCalledWith(ids[0], data, expectedVersion, undefined)
+    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
   })
 
   it('maps path version conflicts to FILE_STALE_VERSION', async () => {
@@ -146,12 +189,39 @@ describe('fileHandlers', () => {
     )
     await expect(
       fileHandlers['file.write_if_unchanged'](
-        { path: '/tmp/report.md' as AbsoluteFilePath, data, expectedVersion: expected },
+        {
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+          data,
+          expectedVersion: expected
+        },
         ctx
       )
     ).rejects.toMatchObject({
       code: fileErrorCodes.STALE_VERSION,
       data: { expected, current }
+    })
+  })
+
+  it('maps committed bytes with pending metadata to the stable IPC error code', async () => {
+    const data = new Uint8Array([5, 6])
+    const expectedVersion = { mtime: 1, size: 4 }
+    const committedVersion = { mtime: 2, size: 2 }
+    fileManager.writeIfUnchanged.mockRejectedValueOnce(
+      new ContentCommittedMetadataPendingError(ids[0], committedVersion)
+    )
+
+    await expect(
+      fileHandlers['file.write_if_unchanged'](
+        {
+          handle: { kind: 'entry', entryId: ids[0] },
+          data,
+          expectedVersion
+        },
+        ctx
+      )
+    ).rejects.toMatchObject({
+      code: fileErrorCodes.COMMITTED_METADATA_PENDING,
+      data: { entryId: ids[0], version: committedVersion }
     })
   })
 

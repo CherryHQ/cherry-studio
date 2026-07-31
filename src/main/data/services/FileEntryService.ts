@@ -79,16 +79,21 @@ const CreateFileEntryRowSchema = z.discriminatedUnion('origin', [
 export type CreateFileEntryRow = z.input<typeof CreateFileEntryRowSchema>
 
 /**
- * Columns that may be mutated post-insert. Origin / id / externalPath are
- * immutable. Note `size` is included because internal-file writes update the
- * byte count atomically; on external rows it must remain `null`.
+ * Columns that may be mutated through the generic update surface. Origin / id /
+ * externalPath and bytes-derived metadata are intentionally excluded; content
+ * commits use the dedicated begin / complete / restore methods below.
  */
 export interface UpdateFileEntryRow {
   readonly name?: string
   readonly ext?: string | null
-  readonly size?: number
-  readonly contentHash?: ContentHash | null
   readonly deletedAt?: number | null
+}
+
+export interface InternalContentCommitSnapshot {
+  readonly size: number
+  readonly contentHash: ContentHash | null
+  readonly updatedAt: number
+  readonly commitAt: number
 }
 
 export interface FindEntriesQuery {
@@ -171,8 +176,17 @@ export interface FileEntryService {
   /** Keyset page of internal rows awaiting content-hash backfill, including trashed rows. */
   findInternalMissingContentHash(afterId: FileEntryId | null, limit: number): InternalFileEntry[]
 
-  /** Fill a missing internal content hash without overwriting a concurrent writer. */
-  updateContentHashIfMissing(id: FileEntryId, contentHash: ContentHash): boolean
+  /** Mark bytes-derived metadata unknown before an internal blob is atomically replaced. */
+  beginInternalContentCommit(id: FileEntryId, commitAt: number): InternalContentCommitSnapshot
+
+  /** Persist metadata derived from the exact bytes committed by a foreground writer. */
+  completeInternalContentCommit(id: FileEntryId, metadata: { size: number; contentHash: ContentHash }): boolean
+
+  /** Restore the pre-write metadata when the filesystem commit did not land. */
+  restoreInternalContentAfterFailedCommit(id: FileEntryId, snapshot: InternalContentCommitSnapshot): boolean
+
+  /** Repair unknown bytes-derived metadata without changing user-visible timestamps. */
+  repairInternalContentMetadataIfUnknown(id: FileEntryId, metadata: { size: number; contentHash: ContentHash }): boolean
 
   /**
    * Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted.
@@ -484,15 +498,71 @@ class FileEntryServiceImpl implements FileEntryService {
     })
   }
 
-  updateContentHashIfMissing(id: FileEntryId, contentHash: ContentHash): boolean {
-    const parsed = ContentHashSchema.parse(contentHash)
+  beginInternalContentCommit(id: FileEntryId, commitAt: number): InternalContentCommitSnapshot {
+    return application.get('DbService').withWriteTx((tx) => {
+      const row = tx
+        .select({
+          size: fileEntryTable.size,
+          contentHash: fileEntryTable.contentHash,
+          updatedAt: fileEntryTable.updatedAt
+        })
+        .from(fileEntryTable)
+        .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal')))
+        .get()
+      if (!row || row.size === null) {
+        throw DataApiErrorFactory.notFound('InternalFileEntry', id)
+      }
+      tx.update(fileEntryTable)
+        .set({ contentHash: null, updatedAt: commitAt })
+        .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal')))
+        .run()
+      return {
+        size: row.size,
+        contentHash: row.contentHash === null ? null : ContentHashSchema.parse(row.contentHash),
+        updatedAt: row.updatedAt,
+        commitAt
+      }
+    })
+  }
+
+  completeInternalContentCommit(id: FileEntryId, metadata: { size: number; contentHash: ContentHash }): boolean {
+    const size = InternalEntrySchema.shape.size.parse(metadata.size)
+    const contentHash = ContentHashSchema.parse(metadata.contentHash)
     const rows = this.getDb()
       .update(fileEntryTable)
-      .set({ contentHash: parsed, updatedAt: Date.now() })
+      .set({
+        size,
+        contentHash,
+        updatedAt: sql`${fileEntryTable.updatedAt}`
+      })
       .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
       .returning({ id: fileEntryTable.id })
       .all()
     return rows.length > 0
+  }
+
+  restoreInternalContentAfterFailedCommit(id: FileEntryId, snapshot: InternalContentCommitSnapshot): boolean {
+    const rows = this.getDb()
+      .update(fileEntryTable)
+      .set({
+        size: snapshot.size,
+        contentHash: snapshot.contentHash,
+        updatedAt: sql`CASE WHEN ${fileEntryTable.updatedAt} = ${snapshot.commitAt}
+          THEN ${snapshot.updatedAt}
+          ELSE ${fileEntryTable.updatedAt}
+        END`
+      })
+      .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
+      .returning({ id: fileEntryTable.id })
+      .all()
+    return rows.length > 0
+  }
+
+  repairInternalContentMetadataIfUnknown(
+    id: FileEntryId,
+    metadata: { size: number; contentHash: ContentHash }
+  ): boolean {
+    return this.completeInternalContentCommit(id, metadata)
   }
 
   findMany(query: FindEntriesQuery = {}): FileEntry[] {
@@ -669,14 +739,11 @@ class FileEntryServiceImpl implements FileEntryService {
     // un-parseable.
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
     if (values.ext !== undefined) InternalEntrySchema.shape.ext.parse(values.ext)
-    if (values.contentHash !== undefined) ContentHashSchema.nullable().parse(values.contentHash)
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
     if (values.name !== undefined) updates.name = values.name
     if (values.ext !== undefined) updates.ext = values.ext
-    if (values.size !== undefined) updates.size = values.size
-    if (values.contentHash !== undefined) updates.contentHash = values.contentHash
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
     const rows = tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning().all()
     if (rows.length === 0) {

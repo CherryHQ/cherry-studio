@@ -225,6 +225,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     isSaving: mocks.sessionIsSaving,
     conflict: false,
     saveError: mocks.sessionSaveError,
+    metadataRecoveryPending: false,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,

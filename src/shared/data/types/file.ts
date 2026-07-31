@@ -226,8 +226,9 @@ const CommonEntryFields = {
  *
  * Variant-only fields: `size` (authoritative byte count), `deletedAt`
  * (optional, present and non-null when entry is trashed), and `contentHash`
- * (nullable while legacy rows await backfill). `externalPath` is absent on
- * this variant — there is no user-provided path. The DB row carries
+ * (nullable while metadata is unknown, a content commit is in-flight, or a
+ * repair is pending). `externalPath` is absent on this variant — there is no
+ * user-provided path. The DB row carries
  * `externalPath: null` to satisfy the table schema; the BO dispatcher drops it.
  */
 export const InternalEntrySchema = z.strictObject({
@@ -238,7 +239,7 @@ export const InternalEntrySchema = z.strictObject({
    * this value is authoritative and kept in sync with the backing file on disk.
    */
   size: z.int().nonnegative(),
-  /** Algorithm-tagged content hash. Null only while an existing row awaits backfill. */
+  /** Algorithm-tagged content hash. Null means unknown, in-flight, or awaiting repair. */
   contentHash: ContentHashSchema.nullable(),
   /**
    * Trash timestamp (ms epoch). Optional — present and non-null when the

@@ -87,19 +87,16 @@ export type CreateInternalEntryIpcParams =
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
       path: AbsoluteFilePath
-      contentHash?: ContentHash
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
-      contentHash?: ContentHash
     }
   | {
       /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
       source: 'base64'
       data: Base64String
-      contentHash?: ContentHash
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
     }
@@ -107,7 +104,6 @@ export type CreateInternalEntryIpcParams =
       /** Write raw bytes into Cherry storage. No derivation possible — caller is the sole authority for `name` and `ext`. */
       source: 'bytes'
       data: Uint8Array
-      contentHash?: ContentHash
       /** Display name without extension. */
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
@@ -407,9 +403,9 @@ export interface FileIpcApi {
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — the generic FileHandle API is not yet wired. ArtifactPane uses
-   * the narrower path-only IpcApi route `file.write_if_unchanged`, whose OCC
-   * input is `FileVersion` only.
+   * @phase 2 — wired through the generic `file.write_if_unchanged` IpcApi
+   * route. Entry handles use FileManager's managed commit protocol; path
+   * handles use the guarded path-only OCC primitive.
    */
   writeIfUnchanged(
     handle: FileHandle,

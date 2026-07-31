@@ -235,6 +235,7 @@
           "discard_and_continue": "Renunță și continuă",
           "title": "Renunțați la modificările nesalvate?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Nu se poate reîncărca conținutul celui mai recent fișier.",
         "save_failed": "Nu s-a putut salva acest fișier. Salvarea automată este întreruptă până când reîncercați sau renunțați la modificări.",
         "unsaved": "Nesalvat",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Salvarea a fost blocată deoarece nota nu a putut fi încărcată",
     "save_failed": "Nu s-a reușit salvarea notei",
     "save_failure": {
-      "description": "Această notă nu a putut fi salvată. Editările tale rămân în editor și salvarea automată este întreruptă."
+      "description": "Această notă nu a putut fi salvată. Editările tale rămân în editor și salvarea automată este întreruptă.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nume+Conținut",

@@ -235,6 +235,7 @@
           "discard_and_continue": "Jeter et continuer",
           "title": "Supprimer les modifications non enregistrées ?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Impossible de recharger le contenu du fichier le plus récent.",
         "save_failed": "Impossible d'enregistrer ce fichier. L'enregistrement automatique est suspendu jusqu'à ce que vous réessayiez ou abandonniez les modifications.",
         "unsaved": "Non enregistré",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Enregistrement bloqué car la note n’a pas pu se charger",
     "save_failed": "Échec de l'enregistrement de la note",
     "save_failure": {
-      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu."
+      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nom + Contenu",

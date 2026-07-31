@@ -1,9 +1,10 @@
 /**
  * Write content to a managed FileEntry.
  *
- * Each write goes through `atomicWriteFile` (or
- * `atomicWriteIfUnchanged`) and updates DB / versionCache accordingly:
- * - internal origin: DB `size` is updated to the new byte count
+ * Each write prepares a durable same-directory tmp file, then commits it and
+ * updates DB / versionCache accordingly:
+ * - internal origin: DB `size` / `contentHash` are derived from the prepared
+ *   byte stream and committed through the recoverable metadata protocol
  * - external origin: DB `size` stays `null` (CHECK enforces) — only mtime
  *   changes are observable, so the row is left untouched
  *
@@ -14,39 +15,88 @@
 import { loggerService } from '@logger'
 import type { AtomicWriteStream } from '@main/utils/file'
 import {
+  assertPathVersionUnchanged,
   atomicWriteFile,
   atomicWriteIfUnchanged,
-  createAtomicWriteStream,
-  hash as fsHash,
-  hashContent,
+  createPreparedAtomicWriteStream,
   PathStaleVersionError,
-  stat as fsStat
+  prepareAtomicWrite,
+  type PreparedAtomicWrite
 } from '@main/utils/file'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { type FileVersion, StaleVersionError } from '../../FileManager'
+import { ContentCommittedMetadataPendingError, type FileVersion, StaleVersionError } from '../../FileManager'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('file/internal/write')
 
+async function commitPreparedForEntry(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  origin: 'internal' | 'external',
+  prepared: PreparedAtomicWrite
+): Promise<FileVersion> {
+  const snapshot = origin === 'internal' ? deps.fileEntryService.beginInternalContentCommit(id, Date.now()) : undefined
+
+  let version: FileVersion
+  try {
+    version = await prepared.commit()
+  } catch (error) {
+    if (snapshot) {
+      try {
+        if (!deps.fileEntryService.restoreInternalContentAfterFailedCommit(id, snapshot)) {
+          logger.error('content commit: metadata restore did not match a pending internal entry', {
+            code: 'WRITE_DB_RESTORE_FAILED',
+            id
+          })
+        }
+      } catch (restoreError) {
+        logger.error('content commit: failed to restore metadata after filesystem commit failure', {
+          code: 'WRITE_DB_RESTORE_FAILED',
+          id,
+          restoreError
+        })
+      }
+    }
+    throw error
+  }
+
+  try {
+    if (
+      origin === 'internal' &&
+      !deps.fileEntryService.completeInternalContentCommit(id, {
+        size: prepared.size,
+        contentHash: prepared.contentHash
+      })
+    ) {
+      throw new Error(`Internal entry ${id} vanished or content metadata was no longer pending`)
+    }
+  } catch (error) {
+    deps.versionCache.set(id, version)
+    logger.error('content commit: bytes committed but metadata finalize failed', {
+      code: 'WRITE_DB_DESYNC',
+      id,
+      error
+    })
+    throw new ContentCommittedMetadataPendingError(id, version, { cause: error })
+  }
+
+  deps.versionCache.set(id, version)
+  return version
+}
+
 export async function write(deps: FileManagerDeps, id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
   return deps.contentWriteLock.runExclusive(id, async () => {
     const entry = deps.fileEntryService.getById(id)
     const physical = resolvePhysicalPath(entry)
-    await atomicWriteFile(physical, data)
+    const prepared = await prepareAtomicWrite(physical, data)
     try {
-      const s = await fsStat(physical)
-      const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
-      if (entry.origin === 'internal') {
-        deps.fileEntryService.update(id, { size: version.size, contentHash: hashContent(data) })
-      }
-      deps.versionCache.set(id, version)
-      return version
-    } catch (err) {
-      logger.error('write: post-commit metadata sync failed', { code: 'WRITE_DB_DESYNC', id, err })
-      throw err
+      return await commitPreparedForEntry(deps, id, entry.origin, prepared)
+    } catch (error) {
+      await prepared.abort()
+      throw error
     }
   })
 }
@@ -61,25 +111,21 @@ export async function writeIfUnchanged(
   return deps.contentWriteLock.runExclusive(id, async () => {
     const entry = deps.fileEntryService.getById(id)
     const physical = resolvePhysicalPath(entry)
-    let next: FileVersion
+    const prepared = await prepareAtomicWrite(physical, data)
     try {
-      const out = await atomicWriteIfUnchanged(physical, data, expected, expectedContentHash)
-      next = { mtime: out.mtime, size: out.size }
+      await assertPathVersionUnchanged(physical, expected, expectedContentHash)
     } catch (err) {
+      await prepared.abort()
       if (err instanceof PathStaleVersionError) {
         throw new StaleVersionError(id, expected, err.current)
       }
       throw err
     }
     try {
-      if (entry.origin === 'internal') {
-        deps.fileEntryService.update(id, { size: next.size, contentHash: hashContent(data) })
-      }
-      deps.versionCache.set(id, next)
-      return next
-    } catch (err) {
-      logger.error('writeIfUnchanged: post-commit metadata sync failed', { code: 'WRITE_DB_DESYNC', id, err })
-      throw err
+      return await commitPreparedForEntry(deps, id, entry.origin, prepared)
+    } catch (error) {
+      await prepared.abort()
+      throw error
     }
   })
 }
@@ -89,34 +135,18 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
   try {
     const entry = deps.fileEntryService.getById(id)
     const physical = resolvePhysicalPath(entry)
-    const stream = createAtomicWriteStream(physical)
-    let finishStarted = false
-    const releaseBeforeFinish = () => {
-      if (!finishStarted) release()
-    }
-    stream.once('finish', () => {
-      finishStarted = true
-      void (async () => {
-        try {
-          const s = await fsStat(physical)
-          const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
-          if (entry.origin === 'internal') {
-            deps.fileEntryService.update(id, { size: version.size, contentHash: await fsHash(physical) })
-          }
-          deps.versionCache.set(id, version)
-        } catch (err) {
-          logger.error('createWriteStream: post-commit metadata sync failed', {
-            code: 'WRITE_STREAM_DB_DESYNC',
-            id,
-            err
-          })
-        } finally {
-          release()
-        }
-      })()
+    const stream = createPreparedAtomicWriteStream(physical, async (prepared) => {
+      await commitPreparedForEntry(deps, id, entry.origin, prepared)
     })
-    stream.once('error', releaseBeforeFinish)
-    stream.once('close', releaseBeforeFinish)
+    let released = false
+    const releaseOnce = () => {
+      if (released) return
+      released = true
+      release()
+    }
+    stream.once('finish', releaseOnce)
+    stream.once('error', releaseOnce)
+    stream.once('close', releaseOnce)
     return stream
   } catch (error) {
     release()

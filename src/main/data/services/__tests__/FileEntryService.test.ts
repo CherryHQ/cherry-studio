@@ -298,7 +298,7 @@ describe('FileEntryService', () => {
         fileEntryService.create({ id, origin: 'internal', name: `missing-${index}`, ext: 'txt', size: 1 })
       }
       fileEntryService.update(ids[1], { deletedAt: Date.now() })
-      fileEntryService.update(ids[2], { contentHash: hash })
+      fileEntryService.repairInternalContentMetadataIfUnknown(ids[2], { size: 1, contentHash: hash })
       fileEntryService.create({
         origin: 'external',
         name: 'external',
@@ -320,9 +320,85 @@ describe('FileEntryService', () => {
       const staleHash = 'xxh3-64:2222222222222222' as ContentHash
       fileEntryService.create({ id, origin: 'internal', name: 'missing', ext: 'txt', size: 1 })
 
-      expect(fileEntryService.updateContentHashIfMissing(id, firstHash)).toBe(true)
-      expect(fileEntryService.updateContentHashIfMissing(id, staleHash)).toBe(false)
+      expect(fileEntryService.repairInternalContentMetadataIfUnknown(id, { size: 1, contentHash: firstHash })).toBe(
+        true
+      )
+      expect(fileEntryService.repairInternalContentMetadataIfUnknown(id, { size: 1, contentHash: staleHash })).toBe(
+        false
+      )
       expect(fileEntryService.getById(id)).toMatchObject({ contentHash: firstHash })
+    })
+
+    it('commits exact bytes metadata without overwriting a concurrent updatedAt', () => {
+      const id = '019606a0-0000-7000-8000-000000000045' as FileEntryId
+      const oldHash = 'xxh3-64:1111111111111111' as ContentHash
+      const nextHash = 'xxh3-64:2222222222222222' as ContentHash
+      fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'before',
+        ext: 'txt',
+        size: 1,
+        contentHash: oldHash
+      })
+      const original = fileEntryService.getById(id)
+      const commitAt = original.updatedAt + 10
+
+      const snapshot = fileEntryService.beginInternalContentCommit(id, commitAt)
+      expect(snapshot).toEqual({
+        size: 1,
+        contentHash: oldHash,
+        updatedAt: original.updatedAt,
+        commitAt
+      })
+      expect(fileEntryService.getById(id)).toMatchObject({ contentHash: null, updatedAt: commitAt })
+
+      const renamed = fileEntryService.update(id, { name: 'concurrent' })
+      expect(fileEntryService.completeInternalContentCommit(id, { size: 4, contentHash: nextHash })).toBe(true)
+      expect(fileEntryService.getById(id)).toMatchObject({
+        name: 'concurrent',
+        size: 4,
+        contentHash: nextHash,
+        updatedAt: renamed.updatedAt
+      })
+    })
+
+    it('restores old bytes metadata and timestamp after a failed filesystem commit', () => {
+      const id = '019606a0-0000-7000-8000-000000000046' as FileEntryId
+      const oldHash = 'xxh3-64:3333333333333333' as ContentHash
+      fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'restore',
+        ext: 'txt',
+        size: 3,
+        contentHash: oldHash
+      })
+      const original = fileEntryService.getById(id)
+      const snapshot = fileEntryService.beginInternalContentCommit(id, original.updatedAt + 10)
+
+      expect(fileEntryService.restoreInternalContentAfterFailedCommit(id, snapshot)).toBe(true)
+      expect(fileEntryService.getById(id)).toMatchObject({
+        size: 3,
+        contentHash: oldHash,
+        updatedAt: original.updatedAt
+      })
+    })
+
+    it('repairs null bytes metadata without changing updatedAt', () => {
+      const id = '019606a0-0000-7000-8000-000000000047' as FileEntryId
+      const repairedHash = 'xxh3-64:4444444444444444' as ContentHash
+      fileEntryService.create({ id, origin: 'internal', name: 'repair', ext: 'txt', size: 1 })
+      const before = fileEntryService.getById(id)
+
+      expect(fileEntryService.repairInternalContentMetadataIfUnknown(id, { size: 9, contentHash: repairedHash })).toBe(
+        true
+      )
+      expect(fileEntryService.getById(id)).toMatchObject({
+        size: 9,
+        contentHash: repairedHash,
+        updatedAt: before.updatedAt
+      })
     })
   })
 
@@ -1203,13 +1279,6 @@ describe('FileEntryService', () => {
       const updated = fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
       expect(updated.deletedAt).toBe(deletedAt)
-    })
-
-    it('updates an internal content hash', () => {
-      const id = '019606a0-0000-7000-8000-000000000b03' as FileEntryId
-      const contentHash = 'xxh3-64:9555e8555c62dcfd' as ContentHash
-      fileEntryService.create({ id, origin: 'internal', name: 'hash', ext: 'txt', size: 1 })
-      expect(fileEntryService.update(id, { contentHash })).toMatchObject({ contentHash })
     })
 
     it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {

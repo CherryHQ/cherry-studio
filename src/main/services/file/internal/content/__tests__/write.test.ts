@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -27,7 +27,7 @@ const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
 const { write, writeIfUnchanged } = await import('../write')
 const { createInternal, ensureExternal } = await import('../../entry/create')
-const { StaleVersionError } = await import('../../../FileManager')
+const { ContentCommittedMetadataPendingError, StaleVersionError } = await import('../../../FileManager')
 
 import type { FileVersion } from '../../../FileManager'
 import type { FileManagerDeps } from '../../deps'
@@ -134,12 +134,7 @@ describe('internal/content/write', () => {
       expect(refreshed).not.toHaveProperty('contentHash')
     })
 
-    it('logs WRITE_DB_DESYNC and rethrows when post-commit metadata sync fails', async () => {
-      // Regression: previously the post-commit `fsStat` / `update({size})` /
-      // `versionCache.set` ran unprotected. A SQLITE_BUSY or `update` reject
-      // surfaced to the caller as-is, with no log distinguishing
-      // "FS already committed but DB lags" from "write itself failed". This
-      // mirrors the createWriteStream WRITE_STREAM_DB_DESYNC contract.
+    it('leaves a null recovery marker and throws the typed pending error when DB finalization fails', async () => {
       const e = await createInternal(deps, {
         source: 'bytes',
         data: new Uint8Array([0x01]),
@@ -147,22 +142,48 @@ describe('internal/content/write', () => {
         ext: 'bin'
       })
       const updateErr = new Error('SQLITE_BUSY: database is locked')
-      vi.spyOn(fileEntryService, 'update').mockImplementationOnce(() => {
+      vi.spyOn(fileEntryService, 'completeInternalContentCommit').mockImplementationOnce(() => {
         throw updateErr
       })
       mockLoggerError.mockClear()
 
-      await expect(write(deps, e.id, new Uint8Array([0xaa, 0xbb, 0xcc]))).rejects.toBe(updateErr)
+      let error: unknown
+      try {
+        await write(deps, e.id, new Uint8Array([0xaa, 0xbb, 0xcc]))
+      } catch (caught) {
+        error = caught
+      }
+      expect(error).toBeInstanceOf(ContentCommittedMetadataPendingError)
+      expect(error).toMatchObject({ entryId: e.id })
 
-      // FS write actually committed before the DB sync failed.
       const physical = path.join(filesDir, `${e.id}.bin`)
       const onDisk = await readFile(physical)
       expect(Array.from(onDisk)).toEqual([0xaa, 0xbb, 0xcc])
+      expect(fileEntryService.getById(e.id)).toMatchObject({ contentHash: null })
+      expect(cacheStore.get(e.id)).toMatchObject({ size: 3 })
 
       expect(mockLoggerError).toHaveBeenCalledWith(
-        'write: post-commit metadata sync failed',
-        expect.objectContaining({ code: 'WRITE_DB_DESYNC', id: e.id, err: updateErr })
+        'content commit: bytes committed but metadata finalize failed',
+        expect.objectContaining({ code: 'WRITE_DB_DESYNC', id: e.id, error: updateErr })
       )
+    })
+
+    it('keeps old bytes and metadata when the pending DB update fails before rename', async () => {
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'pending-failure',
+        ext: 'bin'
+      })
+      const before = fileEntryService.getById(e.id)
+      vi.spyOn(fileEntryService, 'beginInternalContentCommit').mockImplementationOnce(() => {
+        throw new Error('SQLITE_BUSY before rename')
+      })
+
+      await expect(write(deps, e.id, new Uint8Array([0x02, 0x03]))).rejects.toThrow('SQLITE_BUSY before rename')
+      expect(Array.from(await readFile(path.join(filesDir, `${e.id}.bin`)))).toEqual([0x01])
+      expect(fileEntryService.getById(e.id)).toEqual(before)
+      expect((await readdir(filesDir)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
     })
   })
 
@@ -263,32 +284,14 @@ describe('internal/content/write', () => {
   describe('createWriteStream post-commit metadata sync', () => {
     it('holds the shared entry lock until a successful finish completes metadata sync', async () => {
       const { createWriteStream } = await import('../write')
-      const fsModule = await import('@main/utils/file')
       const e = await createInternal(deps, {
         source: 'bytes',
         data: new Uint8Array([0x01]),
         name: 'stream-lock',
         ext: 'bin'
       })
-      let finishHashStarted!: () => void
-      const hashStarted = new Promise<void>((resolve) => {
-        finishHashStarted = resolve
-      })
-      let continueHash!: () => void
-      const hashGate = new Promise<void>((resolve) => {
-        continueHash = resolve
-      })
-      const realHash = fsModule.hash
-      vi.spyOn(fsModule, 'hash').mockImplementationOnce(async (file, signal) => {
-        finishHashStarted()
-        await hashGate
-        return realHash(file, signal)
-      })
 
       const stream = await createWriteStream(deps, e.id)
-      stream.end(Buffer.from('stream payload'))
-      await hashStarted
-
       let entered = false
       const queued = deps.contentWriteLock.runExclusive(e.id, () => {
         entered = true
@@ -296,7 +299,12 @@ describe('internal/content/write', () => {
       await new Promise<void>((resolve) => setImmediate(resolve))
       expect(entered).toBe(false)
 
-      continueHash()
+      const finish = new Promise<void>((resolve, reject) => {
+        stream.once('finish', resolve)
+        stream.once('error', reject)
+      })
+      stream.end(Buffer.from('stream payload'))
+      await finish
       await queued
       expect(entered).toBe(true)
     })
@@ -338,17 +346,11 @@ describe('internal/content/write', () => {
         stream.once('finish', resolve)
         stream.once('error', reject)
       })
-      // The post-commit hook is an async `'finish'` listener that the stream
-      // emitter does not await — `fileEntryService.update` may still be
-      // round-tripping through Drizzle when `'finish'` fires. Poll the DB and
-      // cache until the metadata sync lands (slow CI runners need this).
-      await vi.waitFor(async () => {
-        const refreshed = fileEntryService.getById(e.id)
-        if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
-        expect(refreshed.size).toBe(payload.length)
-        expect(refreshed.contentHash).toBe(hashContent(payload))
-        expect(cacheStore.get(e.id)?.size).toBe(payload.length)
-      })
+      const refreshed = fileEntryService.getById(e.id)
+      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
+      expect(refreshed.size).toBe(payload.length)
+      expect(refreshed.contentHash).toBe(hashContent(payload))
+      expect(cacheStore.get(e.id)?.size).toBe(payload.length)
     })
 
     it('keeps DB size null for external entries after the stream finishes', async () => {
@@ -363,12 +365,7 @@ describe('internal/content/write', () => {
         stream.once('finish', resolve)
         stream.once('error', reject)
       })
-      // The post-commit hook is async — poll until the versionCache update lands.
-      // External entries skip the DB write (no size for externals), so only the
-      // cache assertion is gated by the async hook completing.
-      await vi.waitFor(() => {
-        expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
-      })
+      expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
       const refreshed = fileEntryService.getById(e.id)
       // External BO has no `size` field by construction (live values come from
       // File IPC `getMetadata`); the DB still stores `size: null` per CHECK.
@@ -377,45 +374,7 @@ describe('internal/content/write', () => {
       expect(refreshed).not.toHaveProperty('contentHash')
     })
 
-    it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit re-stat fails', async () => {
-      // Once the atomic rename commits, a failure in the re-stat / DB-size /
-      // versionCache update silently desyncs disk and DB. The log must carry
-      // the stable WRITE_STREAM_DB_DESYNC code and the full err object so
-      // Sentry can group these — a downgrade to .message string would slip
-      // through CI without this assertion.
-      const { createWriteStream } = await import('../write')
-      const fsModule = await import('@main/utils/file')
-      const e = await createInternal(deps, {
-        source: 'bytes',
-        data: new Uint8Array([0x01]),
-        name: 'desync',
-        ext: 'bin'
-      })
-      mockLoggerError.mockClear()
-      const statErr = new Error('post-commit stat boom')
-      vi.spyOn(fsModule, 'stat').mockRejectedValue(statErr)
-      const stream = await createWriteStream(deps, e.id)
-      stream.write(Buffer.from('payload'))
-      stream.end()
-      await new Promise<void>((resolve, reject) => {
-        stream.once('finish', () => setImmediate(resolve))
-        stream.once('error', reject)
-      })
-      // Two microtask hops: the 'finish' handler kicks off the async post-
-      // commit chain, the rejected stat resolves on the next tick.
-      await new Promise<void>((r) => setImmediate(r))
-      await new Promise<void>((r) => setImmediate(r))
-      expect(mockLoggerError).toHaveBeenCalledWith(
-        expect.stringContaining('post-commit'),
-        expect.objectContaining({
-          code: 'WRITE_STREAM_DB_DESYNC',
-          id: e.id,
-          err: statErr
-        })
-      )
-    })
-
-    it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit DB update fails', async () => {
+    it('emits error instead of finish when bytes commit but the DB finalize step fails', async () => {
       const { createWriteStream } = await import('../write')
       const e = await createInternal(deps, {
         source: 'bytes',
@@ -424,23 +383,27 @@ describe('internal/content/write', () => {
         ext: 'bin'
       })
       const updateErr = new Error('SQLITE_BUSY: database is locked')
-      vi.spyOn(fileEntryService, 'update').mockImplementationOnce(() => {
+      vi.spyOn(fileEntryService, 'completeInternalContentCommit').mockImplementationOnce(() => {
         throw updateErr
       })
       mockLoggerError.mockClear()
 
       const stream = await createWriteStream(deps, e.id)
+      const finishSpy = vi.fn()
+      stream.once('finish', finishSpy)
+      const streamError = new Promise<Error>((resolve) => {
+        stream.once('error', resolve)
+      })
       stream.end(Buffer.from('payload'))
-      await new Promise<void>((resolve, reject) => {
-        stream.once('finish', () => setImmediate(resolve))
-        stream.once('error', reject)
-      })
-      await vi.waitFor(() => {
-        expect(mockLoggerError).toHaveBeenCalledWith(
-          'createWriteStream: post-commit metadata sync failed',
-          expect.objectContaining({ code: 'WRITE_STREAM_DB_DESYNC', id: e.id, err: updateErr })
-        )
-      })
+
+      await expect(streamError).resolves.toBeInstanceOf(ContentCommittedMetadataPendingError)
+      expect(finishSpy).not.toHaveBeenCalled()
+      expect(await readFile(path.join(filesDir, `${e.id}.bin`), 'utf-8')).toBe('payload')
+      expect(fileEntryService.getById(e.id)).toMatchObject({ contentHash: null })
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        'content commit: bytes committed but metadata finalize failed',
+        expect.objectContaining({ code: 'WRITE_DB_DESYNC', id: e.id, error: updateErr })
+      )
     })
   })
 })

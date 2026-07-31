@@ -235,6 +235,7 @@
           "discard_and_continue": "Descartar e continuar",
           "title": "Descartar alterações não salvas?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Não foi possível recarregar o conteúdo mais recente do arquivo.",
         "save_failed": "Não foi possível salvar este arquivo. O salvamento automático está pausado até que você tente novamente ou descarte as alterações.",
         "unsaved": "Não salvo",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Salvamento bloqueado porque a nota falhou ao carregar",
     "save_failed": "Falha ao salvar nota",
     "save_failure": {
-      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado."
+      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nome + Conteúdo",

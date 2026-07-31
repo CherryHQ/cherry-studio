@@ -9,6 +9,7 @@ import { hashContent } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -107,6 +108,24 @@ describe('contentHashBackfillJobHandler', () => {
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100, expect.objectContaining({ stage: 'done', total: 0 }))
   })
 
+  it('rebuilds size and hash from one read without changing updatedAt', async () => {
+    const id = '019606a0-0000-7000-8000-000000000300' as FileEntryId
+    const bytes = new Uint8Array([1, 2, 3, 4])
+    await seedInternal(id, bytes)
+    const preservedUpdatedAt = 1234
+    await dbh.db
+      .update(fileEntryTable)
+      .set({ size: 99, updatedAt: preservedUpdatedAt })
+      .where(eq(fileEntryTable.id, id))
+
+    await expect(contentHashBackfillJobHandler.execute(makeCtx())).resolves.toMatchObject({ hashed: 1 })
+    expect(fileEntryService.getById(id)).toMatchObject({
+      size: bytes.length,
+      contentHash: hashContent(bytes),
+      updatedAt: preservedUpdatedAt
+    })
+  })
+
   it('drains more than one 200-row keyset page and ends progress at 100', async () => {
     const rows = Array.from({ length: 201 }, (_, index) => {
       const id = `019606a0-0000-7000-8000-${String(index + 1).padStart(12, '0')}`
@@ -132,7 +151,7 @@ describe('contentHashBackfillJobHandler', () => {
   it.each(['ENOENT', 'ENOTDIR'])('classifies %s hash failures as skipped orphans', async (code) => {
     const id = '019606a0-0000-7000-8000-000000000301' as FileEntryId
     await seedInternal(id, new Uint8Array([1]))
-    vi.spyOn(fileUtils, 'hash').mockRejectedValueOnce(Object.assign(new Error(code), { code }))
+    vi.spyOn(fileUtils, 'hashWithSize').mockRejectedValueOnce(Object.assign(new Error(code), { code }))
     const ctx = makeCtx()
 
     await expect(contentHashBackfillJobHandler.execute(ctx)).resolves.toEqual({
@@ -150,7 +169,7 @@ describe('contentHashBackfillJobHandler', () => {
   it('classifies other hash errors as failed IO and continues', async () => {
     const id = '019606a0-0000-7000-8000-000000000302' as FileEntryId
     await seedInternal(id, new Uint8Array([2]))
-    vi.spyOn(fileUtils, 'hash').mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'EACCES' }))
+    vi.spyOn(fileUtils, 'hashWithSize').mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'EACCES' }))
     const ctx = makeCtx()
 
     await expect(contentHashBackfillJobHandler.execute(ctx)).resolves.toEqual({
@@ -168,7 +187,7 @@ describe('contentHashBackfillJobHandler', () => {
   it('treats a concurrent delete before persist as a skipped orphan', async () => {
     const id = '019606a0-0000-7000-8000-000000000303' as FileEntryId
     await seedInternal(id, new Uint8Array([3]))
-    vi.spyOn(fileEntryService, 'updateContentHashIfMissing').mockImplementationOnce(() => {
+    vi.spyOn(fileEntryService, 'repairInternalContentMetadataIfUnknown').mockImplementationOnce(() => {
       fileEntryService.delete(id)
       return false
     })
@@ -184,7 +203,7 @@ describe('contentHashBackfillJobHandler', () => {
   it('rethrows arbitrary DB persist failures', async () => {
     const id = '019606a0-0000-7000-8000-000000000304' as FileEntryId
     await seedInternal(id, new Uint8Array([4]))
-    vi.spyOn(fileEntryService, 'updateContentHashIfMissing').mockImplementationOnce(() => {
+    vi.spyOn(fileEntryService, 'repairInternalContentMetadataIfUnknown').mockImplementationOnce(() => {
       throw new Error('SQLITE_BUSY')
     })
 
@@ -206,14 +225,14 @@ describe('contentHashBackfillJobHandler', () => {
     const started = new Promise<void>((resolve) => {
       markStarted = resolve
     })
-    vi.spyOn(fileUtils, 'hash').mockImplementationOnce((_path, signal) => {
+    vi.spyOn(fileUtils, 'hashWithSize').mockImplementationOnce((_path, signal) => {
       markStarted()
       if (!signal) return Promise.reject(new Error('missing abort signal'))
       return new Promise((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(signal.reason), { once: true })
       })
     })
-    const updateSpy = vi.spyOn(fileEntryService, 'updateContentHashIfMissing')
+    const updateSpy = vi.spyOn(fileEntryService, 'repairInternalContentMetadataIfUnknown')
     const execution = contentHashBackfillJobHandler.execute(makeCtx(controller.signal))
 
     await started
@@ -239,12 +258,12 @@ describe('contentHashBackfillJobHandler', () => {
     const hashGate = new Promise<void>((resolve) => {
       continueHash = resolve
     })
-    const realHash = fileUtils.hash
-    vi.spyOn(fileUtils, 'hash').mockImplementationOnce(async (file, signal) => {
-      const oldHash = await realHash(file, signal)
+    const realHashWithSize = fileUtils.hashWithSize
+    vi.spyOn(fileUtils, 'hashWithSize').mockImplementationOnce(async (file, signal) => {
+      const oldMetadata = await realHashWithSize(file, signal)
       hashRead()
       await hashGate
-      return oldHash
+      return oldMetadata
     })
 
     const backfill = handler.execute(makeCtx())
