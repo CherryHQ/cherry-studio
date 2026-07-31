@@ -29,7 +29,10 @@ export default defineProvider({
       baseUrl: 'http://localhost:3000'
     }
   },
-  serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }],
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       docs: 'https://docs.newapi.pro',

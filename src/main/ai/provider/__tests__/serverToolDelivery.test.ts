@@ -58,9 +58,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   poe: { 'web-search': { kind: 'provider-options' } },
   gateway: { 'web-search': { kind: 'gateway-mapped' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
-  'new-api': { 'url-context': { kind: 'gateway-mapped' } },
-  'claude-code': { 'url-context': { kind: 'gateway-mapped' } },
-  aionly: { 'url-context': { kind: 'gateway-mapped' } }
+  'new-api': { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
+  'claude-code': { 'url-context': { kind: 'gateway-mapped' } }
 }
 
 const CAPABILITY: Record<string, ToolCapability> = {

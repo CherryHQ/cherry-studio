@@ -52,6 +52,8 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
   },
+  // url-context only, no web-search: web_fetch is free while web_search bills
+  // per use, which the subscription OAuth credential cannot be charged for.
   serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }],
   metadata: {
     website: {

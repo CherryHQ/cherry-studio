@@ -359,13 +359,7 @@
           "official": "https://www.aiionly.com"
         }
       },
-      "name": "AIOnly",
-      "serverTools": [
-        {
-          "id": "url-context",
-          "modelScope": "model-dependent"
-        }
-      ]
+      "name": "AIOnly"
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -654,6 +648,10 @@
       },
       "name": "New API",
       "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
         {
           "id": "url-context",
           "modelScope": "model-dependent"
@@ -2019,5 +2017,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d8a9f60063ad483c"
+  "version": "696b7f71a7c55675"
 }
