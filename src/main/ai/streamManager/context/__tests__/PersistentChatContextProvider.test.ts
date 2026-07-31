@@ -127,16 +127,18 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
-  it('fills a persisted branch draft instead of creating a second user row', async () => {
+  it('regenerates from a filled branch draft without creating a second user row', async () => {
     const draft = messageService.createBranchDraft('topic-1', 'a1')
+    messageService.fillBranchDraft(draft.id, {
+      parts: [{ type: 'text', text: 'new branch question' }]
+    })
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
-        trigger: 'submit-draft-message',
+        trigger: 'regenerate-message',
         topicId: 'topic-1',
-        parentAnchorId: draft.id,
-        userMessageParts: [{ type: 'text', text: 'new branch question' }]
+        parentAnchorId: draft.id
       },
       { hasLiveStream: false }
     )

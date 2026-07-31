@@ -163,10 +163,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         ? { assistantId: undefined, defaultModelId: selectedModelId }
         : resolveAssistantModelId(topic?.assistantId)
 
-    if (ctx.hasLiveStream && req.trigger === 'submit-draft-message') {
-      throw new Error('Cannot submit a branch draft while a stream is live on this topic')
-    }
-
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
       // Stamp the row with the model the user selected for this steer so the continuation answers
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
@@ -197,7 +193,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
-    const isBranchDraftSubmit = req.trigger === 'submit-draft-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
     const isMultiModel = models.length > 1
     const turnOptions: AssistantTurnOptions = {
@@ -222,14 +217,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
-    const userMessageInput = isBranchDraftSubmit
-      ? ({
-          mode: 'branch-draft' as const,
-          id: req.parentAnchorId,
-          data: { parts: req.userMessageParts },
-          modelId: defaultModelId
-        } as const)
-      : req.trigger === 'submit-message'
+    const userMessageInput =
+      req.trigger === 'submit-message'
         ? ({
             mode: 'create' as const,
             dto: {

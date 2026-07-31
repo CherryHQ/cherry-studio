@@ -34,15 +34,15 @@ Per-topic chunks arrive via `onStreamChunk` listeners filtered by
 
 ## Triggers
 
-The renderer opens streams with three public triggers. `IpcChatTransport.sendMessages`
-produces the standard submit and regenerate variants; the Home conversation turn
-controller produces the persisted branch-draft variant directly:
+`IpcChatTransport.sendMessages` distinguishes two triggers:
 
 | Trigger | What it does |
 |---|---|
 | `submit-message` | Includes `userMessageParts` (the latest message) so Main persists it |
-| `submit-draft-message` | Includes the id of an active persisted empty branch user node plus replacement parts; Main fills that row and reserves replies atomically |
 | `regenerate-message` | Sends `parentAnchorId` only; Main re-runs from the existing parent |
+
+Persisted branch drafts are filled first through guarded DataApi message update,
+then open the standard `regenerate-message` flow against that same user-message id.
 
 Cherry's transport never derives `continue-conversation` from
 message-state introspection. Approval-driven resumption goes through the

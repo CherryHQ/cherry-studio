@@ -72,6 +72,12 @@ export const UpdateMessageSchema = z.strictObject({
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
+/** Conditional guard for updates that are allowed to consume only an awaiting-input branch draft. */
+export const UpdateMessageQuerySchema = z.strictObject({
+  awaitingInputOnly: z.boolean().optional()
+})
+export type UpdateMessageQuery = z.infer<typeof UpdateMessageQuerySchema>
+
 /** Start a persisted empty branch below an assistant/system message. */
 export const CreateBranchDraftSchema = z.strictObject({
   parentId: z.string().min(1)
@@ -253,9 +259,14 @@ export type MessageSchemas = {
       params: { id: string }
       response: Message
     }
-    /** Update a message (content, move to new parent, etc.) */
+    /**
+     * Update a message (content, move to new parent, etc.).
+     * `awaitingInputOnly=true` accepts only a data-only update to an active,
+     * empty branch draft and consumes its storage-owned draft marker.
+     */
     PATCH: {
       params: { id: string }
+      query?: UpdateMessageQuery
       body: UpdateMessageDto
       response: Message
     }

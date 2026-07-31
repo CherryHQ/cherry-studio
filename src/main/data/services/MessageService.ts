@@ -75,15 +75,7 @@ export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' 
 
 export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
-  userMessage:
-    | { mode: 'create'; dto: CreateMessageDto }
-    | { mode: 'existing'; id: string }
-    | {
-        mode: 'branch-draft'
-        id: string
-        data: MessageDataInput
-        modelId: UniqueModelId
-      }
+  userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
@@ -1034,6 +1026,68 @@ export class MessageService {
     })
   }
 
+  /**
+   * Consume an awaiting-input branch node by replacing its empty data in place.
+   *
+   * Reply reservation intentionally remains a separate regenerate operation.
+   * If opening that stream later fails, the filled user row stays resendable,
+   * matching the existing edit-and-resend failure model.
+   */
+  fillBranchDraft(id: string, data: MessageDataInput): Message {
+    this.assertBranchDraftMarkerAbsent(data, 'fill branch draft')
+    if ((data.parts?.length ?? 0) === 0) {
+      throw DataApiErrorFactory.invalidOperation('fill branch draft', 'Branch draft content cannot be empty')
+    }
+
+    return application.get('DbService').withWriteTx((tx) => {
+      const [row] = tx
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!row) {
+        throw DataApiErrorFactory.notFound('Message', id)
+      }
+
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, row.topicId)).limit(1).all()
+      if (!topic) {
+        throw DataApiErrorFactory.notFound('Topic', row.topicId)
+      }
+
+      if (
+        row.role !== 'user' ||
+        row.data.isBranchDraft !== true ||
+        (row.data.parts?.length ?? 0) > 0 ||
+        row.status !== 'success' ||
+        topic.activeNodeId !== row.id
+      ) {
+        throw DataApiErrorFactory.invalidOperation('fill branch draft', 'Message is not the active empty branch draft')
+      }
+
+      const [child] = tx
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(and(eq(messageTable.parentId, row.id), isNull(messageTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (child) {
+        throw DataApiErrorFactory.invalidOperation('fill branch draft', 'Branch draft already has a reply')
+      }
+
+      const [updatedRow] = tx
+        .update(messageTable)
+        .set({ data, status: 'success' })
+        .where(eq(messageTable.id, row.id))
+        .returning()
+        .all()
+      replaceChatMessageFileRefsTx(tx, updatedRow.id, data)
+
+      logger.info('Filled branch draft', { id: updatedRow.id, topicId: updatedRow.topicId })
+      return rowToMessage(updatedRow)
+    })
+  }
+
   private createMessage(topicId: string, dto: InternalCreateMessageDto): Message {
     if (
       dto.data.isBranchDraft &&
@@ -1139,9 +1193,6 @@ export class MessageService {
    *   supported here — this API is for chat reservation, not general inserts.
    * - `mode: 'existing'`: caller supplies the id of an already-persisted user
    *   message (regenerate scenario).
-   * - `mode: 'branch-draft'`: atomically fills the active persisted empty user
-   *   branch node before inserting placeholders. Invalid or stale draft ids are
-   *   rejected without changing the row.
    *
    * Siblings backfill: if `siblingsGroupId` is provided, any existing children
    * of the user message whose `siblingsGroupId = 0` are backfilled to it. This
@@ -1158,7 +1209,7 @@ export class MessageService {
         throw DataApiErrorFactory.notFound('Topic', input.topicId)
       }
 
-      // 1. Resolve user message — insert new, fetch existing, or fill a branch draft
+      // 1. Resolve user message — insert new or fetch existing
       let userMessage: Message
       if (input.userMessage.mode === 'create') {
         const dto = input.userMessage.dto
@@ -1195,7 +1246,7 @@ export class MessageService {
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, dto.data)
         userMessage = rowToMessage(row)
-      } else if (input.userMessage.mode === 'existing') {
+      } else {
         const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
         if (!row) {
           throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
@@ -1207,61 +1258,6 @@ export class MessageService {
           )
         }
         userMessage = rowToMessage(row)
-      } else {
-        this.assertBranchDraftMarkerAbsent(input.userMessage.data, 'submit branch draft')
-        const [row] = tx
-          .select()
-          .from(messageTable)
-          .where(and(eq(messageTable.id, input.userMessage.id), isNull(messageTable.deletedAt)))
-          .limit(1)
-          .all()
-        if (!row) {
-          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
-        }
-        if (row.topicId !== input.topicId) {
-          throw DataApiErrorFactory.invalidOperation(
-            'submit branch draft',
-            'Branch draft does not belong to this topic'
-          )
-        }
-        if (
-          row.role !== 'user' ||
-          row.data.isBranchDraft !== true ||
-          (row.data.parts?.length ?? 0) > 0 ||
-          row.status !== 'success' ||
-          topic.activeNodeId !== row.id
-        ) {
-          throw DataApiErrorFactory.invalidOperation(
-            'submit branch draft',
-            'Message is not the active empty branch draft'
-          )
-        }
-        if ((input.userMessage.data.parts?.length ?? 0) === 0) {
-          throw DataApiErrorFactory.invalidOperation('submit branch draft', 'Branch draft content cannot be empty')
-        }
-
-        const [child] = tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(and(eq(messageTable.parentId, row.id), isNull(messageTable.deletedAt)))
-          .limit(1)
-          .all()
-        if (child) {
-          throw DataApiErrorFactory.invalidOperation('submit branch draft', 'Branch draft already has a reply')
-        }
-
-        const [updatedRow] = tx
-          .update(messageTable)
-          .set({
-            data: input.userMessage.data,
-            status: 'success',
-            modelId: input.userMessage.modelId
-          })
-          .where(eq(messageTable.id, row.id))
-          .returning()
-          .all()
-        replaceChatMessageFileRefsTx(tx, updatedRow.id, input.userMessage.data)
-        userMessage = rowToMessage(updatedRow)
       }
 
       // 2. Backfill siblings with groupId=0 under the user message

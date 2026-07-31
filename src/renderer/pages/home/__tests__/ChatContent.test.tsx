@@ -356,6 +356,19 @@ describe('ChatContent', () => {
   })
 
   it('fills the active persisted branch draft on the next send and hides its empty bubble', async () => {
+    const fillBranchDraft = vi.fn().mockResolvedValue({
+      id: 'branch-draft-user',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] }
+    })
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger:
+        method === 'PATCH' && path === '/messages/:id'
+          ? fillBranchDraft
+          : vi.fn(async () => ({ deleted: true, deletedIds: [] })),
+      isLoading: false,
+      error: undefined
+    }))
     const branchDraft = {
       id: 'branch-draft-user',
       role: 'user',
@@ -390,14 +403,19 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
+      expect(fillBranchDraft).toHaveBeenCalledWith({
+        params: { id: branchDraft.id },
+        query: { awaitingInputOnly: true },
+        body: { data: { parts: [{ type: 'text', text: 'hello' }] } }
+      })
       expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
-          trigger: 'submit-draft-message',
+          trigger: 'regenerate-message',
           parentAnchorId: branchDraft.id,
-          topicId: 'topic-1',
-          userMessageParts: [{ type: 'text', text: 'hello' }]
+          topicId: 'topic-1'
         })
       )
+      expect(fillBranchDraft.mock.invocationCallOrder[0]).toBeLessThan(streamOpen.mock.invocationCallOrder[0])
     })
   })
 

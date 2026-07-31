@@ -679,7 +679,7 @@ duplicated; the rest are stream-manager-specific.
 | Flow | Trigger | Mechanism | Terminal / result |
 |---|---|---|---|
 | Submit (standard) | `Ai_Stream_Open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `Ai_StreamDone`; `PersistenceListener.persistAssistant`; chat lifecycle `scheduleCleanup(30 s)` |
-| Submit (persisted branch draft) | `Ai_Stream_Open` | provider validates and fills the active empty branch user row, then reserves placeholders in the same transaction → `manager.send` | same user message id becomes the completed prompt; no second user row |
+| Submit (persisted branch draft) | DataApi `PATCH /messages/:id?awaitingInputOnly=true`, then `Ai_Stream_Open` with `regenerate-message` | DataApi validates and fills the active empty branch user row; the existing regenerate path reserves its first assistant reply → `manager.send` | same user message id becomes the completed prompt; if stream open fails, the filled row remains resendable |
 | Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
 | Agent-session follow-up | `Ai_Stream_Open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
@@ -715,7 +715,7 @@ listener composition:
 
 | Channel | Payload | Response | Semantics |
 |---|---|---|---|
-| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `submit-draft-message` \| `regenerate-message`) | `{ mode, executionIds?, userMessageId?, placeholderIds? }` | Open / inject; provider routes by topicId |
+| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, executionIds?, userMessageId?, placeholderIds? }` | Open / inject; provider routes by topicId |
 | `Ai_Stream_Attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `Ai_Stream_Detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
 | `Ai_Stream_Abort` | `{ topicId }` | void | Stop current generation |

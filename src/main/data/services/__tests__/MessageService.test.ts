@@ -1567,23 +1567,7 @@ describe('MessageService', () => {
         status: 'success'
       })
       const emptyUser = messageService.createBranchDraft('topic-delete-filled-branch', assistant.id)
-      messageService.createUserMessageWithPlaceholders({
-        topicId: 'topic-delete-filled-branch',
-        userMessage: {
-          mode: 'branch-draft',
-          id: emptyUser.id,
-          data: mainText('filled question'),
-          modelId: createUniqueModelId('provider-a', 'model-A')
-        },
-        placeholders: [
-          {
-            role: 'assistant',
-            data: { parts: [] },
-            status: 'pending',
-            modelId: createUniqueModelId('provider-a', 'model-A')
-          }
-        ]
-      })
+      messageService.fillBranchDraft(emptyUser.id, mainText('filled question'))
 
       let err: unknown
       try {
@@ -2064,7 +2048,7 @@ describe('MessageService', () => {
     })
 
     describe('persisted branch draft turn', () => {
-      it('fills the existing draft user row and creates the assistant placeholder atomically', async () => {
+      it('fills the existing draft user row in place and leaves it active for resend', async () => {
         await seedTopic()
         const prompt = messageService.create('topic-1', {
           role: 'user',
@@ -2079,29 +2063,19 @@ describe('MessageService', () => {
           status: 'success'
         })
         const draft = messageService.createBranchDraft('topic-1', anchor.id)
-        const modelId = createUniqueModelId('provider-a', 'model-A')
 
         expect(
           messageService.getTree('topic-1', { depth: -1 }).nodes.find((node) => node.id === draft.id)
         ).toMatchObject({ isBranchDraft: true })
         expect(() => messageService.update(draft.id, { data: mainText('bypass dedicated fill') })).toThrow()
 
-        const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
-          topicId: 'topic-1',
-          userMessage: {
-            mode: 'branch-draft',
-            id: draft.id,
-            data: mainText('new branch question'),
-            modelId
-          },
-          placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending', modelId }]
-        })
+        const userMessage = messageService.fillBranchDraft(draft.id, mainText('new branch question'))
 
         expect(userMessage.id).toBe(draft.id)
         expect(userMessage.data).toEqual(mainText('new branch question'))
         expect(userMessage.data.isBranchDraft).toBeUndefined()
-        expect(userMessage.modelId).toBe(modelId)
-        expect(placeholders[0].parentId).toBe(draft.id)
+        expect(userMessage.modelId).toBeNull()
+        expect(messageService.getChildrenByParentId(draft.id)).toEqual([])
 
         const userRows = await dbh.db
           .select()
@@ -2110,7 +2084,7 @@ describe('MessageService', () => {
         expect(userRows.map((row) => row.id).sort()).toEqual([draft.id, prompt.id].sort())
 
         const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
-        expect(topic.activeNodeId).toBe(placeholders[0].id)
+        expect(topic.activeNodeId).toBe(draft.id)
       })
 
       it('rejects the storage-owned draft marker through the generic create operation', async () => {
@@ -2126,7 +2100,7 @@ describe('MessageService', () => {
         ).toThrow()
       })
 
-      it('rejects a normal user message without leaking a placeholder', async () => {
+      it('rejects a normal user message without changing its data', async () => {
         await seedTopic()
         const userMessage = messageService.create('topic-1', {
           role: 'user',
@@ -2135,18 +2109,7 @@ describe('MessageService', () => {
           status: 'success'
         })
 
-        expect(() =>
-          messageService.createUserMessageWithPlaceholders({
-            topicId: 'topic-1',
-            userMessage: {
-              mode: 'branch-draft',
-              id: userMessage.id,
-              data: mainText('replacement'),
-              modelId: createUniqueModelId('provider-a', 'model-A')
-            },
-            placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending' }]
-          })
-        ).toThrow()
+        expect(() => messageService.fillBranchDraft(userMessage.id, mainText('replacement'))).toThrow()
 
         const contentRows = await dbh.db
           .select()

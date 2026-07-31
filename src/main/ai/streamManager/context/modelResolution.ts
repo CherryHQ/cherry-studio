@@ -45,9 +45,9 @@ export function resolveAssistantModelId(assistantId: string | null | undefined):
 }
 
 /**
- * Pure read. Multi-model → fresh group; regenerate → inherit or
- * allocate; single-model fresh → undefined. Backfill of existing
- * children happens atomically in
+ * Pure read. Multi-model → fresh group; regenerate with an existing reply →
+ * inherit or allocate; first reply / single-model fresh → undefined. Backfill
+ * of existing children happens atomically in
  * `messageService.createUserMessageWithPlaceholders`.
  */
 export function resolvePersistentSiblingsGroupId(
@@ -59,6 +59,9 @@ export function resolvePersistentSiblingsGroupId(
   if (!isRegenerate) return undefined
 
   const children = messageService.getChildrenByParentId(userMessageId)
+  // A filled branch draft (or any dangling user row) has no reply yet. Its
+  // first assistant is an ordinary child, not a regenerate sibling group.
+  if (children.length === 0) return undefined
   const existingGroup = children.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
   return existingGroup ?? nextSiblingsGroupId()
 }

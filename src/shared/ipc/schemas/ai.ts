@@ -191,13 +191,6 @@ export const aiRequestSchemas = {
           fastMode: z.boolean().optional()
         }),
         z.object({
-          trigger: z.literal('submit-draft-message'),
-          parentAnchorId: z.string().min(1),
-          userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          fastMode: z.boolean().optional()
-        }),
-        z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),

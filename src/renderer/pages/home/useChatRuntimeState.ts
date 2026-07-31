@@ -277,36 +277,53 @@ export function useChatRuntimeState({
   )
   const turnController = useConversationTurnController<
     ChatTurnInput,
-    { topicId: string; parentAnchorId: string | null; branchDraftMessageId: string | null }
+    | { mode: 'submit'; topicId: string; parentAnchorId: string | null }
+    | { mode: 'regenerate'; topicId: string; parentAnchorId: string }
   >({
     scopeKey: topic.id,
     historyAdapter,
-    ensureConversation: async () => {
+    ensureConversation: async ({ text, options }) => {
       if (isHistoryLoading) return null
+
+      if (activeBranchDraftMessageId) {
+        const parts = options?.userMessageParts ?? [{ type: 'text' as const, text }]
+        await cache.patchMessageTrigger({
+          params: { id: activeBranchDraftMessageId },
+          query: { awaitingInputOnly: true },
+          body: { data: { parts } }
+        })
+        return {
+          mode: 'regenerate',
+          topicId: topic.id,
+          parentAnchorId: activeBranchDraftMessageId
+        }
+      }
+
       return {
+        mode: 'submit',
         topicId: topic.id,
-        parentAnchorId: activeNodeId ?? null,
-        branchDraftMessageId: activeBranchDraftMessageId
+        parentAnchorId: activeNodeId ?? null
       }
     },
     buildStreamRequest: ({ text, options }, conversation) => {
-      const shared = {
+      const requestOptions = {
         topicId: conversation.topicId,
-        userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
         ...(options?.fastMode ? { fastMode: true as const } : {})
       }
-      return conversation.branchDraftMessageId
+
+      return conversation.mode === 'regenerate'
         ? {
-            ...shared,
-            trigger: 'submit-draft-message',
-            parentAnchorId: conversation.branchDraftMessageId
+            ...requestOptions,
+            trigger: 'regenerate-message',
+            parentAnchorId: conversation.parentAnchorId
           }
         : {
-            ...shared,
+            ...requestOptions,
             trigger: 'submit-message',
-            parentAnchorId: conversation.parentAnchorId ?? undefined
+            parentAnchorId: conversation.parentAnchorId ?? undefined,
+            userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }]
           }
     },
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])

@@ -174,10 +174,9 @@ describe('aiHandlers', () => {
 describe('aiHandlers — streaming', () => {
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
     const req = {
-      trigger: 'submit-draft-message' as const,
+      trigger: 'regenerate-message' as const,
       topicId: 't',
-      parentAnchorId: 'draft-user-1',
-      userMessageParts: [{ type: 'text' as const, text: 'new branch question' }]
+      parentAnchorId: 'user-1'
     }
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
 

@@ -40,9 +40,6 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }
-    if (req.trigger === 'submit-draft-message') {
-      throw new Error('submit-draft-message is not supported for temporary chats (immutable append-only)')
-    }
     if (req.trigger === 'continue-conversation') {
       throw new Error('continue-conversation is not supported for temporary chats (immutable append-only)')
     }

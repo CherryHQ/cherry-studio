@@ -8,6 +8,7 @@
  */
 
 import { messageService } from '@data/services/MessageService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   BranchMessagesQuerySchema,
   CreateBranchDraftSchema,
@@ -16,6 +17,7 @@ import {
   type MessageSchemas,
   PathThroughQuerySchema,
   TreeQuerySchema,
+  UpdateMessageQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -73,8 +75,23 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
       return messageService.getById(params.id)
     },
 
-    PATCH: async ({ params, body }) => {
+    PATCH: async ({ params, body, query }) => {
       const parsed = UpdateMessageSchema.parse(body)
+      const q = UpdateMessageQuerySchema.parse(query ?? {})
+      if (q.awaitingInputOnly) {
+        if (
+          parsed.data === undefined ||
+          parsed.parentId !== undefined ||
+          parsed.siblingsGroupId !== undefined ||
+          parsed.status !== undefined
+        ) {
+          throw DataApiErrorFactory.invalidOperation(
+            'fill branch draft',
+            'awaitingInputOnly accepts only a message data update'
+          )
+        }
+        return messageService.fillBranchDraft(params.id, parsed.data)
+      }
       return messageService.update(params.id, parsed)
     },
 
