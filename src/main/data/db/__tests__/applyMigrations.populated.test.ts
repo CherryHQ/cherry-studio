@@ -26,18 +26,23 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
  */
 
 /**
- * Build a migrations folder containing only the first N entries of the real
- * chain, so a test can stop at a baseline and migrate forward from there.
+ * Build a migrations folder containing every entry *before* this branch's own
+ * migration, so a test can stop at that baseline and migrate forward across it.
  * Drizzle drives ordering from `meta/_journal.json`, so trimming that (and
  * copying the matching `.sql` files) is enough — no snapshot needed at runtime.
+ *
+ * "All but the last" rather than a hand-written index: when an upstream migration
+ * collides with this branch's, the rule is regenerate, never rename (CLAUDE.md),
+ * which always lands this branch's migration back on the tip. Deriving the
+ * baseline keeps the test pointed at it without a bump on every merge.
  */
-function migrationsFolderUpTo(count: number, into: string): string {
+function baselineMigrationsFolder(into: string): string {
   const source = resolveMigrationsPath()
   const journal = JSON.parse(readFileSync(join(source, 'meta', '_journal.json'), 'utf8')) as {
     entries: Array<{ idx: number; tag: string }>
   }
 
-  const kept = journal.entries.slice(0, count)
+  const kept = journal.entries.slice(0, -1)
   mkdirSync(join(into, 'meta'), { recursive: true })
   writeFileSync(join(into, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: kept }))
   for (const entry of kept) {
@@ -101,7 +106,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
-    applyMigrations(db, migrationsFolderUpTo(1, join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     seedBaselineRows()
 
     applyMigrations(db, resolveMigrationsPath())
@@ -139,7 +144,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('keeps the recreated table enforcing its constraints on new writes', () => {
-    applyMigrations(db, migrationsFolderUpTo(1, join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     seedBaselineRows()
     applyMigrations(db, resolveMigrationsPath())
 

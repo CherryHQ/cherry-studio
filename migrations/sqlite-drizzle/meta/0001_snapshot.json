@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7a0388ac-8b29-42fc-8afb-609c014bc2d1",
+  "id": "ae655987-49e2-4365-8290-be90cf30ed7a",
   "prevId": "ac2ab25f-24eb-420c-b648-7d71ca7c606b",
   "tables": {
     "agent": {
@@ -288,16 +288,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "agent_channel_type_check": {
-          "name": "agent_channel_type_check",
-          "value": "\"agent_channel\".\"type\" IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')"
-        },
-        "agent_channel_permission_mode_check": {
-          "name": "agent_channel_permission_mode_check",
-          "value": "\"agent_channel\".\"permission_mode\" IS NULL OR \"agent_channel\".\"permission_mode\" IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')"
-        }
-      }
+      "checkConstraints": {}
     },
     "agent_channel_task": {
       "name": "agent_channel_task",
@@ -1737,14 +1728,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "cleanup_policy": {
-          "name": "cleanup_policy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'manual'"
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1796,10 +1779,6 @@
         "fe_origin_check": {
           "name": "fe_origin_check",
           "value": "\"file_entry\".\"origin\" IN ('internal', 'external')"
-        },
-        "fe_cleanup_policy_check": {
-          "name": "fe_cleanup_policy_check",
-          "value": "\"file_entry\".\"cleanup_policy\" IN ('manual', 'delete_when_unreferenced')"
         },
         "fe_origin_consistency": {
           "name": "fe_origin_consistency",
@@ -1904,98 +1883,6 @@
         "cmfr_role_check": {
           "name": "cmfr_role_check",
           "value": "\"chat_message_file_ref\".\"role\" IN ('attachment')"
-        }
-      }
-    },
-    "job_file_ref": {
-      "name": "job_file_ref",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "jfr_entry_id_idx": {
-          "name": "jfr_entry_id_idx",
-          "columns": ["file_entry_id"],
-          "isUnique": false
-        },
-        "jfr_source_id_idx": {
-          "name": "jfr_source_id_idx",
-          "columns": ["source_id"],
-          "isUnique": false
-        },
-        "jfr_unique_idx": {
-          "name": "jfr_unique_idx",
-          "columns": ["file_entry_id", "source_id", "role"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "job_file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "job_file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "job_file_ref",
-          "tableTo": "file_entry",
-          "columnsFrom": ["file_entry_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "job_file_ref_source_id_job_id_fk": {
-          "name": "job_file_ref_source_id_job_id_fk",
-          "tableFrom": "job_file_ref",
-          "tableTo": "job",
-          "columnsFrom": ["source_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "jfr_role_check": {
-          "name": "jfr_role_check",
-          "value": "\"job_file_ref\".\"role\" IN ('input', 'mask')"
         }
       }
     },

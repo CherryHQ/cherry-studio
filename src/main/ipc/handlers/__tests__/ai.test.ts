@@ -306,16 +306,18 @@ describe('aiHandlers — agent sessions & tasks', () => {
   })
 
   it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
-    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
     agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
     expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
-  it('prewarm_agent_session does not prime a connection while trace mode is on', async () => {
+  // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
+  // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
+  it('prewarm_agent_session primes the connection in trace mode too', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
+    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
+    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
   it('close_agent_session_warm releases the warm query and the primed connection', async () => {
