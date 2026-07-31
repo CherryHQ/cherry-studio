@@ -43,7 +43,7 @@ interface Props {
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
@@ -59,7 +59,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   index,
   hideMenuBar = false,
   isGrouped,
-  onUpdateUseful,
+  onSelectContext,
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
@@ -229,7 +229,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
           variant="header"
         />
         <SiblingNavigator messageId={message.id} />
@@ -258,7 +258,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
           onMenuOpenChange={setIsMessageMenuOpen}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
         />
       </HorizontalScrollContainer>
       <SiblingNavigator messageId={message.id} />
@@ -289,7 +289,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
           isEditing={isEditing}
@@ -330,7 +330,7 @@ const UserBubbleMessage = ({
   isProcessing,
   messageContainerRef,
   onStartEditing,
-  onUpdateUseful,
+  onSelectContext,
   messageFont,
   fontSize,
   isEditing
@@ -342,7 +342,7 @@ const UserBubbleMessage = ({
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   onStartEditing?: (messageId: string) => void
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   messageFont: string
   fontSize: number
   isEditing: boolean
@@ -387,7 +387,7 @@ const UserBubbleMessage = ({
               isProcessing={isProcessing}
               messageContainerRef={messageContainerRef}
               onStartEditing={onStartEditing}
-              onUpdateUseful={onUpdateUseful}
+              onSelectContext={onSelectContext}
               variant="header"
             />
             <SiblingNavigator messageId={message.id} />
