@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} tarefa em segundo plano em execução",
+      "background_running_other": "{{count}} tarefas em segundo plano em execução"
     },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
@@ -325,25 +325,25 @@
         "more": "+{{count}} mais",
         "no_artifacts": "Nenhum entregável declarado",
         "no_subagents": "Sem subagentes",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Comandos em segundo plano",
         "subagents": "Subagentes",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Fluxos de Trabalho"
       },
       "status": {
         "activity": "Atividade",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} em direto",
+        "run_task_live_other": "{{count}} ao vivo",
+        "run_tasks": "Subtarefas",
         "selected_tool": "Ferramenta selecionada",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Interromper tarefa",
+        "stop_run_task_failed": "Falha ao parar a tarefa",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} chamada de ferramenta",
+        "tool_uses_other": "{{count}} chamadas de ferramenta",
         "tools_active": "Ativo",
         "tools_done": "Feito",
         "tools_failed": "Falhou",
@@ -3857,7 +3857,7 @@
     },
     "citation": "{{count}} conteúdo(s) citado(s)",
     "citations": "Citações",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Histórico de conversas anteriores não encontrado — continuando em uma nova conversa",
     "copied": "Copiado",
     "copy": {
       "failed": "Cópia falhou",
@@ -4139,7 +4139,7 @@
         "write": "Salvar",
         "writing": "Salvando"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Executando em segundo plano",
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -4171,7 +4171,7 @@
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
         "webSearch": "Pesquisa na Web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Fluxo de trabalho",
         "write": "Escreva"
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
@@ -4231,13 +4231,13 @@
         "result_other": "{{count}} resultados"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orquestrando fluxo de trabalho",
+        "run_id": "ID da Execução",
+        "script": "Script de fluxo de trabalho",
+        "script_path": "Caminho do script",
+        "started": "Fluxo de trabalho iniciado",
+        "summary": "Resumo",
+        "workflow": "fluxo de trabalho"
       }
     },
     "topic": {

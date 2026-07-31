@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} tác vụ nền đang chạy",
+      "background_running_other": "{{count}} tác vụ nền đang chạy"
     },
     "delete": {
       "content": "Xóa tác nhân sẽ buộc dừng và xóa tất cả các phiên liên kết với tác nhân này. Bạn có chắc chắn không?",
@@ -325,25 +325,25 @@
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
         "no_subagents": "Không có đại lý phụ",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Lệnh nền",
         "subagents": "Đại lý phụ",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Quy trình làm việc"
       },
       "status": {
         "activity": "Hoạt động",
         "agent": "Đại lý",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} trực tiếp",
+        "run_task_live_other": "{{count}} trực tiếp",
+        "run_tasks": "Nhiệm vụ phụ",
         "selected_tool": "Công cụ đã chọn",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Dừng tác vụ",
+        "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} lệnh gọi công cụ",
+        "tool_uses_other": "{{count}} lệnh gọi công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
         "tools_failed": "Thất bại",
@@ -3857,7 +3857,7 @@
     },
     "citation": "{{count}} trích dẫn",
     "citations": "Tài liệu tham khảo",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Lịch sử cuộc trò chuyện trước đó không tìm thấy — tiếp tục trong cuộc trò chuyện mới",
     "copied": "Đã sao chép!",
     "copy": {
       "failed": "Sao chép thất bại",
@@ -4139,7 +4139,7 @@
         "write": "Lưu",
         "writing": "Tiết kiệm"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Chạy trong nền",
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
@@ -4171,7 +4171,7 @@
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
         "webSearch": "Tìm kiếm trên web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Quy trình làm việc",
         "write": "Viết"
       },
       "noData": "Không có dữ liệu nào cho công cụ này",
@@ -4231,13 +4231,13 @@
         "result_other": "{{count}} kết quả"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Điều phối luồng công việc",
+        "run_id": "ID chạy",
+        "script": "Kịch bản quy trình làm việc",
+        "script_path": "Đường dẫn tập lệnh",
+        "started": "Đã bắt đầu quy trình làm việc",
+        "summary": "Tóm tắt",
+        "workflow": "quy trình làm việc"
       }
     },
     "topic": {
