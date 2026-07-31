@@ -815,6 +815,21 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 })
 
+describe('validateGitBashPath filename validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(path.resolve).mockImplementation((input) => input)
+    vi.mocked(path.basename).mockImplementation((input) => input.split('\\').at(-1) ?? input)
+  })
+
+  it('rejects the Git Bash terminal launcher', () => {
+    const launcherPath = 'C:\\PortableGit\\git-bash.exe'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+
+    expect(validateGitBashPath(launcherPath)).toBeNull()
+  })
+})
+
 describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
   const misePath = 'C:\\Users\\User\\AppData\\Local\\mise\\bin\\mise.exe'
   const env = { PATH: 'C:\\Windows\\system32' }

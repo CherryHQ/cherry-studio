@@ -462,8 +462,8 @@ export function validateGitBashPath(customPath?: string | null): string | null {
     return null
   }
 
-  const isExe = resolved.toLowerCase().endsWith('bash.exe')
-  if (!isExe) {
+  const executableName = path.basename(resolved).toLowerCase()
+  if (executableName !== 'bash.exe') {
     logger.warn('Custom Git Bash path is not bash.exe', { path: resolved })
     return null
   }
