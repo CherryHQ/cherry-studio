@@ -6,7 +6,7 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('usePreference')
 const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
@@ -251,98 +251,98 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
   { [P in keyof T]: UnifiedPreferenceType[T[P]] },
   (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => Promise<void>
 ] {
-  const keyEntries = Object.entries(keys) as [keyof T & string, UnifiedPreferenceKeyType][]
-  const keyEntriesDep = JSON.stringify(keyEntries)
-  const stableKeyEntries = useMemo(
-    () => keyEntries,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyEntriesDep is the complete ordered mapping identity.
-    [keyEntriesDep]
-  )
-  const keyList = useMemo(
-    () => Array.from(new Set(stableKeyEntries.map(([, preferenceKey]) => preferenceKey))),
-    [stableKeyEntries]
-  )
+  // Create stable key dependencies
+  const keyList = useMemo(() => Object.values(keys), [keys])
 
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      const unsubscribeFunctions = keyList.map((key) => preferenceService.subscribeChange(key)(callback))
-      return () => unsubscribeFunctions.forEach((unsubscribe) => unsubscribe())
-    },
-    [keyList]
-  )
+  // Cache the last snapshot to avoid infinite loops
+  const lastSnapshotRef = useRef<Record<string, any>>({})
 
-  // Each mapping owns its snapshot cache. This keeps concurrent old/new
-  // mappings isolated while preserving the useSyncExternalStore identity
-  // contract for equivalent inline key objects.
-  const getSnapshot = useMemo(() => {
-    let cachedValues: readonly unknown[] | undefined
+  const rawValues = useSyncExternalStore(
+    useCallback(
+      (callback: () => void) => {
+        // Subscribe to all keys and aggregate the unsubscribe functions
+        const unsubscribeFunctions = keyList.map((key) => preferenceService.subscribeChange(key)(callback))
 
-    return () => {
-      const nextValues = stableKeyEntries.map(([, prefKey]) => preferenceService.getCachedValue(prefKey))
-      const previousValues = cachedValues
-      if (
-        previousValues !== undefined &&
-        nextValues.length === previousValues.length &&
-        nextValues.every((value, index) => Object.is(value, previousValues[index]))
-      ) {
-        return previousValues
+        return () => {
+          unsubscribeFunctions.forEach((unsubscribe) => unsubscribe())
+        }
+      },
+      [keyList]
+    ),
+
+    useCallback(() => {
+      // Check if any values have actually changed
+      let hasChanged = Object.keys(lastSnapshotRef.current).length === 0 // First time
+      const newSnapshot: Record<string, any> = {}
+
+      for (const [localKey, prefKey] of Object.entries(keys)) {
+        const currentValue = preferenceService.getCachedValue(prefKey)
+        newSnapshot[localKey] = currentValue
+
+        if (!hasChanged && lastSnapshotRef.current[localKey] !== currentValue) {
+          hasChanged = true
+        }
       }
 
-      cachedValues = nextValues
-      return nextValues
-    }
-  }, [stableKeyEntries])
+      // Only create new object if data actually changed
+      if (hasChanged) {
+        lastSnapshotRef.current = newSnapshot
+      }
 
-  const rawValues = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+      return lastSnapshotRef.current
+    }, [keys]),
+
+    () => ({}) // No SSR snapshot
+  )
 
   // Load initial values asynchronously if not cached
   useEffect(() => {
-    const uncachedKeys = new Set<UnifiedPreferenceKeyType>()
-    stableKeyEntries.forEach(([, prefKey], index) => {
-      if (rawValues[index] === undefined && !preferenceService.isCached(prefKey)) uncachedKeys.add(prefKey)
+    // Find keys that need loading (either not cached or rawValue is undefined)
+    const uncachedKeys = keyList.filter((key) => {
+      // Find the local key for this preference key
+      const localKey = Object.keys(keys).find((k) => keys[k] === key)
+      const rawValue = localKey ? rawValues[localKey] : undefined
+
+      return rawValue === undefined && !preferenceService.isCached(key)
     })
 
-    if (uncachedKeys.size > 0) {
-      preferenceService.getMultipleRaw([...uncachedKeys]).catch((error) => {
+    if (uncachedKeys.length > 0) {
+      preferenceService.getMultipleRaw(uncachedKeys).catch((error) => {
         logger.error('Failed to load initial preferences:', error as Error)
       })
     }
-  }, [rawValues, stableKeyEntries])
+  }, [keyList, rawValues, keys])
 
   // Convert raw values (including undefined) to exposed values (with defaults)
   const exposedValues = useMemo(() => {
-    const result: Record<string, unknown> = {}
-    stableKeyEntries.forEach(([localKey, prefKey], index) => {
-      const rawValue = rawValues[index]
+    const result: Record<string, any> = {}
+    for (const [localKey, prefKey] of Object.entries(keys)) {
+      const rawValue = rawValues[localKey]
       result[localKey] = rawValue !== undefined ? rawValue : getDefaultValue(prefKey)
-    })
+    }
     return result
-  }, [rawValues, stableKeyEntries])
-
-  const preferenceKeyByLocalKey = useMemo(() => new Map(stableKeyEntries), [stableKeyEntries])
-  const optimistic = options.optimistic
+  }, [keys, rawValues])
 
   // Memoized batch update function
   const updateValues = useCallback(
     async (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => {
       try {
         // Convert local keys back to preference keys
-        const prefUpdates: Partial<UnifiedPreferenceType> = {}
-        const writableUpdates = prefUpdates as Record<string, unknown>
+        const prefUpdates: Record<string, any> = {}
         for (const [localKey, value] of Object.entries(updates)) {
-          const prefKey = preferenceKeyByLocalKey.get(localKey as keyof T & string)
+          const prefKey = keys[localKey as keyof T]
           if (prefKey) {
-            writableUpdates[prefKey] = value
+            prefUpdates[prefKey] = value
           }
         }
 
-        await preferenceService.setMultiple(prefUpdates, { optimistic })
+        await preferenceService.setMultiple(prefUpdates, options)
       } catch (error) {
         logger.error('Failed to update preferences:', error as Error)
         throw error
       }
     },
-    [optimistic, preferenceKeyByLocalKey]
+    [keys, options]
   )
 
   // Type-cast the values to the expected shape
