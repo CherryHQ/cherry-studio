@@ -87,6 +87,23 @@ describe('mergeUserEnvironmentVariables', () => {
     ['Claude_Code_Use_Mantle', 'CLAUDE_CODE_USE_MANTLE']
   ] as const
 
+  const scrubbedRemoteEnvKeys = [
+    ['Claude_Code_Remote', 'CLAUDE_CODE_REMOTE'],
+    ['claude_code_remote_session_id', 'CLAUDE_CODE_REMOTE_SESSION_ID'],
+    ['Ccr_Agent_Proxy_Enabled', 'CCR_AGENT_PROXY_ENABLED'],
+    ['agent_proxy_url', 'AGENT_PROXY_URL'],
+    ['Agent_Proxy_Auth_Token', 'AGENT_PROXY_AUTH_TOKEN'],
+    ['claude_session_ingress_token_file', 'CLAUDE_SESSION_INGRESS_TOKEN_FILE'],
+    ['Session_Ingress_Url', 'SESSION_INGRESS_URL'],
+    ['claude_code_force_bridge', 'CLAUDE_CODE_FORCE_BRIDGE'],
+    ['Claude_Bridge_Base_Url', 'CLAUDE_BRIDGE_BASE_URL'],
+    ['claude_bridge_oauth_token', 'CLAUDE_BRIDGE_OAUTH_TOKEN'],
+    ['Claude_Bridge_Session_Ingress_Url', 'CLAUDE_BRIDGE_SESSION_INGRESS_URL'],
+    ['claude_bridge_reattach_session', 'CLAUDE_BRIDGE_REATTACH_SESSION'],
+    ['Claude_Code_Use_Ccr_V2', 'CLAUDE_CODE_USE_CCR_V2'],
+    ['claude_code_websocket_auth_file_descriptor', 'CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR']
+  ] as const
+
   it.each(proxyKeys)('allows %s to override an existing process value', (key) => {
     const result = mergeUserEnvironmentVariables({ [key]: 'process-value' }, { [key]: 'agent-value' }, false)
 
@@ -217,6 +234,59 @@ describe('mergeUserEnvironmentVariables', () => {
     expect(env).toHaveProperty('anthropic_auth_token', 'inherited-token')
     expect(env).toHaveProperty('Anthropic_Base_Url', 'https://inherited.example.com')
   })
+
+  it.each(scrubbedRemoteEnvKeys)(
+    'removes inherited remote/bridge/agent-proxy variable %s case-insensitively',
+    (inheritedKey, canonicalKey) => {
+      const env = {
+        [inheritedKey]: 'inherited-override',
+        ANTHROPIC_AUTH_TOKEN: 'application-token',
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, true)
+
+      expect(result).toEqual({
+        env: {
+          ANTHROPIC_AUTH_TOKEN: 'application-token',
+          ANTHROPIC_BASE_URL: 'https://application.example.com',
+          HTTPS_PROXY: 'http://proxy.example.com',
+          LOGIN_SHELL_VAR: 'kept'
+        },
+        blockedKeys: []
+      })
+      expect(Object.keys(result.env).map((key) => key.toUpperCase())).not.toContain(canonicalKey)
+      expect(env).toEqual({
+        [inheritedKey]: 'inherited-override',
+        ANTHROPIC_AUTH_TOKEN: 'application-token',
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+    }
+  )
+
+  it.each(scrubbedRemoteEnvKeys)(
+    'blocks Agent-provided remote/bridge/agent-proxy variable %s case-insensitively',
+    (userKey, canonicalKey) => {
+      const userEnv = { [userKey]: 'agent-override', AGENT_VAR: 'kept' }
+
+      const result = mergeUserEnvironmentVariables(
+        { ANTHROPIC_AUTH_TOKEN: 'application-token', BASE_VAR: 'kept' },
+        userEnv,
+        false
+      )
+
+      expect(result).toEqual({
+        env: { ANTHROPIC_AUTH_TOKEN: 'application-token', BASE_VAR: 'kept', AGENT_VAR: 'kept' },
+        blockedKeys: [userKey]
+      })
+      expect(userKey.toUpperCase()).toBe(canonicalKey)
+      expect(userEnv).toEqual({ [userKey]: 'agent-override', AGENT_VAR: 'kept' })
+    }
+  )
 
   it('returns every blocked key while still merging normal variables', () => {
     const result = mergeUserEnvironmentVariables(
