@@ -74,7 +74,8 @@ vi.mock('@renderer/utils/api', () => ({
       return normalized
     }
     return `${normalized}/v1`
-  })
+  }),
+  withoutTrailingSlash: vi.fn((host) => (host ? host.replace(/\/+$/, '') : host))
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -225,5 +226,22 @@ describe('generateToolEnvironment', () => {
     })
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2beta')
+  })
+
+  it('should derive the gemini baseUrl from the configured baseUrl for aihubmix, stripping a trailing /v1', () => {
+    const model = createMockModel('gemini-3-pro-image-preview', 'aihubmix')
+    const provider = createMockProvider('aihubmix', 'https://aihubmix.com')
+
+    const { env } = generateToolEnvironment({
+      tool: codeTools.geminiCli,
+      model,
+      modelProvider: provider,
+      apiKey: 'test-key',
+      baseUrl: 'https://custom.example.com/v1'
+    })
+
+    // Must follow the configured baseUrl (not the static aihubmix.com host) and drop /v1 before /gemini
+    expect(env.GEMINI_BASE_URL).toBe('https://custom.example.com/gemini')
+    expect(env.GOOGLE_GEMINI_BASE_URL).toBe('https://custom.example.com/gemini')
   })
 })

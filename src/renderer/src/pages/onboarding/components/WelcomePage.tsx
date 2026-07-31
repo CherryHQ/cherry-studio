@@ -14,7 +14,7 @@ import ProviderPopup from './ProviderPopup'
 
 const logger = loggerService.withContext('WelcomePage')
 
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
+const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.net'
 
 interface WelcomePageProps {
   setStep: (step: OnboardingStep) => void

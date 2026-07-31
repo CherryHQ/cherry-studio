@@ -1300,6 +1300,38 @@ describe('options utils', () => {
         })
       })
 
+      it('should route LongCat provider options through its provider namespace', async () => {
+        const { getReasoningEffort } = await import('../reasoning')
+        vi.mocked(getReasoningEffort).mockReturnValueOnce({ thinking: { type: 'disabled' } })
+
+        const longcatProvider = {
+          id: SystemProviderIds.longcat,
+          name: 'LongCat',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://api.longcat.chat/openai',
+          models: [] as Model[]
+        } as Provider
+
+        const longcatModel: Model = {
+          id: 'LongCat-2.0',
+          name: 'LongCat 2.0',
+          provider: SystemProviderIds.longcat
+        } as Model
+
+        const result = buildProviderOptions(mockAssistant, longcatModel, longcatProvider, {
+          enableReasoning: true,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty(SystemProviderIds.longcat)
+        expect(result.providerOptions).not.toHaveProperty('openai-compatible')
+        expect(result.providerOptions[SystemProviderIds.longcat]).toMatchObject({
+          thinking: { type: 'disabled' }
+        })
+      })
+
       it('should auto-convert reasoning_effort to reasoningEffort for openai-compatible provider (issue #11987)', async () => {
         const { getCustomParameters } = await import('../reasoning')
 

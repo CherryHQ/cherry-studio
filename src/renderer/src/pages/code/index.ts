@@ -5,7 +5,7 @@ import {
   isSupportedThinkingTokenClaudeModel
 } from '@renderer/config/models/reasoning'
 import { type EndpointType, type Model, type Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, withoutTrailingSlash } from '@renderer/utils/api'
 import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
 import { codeTools } from '@shared/config/constant'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
@@ -61,11 +61,12 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => ['openai', 'openai-response', 'anthropic', 'new-api'].includes(p.type))
 }
 
-export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
+export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType, baseUrl?: string) => {
+  const aihubmixBaseUrl = baseUrl ? withoutTrailingSlash(baseUrl).replace(/\/v1$/, '') : 'https://aihubmix.com'
   const CODE_TOOLS_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
-        api_base_url: 'https://aihubmix.com/gemini'
+        api_base_url: `${aihubmixBaseUrl}/gemini`
       }
     },
     deepseek: {
@@ -168,7 +169,7 @@ export const generateToolEnvironment = ({
     }
 
     case codeTools.geminiCli: {
-      const apiBaseUrl = getCodeToolsApiBaseUrl(model, 'gemini') || modelProvider.apiHost
+      const apiBaseUrl = getCodeToolsApiBaseUrl(model, 'gemini', baseUrl) || modelProvider.apiHost
       env.GEMINI_API_KEY = apiKey
       env.GEMINI_BASE_URL = apiBaseUrl
       env.GOOGLE_GEMINI_BASE_URL = apiBaseUrl

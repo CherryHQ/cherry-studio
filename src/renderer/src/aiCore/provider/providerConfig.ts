@@ -29,7 +29,7 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { defaultAppHeaders } from '@shared/utils'
+import { defaultAppHeaders, withoutTrailingApiVersion } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
@@ -359,6 +359,10 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 
   return {
     providerId: 'openai-compatible',
+    // @ai-sdk/openai-compatible derives its request-level providerOptions namespace
+    // from this name. LongCat therefore runs on the openai-compatible runtime while
+    // still reading providerOptions.longcat, which lets its top-level thinking field
+    // pass through to the final request body.
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id, includeUsage }
   }
@@ -388,7 +392,7 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
 function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
   switch (endpointType) {
     case 'gemini':
-      return formatApiHost(baseURL, true, 'v1beta')
+      return formatApiHost(withoutTrailingApiVersion(baseURL), true, 'v1beta')
     case 'anthropic':
       return formatApiHost(baseURL, false)
     default:

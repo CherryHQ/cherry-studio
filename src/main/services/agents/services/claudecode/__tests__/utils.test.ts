@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { isCherryInOfficialHost, isDeepSeekOfficialHost, isMiMoOfficialHost, with1mContextSuffix } from '../utils'
+import {
+  getFirstConfiguredApiKey,
+  isCherryInOfficialHost,
+  isDeepSeekOfficialHost,
+  isMiMoOfficialHost,
+  with1mContextSuffix
+} from '../utils'
 
 describe('isDeepSeekOfficialHost', () => {
   it('matches the canonical DeepSeek Anthropic endpoint', () => {
@@ -24,6 +30,27 @@ describe('isDeepSeekOfficialHost', () => {
     expect(isDeepSeekOfficialHost('')).toBe(false)
     expect(isDeepSeekOfficialHost('   ')).toBe(false)
     expect(isDeepSeekOfficialHost('not a url')).toBe(false)
+  })
+})
+
+describe('getFirstConfiguredApiKey', () => {
+  it('returns the first configured API key from a comma-separated list', () => {
+    expect(getFirstConfiguredApiKey('sk-first,sk-second')).toBe('sk-first')
+    expect(getFirstConfiguredApiKey(' sk-first , sk-second ')).toBe('sk-first')
+  })
+
+  it('skips blank entries', () => {
+    expect(getFirstConfiguredApiKey(', sk-first, sk-second')).toBe('sk-first')
+    expect(getFirstConfiguredApiKey(' , , ')).toBe('')
+  })
+
+  it('keeps escaped commas inside a key', () => {
+    expect(getFirstConfiguredApiKey('sk\\,first,sk-second')).toBe('sk,first')
+  })
+
+  it('handles missing keys', () => {
+    expect(getFirstConfiguredApiKey(undefined)).toBe('')
+    expect(getFirstConfiguredApiKey('')).toBe('')
   })
 })
 

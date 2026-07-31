@@ -55,20 +55,27 @@ export function getAllProviderIds(): string[] {
 
 type ProviderIdsMap = UnionToIntersection<ExtensionConfigToIdResolutionMap<AllExtensionConfigs>>
 
+const appProviderAliases = {
+  longcat: 'longcat'
+} as const satisfies Record<string, AppProviderId>
+
+type AppProviderIdsMap = ProviderIdsMap & typeof appProviderAliases
+
 /**
  * 应用层 Provider IDs 常量
  */
-function buildAppProviderIds(): ProviderIdsMap {
-  const map = {} as ProviderIdsMap
+function buildAppProviderIds(): AppProviderIdsMap {
+  const map = {} as AppProviderIdsMap
+  const mutableMap = map as Record<string, AppProviderId>
 
   allExtensions.forEach((ext) => {
     const config = ext.config as ProviderExtensionConfig<any, any, KnownAppProviderId>
     const name = config.name
-    ;(map as Record<string, KnownAppProviderId>)[name] = name
+    mutableMap[name] = name
 
     if (config.aliases) {
       config.aliases.forEach((alias) => {
-        ;(map as Record<string, KnownAppProviderId>)[alias] = name
+        mutableMap[alias] = name
       })
     }
 
@@ -77,10 +84,12 @@ function buildAppProviderIds(): ProviderIdsMap {
         // 变体自反映射：'azure-responses' -> 'azure-responses'
         // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
         const variantId = `${name}-${variant.suffix}` as KnownAppProviderId
-        ;(map as Record<string, KnownAppProviderId>)[variantId] = variantId
+        mutableMap[variantId] = variantId
       })
     }
   })
+
+  Object.assign(map, appProviderAliases)
 
   return map
 }
