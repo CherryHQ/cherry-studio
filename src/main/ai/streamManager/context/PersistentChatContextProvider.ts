@@ -153,16 +153,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
+    const completionTarget = { conversationType: 'assistant', conversationId: req.topicId } as const
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
+      return {
+        ...(await this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)),
+        completionTarget
+      }
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
-      return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
+      return {
+        ...(await this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)),
+        completionTarget
+      }
     }
 
     const selectedModelId = req.mentionedModelIds?.[0]
@@ -195,7 +202,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)],
-        isMultiModel: false
+        isMultiModel: false,
+        completionTarget
       }
     }
 
@@ -335,7 +343,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessageId: userMessage.id,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        isMultiModel
+        isMultiModel,
+        completionTarget
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)

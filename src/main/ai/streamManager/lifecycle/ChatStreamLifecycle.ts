@@ -1,29 +1,8 @@
 import { application } from '@application'
-import { WindowType } from '@main/core/window/types'
 import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
-
-function dispatchTaskCompletion(stream: ActiveStream, completedAt: number): void {
-  const windowManager = application.get('WindowManager')
-  const mainWindows = windowManager.getWindowInfosByType(WindowType.Main)
-  const subWindows = windowManager
-    .getWindowInfosByType(WindowType.SubWindow)
-    .filter((window) => window.isVisible || window.isFocused)
-  const fullChromeWindows = [...mainWindows, ...subWindows]
-  const focusedWindow = fullChromeWindows.find((window) => window.isFocused)
-  const targetWindow = focusedWindow ?? mainWindows[0] ?? subWindows[0]
-
-  if (!targetWindow) return
-
-  application.get('IpcApiService').send(targetWindow.id, 'notification.task_completed', {
-    topicId: stream.topicId,
-    turnId: stream.turnId,
-    completedAt,
-    delivery: focusedWindow ? 'in-app' : 'system'
-  })
-}
 
 /**
  * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<topicId>`),
@@ -69,8 +48,13 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
     },
     onTerminal(stream) {
       const completedAt = broadcast(stream, stream.status)
-      if (stream.status === 'done' && completedAt !== undefined) {
-        dispatchTaskCompletion(stream, completedAt)
+      if (stream.status === 'done' && completedAt !== undefined && stream.completionTarget) {
+        application.get('NotificationService').notifyTaskCompletion({
+          topicId: stream.topicId,
+          turnId: stream.turnId,
+          completedAt,
+          target: stream.completionTarget
+        })
       }
     },
     canAttach() {

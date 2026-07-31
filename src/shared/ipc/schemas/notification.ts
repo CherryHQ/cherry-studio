@@ -1,4 +1,4 @@
-import type { Notification } from '@shared/types/notification'
+import type { Notification, TaskCompletionTarget } from '@shared/types/notification'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -17,11 +17,24 @@ import { defineRoute } from '../define'
  * the action-click dispatch seam (a renderer subscriber routes by `actionKey`).
  *
  * Event `notification.task_completed`: fires once when a persistent assistant topic or agent
- * session reaches a successful terminal state. Main directs it to exactly one full-chrome
- * renderer, which decides whether to show an in-app card or an OS notification.
+ * session reaches a successful terminal state. Main directs foreground completions to exactly
+ * one full-chrome renderer; background system notifications stay main-owned.
  */
+const taskCompletionTargetSchema = z.object({
+  conversationType: z.enum(['assistant', 'agent']),
+  conversationId: z.string().min(1)
+})
+
 export const notificationRequestSchemas = {
-  'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() })
+  'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() }),
+  'notification.sync_task_targets': defineRoute({
+    input: z.object({ targets: z.array(taskCompletionTargetSchema) }),
+    output: z.void()
+  }),
+  'notification.focus_task_target': defineRoute({
+    input: taskCompletionTargetSchema,
+    output: z.boolean()
+  })
 }
 
 export type NotificationEventSchemas = {
@@ -31,5 +44,8 @@ export type NotificationEventSchemas = {
     turnId: string
     completedAt: number
     delivery: 'in-app' | 'system'
+  }
+  'notification.open_task_target_requested': {
+    target: TaskCompletionTarget
   }
 }

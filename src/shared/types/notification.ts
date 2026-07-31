@@ -3,10 +3,12 @@ export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update'
 
 export const TASK_COMPLETION_NOTIFICATION_ACTION_KEY = 'task-completion.open'
 
-export interface TaskCompletionNotificationMeta {
+export interface TaskCompletionTarget {
   conversationType: 'assistant' | 'agent'
   conversationId: string
 }
+
+export type TaskCompletionNotificationMeta = TaskCompletionTarget
 
 export interface Notification<T = any> {
   /** 通知唯一标识 */

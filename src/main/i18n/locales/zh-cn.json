@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "新任务",
       "workspace_status": {
         "inaccessible": "工作区路径不可访问：{{path}}",
         "missing": "工作区路径不存在：{{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "放大",
     "zoomOut": "缩小"
   },
+  "chat": {
+    "conversation": {
+      "new": "新对话"
+    }
+  },
   "common": {
     "copy": "复制",
     "cut": "剪切",
@@ -96,6 +102,12 @@
     "save_file": "保存文件",
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
+  },
+  "notification": {
+    "completion": {
+      "agent": "Agent 任务已完成",
+      "assistant": "助手回复已完成"
+    }
   },
   "paintings": {
     "generate_failed": "生成图像失败",

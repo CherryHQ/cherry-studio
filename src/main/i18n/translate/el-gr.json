@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "[to be translated]:New task",
       "workspace_status": {
         "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
         "missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Μεγέθυνση",
     "zoomOut": "Σμίκρυνση"
   },
+  "chat": {
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    }
+  },
   "common": {
     "copy": "Αντιγραφή",
     "cut": "Κοπή",
@@ -96,6 +102,12 @@
     "save_file": "Αποθήκευση Αρχείου",
     "select_folder": "Επιλέξτε φάκελο",
     "word_document": "Έγγραφο Word"
+  },
+  "notification": {
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    }
   },
   "paintings": {
     "generate_failed": "Αποτυχία δημιουργίας εικόνας",

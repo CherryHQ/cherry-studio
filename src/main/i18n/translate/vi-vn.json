@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "[to be translated]:New task",
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
         "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Thu phóng",
     "zoomOut": "Alejarse"
   },
+  "chat": {
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    }
+  },
   "common": {
     "copy": "Sao chép",
     "cut": "Cắt",
@@ -96,6 +102,12 @@
     "save_file": "Lưu Tệp",
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
+  },
+  "notification": {
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    }
   },
   "paintings": {
     "generate_failed": "Không thể tạo hình ảnh",

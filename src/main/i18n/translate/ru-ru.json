@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "[to be translated]:New task",
       "workspace_status": {
         "inaccessible": "Путь к рабочей области недоступен: {{path}}",
         "missing": "Путь к рабочей области не существует: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Увеличить",
     "zoomOut": "Отдалить"
   },
+  "chat": {
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    }
+  },
   "common": {
     "copy": "Копировать",
     "cut": "Вырезать",
@@ -96,6 +102,12 @@
     "save_file": "Сохранить файл",
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
+  },
+  "notification": {
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    }
   },
   "paintings": {
     "generate_failed": "Не удалось сгенерировать изображение",

@@ -1,8 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useTabs } from '@renderer/hooks/tab'
-import { useIpcOn } from '@renderer/ipc'
-import { notificationService } from '@renderer/services/notification'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { extractAgentSessionIdFromTopicId, isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
@@ -11,19 +10,15 @@ import {
   getSidebarAppTabInstanceKey,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import {
-  TASK_COMPLETION_NOTIFICATION_ACTION_KEY,
-  type TaskCompletionNotificationMeta
-} from '@shared/types/notification'
-import { useCallback } from 'react'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { TaskCompletionTarget } from '@shared/types/notification'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useTaskCompletionNotifications')
 
-type CompletionTarget = {
+type CompletionTarget = TaskCompletionTarget & {
   appId: 'assistants' | 'agents'
-  conversationType: TaskCompletionNotificationMeta['conversationType']
-  id: string
 }
 
 function getCompletionTarget(topicId: string): CompletionTarget {
@@ -31,78 +26,123 @@ function getCompletionTarget(topicId: string): CompletionTarget {
     return {
       appId: 'agents',
       conversationType: 'agent',
-      id: extractAgentSessionIdFromTopicId(topicId)
+      conversationId: extractAgentSessionIdFromTopicId(topicId)
     }
   }
 
   return {
     appId: 'assistants',
     conversationType: 'assistant',
-    id: topicId
+    conversationId: topicId
   }
 }
 
-function isTaskCompletionNotificationMeta(meta: unknown): meta is TaskCompletionNotificationMeta {
-  if (!meta || typeof meta !== 'object') return false
-
-  const candidate = meta as Partial<TaskCompletionNotificationMeta>
+function isTargetTab(target: CompletionTarget, tab: Tab): boolean {
+  const app = getSidebarApp(target.appId)
   return (
-    (candidate.conversationType === 'assistant' || candidate.conversationType === 'agent') &&
-    typeof candidate.conversationId === 'string' &&
-    candidate.conversationId.length > 0
+    !!app &&
+    tab.type === 'route' &&
+    tabBelongsToApp(app, tab.url) &&
+    getSidebarAppTabInstanceKey(app, tab) === target.conversationId
   )
+}
+
+function getTaskTargets(tabs: Tab[]): TaskCompletionTarget[] {
+  const targets = new Map<string, TaskCompletionTarget>()
+
+  for (const appId of ['assistants', 'agents'] as const) {
+    const app = getSidebarApp(appId)
+    if (!app) continue
+
+    for (const tab of tabs) {
+      if (tab.type !== 'route' || !tabBelongsToApp(app, tab.url)) continue
+      const conversationId = getSidebarAppTabInstanceKey(app, tab)
+      if (!conversationId) continue
+
+      const target: TaskCompletionTarget = {
+        conversationType: appId === 'agents' ? 'agent' : 'assistant',
+        conversationId
+      }
+      targets.set(`${target.conversationType}:${conversationId}`, target)
+    }
+  }
+
+  return [...targets.values()]
 }
 
 async function getCompletionName(target: CompletionTarget): Promise<string> {
   if (target.conversationType === 'agent') {
-    const session = await dataApiService.get(`/agent-sessions/${target.id}`)
+    const session = await dataApiService.get(`/agent-sessions/${target.conversationId}`)
     return session.name.trim()
   }
 
-  const topic = await dataApiService.get(`/topics/${target.id}`)
+  const topic = await dataApiService.get(`/topics/${target.conversationId}`)
   return topic.name.trim()
 }
 
 export function useTaskCompletionNotifications(): void {
   const { t } = useTranslation()
   const { activeTab, openTab, setActiveTab, tabs } = useTabs()
+  const tabsStateRef = useRef({ openTab, setActiveTab, tabs })
+  tabsStateRef.current = { openTab, setActiveTab, tabs }
+  const taskTargets = useMemo(() => getTaskTargets(tabs), [tabs])
 
-  const isTargetTab = useCallback((target: CompletionTarget, tab: (typeof tabs)[number]): boolean => {
+  const activateLocalTarget = useCallback((target: CompletionTarget): boolean => {
+    const current = tabsStateRef.current
+    const existingTab = current.tabs.find((tab) => isTargetTab(target, tab))
+    if (!existingTab) return false
+
+    current.setActiveTab(existingTab.id)
+    return true
+  }, [])
+
+  const openLocalTarget = useCallback((target: CompletionTarget, title: string): void => {
     const app = getSidebarApp(target.appId)
-    return (
-      !!app &&
-      tab.type === 'route' &&
-      tabBelongsToApp(app, tab.url) &&
-      getSidebarAppTabInstanceKey(app, tab) === target.id
-    )
+    if (!app?.instanceKey) return
+
+    tabsStateRef.current.openTab(app.routePrefix, {
+      forceNew: true,
+      title,
+      metadata: buildSidebarAppOpenMetadata(app, target.conversationId)
+    })
   }, [])
 
   const focusOrOpenTarget = useCallback(
-    (target: CompletionTarget, title: string) => {
-      const existingTab = tabs.find((tab) => isTargetTab(target, tab))
-      if (existingTab) {
-        setActiveTab(existingTab.id)
-        return
-      }
+    async (target: CompletionTarget, title: string): Promise<void> => {
+      if (activateLocalTarget(target)) return
 
-      const app = getSidebarApp(target.appId)
-      if (!app?.instanceKey) return
-
-      openTab(app.routePrefix, {
-        forceNew: true,
-        title,
-        metadata: buildSidebarAppOpenMetadata(app, target.id)
+      const focusedElsewhere = await ipcApi.request('notification.focus_task_target', {
+        conversationType: target.conversationType,
+        conversationId: target.conversationId
       })
+      if (focusedElsewhere) return
+
+      // Re-check after the main-process round trip: the tab set may have changed while
+      // the toast was visible or while another window was being queried.
+      if (!activateLocalTarget(target)) openLocalTarget(target, title)
     },
-    [isTargetTab, openTab, setActiveTab, tabs]
+    [activateLocalTarget, openLocalTarget]
   )
 
-  useIpcOn('notification.task_completed', (completion) => {
-    const target = getCompletionTarget(completion.topicId)
+  useEffect(() => {
+    void ipcApi.request('notification.sync_task_targets', { targets: taskTargets }).catch((error) => {
+      logger.warn('Failed to sync task notification targets', { err: error })
+    })
+  }, [taskTargets])
 
-    if (completion.delivery === 'in-app' && activeTab && isTargetTab(target, activeTab)) {
-      return
+  useEffect(() => {
+    return () => {
+      void ipcApi.request('notification.sync_task_targets', { targets: [] }).catch((error) => {
+        logger.warn('Failed to clear task notification targets', { err: error })
+      })
     }
+  }, [])
+
+  useIpcOn('notification.task_completed', (completion) => {
+    if (completion.delivery !== 'in-app') return
+
+    const target = getCompletionTarget(completion.topicId)
+    if (activeTab && isTargetTab(target, activeTab)) return
 
     void (async () => {
       const fallbackName = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
@@ -121,24 +161,6 @@ export function useTaskCompletionNotifications(): void {
         target.conversationType === 'agent'
           ? t('notification.completion.agent')
           : t('notification.completion.assistant')
-
-      if (completion.delivery === 'system') {
-        await notificationService.send({
-          id: `task-completion:${completion.turnId}`,
-          type: 'success',
-          title,
-          message: name,
-          timestamp: completion.completedAt,
-          actionKey: TASK_COMPLETION_NOTIFICATION_ACTION_KEY,
-          meta: {
-            conversationType: target.conversationType,
-            conversationId: target.id
-          } satisfies TaskCompletionNotificationMeta,
-          source: 'assistant'
-        })
-        return
-      }
-
       const toastKey = `task-completion:${completion.turnId}`
       toast.success({
         key: toastKey,
@@ -147,7 +169,9 @@ export function useTaskCompletionNotifications(): void {
         timeout: 6000,
         onClick: () => {
           toast.closeToast(toastKey)
-          focusOrOpenTarget(target, name)
+          void focusOrOpenTarget(target, name).catch((error) => {
+            logger.error('Failed to open completed conversation', error as Error)
+          })
         }
       })
     })().catch((error) => {
@@ -155,19 +179,14 @@ export function useTaskCompletionNotifications(): void {
     })
   })
 
-  useIpcOn('notification.clicked', (notification) => {
-    if (
-      notification.actionKey !== TASK_COMPLETION_NOTIFICATION_ACTION_KEY ||
-      !isTaskCompletionNotificationMeta(notification.meta)
-    ) {
-      return
+  useIpcOn('notification.open_task_target_requested', ({ target }) => {
+    const completionTarget: CompletionTarget = {
+      ...target,
+      appId: target.conversationType === 'agent' ? 'agents' : 'assistants'
     }
+    if (activateLocalTarget(completionTarget)) return
 
-    const target: CompletionTarget = {
-      appId: notification.meta.conversationType === 'agent' ? 'agents' : 'assistants',
-      conversationType: notification.meta.conversationType,
-      id: notification.meta.conversationId
-    }
-    focusOrOpenTarget(target, notification.message)
+    const fallbackName = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
+    openLocalTarget(completionTarget, fallbackName)
   })
 }

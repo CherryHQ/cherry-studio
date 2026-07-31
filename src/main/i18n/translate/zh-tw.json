@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "[to be translated]:New task",
       "workspace_status": {
         "inaccessible": "工作區路徑無法存取：{{path}}",
         "missing": "工作區路徑不存在：{{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "放大",
     "zoomOut": "縮小"
   },
+  "chat": {
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    }
+  },
   "common": {
     "copy": "複製",
     "cut": "剪下",
@@ -96,6 +102,12 @@
     "save_file": "儲存檔案",
     "select_folder": "選擇資料夾",
     "word_document": "Word 文件"
+  },
+  "notification": {
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    }
   },
   "paintings": {
     "generate_failed": "無法生成圖片",

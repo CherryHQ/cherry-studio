@@ -21,6 +21,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import type { TaskCompletionTarget } from '@shared/types/notification'
 import { type UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
@@ -99,6 +100,7 @@ export interface SendInput {
   siblingsGroupId?: number
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
+  completionTarget?: TaskCompletionTarget
 }
 
 export interface SendResult {
@@ -116,6 +118,7 @@ export interface StartRuntimeTurnInput {
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
+  completionTarget: TaskCompletionTarget
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -578,7 +581,8 @@ export class AiStreamManager extends BaseService {
       // `pending` → `streaming` on first chunk.
       status: 'pending',
       isMultiModel,
-      lifecycle: input.lifecycle ?? this.chatLifecycle
+      lifecycle: input.lifecycle ?? this.chatLifecycle,
+      completionTarget: input.completionTarget
     }
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
@@ -660,7 +664,8 @@ export class AiStreamManager extends BaseService {
           abortController: input.abortController
         }
       ],
-      listeners: [...carriedListeners, ...input.listeners]
+      listeners: [...carriedListeners, ...input.listeners],
+      completionTarget: input.completionTarget
     })
   }
 

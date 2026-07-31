@@ -34,6 +34,7 @@ import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
+import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -109,6 +110,7 @@ export const services = {
   WebviewService,
   OAuthRuntimeService,
   MainWindowService,
+  NotificationService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,

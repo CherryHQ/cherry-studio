@@ -1,7 +1,7 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { type WindowInfo, WindowType } from '@main/core/window/types'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
+import type { TaskCompletionTarget } from '@shared/types/notification'
 import { APICallError, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -120,8 +120,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockGetWindowInfosByType = vi.fn<(type: WindowType) => WindowInfo[]>(() => [])
-const mockTaskCompletionSend = vi.fn()
+const mockTaskCompletionNotify = vi.fn()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -133,9 +132,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
-    IpcApiService: { send: mockTaskCompletionSend },
+    NotificationService: { notifyTaskCompletion: mockTaskCompletionNotify },
     TraceStorageService: { saveSpans: mockSaveSpans },
-    WindowManager: { getWindowInfosByType: mockGetWindowInfosByType },
     AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -183,13 +181,15 @@ function startSingle(
     listeners: StreamListener[]
     siblingsGroupId?: number
     abortController?: AbortController
+    completionTarget?: TaskCompletionTarget
   }
 ) {
   manager.send({
     topicId: opts.topicId,
     models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
-    siblingsGroupId: opts.siblingsGroupId
+    siblingsGroupId: opts.siblingsGroupId,
+    completionTarget: opts.completionTarget
   })
   const snapshot = manager.inspect(opts.topicId)
   if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
@@ -211,7 +211,6 @@ describe('AiStreamManager', () => {
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
-    mockGetWindowInfosByType.mockReturnValue([])
     sharedCacheStore.clear()
   })
 
@@ -355,6 +354,7 @@ describe('AiStreamManager', () => {
 
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
+        completionTarget: { conversationType: 'agent', conversationId: 's1' },
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
         listeners: [new FakeListener('agent-runtime:replaced')]
@@ -364,6 +364,7 @@ describe('AiStreamManager', () => {
       const currentListener = new FakeListener('agent-runtime:current')
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
+        completionTarget: { conversationType: 'agent', conversationId: 's1' },
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
         listeners: [currentListener]
@@ -1868,7 +1869,7 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
       expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
       expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
-      expect(mockTaskCompletionSend).not.toHaveBeenCalled()
+      expect(mockTaskCompletionNotify).not.toHaveBeenCalled()
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal
@@ -1878,30 +1879,7 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
     })
 
-    it('directs one in-app completion event to the focused full-chrome window after all models finish', async () => {
-      mockGetWindowInfosByType.mockImplementation((type) =>
-        type === WindowType.SubWindow
-          ? [
-              {
-                id: 'sub-1',
-                type: WindowType.SubWindow,
-                title: 'Detached chat',
-                isVisible: true,
-                isFocused: true,
-                createdAt: 1
-              }
-            ]
-          : [
-              {
-                id: 'main-1',
-                type: WindowType.Main,
-                title: 'Cherry Studio',
-                isVisible: true,
-                isFocused: false,
-                createdAt: 1
-              }
-            ]
-      )
+    it('reports one persistent assistant completion after all models finish', async () => {
       vi.setSystemTime(1_234)
 
       mgr.send({
@@ -1910,38 +1888,24 @@ describe('AiStreamManager', () => {
           { modelId: 'p::m1', request: req('topic-1') },
           { modelId: 'p::m2', request: req('topic-1') }
         ],
-        listeners: [new FakeListener('l:topic-1')]
+        listeners: [new FakeListener('l:topic-1')],
+        completionTarget: { conversationType: 'assistant', conversationId: 'topic-1' }
       })
       await mgr.onExecutionDone('topic-1', 'p::m1')
-      expect(mockTaskCompletionSend).not.toHaveBeenCalled()
+      expect(mockTaskCompletionNotify).not.toHaveBeenCalled()
 
       await mgr.onExecutionDone('topic-1', 'p::m2')
 
-      expect(mockTaskCompletionSend).toHaveBeenCalledOnce()
-      expect(mockTaskCompletionSend).toHaveBeenCalledWith('sub-1', 'notification.task_completed', {
+      expect(mockTaskCompletionNotify).toHaveBeenCalledOnce()
+      expect(mockTaskCompletionNotify).toHaveBeenCalledWith({
         topicId: 'topic-1',
         turnId: expect.stringMatching(/^\d+:\d+$/),
         completedAt: 1_234,
-        delivery: 'in-app'
+        target: { conversationType: 'assistant', conversationId: 'topic-1' }
       })
     })
 
-    it('does not target an uninitialized hidden sub-window when no user-facing window exists', async () => {
-      mockGetWindowInfosByType.mockImplementation((type) =>
-        type === WindowType.SubWindow
-          ? [
-              {
-                id: 'standby-sub',
-                type: WindowType.SubWindow,
-                title: '',
-                isVisible: false,
-                isFocused: false,
-                createdAt: 1
-              }
-            ]
-          : []
-      )
-
+    it('does not report a completion for a stream without a persistent completion target', async () => {
       startSingle(mgr, {
         topicId: 'topic-1',
         modelId: 'p::m',
@@ -1950,49 +1914,27 @@ describe('AiStreamManager', () => {
       })
       await mgr.onExecutionDone('topic-1', 'p::m')
 
-      expect(mockTaskCompletionSend).not.toHaveBeenCalled()
+      expect(mockTaskCompletionNotify).not.toHaveBeenCalled()
     })
 
-    it('falls back to one main-window system event for a background Agent completion', async () => {
-      mockGetWindowInfosByType.mockImplementation((type) =>
-        type === WindowType.Main
-          ? [
-              {
-                id: 'main-1',
-                type: WindowType.Main,
-                title: 'Cherry Studio',
-                isVisible: false,
-                isFocused: false,
-                createdAt: 1
-              }
-            ]
-          : [
-              {
-                id: 'sub-1',
-                type: WindowType.SubWindow,
-                title: 'Detached agent',
-                isVisible: true,
-                isFocused: false,
-                createdAt: 1
-              }
-            ]
-      )
+    it('reports the explicit Agent completion target', async () => {
       vi.setSystemTime(2_345)
 
       startSingle(mgr, {
         topicId: 'agent-session:session-1',
         modelId: 'p::m',
         request: req('agent-session:session-1'),
-        listeners: [new FakeListener('l:session-1')]
+        listeners: [new FakeListener('l:session-1')],
+        completionTarget: { conversationType: 'agent', conversationId: 'session-1' }
       })
       await mgr.onExecutionDone('agent-session:session-1', 'p::m')
 
-      expect(mockTaskCompletionSend).toHaveBeenCalledOnce()
-      expect(mockTaskCompletionSend).toHaveBeenCalledWith('main-1', 'notification.task_completed', {
+      expect(mockTaskCompletionNotify).toHaveBeenCalledOnce()
+      expect(mockTaskCompletionNotify).toHaveBeenCalledWith({
         topicId: 'agent-session:session-1',
         turnId: expect.stringMatching(/^\d+:\d+$/),
         completedAt: 2_345,
-        delivery: 'system'
+        target: { conversationType: 'agent', conversationId: 'session-1' }
       })
     })
 
@@ -2051,7 +1993,8 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        completionTarget: { conversationType: 'assistant', conversationId: 't' }
       })
       mgr.abort('t', 'user-stop')
       await vi.runAllTimersAsync()
@@ -2059,7 +2002,7 @@ describe('AiStreamManager', () => {
       const abortedEntry = statusWritesFor('t').at(-1)
       expect(abortedEntry?.status).toBe('aborted')
       expect(abortedEntry?.lastCompletedAt).toBeUndefined()
-      expect(mockTaskCompletionSend).not.toHaveBeenCalled()
+      expect(mockTaskCompletionNotify).not.toHaveBeenCalled()
     })
 
     it('records aborted when the user stops the stream', async () => {
@@ -2080,14 +2023,15 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        completionTarget: { conversationType: 'assistant', conversationId: 't' }
       })
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
       // pending → error directly; we never fabricate a `streaming` transition
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
-      expect(mockTaskCompletionSend).not.toHaveBeenCalled()
+      expect(mockTaskCompletionNotify).not.toHaveBeenCalled()
     })
 
     it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
@@ -2095,7 +2039,8 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        completionTarget: { conversationType: 'assistant', conversationId: 't' }
       })
 
       // `tool-approval-request` records the pending toolCallId and flips pending → streaming.
@@ -2108,7 +2053,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
-      expect(mockTaskCompletionSend).not.toHaveBeenCalled()
+      expect(mockTaskCompletionNotify).not.toHaveBeenCalled()
     })
 
     it('clears awaiting-approval when a tool-output chunk resolves the approval before terminal', async () => {

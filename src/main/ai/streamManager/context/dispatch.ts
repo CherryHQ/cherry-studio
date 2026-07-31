@@ -167,7 +167,8 @@ export async function dispatchStreamRequest(
     models: prepared.models,
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
-    lifecycle: prepared.lifecycle
+    lifecycle: prepared.lifecycle,
+    completionTarget: prepared.completionTarget
   })
 
   return {

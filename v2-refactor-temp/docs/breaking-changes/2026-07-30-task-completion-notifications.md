@@ -2,7 +2,7 @@
 title: Agent and assistant completions now notify you
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17651"
 date: 2026-07-30
 ---
 

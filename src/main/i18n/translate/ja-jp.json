@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "[to be translated]:New task",
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
         "missing": "ワークスペースパスが存在しません: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "ズームイン",
     "zoomOut": "ズームアウト"
   },
+  "chat": {
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    }
+  },
   "common": {
     "copy": "コピー",
     "cut": "切り取り",
@@ -96,6 +102,12 @@
     "save_file": "ファイルを保存",
     "select_folder": "フォルダを選択",
     "word_document": "ワード文書"
+  },
+  "notification": {
+    "completion": {
+      "agent": "[to be translated]:Agent task complete",
+      "assistant": "[to be translated]:Assistant response complete"
+    }
   },
   "paintings": {
     "generate_failed": "画像の生成に失敗しました",

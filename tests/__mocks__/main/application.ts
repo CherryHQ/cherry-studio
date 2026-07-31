@@ -43,7 +43,6 @@ const mockWindowManager = {
   broadcastToType: vi.fn(),
   getWindow: vi.fn(() => undefined),
   getWindowsByType: vi.fn(() => []),
-  getWindowInfosByType: vi.fn(() => []),
   getAllWindows: vi.fn(() => []),
   getWindowInfo: vi.fn(() => undefined),
   getWindowId: vi.fn(() => undefined),
