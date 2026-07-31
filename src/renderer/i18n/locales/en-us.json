@@ -3065,6 +3065,7 @@
       "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
+        "copying": "Copying {{percent}}%",
         "embedding": "Embedding",
         "error": "Error",
         "pending": "Waiting",
