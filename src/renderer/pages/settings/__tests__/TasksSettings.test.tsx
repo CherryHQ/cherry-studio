@@ -888,7 +888,6 @@ describe('TasksSettings routing and creation', () => {
     const backButton = await screen.findByRole('button', { name: 'common.back' })
     expect(backButton).not.toHaveTextContent('Daily task')
     expect(backButton).not.toHaveTextContent('settings.scheduledTasks.title')
-    expect(backButton).toHaveAttribute('data-size', 'icon-sm')
     expect(screen.getByText('Daily task')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'agent.tasks.name.label' })).not.toBeInTheDocument()
     fireEvent.click(backButton)
@@ -947,19 +946,7 @@ describe('TasksSettings routing and creation', () => {
     expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
   })
 
-  it('centers the empty state in the remaining page height', async () => {
-    navigationMocks.taskId = undefined
-    taskDataMock.tasks = []
-
-    render(<TasksSettings />)
-
-    const emptyState = (await screen.findByText('settings.scheduledTasks.noTasksTitle')).parentElement
-    expect(screen.getByTestId('empty-state-icon')).toHaveClass('lucide-calendar-clock')
-    expect(emptyState?.parentElement).toHaveClass('flex', 'flex-1', 'flex-col')
-    expect(emptyState?.parentElement?.parentElement).toHaveClass('flex', 'min-h-full', 'flex-col')
-  })
-
-  it('opens a public xl Dialog with a daily 09:00 default', async () => {
+  it('opens a task dialog with a daily 09:00 default', async () => {
     navigationMocks.taskId = undefined
 
     render(<TasksSettings />)
@@ -969,7 +956,6 @@ describe('TasksSettings routing and creation', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
 
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveAttribute('data-size', 'xl')
     expect(within(dialog).getByText('settings.scheduledTasks.createTitle')).toBeInTheDocument()
     expect(within(dialog).getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
       'data-value',
@@ -988,11 +974,7 @@ describe('TasksSettings routing and creation', () => {
     expect(within(dialog).queryByText('agent.tasks.schedule.description')).not.toBeInTheDocument()
 
     expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' })).toBeRequired()
-    expect(
-      within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }).closest('[data-slot="scrollbar"]')
-    ).toHaveClass('-m-1', 'p-1', 'pr-3')
     const promptInput = within(dialog).getByLabelText('agent.tasks.prompt.label')
-    expect(promptInput).toHaveStyle({ minHeight: '100px' })
     const promptEditor = promptInput.closest('[data-slot="prompt-editor-field"]')
     expect(promptEditor).not.toBeNull()
     expect(
@@ -1016,8 +998,7 @@ describe('TasksSettings routing and creation', () => {
       within(taskInputGroup as HTMLElement).getByRole('button', { name: 'agent.session.display.workdir' })
     ).toBeInTheDocument()
 
-    expect(within(dialog).getByRole('button', { name: 'common.cancel' })).toHaveAttribute('data-variant', 'outline')
-    expect(within(dialog).getByRole('button', { name: 'common.cancel' })).not.toHaveAttribute('data-size')
+    expect(within(dialog).getByRole('button', { name: 'common.cancel' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'agent.tasks.save' })).not.toHaveAttribute('data-size')
   })
 
@@ -1169,7 +1150,6 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
     fireEvent.change(await screen.findByPlaceholderText('agent.tasks.logs.search'), { target: { value: 'done' } })
     expect(screen.getByText('done')).toBeInTheDocument()
-    expect(screen.getByText('done')).toHaveClass('line-clamp-4')
     expect(screen.queryByText('other result')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))

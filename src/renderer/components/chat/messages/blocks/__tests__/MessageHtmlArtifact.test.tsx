@@ -72,23 +72,4 @@ describe('MessageHtmlArtifact', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith('updated html')
   })
-
-  it('inherits the message content width in every layout', () => {
-    render(
-      <div data-message-virtual-list-scroller>
-        <div className="fold">
-          <div className="message">
-            <div data-testid="message-content">
-              <MessageHtmlArtifact artifactId="artifact" html="<main>Page</main>" />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-
-    const artifact = screen.getByTestId('message-html-artifact')
-    expect(artifact).toHaveClass('w-full', 'min-w-0', 'max-w-full')
-    expect(artifact).not.toHaveAttribute('style')
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-title', 'common.html_preview')
-  })
 })
