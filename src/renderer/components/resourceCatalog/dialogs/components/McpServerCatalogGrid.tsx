@@ -89,7 +89,7 @@ export function McpServerCatalogGrid({
     <div>
       {title ? (
         <div className="flex items-center gap-1.5">
-          <div className="font-medium text-foreground text-sm leading-none">{title}</div>
+          <div className="font-medium text-[13px] text-foreground leading-none">{title}</div>
           <Tooltip content={settingsLabel} portalContainer={portalContainer ?? undefined}>
             <Button
               type="button"
@@ -112,6 +112,7 @@ export function McpServerCatalogGrid({
           onToggle={onToggle}
           emptyLabel={emptyLabel}
           portalContainer={portalContainer}
+          layout="list"
         />
       </div>
     </div>

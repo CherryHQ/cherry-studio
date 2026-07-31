@@ -41,13 +41,22 @@ import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './Dialo
 // Vertical submenu / nav item preset — kept in sync with the settings sidebar's
 // settingsSubmenuItemClassName so the edit-dialog rail and settings nav read identically.
 const submenuItemClassName =
-  'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground'
+  'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-muted-foreground text-sm hover:!bg-foreground/[0.04] hover:!text-foreground focus-visible:!border-transparent focus-visible:!ring-1 focus-visible:!ring-foreground/20 focus-visible:!ring-offset-0 data-[active=true]:!border-transparent data-[active=true]:!bg-foreground/[0.08] data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-current'
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
 const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
 
 const logger = loggerService.withContext('EditDialogShared')
+
+export const editDialogFormRowClassName =
+  'grid min-w-0 grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 py-2.5'
+export const editDialogFormRowLabelClassName = 'justify-self-end font-normal text-muted-foreground text-[13px]'
+export const resourceDialogCloseButtonClassName =
+  '[&_[data-slot=dialog-close]]:top-[9px] [&_[data-slot=dialog-close]]:right-3 [&_[data-slot=dialog-close]]:flex [&_[data-slot=dialog-close]]:size-[30px] [&_[data-slot=dialog-close]]:items-center [&_[data-slot=dialog-close]]:justify-center [&_[data-slot=dialog-close]]:rounded-lg [&_[data-slot=dialog-close]]:hover:bg-foreground/[0.08] [&_[data-slot=dialog-close]]:focus-visible:bg-foreground/[0.08] [&_[data-slot=dialog-close]]:focus-visible:ring-1 [&_[data-slot=dialog-close]]:focus-visible:ring-foreground/20 [&_[data-slot=dialog-close]]:focus-visible:ring-offset-0'
+export const resourceDialogHeaderClassName =
+  'flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3.5 pr-12'
+export const resourceDialogTitleClassName = 'truncate text-sm'
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
@@ -452,7 +461,7 @@ export function EditDialogShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
-        className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200">
+        className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0 sm:max-w-180', resourceDialogCloseButtonClassName)}>
         <Form {...form}>
           {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
               transform makes it the containing block for portaled fixed poppers (model selector),
@@ -462,9 +471,9 @@ export function EditDialogShell<TValues extends FieldValues>({
             onSubmit={(event) => event.preventDefault()}
             className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             {/* Header — title, matching the create wizard's top bar. */}
-            <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
+            <div className={resourceDialogHeaderClassName}>
               <div className="min-w-0">
-                <DialogTitle className="truncate text-base">{title}</DialogTitle>
+                <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
               </div>
             </div>
             <Tabs
@@ -472,11 +481,9 @@ export function EditDialogShell<TValues extends FieldValues>({
               onValueChange={handleTabValueChange}
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
-              {/* White rail matching the settings-page nav: hairline divider, no sidebar tint. */}
-              <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px]">
-                <TabsList
-                  asChild
-                  className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-2.5">
+              {/* Quiet rail surface keeps navigation distinct without competing with the form. */}
+              <div className="flex w-36 shrink-0 flex-col border-border border-r-[0.5px] bg-background-subtle">
+                <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-3">
                   <MenuList>
                     {tabs.map((tab) => {
                       const hasChildren = Boolean(tab.children?.length)
@@ -541,13 +548,13 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-2">
+                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-6 pt-5 pb-3">
                   {children}
                 </Scrollbar>
                 {/* Always-present bottom band: insets scrolling lists from the dialog's
                     rounded-3xl corners so content never clips into them mid-scroll, and
                     surfaces the save error inline when present. */}
-                <div className="flex min-h-6 shrink-0 items-center px-5 pb-3" aria-live="polite">
+                <div className="flex min-h-6 shrink-0 items-center px-6 pb-4" aria-live="polite">
                   {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
                 </div>
               </div>
@@ -565,7 +572,8 @@ export function AvatarField({
   setEmojiPickerOpen,
   fallback,
   portalContainer,
-  size
+  size,
+  layout = 'stacked'
 }: {
   form: UseFormReturn<any>
   emojiPickerOpen: boolean
@@ -573,6 +581,7 @@ export function AvatarField({
   fallback: string
   portalContainer: HTMLElement | null
   size?: 'sm' | 'md'
+  layout?: 'stacked' | 'row'
 }) {
   const { t } = useTranslation()
   const avatar = form.watch('avatar')
@@ -582,8 +591,10 @@ export function AvatarField({
       control={form.control}
       name="avatar"
       render={({ field }) => (
-        <FormItem>
-          <FormLabel className="font-normal">{t('common.avatar')}</FormLabel>
+        <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
+          <FormLabel className={layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal'}>
+            {t('common.avatar')}
+          </FormLabel>
           <EmojiAvatarPicker
             value={avatar}
             fallback={fallback}
@@ -594,7 +605,7 @@ export function AvatarField({
             portalContainer={portalContainer}
             size={size}
           />
-          <FormMessage />
+          <FormMessage className={layout === 'row' ? 'col-start-2' : undefined} />
         </FormItem>
       )}
     />
@@ -607,7 +618,8 @@ export function TextInputField({
   label,
   description,
   placeholder,
-  required = false
+  required = false,
+  layout = 'stacked'
 }: {
   form: UseFormReturn<any>
   name: 'name' | 'description'
@@ -615,6 +627,7 @@ export function TextInputField({
   description?: string
   placeholder?: string
   required?: boolean
+  layout?: 'stacked' | 'row'
 }) {
   const { t } = useTranslation()
 
@@ -624,8 +637,14 @@ export function TextInputField({
       name={name}
       rules={required ? { validate: (value) => value.trim().length > 0 || t('common.required_field') } : undefined}
       render={({ field }) => (
-        <FormItem>
-          <FormLabel className="font-normal">{label}</FormLabel>
+        <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
+          <FormLabel
+            className={cn(
+              layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal',
+              layout === 'row' && name === 'description' && 'self-start pt-3'
+            )}>
+            {label}
+          </FormLabel>
           <FormControl>
             {name === 'description' ? (
               <Textarea.Input
@@ -639,8 +658,12 @@ export function TextInputField({
               <Input {...field} placeholder={placeholder} />
             )}
           </FormControl>
-          {description ? <FormDescription className="text-xs">{description}</FormDescription> : null}
-          <FormMessage />
+          {description ? (
+            <FormDescription className={cn('text-xs', layout === 'row' && 'col-start-2')}>
+              {description}
+            </FormDescription>
+          ) : null}
+          <FormMessage className={layout === 'row' ? 'col-start-2' : undefined} />
         </FormItem>
       )}
     />
@@ -658,7 +681,9 @@ export function CompactModelField({
   modelLabels,
   setModelLabels,
   onModelChange,
-  onSettingsNavigate
+  onSettingsNavigate,
+  layout = 'stacked',
+  triggerClassName
 }: {
   form: UseFormReturn<any>
   name: ModelLabelKey
@@ -671,6 +696,8 @@ export function CompactModelField({
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
   onSettingsNavigate?: (navigate: () => void) => void
+  layout?: 'stacked' | 'row'
+  triggerClassName?: string
 }) {
   const { t } = useTranslation()
   const value = form.watch(name)
@@ -694,8 +721,8 @@ export function CompactModelField({
       control={form.control}
       name={name}
       render={({ field }) => (
-        <FormItem>
-          <FormLabel className="font-normal">{label}</FormLabel>
+        <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
+          <FormLabel className={layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal'}>{label}</FormLabel>
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
@@ -720,7 +747,11 @@ export function CompactModelField({
                     ariaLabel={label}
                     model={triggerModel}
                     displayLabel={displayLabel}
-                    className={cn('w-full', triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground')}
+                    className={cn(
+                      'w-full',
+                      triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground',
+                      triggerClassName
+                    )}
                     chevronClassName={
                       allowClear && value
                         ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0'
@@ -749,13 +780,17 @@ export function CompactModelField({
               ) : null}
             </div>
           </DialogModelFrame>
-          {description ? <FormDescription className="text-xs">{description}</FormDescription> : null}
+          {description ? (
+            <FormDescription className={cn('text-xs', layout === 'row' && 'col-start-2')}>
+              {description}
+            </FormDescription>
+          ) : null}
           {name === 'modelId' && value && !modelLabels[name] && !selectedModel ? (
-            <FormDescription className="text-xs">
+            <FormDescription className={cn('text-xs', layout === 'row' && 'col-start-2')}>
               {t('library.config.basic.model_not_found', { id: value })}
             </FormDescription>
           ) : null}
-          <FormMessage />
+          <FormMessage className={layout === 'row' ? 'col-start-2' : undefined} />
         </FormItem>
       )}
     />

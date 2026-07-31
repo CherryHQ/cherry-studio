@@ -1013,10 +1013,12 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByText('Knowledge One'))
 
     selectTab('MCP')
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Enable MCP' })).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('radiogroup', { name: 'MCP Mode' })).toBeVisible())
     expect(screen.queryByRole('button', { name: 'Add MCP server' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+    const mcpModeGroup = screen.getByRole('radiogroup', { name: 'MCP Mode' })
+    expect(within(mcpModeGroup).getByRole('radio', { name: 'Disabled' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(mcpModeGroup).getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(mcpModeGroup).getByRole('radio', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
     selectTab('Model')
@@ -1336,8 +1338,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} />)
 
     selectTab('MCP')
-    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP Mode' })).getByRole('radio', { name: 'Manual' }))
 
     expect(screen.getByText('MCP services')).toBeInTheDocument()
     expect(screen.getByText('MCP One')).toBeInTheDocument()
