@@ -92,15 +92,17 @@ a prerequisite for exporting the profile.
 
 | Rule | Detail |
 |---|---|
-| Release | Dispose only the hold you acquired. The last disposal runs recovery/dispatch compensation and resumes timers. |
-| Drain precondition | Hold a live pause token before using a verdict as an administrative boundary. Without one the result is only a point-in-time snapshot. |
-| Clean verdict | `stragglerIds` is empty and `startupRecoveryPending` is false. Startup recovery is an internal writer, not a fake job ID. |
-| Timeout | The method resolves with real straggler IDs; it does not reject or force-cancel them. |
+| No `resume()` | Release = dispose your own hold. Holds are refcounted; the last dispose runs the compensation pass: any outstanding recovery settles FIRST — an internal release barrier keeps autonomous fires/claims frozen until it does (interval chains and croner timers would otherwise resume the moment the holds are gone and race the flow's stale-snapshot catch-up) — then delayed promotion + dispatch, suppressed-once re-arm, croner resume. A lost hold fails closed — paused until relaunch. |
+| Drain precondition | Caller must hold a live pause hold. Without one the verdict is a point-in-time snapshot (warn, no throw) and MUST NOT gate an irreversible boundary. |
+| Clean verdict | `stragglerIds` empty **and** `startupRecoveryPending === false`. The deferred startup recovery is a JM-internal writer that is not a job, so it gets its own verdict field — never fake ids in `stragglerIds`. `true` means the flow is still blocked inside a step; a flow that short-circuited at a step boundary writes nothing more and reports `false` (the remainder is release's debt). |
+| Timeout | `drainInFlight` never rejects. Stragglers are **not** aborted — an abort would settle them as `cancelled` and lose the re-run; left `running`, startup recovery applies the handler strategy. A caller must treat a timed-out drain as an unclean boundary. |
+| No error surface | No API throws because of a pause; there is no pause-related error code. |
 
-While paused, autonomous claims, schedule fires, GC, retry promotion, and new
-startup-recovery steps are deferred. Request-driven enqueue/cancel and schedule
-configuration remain explicit caller actions. Missed cron fires follow croner
-semantics; suppressed one-shot fires are re-armed once on final release.
+**Blocked while paused** (autonomous writes): dispatch claims (entry check + post-mutex re-check), schedule fire callbacks (crons are additionally paused at the croner layer so `limit` quotas survive the window), GC / delayed-promotion ticks, delayed/retry promotion fires, and new startup-recovery steps — a started step (one schedule's `onMissed` + catch-up enqueue, atomic) runs to completion and is awaited by drain.
+
+**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` + `markFired`; `true` still means "row persisted").
+
+Missed cron fires are skipped, not caught up (croner semantics). A suppressed `once` fire is re-armed on release from the recorded id set — exactly once; never rebuild by scanning "enabled ∧ missing scheduler entry", which also matches historical completed one-shots.
 
 ## Why DB-driven and not in-memory queue?
 
