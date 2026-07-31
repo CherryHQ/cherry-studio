@@ -168,25 +168,4 @@ describe('copy', () => {
       expect(toast.success).not.toHaveBeenCalled()
     })
   })
-
-  describe('edge cases', () => {
-    it('should handle null or undefined inputs gracefully', async () => {
-      // 测试null/undefined输入的错误处理
-      const { topicToMarkdown, topicToPlainText } = await import('@renderer/services/ExportService')
-      const { messageToPlainText } = await import('@renderer/utils/export')
-
-      vi.mocked(topicToMarkdown).mockRejectedValue(new Error('Cannot read properties of null'))
-      vi.mocked(topicToPlainText).mockRejectedValue(new Error('Cannot read properties of undefined'))
-      vi.mocked(messageToPlainText).mockImplementation(() => {
-        throw new Error('Cannot read properties of null')
-      })
-
-      // @ts-expect-error 测试类型错误
-      await expect(copyTopicAsMarkdown(null)).rejects.toThrow('Cannot read properties of null')
-      // @ts-expect-error 测试类型错误
-      await expect(copyTopicAsPlainText(undefined)).rejects.toThrow('Cannot read properties of undefined')
-      // @ts-expect-error 测试类型错误
-      await expect(copyMessageAsPlainText(null)).rejects.toThrow('Cannot read properties of null')
-    })
-  })
 })

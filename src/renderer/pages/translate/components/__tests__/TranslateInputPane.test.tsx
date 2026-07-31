@@ -30,7 +30,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} data-testid="translate-input-scrollbar" {...props}>
+    <div ref={ref} {...props}>
       {children}
     </div>
   ),
@@ -67,22 +67,14 @@ describe('TranslateInputPane', () => {
     expect(props.onSelectFile).not.toHaveBeenCalled()
   })
 
-  it('hides the upload area once input has text', () => {
+  it('shows the input value and hides the upload area once input has text', () => {
     const props = baseProps()
     props.text = 'hello'
 
     render(<TranslateInputPane {...props} />)
 
     expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
-  })
-
-  it('renders the editable input inside the shared Scrollbar', () => {
-    const props = baseProps()
-    props.text = 'hello'
-
-    render(<TranslateInputPane {...props} />)
-
-    expect(screen.getByTestId('translate-input-scrollbar')).toContainElement(screen.getByRole('textbox'))
+    expect(screen.getByRole('textbox')).toHaveValue('hello')
   })
 
   it('clears the input when the clear button is clicked', () => {

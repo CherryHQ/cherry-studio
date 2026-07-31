@@ -567,12 +567,6 @@ describe('ExportService', () => {
       // The answer body still resolves to a real number, so stripping is scoped to the trace.
       expect(markdown).toContain('Prices rose 3%. [^1]')
     })
-
-    it('should format citations as footnotes when standardize citations is enabled', () => {
-      // Remove this test as it's testing integration with mocked store settings
-      // The functionality is already tested in the Citation formatting section
-      expect(true).toBe(true) // Placeholder
-    })
   })
 
   describe('messagesToMarkdown', () => {
