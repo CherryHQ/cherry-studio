@@ -1,4 +1,15 @@
-import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  type ComboboxOption,
+  InfoTooltip,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
   SettingGroup,
@@ -11,6 +22,7 @@ import {
 import { useLanguages } from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
+import { cn } from '@renderer/utils/style'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -36,8 +48,8 @@ const logger = loggerService.withContext('ProcessorPanel')
 
 type ProcessorPanelProps = {
   entry: FileProcessingMenuEntry
-  defaultDocumentProcessor: FileProcessorId | null
-  defaultImageProcessor: FileProcessorId | null
+  entries: FileProcessingMenuEntry[]
+  onSelectEntry: (entry: FileProcessingMenuEntry) => void
   onSetApiKeys: (processorId: FileProcessorId, apiKeys: string[]) => Promise<void>
   onSetCapabilityField: (
     processorId: FileProcessorId,
@@ -53,9 +65,9 @@ type ProcessorPanelProps = {
 }
 
 export function ProcessorPanel({
-  defaultDocumentProcessor,
-  defaultImageProcessor,
   entry,
+  entries,
+  onSelectEntry,
   onSetApiKeys,
   onSetCapabilityField,
   onSetDefaultProcessor,
@@ -66,10 +78,23 @@ export function ProcessorPanel({
   const processor = entry.processor
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
-  const isDefault =
+  const featureTitleKey =
     entry.feature === 'image_to_text'
-      ? defaultImageProcessor === processor.id
-      : defaultDocumentProcessor === processor.id
+      ? 'settings.tool.file_processing.features.image_to_text.title'
+      : 'settings.tool.file_processing.features.document_to_markdown.title'
+  const featureTooltipKey =
+    entry.feature === 'image_to_text'
+      ? 'settings.tool.file_processing.features.image_to_text.tooltip'
+      : 'settings.tool.file_processing.features.document_to_markdown.tooltip'
+  const featureTitle = t(featureTitleKey)
+  const showApiSettings = supportsApiSettings(processor)
+  const showLanguageOptions = shouldShowLanguageOptions(processor.id)
+  const hasProcessorDetails =
+    showApiSettings ||
+    processor.id === 'paddleocr' ||
+    processor.id === 'local-paddleocr' ||
+    processor.id === 'system' ||
+    showLanguageOptions
 
   const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
   const [apiHostInput, setApiHostInput] = useState(entry.capability.apiHost ?? '')
@@ -115,9 +140,11 @@ export function ProcessorPanel({
     async (action: () => Promise<void>, actionName: string) => {
       try {
         await action()
+        return true
       } catch (error) {
         logger.error(`Failed to ${actionName}`, error as Error)
         toast.error(t('settings.tool.file_processing.errors.save_failed'))
+        return false
       }
     },
     [t]
@@ -157,11 +184,26 @@ export function ProcessorPanel({
     [entry.feature, onSetCapabilityField, persist, processor.id]
   )
 
-  const handleSetDefault = useCallback(async () => {
-    if (!isDefault) {
-      await persist(() => onSetDefaultProcessor(entry.feature, processor.id), 'set default processor')
-    }
-  }, [entry.feature, isDefault, onSetDefaultProcessor, persist, processor.id])
+  const handleProcessorChange = useCallback(
+    (processorId: string) => {
+      const selectedEntry = entries.find((item) => item.processor.id === processorId)
+
+      if (!selectedEntry || selectedEntry.key === entry.key) {
+        return
+      }
+
+      onSelectEntry(selectedEntry)
+      void persist(
+        () => onSetDefaultProcessor(selectedEntry.feature, selectedEntry.processor.id),
+        'set default processor'
+      ).then((saved) => {
+        if (!saved) {
+          onSelectEntry(entry)
+        }
+      })
+    },
+    [entries, entry, onSelectEntry, onSetDefaultProcessor, persist]
+  )
 
   const handleLanguagesChange = useCallback(
     async (value: string | string[]) => {
@@ -179,25 +221,33 @@ export function ProcessorPanel({
 
   return (
     <SettingGroup className="flex w-full flex-col gap-2">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <ProcessorAvatar processorId={processor.id} />
-          <div className="min-w-0">
-            <SettingTitle className="justify-start truncate">{processorName}</SettingTitle>
-          </div>
-        </div>
-        {isDefault ? (
-          <Badge className="shrink-0 rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
-            {t('common.default')}
-          </Badge>
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => void handleSetDefault()}>
-            {t('settings.tool.file_processing.actions.set_as_default')}
-          </Button>
-        )}
+      <div className={cn('flex min-h-8 flex-wrap items-center justify-between gap-3', hasProcessorDetails && 'mb-2')}>
+        <SettingTitle className="h-8 min-w-0 justify-start gap-1.5">
+          <span className="truncate">{featureTitle}</span>
+          <InfoTooltip
+            content={t(featureTooltipKey)}
+            placement="right"
+            iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
+          />
+        </SettingTitle>
+        <Select value={processor.id} onValueChange={handleProcessorChange}>
+          <SelectTrigger size="sm" className="h-8 w-56 text-sm" aria-label={featureTitle}>
+            <SelectValue placeholder={t('common.select')} />
+          </SelectTrigger>
+          <SelectContent>
+            {entries.map((item) => (
+              <SelectItem key={item.key} value={item.processor.id}>
+                <div className="flex items-center gap-2">
+                  <ProcessorAvatar processorId={item.processor.id} />
+                  <span>{t(getProcessorNameKey(item.processor.id))}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {supportsApiSettings(processor) ? (
+      {showApiSettings ? (
         <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <div className="flex flex-col gap-2">
             <div className="flex min-w-0 items-baseline gap-2">
@@ -289,7 +339,7 @@ export function ProcessorPanel({
         </div>
       ) : null}
 
-      {shouldShowLanguageOptions(processor.id) ? (
+      {showLanguageOptions ? (
         <TesseractLanguagePacks
           options={languageOptions}
           selectedLanguages={selectedLanguages}
