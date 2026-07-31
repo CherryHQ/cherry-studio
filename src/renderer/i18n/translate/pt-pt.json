@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
-            "title": "Aprovar por mim"
+            "title": "Aprovar por mim",
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
           },
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",

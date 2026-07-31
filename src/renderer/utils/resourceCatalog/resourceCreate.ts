@@ -28,9 +28,10 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     skillIds: values.skillIds,
     configuration: {
       avatar: values.avatar,
-      // A new agent asks about risky actions rather than running everything unattended.
-      // `bypassPermissions` stays available, but opting out of approvals is the user's call.
-      permission_mode: 'auto'
+      // A new agent asks before acting. `auto` reads as the friendlier default, but it
+      // leans on a model-side classifier that not every model implements, so making it
+      // the default silently degrades on those. Escalating is the user's call.
+      permission_mode: 'default'
     }
   }
 }

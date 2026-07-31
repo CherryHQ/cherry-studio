@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "Runs without routine prompts. A safety check blocks risky actions.",
-            "title": "Approve for Me"
+            "title": "Approve for Me",
+            "warning": "Needs a model that supports it; others may ignore it or keep asking."
           },
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
