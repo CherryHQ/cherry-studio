@@ -11,18 +11,13 @@ interface CherryINSettingsProps {
 
 const API_HOST_OPTIONS = [
   {
-    value: 'https://open.cherryin.cc',
-    labelKey: '加速域名',
-    description: 'open.cherryin.cc'
-  },
-  {
     value: 'https://open.cherryin.net',
-    labelKey: '国际域名',
+    labelKey: '加速域名',
     description: 'open.cherryin.net'
   },
   {
     value: 'https://open.cherryin.ai',
-    labelKey: '备用域名',
+    labelKey: '国际域名',
     description: 'open.cherryin.ai'
   }
 ]

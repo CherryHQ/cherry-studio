@@ -79,6 +79,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenDoubaoModel: vi.fn(() => false),
     isSupportedThinkingTokenZhipuModel: vi.fn(() => false),
     isSupportedThinkingTokenMiMoModel: vi.fn(() => false),
+    isSupportedThinkingTokenLongCatModel: vi.fn(() => false),
     isSupportedReasoningEffortModel: vi.fn(() => false),
     isDeepSeekHybridInferenceModel: vi.fn(() => false),
     isDeepSeekV4PlusModel: vi.fn(() => false),
@@ -232,6 +233,54 @@ describe('reasoning utils', () => {
         id: 'minimax-m3',
         name: 'MiniMax-M3',
         provider: 'minimax'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'disabled' } })
+    })
+
+    it('should enable LongCat-2.0 thinking with official thinking parameter', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenLongCatModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenLongCatModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'LongCat-2.0',
+        name: 'LongCat 2.0',
+        provider: 'longcat'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'auto'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'enabled' } })
+    })
+
+    it('should disable LongCat-2.0 thinking with official thinking parameter', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenLongCatModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenLongCatModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'LongCat-2.0',
+        name: 'LongCat 2.0',
+        provider: 'longcat'
       } as Model
 
       const assistant: Assistant = {

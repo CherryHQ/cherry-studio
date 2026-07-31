@@ -294,9 +294,9 @@ export class WindowService {
         'https://account.siliconflow.cn/oauth',
         'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
-        'https://console.aihubmix.com/token',
-        'https://console.aihubmix.com/topup',
-        'https://console.aihubmix.com/statistics',
+        'https://console.inferera.com/token',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'

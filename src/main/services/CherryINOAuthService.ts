@@ -122,7 +122,7 @@ class CherryINOAuthService {
 
   /**
    * Start OAuth flow - generates PKCE params and returns auth URL
-   * @param oauthServer - OAuth server URL (e.g., https://open.cherryin.ai)
+   * @param oauthServer - OAuth server URL (e.g., https://open.cherryin.net)
    * @param apiHost - API host URL (defaults to oauthServer)
    * @returns authUrl to open in browser and state for later verification
    */

@@ -26,7 +26,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 }
 
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
+  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
 
   const popup = window.open(
     authUrl,
@@ -306,7 +306,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://console.aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 720,
       height: 900
     },
@@ -349,7 +349,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://console.aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 900,
       height: 700
     },

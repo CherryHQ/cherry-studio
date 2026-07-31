@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 
-const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
+const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 429, 500, 502, 503, 504]
 
 // Module-level cache for AI classification to avoid duplicate API calls
 const aiClassifyCache = new Map<string, Promise<string>>()

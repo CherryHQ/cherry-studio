@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.9.11",
+  "version": "1.9.12",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -50,7 +50,6 @@
     "skills:sync": "tsx scripts/skills-sync.ts",
     "skills:check": "tsx scripts/skills-check.ts",
     "update:languages": "tsx scripts/update-languages.ts",
-    "update:upgrade-config": "tsx scripts/update-app-upgrade-config.ts",
     "test": "vitest run --silent",
     "test:main": "vitest run --project main",
     "test:renderer": "vitest run --project renderer",

@@ -840,6 +840,14 @@ describe('listModels', () => {
       const models = await listModels(makeProvider({ id: 'aihubmix' }))
       expect(models).toHaveLength(2)
     })
+
+    it('should build the models URL from the configured base URL, stripping a trailing /v1', async () => {
+      mockGetFromApi.mockResolvedValue({ value: REAL_AIHUBMIX })
+      await listModels(makeProvider({ id: 'aihubmix', apiHost: 'https://custom.example.com/v1' }))
+      expect(mockGetFromApi).toHaveBeenCalledTimes(1)
+      const [request] = mockGetFromApi.mock.calls[0]
+      expect(request.url).toBe('https://custom.example.com/api/v1/models')
+    })
   })
 
   describe('Ollama', () => {

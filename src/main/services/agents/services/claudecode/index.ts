@@ -61,7 +61,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
-import { with1mContextSuffix } from './utils'
+import { getFirstConfiguredApiKey, with1mContextSuffix } from './utils'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -182,9 +182,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Providers like Ollama and LM Studio don't require real API keys,
     // but the Claude Agent SDK needs a non-empty placeholder value
-    if (!provider.apiKey) {
-      provider.apiKey = provider.id
-    }
+    const apiKey = getFirstConfiguredApiKey(provider.apiKey) || provider.id
 
     const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
@@ -217,8 +215,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       // ANTHROPIC_API_KEY: apiConfig.apiKey,
       // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
       // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
-      ANTHROPIC_API_KEY: provider.apiKey,
-      ANTHROPIC_AUTH_TOKEN: provider.apiKey,
+      ANTHROPIC_API_KEY: apiKey,
+      ANTHROPIC_AUTH_TOKEN: apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
       ANTHROPIC_CUSTOM_HEADERS: customHeaders,
       ANTHROPIC_MODEL: sdkModelId,

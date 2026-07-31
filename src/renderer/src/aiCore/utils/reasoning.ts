@@ -39,6 +39,7 @@ import {
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenKimiModel,
+  isSupportedThinkingTokenLongCatModel,
   isSupportedThinkingTokenMiMoModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
@@ -56,6 +57,12 @@ import { toInteger } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')
+
+function getEffortRatio(reasoningEffort: string | undefined): number {
+  return reasoningEffort && reasoningEffort in EFFORT_RATIO
+    ? EFFORT_RATIO[reasoningEffort as ReasoningEffortOption]
+    : EFFORT_RATIO.high
+}
 
 type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
@@ -127,6 +134,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // It's for some reasoning models that don't support reasoning control, such as deepseek reasoner.
   if (!reasoningEffort || reasoningEffort === 'default') {
     return {}
+  }
+
+  if (isSupportedThinkingTokenLongCatModel(model)) {
+    // LongCat API accepts `{ thinking: { type: 'enabled' } }` without requiring `budget_tokens`
+    return { thinking: { type: reasoningEffort === 'none' ? 'disabled' : 'enabled' } }
   }
 
   // Handle 'none' reasoningEffort. It's explicitly off.
@@ -721,7 +733,7 @@ export function getThinkingBudget(
     return undefined
   }
 
-  return computeBudgetTokens(tokenLimit, EFFORT_RATIO[reasoningEffort], maxTokens)
+  return computeBudgetTokens(tokenLimit, getEffortRatio(reasoningEffort), maxTokens)
 }
 
 // Compute a fallback budgetTokens using a conservative token limit when
@@ -729,8 +741,7 @@ export function getThinkingBudget(
 // { type: 'enabled' } always carries a valid budget, which is required by
 // the Claude Agent SDK and the Anthropic Messages API.
 function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
-  const effortRatio = EFFORT_RATIO[reasoningEffort ?? 'high'] ?? EFFORT_RATIO.high
-  return computeBudgetTokens(FALLBACK_TOKEN_LIMIT, effortRatio)
+  return computeBudgetTokens(FALLBACK_TOKEN_LIMIT, getEffortRatio(reasoningEffort))
 }
 
 /**

@@ -2,7 +2,6 @@ import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
-import { getUrlOriginOrFallback } from '@renderer/utils/url'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -111,7 +110,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         number: index + 1,
         title: result.title,
         content: result.content,
-        url: getUrlOriginOrFallback(result.url)
+        url: result.url
       }))
 
       const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
