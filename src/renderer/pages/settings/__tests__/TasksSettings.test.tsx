@@ -1,5 +1,6 @@
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -844,6 +845,7 @@ describe('TasksSettings routing and creation', () => {
   })
 
   it('searches tasks and filters them by Agent and status', async () => {
+    const user = userEvent.setup()
     navigationMocks.taskId = undefined
     agentDataMock.agents = [
       { id: 'agent-1', name: 'Agent One', configuration: {} },
@@ -863,13 +865,12 @@ describe('TasksSettings routing and creation', () => {
     expect(await screen.findByRole('link', { name: /Daily task/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'settings.scheduledTasks.search' }), {
-      target: { value: 'weekly' }
-    })
+    await user.click(screen.getByRole('button', { name: 'settings.scheduledTasks.search' }))
+    await user.type(screen.getByRole('searchbox', { name: 'settings.scheduledTasks.search' }), 'weekly')
     expect(screen.queryByRole('link', { name: /Daily task/ })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
+    await user.click(screen.getByRole('button', { name: 'common.clear' }))
     fireEvent.click(screen.getByRole('option', { name: 'Agent Two' }))
     expect(screen.queryByRole('link', { name: /Daily task/ })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
