@@ -180,6 +180,34 @@ describe('useChatWithHistory', () => {
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
   })
 
+  it('does not re-resume when the SDK status flaps after the mount attach', async () => {
+    // Regression: the mount-resume effect used to depend on `status`, so every
+    // ready/error edge of a terminated resumed stream immediately re-attached,
+    // spinning a hot reconnect loop while main still reported the stream live.
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    let sdkStatus = 'ready'
+    mockUseChat.mockImplementation(() => ({
+      messages: [] as CherryUIMessage[],
+      setMessages,
+      stop,
+      status: sdkStatus,
+      error: undefined,
+      sendMessage,
+      regenerate,
+      resumeStream
+    }))
+
+    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
+    await waitFor(() => expect(resumeStream).toHaveBeenCalledTimes(1))
+
+    for (const nextStatus of ['submitted', 'streaming', 'error', 'ready', 'error', 'ready']) {
+      sdkStatus = nextStatus
+      rerender()
+    }
+
+    await waitFor(() => expect(resumeStream).toHaveBeenCalledTimes(1))
+  })
+
   it('stop() fires streamAbort IPC even on reconnected streams', async () => {
     // The AI SDK's `ChatTransport.reconnectToStream` contract doesn't carry an
     // abortSignal, so streams produced by reconnect lack the listener that

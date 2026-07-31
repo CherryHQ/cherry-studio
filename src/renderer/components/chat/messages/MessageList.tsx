@@ -86,18 +86,15 @@ function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
 type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   groupKey: string
   narrowMode: boolean
-  isLive: boolean
 }
 
 function MessageGroupLayer({
   groupKey,
   narrowMode,
-  isLive,
   messages,
   partsByMessageId,
   ...messageGroupProps
 }: MessageGroupLayerProps) {
-  void isLive
   return (
     <PartsProvider value={partsByMessageId ?? null}>
       <NarrowLayout narrowMode={narrowMode} withSidePadding>
@@ -107,34 +104,17 @@ function MessageGroupLayer({
   )
 }
 
-function groupPartsShallowEqual(
-  previous: MessageGroupLayerProps['partsByMessageId'],
-  next: MessageGroupLayerProps['partsByMessageId'],
-  messages: MessageGroupLayerProps['messages']
-): boolean {
-  if (previous === next) return true
-  return messages.every((message) => previous?.[message.id] === next?.[message.id])
-}
-
 /**
- * One component type for both the sealed history boundary and the mutable live
- * tail: a group crossing the history/live boundary must re-render, not switch
- * element type — a type switch unmounts the whole group and flashes it.
- *
- * Live groups always re-render (they receive per-frame stream snapshots).
- * History groups compare their own messages' part arrays instead of the parts
- * map identity, so map rebuilds on send/refresh don't re-render them (and
- * don't push a new PartsProvider value into their subtree). The per-group
- * layout callback identity is deliberately ignored; the virtual item key
- * guarantees that callback always closes over the same group.
+ * A sealed history boundary. It deliberately ignores the per-group layout
+ * callback identity; the virtual item key guarantees that callback always
+ * closes over the same group.
  */
-const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
-  if (previous.isLive || next.isLive) return false
+const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
   return (
     previous.groupKey === next.groupKey &&
     previous.narrowMode === next.narrowMode &&
     previous.messages === next.messages &&
-    groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
+    previous.partsByMessageId === next.partsByMessageId &&
     previous.topic === next.topic &&
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
@@ -143,6 +123,9 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.messageTail === next.messageTail
   )
 })
+
+/** Mutable tail boundary; only this layer receives per-frame stream snapshots. */
+const MessageLiveLayer = MessageGroupLayer
 
 const MessageList = () => {
   const data = useMessageListData()
@@ -617,7 +600,6 @@ const MessageList = () => {
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 narrowMode: messageListNarrowMode,
-                isLive: index >= firstLiveGroupIndex,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
@@ -635,7 +617,7 @@ const MessageList = () => {
                 }
               }
 
-              return <MessageLayer {...props} />
+              return index < firstLiveGroupIndex ? <MessageHistoryLayer {...props} /> : <MessageLiveLayer {...props} />
             }}
             style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
           />

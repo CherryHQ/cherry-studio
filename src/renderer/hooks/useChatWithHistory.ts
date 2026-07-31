@@ -81,10 +81,23 @@ export function useChatWithHistory(
 
   const resumeInFlightRef = useRef<{ token: symbol; topicId: string } | null>(null)
 
+  // `status` and `resumeStream` are read through refs so `resumeActiveStream`
+  // keeps one identity per topic. With them in the deps, the "mount" effect
+  // below re-fired on every SDK status change; when a resumed stream
+  // terminated (closed or errored) while main still reported the stream as
+  // attachable, each ready/error edge immediately re-attached — a hot
+  // resume loop (attach IPC + stream setup + status flap per cycle) that
+  // pegged the CPU. The refs also make the post-refresh status re-check read
+  // the current value instead of a stale closure.
+  const statusRef = useRef(status)
+  statusRef.current = status
+  const resumeStreamRef = useRef(resumeStream)
+  resumeStreamRef.current = resumeStream
+
   const resumeActiveStream = useCallback(
     (reason: 'mount' | 'started-event') => {
       if (!enabled) return
-      if (reason === 'mount' && (status === 'streaming' || status === 'submitted')) return
+      if (reason === 'mount' && (statusRef.current === 'streaming' || statusRef.current === 'submitted')) return
       if (resumeInFlightRef.current?.topicId === topicId) return
 
       const token = Symbol(topicId)
@@ -98,11 +111,11 @@ export function useChatWithHistory(
           }
         }
 
-        if (status === 'streaming' || status === 'submitted') {
+        if (statusRef.current === 'streaming' || statusRef.current === 'submitted') {
           return
         }
 
-        await resumeStream()
+        await resumeStreamRef.current()
       })()
         .catch((err) => {
           logger.warn('Failed to resume active stream', { topicId, reason, err })
@@ -111,9 +124,10 @@ export function useChatWithHistory(
           if (resumeInFlightRef.current?.token === token) resumeInFlightRef.current = null
         })
     },
-    [enabled, resumeStream, status, topicId]
+    [enabled, topicId]
   )
 
+  // One attach attempt per topic selection — not per status change.
   useEffect(() => {
     resumeActiveStream('mount')
   }, [resumeActiveStream])
