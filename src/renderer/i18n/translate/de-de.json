@@ -1267,10 +1267,6 @@
           "tip": "Der Assistent verwendet die Absichtserkennungsfähigkeit des großen Modells, um zu bestimmen, ob die Wissensdatenbank für die Antwort aufgerufen werden muss. Diese Funktion hängt von den Fähigkeiten des Modells ab"
         }
       },
-      "max_tool_calls": {
-        "label": "Maximale Werkzeugaufrufe",
-        "tip": "Maximale Anzahl von Tool-Aufrufen, die in einer einzelnen Konversation erlaubt sind. Höhere Werte ermöglichen komplexere, mehrstufige Operationen, können aber den Token-Verbrauch und die Antwortzeit erhöhen."
-      },
       "mcp": {
         "description": "Standardmäßig aktivierte MCP-Server",
         "enableFirst": "Bitte aktivieren Sie diesen Server zuerst in den MCP-Einstellungen",
@@ -1619,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Kann nicht in gültiges Tool-Aufrufformat konvertiert werden: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
-        "multiple_tools": "Mehrere übereinstimmende MCP-Tools gefunden, {{tool}} wurde ausgewählt",
-        "no_tool": "Erforderliches MCP-Tool {{tool}} nicht gefunden",
         "url_context": "Gemini unterstützt nicht die gleichzeitige Verwendung von Webseiten-Kontext und Funktionsaufrufen"
       }
     },
