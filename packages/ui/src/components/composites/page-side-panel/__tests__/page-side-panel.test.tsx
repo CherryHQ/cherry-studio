@@ -171,6 +171,57 @@ describe('PageSidePanel', () => {
       fireEvent.keyDown(dialog, { key: 'Enter' })
       expect(onClose).not.toHaveBeenCalled()
     })
+
+    it('keeps tab focus inside the modal panel', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      last.focus()
+      fireEvent.keyDown(last, { key: 'Tab' })
+      expect(first).toHaveFocus()
+
+      fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+      expect(last).toHaveFocus()
+    })
+
+    it('ignores hidden inputs when wrapping focus', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+          <input type="hidden" name="selection" value="hidden-value" readOnly />
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      last.focus()
+      fireEvent.keyDown(last, { key: 'Tab' })
+
+      expect(first).toHaveFocus()
+    })
+
+    it('wraps Shift+Tab from the initially focused panel to the last control', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </PageSidePanel>
+      )
+      const dialog = screen.getByRole('dialog')
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      dialog.focus()
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+
+      expect(last).toHaveFocus()
+    })
   })
 
   describe('content slots', () => {
@@ -181,7 +232,7 @@ describe('PageSidePanel', () => {
 
     it('renders a standard title with the shared title class', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} title="My Title" />)
-      expect(screen.getByText('My Title')).toHaveClass('font-semibold', 'text-base', 'text-foreground')
+      expect(screen.getByText('My Title')).toHaveClass('font-[550]', 'text-base', 'text-foreground')
     })
 
     it('renders children in body', () => {

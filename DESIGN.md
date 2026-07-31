@@ -397,7 +397,7 @@ Use `PageSidePanel` for page-owned management surfaces such as mini-app display 
 - Footer: optional, `px-6 pt-3 pb-6`, for sticky action groups
 - Accessibility: role `dialog`, `aria-modal=true`, focus moves into the panel on open and returns to the trigger on close
 
-For standard settings panels, pass `title` instead of custom `header`. This renders the shared title style (`font-semibold text-base text-foreground`). Use custom `header` only when the title area needs richer layout.
+For standard settings panels, pass `title` instead of custom `header`. This renders the shared title style (`font-[550] text-base text-foreground`). Use custom `header` only when the title area needs richer layout.
 
 Use `PageSidePanelSection` and `PageSidePanelItem` as optional content primitives for settings-style panels. The structure is intentionally three-layered:
 
@@ -512,6 +512,21 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--muted-foreground)`
 
+**Shared control density**
+
+Input, Select, Combobox, TreeSelect, and default-style Tabs use the same explicit height matrix. Consumers select a
+size instead of overriding height, padding, or type scale through `className`.
+
+| Size | Height | Type | Use |
+|------|--------|------|-----|
+| `sm` | 32px (`h-8`) | `text-xs` for compact controls | Dense rows and constrained panels |
+| `default` | 36px (`h-9`) | `text-sm` | Standard forms and settings |
+| `lg` | 40px (`h-10`) | `text-sm` to `text-base` | Prominent or spacious forms |
+
+Textarea follows the same semantic sizes with content-appropriate minimum heights: `sm` 56px, `default` 64px, and
+`lg` 80px. Tabs applies the matrix to the default tab list and uses the same size to control trigger padding and type
+across every visual variant.
+
 **Search field with trailing action:**
 When a search field needs an inline trailing button (e.g. add provider in `ProviderList`), embed a 24×24 icon button inside the search wrap, after the input:
 
@@ -603,25 +618,26 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 
 | Size | Track | Thumb | Travel | Use |
 |------|-------|-------|--------|-----|
-| `xs` | 32 × 18 | 16 × 16 | 14px | Dense inline controls |
-| `sm` | 36 × 20 | 18 × 18 | 16px | Slightly larger settings rows |
-| `md` (default) | 44 × 22 | 19 × 19 | 21px | Standard switch |
-| `lg` | 44 × 24 | 20 × 20 | 18px | Hero / marketing surfaces |
+| `xs` | 24 × 14 | 12 × 12 | 10px | Dense inline controls |
+| `sm` | 28 × 16 | 14 × 14 | 12px | Slightly larger settings rows |
+| `md` (default) | 32 × 18 | 16 × 16 | 14px | Standard switch |
+| `lg` | 36 × 20 | 18 × 18 | 16px | Hero / marketing surfaces |
 
 **Colors:**
 
 | State | Light | Dark |
 |---|---|---|
-| Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
-| Thumb glyph | white internal SVG | white internal SVG |
+| Track — off | 15% `--foreground` | 15% `--foreground` |
+| Track — on | `bg-primary` | `bg-primary` |
+| Loading | `bg-primary/60!` | `bg-primary/60!` |
+| Thumb | `bg-background` | `bg-background` |
+| Loading glyph | `LoaderCircle` in `text-primary` | `LoaderCircle` in `text-primary` |
 
 **Other rules:**
 - Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
-- Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
+- The thumb uses `bg-background`; do not add custom thumb icons from the call site.
+- `loading` state dims the track to `bg-primary/60!` and shows an animated `LoaderCircle` inside the thumb.
+- Focus ring: `focus-visible:ring-[1px] focus-visible:ring-ring/35`.
 
 **Don't:**
 - Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
