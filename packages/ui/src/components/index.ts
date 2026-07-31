@@ -3,15 +3,7 @@ export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, Ava
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copy-button'
 export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
-export {
-  type Direction,
-  DirectionProvider,
-  type DirectionProviderProps,
-  type LogicalSide,
-  type PhysicalInlineSide,
-  resolveInlineSide,
-  useDirection
-} from './primitives/direction'
+export { DirectionProvider } from './primitives/direction'
 export { DirectionalIcon } from './primitives/directional-icon'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/divider-with-text'

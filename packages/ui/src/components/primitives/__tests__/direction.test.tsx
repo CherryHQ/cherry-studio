@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { type Direction, DirectionProvider, resolveInlineSide, useDirection } from '../direction'
+import { DirectionProvider, resolveInlineSide, useDirection } from '../direction'
 
 afterEach(() => {
   cleanup()
@@ -30,30 +30,6 @@ describe('useDirection', () => {
     )
 
     expect(screen.getByTestId('probe')).toHaveTextContent('rtl')
-  })
-})
-
-describe('DirectionProvider', () => {
-  // Logical CSS resolves against the rendered dir attribute while components resolve against
-  // context; publishing only one of the two lets a surface anchor to the opposite edge.
-  it.each<Direction>(['ltr', 'rtl'])('exposes %s to logical CSS as a dir attribute', (dir) => {
-    render(
-      <DirectionProvider dir={dir}>
-        <span data-testid="child">child</span>
-      </DirectionProvider>
-    )
-
-    expect(screen.getByTestId('child').closest('[dir]')).toHaveAttribute('dir', dir)
-  })
-
-  it('keeps the attribute carrier out of layout', () => {
-    render(
-      <DirectionProvider dir="rtl">
-        <span data-testid="child">child</span>
-      </DirectionProvider>
-    )
-
-    expect(screen.getByTestId('child').closest('[dir]')).toHaveStyle({ display: 'contents' })
   })
 })
 
