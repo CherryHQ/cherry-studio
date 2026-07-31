@@ -44,6 +44,10 @@ const TOGGLE_ONLY: RuntimeReasoning = {
 }
 
 describe('reconcile web search', () => {
+  it('does not patch an already-disabled setting', () => {
+    expect(reconcileWebSearchForModel(createModel(), { enableWebSearch: false })).toBeNull()
+  })
+
   it('rejects enabled web search when the next model cannot consume it', () => {
     const nextModel = createModel()
 

@@ -3,9 +3,11 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type MessageHeaderComponent from '../frame/MessageHeader'
+import type MessageMenuBarComponent from '../frame/MessageMenuBar'
 import type { MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -40,17 +42,19 @@ const mocks = vi.hoisted(() => ({
     </div>
   )),
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  MessageHeader: vi.fn(
-    ({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode; showModelIdentity?: boolean }) => (
-      <div className="message-header">
-        <div className="message-body-column">
-          {contentSlot && <div className="message-body-content">{contentSlot}</div>}
-          {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
-        </div>
+  MessageHeader: vi.fn(({ contentSlot, footerSlot }: ComponentProps<typeof MessageHeaderComponent>) => (
+    <div className="message-header">
+      <div className="message-body-column">
+        {contentSlot && <div className="message-body-content">{contentSlot}</div>}
+        {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
       </div>
-    )
-  ),
-  MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
+    </div>
+  )),
+  MessageMenuBar: vi.fn((props: ComponentProps<typeof MessageMenuBarComponent>) => (
+    <div className="message-menubar" data-message-id={props.message.id}>
+      menubar
+    </div>
+  )),
   MessageOutline: vi.fn(() => null),
   messageListActions: vi.fn(),
   messageListSelection: vi.fn(),
@@ -231,6 +235,14 @@ const createMessage = (id: string, index: number, multiModelMessageStyle: MultiM
     multiModelMessageStyle,
     index
   }) as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
 
 const setElementSize = (
   element: Element,
@@ -910,5 +922,94 @@ describe('MessageGroup', () => {
     })
     expect(updateMessageUiState).toHaveBeenCalledWith('model-a', { foldSelected: false })
     expect(updateMessageUiState).toHaveBeenCalledWith('model-b', { foldSelected: true })
+  })
+
+  it('shows the context indicator on the active branch instead of stale useful UI state', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    mocks.messageListUiSelectors.mockReturnValue({
+      getMessageUiState: (messageId: string) => ({ useful: messageId === 'model-a' })
+    })
+
+    const messages = [
+      { ...createMessage('model-a', 0, 'grid'), isActiveBranch: false },
+      { ...createMessage('model-b', 1, 'grid'), isActiveBranch: true }
+    ]
+    const topic = { id: 'topic-1' } as Topic
+
+    render(<MessageGroup messages={messages} topic={topic} />)
+
+    const contextIndicatorCalls = mocks.MessageHeader.mock.calls
+      .map(([props]) => ({ messageId: props.message.id, isGroupContextMessage: props.isGroupContextMessage }))
+      .filter(({ isGroupContextMessage }) => isGroupContextMessage !== undefined)
+    expect(contextIndicatorCalls).toEqual([
+      { messageId: 'model-a', isGroupContextMessage: false },
+      { messageId: 'model-b', isGroupContextMessage: true }
+    ])
+  })
+
+  it('changes the active branch when a grouped reply is selected for context', async () => {
+    const setActiveBranch = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: vi.fn()
+    })
+    const messages = [createMessage('model-a', 0, 'grid'), createMessage('model-b', 1, 'grid')]
+    const topic = { id: 'topic-1' } as Topic
+
+    render(<MessageGroup messages={messages} topic={topic} />)
+
+    const modelBMenuProps = mocks.MessageMenuBar.mock.calls
+      .map(([props]) => props)
+      .find((props) => props.message.id === 'model-b')
+    expect(modelBMenuProps).toBeDefined()
+
+    act(() => modelBMenuProps?.onSelectContext?.('model-b'))
+
+    await waitFor(() => {
+      expect(setActiveBranch).toHaveBeenCalledWith('model-b')
+    })
+  })
+
+  it('applies rapid context selections in click order so the last selection wins', async () => {
+    const firstSelection = createDeferred()
+    const setActiveBranch = vi.fn((messageId: string) =>
+      messageId === 'model-b' ? firstSelection.promise : Promise.resolve()
+    )
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: vi.fn()
+    })
+    const messages = [
+      { ...createMessage('model-a', 0, 'grid'), isActiveBranch: true },
+      { ...createMessage('model-b', 1, 'grid'), isActiveBranch: false }
+    ]
+    const topic = { id: 'topic-1' } as Topic
+
+    render(<MessageGroup messages={messages} topic={topic} />)
+
+    const menuPropsByMessageId = new Map(
+      mocks.MessageMenuBar.mock.calls.map(([props]) => [props.message.id, props] as const)
+    )
+    act(() => menuPropsByMessageId.get('model-b')?.onSelectContext?.('model-b'))
+    act(() => menuPropsByMessageId.get('model-a')?.onSelectContext?.('model-a'))
+
+    await waitFor(() => {
+      expect(setActiveBranch).toHaveBeenCalledTimes(1)
+      expect(setActiveBranch).toHaveBeenLastCalledWith('model-b')
+    })
+
+    await act(async () => firstSelection.resolve())
+
+    await waitFor(() => {
+      expect(setActiveBranch).toHaveBeenNthCalledWith(2, 'model-a')
+    })
   })
 })
