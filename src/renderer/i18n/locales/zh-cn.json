@@ -3856,6 +3856,7 @@
       }
     },
     "citation": "{{count}} 个引用内容",
+    "citation_source": "引用来源 {{number}}",
     "citations": "引用内容",
     "conversation_reset": "找不到原会话的历史记录，已开启新会话继续",
     "copied": "已复制",

@@ -17,12 +17,12 @@ vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
 }))
 
 const uiMocks = vi.hoisted(() => ({
-  Tooltip: vi.fn((rawProps: any) => {
-    const { children, title, content, placement, ...props } = rawProps
+  NormalTooltip: vi.fn((rawProps: any) => {
+    const { children, title, content, placement, contentProps, ...props } = rawProps
     delete props.showArrow
 
     return (
-      <div data-testid="tooltip-wrapper" data-placement={placement} {...props}>
+      <div data-testid="tooltip-wrapper" data-placement={placement} className={contentProps?.className} {...props}>
         {children}
         <div data-testid="tooltip-content">{content || title}</div>
       </div>
@@ -39,6 +39,7 @@ describe('CitationTooltip', () => {
 
   // Test data factory
   const createCitationData = (overrides = {}) => ({
+    number: 1,
     url: 'https://example.com/article',
     title: 'Example Article',
     content: 'This is the article content for testing purposes.',
@@ -60,7 +61,7 @@ describe('CitationTooltip', () => {
   const getCitationHeaderLink = () => screen.getByRole('link', { name: /open .* in new tab/i })
   const getCitationFooterLink = () => screen.getByRole('link', { name: /visit .*/i })
   const getCitationTitle = () => screen.getByRole('heading', { level: 3 })
-  const getCitationContent = () => screen.queryByRole('article', { name: /citation content/i })
+  const getCitationContent = () => screen.queryByRole('article')
 
   describe('basic rendering', () => {
     it('should render children and basic tooltip structure', () => {
@@ -110,7 +111,7 @@ describe('CitationTooltip', () => {
     })
 
     it('should fallback to original URL when parsing fails', () => {
-      const testCases = ['not-a-valid-url', '', 'http://']
+      const testCases = ['not-a-valid-url', 'http://']
 
       testCases.forEach((invalidUrl) => {
         const { unmount } = renderCitationTooltip(createCitationData({ url: invalidUrl }))
@@ -118,6 +119,21 @@ describe('CitationTooltip', () => {
         expect(favicon).toHaveAttribute('hostname', invalidUrl)
         unmount()
       })
+    })
+
+    it('should render the knowledge document card when the citation has no URL', () => {
+      renderCitationTooltip(createCitationData({ url: '', type: 'knowledge' }))
+
+      expect(screen.queryByTestId('mock-favicon')).not.toBeInTheDocument()
+      expect(getCitationTitle()).toHaveTextContent('Example Article')
+      expect(getCitationContent()).toBeInTheDocument()
+    })
+
+    it('should render children without a tooltip when a URL-less citation has no content', () => {
+      renderCitationTooltip({ url: '', type: 'knowledge' }, <span>Bare trigger</span>)
+
+      expect(screen.getByText('Bare trigger')).toBeInTheDocument()
+      expect(screen.queryByTestId('tooltip-wrapper')).not.toBeInTheDocument()
     })
   })
 

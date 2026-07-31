@@ -5,6 +5,7 @@ import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as MessageFind from '@renderer/utils/message/find'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
@@ -36,7 +37,10 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 // Mock the find utility functions - crucial for the test
-vi.mock('@renderer/utils/message/find', () => ({
+vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
+  // `[cite:id]` resolution is the behaviour under test in the tool-part cases below,
+  // so keep the real implementation rather than restating it as a mock.
+  getToolCitationExport: (await importOriginal<typeof MessageFind>()).getToolCitationExport,
   // Provide type safety for mocked message
   getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
     if (message.parts?.length) {
@@ -76,22 +80,14 @@ vi.mock('@renderer/utils/message/find', () => ({
     return (thinkingBlock as any)?.content || ''
   }),
   getCitationContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
-    if (message.parts?.length) {
-      const citations = message.parts.flatMap((part) => (part as any).providerMetadata?.cherry?.references || [])
-      if (citations.length === 0) return ''
-      return citations
-        .map(
-          (ref, index) =>
-            `[${index + 1}] [${ref.url || `https://example${index + 1}.com`}](${ref.title || `Example Citation ${index + 1}`})`
-        )
-        .join('\n\n')
-    }
-    const citationBlocks = message._fullBlocks?.filter((b) => b.type === MessageBlockType.CITATION) || []
-    // Return empty string if no citation blocks, otherwise mock citation content
-    if (citationBlocks.length === 0) return ''
-    // Mock citation format: [number] [url](title)
-    return citationBlocks
-      .map((_, index) => `[${index + 1}] [https://example${index + 1}.com](Example Citation ${index + 1})`)
+    const citations = message.parts?.flatMap((part) => (part as any).providerMetadata?.cherry?.references || []) ?? []
+    if (citations.length === 0) return ''
+    return citations
+      .map(
+        (ref, index) =>
+          // Mirrors the real `getCitationContent`: `[N] [title](url)`, title first.
+          `[${index + 1}] [${ref.title || `Example Citation ${index + 1}`}](${ref.url || `https://example${index + 1}.com`})`
+      )
       .join('\n\n')
   })
 }))
@@ -239,6 +235,16 @@ function createTopic(partial: Partial<Topic> = {}): Topic {
   }
 }
 
+function toolSearchPart(results: unknown[]): any {
+  return {
+    type: 'tool-web_search',
+    toolCallId: 'search-1',
+    state: 'output-available',
+    input: { query: 'q' },
+    output: results
+  }
+}
+
 // --- Global Test Setup ---
 
 // Store mocked messages generated in beforeEach blocks
@@ -320,17 +326,6 @@ describe('ExportService', () => {
       expect(markdown).toBeDefined()
     })
 
-    it('should include citation content when citation blocks exist', async () => {
-      const msgWithCitation = createMessage({ role: 'assistant', id: 'a_cite' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Main content' },
-        { type: MessageBlockType.CITATION }
-      ])
-      const markdown = await messageToMarkdown(msgWithCitation)
-      expect(markdown).toContain('## 🤖 Assistant')
-      expect(markdown).toContain('Main content')
-      expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
-    })
-
     it('should format parts-only export view text', async () => {
       const message = createExportView([{ type: 'text', text: 'Parts-only content' }])
 
@@ -405,7 +400,64 @@ describe('ExportService', () => {
       const markdown = await messageToMarkdown(message)
 
       expect(markdown).toContain('Answer with citation')
-      expect(markdown).toContain('[^1]: [https://example.com](Example)')
+      expect(markdown).toContain('[^1]: [Example](https://example.com)')
+    })
+
+    it('should resolve tool-part [cite:id] markers and list their sources', async () => {
+      // Tool-derived citations carry no `cherry.references`; the marker lives in the
+      // text, so an unresolved export leaks the internal id and lists no sources.
+      const message = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('Prices rose 3%. [^1]')
+      expect(markdown).toContain('[^1]: [Example](https://example.com)')
+    })
+
+    it('should list a URL-less knowledge citation by title', async () => {
+      const message = createExportView([
+        {
+          type: 'tool-kb_search',
+          toolCallId: 'kb1',
+          state: 'output-available',
+          input: { query: 'q', baseIds: ['b'] },
+          output: [
+            { id: '3f2a1b9c-1', baseId: 'b', conceptId: 'notes/one.md', title: 'One.md', content: 'kb', score: 0.9 }
+          ]
+        },
+        { type: 'text', text: 'From my notes. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('[^1]: One.md')
+    })
+
+    it('should strip tool-part markers entirely when citations are excluded', async () => {
+      const message = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdown(message, true)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).not.toContain('example.com')
+      expect(markdown).toContain('Prices rose 3%.')
+    })
+
+    it('should drop a marker whose id resolves to nothing', async () => {
+      const message = createExportView([{ type: 'text', text: 'Unbacked claim. [cite:3f2a1b9c-9]' }])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('Unbacked claim.')
     })
   })
 
@@ -423,11 +475,22 @@ describe('ExportService', () => {
       const msgWithoutReasoning = createMessage({ role: 'assistant', id: 'a4' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Simple Answer' }
       ])
-      const msgWithReasoningAndCitation = createMessage({ role: 'assistant', id: 'a5' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Answer with citation' },
-        { type: MessageBlockType.THINKING, content: 'Some thinking' },
-        { type: MessageBlockType.CITATION }
-      ])
+      const msgWithReasoningAndCitation = createMessage({
+        role: 'assistant',
+        id: 'a5',
+        parts: [
+          { type: 'reasoning', text: 'Some thinking' },
+          {
+            type: 'text',
+            text: 'Answer with citation',
+            providerMetadata: {
+              cherry: {
+                references: [{ category: 'citation', url: 'https://example1.com', title: 'Example Citation 1' }]
+              }
+            }
+          }
+        ] as any
+      })
       mockedMessages = [msgWithReasoning, msgWithThinkTag, msgWithoutReasoning, msgWithReasoningAndCitation]
     })
 
@@ -473,7 +536,7 @@ describe('ExportService', () => {
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
-      expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
+      expect(markdown).toContain('[^1]: [Example Citation 1](https://example1.com)')
     })
 
     it('should include reasoning from parts-only export view', async () => {
@@ -486,6 +549,23 @@ describe('ExportService', () => {
 
       expect(markdown).toContain('Parts answer')
       expect(markdown).toContain('Parts reasoning')
+    })
+
+    // The model cites while reasoning too. Those markers get stripped rather than resolved: the
+    // `[N]` sequence belongs to the answer body, so numbering them here would contradict it.
+    it('strips citation markers from reasoning instead of leaking them into the export', async () => {
+      const message = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'reasoning', text: 'The source says prices rose. [cite:3f2a1b9c-1] So the answer is 3%.' },
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('The source says prices rose. So the answer is 3%.')
+      // The answer body still resolves to a real number, so stripping is scoped to the trace.
+      expect(markdown).toContain('Prices rose 3%. [^1]')
     })
 
     it('should format citations as footnotes when standardize citations is enabled', () => {
@@ -791,12 +871,16 @@ describe('Citation formatting in Markdown export', () => {
   })
 
   test('should properly test formatCitationsAsFootnotes through messageToMarkdown', async () => {
-    const msgWithCitations = createMessage({ role: 'assistant', id: 'test_footnotes' }, [
+    const msgWithCitations = createExportView([
       {
-        type: MessageBlockType.MAIN_TEXT,
-        content: 'Content with citations [<sup data-citation="test">1</sup>](url1) and [2].'
-      },
-      { type: MessageBlockType.CITATION }
+        type: 'text',
+        text: 'Content with citations [<sup data-citation="test">1</sup>](url1) and [2].',
+        providerMetadata: {
+          cherry: {
+            references: [{ category: 'citation', url: 'https://example1.com', title: 'Example Citation 1' }]
+          }
+        }
+      }
     ])
 
     // This tests the complete flow including formatCitationsAsFootnotes
@@ -807,6 +891,6 @@ describe('Citation formatting in Markdown export', () => {
     expect(markdown).toContain('Content with citations')
 
     // Should include citation content (mocked by getCitationContent)
-    expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
+    expect(markdown).toContain('[^1]: [Example Citation 1](https://example1.com)')
   })
 })
