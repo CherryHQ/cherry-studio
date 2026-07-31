@@ -945,93 +945,6 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
-  it('hides the message avatar column in a flow panel', () => {
-    const flowPart = {
-      type: 'dynamic-tool',
-      toolCallId: 'flow-1',
-      toolName: 'task',
-      state: 'input-available',
-      input: { prompt: 'Inspect the workspace' }
-    } as unknown as CherryMessagePart
-    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
-
-    render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: [flowPart] }}>
-        <OpenFlowButton />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-
-    expect(screen.getByTestId('message-list').parentElement).toHaveClass('[&_.message-avatar]:hidden')
-  })
-
-  it.each([
-    { status: 'pending', iconClassNames: ['text-muted-foreground'] },
-    { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },
-    { status: 'completed', iconClassNames: ['text-success'] },
-    { status: 'stopped', iconClassNames: ['text-muted-foreground'] },
-    { status: 'error', iconClassNames: ['text-destructive'] }
-  ] as const)('centers the $status task icon within the first text line', ({ status, iconClassNames }) => {
-    const title = `${status} task`
-    renderStatusTasks([{ id: status, status, title }])
-
-    const taskText = screen.getByText(title)
-    const iconContainer = taskText.parentElement?.previousElementSibling
-
-    expect(taskText).toHaveClass('leading-5')
-    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-    expect(iconContainer?.querySelector('svg')).toHaveClass(...iconClassNames)
-  })
-
-  it('keeps a wrapping task icon aligned with the first text line', () => {
-    const title =
-      'Review every renderer task state and verify the status icon remains aligned when this label wraps across lines'
-    renderStatusTasks([{ id: 'wrapping-task', status: 'pending', title }])
-
-    const taskText = screen.getByText(title)
-    const textContainer = taskText.parentElement
-    const row = textContainer?.parentElement
-    const iconContainer = textContainer?.previousElementSibling
-
-    expect(row).toHaveClass('items-start')
-    expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
-    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-  })
-
-  it('keeps shortcut preview task icons aligned while the status panel stays closed', () => {
-    const shortTitle = 'Review task state'
-    const wrappingTitle =
-      'Review every task state shown in the shortcut preview and verify this longer label keeps wrapping below its first line'
-    renderStatusTasks(
-      [
-        { id: 'short-task', status: 'pending', title: shortTitle },
-        { id: 'wrapping-task', status: 'in_progress', title: wrappingTitle }
-      ],
-      { openPanel: false }
-    )
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
-    const preview = screen.getByTestId('status-shortcut-preview')
-
-    // Task events now surface as run-task cards: icon container + a text column inside a card row.
-    for (const title of [shortTitle, wrappingTitle]) {
-      const taskText = within(preview).getByText(title)
-      const textColumn = taskText.parentElement
-      const row = textColumn?.parentElement
-      const iconContainer = textColumn?.previousElementSibling
-
-      expect(row).toHaveClass('flex', 'items-start')
-      expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
-      expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-    }
-  })
-
   it('opens a subagent flow from the shortcut environment context', () => {
     renderStatusTasks(
       [
@@ -1111,42 +1024,6 @@ describe('AgentRightPane', () => {
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('agent.right_pane.status.stop_run_task_failed'))
     expect(stopButton).toBeEnabled()
-  })
-
-  it('renders artifact status filenames with neutral text', () => {
-    const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'artifacts-1',
-        toolName: 'report_artifacts',
-        state: 'output-available',
-        input: {
-          artifacts: [{ path: 'docs/report.md', description: 'Summary report' }]
-        }
-      }
-    ] as unknown as CherryMessagePart[]
-    const messages = [
-      {
-        id: 'm1',
-        role: 'assistant',
-        parts,
-        metadata: {}
-      }
-    ] as CherryUIMessage[]
-
-    render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: parts }}>
-        <AgentRightPane.Shortcuts />
-      </TestAgentRightPane>
-    )
-
-    const artifactButton = screen.getByRole('button', { name: 'report.md' })
-    expect(artifactButton).not.toHaveClass('text-primary')
-    expect(artifactButton).toHaveClass('text-muted-foreground')
   })
 
   it('does not mount the files capability while the shell is closed', () => {

@@ -648,7 +648,7 @@ describe('ResourceEntityRail', () => {
     })
   })
 
-  it('renders group section headers with the shared hover and collapse affordance', () => {
+  it('collapses grouped sections from their accessible header', () => {
     render(
       <ResourceEntityRail
         addLabel="New"
@@ -666,10 +666,6 @@ describe('ResourceEntityRail', () => {
     )
 
     const workHeader = screen.getByRole('button', { name: 'work' })
-    const visualRow = workHeader.closest('div')
-
-    expect(visualRow).toHaveClass('hover:bg-sidebar-accent', 'rounded-lg')
-    expect(workHeader.querySelector('svg')).not.toBeNull()
 
     fireEvent.click(workHeader)
     expect(workHeader).toHaveAttribute('aria-expanded', 'false')

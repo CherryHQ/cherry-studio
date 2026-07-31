@@ -850,9 +850,7 @@ function FilesPage() {
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div
-        data-testid="files-browser"
-        className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
         <FileSidebar
           filter={filter}
           onFilterChange={(f) => {
@@ -965,7 +963,6 @@ function FilesPage() {
           )}
 
           <Scrollbar
-            data-testid="files-scrollbar"
             ref={contentScrollRef}
             className="relative flex-1"
             onScroll={handleContentScroll}

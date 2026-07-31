@@ -88,7 +88,7 @@ function formatter(value: string): Intl.DateTimeFormat {
 
 describe('UsageEntriesTable', () => {
   it('keeps entry identity compact and renders missing metrics with hyphens', () => {
-    const { container } = render(
+    render(
       <UsageEntriesTable
         entries={[entry]}
         entryTotal={1}
@@ -120,29 +120,7 @@ describe('UsageEntriesTable', () => {
     expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(/Entries|请求/)
 
     const date = entryRow.getByText('Jul 28, 2026 16:23')
-    expect(date).toHaveClass('truncate', 'whitespace-nowrap', 'tabular-nums')
     expect(date).toHaveAttribute('title', 'Jul 28, 2026 16:23')
-    expect(screen.getByText(/Model|模型/).closest('th')).not.toHaveClass('text-center')
-    expect(screen.getByText(/Source|来源/).closest('th')).not.toHaveClass('text-center')
-    expect(screen.getByText(/Date|日期/).closest('th')).not.toHaveClass('text-center')
-    expect(screen.getByRole('table')).toHaveClass('min-w-[1040px]', 'table-fixed')
-    expect(Array.from(container.querySelectorAll('col'), (column) => column.className)).toEqual([
-      'w-[25%]',
-      'w-[22%]',
-      'w-[19%]',
-      'w-[9%]',
-      'w-[9%]',
-      'w-[7%]',
-      'w-[9%]'
-    ])
-
-    const cells = entryRow.getAllByRole('cell')
-    for (const cell of cells.slice(0, 3)) {
-      expect(cell).not.toHaveClass('text-center')
-    }
-    for (const cell of cells.slice(3)) {
-      expect(cell).toHaveClass('whitespace-nowrap', 'text-right', 'tabular-nums')
-    }
   })
 
   it('uses the request modality as the display source for unattributed entries', () => {

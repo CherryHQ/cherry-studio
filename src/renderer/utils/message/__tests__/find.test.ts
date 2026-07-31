@@ -15,7 +15,7 @@ function createExportView(parts: MessageExportView['parts']): MessageExportView 
 }
 
 describe('message/find', () => {
-  it('includes visible custom data parts in plain export content', () => {
+  it('includes visible custom data parts in exports while excluding auxiliary content from naming', () => {
     const message = createExportView([
       { type: 'text', text: 'Main answer' },
       { type: 'data-code', data: { content: 'console.log("ok")', language: 'ts' } },
@@ -26,6 +26,7 @@ describe('message/find', () => {
     expect(getMainTextContent(message)).toBe(
       ['Main answer', '```ts\nconsole.log("ok")\n```', 'Request failed', 'Translated answer'].join('\n\n')
     )
+    expect(getNamingTextContent(message)).toBe(['Main answer', '```ts\nconsole.log("ok")\n```'].join('\n\n'))
   })
 
   it('joins all three error fields (name, code, message) in order', () => {
@@ -43,16 +44,5 @@ describe('message/find', () => {
     ] as MessageExportView['parts'])
 
     expect(getMainTextContent(message)).toBe('Answer')
-  })
-
-  it('getNamingTextContent drops error and translation parts but keeps text and code', () => {
-    const message = createExportView([
-      { type: 'text', text: 'Main answer' },
-      { type: 'data-code', data: { content: 'console.log("ok")', language: 'ts' } },
-      { type: 'data-error', data: { name: 'HttpError', code: '401', message: 'Unauthorized' } },
-      { type: 'data-translation', data: { content: 'Translated answer', targetLanguage: 'en' } }
-    ] as MessageExportView['parts'])
-
-    expect(getNamingTextContent(message)).toBe(['Main answer', '```ts\nconsole.log("ok")\n```'].join('\n\n'))
   })
 })
