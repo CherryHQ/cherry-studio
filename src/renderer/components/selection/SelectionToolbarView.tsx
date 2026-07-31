@@ -51,7 +51,7 @@ const ActionIcons: FC<{
         {copyIconStatus === 'fail' && (
           <ClipboardX
             className={cn(
-              'btn-icon text-error-base',
+              'btn-icon text-error',
               COPY_ICON_CLASS_NAME,
               copyIconAnimation === 'enter' && 'scale-100 opacity-100',
               copyIconAnimation !== 'enter' && 'scale-0 opacity-0'
@@ -76,12 +76,12 @@ const ActionIcons: FC<{
           className={cn(
             'group m-0 flex h-full cursor-pointer! flex-row items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 py-0 shadow-none transition-colors duration-100 [-webkit-app-region:no-drag]',
             'last:rounded-r-[10px] last:py-0 last:pr-3 last:pl-2',
-            'hover:bg-black/[0.04] dark:hover:bg-[#333333]'
+            'hover:bg-accent'
           )}>
           <span
             className={cn(
               'relative flex size-4 items-center justify-center bg-transparent',
-              '[&_svg]:text-black dark:[&_svg]:text-[rgb(255_255_245_/_0.9)]',
+              '[&_svg]:text-card-foreground',
               'group-hover:[&_svg]:text-primary'
             )}>
             {action.id === 'copy' ? (
@@ -99,7 +99,7 @@ const ActionIcons: FC<{
           {!isCompact && (
             <span
               className={cn(
-                'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-black text-sm leading-[1.1] transition-colors duration-100 dark:text-[rgb(255_255_245_/_0.9)]',
+                'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-card-foreground text-sm leading-[1.1] transition-colors duration-100',
                 'group-hover:text-primary'
               )}>
               {displayName}
@@ -148,13 +148,13 @@ const SelectionToolbarView = ({
     <div
       ref={ref}
       className={cn(
-        'm-[2px_3px_5px_3px]! box-border inline-flex h-9 select-none flex-row items-stretch overflow-hidden rounded-[10px] border-0 bg-card p-0! font-[var(--font-family-body)] shadow-[0_2px_3px_rgb(50_50_50_/_0.1)]',
-        'dark:shadow-[0_2px_3px_rgb(50_50_50_/_0.3)]'
+        'm-[2px_3px_5px_3px]! box-border inline-flex h-9 select-none flex-row items-stretch overflow-hidden rounded-[10px] border-0 bg-card p-0! font-[var(--font-family-body)]',
+        'shadow-[var(--selection-toolbar-shadow)] [--selection-toolbar-border:rgb(0_0_0_/_0.08)] [--selection-toolbar-shadow:0_2px_3px_rgb(50_50_50_/_0.1)]',
+        'dark:[--selection-toolbar-border:rgb(255_255_255_/_0.2)] dark:[--selection-toolbar-shadow:0_2px_3px_rgb(50_50_50_/_0.3)]'
       )}>
       <div
         className={cn(
-          'm-0 flex items-center justify-center rounded-l-[10px] border-[rgb(0_0_0_/_0.08)] border-solid bg-transparent [border-width:0.5px_0_0.5px_0.5px] [padding:0_6px_0_8px]',
-          'dark:border-[rgb(255_255_255_/_0.2)]',
+          'm-0 flex items-center justify-center rounded-l-[10px] border-[var(--selection-toolbar-border)] border-solid bg-transparent [border-width:0.5px_0_0.5px_0.5px] [padding:0_6px_0_8px]',
           draggable && '[-webkit-app-region:drag]'
         )}>
         <img src={AppLogo} className="size-[22px] rounded-full object-cover" draggable={false} alt="" />
@@ -162,8 +162,7 @@ const SelectionToolbarView = ({
       <div
         className={cn(
           'flex flex-row items-center justify-center bg-transparent [-webkit-app-region:no-drag]',
-          'rounded-[0_10px_10px_0] border-[rgb(0_0_0_/_0.08)] border-solid [border-width:0.5px_0.5px_0.5px_0]',
-          'dark:border-[rgb(255_255_255_/_0.2)]'
+          'rounded-[0_10px_10px_0] border-[var(--selection-toolbar-border)] border-solid [border-width:0.5px_0.5px_0.5px_0]'
         )}>
         <ActionIcons
           actionItems={actionItems}

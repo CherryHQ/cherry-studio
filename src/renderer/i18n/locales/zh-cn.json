@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "无需逐次批准，安全检查会拦截风险操作。",
-            "title": "智能批准"
+            "title": "智能批准",
+            "warning": "需要模型支持；部分模型可能忽略此模式或仍逐次询问。"
           },
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
@@ -1267,10 +1268,6 @@
           "tip": "助手将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
         }
       },
-      "max_tool_calls": {
-        "label": "最大工具调用次数",
-        "tip": "单次对话中允许的最大工具调用次数。较高的值支持更复杂的多步操作，但可能增加 Token 消耗和响应时间。"
-      },
       "mcp": {
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
@@ -1476,9 +1473,8 @@
       "image_preview_failed": "图片预览失败",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
-      "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
+      "knowledge_base_unavailable": "请选择支持工具调用的模型",
       "locate_editing_message": "定位原消息",
-      "mcp_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
       "new": {
         "context": "清除上下文"
       },
@@ -1619,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "无法转换为有效的工具调用格式：{{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
-        "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
-        "no_tool": "未匹配到所需的MCP工具 {{tool}}",
         "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
       }
     },
@@ -2594,6 +2585,10 @@
     "user": "用户"
   },
   "file_preview": {
+    "directory": {
+      "description": "请选择此文件夹中的具体文件进行预览。",
+      "title": "这是一个文件夹"
+    },
     "html": {
       "empty": {
         "description": "此 HTML 文件没有内容。",
@@ -2659,6 +2654,10 @@
         "description": "无法预览大于 {{limit}} MiB 的文本文件。",
         "title": "文件过大"
       }
+    },
+    "unavailable": {
+      "description": "文件可能已被移动、删除或无法访问。",
+      "title": "文件不可用"
     },
     "unsupported": {
       "action": "用默认应用打开",
@@ -5225,6 +5224,7 @@
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "硅基流动",
     "sophnet": "SophNet",
     "stepfun": "阶跃星辰",
@@ -7708,6 +7708,13 @@
         "topup": "充值",
         "usage_title": "用量",
         "usage_unit": "Token"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "打开 Token Factory",
+          "description": "每日 10 美元等值 API 额度，按当前费率约可使用 1000 万–1.11 亿输入/输出 Token，实际用量因模型和 Token 类型而异。额度每日重置，暂不支持充值。",
+          "title": "每日 10 美元免费 API 额度"
+        }
       },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",

@@ -45,18 +45,18 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           ? 'border-primary/40 opacity-50'
           : isCurrent
             ? 'border-primary bg-primary/5'
-            : 'border-border/40 hover:border-border hover:bg-primary/5'
+            : 'border-border-subtle hover:border-border hover:bg-primary/5'
       }`}>
       <div className="pointer-events-none relative flex items-center gap-3">
         <GripVertical
           size={13}
-          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
         />
 
         <span aria-hidden className="shrink-0">
           {isGateway ? (
             // The unified gateway wears a broadcast-tower glyph (relay/hub metaphor) instead of a brand logo.
-            <span className="flex size-6 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+            <span className="flex size-6 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground">
               <GatewayIcon width={15} height={15} />
             </span>
           ) : (
@@ -65,7 +65,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
               providerName={providerName}
               logo={providerIcon}
               size={24}
-              className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+              className="rounded-md border border-border-subtle **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
             />
           )}
         </span>
@@ -75,14 +75,14 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             <span className="min-w-0 truncate text-foreground text-sm">{providerName}</span>
             {modelName && (
               <>
-                <span aria-hidden className="shrink-0 text-muted-foreground/35 text-xs">
+                <span aria-hidden className="shrink-0 text-foreground-tertiary text-xs">
                   ｜
                 </span>
-                <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/50">{modelName}</span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-foreground-tertiary">{modelName}</span>
               </>
             )}
           </div>
-          {description && <p className="mt-0.5 truncate text-muted-foreground/60 text-xs">{description}</p>}
+          {description && <p className="mt-0.5 truncate text-muted-foreground text-xs">{description}</p>}
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
@@ -94,7 +94,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
                 size="icon-sm"
                 aria-label={t('code.move_provider_to_top')}
                 onClick={() => onMoveToTop(provider)}
-                className="size-6 border-border/50">
+                className="size-6 border-border-subtle">
                 <ArrowUpToLine size={13} />
               </Button>
             </NormalTooltip>
@@ -104,7 +104,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onConfigure(provider)}
-            className="min-h-0 border-border/50 px-2.5 py-1">
+            className="min-h-0 border-border-subtle px-2.5 py-1">
             <SquarePen size={11} />
             {t('code.configure')}
           </Button>
@@ -113,9 +113,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant={isCurrent ? 'destructive' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
-            className={`min-h-0 px-2.5 py-1 ${
-              isCurrent ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
-            }`}>
+            className="min-h-0 px-2.5 py-1">
             {isCurrent ? <CircleMinus size={11} /> : <Play size={11} />}
             {isCurrent ? t('code.disable') : t('code.enable')}
           </Button>

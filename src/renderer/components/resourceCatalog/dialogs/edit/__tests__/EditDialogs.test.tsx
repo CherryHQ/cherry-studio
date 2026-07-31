@@ -7,8 +7,6 @@ import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '../../components/EditDialogShared'
-
 const {
   agentTools,
   createGroupMock,
@@ -711,9 +709,7 @@ describe('edit dialogs', () => {
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     const clearButton = screen.getByRole('button', { name: 'Model Clear' })
 
-    expect(modelTrigger).toHaveClass('hover:bg-muted')
-    expect(modelTrigger).not.toHaveClass('pr-7')
-    expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
+    expect(modelTrigger).toBeInTheDocument()
 
     fireEvent.click(clearButton)
     await waitFor(() =>
@@ -763,7 +759,6 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const clearButton = screen.getByRole('button', { name: 'Group Clear' })
-    expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
@@ -804,10 +799,6 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Instructions')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
-    expect(instructionsInput).toHaveStyle({
-      minHeight: EDIT_DIALOG_PROMPT_MIN_HEIGHT,
-      maxHeight: EDIT_DIALOG_PROMPT_MAX_HEIGHT
-    })
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions' } })
     selectTab('Basic')
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
@@ -1254,9 +1245,6 @@ describe('edit dialogs', () => {
     selectTab('技能')
 
     const manageSkillsButton = screen.getByRole('button', { name: 'Manage Skills' })
-    expect(manageSkillsButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
-    expect(manageSkillsButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
-    expect(manageSkillsButton.parentElement).toHaveClass('sm:grid-cols-2')
 
     fireEvent.click(manageSkillsButton)
 

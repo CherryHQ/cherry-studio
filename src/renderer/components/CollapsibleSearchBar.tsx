@@ -86,7 +86,7 @@ const CollapsibleSearchBar = ({
             placeholder={placeholder}
             value={searchText}
             autoFocus
-            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-border-hover focus-visible:ring-0"
+            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-ring focus-visible:ring-0"
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {

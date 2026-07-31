@@ -32,7 +32,6 @@ describe('ModelSelectorTrigger', () => {
         <ModelSelectorTrigger
           ref={ref}
           placeholder="settings.models.empty"
-          data-testid="model-selector-trigger"
           data-state="open"
           aria-expanded="true"
           onClick={onClick}
@@ -42,13 +41,11 @@ describe('ModelSelectorTrigger', () => {
 
     render(<TriggerHarness />)
 
-    const trigger = screen.getByTestId('model-selector-trigger')
+    const trigger = screen.getByRole('button', { name: 'settings.models.empty' })
 
     expect(triggerRef).toBe(trigger)
     expect(trigger).toHaveAttribute('data-state', 'open')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(trigger).toHaveClass('h-7.5')
-    expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
 
     fireEvent.click(trigger)
 

@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
-            "title": "Approuver pour moi"
+            "title": "Approuver pour moi",
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
@@ -1267,10 +1268,6 @@
           "tip": "L'agent utilisera la capacité du grand modèle à reconnaître les intentions afin de déterminer si la base de connaissances doit être utilisée pour répondre. Cette fonctionnalité dépend des capacités du modèle"
         }
       },
-      "max_tool_calls": {
-        "label": "Maximiser les appels d'outils",
-        "tip": "Nombre maximum d'appels d'outils autorisés dans une seule conversation. Des valeurs plus élevées permettent des opérations multi-étapes plus complexes, mais peuvent augmenter l'utilisation de tokens et le temps de réponse."
-      },
       "mcp": {
         "description": "Serveur MCP activé par défaut",
         "enableFirst": "Veuillez d'abord activer ce serveur dans les paramètres MCP",
@@ -1476,9 +1473,8 @@
       "image_preview_failed": "L'aperçu de l'image a échoué",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
-      "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
+      "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils",
       "locate_editing_message": "Localiser le message original",
-      "mcp_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation des outils dans l'invite.",
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
@@ -1619,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Impossible de convertir au format d'appel d'outil valide : {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
-        "multiple_tools": "Il existe plusieurs outils MCP correspondants, {{tool}} a été sélectionné",
-        "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé",
         "url_context": "Gemini ne prend pas en charge l'utilisation simultanée du contexte de la page Web et des appels de fonction"
       }
     },
@@ -7751,6 +7742,13 @@
           "toggle_client_email_visibility": "Basculer la visibilité de l'e-mail du client",
           "toggle_private_key_visibility": "Basculer la visibilité de la clé privée",
           "toggle_project_id_visibility": "Basculer la visibilité de l'ID du projet"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Ouvrir Token Factory",
+          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
+          "title": "10 USD de crédits API gratuits par jour"
         }
       }
     },
