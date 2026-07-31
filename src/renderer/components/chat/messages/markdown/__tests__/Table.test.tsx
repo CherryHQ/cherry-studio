@@ -144,20 +144,9 @@ describe('Table', () => {
       expect(screen.getByText('Header 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 2')).toBeInTheDocument()
-      expect(screen.getAllByTestId('tooltip')).toHaveLength(2)
-    })
-
-    it('should render copy button with correct tooltip', () => {
-      render(<Table {...defaultProps} />)
-
       const tooltips = screen.getAllByTestId('tooltip')
+      expect(tooltips).toHaveLength(2)
       expect(tooltips[0]).toHaveAttribute('title', 'common.copy')
-    })
-
-    it('should render excel export button with correct tooltip', () => {
-      render(<Table {...defaultProps} />)
-
-      const tooltips = screen.getAllByTestId('tooltip')
       expect(tooltips[1]).toHaveAttribute('title', 'common.export.excel')
       expect(getExcelIcon()).toBeInTheDocument()
     })
@@ -183,15 +172,9 @@ Line 4`
 | Cell 1   | Cell 2   |`)
     })
 
-    it('should return empty string when position is null', () => {
+    it('should return empty string for invalid inputs', () => {
       expect(extractTableMarkdown('test-block-1', null, defaultTableContent)).toBe('')
-    })
-
-    it('should return empty string when position is undefined', () => {
       expect(extractTableMarkdown('test-block-1', undefined, defaultTableContent)).toBe('')
-    })
-
-    it('should return empty string when markdownContent is missing', () => {
       expect(extractTableMarkdown('test-block-1', createTablePosition(), undefined)).toBe('')
     })
 
