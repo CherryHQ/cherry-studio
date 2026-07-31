@@ -58,7 +58,6 @@ const PRESET_DELTA_FIELDS = [
   'description',
   'group',
   'capabilities',
-  'serverToolOverrides',
   'inputModalities',
   'outputModalities',
   'endpointTypes',
@@ -142,7 +141,6 @@ export interface UserModelOverlay {
   description?: string | null
   group?: string | null
   capabilities?: ModelCapability[] | null
-  serverToolOverrides?: Model['serverToolOverrides'] | null
   inputModalities?: Modality[] | null
   outputModalities?: Modality[] | null
   endpointTypes?: EndpointType[] | null
@@ -170,9 +168,6 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
 
   if (overlay.capabilities != null) {
     result.capabilities = [...overlay.capabilities]
-  }
-  if (overlay.serverToolOverrides != null) {
-    result.serverToolOverrides = { ...overlay.serverToolOverrides }
   }
   if (overlay.endpointTypes != null) {
     result.endpointTypes = [...overlay.endpointTypes]
@@ -256,7 +251,6 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'description',
   'group',
   'capabilities',
-  'serverToolOverrides',
   'inputModalities',
   'outputModalities',
   'endpointTypes',
@@ -283,7 +277,6 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     description: dto.description ?? null,
     group: dto.group ?? null,
     capabilities: (dto.capabilities ?? []) as ModelCapability[],
-    serverToolOverrides: dto.serverToolOverrides ?? null,
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
@@ -348,7 +341,6 @@ function presetDeltaToNewUserModel(
     description: fields.has('description') ? (dto.description ?? null) : null,
     group: fields.has('group') ? (dto.group ?? null) : null,
     capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
-    serverToolOverrides: fields.has('serverToolOverrides') ? (dto.serverToolOverrides ?? null) : null,
     inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
@@ -370,7 +362,6 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     description: row.description,
     group: row.group,
     capabilities: row.capabilities,
-    serverToolOverrides: row.serverToolOverrides,
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
@@ -410,7 +401,6 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     description: row.description ?? undefined,
     group: row.group ?? undefined,
     capabilities: row.capabilities,
-    serverToolOverrides: row.serverToolOverrides ?? undefined,
     inputModalities: row.inputModalities ?? undefined,
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,

@@ -1,10 +1,4 @@
-import {
-  type Model,
-  MODEL_CAPABILITY,
-  type ModelCapability,
-  type RuntimeReasoning,
-  SERVER_TOOL
-} from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type ModelCapability, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -74,10 +68,11 @@ describe('reconcile web search', () => {
     expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined)).toBeNull()
   })
 
-  it('treats a web-search model as built-in only when the provider natively serves it', () => {
-    const nextModel = {
+  it('treats an implicitly eligible web-search model as built-in only when the provider natively serves it', () => {
+    const nextModel: Model = {
       ...createModel(),
-      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: true }
+      id: 'provider::claude-sonnet-4-6',
+      apiModelId: 'claude-sonnet-4-6'
     }
 
     expect(hasModelBuiltinWebSearch(nextModel, providerWith([]))).toBe(false)

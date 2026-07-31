@@ -300,10 +300,6 @@ export const RuntimeModelPricingSchema = z.object({
 })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
-/** User override for model-dependent provider-native tool eligibility. */
-export const ServerToolOverridesSchema = z.partialRecord(z.enum(objectValues(SERVER_TOOL)), z.boolean())
-export type ServerToolOverrides = z.infer<typeof ServerToolOverridesSchema>
-
 export const ModelSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
   id: UniqueModelIdSchema,
@@ -329,8 +325,6 @@ export const ModelSchema = z.object({
   // Capabilities
   /** Final capability list after all merges */
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))),
-  /** Explicit user eligibility overrides for provider-native tools. */
-  serverToolOverrides: ServerToolOverridesSchema.optional(),
   /** Supported input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Supported output modalities */

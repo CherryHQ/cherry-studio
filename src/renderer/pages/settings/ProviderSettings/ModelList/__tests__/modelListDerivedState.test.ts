@@ -42,7 +42,6 @@ const models = [
     providerId: 'openai',
     group: 'chat',
     capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
-    serverToolOverrides: { 'web-search': true },
     isEnabled: true
   },
   {

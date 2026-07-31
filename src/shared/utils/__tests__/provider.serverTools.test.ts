@@ -27,25 +27,18 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(claude, provider('model-dependent'))).toBe(true)
   })
 
-  it('lets an explicit custom-model override win only when the provider serves the tool', () => {
-    const custom = model('private-model', {
-      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: true }
-    })
+  it('keeps unknown custom models ineligible for model-dependent tools', () => {
+    const custom = model('private-model')
 
-    expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(true)
+    expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(false)
     expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] } as unknown as Provider)).toBe(false)
   })
 
-  it('respects a negative override and rejects non-chat models', () => {
-    const disabled = model('claude-sonnet-4-6', {
-      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: false }
-    })
-    const embedding = model('private-embedding', {
-      capabilities: [MODEL_CAPABILITY.EMBEDDING],
-      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: true }
+  it('rejects non-chat models even when their ids are otherwise eligible', () => {
+    const embedding = model('claude-sonnet-4-6', {
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
     })
 
-    expect(isServerToolModelEligible(disabled, SERVER_TOOL.WEB_SEARCH)).toBe(false)
     expect(isServerToolModelEligible(embedding, SERVER_TOOL.WEB_SEARCH)).toBe(false)
   })
 

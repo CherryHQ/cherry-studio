@@ -2,8 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { ENDPOINT_TYPE, type EndpointType, SERVER_TOOL } from '@shared/data/types/model'
-import { isServerToolModelEligible } from '@shared/utils/provider'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -89,8 +88,6 @@ export default function AddModelFormPanel({
     getInitialPurposeFields(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
   const [classification, setClassification] = useState(() => getInitialModelClassification())
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
-  const [webSearchTouched, setWebSearchTouched] = useState(false)
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
@@ -109,8 +106,6 @@ export default function AddModelFormPanel({
     setFormState(getInitialAddModelFormState(prefill, defaultChatEndpoint))
     setPurposeFields(getInitialPurposeFields(prefill, defaultChatEndpoint))
     setClassification(getInitialModelClassification(prefill?.model))
-    setWebSearchEnabled(prefill?.model ? isServerToolModelEligible(prefill.model, SERVER_TOOL.WEB_SEARCH) : false)
-    setWebSearchTouched(false)
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setShowMoreSettings(false)
@@ -180,11 +175,6 @@ export default function AddModelFormPanel({
               ? [...values.endpointTypes]
               : undefined,
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
-        ...(webSearchTouched
-          ? { serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: webSearchEnabled } }
-          : prefill?.model?.serverToolOverrides
-            ? { serverToolOverrides: { ...prefill.model.serverToolOverrides } }
-            : {}),
         inputModalities: submittedPurposeFields?.inputModalities ?? classifiedInputModalities,
         outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
@@ -205,9 +195,7 @@ export default function AddModelFormPanel({
       provider,
       providerId,
       purposeFields,
-      t,
-      webSearchEnabled,
-      webSearchTouched
+      t
     ]
   )
 
@@ -299,11 +287,6 @@ export default function AddModelFormPanel({
       }
       return { ...current, inputModalities }
     })
-  }, [])
-
-  const handleWebSearchToggle = useCallback(() => {
-    setWebSearchTouched(true)
-    setWebSearchEnabled((current) => !current)
   }, [])
 
   const handleFormSubmit = useCallback(
@@ -438,8 +421,6 @@ export default function AddModelFormPanel({
                 onPrimaryTypeChange={handlePrimaryTypeChange}
                 onCapabilityToggle={handleCapabilityToggle}
                 onInputModalityToggle={handleInputModalityToggle}
-                webSearchEnabled={webSearchEnabled}
-                onWebSearchToggle={handleWebSearchToggle}
               />
             </div>
 

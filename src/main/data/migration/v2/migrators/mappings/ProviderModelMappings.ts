@@ -9,14 +9,13 @@ import {
   endpointImpliedCapability,
   type EndpointType,
   MODEL_CAPABILITY,
-  type ModelCapability,
-  SERVER_TOOL
+  type ModelCapability
 } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
-import { createUniqueModelId, type RuntimeModelPricing, type ServerToolOverrides } from '@shared/data/types/model'
+import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -453,7 +452,6 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     description: legacy.description ?? null,
     group: legacy.group ?? null,
     capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
-    serverToolOverrides: mapServerToolOverrides(legacy.capabilities),
     inputModalities: null,
     outputModalities: null,
     endpointTypes,
@@ -466,13 +464,6 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     isEnabled: true,
     isHidden: false
   }
-}
-
-function mapServerToolOverrides(capabilities?: LegacyModel['capabilities']): ServerToolOverrides | null {
-  const webSearch = capabilities?.find(
-    (capability) => capability.type === 'web_search' && capability.isUserSelected !== undefined
-  )
-  return webSearch ? { [SERVER_TOOL.WEB_SEARCH]: webSearch.isUserSelected! } : null
 }
 
 function mapCapabilities(

@@ -1,11 +1,11 @@
-import { ENDPOINT_TYPE, SERVER_TOOL } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
 import { transformModel, transformProvider } from '../ProviderModelMappings'
 
 describe('ProviderModelMappings', () => {
   describe('transformModel', () => {
-    it('migrates explicit v1 web-search selection outside generic model capabilities', () => {
+    it('drops explicit v1 web-search selection from generic model capabilities', () => {
       const enabled = transformModel(
         {
           id: 'private-model',
@@ -26,9 +26,7 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(enabled.capabilities).toEqual(['function-call'])
-      expect(enabled.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: true })
       expect(disabled.capabilities).toEqual([])
-      expect(disabled.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: false })
     })
 
     it('leaves inferred v1 web-search entries to the v2 registry default', () => {
@@ -41,7 +39,6 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(result.capabilities).toEqual([])
-      expect(result.serverToolOverrides).toBeNull()
     })
   })
 

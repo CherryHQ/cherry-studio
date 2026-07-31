@@ -1,8 +1,8 @@
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import { MODALITY, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
-import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Globe2, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,8 +14,6 @@ interface ModelClassificationControlsProps {
   onPrimaryTypeChange: (type: ModelPrimaryType) => void
   onCapabilityToggle: (capability: ModelCapabilityToggle) => void
   onInputModalityToggle: (modality: ModelInputModality) => void
-  webSearchEnabled?: boolean
-  onWebSearchToggle?: () => void
   onReset?: () => void
 }
 
@@ -36,12 +34,6 @@ const MODEL_CAPABILITY_OPTIONS: readonly ClassificationOption<ModelCapabilityTog
   { value: MODEL_CAPABILITY.REASONING, label: 'models.type.reasoning', icon: BrainCircuit },
   { value: MODEL_CAPABILITY.FUNCTION_CALL, label: 'models.type.function_calling', icon: Wrench }
 ]
-
-const WEB_SEARCH_OPTION: ClassificationOption<typeof SERVER_TOOL.WEB_SEARCH> = {
-  value: SERVER_TOOL.WEB_SEARCH,
-  label: 'models.type.websearch',
-  icon: Globe2
-}
 
 const INPUT_MODALITY_OPTIONS: readonly ClassificationOption<ModelInputModality>[] = [
   { value: MODALITY.IMAGE, label: 'models.type.vision', icon: Eye },
@@ -83,8 +75,6 @@ export function ModelClassificationControls({
   onPrimaryTypeChange,
   onCapabilityToggle,
   onInputModalityToggle,
-  webSearchEnabled,
-  onWebSearchToggle,
   onReset
 }: ModelClassificationControlsProps) {
   const { t } = useTranslation()
@@ -131,9 +121,6 @@ export function ModelClassificationControls({
               onClick={() => onCapabilityToggle(option.value)}
             />
           ))}
-          {onWebSearchToggle ? (
-            <OptionButton option={WEB_SEARCH_OPTION} selected={webSearchEnabled ?? false} onClick={onWebSearchToggle} />
-          ) : null}
         </div>
       </div>
 

@@ -195,12 +195,9 @@ function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) 
   return provider.serverTools?.find((tool) => tool.id === id)
 }
 
-/** Model-side eligibility for a provider-native tool, with explicit user overrides winning. */
+/** Model-side eligibility for a provider-native tool, inferred from registry creator data. */
 export function isServerToolModelEligible(model: Model, tool: ServerTool): boolean {
   if (isNonChatModel(model)) return false
-
-  const override = model.serverToolOverrides?.[tool]
-  if (override !== undefined) return override
 
   const separatorIndex = model.id.indexOf('::')
   const rawModelId = model.apiModelId ?? (separatorIndex >= 0 ? model.id.slice(separatorIndex + '::'.length) : model.id)

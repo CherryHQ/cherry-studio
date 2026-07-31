@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
@@ -68,7 +68,7 @@ vi.mock('@renderer/utils/api', () => ({
 vi.mock('@renderer/utils/model', () => {
   const isFunctionCallingModel = (model?: Model) =>
     model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false
-  const isServerToolModelEligible = (model?: Model) => model?.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH] ?? false
+  const isServerToolModelEligible = (model?: Model) => model?.apiModelId?.startsWith('claude-') ?? false
   // Mirror the real reconcile composition, including provider-wide search.
   const hasModelBuiltinWebSearch = (
     model?: Model,

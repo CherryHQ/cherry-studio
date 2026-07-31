@@ -1,7 +1,7 @@
 /**
  * Model-dependent provider-native tool eligibility compiled from creator data.
- * Runtime callers may layer user overrides on top, but this module owns the
- * shipped catalog default and never reads generic model capabilities.
+ * This generated catalog inference is the runtime source of truth and never
+ * reads generic model capabilities.
  */
 import type { ServerTool } from '../schemas/enums'
 import { normalizeModelId } from '../utils/normalize'

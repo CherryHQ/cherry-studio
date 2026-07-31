@@ -14,9 +14,8 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { CURRENCY, type Currency, type EndpointType, type Model, SERVER_TOOL } from '@shared/data/types/model'
+import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { isServerToolModelEligible } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,7 +67,6 @@ interface BuildPatchOverrides {
   endpointTypes?: EndpointType[]
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
-  webSearchEnabled?: boolean
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
@@ -121,7 +119,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
@@ -140,10 +137,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
-  const savedWebSearchEnabled = useMemo(
-    () => (model ? isServerToolModelEligible(model, SERVER_TOOL.WEB_SEARCH) : false),
-    [model]
-  )
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
   useEffect(() => {
@@ -165,7 +158,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     })
     setShowMoreSettings(true)
     setClassification(getInitialModelClassification(model))
-    setWebSearchEnabled(isServerToolModelEligible(model, SERVER_TOOL.WEB_SEARCH))
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
@@ -183,7 +175,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
-        serverToolOverrides: patch.serverToolOverrides,
         inputModalities: patch.inputModalities,
         outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
@@ -215,7 +206,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         nextCacheReadPrice !== undefined && Number.isFinite(nextCacheReadPrice) && nextCacheReadPrice >= 0
       const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
       const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
-      const hasWebSearchOverride = overrides != null && Object.hasOwn(overrides, 'webSearchEnabled')
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
       const nextClassification = overrides?.classification
       const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
@@ -267,14 +257,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
             : {}),
         ...(hasPurposeFieldsOverride && resolvedPurposeFields
           ? { outputModalities: resolvedPurposeFields.outputModalities }
-          : {}),
-        ...(hasWebSearchOverride
-          ? {
-              serverToolOverrides: {
-                ...model.serverToolOverrides,
-                [SERVER_TOOL.WEB_SEARCH]: overrides.webSearchEnabled!
-              }
-            }
           : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
@@ -405,16 +387,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       capabilities: new Set(savedClassification.capabilities),
       inputModalities: new Set(savedClassification.inputModalities)
     }
-    setWebSearchEnabled(savedWebSearchEnabled)
     setClassification(nextClassification)
-    autoSave({ classification: nextClassification, webSearchEnabled: savedWebSearchEnabled })
-  }, [autoSave, savedClassification, savedWebSearchEnabled])
-
-  const handleToggleWebSearch = useCallback(() => {
-    const next = !webSearchEnabled
-    setWebSearchEnabled(next)
-    autoSave({ webSearchEnabled: next })
-  }, [autoSave, webSearchEnabled])
+    autoSave({ classification: nextClassification })
+  }, [autoSave, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -525,12 +500,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.sectionCard}>
                 <ModelClassificationControls
                   value={classification}
-                  hasChanges={hasClassificationChanges || webSearchEnabled !== savedWebSearchEnabled}
+                  hasChanges={hasClassificationChanges}
                   onPrimaryTypeChange={handlePrimaryTypeChange}
                   onCapabilityToggle={handleToggleCapability}
                   onInputModalityToggle={handleToggleInputModality}
-                  webSearchEnabled={webSearchEnabled}
-                  onWebSearchToggle={handleToggleWebSearch}
                   onReset={handleResetClassification}
                 />
               </div>
