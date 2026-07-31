@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 // Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
 // resolved by tsgo on main's program (resolves on feat's). Transitional; reverts
 // to the barrel once main converges with feat.
-import { ModelSelector, type ModelSelectorModelAction } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
@@ -17,10 +17,7 @@ export interface KnowledgeModelSelectProps {
   filter: (model: Model) => boolean
   invalid?: boolean
   'aria-label'?: string
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
-  modelActions?: readonly ModelSelectorModelAction[]
   prioritizedProviderIds?: readonly string[]
   onChange: (modelId: string | null) => void
 }
@@ -36,10 +33,7 @@ export const KnowledgeModelSelect = ({
   filter,
   invalid = false,
   'aria-label': ariaLabel,
-  open,
-  onOpenChange,
   onSettingsNavigate,
-  modelActions,
   prioritizedProviderIds,
   onChange
 }: KnowledgeModelSelectProps) => {
@@ -58,9 +52,6 @@ export const KnowledgeModelSelect = ({
       selectionType="id"
       value={selectorValue}
       filter={filter}
-      open={open}
-      onOpenChange={onOpenChange}
-      modelActions={modelActions}
       prioritizedProviderIds={prioritizedProviderIds}
       showTagFilter={false}
       onSettingsNavigate={onSettingsNavigate}

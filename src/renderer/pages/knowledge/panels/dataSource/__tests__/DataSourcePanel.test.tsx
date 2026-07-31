@@ -1,4 +1,5 @@
 import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -7,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
+const { mockUseLocalModel } = vi.hoisted(() => ({ mockUseLocalModel: vi.fn() }))
 const mockUseQuery = vi.fn()
 const defaultOnPreviewFile = vi.fn()
 
@@ -29,6 +31,10 @@ const DataSourcePanel = ({
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
+}))
+
+vi.mock('@renderer/hooks/useLocalModel', () => ({
+  useLocalModel: () => mockUseLocalModel()
 }))
 
 // The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
@@ -337,9 +343,13 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.chunking': '分块中',
             'knowledge.data_source.status.pending': '等待中',
             'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
+            'knowledge.rag.download_local_embedding_failed': '本地嵌入模型下载失败',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
-            'knowledge.rag.file_processing': '文件处理'
+            'knowledge.rag.file_processing': '文件处理',
+            'settings.dependencies.localModels.embedding.name': '本地嵌入模型',
+            'settings.dependencies.localModels.status.downloading': '下载中…',
+            'settings.dependencies.localModels.unsupported': '当前平台不支持本地模型。'
           } as Record<string, string>
         )[key] ?? key
       )
@@ -350,11 +360,42 @@ vi.mock('react-i18next', () => ({
 describe('DataSourcePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
       error: undefined
     })
+  })
+
+  it('shows local model download progress and hides every add-source entry until ready', () => {
+    mockUseLocalModel.mockReturnValue({ status: 'downloading', percent: 42 })
+    const props = {
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+      updatedAt: '2026-04-15T09:00:00+08:00',
+      items: [],
+      isLoading: false,
+      onAdd: vi.fn(),
+      onDelete: vi.fn(),
+      onReindex: vi.fn()
+    }
+    const { rerender } = render(<DataSourcePanel {...props} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('42%')
+    expect(screen.getByText('本地嵌入模型')).toBeInTheDocument()
+    expect(screen.getByText('下载中…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '文件' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '笔记' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '目录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '链接' })).not.toBeInTheDocument()
+
+    mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
+    rerender(<DataSourcePanel {...props} />)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加数据源' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
   })
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {

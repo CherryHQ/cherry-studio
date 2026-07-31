@@ -1,6 +1,9 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
+import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { ChevronLeft } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -16,6 +19,7 @@ import { dataSourceTypeDisplayConfig } from './utils/models'
 import { getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
+  embeddingModelId?: string | null
   items: KnowledgeItem[]
   /** Server-side total across all pages. Defaults to the loaded count when omitted. */
   total?: number
@@ -41,6 +45,43 @@ export interface DataSourcePanelProps {
   onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
   onReindexItems: (itemIds: string[]) => void | Promise<unknown>
+}
+
+interface LocalEmbeddingDownloadState {
+  status: LocalModelStatus
+  percent: number
+}
+
+const LocalEmbeddingDownloadProgress = ({ status, percent }: LocalEmbeddingDownloadState) => {
+  const { t } = useTranslation()
+  const statusLabel =
+    status === 'error'
+      ? t('knowledge.rag.download_local_embedding_failed')
+      : status === 'unsupported'
+        ? t('settings.dependencies.localModels.unsupported')
+        : t('settings.dependencies.localModels.status.downloading')
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center">
+      <div className="flex flex-col items-center">
+        <CircularProgress
+          value={Math.floor(percent)}
+          size={80}
+          strokeWidth={6}
+          showLabel
+          labelClassName="font-medium text-foreground text-sm tabular-nums"
+          renderLabel={(progress) => `${progress}%`}
+        />
+        <h3 className="mt-5 font-semibold text-base text-foreground leading-6">
+          {t('settings.dependencies.localModels.embedding.name')}
+        </h3>
+        <p className="mt-1 text-foreground-tertiary text-sm leading-5">{statusLabel}</p>
+      </div>
+    </div>
+  )
 }
 
 const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: KnowledgeItemType) => void }) => {
@@ -76,7 +117,11 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
   )
 }
 
-const DataSourcePanel = ({
+interface DataSourcePanelContentProps extends DataSourcePanelProps {
+  localEmbeddingDownload?: LocalEmbeddingDownloadState
+}
+
+const DataSourcePanelContent = ({
   items,
   total = items.length,
   isLoading,
@@ -94,8 +139,9 @@ const DataSourcePanel = ({
   onDelete,
   onDeleteItems,
   onReindex,
-  onReindexItems
-}: DataSourcePanelProps) => {
+  onReindexItems,
+  localEmbeddingDownload
+}: DataSourcePanelContentProps) => {
   const { t } = useTranslation()
   const { invalidatePreviewRequests, previewSource } = usePreviewKnowledgeSource(
     onPreviewFile,
@@ -212,7 +258,7 @@ const DataSourcePanel = ({
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onAdd={handleAddSource}
-            canAddSource={!currentDirectory}
+            canAddSource={!currentDirectory && !localEmbeddingDownload}
           />
         </div>
       }>
@@ -235,7 +281,9 @@ const DataSourcePanel = ({
             </span>
           </div>
         )}
-        {!isLoading && items.length === 0 ? (
+        {localEmbeddingDownload && items.length === 0 && !currentDirectory ? (
+          <LocalEmbeddingDownloadProgress {...localEmbeddingDownload} />
+        ) : !isLoading && items.length === 0 ? (
           currentDirectory ? (
             <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-tertiary text-sm">
               {t('knowledge.data_source.empty_folder')}
@@ -288,5 +336,20 @@ const DataSourcePanel = ({
     </KnowledgePanelShell>
   )
 }
+
+const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
+  const { status, percent } = useLocalModel('embedding')
+
+  return (
+    <DataSourcePanelContent {...props} localEmbeddingDownload={status === 'ready' ? undefined : { status, percent }} />
+  )
+}
+
+const DataSourcePanel = (props: DataSourcePanelProps) =>
+  props.embeddingModelId === LOCAL_EMBEDDING_UNIQUE_MODEL_ID ? (
+    <LocalEmbeddingDataSourcePanel {...props} />
+  ) : (
+    <DataSourcePanelContent {...props} />
+  )
 
 export default DataSourcePanel
