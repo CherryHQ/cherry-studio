@@ -108,6 +108,14 @@ describe('web-tool routing', () => {
     expect(isBuiltinWebFetchAvailable(model('private-model'), serverProvider)).toBe(false)
   })
 
+  it('honors the declaration vendors narrowing (Vertex url-context is Gemini-only)', () => {
+    const vertexLike = {
+      serverTools: [{ id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent', vendors: ['gemini'] }]
+    } as Provider
+    expect(isBuiltinWebFetchAvailable(model('gemini-2.5-pro'), vertexLike)).toBe(true)
+    expect(isBuiltinWebFetchAvailable(claude, vertexLike)).toBe(false)
+  })
+
   it('returns none when neither side can serve an enabled capability', () => {
     expect(
       resolveWebToolRoutes(

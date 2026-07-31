@@ -41,8 +41,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   gemini: { 'web-search': factories('google'), 'url-context': factories('google') },
   vertexai: {
     'web-search': factories('google-vertex', 'google-vertex-anthropic'),
-    // Known gap: @ai-sdk/google-vertex/anthropic exposes no webFetch tool, so
-    // url-context on Vertex serves Gemini SKUs only; Claude-on-Vertex no-ops.
+    // Declared `vendors: ['gemini']`: @ai-sdk/google-vertex/anthropic exposes
+    // no webFetch tool, so availability itself excludes Claude-on-Vertex.
     'url-context': factories('google-vertex')
   },
   'aws-bedrock': { 'web-search': factories('bedrock'), 'url-context': factories('bedrock') },

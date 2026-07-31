@@ -1,8 +1,10 @@
 import {
   isServerToolModelEligible as isRegistryServerToolModelEligible,
+  matchVendor,
   SERVER_TOOL,
   SERVER_TOOL_MODEL_SCOPE,
-  type ServerTool
+  type ServerTool,
+  type ServerToolConfig
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
@@ -166,10 +168,6 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
-export function isSupportUrlContextProvider(provider: Pick<Provider, 'serverTools'>): boolean {
-  return provider.serverTools?.some((tool) => tool.id === SERVER_TOOL.URL_CONTEXT) ?? false
-}
-
 export function isSupportServiceTierProvider(provider: Provider): boolean {
   return provider.apiFeatures?.serviceTier ?? false
 }
@@ -202,19 +200,29 @@ function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) 
   return provider.serverTools?.find((tool) => tool.id === id)
 }
 
+function getRawModelId(model: Model): string {
+  const separatorIndex = model.id.indexOf('::')
+  return model.apiModelId ?? (separatorIndex >= 0 ? model.id.slice(separatorIndex + '::'.length) : model.id)
+}
+
+/** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
+function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
+  if (!tool.vendors?.length) return true
+  const vendor = matchVendor(getRawModelId(model).toLowerCase())
+  return vendor !== undefined && tool.vendors.includes(vendor)
+}
+
 /** Model-side eligibility for a provider-native tool, inferred from registry creator data. */
 export function isServerToolModelEligible(model: Model, tool: ServerTool): boolean {
   if (isNonChatModel(model)) return false
 
-  const separatorIndex = model.id.indexOf('::')
-  const rawModelId = model.apiModelId ?? (separatorIndex >= 0 ? model.id.slice(separatorIndex + '::'.length) : model.id)
-  return isRegistryServerToolModelEligible(rawModelId, tool)
+  return isRegistryServerToolModelEligible(getRawModelId(model), tool)
 }
 
 /** Effective built-in web-search availability for one provider-model pair. */
 export function isBuiltinWebSearchAvailable(model: Model, provider: Pick<Provider, 'serverTools'>): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
-  if (!tool) return false
+  if (!tool || !serverToolServesModelVendor(tool, model)) return false
 
   if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
     return !isNonChatModel(model)
@@ -232,11 +240,10 @@ export interface WebToolRoutes {
 
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
 export function isBuiltinWebFetchAvailable(model: Model, provider: Pick<Provider, 'serverTools'>): boolean {
-  return (
-    isSupportUrlContextProvider(provider) &&
-    !isPureGenerateImageModel(model) &&
-    (isGeminiModel(model) || isAnthropicModel(model))
-  )
+  const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)
+  if (!tool || !serverToolServesModelVendor(tool, model)) return false
+
+  return !isPureGenerateImageModel(model) && (isGeminiModel(model) || isAnthropicModel(model))
 }
 
 /** Select one web-tool side for a request, then expose only the capabilities available on that side. */

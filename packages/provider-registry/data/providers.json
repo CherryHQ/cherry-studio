@@ -943,7 +943,8 @@
         },
         {
           "id": "url-context",
-          "modelScope": "model-dependent"
+          "modelScope": "model-dependent",
+          "vendors": ["gemini"]
         }
       ]
     },
@@ -2018,5 +2019,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "0c8ca8ef654e97ab"
+  "version": "d8a9f60063ad483c"
 }
