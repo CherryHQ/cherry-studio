@@ -39,7 +39,6 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Badge: passthrough('span'),
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
@@ -108,6 +107,13 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
+    Select: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    SelectContent: passthrough('div'),
+    SelectItem: ({ children, value, ...props }: any) =>
+      React.createElement('div', { ...props, 'data-value': value }, children),
+    SelectTrigger: ({ children, size, ...props }: any) =>
+      React.createElement('button', { ...props, 'data-size': size, role: 'combobox', type: 'button' }, children),
+    SelectValue: () => null,
     Switch: ({ checked, onCheckedChange, ...props }: any) =>
       React.createElement('input', {
         ...props,
