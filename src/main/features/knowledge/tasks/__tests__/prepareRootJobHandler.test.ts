@@ -53,10 +53,16 @@ describe('prepare-root job handler', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(25, { stage: 'copying' })
   })
 
-  it('clears stale directory copy progress before retrying the scan', async () => {
+  it('clears stale directory copy progress before retry cleanup starts', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     MockMainCacheServiceExport.cacheService.setShared('knowledge.item.directory_copy_progress.dir-1', 100)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(() => {
+      expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
+        undefined
+      )
+      return []
+    })
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 

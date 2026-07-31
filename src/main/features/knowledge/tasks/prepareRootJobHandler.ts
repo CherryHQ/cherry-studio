@@ -52,12 +52,12 @@ export function createPrepareRootJobHandler(
         return
       }
 
+      cacheService.deleteShared(progressKey)
       // Drop stale expanded leaves before scanning so first attempts and retries stay idempotent.
       await deletePreviousLeafExpansion(baseId, itemId, knowledgeLockManager)
 
       ctx.signal.throwIfAborted()
       reportKnowledgeProgress(ctx, 0, { stage: 'scanning' })
-      cacheService.deleteShared(progressKey)
       let lastCopyPercent: number | null = null
 
       try {
