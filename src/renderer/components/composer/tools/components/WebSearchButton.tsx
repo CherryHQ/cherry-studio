@@ -10,11 +10,9 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { isOpenAIWebSearchModel } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
-import { isGPT5SeriesReasoningModel, isWebToolConflictProneGeminiModel } from '@shared/utils/model'
-import { isBuiltinWebSearchAvailable, isGeminiWebSearchProvider, resolveWebToolRoutes } from '@shared/utils/provider'
+import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
@@ -24,6 +22,14 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   assistantId: string
   launcher: ToolLauncherApi
+}
+
+// 'no-backend' is deliberately absent: the button stays enabled and clicking
+// it opens the search-provider configuration flow instead.
+const REASON_MESSAGE_KEYS: Partial<Record<WebToolUnavailableReason, string>> = {
+  'model-unsupported': 'chat.input.web_search.builtin.disabled_content',
+  'gemini-function-tool-conflict': 'chat.mcp.warning.gemini_web_search',
+  'openai-minimal-reasoning': 'chat.web_search.warning.openai'
 }
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
@@ -37,48 +43,26 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
   const clientSearchAvailable = isWebSearchProviderReady(defaultSearchKeywordsProvider, 'searchKeywords')
   const clientFetchAvailable = isWebSearchProviderReady(defaultFetchUrlsProvider, 'fetchUrls')
-  const webSearchRoute = model
-    ? resolveWebToolRoutes(model, modelProvider, {
-        webSearchEnabled: true,
-        clientSearchAvailable,
-        clientFetchAvailable,
-        clientToolsPreferred
-      }).webSearch
-    : 'none'
-  const hasSearchBackend =
-    clientSearchAvailable || (model && modelProvider ? isBuiltinWebSearchAvailable(model, modelProvider) : false)
-  const usesServerSearch = webSearchRoute === 'server'
+  // Same resolver as the main process; MCP mode stands in for the request's
+  // eventual function tools, which only exist at build time.
+  const { webSearch: webSearchRoute, reasons } =
+    model && assistant
+      ? resolveWebToolRoutes(model, modelProvider, {
+          webSearchEnabled: true,
+          clientSearchAvailable,
+          clientFetchAvailable,
+          clientToolsPreferred,
+          hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
+          reasoningEffort: assistant.settings.reasoning_effort
+        })
+      : { webSearch: 'none' as const, reasons: undefined }
+  const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
   const activeProviderId = clientSearchAvailable ? defaultSearchKeywordsProvider?.id : undefined
 
   const providerLogo =
     webSearchRoute === 'client' && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
-  const hasGeminiWebSearchConflict = Boolean(
-    usesServerSearch &&
-      modelProvider &&
-      assistant &&
-      model &&
-      isGeminiWebSearchProvider(modelProvider) &&
-      isWebToolConflictProneGeminiModel(model) &&
-      getEffectiveMcpMode(assistant) !== 'disabled'
-  )
-  const hasOpenAIMinimalWebSearchConflict = Boolean(
-    usesServerSearch &&
-      model &&
-      assistant &&
-      isOpenAIWebSearchModel(model) &&
-      isGPT5SeriesReasoningModel(model) &&
-      assistant.settings.reasoning_effort === 'minimal'
-  )
-  const disabledReason =
-    !enableWebSearch && hasSearchBackend
-      ? webSearchRoute === 'none'
-        ? t('chat.input.web_search.builtin.disabled_content')
-        : hasGeminiWebSearchConflict
-          ? t('chat.mcp.warning.gemini_web_search')
-          : hasOpenAIMinimalWebSearchConflict
-            ? t('chat.web_search.warning.openai')
-            : undefined
-      : undefined
+  const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
+  const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
   const isDisabled = Boolean(disabledReason)
 
   const onClick = useCallback(
@@ -92,7 +76,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         return
       }
 
-      if (webSearchRoute === 'none') {
+      if (searchUnavailableReason === 'no-backend') {
         let navigatedAway = false
 
         const confirmed = await popup.confirm({
@@ -123,7 +107,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, webSearchRoute]
+    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')

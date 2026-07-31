@@ -14,6 +14,7 @@ import {
   isAnthropicModel,
   isFunctionCallingModel,
   isGeminiModel,
+  isGPT5SeriesReasoningModel,
   isNonChatModel,
   isPureGenerateImageModel,
   isWebToolConflictProneGeminiModel
@@ -233,9 +234,17 @@ export function isBuiltinWebSearchAvailable(model: Model, provider: Pick<Provide
 
 export type WebToolRoute = 'client' | 'server' | 'none'
 
+/** Why an enabled web capability resolved to 'none' — codes only, UI maps them to copy. */
+export type WebToolUnavailableReason =
+  | 'no-backend'
+  | 'model-unsupported'
+  | 'gemini-function-tool-conflict'
+  | 'openai-minimal-reasoning'
+
 export interface WebToolRoutes {
   webSearch: WebToolRoute
   webFetch: WebToolRoute
+  reasons?: Partial<Record<'webSearch' | 'webFetch', WebToolUnavailableReason>>
 }
 
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
@@ -246,24 +255,51 @@ export function isBuiltinWebFetchAvailable(model: Model, provider: Pick<Provider
   return !isPureGenerateImageModel(model) && (isGeminiModel(model) || isAnthropicModel(model))
 }
 
-/** Select one web-tool side for a request, then expose only the capabilities available on that side. */
+/**
+ * Select one web-tool side for a request, then expose only the capabilities
+ * available on that side.
+ *
+ * Provider/model conflicts (pre-3 Gemini native tools × function tools, OpenAI
+ * GPT-5 minimal reasoning × native web_search) enter here as availability
+ * inputs, so a conflicted server side falls back to the client tools instead
+ * of being vetoed downstream. Each capability that lands on 'none' carries a
+ * reason code for UI messaging.
+ */
 export function resolveWebToolRoutes(
   model: Model,
-  provider: Pick<Provider, 'serverTools'> | undefined,
+  provider: Provider | undefined,
   options: {
     webSearchEnabled: boolean
     clientSearchAvailable: boolean
     clientFetchAvailable: boolean
     clientToolsPreferred: boolean
+    /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive in the renderer. */
+    hasFunctionToolSignals?: boolean
+    /** Effective reasoning effort selection for the request. */
+    reasoningEffort?: string
   }
 ): WebToolRoutes {
   const supportsClientTools = isFunctionCallingModel(model)
   const clientSearchAvailable = options.webSearchEnabled && supportsClientTools && options.clientSearchAvailable
   const clientFetchAvailable = options.webSearchEnabled && supportsClientTools && options.clientFetchAvailable
-  const serverSearchAvailable =
+  const serverSearchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider) : false
-  const serverFetchAvailable =
-    options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider) : false
+  const serverFetchEligible = options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider) : false
+
+  const googleToolConflict =
+    options.hasFunctionToolSignals === true &&
+    supportsClientTools &&
+    provider !== undefined &&
+    isGeminiWebSearchProvider(provider) &&
+    isWebToolConflictProneGeminiModel(model)
+  const openaiMinimalConflict =
+    options.reasoningEffort === 'minimal' &&
+    provider !== undefined &&
+    (isOpenAIProvider(provider) || isOpenAIChatProvider(provider) || isAzureOpenAIProvider(provider)) &&
+    isGPT5SeriesReasoningModel(model)
+
+  const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
+  const serverFetchAvailable = serverFetchEligible && !googleToolConflict
   const clientAvailable = clientSearchAvailable || clientFetchAvailable
   const serverAvailable = serverSearchAvailable || serverFetchAvailable
 
@@ -279,33 +315,68 @@ export function resolveWebToolRoutes(
         ? 'client'
         : undefined
 
-  return {
-    webSearch:
-      selectedSide === 'client' && clientSearchAvailable
-        ? 'client'
-        : selectedSide === 'server' && serverSearchAvailable
-          ? 'server'
-          : 'none',
-    webFetch:
-      selectedSide === 'client' && clientFetchAvailable
-        ? 'client'
-        : selectedSide === 'server' && serverFetchAvailable
-          ? 'server'
-          : 'none'
+  const webSearch: WebToolRoute =
+    selectedSide === 'client' && clientSearchAvailable
+      ? 'client'
+      : selectedSide === 'server' && serverSearchAvailable
+        ? 'server'
+        : 'none'
+  const webFetch: WebToolRoute =
+    selectedSide === 'client' && clientFetchAvailable
+      ? 'client'
+      : selectedSide === 'server' && serverFetchAvailable
+        ? 'server'
+        : 'none'
+
+  const reasons: NonNullable<WebToolRoutes['reasons']> = {}
+  if (webSearch === 'none') {
+    reasons.webSearch =
+      serverSearchEligible && googleToolConflict
+        ? 'gemini-function-tool-conflict'
+        : serverSearchEligible && openaiMinimalConflict
+          ? 'openai-minimal-reasoning'
+          : options.clientSearchAvailable && !supportsClientTools
+            ? 'model-unsupported'
+            : 'no-backend'
   }
+  if (webFetch === 'none') {
+    reasons.webFetch =
+      serverFetchEligible && googleToolConflict
+        ? 'gemini-function-tool-conflict'
+        : options.clientFetchAvailable && !supportsClientTools
+          ? 'model-unsupported'
+          : 'no-backend'
+  }
+
+  return { webSearch, webFetch, ...(Object.keys(reasons).length > 0 ? { reasons } : {}) }
 }
 
 /**
- * Final request-time amendment to the routes: pre-3 Gemini rejects requests
- * mixing native url-context with function tools, so the server fetch route is
- * withdrawn once the resolved ToolSet is known. The amended routes are the
- * single source of truth consumers read off the request scope.
+ * Final request-time amendment to the routes, once the resolved ToolSet is
+ * known: pre-3 Gemini rejects requests mixing its native tools with function
+ * tools, so surviving server routes are withdrawn. Normally the conflict is
+ * already predicted by `resolveWebToolRoutes` (which prefers falling back to
+ * the client side); this is the exact safety net for under-predicted signals.
+ * The amended routes are the single source of truth on the request scope.
  */
-export function finalizeWebToolRoutes(routes: WebToolRoutes, model: Model, hasFunctionTools: boolean): WebToolRoutes {
-  if (routes.webFetch === 'server' && hasFunctionTools && isWebToolConflictProneGeminiModel(model)) {
-    return { ...routes, webFetch: 'none' }
+export function finalizeWebToolRoutes(
+  routes: WebToolRoutes,
+  model: Model,
+  provider: Provider,
+  hasFunctionTools: boolean
+): WebToolRoutes {
+  if (!hasFunctionTools || !isWebToolConflictProneGeminiModel(model)) return routes
+
+  let next = routes
+  if (next.webFetch === 'server') {
+    next = { ...next, webFetch: 'none', reasons: { ...next.reasons, webFetch: 'gemini-function-tool-conflict' } }
   }
-  return routes
+  // Search only conflicts when the native tool is Google's (gemini/vertex hosts);
+  // e.g. openrouter serves gemini models with its own search that tolerates tools.
+  if (next.webSearch === 'server' && isGeminiWebSearchProvider(provider)) {
+    next = { ...next, webSearch: 'none', reasons: { ...next.reasons, webSearch: 'gemini-function-tool-conflict' } }
+  }
+  return next
 }
 
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS = ['ollama', 'lmstudio', 'nvidia', 'gpustack'] as const

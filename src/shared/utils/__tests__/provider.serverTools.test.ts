@@ -1,4 +1,4 @@
-import { type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   finalizeWebToolRoutes,
@@ -81,7 +81,12 @@ describe('web-tool routing', () => {
   })
 
   it('falls back only when the preferred side has no enabled capability', () => {
-    expect(resolveWebToolRoutes(claude, { serverTools: [] }, { ...bothEnabled, clientToolsPreferred: false })).toEqual({
+    expect(
+      resolveWebToolRoutes(claude, { serverTools: [] } as unknown as Provider, {
+        ...bothEnabled,
+        clientToolsPreferred: false
+      })
+    ).toEqual({
       webSearch: 'client',
       webFetch: 'client'
     })
@@ -93,14 +98,14 @@ describe('web-tool routing', () => {
         ...bothEnabled,
         clientToolsPreferred: false
       })
-    ).toEqual({ webSearch: 'server', webFetch: 'none' })
+    ).toEqual({ webSearch: 'server', webFetch: 'none', reasons: { webFetch: 'no-backend' } })
     expect(
       resolveWebToolRoutes(claude, serverProvider, {
         ...bothEnabled,
         clientSearchAvailable: false,
         clientToolsPreferred: true
       })
-    ).toEqual({ webSearch: 'none', webFetch: 'client' })
+    ).toEqual({ webSearch: 'none', webFetch: 'client', reasons: { webSearch: 'no-backend' } })
   })
 
   it('recognizes provider-native URL fetch for supported model families', () => {
@@ -116,26 +121,106 @@ describe('web-tool routing', () => {
     expect(isBuiltinWebFetchAvailable(claude, vertexLike)).toBe(false)
   })
 
-  it('returns none when neither side can serve an enabled capability', () => {
+  it('reports model-unsupported when only client backends exist for a non-function-calling model', () => {
     expect(
-      resolveWebToolRoutes(
-        model('private-model'),
-        { serverTools: [] },
-        {
-          ...bothEnabled,
-          clientToolsPreferred: true
-        }
-      )
-    ).toEqual({ webSearch: 'none', webFetch: 'none' })
+      resolveWebToolRoutes(model('private-model'), { serverTools: [] } as unknown as Provider, {
+        ...bothEnabled,
+        clientToolsPreferred: true
+      })
+    ).toEqual({
+      webSearch: 'none',
+      webFetch: 'none',
+      reasons: { webSearch: 'model-unsupported', webFetch: 'model-unsupported' }
+    })
+  })
+})
+
+describe('conflict-aware routing', () => {
+  const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+  const geminiProvider = {
+    id: 'gemini',
+    serverTools: [
+      { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' },
+      { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
+    ]
+  } as Provider
+
+  it('falls back to the client side when function-tool signals conflict with Gemini native tools', () => {
+    expect(
+      resolveWebToolRoutes(gemini25, geminiProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: true,
+        clientToolsPreferred: false,
+        hasFunctionToolSignals: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'client' })
+  })
+
+  it('reports the conflict when no client fallback exists', () => {
+    expect(
+      resolveWebToolRoutes(gemini25, geminiProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: false,
+        clientToolsPreferred: false,
+        hasFunctionToolSignals: true
+      })
+    ).toEqual({
+      webSearch: 'none',
+      webFetch: 'none',
+      reasons: { webSearch: 'gemini-function-tool-conflict', webFetch: 'gemini-function-tool-conflict' }
+    })
+  })
+
+  it('suppresses OpenAI native search under minimal reasoning effort', () => {
+    const gpt5 = model('gpt-5', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] })
+    const openaiProvider = {
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    } as Provider
+    expect(
+      resolveWebToolRoutes(gpt5, openaiProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: false,
+        clientToolsPreferred: false,
+        reasoningEffort: 'minimal'
+      })
+    ).toEqual({
+      webSearch: 'none',
+      webFetch: 'none',
+      reasons: { webSearch: 'openai-minimal-reasoning', webFetch: 'no-backend' }
+    })
+    expect(
+      resolveWebToolRoutes(gpt5, openaiProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: false,
+        clientToolsPreferred: false,
+        reasoningEffort: 'high'
+      })
+    ).toMatchObject({ webSearch: 'server' })
   })
 })
 
 describe('finalizeWebToolRoutes', () => {
   const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
   const gemini3 = model('gemini-3-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+  const geminiProvider = { id: 'gemini', serverTools: [] } as unknown as Provider
+  const openrouterLike = { id: 'openrouter', serverTools: [] } as unknown as Provider
 
-  it('withdraws the server fetch route for pre-3 Gemini when function tools are present', () => {
-    expect(finalizeWebToolRoutes({ webSearch: 'server', webFetch: 'server' }, gemini25, true)).toEqual({
+  it('withdraws surviving server routes for pre-3 Gemini once real function tools are known', () => {
+    expect(finalizeWebToolRoutes({ webSearch: 'server', webFetch: 'server' }, gemini25, geminiProvider, true)).toEqual({
+      webSearch: 'none',
+      webFetch: 'none',
+      reasons: { webSearch: 'gemini-function-tool-conflict', webFetch: 'gemini-function-tool-conflict' }
+    })
+  })
+
+  it('spares non-google server search implementations', () => {
+    expect(finalizeWebToolRoutes({ webSearch: 'server', webFetch: 'none' }, gemini25, openrouterLike, true)).toEqual({
       webSearch: 'server',
       webFetch: 'none'
     })
@@ -143,9 +228,9 @@ describe('finalizeWebToolRoutes', () => {
 
   it('keeps routes untouched without a conflict', () => {
     const routes = { webSearch: 'server', webFetch: 'server' } as const
-    expect(finalizeWebToolRoutes(routes, gemini25, false)).toBe(routes)
-    expect(finalizeWebToolRoutes(routes, gemini3, true)).toBe(routes)
+    expect(finalizeWebToolRoutes(routes, gemini25, geminiProvider, false)).toBe(routes)
+    expect(finalizeWebToolRoutes(routes, gemini3, geminiProvider, true)).toBe(routes)
     const clientRoutes = { webSearch: 'client', webFetch: 'client' } as const
-    expect(finalizeWebToolRoutes(clientRoutes, gemini25, true)).toBe(clientRoutes)
+    expect(finalizeWebToolRoutes(clientRoutes, gemini25, geminiProvider, true)).toBe(clientRoutes)
   })
 })

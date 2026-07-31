@@ -116,12 +116,23 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant)
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes)
+  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
+  const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
+    hasFunctionToolSignals: toolSignals
+      ? toolSignals.mcpToolIds.size > 0 ||
+        toolSignals.hasAnyKnowledgeBase ||
+        hasFileAttachments ||
+        knowledgeBaseIds.length > 0 ||
+        Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
+        assistant?.settings.enableGenerateImage === true
+      : false,
+    reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
+  })
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = toolSignals
+    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes, toolSignals)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
-  const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, hasFunctionTools)
+  const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
   const capabilities = assistant
     ? resolveCapabilities(model, provider, assistant, { webToolRoutes: finalWebToolRoutes })
     : undefined
@@ -252,6 +263,17 @@ function canModelConsumeTools(model: Model): boolean {
   return isFunctionCallingModel(model)
 }
 
+/** Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`. */
+async function resolveRequestToolSignals(
+  request: BuildAgentParamsInput['request']
+): Promise<{ mcpToolIds: ReadonlySet<string>; hasAnyKnowledgeBase: boolean }> {
+  let mcpIdList = request.mcpToolIds
+  if (!mcpIdList && request.assistantId) {
+    mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+  }
+  return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
+}
+
 /**
  * Tool selection: pick MCP ids (caller wins, else derived from assistant),
  * sync the MCP entries into the registry, then materialise the active
@@ -263,18 +285,15 @@ export async function resolveTools(
   model: Model,
   hasFileAttachments: boolean,
   knowledgeBaseIds: readonly string[],
-  webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES
+  webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES,
+  signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
 }> {
-  let mcpIdList = request.mcpToolIds
-  if (!mcpIdList && request.assistantId) {
-    mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
-  }
-  const mcpToolIds = new Set(mcpIdList ?? [])
+  const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
   if (mcpToolIds.size) {
     // Scope the registry sync to servers that actually own a selected tool —
     // avoids paying the per-server `listTools` round-trip for every active
@@ -282,7 +301,6 @@ export async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
   const paintingModel = resolveConfiguredPaintingModel()
   const activeEntries = registry.selectActive({
     assistant,
@@ -322,7 +340,8 @@ export async function resolveTools(
 async function resolveRequestWebToolRoutes(
   model: Model,
   provider: Provider,
-  assistant: Assistant | undefined
+  assistant: Assistant | undefined,
+  requestContext: { hasFunctionToolSignals: boolean; reasoningEffort: string | undefined }
 ): Promise<WebToolRoutes> {
   if (!assistant) return NO_WEB_TOOL_ROUTES
 
@@ -340,7 +359,9 @@ async function resolveRequestWebToolRoutes(
     webSearchEnabled: clientWebToolsEnabled,
     clientSearchAvailable,
     clientFetchAvailable,
-    clientToolsPreferred
+    clientToolsPreferred,
+    hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
+    reasoningEffort: requestContext.reasoningEffort
   })
 
   async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
