@@ -33,13 +33,13 @@ describe('attachUsageObserver', () => {
       {
         type: 'message-metadata',
         messageMetadata: {
-          totalTokens: 14,
-          promptTokens: 10,
-          completionTokens: 4,
-          thoughtsTokens: 1,
-          noCacheTokens: 3,
-          cacheReadTokens: 5,
-          cacheWriteTokens: 2
+          stats: {
+            inputTokens: 10,
+            outputTokens: 4,
+            totalTokens: 14,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 5, cacheWriteTokens: 2 },
+            outputTokenDetails: { reasoningTokens: 1 }
+          }
         }
       }
     ])

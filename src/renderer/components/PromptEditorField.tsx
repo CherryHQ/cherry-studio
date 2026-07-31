@@ -15,52 +15,55 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
+const PROMPT_EDITOR_SECONDARY_COLOR = 'var(--muted-foreground)'
+const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'var(--foreground-tertiary)'
+
 const promptEditorThemeSpec = {
   '&': {
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)'
+    backgroundColor: 'var(--background)',
+    color: 'var(--foreground)'
   },
   '.cm-scroller': {
-    backgroundColor: 'var(--color-background)'
+    backgroundColor: 'var(--background)'
   },
   '.cm-content': {
-    caretColor: 'var(--color-foreground)',
+    caretColor: 'var(--foreground)',
     padding: 'calc(var(--spacing) * 3)'
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: 'var(--color-foreground)'
+    borderLeftColor: 'var(--foreground)'
   },
   '.cm-activeLine': {
     backgroundColor: 'transparent'
   },
   '.cm-placeholder': {
-    color: 'var(--color-foreground-muted)'
+    color: PROMPT_EDITOR_PLACEHOLDER_COLOR
   },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'var(--color-accent) !important'
+    backgroundColor: 'var(--accent) !important'
   }
 }
 
 const promptEditorHighlighting = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.content, color: 'var(--color-foreground)' },
+    { tag: tags.content, color: 'var(--foreground)' },
     {
       tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
-      color: 'var(--color-foreground)',
+      color: 'var(--foreground)',
       fontWeight: 'var(--font-weight-medium)'
     },
-    { tag: tags.strong, color: 'var(--color-foreground)', fontWeight: 'var(--font-weight-bold)' },
-    { tag: tags.emphasis, color: 'var(--color-foreground)', fontStyle: 'italic' },
+    { tag: tags.strong, color: 'var(--foreground)', fontWeight: 'var(--font-weight-bold)' },
+    { tag: tags.emphasis, color: 'var(--foreground)', fontStyle: 'italic' },
     {
       tag: [tags.link, tags.url],
-      color: 'var(--color-primary)',
+      color: 'var(--link)',
       textDecoration: 'underline'
     },
-    { tag: [tags.monospace, tags.quote], color: 'var(--color-foreground)' },
-    { tag: tags.comment, color: 'var(--color-foreground-secondary)', fontStyle: 'italic' },
+    { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },
+    { tag: tags.comment, color: PROMPT_EDITOR_SECONDARY_COLOR, fontStyle: 'italic' },
     {
       tag: [tags.processingInstruction, tags.contentSeparator],
-      color: 'var(--color-foreground-secondary)'
+      color: PROMPT_EDITOR_SECONDARY_COLOR
     }
   ])
 )
@@ -170,9 +173,7 @@ export function PromptEditorField({
           className={cn(
             'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
             fill && 'flex min-h-0 flex-1 flex-col',
-            hasError
-              ? 'border-destructive/50 focus-within:border-destructive/60'
-              : 'border-border focus-within:border-border-hover'
+            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring'
           )}>
           {effectiveShowPreview ? (
             <div
@@ -201,7 +202,7 @@ export function PromptEditorField({
           )}
         </div>
         <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
-        <div className="flex justify-between text-muted-foreground/80 text-xs">
+        <div className="flex justify-between text-muted-foreground text-xs">
           <span>{t('library.config.prompt.dblclick_hint')}</span>
           <span className="tabular-nums">
             {t('library.config.prompt.tokens_label')}

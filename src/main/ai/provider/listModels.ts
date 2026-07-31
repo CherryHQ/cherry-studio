@@ -24,6 +24,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
   isGeminiProvider,
@@ -57,6 +58,7 @@ import {
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
+import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -130,8 +132,7 @@ async function getFromApi<T>({
 /** Build default headers with rotated API key */
 
 function defaultGroup(modelId: string, providerId: string): string {
-  const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  return deriveModelGroupName(modelId) ?? providerId
 }
 
 /** Build a partial v2 Model from API response */
@@ -287,19 +288,27 @@ const vertexFetcher: ModelFetcher = {
     const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
 
     const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
-      const id = getVertexModelId(model.name)
+      const bareId = getVertexModelId(model.name)
       const ownedBy = getVertexModelPublisher(model.name)
-      return toModel(id, provider, {
-        name: pickPreferredString([model.displayName, id]) || id,
+      // MaaS models are served over the OpenAI-compatible endpoint, which requires the
+      // `{publisher}/{model}` id form even when Google is the publisher. Native Google
+      // models (Gemini/Gemma/embeddings) keep their bare id.
+      const publisherModelId = `${ownedBy}/${bareId}`
+      const apiModelId = isVertexMaasModelId(publisherModelId) ? publisherModelId : bareId
+      return toModel(apiModelId, provider, {
+        name: pickPreferredString([model.displayName, bareId]) || bareId,
         description: model.description,
         ownedBy
       })
     })
 
-    // Match against the bare model id (e.g. `gemini-2.0-flash`), not the `provider::model`
-    // unique id — the support patterns are anchored to the model name and would reject the
-    // prefixed form, dropping every listed model.
-    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.apiModelId ?? ''))
+    // Match against the bare model name (e.g. `gemini-2.0-flash`, `llama-4-scout-…-maas`), not
+    // the `provider::model` unique id nor the publisher-prefixed apiModelId — the support
+    // patterns are anchored to the model name and would reject either prefixed form.
+    const filteredModels = listedModels.filter((model) => {
+      const modelId = model.apiModelId ?? ''
+      return isSupportedVertexPublisherModel(modelId) && (model.ownedBy === 'google' || isVertexMaasModelId(modelId))
+    })
 
     if (filteredModels.length !== listedModels.length) {
       logger.info('Filtered unsupported Vertex publisher models from model list', {
@@ -409,14 +418,17 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
-  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
 }
+const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
   if (!values?.length) {
@@ -425,7 +437,13 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
 
   const endpointTypes = dedup(
     values
-      .map((value) => ENDPOINT_TYPE_ALIASES[value.trim().toLowerCase()])
+      .map((value) => {
+        const normalized = value.trim().toLowerCase()
+        return (
+          ENDPOINT_TYPE_ALIASES[normalized] ??
+          (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
+        )
+      })
       .filter((value): value is EndpointType => Boolean(value)),
     (value) => value
   )
@@ -651,6 +669,23 @@ const anthropicFetcher: ModelFetcher = {
   }
 }
 
+const jinaFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.jina),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const apiModelId = m.id.replace(/^jina-ai\//, '')
+      return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
+    })
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
@@ -677,7 +712,12 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        ownedBy: m.owned_by
+      })
+    )
   }
 }
 
@@ -697,6 +737,7 @@ const fetchers: ModelFetcher[] = [
   ppioFetcher,
   gatewayFetcher,
   anthropicFetcher,
+  jinaFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]

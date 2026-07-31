@@ -4,6 +4,7 @@
  *
  * Encapsulates everything that makes app markdown look the way it does:
  *   - `<a>`   → Link with citation routing (CitationTooltip vs Hyperlink card)
+ *   - `<sup>` → CitationSup: tooltip for URL-less citations (knowledge/memory)
  *   - `<code>`→ CodeBlock with file-path detection + save action
  *   - `<table>`→ Table with copy/Excel export actions
  *   - `<img>` → ImageViewer with modal preview
@@ -17,8 +18,10 @@
  * `components` prop reference across re-renders.
  */
 
+import CitationSup from '@renderer/components/chat/messages/markdown/CitationSup'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
+import type { Citation } from '@renderer/types/message'
 import { useMemo } from 'react'
 import type { Components } from 'streamdown'
 
@@ -33,16 +36,19 @@ interface Options {
   hasStyleElement?: boolean
   /** True while the owning markdown block is still receiving stream chunks. */
   isStreaming?: boolean
+  citationRegistry?: ReadonlyMap<number, Citation>
 }
 
 export function useMarkdownComponents({
   blockId,
   hasStyleElement = false,
-  isStreaming = false
+  isStreaming = false,
+  citationRegistry
 }: Options): Partial<Components> {
   return useMemo(() => {
     const result: Partial<Components> = {
-      a: (props: any) => <Link {...props} />,
+      a: (props: any) => <Link {...props} citationRegistry={citationRegistry} />,
+      sup: (props: any) => <CitationSup {...props} citationRegistry={citationRegistry} />,
       code: (props: any) => <CodeBlock {...props} blockId={blockId} isStreaming={isStreaming} />,
       table: (props: any) => <Table {...props} blockId={blockId} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
@@ -58,5 +64,5 @@ export function useMarkdownComponents({
       result.style = MarkdownShadowDomRenderer as Components['style']
     }
     return result
-  }, [blockId, hasStyleElement, isStreaming])
+  }, [blockId, citationRegistry, hasStyleElement, isStreaming])
 }

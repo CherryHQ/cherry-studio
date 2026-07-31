@@ -152,6 +152,32 @@ function createManager(config?: Partial<AiStreamManagerConfig>): ManagerInstance
   return new Ctor(config)
 }
 
+/**
+ * Fake *only* the timers the idle watchdog uses.
+ *
+ * `IdleTimeoutController` is a bare `setTimeout`, so this hands the watchdog to
+ * `vi.advanceTimersByTimeAsync` while leaving microtasks / `setImmediate` real —
+ * which is what `readUIMessageStream`'s accumulator needs (a blanket
+ * `useFakeTimers()` starves it). Lets the idle-timeout tests assert ordering
+ * instead of betting on wall-clock margins (#17703).
+ */
+function useWatchdogTimers(): void {
+  vi.useRealTimers()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+}
+
+/**
+ * Spin the real microtask/macrotask queue until `predicate` holds, without
+ * touching the (faked) clock. Throws rather than hanging if it never does.
+ */
+async function flushUntil(predicate: () => boolean, maxTicks = 1000): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if (predicate()) return
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  throw new Error(`flushUntil: predicate never became true within ${maxTicks} ticks`)
+}
+
 function chunk(text: string): UIMessageChunk {
   return { type: 'text-delta', delta: text, id: 'p1' } as unknown as UIMessageChunk
 }
@@ -236,6 +262,19 @@ describe('AiStreamManager', () => {
       // Passing signal propagation is verified indirectly by abort-path tests
       // (e.g. `abort > sets status and triggers AbortController signal`).
       expect(mockStreamText).toHaveBeenCalledOnce()
+    })
+
+    it('reports whether any stream can still persist turn state', () => {
+      expect(mgr.hasLiveStreams()).toBe(false)
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      expect(mgr.hasLiveStreams()).toBe(true)
     })
 
     it('throws on duplicate modelId within a single send call', () => {
@@ -326,6 +365,43 @@ describe('AiStreamManager', () => {
       })
       expect(s2.status).toBe('pending')
       expect(s2.executions).toHaveLength(1)
+    })
+
+    it('ignores chunks and terminal callbacks from a replaced runtime execution', async () => {
+      vi.useRealTimers()
+      const replaced = controlledStream()
+      const current = controlledStream()
+      mockStreamText.mockResolvedValueOnce(replaced.stream).mockResolvedValueOnce(current.stream)
+
+      mgr.startRuntimeTurn({
+        topicId: 'agent-session:s1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s1'),
+        listeners: [new FakeListener('agent-runtime:replaced')]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+      const currentListener = new FakeListener('agent-runtime:current')
+      mgr.startRuntimeTurn({
+        topicId: 'agent-session:s1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s1'),
+        listeners: [currentListener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+      replaced.enqueue(chunk('stale'))
+      replaced.close()
+      await new Promise((resolve) => setTimeout(resolve, 25))
+
+      expect(currentListener.chunks).toEqual([])
+      expect(currentListener.doneResults).toEqual([])
+      expect(currentListener.pausedResults).toEqual([])
+      expect(currentListener.errorResults).toEqual([])
+      expect(mgr.inspect('agent-session:s1')?.status).toBe('pending')
+
+      current.close()
+      await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
     })
   })
 
@@ -681,6 +757,32 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)).toBeDefined()
     })
 
+    it('suspends an unadmitted runtime turn without terminalizing its internal listeners', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const renderer = new FakeListener(`wc:1:${topicId}`)
+      const persistence = new FakeListener(`persistence:agents-db:${topicId}:model`)
+      const runtime = new FakeListener(`agent-runtime:session-1`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [renderer, persistence, runtime]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      const suspended = mgr.suspendUnadmittedRuntimeTurn(topicId)
+      feed.close()
+      await suspended
+
+      expect(renderer.doneResults).toHaveLength(1)
+      expect(renderer.doneResults[0].isTopicDone).toBe(false)
+      expect(persistence.doneResults).toEqual([])
+      expect(runtime.doneResults).toEqual([])
+    })
+
     it('does not let trace flush failure block terminal completion', async () => {
       mockSaveSpans.mockRejectedValueOnce(new Error('trace write failed'))
       const listener = new FakeListener('l:a')
@@ -780,6 +882,58 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
 
       expect(l.chunks).toHaveLength(0)
+    })
+  })
+
+  describe('deferred tool output lookup', () => {
+    it('retains only outputs large enough to have been stripped on the way out', () => {
+      const topicId = 'agent-session:session-1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const large = { content: 'x'.repeat(64 * 1024) }
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-large',
+        output: large
+      } as UIMessageChunk)
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-small',
+        output: { content: 'tiny' }
+      } as UIMessageChunk)
+
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
+      // A small output travelled inline, so nothing needs to be resolvable for it.
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toEqual({ found: false })
+    })
+
+    it('evicts the oldest retained output instead of growing without bound', () => {
+      const topicId = 'agent-session:session-1'
+      const cappedMgr = createManager({ maxDeferredOutputs: 2 })
+      startSingle(cappedMgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const large = (tag: string) => ({ content: tag.repeat(64 * 1024) })
+      for (const tag of ['a', 'b', 'c']) {
+        cappedMgr.onChunk(topicId, 'provider-a::model-a', {
+          type: 'tool-output-available',
+          toolCallId: `call-${tag}`,
+          output: large(tag)
+        } as UIMessageChunk)
+      }
+
+      // The evicted one is not lost — it resolves from SQLite once the message is persisted.
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toEqual({ found: false })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toEqual({ found: true, output: large('b') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toEqual({ found: true, output: large('c') })
     })
   })
 
@@ -888,7 +1042,43 @@ describe('AiStreamManager', () => {
     const steerReq = (topicId: string, userMessageId: string) => ({
       trigger: 'steer-continuation',
       topicId,
-      userMessageId
+      userMessageId,
+      fastMode: false
+    })
+
+    it('rebroadcasts awaiting-approval anchors when a live stream pauses and resumes for tool approval', () => {
+      // No status transition happens on a mid-stream permission pause, so the shared-cache entry must
+      // be refreshed by the approval bookkeeping itself for cross-window consumers (session list badge).
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      // Promote first so the approval request lands mid-stream (no status edge left to broadcast).
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'tc-1'
+      } as unknown as UIMessageChunk)
+      const paused = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(paused?.status).toBe('streaming')
+      expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
+
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(true)
+      const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(approved?.status).toBe('streaming')
+      expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(false)
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tc-1'
+      } as unknown as UIMessageChunk)
+      const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(resumed?.status).toBe('streaming')
+      expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
     })
 
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
@@ -1188,7 +1378,8 @@ describe('AiStreamManager', () => {
     const steerReq = (topicId: string, userMessageId: string) => ({
       trigger: 'steer-continuation',
       topicId,
-      userMessageId
+      userMessageId,
+      fastMode: false
     })
 
     it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
@@ -1319,10 +1510,7 @@ describe('AiStreamManager', () => {
 
   describe('idle timeout', () => {
     it('settles a timed-out execution as paused, not done', async () => {
-      // readUIMessageStream's accumulator needs real microtask/timer
-      // scheduling; fake timers starve it. The idle timer is a short real
-      // `setTimeout`, so a brief real wait lets it fire.
-      vi.useRealTimers()
+      useWatchdogTimers()
 
       const listener = new FakeListener('l:a')
       startSingle(mgr, {
@@ -1335,8 +1523,10 @@ describe('AiStreamManager', () => {
       })
       expect(mgr.inspect('a')!.status).toBe('pending')
 
-      // Let the idle timer fire and the abort propagate through the loop.
-      await new Promise((resolve) => setTimeout(resolve, 60))
+      // Drive the idle timer off the fake clock, then let the abort propagate
+      // through the loop on real microtasks.
+      await vi.advanceTimersByTimeAsync(10)
+      await flushUntil(() => listener.pausedResults.length > 0)
 
       // Terminal is paused (truncated reply persisted as paused), never a
       // success done.
@@ -1347,7 +1537,12 @@ describe('AiStreamManager', () => {
     })
 
     it('pauses the idle timer while a tool is awaiting approval — a long deliberation is not killed', async () => {
-      vi.useRealTimers()
+      // `IdleTimeoutController` is nothing but a `setTimeout`, so faking only
+      // setTimeout/clearTimeout puts the watchdog entirely under test control
+      // while `readUIMessageStream`'s accumulator keeps its real microtask /
+      // setImmediate scheduling. Without this the test was a race: the re-arm
+      // had to beat a 30ms wall clock (#17703).
+      useWatchdogTimers()
 
       const controlled = controlledStream()
       mockStreamText.mockImplementationOnce(async () => controlled.stream)
@@ -1366,15 +1561,21 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'start' } as UIMessageChunk)
       controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
 
-      // Wait well past the 30ms idle timeout — the approval re-arm uses the 2 h bound, so no abort.
-      await new Promise((resolve) => setTimeout(resolve, 90))
+      // Wait for the listener to have actually seen the approval chunk: that is
+      // the re-arm, and it is a state rather than an interval. The fake clock is
+      // frozen meanwhile, so the 30ms watchdog cannot fire behind our back.
+      await flushUntil(() => listener.chunks.length >= 2)
+
+      // Only now let the clock jump — 10s is 300x the idle timeout, and still
+      // far short of the 2h approval bound, so a live re-arm means no abort.
+      await vi.advanceTimersByTimeAsync(10_000)
 
       expect(listener.pausedResults).toHaveLength(0)
       expect(mgr.inspect('a')!.status).not.toBe('aborted')
     })
 
     it('still bounds an approval wait — an unresponsive renderer is aborted after the approval timeout', async () => {
-      vi.useRealTimers()
+      useWatchdogTimers()
       // Tight approval bound so the test doesn't wait 2 h; the normal idle timeout stays longer so it
       // can't be what fires.
       const boundedMgr = createManager({ approvalIdleTimeoutMs: 40 })
@@ -1393,8 +1594,13 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'start' } as UIMessageChunk)
       controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
 
+      // Wait for the approval chunk to land (the re-arm) before moving the clock —
+      // otherwise this only ever proves *some* timer fired, not the approval bound.
+      await flushUntil(() => listener.chunks.length >= 2)
+
       // No approval response ever arrives (window closed/crashed) → the approval bound fires.
-      await new Promise((resolve) => setTimeout(resolve, 120))
+      await vi.advanceTimersByTimeAsync(40)
+      await flushUntil(() => boundedMgr.inspect('a')!.status === 'aborted')
 
       expect(boundedMgr.inspect('a')!.status).toBe('aborted')
     })
@@ -1430,11 +1636,11 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'finish' } as UIMessageChunk)
       controlled.close()
 
-      // Let the tee → accumulator → terminal chain drain on real timers.
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Let the tee → accumulator → terminal chain drain. Poll for the terminal
+      // rather than betting a fixed 50ms is enough on a loaded runner (#17703).
+      await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))
 
       const snap = mgr.inspect('a')!
-      expect(snap.status).toBe('done')
 
       // The terminal event received the same finalMessage that inspect()
       // now reports — proof that the accumulator wrote before the terminal
@@ -1506,9 +1712,8 @@ describe('AiStreamManager', () => {
           listeners: [listener]
         })
 
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-        expect(listener.errorResults).toHaveLength(1)
         expect(listener.errorResults[0].error).toMatchObject({ statusCode, isRetryable, message })
       }
     )
@@ -1559,10 +1764,9 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
       controlled.close()
 
-      // Let the tee → broadcast → terminal chain drain on real timers.
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Let the tee → broadcast → terminal chain drain.
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults).toHaveLength(1)
       // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
       expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
       expect(listener.errorResults[0].status).toBe('error')
@@ -1623,10 +1827,9 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'finish' } as UIMessageChunk)
       controlled.close()
 
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))
 
       const snap = mgr.inspect('a')!
-      expect(snap.status).toBe('done')
       // The accumulator did not halt — finalMessage landed with the appended
       // text AND the resolved tool output.
       const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{
@@ -1834,9 +2037,10 @@ describe('AiStreamManager', () => {
       mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
 
       // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
-      // NOT stuck on `awaiting-approval`.
+      // NOT stuck on `awaiting-approval`. The extra 'streaming' write is the approval-resolution
+      // rebroadcast that drops the awaiting-approval anchor for cross-window consumers.
       await mgr.onExecutionDone('t', 'p::m')
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'done'])
       expect(mgr.inspect('t')!.status).toBe('done')
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
@@ -1901,6 +2105,51 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
       expect(mgr.inspect('t')!.status).toBe('error')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('drops the anchor from the shared cache when the paused execution has a live sibling (topic stays live)', async () => {
+      // Multi-model: the topic never reaches the terminal lifecycle while a sibling streams, so the
+      // cleared approval set must be rebroadcast by the cleanup path itself — otherwise the session
+      // list badge keeps showing a stale "awaiting approval".
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::m', request: req('t') },
+          { modelId: 'p::m2', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      // Keep the sibling visibly live.
+      mgr.onChunk('t', 'p::m2', chunk('sibling'))
+
+      const exec = startAwaitingApproval('t', 'p::m')
+      expect(anchorsOf('t')).toHaveLength(1)
+
+      exec.status = 'aborted'
+      await mgr.onExecutionPaused('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('streaming')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('drops the anchor from the shared cache when the errored execution has a live sibling (topic stays live)', async () => {
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::m', request: req('t') },
+          { modelId: 'p::m2', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      mgr.onChunk('t', 'p::m2', chunk('sibling'))
+
+      startAwaitingApproval('t', 'p::m')
+      expect(anchorsOf('t')).toHaveLength(1)
+
+      await mgr.onExecutionError('t', 'p::m', error('boom'))
+
+      expect(mgr.inspect('t')!.status).toBe('streaming')
       expect(anchorsOf('t')).toEqual([])
     })
 

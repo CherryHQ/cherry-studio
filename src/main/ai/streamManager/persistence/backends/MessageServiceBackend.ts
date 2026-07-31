@@ -1,32 +1,36 @@
-/** Finalizes a pending assistant placeholder via `messageService.update`. */
+/** Finalizes a pending assistant placeholder without writing usage/cost. */
 
 import { messageService } from '@main/data/services/MessageService'
-import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
 export interface MessageServiceBackendOptions {
   assistantMessageId: string
-  /** Wins over `input.stats` — only set by callers replaying pre-computed stats. */
-  stats?: MessageStats
+  /** Immutable request controls copied from the placeholder and retained across terminal writes. */
+  turnOptions?: AssistantTurnOptions
   /** Post-success hook (topic auto-rename, usage reporting, …). */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
 
 export class MessageServiceBackend implements PersistenceBackend {
   readonly kind = 'sqlite'
+  readonly canPersistEmptyTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: MessageServiceBackendOptions) {
     this.afterPersist = opts.afterPersist
   }
 
-  persistAssistant(input: PersistAssistantInput): void {
-    const { finalMessage, status, stats } = input
-    messageService.update(this.opts.assistantMessageId, {
-      data: { parts: finalMessage?.parts ?? [] },
+  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+    const { finalMessage, status, runtimeStats } = input
+    messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
+      data: {
+        parts: finalMessage?.parts ?? [],
+        ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
+      },
       status,
-      stats: this.opts.stats ?? stats
+      runtimeStats
     })
   }
 

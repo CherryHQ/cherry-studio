@@ -1,3 +1,4 @@
+import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import {
@@ -7,24 +8,34 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
-import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
+import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
+import {
+  AgentConversationControls,
+  type AgentConversationControlsProps
+} from '@renderer/components/composer/variants/agent/AgentConversationControls'
 import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useAgent } from '@renderer/hooks/agent/useAgent'
-import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
+import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { type AgentSessionSource, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useModelById } from '@renderer/hooks/useModel'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
+import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,13 +43,18 @@ import { useTranslation } from 'react-i18next'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
-import { AgentRightPane } from './components/AgentRightPane'
+import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+
+interface ModelSwitchTarget {
+  agentId: string
+  model: Model
+}
 
 function getNewSessionWorkspaceDefaults(
   session: AgentSessionEntity
@@ -47,6 +63,14 @@ function getNewSessionWorkspaceDefaults(
     return { workspaceMode: 'system' }
   }
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
+}
+
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
+
+function AgentTopBarControls(props: AgentTopBarControlsProps) {
+  const { iconOnly } = useConversationTopBarPortalLayout()
+
+  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
 }
 
 interface AgentChatProps {
@@ -66,6 +90,8 @@ interface AgentChatProps {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
+  requestFileNavigation?: AgentFileNavigationRequest
   paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
   onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
@@ -93,6 +119,7 @@ interface AgentChatLayoutProps {
   messages: CherryUIMessage[]
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onPaneCollapse?: () => void
+  onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
   pane?: ReactNode
   paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
@@ -126,6 +153,8 @@ const AgentChat = ({
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
+  onFileNavigationRequestChange,
+  requestFileNavigation,
   paneManualToggle,
   missingAgentSelection = false,
   onCreateEmptySession,
@@ -145,14 +174,26 @@ const AgentChat = ({
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
+  const [skipModelSwitchConfirmationsForAppRun, setSkipModelSwitchConfirmationsForAppRun] = useSharedCache(
+    'agent.model_switch_confirmation.skipped'
+  )
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
+  const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
+  const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
 
   const hasLockedSession = lockedSession !== undefined
   const sessionSnapshot = hasLockedSession ? (lockedSession ?? null) : (activeSession ?? null)
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
-  const { agent: activeAgent } = useAgent(visibleAgentId)
+  const { agent: activeAgent, isLoading: isActiveAgentLoading } = useAgent(visibleAgentId)
+  const { model: activeModel, isLoading: isActiveModelLoading } = useModelById(activeAgent?.model)
+  const { updateModel } = useUpdateAgent()
+  const { updateSession } = useUpdateSession()
+  const agentModelFilter = useAgentModelFilter(activeAgent?.type)
+  const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
+  const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -170,6 +211,7 @@ const AgentChat = ({
   const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
   const sessionAgentId = sessionSnapshot?.agentId ?? null
   const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
+  const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId
   const shouldFetchSessionHistoryOnMount = Boolean(
     sessionSnapshot &&
       (activeSessionSource === 'query' ||
@@ -177,11 +219,29 @@ const AgentChat = ({
         (!!activeSession && activeSessionSource === 'none'))
   )
   const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const greetingContextRef = useRef<{ sessionId: string; text: string } | null>(null)
+  const handleGreetingChange = useCallback(
+    (greeting: string | null) => {
+      const sessionId = sessionSnapshot?.id
+      if (!sessionId) return
+      if (greeting) {
+        greetingContextRef.current = { sessionId, text: greeting }
+      } else if (greetingContextRef.current?.sessionId === sessionId) {
+        greetingContextRef.current = null
+      }
+    },
+    [sessionSnapshot?.id]
+  )
+  const getGreetingContext = useCallback(() => {
+    const current = greetingContextRef.current
+    return current && current.sessionId === sessionSnapshot?.id ? current.text : undefined
+  }, [sessionSnapshot?.id])
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
-    reservedMessages: EMPTY_MESSAGES
+    reservedMessages: EMPTY_MESSAGES,
+    getGreetingContext
   })
   const {
     hasOlder: runtimeHasOlder,
@@ -190,6 +250,73 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  const isEmptyConversation = Boolean(
+    sessionSnapshot &&
+      sessionMessagesEnabled &&
+      !runtime.isLoading &&
+      !runtime.isPending &&
+      !runtime.hasOlder &&
+      runtime.uiMessages.length === 0
+  )
+  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
+  const runAfterFileNavigation = useCallback(
+    (transition: () => void) => {
+      if (requestFileNavigation) {
+        requestFileNavigation(transition)
+        return
+      }
+      transition()
+    },
+    [requestFileNavigation]
+  )
+  const handleSessionAgentChange = useCallback(
+    async (nextAgentId: string | null) => {
+      if (!sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
+      await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
+    },
+    [sessionSnapshot, updateSession]
+  )
+  const handleAgentModelChange = useCallback(
+    async (nextModel?: Model) => {
+      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
+        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        setSkipModelSwitchConfirmation(false)
+        setModelSwitchConfirmOpen(true)
+        return
+      }
+      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+    },
+    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+  )
+  const handleSessionWorkspaceChange = useCallback(
+    (workspaceId: string | null) => {
+      runAfterFileNavigation(() => {
+        void onSessionWorkspaceChange?.(workspaceId)
+      })
+    },
+    [onSessionWorkspaceChange, runAfterFileNavigation]
+  )
+  const handleCreateEmptySession = useCallback(() => {
+    if (!sessionSnapshot || !onCreateEmptySession) return
+    const transition = () => {
+      void onCreateEmptySession({
+        agentId: sessionSnapshot.agentId,
+        ...getNewSessionWorkspaceDefaults(sessionSnapshot)
+      })
+    }
+    if (sessionSnapshot.workspaceId && sessionSnapshot.workspace?.type !== 'system') {
+      transition()
+      return
+    }
+    runAfterFileNavigation(transition)
+  }, [onCreateEmptySession, runAfterFileNavigation, sessionSnapshot])
+  const handleRestoreComposerFocus = useCallback(() => {
+    if (!runtime.sessionId) return
+    void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, {
+      topicId: buildAgentSessionTopicId(runtime.sessionId)
+    })
+  }, [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
@@ -246,14 +373,26 @@ const AgentChat = ({
   if (centerSurface) {
     center = centerSurface.content
   } else if (isInitializing) {
+    topBar = (
+      <AgentChatNavbar
+        activeAgent={null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    )
     center = <ConversationCenterState state="loading" />
   } else if (!sessionSnapshot && hasLockedSession) {
     center = <EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />
   } else if (!sessionSnapshot && missingAgentSelection) {
     const composer = !isMultiSelectMode ? (
-      <MissingAgentHomeComposer
-        onAgentChange={onMissingAgentSelectionAgentChange}
-        agentChanging={selectingMissingAgent}
+      <ConversationComposerSlot
+        fallback={
+          <MissingAgentHomeComposer
+            onAgentChange={onMissingAgentSelectionAgentChange}
+            agentChanging={selectingMissingAgent}
+          />
+        }
       />
     ) : undefined
     topBar = (
@@ -272,6 +411,29 @@ const AgentChat = ({
       <AgentChatNavbar
         className="min-w-0"
         activeAgent={activeAgent ?? null}
+        conversationControls={
+          activeAgent ? (
+            <AgentTopBarControls
+              agent={activeAgent}
+              model={activeModel}
+              workspace={sessionSnapshot.workspace}
+              workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
+              workspaceChanging={replacingSessionWorkspace}
+              workspaceWarning={workspaceWarning}
+              selectAgentLabel={t('chat.alerts.select_agent')}
+              selectModelLabel={t('button.select_model')}
+              selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+              shouldAutoSelectCreatedAgent
+              agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
+              canChangeModel
+              onAgentChange={handleSessionAgentChange}
+              onModelSelect={handleAgentModelChange}
+              onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
+              modelFilter={agentModelFilter}
+              onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
+            />
+          ) : undefined
+        }
         showSidebarControls={showResourceListControls}
         sidebarOpen={sidebarOpen}
         onSidebarToggle={onSidebarToggle}
@@ -291,22 +453,17 @@ const AgentChat = ({
         session={sessionSnapshot}
         runtime={runtime}
         homeWelcomeText={t('agent.home.welcome_title')}
-        agentId={sendableAgentId}
+        agentId={composerAgentId}
+        composerPending={isActiveAgentLoading || isActiveModelLoading}
         activeAgent={activeAgent}
+        activeModel={activeModel}
+        workspaceWarning={workspaceWarning}
+        isEmptyConversation={isEmptyConversation}
         isMultiSelectMode={isMultiSelectMode}
         sessionMessagesEnabled={sessionMessagesEnabled}
         onOpenCitationsPanel={handleOpenCitationsPanel}
-        onWorkspaceChange={onSessionWorkspaceChange}
-        workspaceChanging={replacingSessionWorkspace}
-        onCreateEmptySession={
-          sessionAgentId && onCreateEmptySession
-            ? () =>
-                onCreateEmptySession({
-                  agentId: sessionAgentId,
-                  ...getNewSessionWorkspaceDefaults(sessionSnapshot)
-                })
-            : undefined
-        }
+        onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        onGreetingChange={handleGreetingChange}
       />
     )
   }
@@ -321,6 +478,7 @@ const AgentChat = ({
     }),
     conversationState,
     messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
+    onFileNavigationRequestChange,
     onPaneAutoCollapseChange,
     onPaneCollapse,
     pane,
@@ -339,7 +497,51 @@ const AgentChat = ({
     topRightTool: rightPaneTools
   }
 
-  return <AgentChatLayout {...layoutProps} />
+  return (
+    <>
+      <AgentChatLayout {...layoutProps} />
+      <ConfirmDialog
+        open={modelSwitchConfirmOpen}
+        onOpenChange={setModelSwitchConfirmOpen}
+        title={t('agent.session.model_switch_confirm.title', { model: modelSwitchTarget?.model.name ?? '' })}
+        description={t('agent.session.model_switch_confirm.description')}
+        content={
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="skip-model-switch-confirmation"
+              size="sm"
+              checked={skipModelSwitchConfirmation}
+              onCheckedChange={(checked) => setSkipModelSwitchConfirmation(checked === true)}
+            />
+            <label
+              htmlFor="skip-model-switch-confirmation"
+              className="cursor-pointer text-foreground text-sm leading-none">
+              {t('agent.session.model_switch_confirm.skip_for_app_run')}
+            </label>
+          </div>
+        }
+        confirmText={t('agent.session.model_switch_confirm.confirm')}
+        cancelText={t('common.cancel')}
+        onConfirm={async () => {
+          if (
+            !activeAgent ||
+            !modelSwitchTarget ||
+            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.model.id === activeModel?.id
+          ) {
+            return
+          }
+          const updatedAgent = await updateModel(
+            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+            { showSuccessToast: false }
+          )
+          if (updatedAgent && skipModelSwitchConfirmation) {
+            setSkipModelSwitchConfirmationsForAppRun(true)
+          }
+        }}
+      />
+    </>
+  )
 }
 
 interface AgentChatSessionCenterProps {
@@ -347,13 +549,16 @@ interface AgentChatSessionCenterProps {
   runtime: AgentChatRuntimeState
   homeWelcomeText?: string
   agentId?: string
+  composerPending: boolean
   activeAgent: GetAgentResponse | undefined
+  activeModel?: Model
+  workspaceWarning?: string
+  isEmptyConversation: boolean
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
-  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  workspaceChanging?: boolean
+  onGreetingChange: (greeting: string | null) => void
 }
 
 const AgentChatSessionCenter = ({
@@ -361,37 +566,32 @@ const AgentChatSessionCenter = ({
   runtime,
   homeWelcomeText,
   agentId,
+  composerPending,
   activeAgent,
+  activeModel,
+  workspaceWarning,
+  isEmptyConversation,
   isMultiSelectMode,
   sessionMessagesEnabled,
   onOpenCitationsPanel,
   onCreateEmptySession,
-  onWorkspaceChange,
-  workspaceChanging
+  onGreetingChange
 }: AgentChatSessionCenterProps) => {
-  const { hasOlder, isLoading, uiMessages } = runtime
-  // `sessionMessagesEnabled` guards the locked/active session transition window,
-  // where messages are force-disabled (empty + not loading) and would otherwise
-  // read as an empty conversation.
-  const isEmptyConversation =
-    sessionMessagesEnabled && !isLoading && !runtime.isPending && !hasOlder && uiMessages.length === 0
-  const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
-
   const composer = (
     <AgentComposerSlot
       agentId={agentId}
+      activeAgent={activeAgent}
+      activeModel={activeModel}
+      workspaceWarning={workspaceWarning}
       isMultiSelectMode={isMultiSelectMode}
       session={session}
       sessionId={runtime.sessionId}
       sendMessage={runtime.sendMessage}
+      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       stop={runtime.stop}
       isStreaming={runtime.isPending}
-      sendDisabled={false}
+      sendDisabled={composerPending}
       onCreateEmptySession={onCreateEmptySession}
-      canChangeAgent={isEmptyConversation}
-      workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
-      onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
-      workspaceChanging={workspaceChanging}
       composerContext={runtime.composerContext}
     />
   )
@@ -401,6 +601,9 @@ const AgentChatSessionCenter = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            conversationId={session.id}
+            mode="agent"
+            onGreetingChange={onGreetingChange}
             title={homeWelcomeText ?? ''}
           />
         </div>
@@ -414,6 +617,8 @@ const AgentChatSessionCenter = ({
         activeAgent={activeAgent}
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
+        localSendGeneration={runtime.localSendGeneration}
+        onBindRuntime={runtime.bindMessageListRuntime}
         optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
         isLoading={runtime.isLoading}
         hasOlder={runtime.hasOlder}
@@ -436,6 +641,7 @@ function AgentChatLayout({
   className,
   conversationState,
   messages,
+  onFileNavigationRequestChange,
   onPaneAutoCollapseChange,
   onPaneCollapse,
   pane,
@@ -458,11 +664,13 @@ function AgentChatLayout({
       conversationState={conversationState}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}
       resourcePane={resourcePane}
       defaultOpen={rightPanelDefaultOpen}
       onOpenChange={onRightPanelOpenChange}
+      onFileNavigationRequestChange={onFileNavigationRequestChange}
       userOpenIntentSeq={rightPanelUserOpenIntentSeq}
       sessionId={sessionSnapshot?.id}
       sessionName={sessionSnapshot?.name}

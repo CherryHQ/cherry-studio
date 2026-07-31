@@ -25,6 +25,7 @@ export type ResourceEntityRailItem = {
   id: string
   name: string
   icon?: ReactNode
+  tooltip?: string
   orderKey?: string
   reorderable?: boolean
   /**
@@ -98,6 +99,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
+  /** Keeps the sortable container mounted while temporarily blocking reorder interactions. */
+  reorderEnabled?: boolean
   onSelect: (item: T) => void | Promise<void>
   onSelectedClick?: (item: T) => void | Promise<void>
   selectedClickId?: string | null
@@ -142,6 +145,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   resourceMenuItems,
   onContextMenuAction,
   onReorder,
+  reorderEnabled: reorderEnabledProp = true,
   onSelect,
   onSelectedClick,
   selectedClickId,
@@ -151,7 +155,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  const reorderEnabled = !!onReorder
+  const hasReorderHandler = !!onReorder
+  const reorderEnabled = hasReorderHandler && reorderEnabledProp
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
@@ -215,7 +220,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
       // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" tooltip={item.tooltip}>
           {item.icon && (
             <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
               {item.icon}
@@ -223,7 +228,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
           <ResourceList.ItemTitle
             className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.name}>
+            title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (
@@ -360,7 +365,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}
-          draggable={reorderEnabled}
+          draggable={hasReorderHandler}
           ariaLabel={ariaLabel}
           virtualClassName="pt-1 pb-3"
           errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}

@@ -9,7 +9,8 @@ import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 interface Props {
-  children: string
+  /** Absent while a fence is still empty (e.g. the first chunk of a streamed ```html block). */
+  children?: string
   className?: string
   node?: Omit<Node, 'type'>
   blockId: string // Message block id
@@ -23,7 +24,8 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middl
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
-const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStreaming = false }) => {
+const CodeBlock: React.FC<Props> = ({ children: rawChildren, className, node, blockId, isStreaming = false }) => {
+  const children = rawChildren ?? ''
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -78,10 +80,16 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStre
       if (language.toLowerCase() === 'html') {
         const isHtmlArtifactStreaming = isStreaming || isIncomplete
 
-        // The host may render HTML fences as an inline immersive preview (chat); otherwise
-        // fall back to the default artifact card. Keeps this shared block chat-agnostic.
+        // The host may render HTML fences as an inline immersive preview (chat), choosing the
+        // surface from the html itself; off-host it falls back to the default artifact card.
+        // Keeps this shared block chat-agnostic.
         if (renderHtmlArtifact) {
-          return renderHtmlArtifact(children, { isStreaming: isHtmlArtifactStreaming })
+          return renderHtmlArtifact(children, {
+            isStreaming: isHtmlArtifactStreaming,
+            artifactId: `${blockId}:${id}`,
+            editable: canSaveCodeBlock,
+            onSave: handleSave
+          })
         }
 
         return (

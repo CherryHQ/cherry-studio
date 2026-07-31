@@ -146,4 +146,20 @@ describe('Markdown sanitize schema', () => {
     expect(await run('<a href="file:///C:/Users/x.md">x</a>')).not.toContain('file:///C:/Users/x.md')
     expect(await run('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:')
   })
+
+  it('keeps only opaque numeric citation ids', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process('<sup data-citation="2">2</sup><sup data-citation=\'{"url":"https://attacker.example"}\'>3</sup>')
+    )
+
+    expect(output).toContain('<sup data-citation="2">2</sup>')
+    expect(output).toContain('<sup>3</sup>')
+    expect(output).not.toContain('attacker.example')
+  })
 })

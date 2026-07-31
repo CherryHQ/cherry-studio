@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "HTTP API của Cherry Studio tương thích với OpenAI, Anthropic và Gemini, cùng các endpoint riêng của Cherry (mô hình, cơ sở tri thức)",
+      "language_switcher_label": "Ngôn ngữ tài liệu",
+      "operations": {
+        "chat_completions": "Tạo một chat completion. Định dạng yêu cầu và phản hồi giống OpenAI Chat Completions; đặt `stream: true` để nhận kết quả theo luồng.",
+        "count_tokens": "Ước tính số token đầu vào mà một tập tin nhắn theo định dạng Anthropic sử dụng.",
+        "generate_content": "Sinh nội dung qua phương thức `generateContent` của Gemini. Định dạng yêu cầu và phản hồi giống Gemini API; `streamGenerateContent` dùng chung đường dẫn này.",
+        "get_knowledge_base": "Lấy một cơ sở tri thức theo ID.",
+        "health": "Trạng thái dịch vụ, thời gian hiện tại và phiên bản. Không cần xác thực.",
+        "info": "Tên, phiên bản API và các endpoint chính. Không cần xác thực.",
+        "list_knowledge_bases": "Liệt kê các cơ sở tri thức có trong phiên bản Cherry Studio này.",
+        "list_models": "Liệt kê các mô hình khả dụng qua gateway này, theo định dạng models của OpenAI.",
+        "messages": "Tạo một tin nhắn. Định dạng yêu cầu và phản hồi giống Anthropic Messages; đặt `stream: true` để nhận kết quả theo luồng.",
+        "responses": "Tạo một response. Định dạng yêu cầu và phản hồi giống OpenAI Responses.",
+        "search_knowledge_bases": "Tìm kiếm trong một hoặc nhiều cơ sở tri thức và trả về các đoạn tài liệu phù hợp."
+      },
+      "tags": {
+        "anthropic": "Các endpoint tương thích Anthropic. Trỏ base URL của Anthropic SDK tới gateway này để sử dụng.",
+        "cherry": "Các endpoint riêng của Cherry Studio: cơ sở tri thức, thông tin dịch vụ và kiểm tra tình trạng.",
+        "gemini": "Các endpoint tương thích Gemini, phục vụ dưới `/v1beta` giống API gốc.",
+        "openai": "Các endpoint tương thích OpenAI. Trỏ base URL của OpenAI SDK tới gateway này để sử dụng."
+      }
+    }
+  },
   "appMenu": {
     "about": "Về",
     "close": "Đóng cửa sổ",
@@ -56,6 +81,12 @@
   },
   "dialog": {
     "all_files": "Tất cả các tệp",
+    "data_reset": {
+      "cancel": "Hủy",
+      "confirm": "Đặt lại và khởi động lại",
+      "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+      "title": "Đặt lại dữ liệu ứng dụng"
+    },
     "html_files": "Tập tin HTML",
     "open_file": "Mở Tệp",
     "pdf_files": "Tệp PDF",

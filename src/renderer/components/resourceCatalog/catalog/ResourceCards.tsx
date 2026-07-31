@@ -42,10 +42,12 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
+  const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
   return (
     <div
-      className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
+      className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-subtle hover:shadow-sm"
+      style={r.type === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined}
       role="button"
       tabIndex={0}
       aria-label={r.name}
@@ -60,13 +62,22 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
             {useTypedAvatarBg ? <TypeIcon size={20} aria-hidden /> : r.avatar}
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
-            <p className="mt-0.5 truncate text-foreground-secondary text-xs leading-4">{r.description}</p>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <h4 className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
+              {skillVersion && (
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 border-0 bg-secondary px-1.5 py-px font-normal text-muted-foreground text-xs">
+                  {skillVersion}
+                </Badge>
+              )}
+            </div>
+            <p className="mt-0.5 truncate text-muted-foreground text-xs leading-4">{r.description}</p>
             {visibleGroup && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1">
                 <Badge
                   variant="secondary"
-                  className="max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-foreground-secondary text-xs">
+                  className="max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-muted-foreground text-xs">
                   {visibleGroup}
                 </Badge>
               </div>
@@ -80,7 +91,7 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
                 onDelete={onDelete}
                 onExport={onExport}
                 allGroups={allGroups}
-                triggerClassName="text-foreground-muted opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                triggerClassName="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
               />
             ) : (
               <Button
@@ -88,7 +99,7 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
                 size="icon-sm"
                 aria-label={r.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
                 onClick={() => onDelete(r)}
-                className="text-foreground-muted opacity-0 hover:bg-error-bg hover:text-error-text focus-visible:opacity-100 group-hover:opacity-100">
+                className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
                 <Trash2 size={12} className="lucide-custom" />
               </Button>
             )}

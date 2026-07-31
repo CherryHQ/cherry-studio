@@ -177,6 +177,28 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('u2')?.parentId).toBe('u1')
   })
 
+  it('preserves a block-less clear marker as the parent of following messages', async () => {
+    const b1 = block('b1', 'u1')
+    const b3 = block('b3', 'u2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('clear-1', 'user', [], { type: 'clear' }),
+      msg('u2', 'user', ['b3'])
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b3])
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    expect(msgMap.get('clear-1')).toEqual(
+      expect.objectContaining({
+        parentId: 'u1',
+        data: { parts: [{ type: 'data-clear', data: {} }] }
+      })
+    )
+    expect(msgMap.get('u2')?.parentId).toBe('clear-1')
+  })
+
   it('resolves parentId through second-pass skipped messages (transform failure)', async () => {
     // u1 → a1 (has block IDs but blocks not in lookup → 0 resolved blocks → skipped) → u2
     const b1 = block('b1', 'u1')
@@ -1046,6 +1068,83 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     expect(rows.filter((r) => r.role !== 'root').some((r) => r.parentId === null)).toBe(false)
   })
 
+  /** Fetch a topic row and its single non-root content message after migration. */
+  async function readTopicAndContent(topicId: string) {
+    const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+    const content = (await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topicId))).filter(
+      (r) => r.role !== 'root'
+    )
+    return { topic, content }
+  }
+
+  it('scopes the activeNodeId remap per topic when a message id collides across topics', async () => {
+    const migrator = new ChatMigrator()
+    // t1 and t2 both own a message id 'dup' AND both point activeNodeId at 'dup'. t1 is seen
+    // first and keeps 'dup'; t2's is renamed. Each activeNodeId must resolve to its OWN topic's
+    // message — a batch-global remap wrongly re-pointed t1's active node at t2's renamed message.
+    stage(
+      migrator,
+      [
+        {
+          topic: { ...newTopic('t1', 100), activeNodeId: 'dup' },
+          messages: [newMessage('dup', 't1', [{ type: 'main_text', content: 'a' }])],
+          pinned: false
+        },
+        {
+          topic: { ...newTopic('t2', 100), activeNodeId: 'dup' },
+          messages: [newMessage('dup', 't2', [{ type: 'main_text', content: 'b' }])],
+          pinned: false
+        }
+      ],
+      []
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<unknown>
+    await fn.call(migrator, ctxOf())
+
+    const t1 = await readTopicAndContent('t1')
+    const t2 = await readTopicAndContent('t2')
+
+    // t1 kept 'dup'; t2 got a fresh id. Neither active node dangles or crosses into the other topic.
+    expect(t1.content.map((r) => r.id)).toEqual(['dup'])
+    expect(t2.content).toHaveLength(1)
+    expect(t2.content[0].id).not.toBe('dup')
+    expect(t1.topic.activeNodeId).toBe('dup')
+    expect(t2.topic.activeNodeId).toBe(t2.content[0].id)
+  })
+
+  it('scopes the activeNodeId remap per topic on a triple message-id collision', async () => {
+    const migrator = new ChatMigrator()
+    // Same id in three topics, all pointing activeNodeId at it. The 2nd and 3rd are renamed to
+    // distinct ids; a batch-global Map would overwrite to the last remap and point all three there.
+    stage(
+      migrator,
+      ['t1', 't2', 't3'].map((id) => ({
+        topic: { ...newTopic(id, 100), activeNodeId: 'dup' },
+        messages: [newMessage('dup', id, [{ type: 'main_text', content: id }])],
+        pinned: false
+      })),
+      []
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<unknown>
+    await fn.call(migrator, ctxOf())
+
+    // Every topic's activeNodeId resolves to its OWN single content message.
+    for (const id of ['t1', 't2', 't3']) {
+      const { topic, content } = await readTopicAndContent(id)
+      expect(content).toHaveLength(1)
+      expect(topic.activeNodeId).toBe(content[0].id)
+    }
+    // And the three content ids are all distinct (no shared/overwritten remap).
+    const ids = (await Promise.all(['t1', 't2', 't3'].map((id) => readTopicAndContent(id)))).map((r) => r.content[0].id)
+    expect(new Set(ids).size).toBe(3)
+  })
+
   it('skips chat_message_file_ref for dangling fileId and records warning', async () => {
     const migrator = new ChatMigrator()
     const messages = [newMessage('m-dangle', 't-dangle', [{ type: 'image', fileId: 'nonexistent-fe' }])]
@@ -1216,6 +1315,29 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     expect(refs).toHaveLength(2)
     expect(refs.every((r) => r.fileEntryId === 'fe-shared')).toBe(true)
     expect(new Set(refs.map((r) => r.sourceId)).size).toBe(2)
+  })
+
+  it('flips cleanup_policy to delete_when_unreferenced for referenced files and leaves unreferenced files as manual', async () => {
+    await seedFileEntry('fe-referenced')
+    await seedFileEntry('fe-unreferenced')
+
+    const migrator = new ChatMigrator()
+    const messages = [newMessage('m-ref', 't-cleanup', [{ type: 'image', fileId: 'fe-referenced' }])]
+    stage(
+      migrator,
+      [{ topic: newTopic('t-cleanup', 100), messages, pinned: false }],
+      ['fe-referenced', 'fe-unreferenced']
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const entries = await dbh.db.select().from(fileEntryTable)
+    const byId = new Map(entries.map((e) => [e.id, e.cleanupPolicy]))
+    expect(byId.get('fe-referenced')).toBe('delete_when_unreferenced')
+    expect(byId.get('fe-unreferenced')).toBe('manual')
   })
 
   describe('loadMigratedFileEntryIds', () => {

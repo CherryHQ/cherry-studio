@@ -48,30 +48,29 @@ export function lookupRegistryProvider(providers: ProviderConfig[], providerId: 
   return providers.find((p) => p.id === providerId) ?? null
 }
 
-export interface RuntimeEndpointConfig {
+export interface PersistedEndpointConfig {
   baseUrl?: string
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
-  reasoningFormatType?: string
   adapterFamily?: string
 }
 
 /**
- * Convert registry endpointConfigs (with reasoningFormat discriminated union)
- * to runtime endpointConfigs (with reasoningFormatType string).
+ * Project registry endpoint configs onto the connection facts persisted in
+ * user_provider. Main-only reasoning profiles deliberately stay in registry
+ * memory and never cross this boundary.
  */
-export function buildRuntimeEndpointConfigs(
+export function buildPersistedEndpointConfigs(
   registryConfigs: Record<string, RegistryEndpointConfig> | undefined
-): Record<string, RuntimeEndpointConfig> | null {
+): Record<string, PersistedEndpointConfig> | null {
   if (!registryConfigs || Object.keys(registryConfigs).length === 0) return null
 
-  const configs: Record<string, RuntimeEndpointConfig> = {}
+  const configs: Record<string, PersistedEndpointConfig> = {}
 
   for (const [k, regConfig] of Object.entries(registryConfigs)) {
-    const config: RuntimeEndpointConfig = {}
+    const config: PersistedEndpointConfig = {}
 
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
-    if (regConfig.reasoningFormat?.type) config.reasoningFormatType = regConfig.reasoningFormat.type
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
 
     if (Object.keys(config).length > 0) configs[k] = config
@@ -109,7 +108,7 @@ const ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY: Partial<Record<EndpointType, stri
  */
 export function inferAdapterFamily(
   endpointType: EndpointType,
-  catalogConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'> | Pick<RuntimeEndpointConfig, 'adapterFamily'> | null
+  catalogConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'> | Pick<PersistedEndpointConfig, 'adapterFamily'> | null
 ): string {
   if (catalogConfig?.adapterFamily) return catalogConfig.adapterFamily
   return ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY[endpointType] ?? 'openai-compatible'
@@ -118,19 +117,21 @@ export function inferAdapterFamily(
 /**
  * Capability-exclusive endpoints imply a model capability: a model whose primary
  * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,
- * an image endpoint can only generate images. Single source of truth for deriving
- * a capability from a model's endpoint when the catalog has no entry for it (e.g.
- * opaque gateway/NewAPI model ids). Chat/completions endpoints are general-purpose
- * and imply nothing, so they're absent from the map.
- *
- * ponytail: covers the non-chat leak class (rerank/embedding/image); add the
- * tts/stt/video endpoints here if those ever surface through a gateway.
+ * and dedicated image/audio/video endpoints can only serve their named media task.
+ * Single source of truth for deriving a capability from a model's endpoint when
+ * the catalog has no entry for it (e.g. opaque gateway/NewAPI model ids).
+ * Chat/completions endpoints are general-purpose and imply nothing, so they're
+ * absent from the map.
  */
 const ENDPOINT_IMPLIED_CAPABILITY: Partial<Record<EndpointType, ModelCapability>> = {
   [ENDPOINT_TYPE.JINA_RERANK]: MODEL_CAPABILITY.RERANK,
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
   [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: MODEL_CAPABILITY.EMBEDDING,
   [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: MODEL_CAPABILITY.IMAGE_GENERATION,
-  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: MODEL_CAPABILITY.AUDIO_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION]: MODEL_CAPABILITY.VIDEO_GENERATION
 }
 
 /** Capability implied by a capability-exclusive endpoint, or `undefined` for general-purpose endpoints. */

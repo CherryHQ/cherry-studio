@@ -43,9 +43,9 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
 
   // Query on the left, result count on the right (mirrors the reference layout).
   return (
-    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-muted-foreground leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
       <span className="min-w-0 truncate">{query || resultText}</span>
-      {query && <span className="shrink-0 text-foreground-muted">{resultText}</span>}
+      {query && <span className="shrink-0 text-foreground-tertiary">{resultText}</span>}
     </span>
   )
 }
@@ -89,7 +89,7 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
               className="-mx-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1 no-underline transition-colors hover:bg-accent">
               {hostname && <Favicon hostname={hostname} alt={result.title || domain} />}
               <span className="min-w-0 flex-1 truncate text-foreground">{result.title || result.url}</span>
-              <span className="max-w-[40%] shrink-0 truncate text-foreground-muted">{domain}</span>
+              <span className="max-w-[40%] shrink-0 truncate text-foreground-tertiary">{domain}</span>
             </Link>
           </li>
         )

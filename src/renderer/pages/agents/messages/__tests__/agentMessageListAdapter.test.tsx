@@ -29,6 +29,13 @@ const errorActionsMock = vi.hoisted(() => ({
   openErrorDetail: vi.fn(),
   navigateErrorTarget: vi.fn()
 }))
+const useMessageErrorActionsMock = vi.hoisted(() =>
+  vi.fn<(options?: unknown) => typeof errorActionsMock>(() => errorActionsMock)
+)
+const dataApiMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  patch: vi.fn()
+}))
 const leafCapabilitiesMock = vi.hoisted(() => ({
   previewFile: vi.fn(),
   subscribeToolProgress: vi.fn(),
@@ -51,10 +58,13 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
+const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
   on: vi.fn(() => vi.fn())
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -69,6 +79,10 @@ vi.mock('@data/CacheService', () => ({
     get: vi.fn(() => undefined),
     set: vi.fn()
   }
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: dataApiMocks
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -123,7 +137,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () =
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
-  useMessageErrorActions: () => errorActionsMock
+  useMessageErrorActions: useMessageErrorActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', () => ({
@@ -162,7 +176,43 @@ describe('useAgentMessageListProviderValue', () => {
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
     window.api.file.showInFolder = vi.fn()
-    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
+    ipcApiRequest.mockReset()
+    ipcApiRequest.mockResolvedValue({
+      kind: 'file',
+      type: 'other',
+      size: 0,
+      createdAt: 0,
+      modifiedAt: 0,
+      mime: 'application/octet-stream'
+    })
+  })
+
+  it('forwards the local-send generation to the shared list state', () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        localSendGeneration: 3,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.localSendGeneration).toBe(3)
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
@@ -201,6 +251,8 @@ describe('useAgentMessageListProviderValue', () => {
     const deleteMessage = vi.fn()
     const respondToolApproval = vi.fn()
     const openArtifactFile = vi.fn()
+    const unbindExternalRuntime = vi.fn()
+    const onBindRuntime = vi.fn(() => unbindExternalRuntime)
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -213,6 +265,7 @@ describe('useAgentMessageListProviderValue', () => {
         openArtifactFile,
         deleteMessage,
         respondToolApproval,
+        onBindRuntime,
         messageNavigation: 'anchor',
         workspacePath: '/tmp/workspace'
       })
@@ -287,7 +340,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
-    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
@@ -313,9 +365,6 @@ describe('useAgentMessageListProviderValue', () => {
     void value?.actions.showInFolder?.('/Users/me/report.md')
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
 
-    void value?.actions.isDirectory?.('dist/assets')
-    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/tmp/workspace/dist/assets')
-
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/settings/provider',
@@ -334,12 +383,15 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
 
     const listLocateMessage = vi.fn()
-    const unbindRuntime = value?.actions.bindRuntime?.({
+    const listRuntime = {
+      captureLocalSendScrollEligibility: vi.fn(),
       scrollToBottom: vi.fn(),
       locateMessage: listLocateMessage,
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn()
-    })
+    } as MessageListRuntime
+    const unbindRuntime = value?.actions.bindRuntime?.(listRuntime)
+    expect(onBindRuntime).toHaveBeenCalledWith(listRuntime)
 
     vi.useFakeTimers()
     try {
@@ -354,10 +406,162 @@ describe('useAgentMessageListProviderValue', () => {
       vi.useRealTimers()
       unbindRuntime?.()
     }
+    expect(unbindExternalRuntime).toHaveBeenCalledOnce()
 
     eventMocks.emit.mockClear()
     value?.actions.locateMessage?.('assistant-1', true)
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
+  })
+
+  it('rejects unresolved relative paths when no workspace root is available', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    let value: MessageListProviderValue | undefined
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        assistantId: 'agent-1',
+        isLoading: false,
+        messageNavigation: 'anchor'
+        // no workspacePath — a session whose workspace has not resolved yet
+      })
+      return null
+    }
+    render(<Probe />)
+
+    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(() => value?.actions.showInFolder?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(window.api.file.openPath).not.toHaveBeenCalled()
+    expect(window.api.file.showInFolder).not.toHaveBeenCalled()
+  })
+
+  it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    dataApiMocks.get.mockResolvedValue({
+      data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
+    })
+
+    const Probe = () => {
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
+
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Runtime failed' }) })
+              })
+            })
+          ]
+        }
+      }
+    })
+  })
+
+  it('renders terminal fallbacks in both current and sealed history layers', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'assistant-error',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+      },
+      {
+        id: 'assistant-empty-success',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-pending',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'pending' }
+      },
+      {
+        id: 'assistant-hidden-success',
+        role: 'assistant',
+        parts: [{ type: 'data-agent-task-event', data: {} }],
+        metadata: { createdAt: '2026-01-01T00:00:03.000Z', status: 'success' }
+      }
+    ] as CherryUIMessage[]
+    const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    const streamingLayers = { historyPartsByMessageId: partsByMessageId, liveMessageIds: [] }
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        streamingLayers,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
+    expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
   })
 
   it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
@@ -561,6 +765,7 @@ describe('useAgentMessageListProviderValue', () => {
     render(<VisibleProbe />)
 
     const visibleRuntime: MessageListRuntime = {
+      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn().mockResolvedValue(undefined),
       locateMessage: vi.fn(),
@@ -576,6 +781,7 @@ describe('useAgentMessageListProviderValue', () => {
     render(<CaptureProbe />)
 
     const captureRuntime: MessageListRuntime = {
+      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn().mockResolvedValue(undefined),
       locateMessage: vi.fn(),

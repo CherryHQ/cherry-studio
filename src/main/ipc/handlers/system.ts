@@ -4,9 +4,10 @@ import { isMac } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { getDeviceType } from '@main/utils/system'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { shell, systemPreferences } from 'electron'
+import { nativeTheme, shell, systemPreferences } from 'electron'
 import fontList from 'font-list'
 
 const logger = loggerService.withContext('systemHandlers')
@@ -27,6 +28,7 @@ const logger = loggerService.withContext('systemHandlers')
  */
 export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.get_device_type': async () => getDeviceType(),
+  'system.get_native_theme': async () => (nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light),
   'system.toggle_dev_tools': async (_input, { senderId }) => {
     if (!senderId) return
     application.get('WindowManager').getWindow(senderId)?.webContents.toggleDevTools()
@@ -41,6 +43,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     }
   },
   'system.get_ip_country': async () => regionService.getCountry(),
+  'system.ip_country.detect': async () => regionService.getDetectedCountry(),
   'system.mac.is_process_trusted': async () => (isMac ? systemPreferences.isTrustedAccessibilityClient(false) : false),
   'system.mac.request_process_trust': async () =>
     isMac ? systemPreferences.isTrustedAccessibilityClient(true) : false,

@@ -1,5 +1,6 @@
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,12 @@ import type { MigrationPaths } from '../MigrationPaths'
 
 vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
+}))
+
+// The engine imports the boot-config singleton for skipMigration; keep the real
+// service (and its file I/O) out of these unit tests.
+vi.mock('@main/data/bootConfig', () => ({
+  bootConfigService: { set: vi.fn(), persist: vi.fn() }
 }))
 
 // Let initialize() run without opening a real SQLite file: a bare fake DB whose
@@ -28,12 +35,17 @@ vi.mock('../MigrationDbService', () => ({
 const mockPaths: MigrationPaths = {
   userData: '/tmp/test-userdata',
   cherryHome: '/tmp/test-cherryhome',
-  databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
+  databaseFile: '/tmp/test-userdata/Data/cherrystudio.sqlite',
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
   filesDataDir: '/tmp/test-userdata/Data/Files',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
-  agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
+  legacyClaudeConfigDir: '/tmp/test-userdata/.claude',
+  legacyClaudeProjectsDir: '/tmp/test-userdata/.claude/projects',
+  agentsDataDir: '/tmp/test-userdata/Data/Agents',
+  claudeConfigDir: '/tmp/test-userdata/Data/Agents/.claude',
+  claudeProjectsDir: '/tmp/test-userdata/Data/Agents/.claude/projects',
+  agentSystemWorkspacesDir: '/tmp/test-userdata/Data/Agents/system',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
@@ -232,9 +244,25 @@ describe('MigrationEngine', () => {
     })
   })
 
+  it('marks completed after global validation succeeds', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('agents', 1, events)
+    vi.mocked((engine as any).verifyForeignKeys).mockImplementation(() => {
+      events.push('foreign-keys')
+    })
+    vi.mocked((engine as any).markCompleted).mockImplementation(async () => {
+      events.push('completed')
+    })
+    engine.registerMigrators([migrator as any])
+
+    await expect(engine.run({}, '/tmp/dexie_export')).resolves.toMatchObject({ success: true })
+
+    expect(events.slice(-2)).toEqual(['foreign-keys', 'completed'])
+  })
+
   it('clears new architecture tables inside one transaction', async () => {
     const runFn = vi.fn()
-    const deleteFn = vi.fn(() => ({ run: runFn }))
+    const deleteFn = vi.fn(() => ({ run: runFn, where: vi.fn(() => ({ run: runFn })) }))
     const transactionFn = vi.fn((fn: (tx: unknown) => void) => {
       fn({ delete: deleteFn })
     })
@@ -255,7 +283,9 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
+    // Every counted table is deleted, plus the filtered job_schedule delete
+    // (which is not part of the count loop).
+    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length + 1)
     expect(db).not.toHaveProperty('delete')
   })
 
@@ -270,7 +300,8 @@ describe('MigrationEngine', () => {
         fn({
           delete: (table: unknown) => {
             deletedTables.push(table)
-            return { run: vi.fn() }
+            const run = vi.fn()
+            return { run, where: vi.fn(() => ({ run })) }
           }
         })
       )
@@ -285,5 +316,6 @@ describe('MigrationEngine', () => {
     expect(deletedTables).toContain(groupTable)
     expect(deletedTables).toContain(entityTagTable)
     expect(deletedTables).toContain(tagTable)
+    expect(deletedTables).toContain(jobScheduleTable)
   })
 })

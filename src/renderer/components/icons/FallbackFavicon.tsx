@@ -143,9 +143,9 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
   // Render based on current state
   if (faviconState.status === 'failed') {
     return (
-      <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-primary/15 font-bold text-[10px] text-primary">
+      <span className="inline-flex h-4 w-4 items-center justify-center rounded-[4px] bg-primary/15 font-bold text-[10px] text-primary">
         {hostname.charAt(0).toUpperCase()}
-      </div>
+      </span>
     )
   }
 
@@ -153,7 +153,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
     return <img src={faviconState.src} alt={alt} onError={handleError} className="h-4 w-4 rounded-[4px] bg-muted" />
   }
 
-  return <div className="h-4 w-4 rounded-[4px] bg-muted" />
+  return <span className="inline-block h-4 w-4 rounded-[4px] bg-muted" />
 }
 
 export default FallbackFavicon

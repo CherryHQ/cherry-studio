@@ -6,6 +6,7 @@ import { isSystemProviderId } from '@renderer/types/provider'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
+  ProviderPresetField,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
@@ -36,13 +37,17 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?: SWRConfiguration }) {
+export function useProviders(
+  query?: ListProvidersQuery,
+  options?: { enabled?: boolean; swrOptions?: SWRConfiguration }
+) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const queryOptions =
-    hasQuery || options?.swrOptions
+    hasQuery || options?.enabled === false || options?.swrOptions
       ? {
           ...(hasQuery && { query: filtered }),
+          ...(options?.enabled === false && { enabled: false }),
           ...(options?.swrOptions && { swrOptions: options.swrOptions })
         }
       : undefined
@@ -251,6 +256,15 @@ export function useProviderAuthConfig(providerId: string) {
 
 export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
+}
+
+/** Read a sparse projection of the provider's effective registry preset. */
+export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
+  return useQuery('/providers/:providerId/preset', {
+    params: { providerId: providerId ?? '' },
+    query: { fields: [...fields] },
+    enabled: !!providerId
+  })
 }
 
 /**

@@ -13,24 +13,19 @@
  * patch needed". Callers compose multiple reconcile fns and only emit a
  * settings patch when at least one returned non-null.
  */
-import { cacheService } from '@renderer/data/CacheService'
 import type { AssistantSettings } from '@renderer/types/assistant'
-import type { ThinkingOption } from '@renderer/types/reasoning'
+import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import {
-  getThinkModelType,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
-} from './reasoning'
 import { isFunctionCallingModel } from './tooluse'
 import { isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
 
 export type ReasoningEffortPatch = {
-  reasoning_effort?: string
+  reasoning_effort?: ReasoningEffortOption
 }
+
+export { resolveReasoningEffortForModel }
 
 export function hasModelBuiltinWebSearch(model: Model): boolean {
   return isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel(model)
@@ -42,36 +37,11 @@ export function canModelUseAssistantWebSearch(model: Model): boolean {
 
 export function reconcileReasoningEffortForModel(
   nextModel: Model,
-  currentEffort: string | undefined,
-  assistantId: string
+  currentEffort: ReasoningEffortOption | undefined
 ): ReasoningEffortPatch | null {
-  const cacheKey = `assistant.reasoning_effort_cache.${assistantId}` as const
-
-  if (isSupportedThinkingTokenModel(nextModel) || isSupportedReasoningEffortModel(nextModel)) {
-    const modelType = getThinkModelType(nextModel)
-    const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
-    if (supportedOptions.includes(currentEffort as ThinkingOption)) {
-      return null // current value already supported — no PATCH needed
-    }
-    const cached = cacheService.get(cacheKey) as ThinkingOption | undefined
-    const fallback: ThinkingOption =
-      cached && supportedOptions.includes(cached)
-        ? cached
-        : currentEffort !== undefined
-          ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
-          : MODEL_SUPPORTED_OPTIONS[modelType][0]
-    cacheService.set(cacheKey, fallback === 'none' ? undefined : fallback)
-    return {
-      reasoning_effort: fallback === 'none' ? undefined : fallback
-    }
-  }
-
-  // Switched to a non-thinking model: stash the current choice and clear.
-  if (currentEffort === undefined) return null
-  cacheService.set(cacheKey, currentEffort)
-  return {
-    reasoning_effort: undefined
-  }
+  const nextEffort = resolveReasoningEffortForModel(nextModel, currentEffort)
+  if (nextEffort === currentEffort) return null
+  return { reasoning_effort: nextEffort }
 }
 
 export function reconcileWebSearchForModel(

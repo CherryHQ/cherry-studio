@@ -7,13 +7,11 @@
  * This file lives inside migration/v2/ so it is removed when migration is deleted.
  */
 
-import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
+import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import fs from 'fs'
 import path from 'path'
 
@@ -49,12 +47,14 @@ export class MigrationDbService {
       logger.warn('Failed to configure WAL mode', error as Error)
     }
 
-    // Schema migrations
-    migrate(db, { migrationsFolder: paths.migrationsFolder })
+    // Schema migrations + custom SQL (triggers, FTS, etc. — all idempotent). Shared with
+    // DbService so table-recreate migrations get the same out-of-transaction FK handling;
+    // it restores this connection's setting (ON by default) when it returns.
+    applyMigrations(db, paths.migrationsFolder)
 
     // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
     // connection makes this one PRAGMA hold for every statement until close() — no replay
-    // needed (migrate() restores FK = ON on its own connection, so this must run AFTER it).
+    // needed (applyMigrations restores FK = ON on its own connection, so this must run AFTER it).
     //
     // This lets bulk inserts carry not-yet-resolved references; integrity is then verified
     // after all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator
@@ -62,11 +62,6 @@ export class MigrationDbService {
     // enforcement is restored implicitly: this migration connection is disposed via close()
     // when migration ends, and normal runtime uses DbService's own connection (foreign_keys = ON).
     sqlite.pragma('foreign_keys = OFF')
-
-    // Custom SQL (triggers, FTS, etc.) — all idempotent
-    for (const statement of CUSTOM_SQL_STATEMENTS) {
-      db.run(sql.raw(statement))
-    }
 
     logger.info('Migration database ready')
     return new MigrationDbService(db, sqlite)

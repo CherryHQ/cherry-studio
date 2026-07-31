@@ -73,7 +73,7 @@ function WizardFooter({
   const canProceed = stepIndex !== 0 || basicValid
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-muted border-t px-6 py-3">
+    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
       {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
@@ -98,11 +98,12 @@ function WizardFooter({
 
 /**
  * Stepped create flow shared by assistant + agent. Steps 1–2 (basic info,
- * persona) are identical across kinds; step 3 differs (knowledge base vs.
- * capability config). A left rail tracks step progress (done = check, current =
- * filled number); the right pane swaps the active step's form as the footer
- * drives navigation. One form collects every field and hands the validated
- * payload to `onSubmit`. Replaces the former single-page ResourceCreateDialog.
+ * persona) are identical across kinds; agents then configure skills before
+ * both kinds configure knowledge bases. A left rail tracks step progress
+ * (done = check, current = filled number); the right pane swaps the active
+ * step's form as the footer drives navigation. One form collects every field
+ * and hands the validated payload to `onSubmit`. Replaces the former
+ * single-page ResourceCreateDialog.
  *
  * The shell intentionally does NOT subscribe to form values — avatar/footer
  * watching lives in leaf components — so ordinary field edits do not re-render
@@ -138,11 +139,11 @@ export function ResourceCreateWizard({
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const persona = { id: 'persona' as const, label: t('library.config.dialogs.create.step.persona') }
-    const last =
-      kind === 'assistant'
-        ? { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-        : { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, persona, last]
+    const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
+    if (kind === 'assistant') return [basic, persona, knowledge]
+
+    const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
+    return [basic, persona, capability, knowledge]
   }, [kind, t])
 
   useEffect(() => {
@@ -250,7 +251,7 @@ export function ResourceCreateWizard({
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
   )
-  const currentStep = steps[stepIndex]
+  const currentStep = steps[Math.min(stepIndex, steps.length - 1)]
 
   return (
     <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
@@ -261,7 +262,7 @@ export function ResourceCreateWizard({
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
+        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base">{title}</DialogTitle>
           </div>
@@ -271,7 +272,7 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1">
               {/* Step rail */}
-              <ol className="w-44 shrink-0 space-y-1 border-border-muted border-r p-3">
+              <ol className="w-44 shrink-0 space-y-1 border-border-subtle border-r p-3">
                 {steps.map((step, index) => {
                   const done = index < stepIndex
                   const active = index === stepIndex

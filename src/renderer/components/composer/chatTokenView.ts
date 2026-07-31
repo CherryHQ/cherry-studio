@@ -1,8 +1,7 @@
+import type { ComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ReactNode } from 'react'
 
-export const CHAT_INPUT_TOKEN_KINDS = ['skill', 'file', 'folder', 'knowledge', 'quote', 'promptVariable'] as const
-
-export type ChatInputTokenKind = (typeof CHAT_INPUT_TOKEN_KINDS)[number]
+export type ChatInputTokenKind = ComposerInputTokenKind
 
 export interface ChatTokenView {
   id: string

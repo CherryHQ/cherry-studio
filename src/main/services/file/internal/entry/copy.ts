@@ -25,7 +25,7 @@ export interface CopyEntryParams {
 export async function copy(deps: FileManagerDeps, params: CopyEntryParams): Promise<FileEntry> {
   const src = deps.fileEntryService.getById(params.id)
   const physical = resolvePhysicalPath(src)
-  const dst = await createInternal(deps, { source: 'path', path: physical })
+  const dst = await createInternal(deps, { source: 'path', path: physical, cleanupPolicy: src.cleanupPolicy })
   if (params.newName === undefined || params.newName === dst.name) {
     return dst
   }

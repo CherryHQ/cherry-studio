@@ -34,6 +34,10 @@ export const skillRequestSchemas = {
     input: z.object({ workdir: z.string().min(1) }),
     output: z.custom<SkillResult<LocalSkill[]>>()
   }),
+  'skill.reconcile': defineRoute({
+    input: z.object({}),
+    output: z.custom<void>()
+  }),
   'skill.discover_system': defineRoute({
     input: z.object({}),
     output: z.custom<SystemSkillCandidate[]>()

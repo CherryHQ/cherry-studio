@@ -1,3 +1,4 @@
+import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
@@ -28,6 +29,7 @@ export interface MessageUiState {
   foldSelected?: boolean
   multiModelMessageStyle?: string
   useful?: boolean
+  disclosures?: Record<string, boolean>
 }
 
 export interface MessageListSelectionState {
@@ -38,6 +40,7 @@ export interface MessageListSelectionState {
 
 export interface MessageListRuntime {
   scrollToBottom: () => void
+  captureLocalSendScrollEligibility: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
@@ -200,7 +203,8 @@ export interface MessageListItem {
     provider: string
     group?: string
   }>
-  type?: 'clear'
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
 }
 
 export interface MessageRenderConfig {
@@ -253,6 +257,11 @@ export interface MessageStreamingLayers {
   liveMessageIds: readonly string[]
 }
 
+export interface MessageTailSlot {
+  messageId: string
+  content: ReactNode
+}
+
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
@@ -260,6 +269,13 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Optional adapter-owned content rendered after one message's body. */
+  messageTail?: MessageTailSlot
+  /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
+   *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
+   *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
+   *  the live turn. */
+  activeTurnStatus?: (placeholder: ReactNode) => ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   hasOlder?: boolean
@@ -269,6 +285,8 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
+  /** Monotonic counter incremented only after this renderer opens a local user turn. */
+  localSendGeneration?: number
   readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
@@ -310,8 +328,6 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
-  /** Probe whether a path points at a directory (fs.stat-backed; resolves false on missing). */
-  isDirectory?: (path: string) => Promise<boolean>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   showInFolder?: (path: string) => void | Promise<void>
@@ -358,7 +374,8 @@ export interface MessageListActions {
     parts: CherryMessagePart[],
     options?: { lockedMentionedModels?: Model[] }
   ) => void
-  deleteMessage?: (messageId: string, traceOptions?: { modelName?: string }) => void | Promise<void>
+  getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
+  deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (parentId: string) => void | Promise<void>

@@ -206,7 +206,7 @@ describe('shiki', () => {
 
         const result = getReactStyleFromToken(token, { isDarkTheme: false })
 
-        expect(result.color).toBe('var(--color-foreground)')
+        expect(result.color).toBe('var(--foreground)')
       }
     )
 
@@ -230,14 +230,14 @@ describe('shiki', () => {
       const renderer = await getMarkdownIt('one-light', markdownWithWhiteToken)
       const html = renderer.render(markdownWithWhiteToken)
 
-      expect(html).toContain('color:var(--color-foreground)')
+      expect(html).toContain('color:var(--foreground)')
     })
 
     it('does not rewrite token colors in dark shiki themes', async () => {
       const renderer = await getMarkdownIt('material-theme-darker', markdownWithWhiteToken)
       const html = renderer.render(markdownWithWhiteToken)
 
-      expect(html).not.toContain('var(--color-foreground)')
+      expect(html).not.toContain('var(--foreground)')
     })
 
     it('renders untagged code blocks as plain text without json white tokens', async () => {
@@ -246,7 +246,7 @@ describe('shiki', () => {
       const html = renderer.render(untagged)
 
       expect(html).toContain('language-text')
-      expect(html).not.toContain('var(--color-foreground)')
+      expect(html).not.toContain('var(--foreground)')
     })
   })
 })

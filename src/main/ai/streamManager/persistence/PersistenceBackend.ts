@@ -8,11 +8,14 @@
  * synthesise UIMessages or repeat projection logic.
  */
 
-import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
-
-import type { SemanticTimings, TransportTimings } from '../types'
+import {
+  type AgentTaskEventPartData,
+  type CherryReasoningMeta,
+  readCherryMeta,
+  withCherryMeta
+} from '@shared/data/types/uiParts'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
@@ -26,7 +29,9 @@ export function finalizeInterruptedParts(
   status: 'success' | 'paused' | 'error'
 ): CherryMessagePart[] {
   if (status === 'success') return parts
-  const reason = status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed'
+  const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
+  const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
+  const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
@@ -54,10 +59,27 @@ export function finalizeInterruptedParts(
       return part
     }
 
+    if (part.type === 'data-agent-task-event') {
+      const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
+      if (taskPart.data.status !== 'in_progress') return part
+      return {
+        ...taskPart,
+        data: {
+          ...taskPart.data,
+          status: 'error',
+          error: taskPart.data.error ?? taskError
+        }
+      } as CherryMessagePart
+    }
+
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
     if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
-    return { ...toolPart, state: 'output-error', errorText: toolPart.errorText ?? reason } as CherryMessagePart
+    return {
+      ...toolPart,
+      state: 'output-error',
+      errorText: toolPart.errorText ?? toolError
+    } as CherryMessagePart
   })
 }
 
@@ -78,15 +100,13 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
-export type StatsTimings = TransportTimings & SemanticTimings
-
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
   status: 'success' | 'paused' | 'error'
   /** Set when the topic is multi-model. */
   modelId?: UniqueModelId
-  stats?: MessageStats
+  runtimeStats?: MessageRuntimeStatsInput
 }
 
 export interface PersistenceBackend {
@@ -99,7 +119,7 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void
+  persistAssistant(input: PersistAssistantInput): void | Promise<void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
@@ -111,54 +131,4 @@ export interface PersistenceBackend {
 
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
-}
-
-/**
- * Token counts come from `finalMessage.metadata` (populated by
- * agentLoop's `messageMetadata` on the `finish` chunk). Request durations
- * come from the merged `StatsTimings`; thinking duration is the sum of the
- * stabilized per-reasoning-part metadata. We deliberately do not subtract
- * `reasoningStartedAt` from `reasoningEndedAt`, because that wall-clock can
- * include interleaved tool execution.
- */
-export function statsFromTerminal(
-  finalMessage: CherryUIMessage | undefined,
-  timings: StatsTimings | undefined
-): MessageStats | undefined {
-  const stats: MessageStats = {}
-
-  const meta = finalMessage?.metadata
-  if (meta && typeof meta === 'object') {
-    if (typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
-    if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
-    if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
-    if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
-    if (typeof meta.noCacheTokens === 'number') stats.noCacheTokens = meta.noCacheTokens
-    if (typeof meta.cacheReadTokens === 'number') stats.cacheReadTokens = meta.cacheReadTokens
-    if (typeof meta.cacheWriteTokens === 'number') stats.cacheWriteTokens = meta.cacheWriteTokens
-  }
-
-  let thinkingDurationMs = 0
-  let hasThinkingDuration = false
-  for (const part of finalMessage?.parts ?? []) {
-    if (part.type !== 'reasoning') continue
-    const thinkingMs = readCherryMeta(part)?.thinkingMs
-    if (thinkingMs === undefined || !Number.isFinite(thinkingMs) || thinkingMs < 0) continue
-    thinkingDurationMs += thinkingMs
-    hasThinkingDuration = true
-  }
-  if (hasThinkingDuration) {
-    stats.timeThinkingMs = Math.round(thinkingDurationMs)
-  }
-
-  if (timings) {
-    if (timings.firstTextAt != null) {
-      stats.timeFirstTokenMs = Math.round(timings.firstTextAt - timings.startedAt)
-    }
-    if (timings.completedAt != null) {
-      stats.timeCompletionMs = Math.round(timings.completedAt - timings.startedAt)
-    }
-  }
-
-  return Object.keys(stats).length > 0 ? stats : undefined
 }

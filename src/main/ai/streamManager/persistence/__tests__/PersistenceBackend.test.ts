@@ -172,6 +172,47 @@ describe('finalizeInterruptedParts', () => {
     expect(result[2]).toMatchObject({ state: 'output-error', errorText: 'Stream errored before tool completed' })
   })
 
+  it('terminalizes an in-progress Agent task event when the stream errors', () => {
+    const taskEvent = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'progress',
+        taskId: 'task-7',
+        status: 'in_progress',
+        title: 'Implementing TTS adapters'
+      }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([taskEvent], 'error')
+
+    expect(result[0]).toMatchObject({
+      type: 'data-agent-task-event',
+      data: {
+        event: 'progress',
+        taskId: 'task-7',
+        status: 'error',
+        error: 'Stream errored before task completed'
+      }
+    })
+    expect(result[0]).not.toBe(taskEvent)
+  })
+
+  it('keeps completed and pending Agent task events unchanged', () => {
+    const completed = {
+      type: 'data-agent-task-event',
+      data: { event: 'notification', taskId: 'task-1', status: 'completed' }
+    } as unknown as CherryMessagePart
+    const pending = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'task-2', status: 'pending' }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([completed, pending], 'error')
+
+    expect(result[0]).toBe(completed)
+    expect(result[1]).toBe(pending)
+  })
+
   it('rewrites a streaming reasoning part to done and calculates thinkingMs if startedAt is provided', () => {
     const baseTime = 1780913860106
     vi.spyOn(Date, 'now').mockReturnValue(baseTime)

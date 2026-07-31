@@ -5,6 +5,7 @@
  * They store inference parameters, tool references, and context source toggles.
  */
 
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
 import { GroupIdSchema } from './group'
@@ -42,9 +43,8 @@ export const AssistantSettingsSchema = z.object({
   enableMaxTokens: z.boolean(),
   /** streaming provides better UX */
   streamOutput: z.boolean(),
-  /** let model decide.
-   *  String (not enum) because providers define custom values (e.g. 'xlow', 'high-reasoning'). */
-  reasoning_effort: z.string(),
+  /** Canonical reasoning selection; endpoint profiles own provider-specific wire values. */
+  reasoning_effort: ReasoningEffortOptionSchema,
   // -- Tool use --
   mcpMode: McpModeSchema,
   maxToolCalls: z.number().int().positive(),
@@ -134,10 +134,10 @@ export const AssistantSchema = z.strictObject({
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
   /**
-   * Human-readable model name resolved from `user_model.name` at read time.
-   * Read-only embedded field — edits go through `modelId`. Renderer consumers
-   * (list / grid / card) display this directly instead of re-resolving the
-   * `providerId::modelId` unique id against provider state.
+   * Human-readable model name resolved from the current runtime Model at read
+   * time. Read-only embedded field — edits go through `modelId`. Renderer
+   * consumers (list / grid / card) display this directly instead of
+   * re-resolving the `providerId::modelId` unique id against provider state.
    * `null` when the model row is missing (e.g. user removed the model after
    * binding).
    */

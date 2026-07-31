@@ -133,6 +133,18 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
+vi.mock('@renderer/hooks/resourceViewSources', () => ({
+  useAgentSessionsSource: () => {
+    const source = hookMocks.useSessions()
+    return {
+      ...source,
+      isLoadingAll: source.isLoadingAll ?? source.isLoading,
+      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+    }
+  },
+  useAssistantTopicsSource: () => hookMocks.useTopics()
+}))
+
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
 }))
@@ -222,7 +234,7 @@ vi.mock('react-i18next', () => {
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Work directory',
         'agent.session.group.no_workdir': 'No work directory',
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.unknown_agent': 'Unlinked Agent',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task name',
@@ -243,7 +255,6 @@ vi.mock('react-i18next', () => {
         'common.save': 'Save',
         'common.saved': 'Saved',
         'common.select_all': 'Select all',
-        'common.unknown': 'Unknown',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
@@ -435,7 +446,7 @@ describe('HistoryRecordsView agent mode', () => {
       pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
     })
 
-    expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
+    expect(hookMocks.useSessions).toHaveBeenCalledWith()
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
@@ -618,11 +629,11 @@ describe('HistoryRecordsView agent mode', () => {
       ]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Unknown agent/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Unlinked Agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()
-    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getAllByText('Unlinked Agent')).not.toHaveLength(0)
   })
 
   it('searches locally by session name, description, and agent name', () => {
@@ -827,6 +838,26 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(screen.getByText('No tasks')).toBeInTheDocument()
     expect(screen.getByText('No tasks for the current filters.')).toBeInTheDocument()
+  })
+
+  it('keeps the loading state until the shared full-session source commits', () => {
+    hookMocks.useAgents.mockReturnValue({ agents: [createAgent()], error: undefined, isLoading: false })
+    hookMocks.useSessions.mockReturnValue({
+      sessions: [],
+      pinIdBySessionId: new Map(),
+      error: undefined,
+      isLoading: false,
+      isLoadingAll: true,
+      isFullyLoaded: false,
+      deleteSession: hookMocks.deleteSession,
+      deleteSessions: hookMocks.deleteSessions,
+      togglePin: hookMocks.togglePin
+    })
+
+    render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    expect(screen.getByText('Loading tasks')).toBeInTheDocument()
+    expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
   })
 
   it('unmounts the overlay immediately when closed', () => {

@@ -88,6 +88,7 @@ export function AgentResourceList({
     isLoadingAll,
     isFullyLoaded,
     isPinsLoading,
+    isValidating,
     error: sessionsError,
     reload
   } = agentSessionsSource
@@ -324,6 +325,7 @@ export function AgentResourceList({
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
+        reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />
@@ -332,7 +334,6 @@ export function AgentResourceList({
         onOpenChange={(open) => {
           if (!open) setEditDialogTarget(null)
         }}
-        onSaved={refetchAgents}
       />
     </>
   )

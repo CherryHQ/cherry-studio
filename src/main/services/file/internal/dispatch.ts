@@ -15,12 +15,12 @@
  */
 
 import type { FileEntryId, FileHandle } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 export async function dispatchHandle<T>(
   handle: FileHandle,
   byEntryFn: (entryId: FileEntryId) => Promise<T>,
-  byPathFn: (target: FilePath) => Promise<T>
+  byPathFn: (target: AbsoluteFilePath) => Promise<T>
 ): Promise<T> {
   switch (handle.kind) {
     case 'entry':

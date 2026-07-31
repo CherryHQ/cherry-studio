@@ -12,13 +12,17 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf } from '../../scripts/canonicalize'
+import { canonOf, prefixHit } from '../../scripts/canonicalize'
+import { CREATORS } from '../creators'
 import { ModelListSchema } from '../schemas/model'
+import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
+import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
+const providersRaw = JSON.parse(readFileSync(join(dataDir, 'providers.json'), 'utf8'))
 const models = modelsRaw.models as Array<{
   id: string
   name: string
@@ -35,6 +39,8 @@ const overrides = providerModelsRaw.overrides as Array<{
   apiModelId?: string
   name?: string
 }>
+const providers = ProviderListSchema.parse(providersRaw).providers
+const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).overrides
 
 // normalized creator id: lowercase, alphanumerics joined by single hyphens (size/version kept)
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -80,6 +86,22 @@ describe('catalog invariants (data/*.json)', () => {
   // and coexists with (or shadows) its true base row.
   it('every base id is a canonicalization fixpoint (id === canonOf(id))', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
+  })
+
+  it('assigns overlapping creator prefixes to the most specific owner', () => {
+    const wrongOwner = models
+      .map((model) => {
+        const mostSpecific = CREATORS.flatMap((creator) =>
+          (creator.idPrefixes ?? [])
+            .filter((prefix) => prefixHit(model.id, prefix))
+            .map((prefix) => ({ creatorId: creator.id, prefix }))
+        ).sort((a, b) => b.prefix.length - a.prefix.length)[0]
+        return mostSpecific && mostSpecific.creatorId !== model.ownedBy
+          ? `${model.id}: ${model.ownedBy} != ${mostSpecific.creatorId} (${mostSpecific.prefix})`
+          : undefined
+      })
+      .filter(Boolean)
+    expect(wrongOwner).toEqual([])
   })
 
   it('every override resolves to a base row or carries a standalone name', () => {
@@ -130,6 +152,27 @@ describe('catalog invariants (data/*.json)', () => {
     expect(orderDependent).toEqual([])
   })
 
+  // `[1m]` is a Claude Code CLI suffix that raises the session's context budget: it never reaches an
+  // API, so it may only appear as an apiModelId, only on that provider, only paired with the plain
+  // row users pick when they don't want the extended window, and only on a model that has 1M to give.
+  it('every [1m] apiModelId is a claude-code twin of a plain 1M-context row', () => {
+    const contextWindowById = new Map(models.map((m) => [m.id, m.contextWindow]))
+    const plainRows = new Set(
+      overrides.filter((o) => (o.apiModelId ?? o.modelId) === o.modelId).map((o) => `${o.providerId}::${o.modelId}`)
+    )
+    const broken = overrides
+      .filter((o) => (o.apiModelId ?? '').endsWith('[1m]'))
+      .filter(
+        (o) =>
+          o.providerId !== 'claude-code' ||
+          o.apiModelId !== `${o.modelId}[1m]` ||
+          !plainRows.has(`${o.providerId}::${o.modelId}`) ||
+          (contextWindowById.get(o.modelId) ?? 0) < 1_000_000
+      )
+      .map((o) => `${o.providerId}/${o.apiModelId}`)
+    expect(broken).toEqual([])
+  })
+
   // sequentialImageGeneration is a string enum in the central catalog
   // (imageParamCatalog.ts) and the Doubao API only accepts 'auto'/'disabled' — a
   // `switch` support spec here renders a boolean UI control that gets coerced
@@ -165,6 +208,31 @@ describe('catalog invariants (data/*.json)', () => {
   it('provider-models.json conforms to ProviderModelListSchema', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+  })
+
+  it('Fast transports belong only to Codex and Claude Code', () => {
+    expect(providers.filter((provider) => provider.fastMode).map((provider) => provider.id)).toEqual([
+      'claude-code',
+      'openai-codex'
+    ])
+  })
+
+  it('Fast provider-model declarations require a provider transport', () => {
+    const fastProviders = new Set(providers.filter((provider) => provider.fastMode).map((provider) => provider.id))
+    expect(
+      providerModelOverrides
+        .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
+        .map((override) => `${override.providerId}/${override.modelId}`)
+    ).toEqual([])
+  })
+
+  it('budget wire operations require an explicit budget policy', () => {
+    const result = ReasoningWireProfileSchema.safeParse({
+      effort: {
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }]
+      }
+    })
+    expect(result.success).toBe(false)
   })
 
   it('the validators actually reject known-bad shapes', () => {

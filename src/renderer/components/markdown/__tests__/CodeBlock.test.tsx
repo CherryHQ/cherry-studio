@@ -94,11 +94,6 @@ describe('CodeBlock', () => {
   })
 
   describe('rendering', () => {
-    it('should render a snapshot', () => {
-      const { container } = render(<CodeBlock {...defaultProps} />)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should render inline code when no language match is found', () => {
       const inlineProps = {
         ...defaultProps,

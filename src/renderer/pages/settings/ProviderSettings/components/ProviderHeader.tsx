@@ -44,11 +44,11 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
 
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex min-h-7 items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="min-w-0 self-center">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate font-bold text-[15px] text-foreground leading-tight">
+              <h1 className="truncate font-semibold text-[15px] text-foreground leading-tight">
                 {meta.officialWebsite ? (
                   <a
                     href={meta.officialWebsite}
@@ -68,7 +68,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-accent/40 hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
                     <Bolt className="size-3.5" aria-hidden />

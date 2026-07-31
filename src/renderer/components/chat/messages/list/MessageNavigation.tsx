@@ -79,9 +79,20 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     scheduleHide(500)
   }, [scheduleHide])
 
-  const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
+  const getCurrentVisibleIndex = () => {
     const userMessages = messages.filter((message) => message.role === 'user')
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
+    const userIndexById = new Map(userMessages.map((message, index) => [message.id, index]))
+    const precedingUserIndexByAssistantId = new Map<string, number>()
+    let precedingUserIndex: number | undefined
+
+    for (const message of messages) {
+      if (message.role === 'user') {
+        precedingUserIndex = userIndexById.get(message.id)
+      } else if (message.role === 'assistant' && precedingUserIndex !== undefined) {
+        precedingUserIndexByAssistantId.set(message.id, precedingUserIndex)
+      }
+    }
     const scrollContainer = scrollContainerRef.current
 
     if (!scrollContainer) return -1
@@ -104,25 +115,29 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     }
 
     if (visibleIndices.length > 0) {
-      return direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
+      return Math.min(...visibleIndices)
     }
 
     visibleIndices = []
     for (let i = 0; i < assistantMessages.length; i++) {
-      const messageElement = getMessageElement(assistantMessages[i].id)
+      const assistantMessage = assistantMessages[i]
+      const messageElement = getMessageElement(assistantMessage.id)
       if (!messageElement) continue
 
       const messageRect = messageElement.getBoundingClientRect()
       const visibleHeight =
         Math.min(messageRect.bottom, containerRect.bottom) - Math.max(messageRect.top, containerRect.top)
       if (visibleHeight > 0 && visibleHeight >= Math.min(messageRect.height, visibleThreshold)) {
-        visibleIndices.push(i)
+        const userIndex =
+          assistantMessage.parentId != null
+            ? userIndexById.get(assistantMessage.parentId)
+            : precedingUserIndexByAssistantId.get(assistantMessage.id)
+        if (userIndex !== undefined) visibleIndices.push(userIndex)
       }
     }
 
     if (visibleIndices.length > 0) {
-      const assistantIndex = direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
-      return assistantIndex < userMessages.length ? assistantIndex : userMessages.length - 1
+      return Math.min(...visibleIndices)
     }
 
     return -1
@@ -153,11 +168,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
 
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToBottom()
 
-    const visibleIndex = getCurrentVisibleIndex('down')
+    const visibleIndex = getCurrentVisibleIndex()
     if (visibleIndex === -1) return scrollToBottom()
 
-    const targetIndex = visibleIndex - 1
-    if (targetIndex < 0) return scrollToBottom()
+    const targetIndex = visibleIndex + 1
+    if (targetIndex >= userMessages.length) return scrollToBottom()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
@@ -168,11 +183,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToTop()
 
-    const visibleIndex = getCurrentVisibleIndex('up')
+    const visibleIndex = getCurrentVisibleIndex()
     if (visibleIndex === -1) return scrollToTop()
 
-    const targetIndex = visibleIndex + 1
-    if (targetIndex >= userMessages.length) return scrollToTop()
+    const targetIndex = visibleIndex - 1
+    if (targetIndex < 0) return scrollToTop()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
@@ -343,7 +358,7 @@ const NavigationButton = ({ className, ...props }: ComponentPropsWithoutRef<type
 )
 
 const Divider = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['m-0 h-px bg-(--color-border)', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['m-0 h-px bg-border', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default MessageNavigation

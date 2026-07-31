@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +10,12 @@ import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 import { FilePreviewToolbar } from '../FilePreviewToolbar'
 
 const mocks = vi.hoisted(() => ({
+  ipcApiRequest: vi.fn(),
   load: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcApiRequest }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -45,9 +50,29 @@ import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  mocks.ipcApiRequest.mockResolvedValue({
+    kind: 'file',
+    type: 'text',
+    size: 128,
+    createdAt: 1,
+    modifiedAt: 1,
+    mime: 'text/markdown'
+  })
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
-    default: ({ filePath, fileName, refreshKey }: { filePath: FilePath; fileName: string; refreshKey: number }) => (
+    default: ({
+      filePath,
+      fileName,
+      metadata,
+      refreshKey,
+      type
+    }: {
+      filePath: AbsoluteFilePath
+      fileName: string
+      metadata: { size: number }
+      refreshKey: number
+      type?: string
+    }) => (
       <FilePreviewLayout.Frame>
         <FilePreviewToolbar aria-label="Preview tools">
           <button type="button">Zoom in</button>
@@ -57,7 +82,9 @@ beforeEach(() => {
             data-testid="plugin-preview"
             data-file-path={filePath}
             data-file-name={fileName}
+            data-file-size={metadata.size}
             data-refresh-key={refreshKey}
+            data-preview-type={type}
           />
         </FilePreviewLayout.Content>
       </FilePreviewLayout.Frame>
@@ -75,24 +102,28 @@ describe('FilePreview plugin loading', () => {
   it('shows a localized loading state while the plugin is pending', () => {
     mocks.load.mockImplementationOnce(() => new Promise(() => {}))
 
-    render(<FilePreview filePath={'/tmp/README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
 
     expect(screen.getByText('file_preview.loading')).toBeInTheDocument()
   })
 
   it('lazy loads a matching plugin with the canonical file descriptor', async () => {
-    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as FilePath} refreshKey={4} />)
+    render(
+      <FilePreview filePath={'/tmp/workspace/notes/../README.md' as AbsoluteFilePath} refreshKey={4} type="artifact" />
+    )
 
     expect(await screen.findByTestId('plugin-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-name', 'README.md')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-size', '128')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-refresh-key', '4')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-preview-type', 'artifact')
     expect(mocks.load).toHaveBeenCalledTimes(1)
   })
 
   it('places an embedded header on the left and the plugin toolbar on the right of one row', async () => {
     render(
       <FilePreview
-        filePath={'/tmp/README.md' as FilePath}
+        filePath={'/tmp/README.md' as AbsoluteFilePath}
         header={<span data-testid="preview-title">README.md</span>}
       />
     )
@@ -101,7 +132,8 @@ describe('FilePreview plugin loading', () => {
     const header = screen.getByTestId('file-preview-header')
     const toolbarHost = screen.getByTestId('file-preview-toolbar-host')
 
-    expect(header).toHaveClass('h-10')
+    expect(header).toHaveClass('h-11', 'after:left-3', 'after:right-3', 'after:border-border', 'after:border-b')
+    expect(header.nextElementSibling).not.toHaveClass('px-3')
     expect(header.firstElementChild).toContainElement(screen.getByTestId('preview-title'))
     expect(header.lastElementChild).toBe(toolbarHost)
     expect(toolbarHost).toContainElement(toolbar)
@@ -110,7 +142,7 @@ describe('FilePreview plugin loading', () => {
   it('contains plugin loader failures inside the preview surface', async () => {
     mocks.load.mockRejectedValueOnce(new Error('failed to fetch plugin chunk'))
 
-    render(<FilePreview filePath={'/tmp/README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
@@ -123,7 +155,7 @@ describe('FilePreview plugin loading', () => {
       }
     })
 
-    render(<FilePreview filePath={'/tmp/README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()

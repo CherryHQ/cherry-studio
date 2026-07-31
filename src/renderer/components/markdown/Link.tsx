@@ -1,18 +1,19 @@
+import CitationTooltip from '@renderer/components/chat/messages/markdown/CitationTooltip'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { useMarkdownHost } from '@renderer/hooks/useMarkdownHost'
+import type { Citation } from '@renderer/types/message'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
-import { parseJSON } from '@renderer/utils/json'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { cn } from '@renderer/utils/style'
-import { isEmpty, omit } from 'es-toolkit/compat'
+import { omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'
 import type { Node } from 'unist'
 
-import CitationTooltip, { CitationSchema } from './CitationTooltip'
 import Hyperlink from './Hyperlink'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   node?: Omit<Node, 'type'>
+  citationRegistry?: ReadonlyMap<number, Citation>
 }
 
 function getWebHostname(href?: string): string {
@@ -30,12 +31,21 @@ function hasFaviconChild(children: React.ReactNode): boolean {
   return React.Children.toArray(children).some((child) => React.isValidElement(child) && child.type === Favicon)
 }
 
+function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
+  if (!href) return false
+  try {
+    const normalize = (value: string) => new URL(value).href.replace(/%7C/gi, '|')
+    return normalize(href) === normalize(citationUrl)
+  } catch {
+    return false
+  }
+}
+
 const Link: React.FC<LinkProps> = (props) => {
   const citationData = useMemo(() => {
-    const raw = parseJSON(findCitationInChildren(props.children))
-    const parsed = CitationSchema.safeParse(raw)
-    return parsed.success ? parsed.data : null
-  }, [props.children])
+    const number = Number(findCitationInChildren(props.children))
+    return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
+  }, [props.children, props.citationRegistry])
   const hostname = useMemo(() => getWebHostname(props.href), [props.href])
   const containsFaviconChild = useMemo(() => hasFaviconChild(props.children), [props.children])
   const { openFilePath } = useMarkdownHost()
@@ -53,7 +63,7 @@ const Link: React.FC<LinkProps> = (props) => {
   if (fileLinkPath && openFilePath) {
     return (
       <a
-        {...omit(props, ['node'])}
+        {...omit(props, ['node', 'citationRegistry'])}
         href={props.href}
         className={cn('text-primary', !props.className && 'hover:underline', props.className)}
         onClick={(e) => {
@@ -66,15 +76,18 @@ const Link: React.FC<LinkProps> = (props) => {
     )
   }
 
-  // 包含<sup>标签表示是一个引用链接
-  const isCitation = React.Children.toArray(props.children).some((child) => {
-    if (typeof child === 'object' && 'type' in child) {
-      return child.type === 'sup'
-    }
-    return false
-  })
+  // 包含<sup>标签表示是一个引用链接。
+  // Matched on the hast node, not the rendered children: `components.sup` maps the tag to
+  // CitationSup, so the child's `type` is that component rather than the string 'sup', and an
+  // element-type check would read every citation link as an ordinary link — favicon injected
+  // next to the badge, and the hyperlink preview shown instead of the citation card.
+  const isCitation = Boolean(
+    (props.node as { children?: Array<{ tagName?: string }> } | undefined)?.children?.some(
+      (child) => child.tagName === 'sup'
+    )
+  )
   const showFavicon = !!hostname && !isCitation && !containsFaviconChild
-  const linkClassName = cn('text-primary', !props.className && !isCitation && 'hover:underline', props.className)
+  const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
   const linkContent = showFavicon ? (
     <>
       <span
@@ -89,12 +102,12 @@ const Link: React.FC<LinkProps> = (props) => {
   )
 
   // 如果是引用链接并且有引用数据，则使用CitationTooltip
-  if (isCitation && citationData) {
+  if (isCitation && citationData && hasSameUrl(props.href, citationData.url)) {
     return (
       <CitationTooltip citation={citationData}>
         <a
-          {...omit(props, ['node', 'citationData'])}
-          href={isEmpty(props.href) ? undefined : props.href}
+          {...omit(props, ['node', 'citationRegistry'])}
+          href={props.href || undefined}
           target="_blank"
           rel="noreferrer"
           className={linkClassName}
@@ -108,7 +121,7 @@ const Link: React.FC<LinkProps> = (props) => {
   return (
     <Hyperlink href={props.href || ''}>
       <a
-        {...omit(props, ['node', 'citationData'])}
+        {...omit(props, ['node', 'citationRegistry'])}
         target="_blank"
         rel="noreferrer"
         className={linkClassName}

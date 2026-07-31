@@ -1,4 +1,4 @@
-import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -14,9 +14,14 @@ import { defineRoute } from '../define'
  */
 export const systemRequestSchemas = {
   'system.get_device_type': defineRoute({ input: z.void(), output: z.string() }),
+  'system.get_native_theme': defineRoute({
+    input: z.void(),
+    output: z.enum([ThemeMode.light, ThemeMode.dark])
+  }),
   'system.toggle_dev_tools': defineRoute({ input: z.void(), output: z.void() }),
   'system.get_fonts': defineRoute({ input: z.void(), output: z.array(z.string()) }),
   'system.get_ip_country': defineRoute({ input: z.void(), output: z.string() }),
+  'system.ip_country.detect': defineRoute({ input: z.void(), output: z.string().nullable() }),
   'system.mac.is_process_trusted': defineRoute({ input: z.void(), output: z.boolean() }),
   'system.mac.request_process_trust': defineRoute({ input: z.void(), output: z.boolean() }),
   // OS-shell integration — fire-and-forget delegations to Electron's `shell` module.

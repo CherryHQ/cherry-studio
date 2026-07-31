@@ -132,4 +132,38 @@ describe('ChatMarkdown', () => {
 
     expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ remarkPlugins: [remarkHtmlArtifact] }))
   })
+
+  it('keeps raw and fenced HTML source unchanged during Markdown preprocessing', () => {
+    const rawHtml = String.raw`<script>const re = /\(x\)/</script>`
+    const fencedHtml = `\`\`\`html
+${rawHtml}
+\`\`\``
+    const block = {
+      id: 'message-part',
+      content: String.raw`Outside \(y\)
+
+${rawHtml}
+
+${fencedHtml}`,
+      status: 'success' as const
+    }
+
+    render(
+      <ChatMarkdown
+        block={block}
+        inlineHtmlPreviewMode="ready"
+        postProcess={(content) => content.replace('Outside', 'Processed')}
+      />
+    )
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        children: `Processed $y$
+
+${rawHtml}
+
+${fencedHtml}`
+      })
+    )
+  })
 })

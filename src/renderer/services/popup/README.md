@@ -45,7 +45,7 @@ The **render endpoint** lives outside this directory: `<PopupHost/>` (`component
 
 - **single-flight** — a second `show()` while one is in flight returns the first promise; new props are ignored.
 - **no host → resolves `dismissResult`** — never hangs, never rejects; so popups are unusable on a window-startup path (the host only subscribes after its first commit).
-- **two-phase close** — `open:false`, then unmount after the exit animation (`POPUP_EXIT_MS`).
+- **two-phase close** — `open:false`, then unmount after the 200ms `POPUP_EXIT_MS`.
 - **promise-only outcome (prefabs)** — the answer comes solely from the returned `Promise<boolean>` (`if (await popup.confirm(...)) { … }`); there is no `onOk`/`onCancel`. A dialog that must run an action behind an in-dialog spinner, drive a multi-step flow, or return a non-boolean answer is not a prefab — reach for `ConfirmActionPopup` (confirm + fallible action) or `ContentPopup` (show content) above, or `createPopup<P, R>` for anything bespoke.
 - **focus on close (prefabs)** — `popup.confirm`/`error`/`info`/`warning` accept `focusOnClose?: () => void` to place focus once the dialog closes, overriding Radix's default focus-return (Radix otherwise sends focus back to whatever was focused before the dialog opened, which is wrong when the opener has since unmounted). Implemented via `onCloseAutoFocus` + `preventDefault`, so no race and no `requestAnimationFrame`.
 - **lazy popup** — a `React.lazy` component must carry its own `<Suspense>` (store updates are not transitions).

@@ -4,6 +4,7 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
@@ -67,12 +68,12 @@ export interface MessageMenuBarActionContext {
   isTranslating: boolean
   hasTranslationBlocks: boolean
   isUserMessage: boolean
-  isUseful: boolean
+  isSelectedForContext: boolean
   isEditable: boolean
   translateLanguages: TranslateLanguage[]
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
   startEditingMessage?: (messageId: string) => void
-  onUpdateUseful?: (messageId: string) => void
+  onSelectContext?: (messageId: string) => void
   t: TFunction
 }
 
@@ -279,8 +280,8 @@ registerCommand('message.exportSiyuan', async ({ actions, messageForExport }) =>
   await actions.exportToSiyuan?.(messageForExport)
 })
 
-registerCommand('message.useful', ({ message, onUpdateUseful }) => {
-  onUpdateUseful?.(message.id)
+registerCommand('message.useful', ({ message, onSelectContext }) => {
+  onSelectContext?.(message.id)
 })
 
 registerToolbarAction({
@@ -299,7 +300,7 @@ registerToolbarAction({
   id: 'copy',
   commandId: 'message.copy',
   label: ({ t }) => t('common.copy'),
-  icon: ({ copied }) => (copied ? <Check size={15} color="var(--color-primary)" /> : <CopyIcon size={15} />),
+  icon: ({ copied }) => (copied ? <Check size={15} color="var(--primary)" /> : <CopyIcon size={15} />),
   availability: toolbarAvailability('copy', ({ actions }) => !!actions.copyText)
 })
 
@@ -355,8 +356,8 @@ registerToolbarAction({
   id: 'useful',
   commandId: 'message.useful',
   label: ({ t }) => t('chat.message.useful.label'),
-  icon: ({ isUseful }) =>
-    isUseful ? <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
+  icon: ({ isSelectedForContext }) =>
+    isSelectedForContext ? <ThumbsUp size={17.5} fill="var(--primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
   availability: toolbarAvailability('useful', ({ isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped)
 })
 
@@ -385,7 +386,19 @@ registerToolbarAction({
           destructive: true
         }
       : undefined,
-  availability: toolbarAvailability('delete', ({ actions }) => !!actions.deleteMessage)
+  availability: ({ actions, isProcessing, message, t, toolbarButtonIds }) => {
+    const visible = toolbarButtonIds.has('delete') && !!actions.deleteMessage
+    const deleteAvailability = actions.getMessageDeleteAvailability?.(message.id) ?? { enabled: true }
+    const reason = getMessageDeleteUnavailableText(
+      deleteAvailability.enabled ? undefined : deleteAvailability.reason,
+      t
+    )
+    return {
+      visible,
+      enabled: visible && !isProcessing && deleteAvailability.enabled,
+      reason
+    }
+  }
 })
 
 registerToolbarAction({

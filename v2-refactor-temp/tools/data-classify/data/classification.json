@@ -908,10 +908,10 @@
         {
           "originalKey": "userId",
           "type": "string",
-          "defaultValue": "uuid()",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "app.user.id"
+          "defaultValue": "",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "showPrompt",
@@ -1022,7 +1022,7 @@
         {
           "originalKey": "windowStyle",
           "type": "PreferenceTypes.WindowStyle",
-          "defaultValue": "opaque",
+          "defaultValue": "transparent",
           "status": "classified",
           "category": "preferences",
           "targetKey": "ui.window_style"
@@ -1545,7 +1545,8 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "ui.custom_css"
+          "targetKey": null,
+          "note": "Migrated via complex mapping: custom_css_v1_marker"
         },
         {
           "originalKey": "topicNamingPrompt",
@@ -1900,10 +1901,18 @@
         {
           "originalKey": "enableDataCollection",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "app.privacy.data_collection.enabled"
+        },
+        {
+          "originalKey": "privacyPolicyVersion",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.privacy.policy_version"
         },
         {
           "originalKey": "enableSpellCheck",
@@ -2710,7 +2719,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2719,8 +2728,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_new_context",
-              "status": "deleted",
-              "targetKey": null,
+              "status": "classified",
+              "targetKey": "shortcut.chat.context.toggle_new",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -3391,12 +3400,12 @@
       ],
       "ClientId": [
         {
-          "originalKey": "ClientId",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "originalKey": "clientId",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.user.id"
         }
       ],
       "GitBashPath": [

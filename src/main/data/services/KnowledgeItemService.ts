@@ -19,10 +19,9 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, eq, inArray, isNull, ne, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
-import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
@@ -46,6 +45,12 @@ type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
 
 type FailedKnowledgeItemStatusUpdate = {
   error: string
+}
+
+type KnowledgeItemListCursor = {
+  directoryRank: number
+  createdAt: number
+  id: string
 }
 
 type KnowledgeItemsByBaseOptions = {
@@ -78,6 +83,29 @@ function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   })
 }
 
+function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
+}
+
+function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemListCursor | null {
+  if (!raw) return null
+  try {
+    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<KnowledgeItemListCursor>
+    if (
+      (value.directoryRank !== 0 && value.directoryRank !== 1) ||
+      !Number.isFinite(value.createdAt) ||
+      typeof value.id !== 'string' ||
+      value.id.length === 0
+    ) {
+      throw new Error('Invalid knowledge item cursor fields')
+    }
+    return value as KnowledgeItemListCursor
+  } catch {
+    logger.warn('Knowledge item cursor is unparseable; falling back to the first page', { cursor: raw })
+    return null
+  }
+}
+
 export class KnowledgeItemService {
   private get db() {
     const dbService = application.get('DbService')
@@ -99,20 +127,31 @@ export class KnowledgeItemService {
       )
     }
 
-    // Keyset pagination over `(createdAt DESC, id ASC)`. One direction spec drives both the WHERE
-    // predicate and the matching ORDER BY (via the shared util) so the two can't silently drift.
-    const ordering = keysetOrdering(knowledgeItemTable.createdAt, knowledgeItemTable.id, { major: 'desc', tie: 'asc' })
+    // Keep directory rows in one leading band, then preserve the existing newest-first order
+    // within directories and non-directories. The cursor carries all three sort components so
+    // pagination cannot surface a later-page directory after an earlier-page file.
+    const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
     const conditions = [...filterConditions]
-    const cursor = decodeListCursor(query.cursor, asNumericKey, 'knowledge-item')
+    const cursor = decodeKnowledgeItemListCursor(query.cursor)
     if (cursor) {
-      conditions.push(ordering.where(cursor))
+      conditions.push(
+        or(
+          gt(directoryRank, cursor.directoryRank),
+          and(eq(directoryRank, cursor.directoryRank), lt(knowledgeItemTable.createdAt, cursor.createdAt)),
+          and(
+            eq(directoryRank, cursor.directoryRank),
+            eq(knowledgeItemTable.createdAt, cursor.createdAt),
+            gt(knowledgeItemTable.id, cursor.id)
+          )
+        )!
+      )
     }
 
     const rows = this.db
       .select()
       .from(knowledgeItemTable)
       .where(and(...conditions))
-      .orderBy(...ordering.orderBy)
+      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
       .limit(limit + 1)
       .all()
     const [{ count }] = this.db
@@ -128,7 +167,11 @@ export class KnowledgeItemService {
       total: count,
       nextCursor:
         rows.length > limit
-          ? encodeCursor(pageRows[pageRows.length - 1].createdAt, pageRows[pageRows.length - 1].id)
+          ? encodeKnowledgeItemListCursor({
+              directoryRank: pageRows[pageRows.length - 1].type === 'directory' ? 0 : 1,
+              createdAt: pageRows[pageRows.length - 1].createdAt,
+              id: pageRows[pageRows.length - 1].id
+            })
           : undefined
     }
   }

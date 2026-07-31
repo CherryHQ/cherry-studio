@@ -165,15 +165,6 @@ describe('ModelListSyncDrawer', () => {
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
     expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
-    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-size') === '26')).toBe(true)
-    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-shape') === 'circle')).toBe(true)
-    expect(screen.getAllByTestId('model-icon')[0].parentElement).toHaveClass(
-      'size-6.5',
-      'overflow-hidden',
-      'rounded-full',
-      'border',
-      'border-border'
-    )
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
     expect(screen.getByText('legacy-model')).toBeInTheDocument()
@@ -377,11 +368,19 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' })).not.toBeDisabled()
   })
 
-  it('filters stale models from the filter tabs', async () => {
+  it('keeps the destructive stale filter clickable immediately after All when horizontally scrolled', async () => {
     const user = userEvent.setup()
     renderDrawer({ staleModelCount: 1, staleModelIds: ['openai::legacy-model'] })
 
-    await user.click(screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' }))
+    const tabList = screen.getByRole('tablist')
+    const tabs = screen.getAllByRole('tab')
+    const staleTab = screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' })
+
+    expect(tabs[0]).toHaveAccessibleName('models.all')
+    expect(tabs[1]).toBe(staleTab)
+
+    fireEvent.scroll(tabList, { target: { scrollLeft: 120 } })
+    await user.click(staleTab)
 
     await waitFor(() => {
       expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()

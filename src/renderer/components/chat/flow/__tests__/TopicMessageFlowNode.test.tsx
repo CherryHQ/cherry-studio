@@ -145,13 +145,25 @@ describe('TopicMessageFlowNode', () => {
   })
 
   it.each([
-    ['user', 'user-message', 'User preview', 'border-success/35', 'bg-success-bg'],
-    ['assistant', 'assistant-message', 'Assistant preview', 'border-info/35', 'bg-info-bg'],
+    ['user', 'user-message', 'User preview', 'border-success-border', 'bg-success-subtle'],
+    ['assistant', 'assistant-message', 'Assistant preview', 'border-info-border', 'bg-info-subtle'],
     ['system', 'system-message', 'System preview', 'border-border', 'bg-muted/45']
   ] as const)('keeps the %s role background color on canvas nodes', (role, messageId, preview, border, background) => {
     renderNode({ messageId, preview, role })
 
     expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
+  })
+
+  it('renders a clear marker as a neutral non-preview node', async () => {
+    renderNode({ isContextBoundary: true, role: 'user', preview: '' })
+
+    const labels = screen.getAllByText('chat.message.new.context')
+    const node = labels[0].closest('[data-message-id="message-1"]')!
+    expect(node).toHaveClass('border-border', 'bg-muted/45')
+
+    fireEvent.mouseEnter(node)
+    await advancePreviewDelay()
+    expect(mocks.useQuery).not.toHaveBeenCalled()
   })
 
   it('fetches the message preview only after hovering the node for 300ms', async () => {

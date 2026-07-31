@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -11,8 +11,8 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
-import { getBinaryPath } from '@main/utils/binaryResolver'
-import { refreshShellEnv } from '@main/utils/shellEnv'
+import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
   CURRENCY,
@@ -22,6 +22,7 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
+import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
@@ -61,6 +62,9 @@ export interface OpenClawConfig {
   models?: {
     mode?: string
     providers?: Record<string, OpenClawProviderConfig>
+  }
+  update?: {
+    checkOnStart?: boolean
   }
 }
 
@@ -162,14 +166,10 @@ export class OpenClawService extends BaseService {
     await this.stopGateway()
   }
 
-  /**
-   * Find the openclaw executable. Only uses the local binary (~/.cherrystudio/bin/).
-   * Never falls back to PATH to avoid running old npm-installed versions.
-   */
-  private async findOpenClawBinary(): Promise<string | null> {
-    const localPath = await getBinaryPath('openclaw')
-    if (fs.existsSync(localPath)) return localPath
-    return null
+  /** Resolve the same live executable path the management UI reports. */
+  private async findOpenClawBinary(): Promise<Exclude<BinaryAvailability, { source: 'none' }> | null> {
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots(['openclaw'])).openclaw
+    return snapshot.availability.source === 'none' ? null : snapshot.availability
   }
 
   /**
@@ -209,20 +209,23 @@ export class OpenClawService extends BaseService {
       }
     }
 
-    // Refresh shell env first so the gateway process spawns with a fresh env
-    const shellEnv = await refreshShellEnv()
-    const openclawPath = await this.findOpenClawBinary()
-    if (!openclawPath) {
+    // Refresh first so both system discovery and the spawned process see the
+    // current login-shell environment. System tools retain the user's MISE_*;
+    // Cherry-managed shims use Cherry's execution environment.
+    const managedShellEnv = await refreshShellEnv()
+    const openclaw = await this.findOpenClawBinary()
+    if (!openclaw) {
       return {
         success: false,
         message: 'OpenClaw binary not found. Please install OpenClaw first.'
       }
     }
 
+    const shellEnv = openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
     this.gatewayStatus = 'starting'
 
     try {
-      await this.startAndWaitForGateway(openclawPath, shellEnv)
+      await this.startAndWaitForGateway(openclaw.path, shellEnv)
       this.gatewayStatus = 'running'
       logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true }
@@ -248,8 +251,11 @@ export class OpenClawService extends BaseService {
     // On Windows, avoid detached: true as it creates a visible console window.
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
-    const proc = spawn(openclawPath, args, {
-      env: shellEnv,
+    const proc = crossPlatformSpawn(openclawPath, args, {
+      // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
+      // version BinaryManager installed and reports. This is OpenClaw's documented kill
+      // switch, scoped to the gateway process we spawn.
+      env: { ...shellEnv, OPENCLAW_NO_AUTO_UPDATE: '1' },
       detached: !isWin, // Only detach on non-Windows to avoid console flash
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -384,8 +390,7 @@ export class OpenClawService extends BaseService {
    */
   private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
-      const { status } = await this.checkGatewayHealth()
-      const stillRunning = status === 'healthy'
+      const stillRunning = await this.checkPortOpen(this.gatewayPort)
       if (!stillRunning) {
         return false
       }
@@ -797,6 +802,14 @@ export class OpenClawService extends BaseService {
       const token = this.gatewayAuthToken || this.generateAuthToken()
       config.gateway.auth = { token }
       this.gatewayAuthToken = token
+
+      // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
+      // BinaryManager installed and version-tracks; the hint has no env kill switch
+      // (unlike OPENCLAW_NO_AUTO_UPDATE, which only blocks automatic applies).
+      // Only defaulted, never forced: a user who sets checkOnStart themselves keeps it.
+      if (config.update?.checkOnStart === undefined) {
+        config.update = { ...config.update, checkOnStart: false }
+      }
 
       // Update config
       config.models.providers[providerKey] = openclawProvider

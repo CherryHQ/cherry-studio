@@ -1,14 +1,15 @@
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import {
+  deriveModelGroupName,
   isEmbeddingModel,
-  isFreeModel,
-  isFunctionCallingModel,
-  isReasoningModel,
+  isGenerateAudioModel,
+  isGenerateImageModel,
+  isGenerateVideoModel,
+  isNonChatModel,
   isRerankModel,
-  isVisionModel,
-  isWebSearchModel
+  isSpeechToTextModel
 } from '@shared/utils/model'
 import { sortBy, toPairs } from 'es-toolkit/compat'
 
@@ -20,15 +21,18 @@ interface GroupModelsOptions {
   preferModelGroup?: boolean
 }
 
+// The manage/pull drawer filters by model TYPE (primary purpose), not by the
+// overlapping capability flags. Order mirrors the drawer's tab row.
 export const MODEL_LIST_CAPABILITY_FILTERS = [
   'all',
-  'reasoning',
-  'vision',
-  'websearch',
-  'free',
+  'text',
+  'image',
   'embedding',
+  'audio',
+  'video',
   'rerank',
-  'function_calling'
+  'speech',
+  'transcription'
 ] as const
 
 export type ModelListCapabilityFilter = (typeof MODEL_LIST_CAPABILITY_FILTERS)[number]
@@ -56,13 +60,7 @@ type CalculateModelListDerivedStateInput = {
 
 function getModelIdGroupName(model: Model): string | undefined {
   const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-  const pathParts = modelId.split('/')
-  if (pathParts.length > 1) {
-    return pathParts[0]
-  }
-
-  const familyName = modelId.split('-')[0]?.trim()
-  return familyName !== modelId ? familyName : undefined
+  return deriveModelGroupName(modelId)
 }
 
 export const groupModels = (
@@ -71,8 +69,11 @@ export const groupModels = (
   options: GroupModelsOptions = {}
 ): ModelGroups => {
   const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const preferredGroup = options.preferModelGroup ? model.group : getModelIdGroupName(model)
-    const fallbackGroup = options.preferModelGroup ? getModelIdGroupName(model) : model.group
+    const inferredGroup = getModelIdGroupName(model)
+    const hasLegacyProviderGroup = inferredGroup !== undefined && model.group?.trim() === model.providerId
+    const shouldPreferStoredGroup = options.preferModelGroup && !hasLegacyProviderGroup
+    const preferredGroup = shouldPreferStoredGroup ? model.group : inferredGroup
+    const fallbackGroup = shouldPreferStoredGroup ? inferredGroup : model.group
     const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
     if (!acc[groupName]) {
       acc[groupName] = []
@@ -91,22 +92,31 @@ export const groupModels = (
   }, {} as ModelGroups)
 }
 
+// Text-to-speech is the only audio-output sub-kind we can single out from
+// generic audio generation today (the `AUDIO_GENERATION` capability backs
+// both); the dedicated endpoint is the distinguishing signal.
+const isTextToSpeechModel = (model: Model): boolean =>
+  model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH) ?? false
+
 export const matchesCapabilityFilter = (model: Model, selectedCapabilityFilter: ModelListCapabilityFilter): boolean => {
   switch (selectedCapabilityFilter) {
-    case 'reasoning':
-      return isReasoningModel(model)
-    case 'vision':
-      return isVisionModel(model)
-    case 'websearch':
-      return isWebSearchModel(model)
-    case 'free':
-      return isFreeModel(model)
+    case 'text':
+      return !isNonChatModel(model)
+    case 'image':
+      return isGenerateImageModel(model)
     case 'embedding':
       return isEmbeddingModel(model)
+    case 'audio':
+      // "Generate audio", excluding text-to-speech (which has its own tab).
+      return isGenerateAudioModel(model) && !isTextToSpeechModel(model)
+    case 'video':
+      return isGenerateVideoModel(model)
     case 'rerank':
       return isRerankModel(model)
-    case 'function_calling':
-      return isFunctionCallingModel(model)
+    case 'speech':
+      return isTextToSpeechModel(model)
+    case 'transcription':
+      return isSpeechToTextModel(model)
     default:
       return true
   }
@@ -136,26 +146,10 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
   counts.all = models.length
 
   for (const model of models) {
-    if (isReasoningModel(model)) {
-      counts.reasoning += 1
-    }
-    if (isVisionModel(model)) {
-      counts.vision += 1
-    }
-    if (isWebSearchModel(model)) {
-      counts.websearch += 1
-    }
-    if (isFreeModel(model)) {
-      counts.free += 1
-    }
-    if (isEmbeddingModel(model)) {
-      counts.embedding += 1
-    }
-    if (isRerankModel(model)) {
-      counts.rerank += 1
-    }
-    if (isFunctionCallingModel(model)) {
-      counts.function_calling += 1
+    for (const filter of MODEL_LIST_CAPABILITY_FILTERS) {
+      if (filter !== 'all' && matchesCapabilityFilter(model, filter)) {
+        counts[filter] += 1
+      }
     }
   }
 
@@ -173,7 +167,7 @@ export const calculateModelListDerivedState = ({
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: getCapabilityModelCounts(models),
+    capabilityModelCounts: getCapabilityModelCounts(applyModelFilters(models, searchText, 'all')),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,

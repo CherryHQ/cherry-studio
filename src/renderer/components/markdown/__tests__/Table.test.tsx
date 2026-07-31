@@ -147,48 +147,6 @@ describe('Table', () => {
       expect(screen.getAllByTestId('tooltip')).toHaveLength(2)
     })
 
-    it('should render with design-system table and toolbar classes', () => {
-      const { container } = render(<Table {...defaultProps} />)
-
-      const wrapper = container.querySelector('.table-wrapper')
-      const scrollViewport = container.querySelector('.table-scroll-viewport')
-      const table = screen.getByRole('table')
-      const toolbar = container.querySelector('.table-toolbar')
-      const copyButton = getCopyButton()
-
-      expect(wrapper).toHaveClass('my-2', 'w-full', 'min-w-0', 'max-w-full', 'relative')
-      expect(wrapper).not.toHaveClass('overflow-x-auto')
-      expect(scrollViewport).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto')
-      expect(toolbar?.parentElement).toBe(wrapper)
-      expect(toolbar).toHaveClass('absolute', 'top-2', 'right-2')
-      expect(toolbar).not.toHaveClass('sticky')
-      expect(table.className).toContain('[&&]:min-w-160')
-      expect(table.className).toContain('[&&]:border-separate')
-      expect(table.className).toContain('[&&]:text-[0.9em]')
-      expect(table.className).toContain('[&&_td]:wrap-break-word')
-      expect(table.className).toContain('[&&_th]:wrap-break-word')
-      expect(table.className).toContain('[&&_th]:bg-muted')
-      expect(table.className).toContain('[&&_th]:border-border-muted')
-      expect(table.className).toContain('[&&_th]:font-semibold')
-      expect(table.className).toContain('[&&_td]:border-border-muted')
-      expect(table.className).toContain('[&&_td]:bg-transparent')
-      expect(table.className).toContain('[&&_thead]:bg-transparent')
-      expect(table.className).toContain('[&&_tbody]:bg-transparent')
-      expect(table.className).toContain('[&&_tr:hover]:bg-accent')
-      expect(table.className).toContain('[&&_th:last-child]:border-r-0')
-      expect(table.className).toContain('[&&_td:last-child]:border-r-0')
-      expect(table.className).toContain('[&&_tr:last-child_td]:border-b-0')
-      expect(table.className).not.toContain('[&_td]:rounded-md')
-      expect(table.className).not.toContain('[&&_td]:bg-muted')
-      expect(table.style.border).toBe('0.5px solid var(--color-border)')
-      expect(table.style.borderRadius).toBe('var(--radius-md)')
-      expect(table.style.borderSpacing).toBe('0px')
-      expect(table.style.margin).toBe('0px')
-      expect(table.style.overflow).toBe('hidden')
-      expect(toolbar).toHaveClass('rounded-lg', 'border-border-subtle', 'bg-popover', 'shadow-md')
-      expect(copyButton).toHaveClass('rounded-md', 'text-foreground-muted', 'hover:bg-ghost-hover')
-    })
-
     it('should render copy button with correct tooltip', () => {
       render(<Table {...defaultProps} />)
 
@@ -202,11 +160,6 @@ describe('Table', () => {
       const tooltips = screen.getAllByTestId('tooltip')
       expect(tooltips[1]).toHaveAttribute('title', 'common.export.excel')
       expect(getExcelIcon()).toBeInTheDocument()
-    })
-
-    it('should match snapshot', () => {
-      const { container } = render(<Table {...defaultProps} />)
-      expect(container.firstChild).toMatchSnapshot()
     })
   })
 

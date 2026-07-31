@@ -16,7 +16,6 @@ export enum IpcChannel {
   Application_PreventQuit = 'application:prevent-quit',
   Application_AllowQuit = 'application:allow-quit',
   Application_Relaunch = 'application:relaunch',
-  App_ResetData = 'app:reset-data',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
@@ -69,13 +68,9 @@ export enum IpcChannel {
   File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
   File_SaveImage = 'file:saveImage',
-  File_SavePastedImage = 'file:savePastedImage',
   File_BinaryImage = 'file:binaryImage',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
-  File_IsTextFile = 'file:isTextFile',
-  File_IsDirectory = 'file:isDirectory',
-  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_ListDirectoryEntries = 'file:listDirectoryEntries',
   File_CheckFileName = 'file:checkFileName',
@@ -141,9 +136,8 @@ export enum IpcChannel {
 
   // Data: API Channels
   DataApi_Request = 'data-api:request',
-  DataApi_Subscribe = 'data-api:subscribe',
-  DataApi_Unsubscribe = 'data-api:unsubscribe',
-  DataApi_Stream = 'data-api:stream',
+  // Single fixed channel for DataApi data change notifications (main → all windows).
+  DataApi_DataChanged = 'data-api:data-changed',
 
   // IpcApi: RPC-over-IPC command channel (renderer→main request, main→renderer event)
   IpcApi_Request = 'ipc-api:request',

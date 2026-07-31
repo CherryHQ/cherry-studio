@@ -306,7 +306,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         className="h-8 w-60 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
       />
       <span
-        className="min-w-11 text-center text-foreground-secondary text-sm tabular-nums"
+        className="min-w-11 text-center text-muted-foreground text-sm tabular-nums"
         title={noResultTitle}
         role="status"
         aria-live="polite"
@@ -321,7 +321,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToPrevious}
         disabled={disableNavigation}
         aria-label={t('common.previous_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <ChevronUp size={16} />
       </Button>
       <Button
@@ -331,7 +331,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToNext}
         disabled={disableNavigation}
         aria-label={t('common.next_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <ChevronDown size={16} />
       </Button>
       <div className="h-4 w-px bg-border" />
@@ -341,7 +341,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         size="icon-sm"
         onClick={closeSearch}
         aria-label={t('common.close')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <X size={16} />
       </Button>
     </div>

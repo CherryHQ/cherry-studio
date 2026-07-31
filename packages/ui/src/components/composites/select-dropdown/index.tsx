@@ -190,7 +190,7 @@ export function SelectDropdown<T extends { id: string }>({
           type="button"
           className={cn(
             'flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm transition-colors hover:bg-muted/30',
-            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-muted',
+            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-subtle',
             triggerClassName
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -210,7 +210,7 @@ export function SelectDropdown<T extends { id: string }>({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-md border border-border-muted bg-popover p-1 shadow-lg">
+        className="w-(--radix-popover-trigger-width) rounded-md border border-border-subtle bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
           <div className="px-2.5 py-3 text-muted-foreground/45 text-sm">{emptyText}</div>
         ) : virtualize ? (

@@ -1,25 +1,32 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { FileQuestion, FileWarning, FileX2, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useMemo } from 'react'
+import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
-import type { FilePreviewPlugin } from './types'
+import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
+import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewType } from './types'
 
 const logger = loggerService.withContext('FilePreview')
+const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
 
-type FilePreviewStateKind = 'invalid_path' | 'load_error' | 'unsupported'
+type FilePreviewStateKind = 'directory' | 'invalid_path' | 'load_error' | 'unavailable' | 'unsupported'
 
 const FILE_PREVIEW_STATE_KEYS = {
+  directory: {
+    description: 'file_preview.directory.description',
+    title: 'file_preview.directory.title'
+  },
   invalid_path: {
     description: 'file_preview.invalid_path.description',
     title: 'file_preview.invalid_path.title'
@@ -27,6 +34,10 @@ const FILE_PREVIEW_STATE_KEYS = {
   load_error: {
     description: 'file_preview.load_error.description',
     title: 'file_preview.load_error.title'
+  },
+  unavailable: {
+    description: 'file_preview.unavailable.description',
+    title: 'file_preview.unavailable.title'
   },
   unsupported: {
     description: 'file_preview.unsupported.description',
@@ -36,12 +47,19 @@ const FILE_PREVIEW_STATE_KEYS = {
 
 interface FilePreviewStateProps {
   kind: FilePreviewStateKind
-  filePath?: FilePath
+  filePath?: AbsoluteFilePath
 }
 
 function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
   const { t } = useTranslation()
-  const Icon = kind === 'unsupported' ? FileQuestion : kind === 'invalid_path' ? FileX2 : FileWarning
+  const Icon =
+    kind === 'unsupported'
+      ? FileQuestion
+      : kind === 'directory'
+        ? FolderOpen
+        : kind === 'invalid_path'
+          ? FileX2
+          : FileWarning
   const keys = FILE_PREVIEW_STATE_KEYS[kind]
   // Only the "unsupported" state can fall back to an external open: the path is
   // already validated (unlike invalid_path) and points at a real file we simply
@@ -89,9 +107,11 @@ function PluginErrorFallback() {
 
 interface FilePreviewPluginRendererProps {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
+  metadata: FilePreviewFileMetadata
   plugin: FilePreviewPlugin
   refreshKey: number
+  type: FilePreviewType
 }
 
 interface FilePreviewShellProps {
@@ -107,17 +127,24 @@ function FilePreviewShell({ children, header }: FilePreviewShellProps) {
       <FilePreviewLayout.Frame>
         <div
           data-testid="file-preview-header"
-          className="flex h-10 min-h-10 shrink-0 items-center border-border-muted border-b px-3">
+          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
           <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
           <FilePreviewToolbarPortalHost />
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden px-3">{children}</div>
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </FilePreviewLayout.Frame>
     </FilePreviewToolbarPortalProvider>
   )
 }
 
-function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: FilePreviewPluginRendererProps) {
+function FilePreviewPluginRenderer({
+  fileName,
+  filePath,
+  metadata,
+  plugin,
+  refreshKey,
+  type
+}: FilePreviewPluginRendererProps) {
   const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
 
   return (
@@ -126,19 +153,43 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: F
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview filePath={filePath} fileName={fileName} refreshKey={refreshKey} />
+        <PluginPreview
+          filePath={filePath}
+          fileName={fileName}
+          metadata={metadata}
+          refreshKey={refreshKey}
+          type={type}
+        />
       </Suspense>
     </ErrorBoundary>
   )
 }
 
 export interface FilePreviewProps {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
+  type?: FilePreviewType
 }
 
-export function FilePreview({ filePath, header, refreshKey = 0 }: FilePreviewProps) {
+interface NormalizedFilePreviewTarget {
+  fileName: string
+  filePath: AbsoluteFilePath
+}
+
+type FilePreviewResolution =
+  | { requestKey: string; status: 'directory' }
+  | { requestKey: string; status: 'loading' }
+  | { requestKey: string; status: 'unavailable' }
+  | {
+      file: NormalizedFilePreviewTarget
+      metadata: FilePreviewFileMetadata
+      plugin: FilePreviewPlugin | null
+      requestKey: string
+      status: 'ready'
+    }
+
+export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -147,18 +198,74 @@ export function FilePreview({ filePath, header, refreshKey = 0 }: FilePreviewPro
       return null
     }
   }, [filePath])
+  const requestKey = file ? `${file.filePath}\0${refreshKey}` : ''
+  const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
+
+  useEffect(() => {
+    if (!file) return
+
+    let cancelled = false
+    setResolution({ requestKey, status: 'loading' })
+
+    void (async () => {
+      try {
+        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        if (cancelled) return
+
+        if (!metadata) {
+          setResolution({ requestKey, status: 'unavailable' })
+          return
+        }
+
+        if (metadata.kind === 'directory') {
+          setResolution({ requestKey, status: 'directory' })
+          return
+        }
+
+        let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
+          const isText = metadata.type === 'text'
+
+          if (!plugin && isText) {
+            plugin = textFilePreviewPlugin
+          } else if (plugin && !isText) {
+            plugin = null
+          }
+        }
+
+        setResolution({ file, metadata, plugin, requestKey, status: 'ready' })
+      } catch {
+        if (!cancelled) setResolution({ requestKey, status: 'unavailable' })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [file, requestKey])
 
   let preview: ReactNode
 
   if (!file) {
     preview = <FilePreviewState kind="invalid_path" />
-  } else {
-    const extensionPlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
-    preview = extensionPlugin ? (
-      <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} refreshKey={refreshKey} />
-    ) : (
-      <FilePreviewState kind="unsupported" filePath={file.filePath} />
+  } else if (resolution.requestKey !== requestKey || resolution.status === 'loading') {
+    preview = <FilePreviewLoading />
+  } else if (resolution.status === 'directory') {
+    preview = <FilePreviewState kind="directory" />
+  } else if (resolution.status === 'unavailable') {
+    preview = <FilePreviewState kind="unavailable" />
+  } else if (resolution.plugin) {
+    preview = (
+      <FilePreviewPluginRenderer
+        {...resolution.file}
+        metadata={resolution.metadata}
+        plugin={resolution.plugin}
+        refreshKey={refreshKey}
+        type={type}
+      />
     )
+  } else {
+    preview = <FilePreviewState kind="unsupported" filePath={resolution.file.filePath} />
   }
 
   return <FilePreviewShell header={header}>{preview}</FilePreviewShell>

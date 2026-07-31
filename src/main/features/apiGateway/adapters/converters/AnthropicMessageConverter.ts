@@ -13,6 +13,7 @@ import type {
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
@@ -280,8 +281,19 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * Extract provider-specific options from Anthropic params
    * Maps thinking configuration to provider-specific parameters
    */
-  extractProviderOptions(provider: Provider, params: MessageCreateParams): ProviderOptions | undefined {
-    return mapAnthropicThinkingToProviderOptions(provider, params.thinking)
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: MessageCreateParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined {
+    return mapAnthropicThinkingToProviderOptions(
+      provider,
+      model,
+      params.thinking,
+      params.output_config?.effort,
+      maxOutputTokens
+    )
   }
 }
 
