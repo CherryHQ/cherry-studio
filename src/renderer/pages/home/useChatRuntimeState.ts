@@ -59,6 +59,8 @@ interface UseChatRuntimeStateParams {
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+  /** Returns the greeting currently visible on an empty conversation, if any. */
+  getGreetingContext?: () => string | undefined
 }
 
 function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
@@ -107,7 +109,8 @@ export function useChatRuntimeState({
   rootId,
   messagesCacheMutate,
   assistant,
-  onBranchLiveStateChange
+  onBranchLiveStateChange,
+  getGreetingContext
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -309,6 +312,7 @@ export function useChatRuntimeState({
       }
     },
     buildStreamRequest: ({ text, options }, conversation) => {
+      const greetingContext = !isHistoryLoading && messages.length === 0 ? getGreetingContext?.() : undefined
       const requestOptions = {
         topicId: conversation.topicId,
         mentionedModelIds: options?.mentionedModels,
@@ -326,7 +330,8 @@ export function useChatRuntimeState({
             ...requestOptions,
             trigger: 'submit-message',
             parentAnchorId: conversation.parentAnchorId ?? undefined,
-            userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }]
+            userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
+            ...(greetingContext ? { greetingContext } : {})
           }
     },
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])

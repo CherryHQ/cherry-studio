@@ -32,6 +32,9 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const [contextualGreetingsEnabled, setContextualGreetingsEnabled] = usePreference(
+    'feature.conversation_greeting.enabled'
+  )
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
@@ -307,6 +310,22 @@ const BasicDataSettings: React.FC = () => {
             checked={enableDataCollection}
             onCheckedChange={(v) => {
               void setEnableDataCollection(v)
+            }}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle>{t('settings.privacy.contextual_greetings.title')}</SettingRowTitle>
+            <SettingHelpText className="mt-1 max-w-2xl leading-relaxed">
+              {t('settings.privacy.contextual_greetings.description')}
+            </SettingHelpText>
+          </div>
+          <Switch
+            aria-label={t('settings.privacy.contextual_greetings.title')}
+            checked={contextualGreetingsEnabled}
+            onCheckedChange={(value) => {
+              void setContextualGreetingsEnabled(value)
             }}
           />
         </SettingRow>
