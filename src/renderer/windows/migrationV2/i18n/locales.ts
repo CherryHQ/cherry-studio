@@ -132,7 +132,20 @@ export const zhCN = {
       migrated_miniapps: '已迁移 {{processed}}/{{total}} 个小程序',
       migrated_translate_languages: '已迁移 {{processed}}/{{total}} 种翻译语言',
       migrated_translate_history: '已迁移 {{processed}}/{{total}} 条翻译记录',
-      prepared_chats: '已准备 {{processed}}/{{total}} 个对话'
+      prepared_chats: '已准备 {{processed}}/{{total}} 个对话',
+      agents_claude_config: '正在迁移 Agent 配置…',
+      agents_claude_config_scanning_start: '正在统计 Agent 配置文件…',
+      agents_claude_config_scanning: '正在扫描 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+      agents_claude_config_copying: '正在迁移 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+      agents_claude_config_verifying:
+        '正在验证 Agent 配置：{{processed}}/{{total}} 个文件，{{byteCount}}/{{byteTotal}}',
+      agents_messages: '正在准备 Agent 消息 {{processed}}/{{total}}…',
+      agents_database: '正在导入 Agent 数据库记录…',
+      agents_id_mapping: '正在更新 Agent 和会话标识…',
+      agents_identity: '正在迁移 Agent 身份文件 {{processed}}/{{total}}…',
+      agents_workspaces: '正在迁移 Agent 工作区 {{processed}}/{{total}}…',
+      agents_claude_cache: '正在迁移 Agent 会话缓存 {{processed}}/{{total}}…',
+      agents_validation: '正在验证 Agent 迁移数据…'
     },
     completed: {
       title: '欢迎来到 Cherry Studio V2',
@@ -307,7 +320,22 @@ export const enUS = {
       migrated_miniapps: 'Migrated {{processed}}/{{total}} mini apps',
       migrated_translate_languages: 'Migrated {{processed}}/{{total}} translate languages',
       migrated_translate_history: 'Migrated {{processed}}/{{total}} translate history records',
-      prepared_chats: 'Prepared {{processed}}/{{total}} conversations'
+      prepared_chats: 'Prepared {{processed}}/{{total}} conversations',
+      agents_claude_config: 'Migrating Agent configuration…',
+      agents_claude_config_scanning_start: 'Counting Agent configuration files…',
+      agents_claude_config_scanning:
+        'Scanning Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+      agents_claude_config_copying:
+        'Migrating Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+      agents_claude_config_verifying:
+        'Verifying Agent configuration: {{processed}}/{{total}} files, {{byteCount}}/{{byteTotal}}',
+      agents_messages: 'Preparing Agent messages {{processed}}/{{total}}…',
+      agents_database: 'Importing Agent database records…',
+      agents_id_mapping: 'Updating Agent and Session identifiers…',
+      agents_identity: 'Migrating Agent identity files {{processed}}/{{total}}…',
+      agents_workspaces: 'Migrating Agent workspaces {{processed}}/{{total}}…',
+      agents_claude_cache: 'Migrating Agent session cache {{processed}}/{{total}}…',
+      agents_validation: 'Validating migrated Agent data…'
     },
     completed: {
       title: 'Welcome to Cherry Studio V2',

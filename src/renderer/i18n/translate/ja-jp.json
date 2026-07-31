@@ -139,11 +139,16 @@
         "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
         "disconnected": "切断されました",
         "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+        "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
         "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
         "qrTitle": "WeChat QRコードログイン",
         "title": "WeChat",
         "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
@@ -320,16 +325,25 @@
         "more": "+{{count}} 件",
         "no_artifacts": "宣言された成果物なし",
         "no_subagents": "サブエージェントなし",
-        "subagents": "サブエージェント"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "サブエージェント",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "活動",
         "agent": "エージェント",
         "context": "コンテキスト",
         "no_tasks": "アクティブなタスクはありません",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "選択されたツール",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} 完了",
         "tasks": "タスク",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "アクティブ",
         "tools_done": "完了",
         "tools_failed": "失敗",
@@ -614,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
-            "title": "ファイル編集を自動承認"
+            "description": "ファイルを自由に編集します。コマンドの実行前に確認します。",
+            "title": "編集を自動承認"
+          },
+          "auto": {
+            "description": "通常の確認なしで実行します。安全チェックが危険な操作をブロックします。",
+            "title": "自動で承認"
           },
           "bypassPermissions": {
-            "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
-            "title": "権限チェックをバイパス",
+            "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
+            "title": "フルアクセス",
             "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "confirmChange": {
@@ -627,14 +645,14 @@
             "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "description": "通常の権限チェックが適用されます。",
-            "title": "デフォルト（続行する前に確認）"
+            "description": "ファイルの編集やコマンドの実行前に確認します。",
+            "title": "実行前に確認"
           },
           "helper": "エージェントがツール使用の承認を処理する方法を指定",
           "placeholder": "権限モードを選択",
           "plan": {
-            "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
-            "title": "計画モード（近日公開）"
+            "description": "ファイルを編集せずに計画します。読み取り専用または検査済みのコマンドのみ実行されます。",
+            "title": "計画のみ"
           },
           "title": "権限モード"
         },
@@ -3449,6 +3467,7 @@
         "json_invalid": "無効なJSON形式",
         "max_tokens": "最大トークン",
         "max_tool_calls": "最大ツール呼び出し",
+        "max_tool_calls_default": "デフォルト（{{count}} ラウンド）",
         "mcp_mode": "MCPモード",
         "model": "デフォルトモデル",
         "model_clear": "クリア",
@@ -3464,8 +3483,7 @@
         "tags": "タグ",
         "temperature": "温度",
         "title": "基本設定",
-        "top_p": "Top-P",
-        "unlimited": "無制限"
+        "top_p": "Top-P"
       },
       "breadcrumb": "図書館",
       "dialogs": {
@@ -3839,6 +3857,7 @@
     },
     "citation": "{{count}}個の引用内容",
     "citations": "引用内容",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "コピーしました！",
     "copy": {
       "failed": "コピーに失敗しました",
@@ -4120,6 +4139,7 @@
         "write": "保存",
         "writing": "保存"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
@@ -4151,6 +4171,7 @@
         "tool": "ツール",
         "webFetch": "ウェブフェッチ",
         "webSearch": "ウェブ検索",
+        "workflow": "[to be translated]:Workflow",
         "write": "書く"
       },
       "noData": "このツールに利用可能なデータはありません",
@@ -4208,6 +4229,15 @@
         "plan_other": "{{count}}件のプラン",
         "result_one": "{{count}}件の結果",
         "result_other": "{{count}}件の結果"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
