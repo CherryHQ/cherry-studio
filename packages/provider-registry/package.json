@@ -9,7 +9,7 @@
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "build": "tsdown",
-    "dev": "tsc -w",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/provider-registry/tsconfig.json",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -64,7 +64,7 @@
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",
     "tsdown": "^0.16.6",
-    "typescript": "^5.9.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^4.0.13",
     "zod": "^4.1.12"
   },

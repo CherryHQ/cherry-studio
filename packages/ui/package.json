@@ -8,13 +8,13 @@
   "react-native": "dist/index.js",
   "scripts": {
     "build": "pnpm theme:build && tsdown && mkdir -p dist/styles && cp -R src/styles/. dist/styles/",
-    "dev": "tsc -w",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/ui/tsconfig.json",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "theme:check": "tsx scripts/check-theme-contract.ts",
     "lint": "eslint src --ext .ts,.tsx --fix",
-    "type:check": "tsc --noEmit -p tsconfig.json --composite false",
+    "type:check": "pnpm --workspace-root exec tsc --noEmit -p packages/ui/tsconfig.json --composite false",
     "theme:build": "tsx scripts/build-theme-css.ts",
     "storybook": "storybook dev -p 6006",
     "build:storybook": "storybook build",
@@ -126,7 +126,7 @@
     "ts-morph": "^27.0.2",
     "tsdown": "^0.15.5",
     "tsx": "^4.20.6",
-    "typescript": "^5.6.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^3.2.7"
   },
   "sideEffects": [

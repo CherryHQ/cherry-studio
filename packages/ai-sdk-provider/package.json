@@ -21,7 +21,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsdown",
-    "dev": "tsc -w",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/ai-sdk-provider/tsconfig.json",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "tsdown": "^0.20.3",
-    "typescript": "^5.8.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^3.2.7"
   },
   "sideEffects": false,
