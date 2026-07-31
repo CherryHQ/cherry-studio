@@ -60,7 +60,7 @@ import type {
   RestoreStatus
 } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
-import { app, Notification } from 'electron'
+import { app, dialog, Notification } from 'electron'
 
 import { admitArchive } from './admitArchive'
 import { contributorManager } from './contributors/ContributorManager'
@@ -671,10 +671,58 @@ export class BackupService extends BaseService {
         try {
           application.relaunch()
         } catch (relaunchErr) {
-          logger.error('post-seal fallback app relaunch failed', relaunchErr as Error)
+          // Both relaunch paths failed: the process is stranded (windows destroyed,
+          // writers held, staged journal blocking further restores). Escape via a
+          // native error dialog + bounded watchdog → forceExit, so the user is never
+          // left with no main window and no way forward except killing the process.
+          // Hold/journal/staging are deliberately untouched — forceExit drops process
+          // state and the staged journal is retried by the next preboot gate.
+          this.handlePostSealRelaunchFailure(relaunchErr)
         }
       }
     })
+  }
+
+  /**
+   * Escape hatch when both the staged relaunch and the plain app relaunch fail at
+   * post-seal. Shows a native error dialog (best-effort) and force-exits via a
+   * bounded watchdog, so the process can never hang with no UI and held writers.
+   * Does not release holds or clear the journal/staging — forceExit drops process
+   * state and the staged journal is retried by the next preboot gate.
+   */
+  private handlePostSealRelaunchFailure(error: unknown): void {
+    // Worst-case wait before force-exiting when the native dialog cannot complete
+    // (e.g. the OS blocks it). Not unref'd so the timer keeps the event loop alive.
+    const POST_SEAL_RELAUNCH_WATCHDOG_MS = 15_000
+    let finished = false
+
+    const escape = (reason: string): void => {
+      if (finished) return
+      finished = true
+      logger.error(`post-seal relaunch escape: ${reason}`, error as Error)
+      application.forceExit(1)
+    }
+
+    // forceExit terminates the process on any escape path, so the watchdog needs no
+    // explicit clear — a late fire is a no-op via the finished flag.
+    setTimeout(() => escape('watchdog timeout'), POST_SEAL_RELAUNCH_WATCHDOG_MS)
+
+    // showMessageBox (not Sync) — Sync would block the event loop and prevent the
+    // watchdog from ever firing. Fire-and-exit on user acknowledge.
+    void dialog
+      .showMessageBox({
+        type: 'error',
+        title: t('backup.restore.notification.relaunch_failed_title'),
+        message: t('backup.restore.notification.relaunch_failed'),
+        detail: t('backup.restore.notification.manual_restart'),
+        buttons: [t('backup.restore.notification.exit')],
+        defaultId: 0
+      })
+      .then(() => escape('user acknowledged native dialog'))
+      .catch((dialogErr: unknown) => {
+        logger.error('post-seal relaunch failure dialog failed', dialogErr as Error)
+        escape('native dialog failure')
+      })
   }
 
   /** Best-effort live disclosure; the renderer can recover it from the journal. */

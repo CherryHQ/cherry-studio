@@ -52,8 +52,11 @@
     "restore": {
       "notification": {
         "completed": "恢复完成，应用即将重启。",
+        "exit": "退出",
         "manual_restart": "恢复完成，请手动重启 Cherry Studio。",
         "merge": "正在恢复备份：合并数据…",
+        "relaunch_failed": "恢复已就绪，但 Cherry Studio 无法自动重启。",
+        "relaunch_failed_title": "恢复重启失败",
         "seal": "正在恢复备份：封存数据…",
         "snapshot": "正在恢复备份：创建快照…",
         "title": "Cherry Studio"

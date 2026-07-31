@@ -52,8 +52,11 @@
     "restore": {
       "notification": {
         "completed": "Restore complete — the app will restart momentarily.",
+        "exit": "Exit",
         "manual_restart": "Restore complete — please restart Cherry Studio manually.",
         "merge": "Restoring backup: merging data…",
+        "relaunch_failed": "The restore is ready, but Cherry Studio could not restart automatically.",
+        "relaunch_failed_title": "Restore restart failed",
         "seal": "Restoring backup: sealing data…",
         "snapshot": "Restoring backup: creating a snapshot…",
         "title": "Cherry Studio"

@@ -20,7 +20,9 @@ const {
   windowManagerAcquireHold,
   notificationShow,
   notificationClose,
-  notificationSupported
+  notificationSupported,
+  forceExitMock,
+  dialogShowMessageBoxMock
 } = vi.hoisted(() => ({
   importBackup: vi.fn(),
   admitArchiveMock: vi.fn(),
@@ -47,7 +49,11 @@ const {
   // without waiting for OS delivery.
   notificationShow: vi.fn(),
   notificationClose: vi.fn(),
-  notificationSupported: vi.fn(() => true)
+  notificationSupported: vi.fn(() => true),
+  forceExitMock: vi.fn(),
+  // #10: native dialog shown when both relaunch paths fail at post-seal. Default
+  // resolves (user acknowledges Exit); per-test overrides exercise reject/pending.
+  dialogShowMessageBoxMock: vi.fn(() => Promise.resolve({ response: 0 }))
 }))
 
 vi.mock('../ImportOrchestrator', () => ({
@@ -97,6 +103,7 @@ vi.mock('@application', async () => {
     return innerGet(name)
   })
   ;(mocked.application as unknown as { relaunch: typeof relaunchMock }).relaunch = relaunchMock
+  ;(mocked.application as unknown as { forceExit: typeof forceExitMock }).forceExit = forceExitMock
   return mocked
 })
 
@@ -113,7 +120,8 @@ vi.mock('electron', async () => {
   return {
     ...actual,
     app: { getLocale: () => 'en-US' },
-    Notification: NotificationMock
+    Notification: NotificationMock,
+    dialog: { showMessageBox: dialogShowMessageBoxMock }
   }
 })
 
@@ -162,6 +170,8 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
     drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
     relaunchMock.mockImplementation(() => {})
+    forceExitMock.mockImplementation(() => {})
+    dialogShowMessageBoxMock.mockResolvedValue({ response: 0 })
     notificationSupported.mockReturnValue(true)
   })
 
@@ -559,6 +569,86 @@ describe('BackupService restore journal lifecycle (A7)', () => {
         await service.startRestore({ archivePath: '/x.cherrybackup' })
         await vi.advanceTimersByTimeAsync(3000)
         expect(relaunchMock).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('escapes via native dialog + forceExit when both relaunch paths fail (#10)', async () => {
+      const service = new BackupService()
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : okJournal('staged')
+      })
+      // Both the staged relaunch and the fallback app.relaunch throw.
+      relaunchMock.mockImplementation(() => {
+        throw new Error('relaunch unavailable')
+      })
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        await vi.advanceTimersByTimeAsync(3000)
+        // Two relaunch attempts, then handlePostSealRelaunchFailure fires.
+        expect(relaunchMock).toHaveBeenCalledTimes(2)
+        expect(dialogShowMessageBoxMock).toHaveBeenCalledTimes(1)
+        // Dialog resolves (user acknowledges) → forceExit(1) exactly once.
+        expect(forceExitMock).toHaveBeenCalledTimes(1)
+        expect(forceExitMock).toHaveBeenCalledWith(1)
+        // The watchdog is cleared once the dialog escapes — no second forceExit.
+        await vi.advanceTimersByTimeAsync(15_000)
+        expect(forceExitMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('force-exits via watchdog when the native dialog never resolves (#10)', async () => {
+      const service = new BackupService()
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : okJournal('staged')
+      })
+      relaunchMock.mockImplementation(() => {
+        throw new Error('relaunch unavailable')
+      })
+      // Dialog pending forever — the watchdog must guarantee exit.
+      dialogShowMessageBoxMock.mockReturnValue(new Promise(() => {}))
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(dialogShowMessageBoxMock).toHaveBeenCalledTimes(1)
+        expect(forceExitMock).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(15_000)
+        expect(forceExitMock).toHaveBeenCalledTimes(1)
+        expect(forceExitMock).toHaveBeenCalledWith(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('force-exits when the native dialog rejects (#10)', async () => {
+      const service = new BackupService()
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : okJournal('staged')
+      })
+      relaunchMock.mockImplementation(() => {
+        throw new Error('relaunch unavailable')
+      })
+      dialogShowMessageBoxMock.mockRejectedValue(new Error('dialog blocked'))
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(forceExitMock).toHaveBeenCalledTimes(1)
+        expect(forceExitMock).toHaveBeenCalledWith(1)
       } finally {
         vi.useRealTimers()
         setBackupInProgress(false)
