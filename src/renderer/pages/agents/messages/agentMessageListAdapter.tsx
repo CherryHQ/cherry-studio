@@ -109,6 +109,7 @@ interface AgentMessageListParams {
   imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
+  messageTail?: MessageListState['messageTail']
 }
 
 const isAbsoluteFilePath = (path: string): boolean => {
@@ -143,7 +144,8 @@ export function useAgentMessageListProviderValue({
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
-  workspacePath
+  workspacePath,
+  messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -365,6 +367,7 @@ export function useAgentMessageListProviderValue({
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
+      messageTail: normalInteractionsEnabled ? messageTail : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -392,6 +395,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,

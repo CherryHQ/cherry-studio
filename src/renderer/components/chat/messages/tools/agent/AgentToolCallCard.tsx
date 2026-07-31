@@ -93,6 +93,7 @@ export function AgentToolCallCard({
   return (
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
+      defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
       isStreaming={isStreaming}
       item={toolContentItem}
       onOpenDetails={openToolFlow}

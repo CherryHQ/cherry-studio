@@ -1,7 +1,8 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
 import type * as UseModelModule from '@renderer/hooks/useModel'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -261,13 +262,16 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockReturnValue({
-    data: AGENTS_RESPONSE,
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    refetch: refetchAgentsMock,
-    mutate: vi.fn()
+  useQueryMock.mockImplementation((path: string) => {
+    const data = path === '/agents/:agentId' ? AGENTS_RESPONSE.items[0] : AGENTS_RESPONSE
+    return {
+      data,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchAgentsMock,
+      mutate: vi.fn()
+    }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
     if (method === 'PATCH' && path.startsWith('/agents/')) {
@@ -312,6 +316,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 function renderSelector(onChange = vi.fn()) {
@@ -503,7 +508,7 @@ describe('AgentSelector', () => {
         skillIds: [],
         configuration: {
           avatar: '🤖',
-          permission_mode: 'bypassPermissions'
+          permission_mode: 'auto'
         }
       })
     )
@@ -553,7 +558,7 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
-  it('keeps the selector closed after editing an agent from a row action', async () => {
+  it('keeps the selector closed and the edit dialog open after auto-saving an agent', async () => {
     renderSelector()
     openPopover()
 
@@ -564,8 +569,8 @@ describe('AgentSelector', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
   })
 
   it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
@@ -582,8 +587,11 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
+    expect(onDialogCloseAutoFocus).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
   it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
@@ -604,8 +612,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
 
   it('does not show the empty state while the agents query is loading', () => {

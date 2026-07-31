@@ -178,10 +178,10 @@ async function readItemDocuments(
 
 type SnapshotCaptureSpec = {
   type: 'url' | 'note'
-  /** Produce the snapshot markdown OUTSIDE the base mutation lock; rejects empty input. */
-  produce: (signal: AbortSignal) => Promise<string>
-  /** Write the produced markdown to a base file under the lock, returning its relativePath. */
-  capture: (markdown: string, reservedPaths: Set<string>) => Promise<string>
+  /** Produce snapshot content OUTSIDE the base mutation lock; rejects empty input. */
+  produce: (signal: AbortSignal) => Promise<{ markdown: string; title?: string }>
+  /** Write the produced snapshot to a base file under the lock, returning its relativePath. */
+  capture: (snapshot: { markdown: string; title?: string }, reservedPaths: Set<string>) => Promise<string>
 }
 
 /**
@@ -198,13 +198,14 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
     return {
       type: 'url',
       produce: async (signal) => {
-        const markdown = await fetchKnowledgeWebPage(url, signal)
-        if (!markdown) {
+        const page = await fetchKnowledgeWebPage(url, signal)
+        if (!page.markdown) {
           throw new Error(`Knowledge URL returned empty markdown: ${url}`)
         }
-        return markdown
+        return page
       },
-      capture: (markdown, reservedPaths) => captureUrlSnapshotFile(baseId, url, markdown, reservedPaths)
+      capture: ({ markdown, title }, reservedPaths) =>
+        captureUrlSnapshotFile(baseId, url, markdown, reservedPaths, title)
     }
   }
 
@@ -221,9 +222,9 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
         if (content.trim() === '') {
           throw new Error(`Knowledge note has empty content: ${source}`)
         }
-        return content
+        return { markdown: content }
       },
-      capture: (markdown, reservedPaths) => captureNoteSnapshotFile(baseId, source, markdown, reservedPaths)
+      capture: ({ markdown }, reservedPaths) => captureNoteSnapshotFile(baseId, source, markdown, reservedPaths)
     }
   }
 
@@ -249,7 +250,7 @@ async function ensureSnapshot(
     return item
   }
 
-  const markdown = await spec.produce(ctx.signal)
+  const snapshot = await spec.produce(ctx.signal)
 
   return await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
     const latest = knowledgeItemService.getById(ctx.input.itemId)
@@ -258,7 +259,7 @@ async function ensureSnapshot(
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
     const reservedPaths = collectKnowledgeReservedRelativePaths(knowledgeItemService.getItemsByBaseId(ctx.input.baseId))
-    const relativePath = await spec.capture(markdown, reservedPaths)
+    const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item
   })

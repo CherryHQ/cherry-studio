@@ -1,8 +1,8 @@
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
@@ -78,6 +78,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.reasoning_content') return 'Reasoning content'
       if (key === 'message.tools.collapse') return '收起'
       if (key === 'chat.input.tools.open_file') return 'Open File'
+      if (key === 'chat.input.tools.open_with') return 'Open with'
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
       return key
     }
@@ -475,6 +476,10 @@ describe('MessagePartsRenderer', () => {
     mockMessageToolsRender.mockClear()
   })
 
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   describe('leaf rendering', () => {
     it('renders paused feedback for an interrupted empty message', () => {
       renderParts([], msg({ status: 'paused' }))
@@ -599,13 +604,9 @@ describe('MessagePartsRenderer', () => {
         { type: 'file', mediaType: 'image/png' }
       ] as unknown as CherryMessagePart[])
 
-      const blocks = screen.getAllByTestId('mock-image-block')
-      expect(blocks).toHaveLength(2)
-      expect(blocks.every((block) => block.getAttribute('data-single') === 'false')).toBe(true)
-      expect(blocks.map((block) => block.getAttribute('data-images'))).toEqual([
-        '["https://img.test/a.png"]',
-        '["https://img.test/b.jpg"]'
-      ])
+      const block = screen.getByTestId('mock-image-block')
+      expect(block).toHaveAttribute('data-single', 'false')
+      expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
     it('hides the duplicate user image when its composer file token is visible', () => {
@@ -969,7 +970,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('child text')).toBeNull()
     })
 
-    it('renders report artifacts after the final message content and not as an inline tool', () => {
+    it('renders report artifacts after the final message content and not as an inline tool', async () => {
       const openArtifactFile = vi.fn()
       const openPath = vi.fn()
       const { container } = renderParts(
@@ -1000,8 +1001,95 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
-      fireEvent.click(screen.getByRole('button', { name: 'Open File report.md' }))
-      expect(openPath).toHaveBeenCalledWith('dist/report.md')
+      fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
+      await waitFor(() => {
+        expect(openPath).toHaveBeenCalledWith('dist/report.md')
+      })
+    })
+
+    it('waits for the turn and smooth text playout to finish before rendering report artifacts', () => {
+      let clock = 0
+      let rafId = 0
+      let rafCallbacks = new Map<number, FrameRequestCallback>()
+      vi.stubGlobal('performance', { now: () => clock } as Performance)
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        rafId += 1
+        rafCallbacks.set(rafId, callback)
+        return rafId
+      })
+      vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+        rafCallbacks.delete(id)
+      })
+      const tick = (frames: number) => {
+        for (let frame = 0; frame < frames; frame++) {
+          clock += 16
+          const callbacks = rafCallbacks
+          rafCallbacks = new Map()
+          callbacks.forEach((callback) => callback(clock))
+        }
+      }
+
+      activateTurn('streaming')
+      const pendingMessage = msg({ status: 'pending' })
+      const reportPart = {
+        type: 'dynamic-tool',
+        toolCallId: 'report',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
+        output: {}
+      } as unknown as CherryMessagePart
+      const initialParts = [
+        reportPart,
+        { type: 'text', text: 'A', state: 'streaming' }
+      ] as unknown as CherryMessagePart[]
+      const { rerender } = renderParts(initialParts, pendingMessage)
+
+      expect(screen.queryByText('report.md')).toBeNull()
+
+      const finalText = `A${'b'.repeat(100)}`
+      const finalParts = [
+        reportPart,
+        { type: 'text', text: finalText, state: 'done' }
+      ] as unknown as CherryMessagePart[]
+      rerender(renderPartsTree(finalParts, pendingMessage))
+
+      mockIsActiveTurnTarget.mockReturnValue(false)
+      mockTopicStreamState.status = 'done'
+      rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
+
+      expect(screen.queryByText('report.md')).toBeNull()
+
+      act(() => tick(50))
+
+      expect(screen.getByText('report.md')).toBeInTheDocument()
+    })
+
+    it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
+      activateTurn('streaming')
+      const pendingMessage = msg({ status: 'pending' })
+      const parts = [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'report',
+          toolName: 'report_artifacts',
+          state: 'output-available',
+          input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
+          output: {}
+        }
+      ] as unknown as CherryMessagePart[]
+      const { rerender } = renderParts(parts, pendingMessage)
+
+      expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
+      expect(screen.queryByText('report.md')).toBeNull()
+
+      mockIsActiveTurnTarget.mockReturnValue(false)
+      mockTopicStreamState.status = 'done'
+      rerender(renderPartsTree(parts, msg({ status: 'success' })))
+
+      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      expect(screen.getByText('report.md')).toBeInTheDocument()
     })
   })
 

@@ -186,11 +186,14 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          reasoningEffort: ReasoningEffortOptionSchema.optional()
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
-          parentAnchorId: z.string().min(1)
+          parentAnchorId: z.string().min(1),
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         })
       ])
     ),
@@ -247,6 +250,21 @@ export const aiRequestSchemas = {
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+
+  // ── Agent session runtime queries & commands ──
+  // Takes a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
+  // a session with no live connection keeps its last published value. The result arrives on the
+  // session's shared-cache key, not here.
+  'ai.agent.session.refresh_context_usage': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  // Stops one background task, not the turn. False when the session has no live connection or its
+  // runtime cannot stop tasks; the outcome itself arrives as a `task_notification`.
+  'ai.agent.session.stop_background_task': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
+    output: z.boolean()
   }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──

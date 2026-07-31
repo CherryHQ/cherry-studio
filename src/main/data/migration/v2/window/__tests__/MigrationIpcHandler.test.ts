@@ -24,6 +24,8 @@ const fsMock = vi.hoisted(() => ({
   writeFile: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
+const windowCloseMock = vi.hoisted(() => vi.fn())
+const windowRestartAppMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
 const windowRequestCloseMock = vi.hoisted(() => vi.fn())
 const windowSetStageMock = vi.hoisted(() => vi.fn())
@@ -41,8 +43,8 @@ vi.mock('fs/promises', () => ({ default: fsMock }))
 vi.mock('../MigrationWindowManager', () => ({
   migrationWindowManager: {
     send: windowSendMock,
-    close: vi.fn(),
-    restartApp: vi.fn(),
+    close: windowCloseMock,
+    restartApp: windowRestartAppMock,
     minimize: windowMinimizeMock,
     requestClose: windowRequestCloseMock,
     setStage: windowSetStageMock,
@@ -513,6 +515,42 @@ describe('MigrationIpcHandler', () => {
     // No tick → currentProgress.migrators is [], so totalMigrators uses the result-length
     // fallback and matches completedMigrators.
     expect(lastProgress().summary).toMatchObject({ completedMigrators: 2, totalMigrators: 2 })
+  })
+
+  describe('skip migration', () => {
+    it('skips, closes the engine, and restarts the app', async () => {
+      engineMock.skipMigration.mockResolvedValue(undefined)
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).resolves.toBe(true)
+
+      expect(engineMock.skipMigration).toHaveBeenCalledTimes(1)
+      expect(engineMock.close).toHaveBeenCalledTimes(1)
+      expect(windowRestartAppMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the engine open and does not restart when the skip fails', async () => {
+      engineMock.skipMigration.mockRejectedValue(new Error('cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow('cleanup failed')
+
+      expect(engineMock.close).not.toHaveBeenCalled()
+      expect(windowRestartAppMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a skip while a migration run is in flight', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockReturnValue(new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+
+      // The handler stores the in-flight promise synchronously, before its first await.
+      const startPromise = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow()
+      expect(engineMock.skipMigration).not.toHaveBeenCalled()
+
+      // Release the guard so it does not leak into later tests.
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await startPromise
+    })
   })
 
   describe('migration failure', () => {

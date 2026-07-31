@@ -43,14 +43,14 @@ function startCrashReporter(): void {
 }
 
 /**
- * In production, install last-resort handlers for `uncaughtException` and
- * `unhandledRejection`. In dev, leave both unset so errors propagate to the
- * terminal with their full, unswallowed stack traces.
+ * In production, observe uncaught exceptions without suppressing Node's
+ * default exit, and log unhandled rejections. In dev, leave both unset so
+ * errors propagate to the terminal with their full, unswallowed stack traces.
  */
 function installProcessErrorHandlers(): void {
   if (isDev) return
 
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtExceptionMonitor', (error) => {
     logger.error('Uncaught Exception:', error)
   })
 

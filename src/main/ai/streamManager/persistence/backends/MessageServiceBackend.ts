@@ -1,12 +1,14 @@
 /** Finalizes a pending assistant placeholder without writing usage/cost. */
 
 import { messageService } from '@main/data/services/MessageService'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
 export interface MessageServiceBackendOptions {
   assistantMessageId: string
+  /** Immutable request controls copied from the placeholder and retained across terminal writes. */
+  turnOptions?: AssistantTurnOptions
   /** Post-success hook (topic auto-rename, usage reporting, …). */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -23,7 +25,10 @@ export class MessageServiceBackend implements PersistenceBackend {
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, runtimeStats } = input
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
-      data: { parts: finalMessage?.parts ?? [] },
+      data: {
+        parts: finalMessage?.parts ?? [],
+        ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
+      },
       status,
       runtimeStats
     })

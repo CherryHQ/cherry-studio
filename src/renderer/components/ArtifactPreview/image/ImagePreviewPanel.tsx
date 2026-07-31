@@ -11,7 +11,7 @@ interface ImagePreviewPanelProps {
 
 /**
  * Renders a workspace image centered in the preview pane. Clicking opens the
- * shared zoom/rotate/download dialog. Images render straight from disk via a
+ * shared pan/zoom/rotate dialog. Images render straight from disk via a
  * `file://` URL — no binary read — so they bypass the text/size gating in
  * `ArtifactFilePreview`. `<img>` does not execute embedded scripts, so SVG is
  * safe to render this way.

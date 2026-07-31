@@ -106,6 +106,12 @@ describe('AgentsMigrator', () => {
     const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-claude-config-'))
     const source = join(tempRoot, '.claude')
     const destination = join(tempRoot, 'Data', 'Agents', '.claude')
+    const progressKeys: string[] = []
+    const progressValues: number[] = []
+    migrator.setProgressCallback((progress, message) => {
+      progressValues.push(progress)
+      if (message.i18nMessage) progressKeys.push(message.i18nMessage.key)
+    })
     await mkdir(source)
     await writeFile(join(source, 'settings.json'), '{"migrated":true}')
 
@@ -124,9 +130,31 @@ describe('AgentsMigrator', () => {
 
       expect(await readFile(join(destination, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
       expect(await readFile(join(source, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+      expect(progressKeys).toEqual(
+        expect.arrayContaining([
+          'migration.progress.agents_claude_config_scanning',
+          'migration.progress.agents_claude_config_copying',
+          'migration.progress.agents_claude_config_verifying'
+        ])
+      )
+      expect(progressValues).toEqual(expect.arrayContaining([15, 30, 44, 45]))
+      expect(progressValues.every((progress, index) => index === 0 || progress >= progressValues[index - 1])).toBe(true)
     } finally {
       await rm(tempRoot, { recursive: true, force: true })
     }
+  })
+
+  it('reports monotonic Agent subphase progress through validation', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
+    const progressValues: number[] = []
+    migrator.setProgressCallback((progress) => progressValues.push(progress))
+
+    const context = createMigrationContext()
+    await migrator.execute(context)
+    await migrator.validate(context)
+
+    expect(progressValues).toEqual([1, 45, 98, 99, 100])
+    expect(progressValues.every((progress, index) => index === 0 || progress >= progressValues[index - 1])).toBe(true)
   })
 
   it('prepare counts all legacy agents rows', async () => {
@@ -192,10 +220,16 @@ describe('AgentsMigrator', () => {
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('BEGIN')
     // run tail after import COMMIT: remapAgentPrefixIds emits BEGIN → COMMIT (no old-prefix
-    // IDs here, so no UPDATEs), then execute() emits DETACH.
-    expect(outer.at(-4)).toBe('COMMIT')
-    expect(outer.at(-3)).toBe('BEGIN')
-    expect(outer.at(-2)).toBe('COMMIT')
+    // IDs here, so no UPDATEs), then execute() drops message staging and emits DETACH.
+    const beginIndexes = outer.flatMap((statement, index) => (statement === 'BEGIN' ? [index] : []))
+    const commitIndexes = outer.flatMap((statement, index) => (statement === 'COMMIT' ? [index] : []))
+    expect(beginIndexes).toHaveLength(2)
+    expect(commitIndexes).toHaveLength(2)
+    expect(beginIndexes[0]).toBeLessThan(commitIndexes[0])
+    expect(commitIndexes[0]).toBeLessThan(beginIndexes[1])
+    expect(beginIndexes[1]).toBeLessThan(commitIndexes[1])
+    expect(outer.at(-3)).toBe('DROP TABLE IF EXISTS agent_session_message_migration_staging')
+    expect(outer.at(-2)).toBe('DROP TABLE IF EXISTS agent_session_message_source_cursor')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
     // Session-workspace staging runs first inside the import transaction, emitted
     // via run() before the table INSERTs.

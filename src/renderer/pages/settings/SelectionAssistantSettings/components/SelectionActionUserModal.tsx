@@ -126,6 +126,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
                 </ModalSectionTitle>
                 <Input
+                  autoFocus
                   placeholder={t('selection.settings.user_modal.name.hint')}
                   value={formData.name || ''}
                   onChange={(e) => handleInputChange('name', e.target.value)}

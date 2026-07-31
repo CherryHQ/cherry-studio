@@ -13,7 +13,11 @@ import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
-import { type AiUsageRecordEntry, getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
+import {
+  type AiUsageRecordEntry,
+  type AiUsageRecordModality,
+  getAiUsageRecordTotalTokens
+} from '@shared/data/types/aiUsageRecord'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +33,12 @@ import {
 } from './UsageSettingsPrimitives'
 
 const EMPTY_VALUE = '-'
+const MODALITY_LABEL_KEYS = {
+  language: 'common.language',
+  embedding: 'models.type.embedding',
+  image: 'models.type.image',
+  rerank: 'models.type.rerank'
+} as const satisfies Record<AiUsageRecordModality, string>
 
 interface UsageEntriesTableProps {
   entries: AiUsageRecordEntry[]
@@ -147,7 +157,7 @@ export function UsageEntriesTable({
                   const totalTokens = getAiUsageRecordTotalTokens(entry)
                   const sourceName = entry.sourceId
                     ? entry.sourceName || entry.sourceId
-                    : t('settings.usage.cards.unattributedSource')
+                    : t(MODALITY_LABEL_KEYS[entry.modality])
                   const modelName = entry.modelName || displayModelId(entry.modelId) || EMPTY_VALUE
                   const providerName = getProviderInfo(entry.providerId ?? '', entry.providerName).name || EMPTY_VALUE
                   const createdAt = new Date(entry.createdAt)
