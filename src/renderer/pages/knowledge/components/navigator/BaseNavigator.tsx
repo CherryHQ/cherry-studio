@@ -8,16 +8,11 @@ import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Plus } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorContent from './BaseNavigatorContent'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
-import BaseNavigatorSearch from './BaseNavigatorSearch'
-
-// A search box costs a permanent row of sidebar space, which only pays off once the
-// list is long enough that scanning it becomes work.
-const SEARCH_MIN_BASE_COUNT = 3
 
 interface BaseNavigatorProps {
   bases: KnowledgeBaseListItem[]
@@ -53,17 +48,8 @@ const BaseNavigator = ({
   onResizeStart
 }: BaseNavigatorProps) => {
   const { t } = useTranslation()
-  const [searchValue, setSearchValue] = useState('')
 
-  const isSearchVisible = bases.length > SEARCH_MIN_BASE_COUNT
-  // Once the box is hidden its query would keep filtering invisibly — e.g. after the
-  // user searches and then deletes bases until only a few are left.
-  const activeSearchValue = isSearchVisible ? searchValue : ''
-
-  const knowledgeBaseGroupSections = useMemo(
-    () => buildKnowledgeBaseGroupSections(bases, groups, activeSearchValue),
-    [bases, groups, activeSearchValue]
-  )
+  const knowledgeBaseGroupSections = useMemo(() => buildKnowledgeBaseGroupSections(bases, groups, ''), [bases, groups])
 
   const groupById = useMemo(() => {
     return new Map(groups.map((group) => [group.id, group]))
@@ -95,7 +81,6 @@ const BaseNavigator = ({
             aria-label={t('knowledge.add.title')}
             onClick={() => onCreateBase()}
           />
-          {isSearchVisible ? <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} /> : null}
         </div>
 
         <BaseNavigatorContent
