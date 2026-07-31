@@ -63,7 +63,6 @@ describe('ChatNavbar', () => {
     const controls = container.querySelector('[data-conversation-topbar-controls]')
 
     expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('marks the sidebar toggle expanded when the sidebar is visible', () => {

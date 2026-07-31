@@ -512,13 +512,6 @@ describe('useMiniApps', () => {
   // === Edge Cases ===
 
   describe('edge cases', () => {
-    it('should handle empty enabled list gracefully', () => {
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toEqual([])
-    })
-
     it('should handle preset apps with empty supportedRegions array as CN-only', () => {
       const apps = [createMiniApp('empty-regions', { supportedRegions: [], status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))

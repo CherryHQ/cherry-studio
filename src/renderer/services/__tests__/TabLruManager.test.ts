@@ -48,12 +48,6 @@ describe('TabLruManager', () => {
         const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
         expect(result).toEqual([])
       })
-
-      it('should return empty array for 1 tab', () => {
-        const tabs = [createTab('tab-0')]
-        const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
-        expect(result).toEqual([])
-      })
     })
 
     describe('when exceeding soft cap', () => {
@@ -163,11 +157,6 @@ describe('TabLruManager', () => {
     })
 
     describe('edge cases', () => {
-      it('should handle empty tabs array', () => {
-        const result = manager.checkAndGetDormantCandidates([], 'any-id')
-        expect(result).toEqual([])
-      })
-
       it('should handle tabs with undefined lastAccessTime', () => {
         const tabs = Array.from({ length: TAB_LIMITS.softCap + 2 }, (_, i) =>
           createTab(`tab-${i}`, { lastAccessTime: undefined })

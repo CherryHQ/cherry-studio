@@ -232,13 +232,9 @@ describe('PaintingComposer', () => {
     expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
   })
 
-  it('renders the model selector control in the toolbar', () => {
+  it('renders the model selector and unified panel controls in the toolbar', () => {
     renderComposer()
     expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()
-  })
-
-  it('passes the unified panel control to the toolbar', () => {
-    renderComposer()
     expect(screen.getByTestId('painting-plus-control')).toBeInTheDocument()
   })
 

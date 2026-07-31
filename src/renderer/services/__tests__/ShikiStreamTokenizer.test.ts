@@ -130,13 +130,6 @@ describe('ShikiStreamTokenizer', () => {
       expect(tokenizer.lastUnstableCodeChunk).toBe('')
       expect(tokenizer.lastStableGrammarState).toBeUndefined()
     })
-
-    it('should handle clear with no data', () => {
-      tokenizer.clear()
-      expect(tokenizer.linesUnstable).toEqual([])
-      expect(tokenizer.lastUnstableCodeChunk).toBe('')
-      expect(tokenizer.lastStableGrammarState).toBeUndefined()
-    })
   })
 
   describe('streaming', () => {

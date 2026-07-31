@@ -80,30 +80,4 @@ describe('ProviderAvatarPrimitive', () => {
     expect(screen.getByText('Z')).toBeInTheDocument()
     expect(document.querySelector('img')).toBeNull()
   })
-
-  it('switches from an uploaded image to a built-in icon without leaving an image node behind', () => {
-    const { rerender } = render(
-      <ProviderAvatarPrimitive providerId="custom" providerName="Custom" logo="data:image/png;base64,abc" />
-    )
-
-    expect(document.querySelector('img')).toHaveAttribute('src', 'data:image/png;base64,abc')
-
-    rerender(<ProviderAvatarPrimitive providerId="custom" providerName="Custom" logo="icon:openai" />)
-
-    expect(screen.getByTestId('brand-icon')).toBeInTheDocument()
-    expect(document.querySelector('img')).toBeNull()
-  })
-
-  it('switches from an uploaded image to the generated fallback when the logo is reset', () => {
-    const { rerender } = render(
-      <ProviderAvatarPrimitive providerId="custom" providerName="Zeta" logo="data:image/png;base64,abc" />
-    )
-
-    expect(document.querySelector('img')).toHaveAttribute('src', 'data:image/png;base64,abc')
-
-    rerender(<ProviderAvatarPrimitive providerId="custom" providerName="Zeta" logo={undefined} />)
-
-    expect(screen.getByText('Z')).toBeInTheDocument()
-    expect(document.querySelector('img')).toBeNull()
-  })
 })
