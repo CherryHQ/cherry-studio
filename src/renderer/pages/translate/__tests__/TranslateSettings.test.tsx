@@ -365,9 +365,7 @@ describe('TranslateSettingsPanelContent', () => {
   it('submits normalized custom language payload when inputs are valid', async () => {
     render(<TranslateSettingsPanelContent />)
 
-    await act(async () => {
-      submitCustomLanguage({ value: ' Klingon ', langCode: 'XK-LA' })
-    })
+    submitCustomLanguage({ value: ' Klingon ', langCode: 'XK-LA' })
 
     await waitFor(() =>
       expect(translateLanguageMutationsMock.add).toHaveBeenCalledWith({

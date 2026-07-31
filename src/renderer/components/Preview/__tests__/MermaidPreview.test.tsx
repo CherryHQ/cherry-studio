@@ -141,7 +141,7 @@ describe('MermaidPreview', () => {
       forceRenderKey: 0
     })
     mocks.hookState.error = 'Diagram rendering failed'
-    rerender(<MermaidPreview>{content}</MermaidPreview>)
+    rerender(<MermaidPreview>{`${content}\nB-->C`}</MermaidPreview>)
 
     expect(screen.getByText('Mermaid initialization failed')).toBeInTheDocument()
     expect(screen.queryByText('Diagram rendering failed')).not.toBeInTheDocument()

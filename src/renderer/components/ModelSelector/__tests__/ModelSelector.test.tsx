@@ -37,7 +37,12 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
-  isDev: false
+  platform: undefined,
+  isMac: false,
+  isWin: false,
+  isLinux: false,
+  isDev: false,
+  isProd: false
 }))
 
 vi.mock('@cherrystudio/ui/icons', () => ({

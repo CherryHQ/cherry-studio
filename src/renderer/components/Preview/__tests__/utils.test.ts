@@ -1,34 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { renderSvgInShadowHost } from '../utils'
 
 describe('renderSvgInShadowHost', () => {
   let hostElement: HTMLElement
-  let originalAttachShadow: typeof Element.prototype.attachShadow
 
   beforeEach(() => {
     hostElement = document.createElement('div')
     document.body.appendChild(hostElement)
-    originalAttachShadow = Element.prototype.attachShadow
-
-    Element.prototype.attachShadow = vi.fn().mockImplementation(function (this: HTMLElement) {
-      if (this.shadowRoot) {
-        return this.shadowRoot
-      }
-
-      const shadowRoot = document.createElement('div')
-      Object.defineProperty(this, 'shadowRoot', {
-        value: shadowRoot,
-        configurable: true
-      })
-      return shadowRoot as unknown as ShadowRoot
-    })
   })
 
   afterEach(() => {
     hostElement.remove()
-    Element.prototype.attachShadow = originalAttachShadow
-    vi.restoreAllMocks()
   })
 
   it('renders into one shadow root and replaces the previous diagram', () => {

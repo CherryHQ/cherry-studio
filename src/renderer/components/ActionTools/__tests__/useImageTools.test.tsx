@@ -189,10 +189,11 @@ describe('useImageTools', () => {
 
     await act(() => result.current.dialog())
 
-    const previewSvg = mocks.showImagePreview.mock.calls[0][0] as SVGElement
+    expect(mocks.showImagePreview).toHaveBeenCalledOnce()
+    const [previewSvg, previewOptions] = mocks.showImagePreview.mock.lastCall as [SVGElement, { format: 'svg' }]
     expect(previewSvg).not.toBe(svg)
     expect(previewSvg.style.transform).toBe('')
-    expect(mocks.showImagePreview).toHaveBeenCalledWith(previewSvg, { format: 'svg' })
+    expect(previewOptions).toEqual({ format: 'svg' })
   })
 
   it('reports failures from copy, download, and preview actions', async () => {

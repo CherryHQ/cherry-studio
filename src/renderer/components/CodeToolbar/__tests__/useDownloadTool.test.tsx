@@ -30,7 +30,8 @@ describe('useDownloadTool', () => {
     })
 
     expect(result.current).toHaveLength(1)
-    expect(result.current[0]).toMatchObject({ id: 'download', children: undefined })
+    expect(result.current[0]).toMatchObject({ id: 'download' })
+    expect(result.current[0].children).toBeUndefined()
     act(() => result.current[0].onClick?.())
 
     expect(onDownloadSource).toHaveBeenCalledOnce()
