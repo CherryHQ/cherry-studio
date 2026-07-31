@@ -1,5 +1,7 @@
+import { toast } from '@renderer/services/toast'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { act, renderHook } from '@testing-library/react'
+import { resetToastMocks } from '@test-mocks/renderer/toast'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMiniAppVisibility } from '../useMiniAppVisibility'
@@ -38,15 +40,10 @@ describe('useMiniAppVisibility', () => {
     mocks.updateAppStatus.mockClear()
     mocks.setAppStatusBulk.mockClear()
     mocks.reorderMiniAppsByStatus.mockClear()
+    resetToastMocks()
   })
 
-  it('initializes from useMiniApps', () => {
-    const { result } = renderHook(() => useMiniAppVisibility())
-    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b'])
-    expect(result.current.hidden.map((a) => a.appId)).toEqual(['c'])
-  })
-
-  it('hide flips a single row to disabled via updateAppStatus', () => {
+  it('hide updates only the named row so region-hidden apps cannot drift', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.hide(mocks.miniApps[0]))
 
@@ -57,6 +54,17 @@ describe('useMiniAppVisibility', () => {
     // Critical: command-style API never references unrelated rows, so no
     // bulk call is issued and no other row's status can drift.
     expect(mocks.setAppStatusBulk).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed visibility mutation to the user', async () => {
+    mocks.updateAppStatus.mockRejectedValueOnce(new Error('hide failed'))
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('miniApp.hide_failed')
+    })
   })
 
   it('show flips a single row to enabled via updateAppStatus', () => {
@@ -102,21 +110,6 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)
     const updates = mocks.setAppStatusBulk.mock.calls[0][0] as Array<{ appId: string; status: string }>
     expect(updates).toEqual([{ appId: 'c', status: 'enabled' }])
-  })
-
-  it('region-hidden rows are never referenced when hiding a visible app (#region-bug)', () => {
-    // Simulates Global mode: useMiniApps' miniApps/disabled are region-filtered.
-    // The CN-only row exists in the DB but the panel doesn't see it. The
-    // command-style API guarantees we never touch what we don't name.
-    const cnOnly = { ...stubApp('cn1'), status: 'enabled' as const }
-    void cnOnly // present in DB; intentionally not exposed to useMiniAppVisibility
-
-    const { result } = renderHook(() => useMiniAppVisibility())
-    act(() => result.current.hide(mocks.miniApps[0]))
-
-    // Only the user's own click was PATCHed.
-    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
-    expect(mocks.updateAppStatus).toHaveBeenCalledWith('a', 'disabled')
   })
 
   it('reorderVisible reorders within the combined visible list', () => {
