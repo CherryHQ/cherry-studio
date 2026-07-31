@@ -7743,6 +7743,13 @@
           "toggle_private_key_visibility": "切換私鑰可見性",
           "toggle_project_id_visibility": "切換專案 ID 顯示"
         }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "開啟 Token Factory",
+          "description": "每日 10 美元等值 API 額度，按目前費率約可使用 1,000 萬–1.11 億輸入/輸出 Token，實際用量依模型和 Token 類型而異。額度每日重設，目前暫不支援儲值。",
+          "title": "每日 10 美元免費 API 額度"
+        }
       }
     },
     "proxy": {

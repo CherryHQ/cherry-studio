@@ -7743,6 +7743,13 @@
           "toggle_private_key_visibility": "秘密鍵の表示を切り替える",
           "toggle_project_id_visibility": "プロジェクトIDの表示を切り替える"
         }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory を開く",
+          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
+          "title": "毎日 10 米ドル分の無料 API クレジット"
+        }
       }
     },
     "proxy": {

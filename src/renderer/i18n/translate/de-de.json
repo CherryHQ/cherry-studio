@@ -7743,6 +7743,13 @@
           "toggle_private_key_visibility": "Sichtbarkeit des privaten Schlüssels umschalten",
           "toggle_project_id_visibility": "Projekt-ID-Sichtbarkeit umschalten"
         }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory öffnen",
+          "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
+          "title": "Täglich 10 USD kostenloses API-Guthaben"
+        }
       }
     },
     "proxy": {
