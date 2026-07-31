@@ -240,6 +240,7 @@
           "discard_and_continue": "Discard and continue",
           "title": "Discard unsaved changes?"
         },
+        "metadata_pending": "The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Unable to reload the latest file content.",
         "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
         "unsaved": "Unsaved",
@@ -4513,7 +4514,8 @@
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
     "save_failure": {
-      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
+      "metadata_pending": "The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Name+Content",

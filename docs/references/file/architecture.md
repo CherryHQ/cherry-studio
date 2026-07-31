@@ -102,7 +102,7 @@ File Module (src/main/services/file/)
 Pure FS primitives (src/main/utils/file/) — shared raw FS primitives, open to the entire main process
 ├── fs.ts         — basic FS: read / write / stat / copy / move / remove
 │                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream
-│                   version: statVersion / contentHash (xxhash-h64)
+│                   version: statVersion / contentHash (XXH3-64, tagged `xxh3-64:{hex}`)
 ├── shell.ts      — system ops: open / showInFolder
 ├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir
 ├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt
@@ -304,7 +304,7 @@ describe that logical surface, including routes that are not wired yet.
 | `read` (full / range) | Read complete content or a positioned byte range (range permits short reads at EOF) | read(userDataPath) | read(externalPath) (live) | read(path) |
 | `getMetadata` | Live physical metadata (`fs.stat`) — batch variant `batchGetMetadata` accepts caller-keyed `FileHandle` items | resolve + stat | stat(externalPath) — **sole live-size source for external** | path metadata projection via `services/file/utils/metadata` |
 | `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | statVersion |
-| `getContentHash` | xxhash-h64 | read userData + hash | read externalPath + hash | contentHash |
+| `getContentHash` | XXH3-64 (tagged `xxh3-64:{hex}`) | read userData + hash | read externalPath + hash | contentHash |
 | `write` | Atomic write | atomic → userData + DB size update | atomic → externalPath (explicit user edit; no DB size column to touch) | atomic → path |
 | `writeIfUnchanged` | Optimistic concurrent write | same as write plus version check | same | same (caller must getVersion first) |
 | `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `remove`) | remove(path) |
@@ -1082,7 +1082,7 @@ src/main/utils/file/                  -- shared raw FS helpers, open to the enti
   fs.ts                               -- read / write / stat / copy / move / remove
                                          atomicWriteFile / atomicWriteIfUnchanged
                                          createAtomicWriteStream
-                                         statVersion / contentHash
+                                         statVersion / contentHash (XXH3-64)
   shell.ts                            -- open / showInFolder
   path.ts                             -- resolvePath / isPathInside / canWrite / isNotEmptyDir
   metadata.ts                         -- getFileType / isTextFile / mimeToExt

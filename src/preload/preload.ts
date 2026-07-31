@@ -150,8 +150,6 @@ const api = {
     saveImage: (name: string, data: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    savePastedImage: (imageData: Uint8Array, extension?: string) =>
-      ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
