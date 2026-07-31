@@ -1,11 +1,14 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FileHandle } from '@shared/data/types/file'
+import type { FileVersion } from '@shared/types/file'
 import { PDFDataRangeTransport } from 'pdfjs-dist'
 
 export const PDF_RANGE_CHUNK_SIZE_BYTES = 1024 * 1024
+const PDF_MAX_ASSEMBLED_RANGE_BYTES = 16 * PDF_RANGE_CHUNK_SIZE_BYTES
 
 export class PdfFileRangeTransport extends PDFDataRangeTransport {
   private aborted = false
+  private expectedVersion: FileVersion | null = null
   private failed = false
 
   constructor(
@@ -38,16 +41,24 @@ export class PdfFileRangeTransport extends PDFDataRangeTransport {
       throw new RangeError(`Invalid PDF byte range: ${begin}-${end} of ${this.length}`)
     }
 
-    const data = new Uint8Array(end - begin)
+    const rangeLength = end - begin
+    if (rangeLength > PDF_MAX_ASSEMBLED_RANGE_BYTES) {
+      throw new RangeError(
+        `PDF byte range is too large to assemble: ${rangeLength} bytes exceeds ${PDF_MAX_ASSEMBLED_RANGE_BYTES}`
+      )
+    }
+
+    const data = new Uint8Array(rangeLength)
     for (let offset = begin; offset < end; offset += PDF_RANGE_CHUNK_SIZE_BYTES) {
       if (this.isInactive()) return
 
       const length = Math.min(PDF_RANGE_CHUNK_SIZE_BYTES, end - offset)
-      const { content: chunk } = await ipcApi.request('file.read', {
+      const { content: chunk, version } = await ipcApi.request('file.read', {
         handle: this.handle,
         options: { mode: 'range', offset, length }
       })
       if (this.isInactive()) return
+      this.validateVersion(version)
       if (chunk.byteLength !== length) {
         throw new Error(`Short PDF read at offset ${offset}: expected ${length} bytes, received ${chunk.byteLength}`)
       }
@@ -56,6 +67,25 @@ export class PdfFileRangeTransport extends PDFDataRangeTransport {
 
     if (!this.isInactive()) {
       this.onDataRange(begin, data)
+    }
+  }
+
+  private validateVersion(version: FileVersion): void {
+    if (version.size !== this.length) {
+      throw new Error(
+        `PDF file size changed during range read: expected ${this.length} bytes, received ${version.size}`
+      )
+    }
+
+    if (this.expectedVersion === null) {
+      this.expectedVersion = { ...version }
+      return
+    }
+
+    if (version.mtime !== this.expectedVersion.mtime || version.size !== this.expectedVersion.size) {
+      throw new Error(
+        `PDF file changed during range read: expected mtime ${this.expectedVersion.mtime} and size ${this.expectedVersion.size}, received mtime ${version.mtime} and size ${version.size}`
+      )
     }
   }
 

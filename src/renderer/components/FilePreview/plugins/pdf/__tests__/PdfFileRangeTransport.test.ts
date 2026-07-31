@@ -29,6 +29,10 @@ vi.mock('pdfjs-dist', () => ({
 
 const handle = createFilePathHandle('/tmp/workspace/paper.pdf' as AbsoluteFilePath)
 
+function fileReadResult(content: Uint8Array, size: number, mtime = 1) {
+  return { content, mime: 'application/pdf', version: { mtime, size } }
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -47,7 +51,7 @@ describe('PdfFileRangeTransport', () => {
   it('reads and delivers a requested range through file IPC', async () => {
     const onError = vi.fn()
     const transport = new PdfFileRangeTransport(handle, 100, onError)
-    mocks.ipcRequest.mockResolvedValueOnce({ content: new Uint8Array([5, 6, 7]) })
+    mocks.ipcRequest.mockResolvedValueOnce(fileReadResult(new Uint8Array([5, 6, 7]), 100))
 
     expect(transport).toMatchObject({ length: 100, initialData: null, progressiveDone: true })
     transport.requestDataRange(5, 8)
@@ -65,9 +69,11 @@ describe('PdfFileRangeTransport', () => {
     const requestLength = 4 * PDF_RANGE_CHUNK_SIZE_BYTES + 123
     const transport = new PdfFileRangeTransport(handle, requestLength + 10, vi.fn())
     mocks.ipcRequest.mockImplementation(
-      async (_route: string, input: { options: { length: number; offset: number } }) => ({
-        content: new Uint8Array(input.options.length).fill(input.options.offset / PDF_RANGE_CHUNK_SIZE_BYTES)
-      })
+      async (_route: string, input: { options: { length: number; offset: number } }) =>
+        fileReadResult(
+          new Uint8Array(input.options.length).fill(input.options.offset / PDF_RANGE_CHUNK_SIZE_BYTES),
+          requestLength + 10
+        )
     )
 
     transport.requestDataRange(0, requestLength)
@@ -109,10 +115,58 @@ describe('PdfFileRangeTransport', () => {
     expect(delivered[4 * PDF_RANGE_CHUNK_SIZE_BYTES]).toBe(4)
   })
 
+  it('rejects an oversized coalesced range before allocating or reading it', async () => {
+    const requestLength = 17 * PDF_RANGE_CHUNK_SIZE_BYTES
+    const onError = vi.fn()
+    const transport = new PdfFileRangeTransport(handle, requestLength, onError)
+
+    transport.requestDataRange(0, requestLength)
+
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('too large to assemble') })
+    )
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.onDataRange).not.toHaveBeenCalled()
+  })
+
+  it('rejects a file version change between range requests', async () => {
+    const onError = vi.fn()
+    const transport = new PdfFileRangeTransport(handle, 100, onError)
+    mocks.ipcRequest
+      .mockResolvedValueOnce(fileReadResult(new Uint8Array([1]), 100, 1))
+      .mockResolvedValueOnce(fileReadResult(new Uint8Array([2]), 100, 2))
+
+    transport.requestDataRange(0, 1)
+    await vi.waitFor(() => expect(mocks.onDataRange).toHaveBeenCalledTimes(1))
+    transport.requestDataRange(1, 2)
+
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('PDF file changed during range read') })
+    )
+    expect(mocks.onDataRange).toHaveBeenCalledTimes(1)
+    expect(mocks.onDataRange).toHaveBeenCalledWith(0, new Uint8Array([1]))
+  })
+
+  it('rejects a response whose file size differs from the transport length', async () => {
+    const onError = vi.fn()
+    const transport = new PdfFileRangeTransport(handle, 100, onError)
+    mocks.ipcRequest.mockResolvedValueOnce(fileReadResult(new Uint8Array([1]), 101))
+
+    transport.requestDataRange(0, 1)
+
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('PDF file size changed during range read') })
+    )
+    expect(mocks.onDataRange).not.toHaveBeenCalled()
+  })
+
   it('reports a short read without delivering partial data', async () => {
     const onError = vi.fn()
     const transport = new PdfFileRangeTransport(handle, 100, onError)
-    mocks.ipcRequest.mockResolvedValueOnce({ content: new Uint8Array([1, 2]) })
+    mocks.ipcRequest.mockResolvedValueOnce(fileReadResult(new Uint8Array([1, 2]), 100))
 
     transport.requestDataRange(10, 13)
 
@@ -137,8 +191,8 @@ describe('PdfFileRangeTransport', () => {
   })
 
   it('drops successful and failed IPC results after abort', async () => {
-    const success = deferred<{ content: Uint8Array }>()
-    const failure = deferred<{ content: Uint8Array }>()
+    const success = deferred<ReturnType<typeof fileReadResult>>()
+    const failure = deferred<ReturnType<typeof fileReadResult>>()
     const onError = vi.fn()
     const transport = new PdfFileRangeTransport(handle, 100, onError)
     mocks.ipcRequest.mockReturnValueOnce(success.promise).mockReturnValueOnce(failure.promise)
@@ -146,7 +200,7 @@ describe('PdfFileRangeTransport', () => {
     transport.requestDataRange(0, 1)
     transport.requestDataRange(1, 2)
     transport.abort()
-    success.resolve({ content: new Uint8Array([1]) })
+    success.resolve(fileReadResult(new Uint8Array([1]), 100))
     failure.reject(new Error('late failure'))
     await Promise.allSettled([success.promise, failure.promise])
     await Promise.resolve()
