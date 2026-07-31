@@ -71,6 +71,15 @@ describe('buildPathRegistry', () => {
     expect('feature.cli.install_global' in registry).toBe(false)
   })
 
+  it('keeps the root database and Claude config cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.database.file']).toBe(path.join('/mock/userData', 'cherrystudio.sqlite'))
+    expect(registry['v1.agents.claude']).toBe(path.join('/mock/userData', '.claude'))
+    expect(shouldAutoEnsure('v1.database.file')).toBe(false)
+    expect(shouldAutoEnsure('v1.agents.claude')).toBe(false)
+  })
+
   it('falls back when Electron cannot resolve an optional user system path', () => {
     getPathMock.mockImplementation((key: string) => {
       if (key === 'documents') {

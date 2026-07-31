@@ -190,6 +190,8 @@ export function buildPathRegistry() {
     // -- E. v1.* — old-version data, cleanup-only and never auto-created --
     'v1.trace': path.join(CHERRY_HOME, 'trace'),
     'v1.cli.install': path.join(CHERRY_HOME, 'install'),
+    'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),

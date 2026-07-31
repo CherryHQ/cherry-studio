@@ -142,6 +142,8 @@ function getCleanupPaths() {
     trace: application.getPath('feature.trace'),
     legacyTrace: application.getPath('v1.trace'),
     legacyCliInstall: application.getPath('v1.cli.install'),
+    legacyDatabase: application.getPath('v1.database.file'),
+    legacyClaude: application.getPath('v1.agents.claude'),
     knowledge: application.getPath('feature.knowledgebase.data'),
     homeConfig: application.getPath('cherry.config', 'config.json'),
     legacyConfig: application.getPath('app.userdata', 'config.json'),
@@ -636,7 +638,16 @@ async function collectLegacyCleanupPlan(): Promise<LegacyCleanupPlan> {
     ),
     { item: 'legacy_custom_mini_apps', path: paths.customMiniApps, kind: 'file' },
     { item: 'legacy_migration_temp', path: paths.migrationTemp, kind: 'directory' },
-    { item: 'legacy_cli_install', path: paths.legacyCliInstall, kind: 'directory' }
+    { item: 'legacy_cli_install', path: paths.legacyCliInstall, kind: 'directory' },
+    { item: 'legacy_database', path: paths.legacyDatabase, kind: 'file' },
+    ...SQLITE_SIDECAR_SUFFIXES.map(
+      (suffix): CleanupTarget => ({
+        item: 'legacy_database',
+        path: `${paths.legacyDatabase}${suffix}`,
+        kind: 'file'
+      })
+    ),
+    { item: 'legacy_claude_config', path: paths.legacyClaude, kind: 'directory' }
   ])
 
   await Promise.all([
