@@ -71,7 +71,12 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleKey: 'agent.settings.tooling.permissionMode.auto.title',
     titleFallback: 'Approve for Me',
     descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
-    descriptionFallback: 'Runs without routine prompts. A safety check blocks risky actions.'
+    descriptionFallback: 'Runs without routine prompts. A safety check blocks risky actions.',
+    // The safety check is a model-side classifier, so the mode is only as good as the
+    // model behind it — hence the caveat rather than making this the creation default.
+    // t('agent.settings.tooling.permissionMode.auto.warning')
+    warningKey: 'agent.settings.tooling.permissionMode.auto.warning',
+    warningFallback: 'Needs a model that supports it; others may ignore it or keep asking.'
   },
   {
     mode: 'bypassPermissions',
@@ -80,6 +85,9 @@ export const permissionModeCards: PermissionModeCard[] = [
     titleFallback: 'Full Access',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
     descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
+    // t('agent.settings.tooling.permissionMode.bypassPermissions.warning')
+    warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+    warningFallback: 'Use with caution — all tools will run without asking for approval.',
     dangerous: true
   }
 ]

@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "通常の確認なしで実行します。安全チェックが危険な操作をブロックします。",
-            "title": "自動で承認"
+            "title": "自動で承認",
+            "warning": "対応するモデルが必要です。他のモデルでは無視されるか、確認を求め続ける場合があります。"
           },
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
@@ -7741,6 +7742,13 @@
           "toggle_client_email_visibility": "クライアントのメールアドレスの表示を切り替える",
           "toggle_private_key_visibility": "秘密鍵の表示を切り替える",
           "toggle_project_id_visibility": "プロジェクトIDの表示を切り替える"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory を開く",
+          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
+          "title": "毎日 10 米ドル分の無料 API クレジット"
         }
       }
     },

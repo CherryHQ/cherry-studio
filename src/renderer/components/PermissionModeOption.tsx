@@ -31,6 +31,10 @@ export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; 
  * Title + optional description for one mode. `dangerous` modes render in `--destructive`:
  * picking one hands the agent unattended file deletion and network access, so it needs
  * to read as dangerous at a glance rather than merely noteworthy.
+ *
+ * A mode's `warningKey` renders regardless of `withDescription`. The description says
+ * what the mode does and can be dropped where space is tight; the warning is what the
+ * user needs before choosing it, so dropping it would defeat the point.
  */
 export function PermissionModeOptionLabel({
   card,
@@ -47,8 +51,13 @@ export function PermissionModeOptionLabel({
         {t(card.titleKey, card.titleFallback)}
       </span>
       {withDescription && (
-        <span className={cn('text-xs', card.dangerous ? 'text-destructive/80' : 'text-muted-foreground')}>
+        <span className={cn('text-xs', card.dangerous ? 'text-destructive' : 'text-muted-foreground')}>
           {t(card.descriptionKey, card.descriptionFallback)}
+        </span>
+      )}
+      {card.warningKey && (
+        <span className={cn('text-xs', card.dangerous ? 'text-destructive' : 'text-warning')}>
+          {t(card.warningKey, card.warningFallback ?? '')}
         </span>
       )}
     </div>

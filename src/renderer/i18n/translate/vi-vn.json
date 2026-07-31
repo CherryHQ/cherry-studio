@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
-            "title": "Phê duyệt thay tôi"
+            "title": "Phê duyệt thay tôi",
+            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi."
           },
           "bypassPermissions": {
             "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
@@ -7741,6 +7742,13 @@
           "toggle_client_email_visibility": "Chuyển đổi hiển thị email của khách hàng",
           "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
           "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Mở Token Factory",
+          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
+          "title": "10 USD tín dụng API miễn phí mỗi ngày"
         }
       }
     },
