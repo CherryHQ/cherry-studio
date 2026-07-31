@@ -40,6 +40,14 @@ export const ApiFeaturesSchema = z.object({
   reportsActualCost: z.boolean().default(false)
 })
 
+/**
+ * Provider-owned transport used to request faster processing.
+ *
+ * Model availability remains a provider-model concern; this only describes
+ * how the provider carries an enabled Fast request.
+ */
+export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Reasoning Format
 //
@@ -171,6 +179,8 @@ export const ProviderConfigSchema = z
      * unpriced; consumers must not infer a default currency.
      */
     reportedCostCurrency: ZodCurrencySchema,
+    /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
+    fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })

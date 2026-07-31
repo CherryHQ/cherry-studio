@@ -69,7 +69,7 @@ export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
   taskId: string
   toolUseId?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'error'
+  status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title?: string
   activeText?: string
   description?: string
@@ -81,6 +81,8 @@ export interface AgentTaskEventPartData {
   lastToolName?: string
   outputFile?: string
   error?: string
+  /** Per-task edge authority for whether this task has detached from its spawning turn. */
+  isBackgrounded?: boolean
   skipTranscript?: boolean
   usage?: {
     totalTokens?: number
@@ -96,6 +98,9 @@ export interface KnowledgeScopePartData {
 
 /** Context boundary marker. Hidden from both the transcript and the model. */
 export type ClearPartData = Record<string, never>
+
+/** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
+export type ConversationResetPartData = Record<string, never>
 
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
@@ -117,6 +122,7 @@ export type CherryDataPartTypes = {
   video: VideoPartData
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
+  'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
@@ -227,9 +233,20 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
   size: z.number().optional()
 })
 
+const ComposerMessageTokenKindSchema = z.enum([
+  'skill',
+  'link',
+  'file',
+  'folder',
+  'command',
+  'knowledge',
+  'reference',
+  'quote'
+])
+
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   id: z.string(),
-  kind: z.enum(['skill', 'file', 'folder', 'command', 'knowledge', 'reference', 'quote']),
+  kind: ComposerMessageTokenKindSchema,
   label: z.string(),
   icon: z.string().optional(),
   description: z.string().optional(),
@@ -356,7 +373,7 @@ export function getKnowledgeBaseIdsFromParts(parts: readonly CherryMessagePart[]
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
 
-export type ComposerMessageTokenKind = 'skill' | 'file' | 'folder' | 'command' | 'knowledge' | 'reference' | 'quote'
+export type ComposerMessageTokenKind = z.infer<typeof ComposerMessageTokenKindSchema>
 
 export interface ComposerMessageFileTokenPayload {
   type?: FileType

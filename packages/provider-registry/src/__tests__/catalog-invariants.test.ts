@@ -14,12 +14,14 @@ import { describe, expect, it } from 'vitest'
 
 import { canonOf } from '../../scripts/canonicalize'
 import { ModelListSchema } from '../schemas/model'
+import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
+const providersRaw = JSON.parse(readFileSync(join(dataDir, 'providers.json'), 'utf8'))
 const models = modelsRaw.models as Array<{
   id: string
   name: string
@@ -36,6 +38,8 @@ const overrides = providerModelsRaw.overrides as Array<{
   apiModelId?: string
   name?: string
 }>
+const providers = ProviderListSchema.parse(providersRaw).providers
+const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).overrides
 
 // normalized creator id: lowercase, alphanumerics joined by single hyphens (size/version kept)
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -187,6 +191,22 @@ describe('catalog invariants (data/*.json)', () => {
   it('provider-models.json conforms to ProviderModelListSchema', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+  })
+
+  it('Fast transports belong only to Codex and Claude Code', () => {
+    expect(providers.filter((provider) => provider.fastMode).map((provider) => provider.id)).toEqual([
+      'claude-code',
+      'openai-codex'
+    ])
+  })
+
+  it('Fast provider-model declarations require a provider transport', () => {
+    const fastProviders = new Set(providers.filter((provider) => provider.fastMode).map((provider) => provider.id))
+    expect(
+      providerModelOverrides
+        .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
+        .map((override) => `${override.providerId}/${override.modelId}`)
+    ).toEqual([])
   })
 
   it('budget wire operations require an explicit budget policy', () => {
