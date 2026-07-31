@@ -215,6 +215,10 @@
   background-color: transparent;
 }
 
+.markdown pre:has(.message-html-artifact) {
+  border: 0;
+}
+
 .markdown pre:not(pre pre) > code:not(pre pre > code) {
   display: block;
   padding: 0.9em 1em;
