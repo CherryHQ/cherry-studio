@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -287,6 +287,8 @@ describe('AgentsMigrator Claude session cache integration', () => {
       .select()
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.id, oldSession.workspaceId))
+    expect(oldWorkspace.type).toBe('system')
+    expect(oldWorkspace.path).toBe(path.join(agentSystemWorkspacesDir, '2026-07-01', oldSession.id))
     expect(await readFile(path.join(oldWorkspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
 
     const migratedProjectDirectory = path.join(
@@ -374,6 +376,58 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(await readFile(path.join(workspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
     expect(await readFile(path.join(legacyWorkspace, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
     await expect(access(oldWorkspace)).rejects.toThrow()
+  })
+
+  it('does not relocate a restored v1 default workspace when the current default is a file', async () => {
+    const { legacyAgentDbFile, legacyWorkspace, context } = await createMigrationFixture(tempRoots)
+    const oldWorkspace = oldMachineDefaultWorkspacePath(legacyAgentDbFile)
+    setLegacyWorkspacePath(legacyAgentDbFile, oldWorkspace)
+    await rm(legacyWorkspace, { recursive: true, force: true })
+    await writeFile(legacyWorkspace, 'not a workspace directory')
+
+    const migrationContext = {
+      ...context,
+      db: dbh.db
+    } as unknown as MigrationContext
+
+    dbh.sqlite.pragma('foreign_keys = OFF')
+    await new AgentsMigrator().execute(migrationContext)
+
+    const [session] = await dbh.db.select().from(agentSessionTable)
+    const [workspace] = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, session.workspaceId))
+
+    expect(workspace.type).toBe('user')
+    expect(workspace.path).toBe(oldWorkspace)
+  })
+
+  it('does not relocate a restored v1 default workspace when the current default is a symlink', async () => {
+    const { legacyAgentDbFile, legacyWorkspace, context } = await createMigrationFixture(tempRoots)
+    const oldWorkspace = oldMachineDefaultWorkspacePath(legacyAgentDbFile)
+    setLegacyWorkspacePath(legacyAgentDbFile, oldWorkspace)
+    const symlinkTarget = path.join(path.dirname(path.dirname(legacyAgentDbFile)), 'symlink-workspace')
+    await mkdir(symlinkTarget)
+    await rm(legacyWorkspace, { recursive: true, force: true })
+    await symlink(symlinkTarget, legacyWorkspace, 'dir')
+
+    const migrationContext = {
+      ...context,
+      db: dbh.db
+    } as unknown as MigrationContext
+
+    dbh.sqlite.pragma('foreign_keys = OFF')
+    await new AgentsMigrator().execute(migrationContext)
+
+    const [session] = await dbh.db.select().from(agentSessionTable)
+    const [workspace] = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, session.workspaceId))
+
+    expect(workspace.type).toBe('user')
+    expect(workspace.path).toBe(oldWorkspace)
   })
 
   it('preserves an existing workspace with the v1 default path shape', async () => {
