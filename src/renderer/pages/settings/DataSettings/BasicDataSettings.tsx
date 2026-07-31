@@ -15,7 +15,7 @@ import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { CircleHelp, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -315,12 +315,23 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle>{t('settings.privacy.contextual_greetings.title')}</SettingRowTitle>
-            <SettingHelpText className="mt-1 max-w-2xl leading-relaxed">
-              {t('settings.privacy.contextual_greetings.description')}
-            </SettingHelpText>
-          </div>
+          <SettingRowTitle className="min-w-0 flex-1 gap-1.25">
+            {t('settings.privacy.contextual_greetings.title')}
+            <Tooltip
+              content={t('settings.privacy.contextual_greetings.description')}
+              placement="top-start"
+              sideOffset={6}
+              classNames={{ content: 'max-w-md' }}>
+              <Button
+                type="button"
+                aria-label={`${t('settings.privacy.contextual_greetings.title')} ${t('common.help')}`}
+                variant="ghost"
+                size="icon-sm"
+                className="size-5 shrink-0 rounded-full text-foreground-tertiary hover:bg-muted hover:text-foreground">
+                <CircleHelp className="size-3.5" />
+              </Button>
+            </Tooltip>
+          </SettingRowTitle>
           <Switch
             aria-label={t('settings.privacy.contextual_greetings.title')}
             checked={contextualGreetingsEnabled}

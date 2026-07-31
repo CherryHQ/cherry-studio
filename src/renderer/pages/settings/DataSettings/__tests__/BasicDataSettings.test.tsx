@@ -67,7 +67,15 @@ describe('BasicDataSettings', () => {
   it('discloses contextual greeting data sharing and requires an explicit opt-in', async () => {
     await renderSettings()
 
-    expect(screen.getByText('settings.privacy.contextual_greetings.description')).toBeInTheDocument()
+    const helpButton = screen.getByRole('button', {
+      name: 'settings.privacy.contextual_greetings.title common.help'
+    })
+    expect(helpButton).toBeInTheDocument()
+    expect(helpButton.closest('[data-testid="tooltip"]')).toHaveAttribute(
+      'data-title',
+      'settings.privacy.contextual_greetings.description'
+    )
+
     const toggle = screen.getByRole('switch', { name: 'settings.privacy.contextual_greetings.title' })
     expect(toggle).not.toBeChecked()
 
