@@ -51,7 +51,7 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { TreeDirRoot } from '@shared/utils/file'
+import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
@@ -271,6 +271,15 @@ function AgentRightPaneActionsProvider({
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const panelActions = useRightPanelActions()
+  const artifactOpenRequestRef = useRef(0)
+  // Invalidate in-flight artifact-open requests when the session or workspace
+  // changes (and on unmount), so a late getMetadata resolution cannot restore a
+  // preview that the switch just cleared.
+  useEffect(() => {
+    return () => {
+      artifactOpenRequestRef.current += 1
+    }
+  }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
@@ -284,10 +293,27 @@ function AgentRightPaneActionsProvider({
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
+      const requestId = artifactOpenRequestRef.current + 1
+      artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      if (!selection) return
-      requestFileSelection(selection)
       panelActions.tryOpen('files', { userInitiated: true })
+
+      if (!selection) {
+        requestFileSelection(null)
+        return
+      }
+
+      void window.api.file
+        .getMetadata(createFilePathHandle(getArtifactPaneSelectionPath(selection)))
+        .then((metadata) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(metadata.kind === 'directory' ? null : selection)
+        })
+        .catch(() => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+          requestFileSelection(selection)
+        })
     },
     [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
   )
@@ -586,7 +612,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
-  const panelState = useRightPanelState()
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
     workspacePath: state.workspacePath,
@@ -630,8 +655,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={panelState.pdfLayoutPending}
-      pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
       enableFileSearch
       fileSession={state.fileSession}
       editMode={state.editMode}
