@@ -186,6 +186,98 @@ source will stop changing afterwards.
 Each kind maps to exactly one registered path root. Backup resolves roots through
 `application.getPath()` and records only userData-relative install paths.
 
+#### Per-kind policy
+
+Each entry states the four decisions that define a kind: how requirements are
+derived from the detached database, how bytes are captured, what the portable
+database policy does to the rows that reference it, and what restore does after
+promotion. Degradation semantics follow §2.3 unless stated.
+
+**`file-blob`** — one requirement per `file_entry` row with `origin='internal'`,
+soft-deleted (trash) rows included: the database snapshot preserves those rows,
+so their bytes must stay restorable. Capture: strict unit per blob; a drifting
+blob degrades alone. Portable DB: `origin='external'` rows are deleted
+(`external-file-dropped`) — their absolute paths would auto-resolve on the
+target. Restore: per-file install; nothing derived.
+
+**`knowledge-base`** — one requirement per `knowledge_base` row; required
+content is the `raw/` and processed material of every COMPLETED indexable
+`knowledge_item`, and a base that cannot supply it degrades out as a whole
+(`unrebuildable-content`) rather than shipping an index-only shell. Capture:
+strict unit excluding the live `index.sqlite` WAL family, then the owner
+snapshot inside the per-base mutation mutex (§5.2): online SQLite backup →
+prune material committed after the DB snapshot → prove
+identity/schema/material/embeddings/FTS (§5.3). Proof passes →
+`.cherry/index.sqlite` ships and the base restores `ready`; any proof fails →
+the index is dropped from staging and the base ships `rebuild`
+(`knowledge-index-rebuild-required`). Portable DB: auto-executing
+`knowledge_item.status` values reset. Restore: `ready` bases search
+immediately; `rebuild` bases re-embed post-promotion from transported material
+only (never a source URL), with per-base completion persisted in the journal
+and an explicit user abandon path at acknowledgement.
+
+**`note-root`** — always exactly one requirement: the managed Notes root. The
+`note` table is sparse star/expand state, not a file index, so rows never map
+to units. Capture: partial tree. Portable DB: `note.root_path` rebases under
+the managed root; a user-chosen external root stays verbatim as inert
+metadata. Restore: the tree replaces as one directory unit.
+
+**`agent-data`** — one requirement per live `agent` row
+(`Data/Agents/<agentId>`, identity and memory). Capture: strict unit. Portable
+DB: `agent.configuration` is made inert — `heartbeat_enabled` /
+`scheduler_enabled` forced `false`, `bypassPermissions` stripped, malformed
+fields failed closed. Restore: install; automation stays off until the user
+re-enables it.
+
+**`agent-transcript`** — one requirement per session whose
+`runtime_resume_token` is a versioned portable resume point
+(`{sdkSessionId, lastAssistantUuid}`); raw pre-feature tokens are cleared
+instead (`runtime-reference-reset`). Capture: owner snapshot — read the SDK's
+own `projects/<encoded cwd>/<sdkSessionId>.jsonl` (encoded path first, then a
+uuid-filename scan, so export never depends on the encoding) and cut it
+through the retained assistant uuid; entries past the anchor and a torn tail
+belong to the next backup. A retained token whose transcript cannot be cut
+fails the export — there is no safe fallback. Subagent sidecar files are not
+transported. Restore: the canonical file installs at `Data/AgentTranscripts/`;
+the session's first warmup projects it to the SDK's encoded-cwd location,
+soft-failing to a fresh session (§6.1).
+
+**`agent-workspace`** — one requirement per `agent_workspace` row whose `path`
+is physically inside the managed workspaces root — containment, not the
+`type` column, is the test, because a hostile database controls the column.
+Disconnected placeholders stay unverifiable. Capture: partial tree; managed
+skill-projection links are excluded as derived state (§6.2). Portable DB: the
+three-layer policy of §4 — managed paths rebase; an external path is kept
+verbatim when the archive is self-attested, or when the string proves local
+and a real directory is present; everything else disconnects (placeholder
+path, original parked in `disconnected_path`, sessions preserved). Restore:
+managed units install; the workspace cut and the transcript cut stay
+independent.
+
+**`skill`** — one requirement per `agent_global_skill` row at
+`Data/Skills/<folder_name>`. Capture: strict unit; the `.claude/skills` mirror
+is never captured (derived). Restore: install; startup `reconcileSkills()`
+rebuilds the mirror and catalog (§6.2).
+
+**`mcp-workspace`** — one fixed requirement: the built-in `Data/Workspace`
+directory. Capture: partial tree. Restore: install; nothing derived.
+
+**`mcp-memory`** — one fixed requirement: `Data/Mcp/memory.json`. Capture:
+strict unit. Portable DB: `mcp_server` rows deactivate — `is_active`,
+`is_trusted`, `dxtPath` cleared; malformed executable/network fields failed
+closed. Restore: servers return configured but inactive and untrusted.
+
+**`agent-channel-state`** — one fixed requirement: the `Data/Channels`
+directory. Capture: strict unit. Portable DB: `agent_channel.is_active` forced
+`false`; the inert `config` is preserved as stored — explicit activation
+revalidates it. Restore: credentials and continuity state install inactive.
+
+**`agent-runtime-config`** — one fixed requirement: `Data/Agents/.claude`.
+Capture: strict unit excluding `skills/` (Skill owner projection, §6.2) and
+`projects/` (the SDK's live transcript cache; the `agent-transcript` owner
+snapshot carries resume continuity instead). Restore: installs as one unit;
+excluded subtrees are rebuilt by their owners.
+
 ### 3.2 Links and special nodes
 
 - Internal symlinks are materialized as ordinary archive files/directories.
