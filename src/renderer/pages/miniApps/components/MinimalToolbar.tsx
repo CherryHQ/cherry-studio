@@ -345,10 +345,10 @@ const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled
   cn(
     'rounded shadow-none active:scale-95',
     disabled
-      ? 'cursor-default text-foreground-muted hover:bg-transparent hover:text-foreground-muted active:scale-100'
+      ? 'cursor-default text-foreground-disabled hover:bg-transparent hover:text-foreground-disabled active:scale-100'
       : active
         ? 'text-primary hover:text-primary'
-        : 'text-foreground-secondary hover:text-foreground'
+        : 'text-muted-foreground hover:text-foreground'
   )
 
 export default MinimalToolbar

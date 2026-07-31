@@ -459,7 +459,7 @@ const ShortcutSettings: FC = () => {
             type="button"
             variant="ghost"
             className={cn(
-              'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
+              'h-8 w-36 rounded-lg border-border-subtle bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
               hasConflict && 'border-error-border focus-visible:ring-error/50'
             )}
@@ -498,7 +498,7 @@ const ShortcutSettings: FC = () => {
             )}
             <RowFlex
               className={cn(
-                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
+                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border-subtle hover:bg-muted/35',
                 hasSystemConflict && 'border-error-border',
                 isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed opacity-50'
               )}
@@ -507,7 +507,7 @@ const ShortcutSettings: FC = () => {
                 <Kbd
                   key={key}
                   className={cn(
-                    'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
+                    'min-w-6 rounded-md border border-border-subtle bg-card px-1.5 py-0.75 text-card-foreground text-xs shadow-none',
                     hasSystemConflict && 'border-error-border text-error'
                   )}>
                   {formatKeyDisplay(key, isMac)}
@@ -528,7 +528,7 @@ const ShortcutSettings: FC = () => {
       <div className="relative flex flex-col items-end">
         <span
           className={cn(
-            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border/60 hover:bg-muted/30',
+            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border-subtle hover:bg-muted/30',
             hasSystemConflict && 'border-error-border text-error',
             isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
           )}
@@ -575,7 +575,7 @@ const ShortcutSettings: FC = () => {
         className={cn(
           'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
           !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border/50 border-b'
+          !isLast && 'border-border-subtle border-b'
         )}>
         <div className="min-w-0 pr-2">
           <div className="truncate text-[14px] text-foreground">{record.label}</div>
@@ -636,7 +636,7 @@ const ShortcutSettings: FC = () => {
                 <div className="relative min-w-0 flex-1">
                   <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
                   <Input
-                    className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
+                    className="h-9 w-full rounded-lg border-border-subtle bg-background pr-3 pl-9"
                     placeholder={t('settings.shortcuts.search_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
