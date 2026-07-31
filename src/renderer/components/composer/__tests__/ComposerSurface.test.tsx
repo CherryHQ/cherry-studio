@@ -508,6 +508,17 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
   })
 
+  it('uses a flat translucent surface for the light composer', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(document.getElementById('inputbar')).toHaveClass(
+      'bg-[oklch(from_var(--card)_calc(l_-_0.015)_c_h/0.995)]',
+      'dark:bg-card'
+    )
+    expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
+    expect(document.getElementById('inputbar')).not.toHaveClass('shadow-sm')
+  })
+
   it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
     mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
