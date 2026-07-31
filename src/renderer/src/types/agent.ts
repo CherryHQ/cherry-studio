@@ -208,6 +208,8 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   agent_type: AgentTypeSchema,
   // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
 
+  name_manually_edited: z.boolean().default(false), // True once the user renames the session; suppresses auto-rename
+
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime()
 })
@@ -296,7 +298,7 @@ export type BaseSessionForm = AgentBase
 
 export type CreateSessionForm = BaseSessionForm & { id?: never }
 
-export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
+export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string; name_manually_edited?: boolean }
 
 export type SessionForm = CreateSessionForm | UpdateSessionForm
 
@@ -355,7 +357,9 @@ export type UpdateAgentResponse = GetAgentResponse
 
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
 
-export interface UpdateSessionRequest extends Partial<AgentBase> {}
+export interface UpdateSessionRequest extends Partial<AgentBase> {
+  name_manually_edited?: boolean
+}
 
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
@@ -489,7 +493,7 @@ const sessionCreatableSchema = AgentBaseSchema.extend({
 
 export const CreateSessionRequestSchema = sessionCreatableSchema
 
-export const UpdateSessionRequestSchema = sessionCreatableSchema.partial()
+export const UpdateSessionRequestSchema = sessionCreatableSchema.extend({ name_manually_edited: z.boolean() }).partial()
 
 export const ReplaceSessionRequestSchema = sessionCreatableSchema
 

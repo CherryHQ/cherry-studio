@@ -11,6 +11,7 @@ export const sessionsTable = sqliteTable('sessions', {
   agent_type: text('agent_type').notNull(),
   agent_id: text('agent_id').notNull(), // Primary agent ID for the session
   name: text('name').notNull(),
+  name_manually_edited: integer('name_manually_edited', { mode: 'boolean' }).notNull().default(false), // True once the user renames the session; suppresses auto-rename
   description: text('description'),
   accessible_paths: text('accessible_paths'), // JSON array of directory paths the agent can access
 

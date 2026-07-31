@@ -48,7 +48,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
       if (value !== session.name) {
-        await updateSession({ id: session.id, name: value })
+        await updateSession({ id: session.id, name: value, name_manually_edited: true })
       }
     }
   })
