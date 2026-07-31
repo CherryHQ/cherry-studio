@@ -8,11 +8,12 @@ const mocks = vi.hoisted(() => ({
   updateTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
   initData: null as { kind: 'navigation'; to: string; requestId: number } | null,
-  ipcListeners: new Map<string, (payload: unknown) => void>()
+  ipcListeners: new Map<string, (payload: unknown) => void>(),
+  ipcRequest: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
+  ipcApi: { request: mocks.ipcRequest },
   useIpcOn: (event: string, handler: (payload: unknown) => void) => {
     mocks.ipcListeners.set(event, handler)
   }
@@ -124,6 +125,7 @@ describe('useMainWindowNavigation', () => {
     render(<MainWindowNavigationHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {

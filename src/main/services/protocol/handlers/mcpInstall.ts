@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
@@ -42,7 +44,10 @@ function parseMcpServerDtos(value: unknown): CreateMcpServerDto[] {
 
   if (value && typeof value === 'object' && 'mcpServers' in value) {
     const servers = (value as { mcpServers?: unknown }).mcpServers
-    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
+    if (Array.isArray(servers)) {
+      return servers.map((server) => toCreateMcpServerDto(server))
+    }
+    if (!servers || typeof servers !== 'object') {
       throw new Error('mcpServers must be an object')
     }
     return Object.entries(servers).map(([name, server]) => toCreateMcpServerDto(server, name))
@@ -77,10 +82,12 @@ export function handleMcpProtocolUrl(url: URL) {
         const serverDtos = parseMcpServerDtos(jsonConfig)
         if (serverDtos.length > 0) {
           const protocolInstall = encodeURIComponent(JSON.stringify(serverDtos))
+          const protocolInstallRequestId = randomUUID()
           logger.debug('Prepared MCP protocol install preview', { count: serverDtos.length })
-          openSettingsInMainWindow(`/settings/mcp/servers?protocolInstall=${protocolInstall}`, {
-            delivery: 'init-data'
-          })
+          openSettingsInMainWindow(
+            `/settings/mcp/servers?protocolInstall=${protocolInstall}&protocolInstallRequestId=${protocolInstallRequestId}`,
+            { delivery: 'init-data' }
+          )
           break
         }
       }

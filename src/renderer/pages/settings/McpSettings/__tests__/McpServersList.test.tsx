@@ -8,8 +8,10 @@ import McpServersList from '../McpServersList'
 
 const mocks = vi.hoisted(() => ({
   addMcpServer: vi.fn(),
+  addMcpServers: vi.fn(),
   navigate: vi.fn(),
-  protocolInstall: [] as CreateMcpServerDto[]
+  protocolInstall: [] as CreateMcpServerDto[],
+  protocolInstallRequestId: 'request-1'
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -24,13 +26,17 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({
     mcpServers: [],
     addMcpServer: mocks.addMcpServer,
+    addMcpServers: mocks.addMcpServers,
     reorderMcpServers: vi.fn()
   })
 }))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate,
-  useSearch: () => ({ protocolInstall: mocks.protocolInstall })
+  useSearch: () => ({
+    protocolInstall: mocks.protocolInstall,
+    protocolInstallRequestId: mocks.protocolInstallRequestId
+  })
 }))
 
 vi.mock('@renderer/components/CollapsibleSearchBar', () => ({ default: () => null }))
@@ -68,9 +74,10 @@ describe('McpServersList protocol install', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.protocolInstall = protocolServers
-    mocks.addMcpServer.mockImplementation(async (dto: CreateMcpServerDto) => {
-      return { ...dto, id: `${dto.name}-id` } as McpServer
-    })
+    mocks.protocolInstallRequestId = 'request-1'
+    mocks.addMcpServers.mockImplementation(async (dtos: CreateMcpServerDto[]) =>
+      dtos.map((dto) => ({ ...dto, id: `${dto.name}-id` }) as McpServer)
+    )
   })
 
   it('waits for install confirmation, creates in order, and requests run confirmation for the last server', async () => {
@@ -79,17 +86,31 @@ describe('McpServersList protocol install', () => {
 
     expect(await screen.findByText('first-server')).toBeInTheDocument()
     expect(screen.getByText('second-server')).toBeInTheDocument()
-    expect(mocks.addMcpServer).not.toHaveBeenCalled()
+    expect(mocks.addMcpServers).not.toHaveBeenCalled()
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/mcp/servers', search: {}, replace: true })
 
     await user.click(screen.getByRole('button', { name: 'settings.mcp.install' }))
 
-    await waitFor(() => expect(mocks.addMcpServer).toHaveBeenCalledTimes(2))
-    expect(mocks.addMcpServer.mock.calls.map(([server]) => server.name)).toEqual(['first-server', 'second-server'])
+    await waitFor(() => expect(mocks.addMcpServers).toHaveBeenCalledOnce())
+    expect(mocks.addMcpServers).toHaveBeenCalledWith(protocolServers)
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: '/settings/mcp/settings/$serverId',
       params: { serverId: 'second-server-id' },
       search: { autoEnable: 'true' }
     })
+  })
+
+  it('shows an identical preview again when its request id changes', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<McpServersList />)
+
+    expect(await screen.findByText('first-server')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    await waitFor(() => expect(screen.queryByText('first-server')).not.toBeInTheDocument())
+
+    mocks.protocolInstallRequestId = 'request-2'
+    rerender(<McpServersList />)
+
+    expect(await screen.findByText('first-server')).toBeInTheDocument()
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateMcpServerSchema, UpdateMcpServerSchema } from '../mcpServers'
+import { CreateMcpServerSchema, CreateMcpServersSchema, UpdateMcpServerSchema } from '../mcpServers'
 
 describe('MCP server DTO schemas', () => {
   it.each(['id', 'createdAt', 'updatedAt', 'url'])('rejects unknown or readonly create field %s', (key) => {
@@ -47,5 +47,10 @@ describe('MCP server DTO schemas', () => {
       isActive: true,
       disabledTools: ['tool']
     })
+  })
+
+  it('accepts a non-empty batch of create DTOs', () => {
+    expect(CreateMcpServersSchema.parse([{ name: 'first' }, { name: 'second', command: 'npx' }])).toHaveLength(2)
+    expect(() => CreateMcpServersSchema.parse([])).toThrow()
   })
 })

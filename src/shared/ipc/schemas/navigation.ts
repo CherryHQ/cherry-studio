@@ -27,6 +27,15 @@ export const navigationRequestSchemas = {
       path: z.string()
     }),
     output: z.void()
+  }),
+  // Acknowledge one-shot navigation init data after the main-window renderer
+  // has routed it. Main only clears the stored value when requestId still
+  // matches, so a newer request cannot be erased by a delayed acknowledgement.
+  'navigation.ack_open_route': defineRoute({
+    input: z.object({
+      requestId: z.number().int().nonnegative()
+    }),
+    output: z.void()
   })
 }
 

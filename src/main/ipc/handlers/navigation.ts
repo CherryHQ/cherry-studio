@@ -1,5 +1,9 @@
 import { loggerService } from '@logger'
-import { isAllowedRoute, openRouteInMainWindow } from '@main/services/mainWindowNavigation'
+import {
+  acknowledgeMainWindowNavigation,
+  isAllowedRoute,
+  openRouteInMainWindow
+} from '@main/services/mainWindowNavigation'
 import type { navigationRequestSchemas } from '@shared/ipc/schemas/navigation'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -12,5 +16,8 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
       return
     }
     openRouteInMainWindow(path)
+  },
+  'navigation.ack_open_route': async ({ requestId }, { senderId }) => {
+    if (senderId) acknowledgeMainWindowNavigation(senderId, requestId)
   }
 }

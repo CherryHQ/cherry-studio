@@ -1,6 +1,6 @@
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
@@ -123,6 +123,7 @@ export function useMainWindowNavigation() {
 
     handledNavigationRequestIdRef.current = initData.requestId
     handleRoute(initData.to)
+    void ipcApi.request('navigation.ack_open_route', { requestId: initData.requestId })
   }, [initData, handleRoute])
 
   useMainRouteEventBridge(handleRoute)

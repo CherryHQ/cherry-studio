@@ -31,6 +31,22 @@ export interface MainWindowNavigationOptions {
   delivery?: 'auto' | 'init-data'
 }
 
+export function acknowledgeMainWindowNavigation(windowId: string, requestId: number): void {
+  const windowManager = application.get('WindowManager')
+  const initData = windowManager.getInitData(windowId)
+
+  if (
+    initData &&
+    typeof initData === 'object' &&
+    'kind' in initData &&
+    initData.kind === 'navigation' &&
+    'requestId' in initData &&
+    initData.requestId === requestId
+  ) {
+    windowManager.clearInitData(windowId)
+  }
+}
+
 /**
  * Open a route in the main window. Two delivery paths, split by whether the
  * navigation coincides with the window's lifecycle:

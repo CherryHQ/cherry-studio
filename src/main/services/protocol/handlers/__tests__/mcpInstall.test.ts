@@ -21,8 +21,10 @@ const getPreviewServers = () => {
   const [path, options] = openSettingsInMainWindowMock.mock.calls.at(-1)!
   const url = new URL(path, 'https://cherry.local')
   const protocolInstall = url.searchParams.get('protocolInstall')
+  const requestId = url.searchParams.get('protocolInstallRequestId')
   if (!protocolInstall) throw new Error('Missing protocol install preview payload')
-  return { servers: JSON.parse(protocolInstall), path: url.pathname, options }
+  if (!requestId) throw new Error('Missing protocol install request id')
+  return { servers: JSON.parse(protocolInstall), requestId, path: url.pathname, options }
 }
 
 describe('MCP install protocol handler', () => {
@@ -50,8 +52,9 @@ describe('MCP install protocol handler', () => {
 
     expect(await dbh.db.select().from(mcpServerTable)).toEqual([])
 
-    const { servers, path, options } = getPreviewServers()
+    const { servers, requestId, path, options } = getPreviewServers()
     expect(path).toBe('/settings/mcp/servers')
+    expect(requestId).toEqual(expect.any(String))
     expect(options).toEqual({ delivery: 'init-data' })
     expect(servers).toHaveLength(1)
     expect(servers[0]).toMatchObject({
@@ -96,5 +99,29 @@ describe('MCP install protocol handler', () => {
 
     const { servers } = getPreviewServers()
     expect(servers.map((server: { name: string }) => server.name)).toEqual(['array-first', 'array-second'])
+  })
+
+  it('accepts an mcpServers array wrapper and preserves preview order', () => {
+    handleMcpProtocolUrl(
+      createInstallUrl({
+        mcpServers: [
+          { name: 'wrapped-first', command: 'uvx' },
+          { name: 'wrapped-second', command: 'npx' }
+        ]
+      })
+    )
+
+    const { servers } = getPreviewServers()
+    expect(servers.map((server: { name: string }) => server.name)).toEqual(['wrapped-first', 'wrapped-second'])
+  })
+
+  it('assigns a fresh request id to repeated identical previews', () => {
+    const url = createInstallUrl({ name: 'repeatable', command: 'npx' })
+
+    handleMcpProtocolUrl(url)
+    const firstRequestId = getPreviewServers().requestId
+    handleMcpProtocolUrl(url)
+
+    expect(getPreviewServers().requestId).not.toBe(firstRequestId)
   })
 })

@@ -4,7 +4,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import * as z from 'zod'
 
 const mcpServersSearchSchema = z.object({
-  protocolInstall: CreateMcpServerSchema.array().min(1).optional()
+  protocolInstall: CreateMcpServerSchema.array().min(1).optional(),
+  protocolInstallRequestId: z.string().min(1).optional()
 })
 
 export const Route = createFileRoute('/settings/mcp/servers')({

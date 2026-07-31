@@ -6,7 +6,9 @@ const { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiService
   }
   const windowManagerMock = {
     getWindowsByType: vi.fn<() => unknown[]>(() => []),
-    getWindowId: vi.fn()
+    getWindowId: vi.fn(),
+    getInitData: vi.fn(),
+    clearInitData: vi.fn()
   }
   const ipcApiServiceMock = {
     send: vi.fn()
@@ -24,7 +26,11 @@ const { applicationMock, mainWindowServiceMock, windowManagerMock, ipcApiService
 
 vi.mock('@application', () => ({ application: applicationMock }))
 
-import { openRouteInMainWindow, openSettingsInMainWindow } from '../mainWindowNavigation'
+import {
+  acknowledgeMainWindowNavigation,
+  openRouteInMainWindow,
+  openSettingsInMainWindow
+} from '../mainWindowNavigation'
 
 const aliveWindow = { isDestroyed: () => false }
 
@@ -32,6 +38,25 @@ describe('mainWindowNavigation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     windowManagerMock.getWindowsByType.mockReturnValue([])
+    windowManagerMock.getInitData.mockReturnValue(null)
+  })
+
+  describe('acknowledgeMainWindowNavigation', () => {
+    it('clears the matching stored navigation request', () => {
+      windowManagerMock.getInitData.mockReturnValue({ kind: 'navigation', to: '/settings/about', requestId: 7 })
+
+      acknowledgeMainWindowNavigation('main-1', 7)
+
+      expect(windowManagerMock.clearInitData).toHaveBeenCalledWith('main-1')
+    })
+
+    it('does not clear a newer stored navigation request', () => {
+      windowManagerMock.getInitData.mockReturnValue({ kind: 'navigation', to: '/settings/about', requestId: 8 })
+
+      acknowledgeMainWindowNavigation('main-1', 7)
+
+      expect(windowManagerMock.clearInitData).not.toHaveBeenCalled()
+    })
   })
 
   describe('openRouteInMainWindow', () => {

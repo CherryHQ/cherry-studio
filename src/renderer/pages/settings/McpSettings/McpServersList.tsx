@@ -45,10 +45,13 @@ const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: strin
 const protocolInstallServersSchema = CreateMcpServerSchema.array().min(1)
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMcpServer, reorderMcpServers } = useMcpServers()
+  const { mcpServers, addMcpServer, addMcpServers, reorderMcpServers } = useMcpServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as { protocolInstall?: CreateMcpServerDto[] }
+  const search = useSearch({ strict: false }) as {
+    protocolInstall?: CreateMcpServerDto[]
+    protocolInstallRequestId?: string
+  }
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
@@ -57,7 +60,7 @@ const McpServersList: FC = () => {
   const [filter, setFilter] = useState<McpServerFilter>('all')
   const [protocolInstallServers, setProtocolInstallServers] = useState<CreateMcpServerDto[] | null>(null)
   const consumedProtocolInstallRef = useRef<string | null>(null)
-  const protocolInstallKey = search.protocolInstall ? JSON.stringify(search.protocolInstall) : null
+  const protocolInstallKey = search.protocolInstallRequestId ?? null
 
   const [searchText, setSearchText] = useState('')
   // Keep typing responsive: the list re-filters on the deferred value.
@@ -149,26 +152,10 @@ const McpServersList: FC = () => {
   const handleProtocolInstall = useCallback(async () => {
     if (!protocolInstallServers) return
 
-    const seenNames = new Set(mcpServers.map((server) => server.name))
-    const duplicateServer = protocolInstallServers.find((server) => {
-      if (seenNames.has(server.name)) return true
-      seenNames.add(server.name)
-      return false
-    })
-    if (duplicateServer) {
-      toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: duplicateServer.name }))
-      return
-    }
-
-    const createdServers: McpServer[] = []
+    let createdServers: McpServer[]
     try {
-      for (const server of protocolInstallServers) {
-        createdServers.push(await addMcpServer(server))
-      }
+      createdServers = await addMcpServers(protocolInstallServers)
     } catch (error) {
-      if (createdServers.length > 0) {
-        setProtocolInstallServers(null)
-      }
       toast.error(error instanceof Error ? error.message : t('settings.mcp.addError'))
       return
     }
@@ -183,7 +170,7 @@ const McpServersList: FC = () => {
       params: { serverId: lastCreatedServer.id },
       search: { autoEnable: 'true' }
     })
-  }, [addMcpServer, mcpServers, navigate, protocolInstallServers, t])
+  }, [addMcpServers, navigate, protocolInstallServers, t])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)

@@ -20,6 +20,15 @@ export const useMcpServers = (query?: ListMcpServersQuery) => {
 
   const addMcpServer = useCallback((dto: CreateMcpServerDto) => createMcpServer({ body: dto }), [createMcpServer])
 
+  const { trigger: createMcpServers } = useMutation('POST', '/mcp-servers/batch', {
+    refresh: ['/mcp-servers']
+  })
+
+  const addMcpServers = useCallback(
+    (dtos: CreateMcpServerDto[]) => createMcpServers({ body: dtos }),
+    [createMcpServers]
+  )
+
   const { trigger: reorderTrigger } = useMutation('PATCH', '/mcp-servers', {
     refresh: ['/mcp-servers']
   })
@@ -39,6 +48,7 @@ export const useMcpServers = (query?: ListMcpServersQuery) => {
     mcpServers,
     isLoading,
     addMcpServer,
+    addMcpServers,
     reorderMcpServers,
     refetch: mutate
   }

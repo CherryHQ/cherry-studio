@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { openRouteInMainWindowMock, loggerMock } = vi.hoisted(() => ({
+const { acknowledgeMainWindowNavigationMock, openRouteInMainWindowMock, loggerMock } = vi.hoisted(() => ({
+  acknowledgeMainWindowNavigationMock: vi.fn(),
   openRouteInMainWindowMock: vi.fn(),
   loggerMock: {
     warn: vi.fn()
@@ -9,6 +10,7 @@ const { openRouteInMainWindowMock, loggerMock } = vi.hoisted(() => ({
 
 vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
+  acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
   openRouteInMainWindow: openRouteInMainWindowMock
 }))
 
@@ -44,5 +46,17 @@ describe('navigationHandlers', () => {
 
     expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
     expect(loggerMock.warn).toHaveBeenCalled()
+  })
+
+  it('acknowledges navigation init data for the caller window', async () => {
+    await navigationHandlers['navigation.ack_open_route']({ requestId: 7 }, ctx)
+
+    expect(acknowledgeMainWindowNavigationMock).toHaveBeenCalledWith('w1', 7)
+  })
+
+  it('ignores navigation acknowledgements from an untracked caller', async () => {
+    await navigationHandlers['navigation.ack_open_route']({ requestId: 7 }, { senderId: null })
+
+    expect(acknowledgeMainWindowNavigationMock).not.toHaveBeenCalled()
   })
 })

@@ -13,7 +13,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -99,6 +99,51 @@ export class McpServerService {
     logger.info('Created MCP server', { id: row.id, name: row.name })
 
     return rowToMcpServer(row)
+  }
+
+  /**
+   * Create multiple MCP servers atomically after checking names against both
+   * the request and the latest database state.
+   */
+  createMany(dtos: CreateMcpServerDto[]): McpServer[] {
+    const created = application.get('DbService').withWriteTx((tx) => {
+      const names = new Set<string>()
+      for (const dto of dtos) {
+        this.validateName(dto.name)
+        if (names.has(dto.name)) {
+          throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
+        }
+        names.add(dto.name)
+      }
+
+      const existingNames = new Set(
+        tx
+          .select({ name: mcpServerTable.name })
+          .from(mcpServerTable)
+          .where(inArray(mcpServerTable.name, [...names]))
+          .all()
+          .map(({ name }) => name)
+      )
+      const duplicateName = [...names].find((name) => existingNames.has(name))
+      if (duplicateName) {
+        throw DataApiErrorFactory.conflict(`MCP server '${duplicateName}' already exists`, 'McpServer')
+      }
+
+      return tx
+        .insert(mcpServerTable)
+        .values(
+          dtos.map(({ sortOrder, isActive, ...rest }) => ({
+            ...rest,
+            sortOrder: sortOrder ?? 0,
+            isActive: isActive ?? false
+          }))
+        )
+        .returning()
+        .all()
+    })
+
+    logger.info('Created MCP servers', { count: created.length })
+    return created.map(rowToMcpServer)
   }
 
   /**
