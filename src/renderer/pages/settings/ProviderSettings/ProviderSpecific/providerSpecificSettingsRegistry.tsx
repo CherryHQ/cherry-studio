@@ -17,6 +17,7 @@ import LmStudioSettings from './LmStudioSettings'
 import LoginOauthPanel from './LoginOauthPanel'
 import OvmsSettings from './OvmsSettings'
 import ProviderOauth from './ProviderOauth'
+import RadeonCloudBenefits from './RadeonCloudBenefits'
 import VertexAiSettings from './VertexAiSettings'
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
@@ -34,6 +35,11 @@ export type ProviderSpecificRegistryEntry = {
 
 export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlacement, ProviderSpecificRegistryEntry[]> = {
   beforeAuth: [
+    {
+      key: 'radeon-cloud-benefits',
+      when: ({ provider }) => matchesPreset(provider, 'radeon-cloud'),
+      render: () => <RadeonCloudBenefits />
+    },
     {
       key: 'oauth',
       when: ({ provider }) => isProviderSupportAuth(provider),

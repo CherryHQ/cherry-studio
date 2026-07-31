@@ -62,6 +62,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSett
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/RadeonCloudBenefits', () => ({
+  default: () => <div>radeon-cloud-benefits</div>
+}))
+
 describe('ProviderSpecificSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -110,6 +114,12 @@ describe('ProviderSpecificSettings', () => {
       expectedText: 'cherryin-settings-cherryin'
     },
     {
+      providerId: 'radeon-cloud',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'radeon-cloud-benefits'
+    },
+    {
       providerId: 'lmstudio',
       placement: 'afterAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
@@ -150,17 +160,32 @@ describe('ProviderSpecificSettings', () => {
     }
   ])(
     'renders the expected provider-specific block for $providerId',
-    ({ providerId, placement, meta, expectedText, authType }: any) => {
+    ({ providerId, placement, meta, expectedText, authType, supportAuth }: any) => {
       useProviderMock.mockReturnValue({
         provider: { id: providerId, name: providerId, isEnabled: true, ...(authType ? { authType } : {}) }
       })
       useProviderMetaMock.mockReturnValue(meta)
+      if (supportAuth !== undefined) {
+        isProviderSupportAuthMock.mockReturnValue(supportAuth)
+      }
 
       render(<ProviderSpecificSettings providerId={providerId} placement={placement} />)
 
       expect(screen.getByText(expectedText)).toBeInTheDocument()
     }
   )
+
+  it('does not render AMD GPU Cloud OAuth while account login is disabled', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'radeon-cloud', name: 'AMD GPU Cloud', isEnabled: true }
+    })
+    useProviderMetaMock.mockReturnValue({ isCherryIN: false, isDmxapi: false })
+    isProviderSupportAuthMock.mockReturnValue(false)
+
+    const { container } = render(<ProviderSpecificSettings providerId="radeon-cloud" placement="beforeAuth" />)
+
+    expect(container.textContent).not.toContain('provider-oauth-radeon-cloud')
+  })
 
   it('returns nothing when the provider is missing', () => {
     useProviderMock.mockReturnValue({

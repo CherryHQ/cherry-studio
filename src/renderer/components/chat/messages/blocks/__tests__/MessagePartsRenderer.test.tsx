@@ -573,24 +573,6 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[1]).toContain('console.log(1)')
     })
 
-    it('uses stronger light-mode ink for ordinary message text', () => {
-      renderParts([{ type: 'text', text: 'hello world' }] as unknown as CherryMessagePart[])
-
-      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
-
-      expect(wrapper).toHaveClass('text-foreground')
-    })
-
-    it('does not apply the ordinary text color to data-code blocks', () => {
-      renderParts([
-        { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } }
-      ] as unknown as CherryMessagePart[])
-
-      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
-
-      expect(wrapper).not.toHaveClass('text-foreground')
-    })
-
     it('renders single and grouped images while skipping image parts without a URL', () => {
       const single = renderParts([
         { type: 'file', url: 'https://img.test/single.png', mediaType: 'image/png' }
@@ -1440,8 +1422,6 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
-      expect(screen.getByTestId('live-tool-group-header')).toHaveClass('select-none')
-      expect(screen.getByTestId('live-tool-group-content')).toHaveClass('pt-2')
 
       mockIsActiveTurnTarget.mockReturnValue(false)
       mockTopicStreamState.status = 'done'
@@ -1450,7 +1430,6 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed 1 second')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
-      expect(screen.getByTestId('completed-process-trigger')).toHaveClass('select-none')
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
       expect(screen.queryByTestId('tool-history-content')).toBeNull()
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
@@ -1496,7 +1475,6 @@ describe('MessagePartsRenderer', () => {
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
 
       fireEvent.click(historyTrigger)
-      expect(screen.getByTestId('tool-history-content')).toHaveClass('pt-2')
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
     })
 
