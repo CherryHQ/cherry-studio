@@ -1,17 +1,25 @@
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelType } from '@shared/data/types/channel'
 import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentSessionTable } from './agentSession'
 import { jobScheduleTable } from './job'
 
+/**
+ * `type` and `permissionMode` are enums, but deliberately carry no CHECK constraint:
+ * a SQL copy of an enum makes every added member a table recreate, and the copies drift
+ * the moment one is added in a hurry. Both are `$type`-narrowed here for internal callers
+ * and validated by their zod schemas at the DataApi boundary.
+ */
 export const agentChannelTable = sqliteTable(
   'agent_channel',
   {
     id: uuidPrimaryKey(),
-    type: text().notNull(),
+    type: text().$type<ChannelType>().notNull(),
     name: text().notNull(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
@@ -19,18 +27,13 @@ export const agentChannelTable = sqliteTable(
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
     activeChatIds: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
-    permissionMode: text(),
+    permissionMode: text().$type<AgentPermissionMode | null>(),
     ...createUpdateTimestamps
   },
   (t) => [
     index('agent_channel_agent_id_idx').on(t.agentId),
     index('agent_channel_type_idx').on(t.type),
-    index('agent_channel_session_id_idx').on(t.sessionId),
-    check('agent_channel_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')`),
-    check(
-      'agent_channel_permission_mode_check',
-      sql`${t.permissionMode} IS NULL OR ${t.permissionMode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`
-    )
+    index('agent_channel_session_id_idx').on(t.sessionId)
   ]
 )
 

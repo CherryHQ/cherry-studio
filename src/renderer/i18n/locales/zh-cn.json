@@ -139,11 +139,16 @@
         "description": "通过微信 iLink Bot API 接收和回复消息。",
         "disconnected": "未登录",
         "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
+        "qrExpired": "二维码已过期，请重新切换频道开关重试。",
         "qrHint": "请使用手机微信扫描二维码完成登录。",
         "qrTitle": "微信扫码登录",
         "title": "微信",
         "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} 个后台任务运行中",
+      "background_running_other": "{{count}} 个后台任务运行中"
     },
     "delete": {
       "content": "删除该智能体将强制终止并删除该智能体下的所有会话。您确定吗？",
@@ -320,16 +325,25 @@
         "more": "还有 {{count}} 项",
         "no_artifacts": "暂无声明产物",
         "no_subagents": "暂无子智能体",
-        "subagents": "子智能体"
+        "shell_tasks": "后台命令",
+        "subagents": "子智能体",
+        "workflows": "工作流"
       },
       "status": {
         "activity": "活动",
         "agent": "智能体",
         "context": "上下文",
         "no_tasks": "暂无活动任务",
+        "run_task_live_one": "{{count}} 个进行中",
+        "run_task_live_other": "{{count}} 个进行中",
+        "run_tasks": "子任务",
         "selected_tool": "选中工具",
+        "stop_run_task": "停止任务",
+        "stop_run_task_failed": "停止任务失败",
         "task_count": "{{completed}} / {{total}} 已完成",
         "tasks": "任务",
+        "tool_uses_one": "{{count}} 次工具调用",
+        "tool_uses_other": "{{count}} 次工具调用",
         "tools_active": "活跃",
         "tools_done": "完成",
         "tools_failed": "失败",
@@ -614,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "可自由读取和编辑文件，执行命令前会询问。",
-            "title": "自动编辑模式"
+            "description": "可自由编辑文件，执行命令前询问。",
+            "title": "自动接受编辑"
+          },
+          "auto": {
+            "description": "无需逐次批准，安全检查会拦截风险操作。",
+            "title": "智能批准"
           },
           "bypassPermissions": {
-            "description": "可执行任何操作，无需询问。请谨慎使用。",
-            "title": "全自动模式",
+            "description": "跳过权限检查，可删除文件、访问网络。",
+            "title": "完全访问",
             "warning": "危险：所有工具都会在无审批情况下执行。"
           },
           "confirmChange": {
@@ -627,14 +645,14 @@
             "title": "确认切换权限模式？"
           },
           "default": {
-            "description": "可自由读取文件，编辑或执行命令前会询问。",
-            "title": "普通模式"
+            "description": "编辑文件或执行命令前询问。",
+            "title": "逐次确认"
           },
           "helper": "指定智能体如何处理工具使用授权",
           "placeholder": "选择权限模式",
           "plan": {
-            "description": "只能读取文件和制定计划，不能编辑文件或执行命令。",
-            "title": "计划模式"
+            "description": "只规划、不编辑文件，仅执行只读或审查通过的命令。",
+            "title": "仅规划"
           },
           "title": "权限模式"
         },
@@ -3839,6 +3857,7 @@
     },
     "citation": "{{count}} 个引用内容",
     "citations": "引用内容",
+    "conversation_reset": "找不到原会话的历史记录，已开启新会话继续",
     "copied": "已复制",
     "copy": {
       "failed": "复制失败",
@@ -4120,6 +4139,7 @@
         "write": "写入",
         "writing": "认真写入"
       },
+      "agent_background": "后台运行中",
       "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
@@ -4151,6 +4171,7 @@
         "tool": "工具",
         "webFetch": "网页获取",
         "webSearch": "网页搜索",
+        "workflow": "工作流",
         "write": "写入"
       },
       "noData": "此工具暂无可用数据",
@@ -4208,6 +4229,15 @@
         "plan_other": "{{count}} 个计划",
         "result_one": "{{count}} 个结果",
         "result_other": "{{count}} 个结果"
+      },
+      "workflow": {
+        "orchestrating": "正在编排工作流",
+        "run_id": "运行 ID",
+        "script": "工作流脚本",
+        "script_path": "脚本路径",
+        "started": "已启动工作流",
+        "summary": "摘要",
+        "workflow": "工作流"
       }
     },
     "topic": {

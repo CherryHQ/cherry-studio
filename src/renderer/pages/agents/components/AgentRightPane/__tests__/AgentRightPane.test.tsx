@@ -29,7 +29,9 @@ const {
   systemFileTreeState,
   useArtifactFileTreeModelMock,
   useCommandHandlerMock,
-  useDirectoryTreeMock
+  useDirectoryTreeMock,
+  ipcRequestMock,
+  toastErrorMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
   getToolResultMock: vi.fn(),
@@ -55,7 +57,9 @@ const {
   },
   useArtifactFileTreeModelMock: vi.fn(),
   useCommandHandlerMock: vi.fn(),
-  useDirectoryTreeMock: vi.fn()
+  useDirectoryTreeMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
+  toastErrorMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -177,6 +181,14 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 
 vi.mock('@renderer/hooks/useToolResult', () => ({
   useToolResult: (ref: unknown) => ({ output: ref ? getToolResultMock(ref) : undefined })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -319,6 +331,13 @@ vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
 }))
 
+// A live turn: run-task rows render the status their events report. Staleness is covered where the
+// rule lives, in the projection tests.
+vi.mock('@renderer/hooks/agent/useAgentSessionStreamStatuses', () => ({
+  useAgentSessionStreamStatuses: (sessionIds: readonly string[]) =>
+    new Map(sessionIds.map((sessionId) => [sessionId, { isPending: true, status: 'streaming' }]))
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: useCommandHandlerMock
 }))
@@ -423,8 +442,10 @@ function UserOpenSeqProbe() {
 
 type StatusTaskFixture = {
   id: string
-  status: 'pending' | 'in_progress' | 'completed' | 'error'
+  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title: string
+  taskType?: string
+  toolUseId?: string
 }
 
 function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
@@ -436,11 +457,13 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
           event: 'notification',
           taskId: task.id,
           status: task.status,
-          title: task.title
+          title: task.title,
+          taskType: task.taskType,
+          toolUseId: task.toolUseId
         }
       }) as unknown as CherryMessagePart
   )
-  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: {} }] as CherryUIMessage[]
+  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
   render(
     <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
@@ -715,6 +738,21 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
+  it('keeps the full flow title for the panel header to truncate by available width', () => {
+    const title = 'Review shared layer and IPC session boundaries without pre-truncating the title'
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton title={title} />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
+  })
+
   it('resolves a deferred selected flow output by its stored address', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {
@@ -863,6 +901,7 @@ describe('AgentRightPane', () => {
     { status: 'pending', iconClassNames: ['text-muted-foreground'] },
     { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },
     { status: 'completed', iconClassNames: ['text-success'] },
+    { status: 'stopped', iconClassNames: ['text-muted-foreground'] },
     { status: 'error', iconClassNames: ['text-destructive'] }
   ] as const)('centers the $status task icon within the first text line', ({ status, iconClassNames }) => {
     const title = `${status} task`
@@ -906,16 +945,98 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     const preview = screen.getByTestId('status-shortcut-preview')
 
+    // Task events now surface as run-task cards: icon container + a text column inside a card row.
     for (const title of [shortTitle, wrappingTitle]) {
       const taskText = within(preview).getByText(title)
-      const row = taskText.closest('li')
-      const iconContainer = taskText.previousElementSibling
+      const textColumn = taskText.parentElement
+      const row = textColumn?.parentElement
+      const iconContainer = textColumn?.previousElementSibling
 
-      expect(row).toHaveClass('flex', 'min-w-0', 'items-start')
-      expect(taskText.parentElement).toBe(row)
-      expect(taskText).toHaveClass('wrap-break-word', 'min-w-0', 'flex-1', 'leading-5')
+      expect(row).toHaveClass('flex', 'items-start')
+      expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
       expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
     }
+  })
+
+  it('opens a subagent flow from the shortcut environment context', () => {
+    renderStatusTasks(
+      [
+        {
+          id: 'subagent-1',
+          status: 'in_progress',
+          title: 'Inspect task state',
+          taskType: 'local_agent',
+          toolUseId: 'tool-use-1'
+        }
+      ],
+      { openPanel: false }
+    )
+
+    const preview = screen.getByTestId('status-shortcut-preview')
+    fireEvent.click(within(preview).getByRole('button', { name: /Inspect task state/ }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+  })
+
+  it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-tool',
+          status: 'in_progress',
+          title: 'Review PR',
+          taskType: 'local_workflow',
+          workflowName: 'review-pr'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-tool',
+          status: 'in_progress',
+          title: 'Reviewing renderer',
+          activeText: 'Checking citation rendering',
+          summary: 'Reviewing renderer files',
+          lastToolName: 'Read',
+          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.getByText('agent.right_pane.info.workflows')).toBeInTheDocument()
+    expect(screen.queryByText('agent.right_pane.info.subagents')).toBeNull()
+    expect(screen.getByText('review-pr')).toBeInTheDocument()
+    expect(screen.getByText('Reviewing renderer files')).toBeInTheDocument()
+    expect(screen.getByText('Checking citation rendering')).toBeInTheDocument()
+    expect(screen.getByText(/Read · 1.2k · agent.right_pane.status.tool_uses · 9s/)).toBeInTheDocument()
+    expect(screen.getByText('review-pr').closest('button')).toBeNull()
+    expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
+  })
+
+  it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {
+    ipcRequestMock.mockResolvedValue(false)
+    renderStatusTasks([{ id: 'subagent-1', status: 'in_progress', title: 'Inspect task state' }])
+
+    const stopButton = screen.getByRole('button', { name: 'agent.right_pane.status.stop_run_task' })
+    fireEvent.click(stopButton)
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('agent.right_pane.status.stop_run_task_failed'))
+    expect(stopButton).toBeEnabled()
   })
 
   it('renders artifact status filenames with neutral text', () => {

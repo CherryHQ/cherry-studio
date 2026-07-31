@@ -75,6 +75,8 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
+  topicFulfilled: false,
+  markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
@@ -483,7 +485,11 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: false,
+    isFulfilled: mocks.topicFulfilled,
+    markSeen: mocks.markTopicSeen
+  })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -674,6 +680,15 @@ function getAgentSkillsPanelItems() {
   return list
 }
 
+// `queueContent` is the whole above-input slot, so dock assertions locate the dock child instead of
+// assuming the slot IS the dock.
+function getQueueDock(): any {
+  const slot = mocks.surfaceProps?.queueContent as any
+  if (!slot) return undefined
+  const children = Array.isArray(slot.props?.children) ? slot.props.children : [slot.props?.children]
+  return children.flat().find((child: any) => child?.props?.items)
+}
+
 describe('AgentComposer', () => {
   beforeEach(() => {
     // The `@` panel's entity-reference merge hits these paths; the mock factory has no
@@ -726,6 +741,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.topicFulfilled = false
+    mocks.markTopicSeen.mockReset()
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -982,7 +999,8 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
-    const queued = mocks.surfaceProps?.queueContent as any
+    const queued = getQueueDock()
+    expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
       type: 'data-knowledge-scope',
       data: { baseIds: [knowledgeBaseOne.id] }
@@ -1054,9 +1072,9 @@ describe('AgentComposer', () => {
       mocks.speedControlProps?.onReasoningEffortChange('low')
       mocks.speedControlProps?.onFastModeChange(false)
     })
-    const queueContent = mocks.surfaceProps?.queueContent as any
+    const dock = getQueueDock()
     await act(async () => {
-      await queueContent.props.onEdit(queueContent.props.items[0].id)
+      await dock.props.onEdit(dock.props.items[0].id)
     })
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
@@ -1928,13 +1946,13 @@ describe('AgentComposer', () => {
     // Enqueue path: sendMessage is NOT called directly — it goes through the dock.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
-    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+    expect(getQueueDock()).toBeTruthy()
 
     // Manually drain the dock. Now sendMessage runs and saveHistory fires.
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
     await act(async () => {
-      await queueContent.props.onSteer(itemId)
+      await dock.props.onSteer(itemId)
     })
 
     await waitFor(() => {
@@ -3639,7 +3657,50 @@ describe('AgentComposer', () => {
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+    expect(getQueueDock()).toBeTruthy()
+  })
+
+  it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
+      { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
+    ])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
+    ])
+    const props = (isStreaming: boolean) => ({
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const { rerender } = render(<AgentComposer {...props(true)} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    rerender(<AgentComposer {...props(false)} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
@@ -3695,13 +3756,13 @@ describe('AgentComposer', () => {
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
 
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
     await act(async () => {
-      await queueContent.props.onEdit(itemId)
+      await dock.props.onEdit(itemId)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
-    await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
+    await waitFor(() => expect(getQueueDock()).toBeUndefined())
     expect(mocks.files).toEqual([file])
     expect(mocks.replaceDraft).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -3795,17 +3856,17 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    expect(queueContent).toBeTruthy()
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    expect(dock).toBeTruthy()
+    const itemId = dock.props.items[0].id
 
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     await act(async () => {
-      await queueContent.props.onSteer(itemId)
+      await dock.props.onSteer(itemId)
     })
 
     // A failed manual steer must not silently drop the queued item.
-    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(getQueueDock().props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 

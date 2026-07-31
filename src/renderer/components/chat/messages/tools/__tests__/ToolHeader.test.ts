@@ -49,7 +49,10 @@ const translations: Record<string, string> = {
   'message.tools.labels.taskList': 'List tasks',
   'message.tools.labels.taskOutput': 'View task output',
   'message.tools.labels.taskStop': 'Stop task',
-  'message.tools.labels.taskUpdate': 'Update task'
+  'message.tools.labels.taskUpdate': 'Update task',
+  'message.tools.workflow.orchestrating': 'Orchestrating workflow',
+  'message.tools.workflow.started': 'Started workflow',
+  'message.tools.workflow.workflow': 'workflow'
 }
 
 const t = (key: string, options?: Record<string, string>) => {
@@ -196,6 +199,17 @@ describe('getReadableToolActivity', () => {
     expect(getReadableToolActivity(AgentToolsType.TaskUpdate, { taskId: '1' }, false, t)).toEqual({
       label: 'Update task',
       description: 'Task 1'
+    })
+  })
+
+  it('describes Workflow as orchestration instead of a generic tool call', () => {
+    expect(getReadableToolActivity(AgentToolsType.Workflow, { name: 'review-pr' }, true, t)).toEqual({
+      label: 'Orchestrating workflow',
+      description: 'review-pr'
+    })
+    expect(getReadableToolActivity(AgentToolsType.Workflow, {}, false, t)).toEqual({
+      label: 'Started workflow',
+      description: 'workflow'
     })
   })
 })
