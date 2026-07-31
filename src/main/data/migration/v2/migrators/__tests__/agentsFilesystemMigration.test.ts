@@ -1011,7 +1011,7 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
-  it('aborts on an identity conflict without overwriting either side', async () => {
+  it('replaces an existing identity target without changing the legacy source', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'legacy soul')
@@ -1032,13 +1032,46 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).rejects.toThrow(/identity destination conflict/i)
+    ).resolves.toBeUndefined()
 
-    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('existing soul')
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
     expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('legacy soul')
   })
 
-  it('reuses identical identity but aborts when the v1 identity changes before a retry', async () => {
+  it('clears existing memory before copying retry data', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceMemoryPath = path.join(legacyWorkspace, 'memory')
+    await mkdir(sourceMemoryPath, { recursive: true })
+    await writeFile(path.join(sourceMemoryPath, 'JOURNAL.jsonl'), '{"legacy":true}\n')
+    await writeFile(path.join(sourceMemoryPath, 'FACT.md'), 'new legacy fact')
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    const destinationMemoryPath = path.join(agentsDataRoot, FINAL_AGENT_ID, 'memory')
+    await mkdir(destinationMemoryPath, { recursive: true })
+    await writeFile(path.join(destinationMemoryPath, 'JOURNAL.jsonl'), '{"stale":true}\n')
+    await writeFile(path.join(destinationMemoryPath, 'V2-ONLY.md'), 'existing v2 memory')
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).resolves.toBeUndefined()
+
+    expect(await readFile(path.join(destinationMemoryPath, 'FACT.md'), 'utf8')).toBe('new legacy fact')
+    expect(await readFile(path.join(destinationMemoryPath, 'JOURNAL.jsonl'), 'utf8')).toBe('{"legacy":true}\n')
+    await expect(access(path.join(destinationMemoryPath, 'V2-ONLY.md'))).rejects.toThrow()
+    expect(await readFile(path.join(sourceMemoryPath, 'FACT.md'), 'utf8')).toBe('new legacy fact')
+  })
+
+  it('replaces identity when the v1 source changes before a retry', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'first soul')
@@ -1061,12 +1094,12 @@ describe('agentsFilesystemMigration', () => {
 
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'newer soul')
     await writeFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'newer fact')
-    await expect(stageLegacyAgentFiles(input)).rejects.toThrow(/identity destination conflict/i)
+    await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
 
     expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('newer soul')
     expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('newer fact')
-    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('first soul')
-    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'memory', 'FACT.md'), 'utf8')).toBe('first fact')
+    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('newer soul')
+    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'memory', 'FACT.md'), 'utf8')).toBe('newer fact')
   })
 
   it('aborts on an ordinary workspace conflict without overwriting either side', async () => {

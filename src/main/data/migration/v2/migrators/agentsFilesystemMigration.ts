@@ -346,27 +346,6 @@ async function copyIdentityEntry(
   const sourceSnapshot = await identityCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
   if (!sourceSnapshot) return undefined
 
-  const existingDestination = await filesystemEntrySnapshot(destinationPath)
-  if (existingDestination) {
-    if (existingDestination.fingerprint !== sourceSnapshot.copiedFingerprint) {
-      throw new Error(`Legacy Agent identity destination conflict: ${destinationPath}`)
-    }
-    if (
-      (await identitySourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)) !== sourceSnapshot.metadataFingerprint
-    ) {
-      throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
-    }
-    logger.info('Reusing identical identity entry from an earlier migration attempt', {
-      sourcePath,
-      destinationPath
-    })
-    return {
-      copied: false,
-      fileCount: sourceSnapshot.fileCount,
-      byteCount: sourceSnapshot.byteCount
-    }
-  }
-
   const stagingPrefix = `.${path.basename(destinationPath)}.migration-`
   const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
 
@@ -385,6 +364,7 @@ async function copyIdentityEntry(
       throw new Error(`Legacy Agent identity copy verification failed: ${sourcePath}`)
     }
 
+    await removeTreeWithoutFollowing(destinationPath)
     const racedDestinationStat = await lstatIfExists(destinationPath)
     if (racedDestinationStat) {
       const racedDestinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)

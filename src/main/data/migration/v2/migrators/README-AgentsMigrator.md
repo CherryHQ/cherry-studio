@@ -90,9 +90,11 @@ For each migrated Agent:
   migration does not need an additional full-size template. Symlinks are
   omitted while cloning and recreated with each Session's rewritten target.
 
-Existing identity targets are never overwritten. Identical files from a prior
-attempt are accepted recursively; different files keep both the existing v2
-target and the v1 source in place.
+After an identity source is fully staged and verified, migration clears its
+existing destination target before publishing the replacement. This lets a
+retry replace partial or stale `SOUL.md`, `USER.md`, and `memory/` data while
+leaving the v1 source unchanged. A target recreated concurrently is accepted
+only when it is identical to the verified staging copy.
 
 Claude project keys mirror the SDK's cwd sanitizer, including its 200-character
 limit and hash suffix for long paths. Claude session cache copies use the same
