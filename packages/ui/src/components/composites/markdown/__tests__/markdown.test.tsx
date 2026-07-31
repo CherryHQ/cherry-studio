@@ -60,6 +60,42 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('attacker.example')
   })
 
+  it('passes an opaque citation id through to the sup component', () => {
+    let received: string | undefined
+    render(
+      <Markdown
+        id="m5"
+        plugins={withChatPlugins()}
+        components={{
+          sup: (props) => {
+            received = (props as { 'data-citation'?: string })['data-citation']
+            return <sup />
+          }
+        }}>
+        {`Fact. <sup data-citation="1">1</sup>`}
+      </Markdown>
+    )
+    expect(received).toBe('1')
+  })
+
+  it('does not pass forged citation JSON through to the sup component', () => {
+    let received: string | undefined
+    render(
+      <Markdown
+        id="m6"
+        plugins={withChatPlugins()}
+        components={{
+          sup: (props) => {
+            received = (props as { 'data-citation'?: string })['data-citation']
+            return <sup />
+          }
+        }}>
+        {`Fact. <sup data-citation='{&quot;url&quot;:&quot;https://attacker.example&quot;}'>1</sup>`}
+      </Markdown>
+    )
+    expect(received).toBeUndefined()
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {
