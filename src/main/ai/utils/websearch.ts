@@ -16,6 +16,13 @@ export function getWebSearchParams(model: Model): Record<string, any> {
     return { enable_enhancement: true, citation: true, search_info: true }
   }
 
+  if (model.providerId === 'zhipu') {
+    // BigModel's web search rides the tools array, which providerOptions cannot
+    // reach — transformZhipuRequestBody moves this marker into `tools`
+    // (docs.bigmodel.cn/cn/guide/tools/web-search).
+    return { web_search: { enable: true, search_engine: 'search_pro', search_result: true } }
+  }
+
   if (model.providerId === 'dashscope') {
     // Chat-Completions web search (help.aliyun.com/zh/model-studio/web-search). The newest qwen-max and
     // multimodal (omni/vl) SKUs only search under the `agent` strategy; older SKUs use the default.

@@ -57,6 +57,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   // Responses-endpoint models only; the openai extension's factory emits the bare tool shape.
   doubao: { 'web-search': factories('openai') },
   dashscope: { 'web-search': { kind: 'provider-options' } },
+  // web_search marker via providerOptions, moved into `tools` by transformZhipuRequestBody.
+  zhipu: { 'web-search': { kind: 'provider-options' } },
   poe: { 'web-search': { kind: 'provider-options' } },
   gateway: { 'web-search': { kind: 'gateway-mapped' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },

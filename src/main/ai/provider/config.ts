@@ -32,6 +32,7 @@ import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
+import { transformZhipuRequestBody } from './custom/zhipuWebSearch'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
@@ -207,6 +208,17 @@ export async function resolveProviderAiSdkConfig(
     {
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: withSelectedApiKey(buildDashScopeConfig)
+    },
+    // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
+    // tools array, which providerOptions cannot reach — the body transform moves the
+    // web_search marker into `tools` (see zhipuWebSearch.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'zhipu'),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.transformRequestBody = transformZhipuRequestBody
+        return config
+      })
     },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider

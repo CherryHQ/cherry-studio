@@ -233,7 +233,14 @@
           "official": "https://open.bigmodel.cn/"
         }
       },
-      "name": "ZhiPu"
+      "name": "ZhiPu",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["zhipu"]
+        }
+      ]
     },
     {
       "apiFeatures": {
@@ -2041,5 +2048,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "70718a2aacbb64a0"
+  "version": "30677faaca8c8f40"
 }

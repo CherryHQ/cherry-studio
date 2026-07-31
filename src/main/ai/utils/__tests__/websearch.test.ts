@@ -91,6 +91,15 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
   })
 })
 
+describe('getWebSearchParams (zhipu chat)', () => {
+  it('emits the web_search marker for the transform to move into tools', () => {
+    const params = getWebSearchParams(model({ id: 'zhipu::glm-5', providerId: 'zhipu', apiModelId: 'glm-5' }))
+    expect(params).toEqual({
+      web_search: { enable: true, search_engine: 'search_pro', search_result: true }
+    })
+  })
+})
+
 describe('getWebSearchParams (dashscope chat)', () => {
   it('enables search without a strategy for standard qwen models', () => {
     const params = getWebSearchParams(
