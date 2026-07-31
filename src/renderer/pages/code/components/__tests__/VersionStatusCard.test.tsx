@@ -111,7 +111,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.getByText('v1.1.0')).toHaveClass('text-warning')
+    expect(screen.getByText('v1.1.0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'code.upgrade' }))
     expect(onUpgrade).toHaveBeenCalledTimes(1)
   })

@@ -41,6 +41,7 @@ import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
+import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -63,7 +64,13 @@ import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  CONFIG_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
@@ -396,8 +403,19 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath
   )
 
-  // 5. System prompt
-  const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null, agentDataPath)
+  // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
+  // step 6 exposes the kb_* tools — a composer-only selection on an unbound agent still gets them, and
+  // without the guidance the model would never emit the `[cite:id]` markers those results need.
+  const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
+  const systemPrompt = await buildSystemPrompt(
+    session,
+    agent,
+    cwd,
+    linkedChannelSnapshot !== null,
+    agentDataPath,
+    knowledgeBaseScope,
+    disallowedTools
+  )
 
   // 6. MCP servers (session + built-in)
   const mcpServers = buildMcpServers(
@@ -1198,7 +1216,11 @@ export async function buildSystemPrompt(
   agent: AgentEntity,
   cwd: string,
   channelLinked?: boolean,
-  agentDataPath = cwd
+  agentDataPath = cwd,
+  /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
+  knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
+  /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
+  disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd })
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
 
@@ -1229,6 +1251,13 @@ export async function buildSystemPrompt(
   // Channel security (still scoped per session — channels link to a session)
   const isChannelLinked = channelLinked ?? Boolean(channelService.findBySessionId(session.id))
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
+  const unavailableTools = new Set(disallowedTools)
+  const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
+  const citationsGuidance = buildCitationsGuidance({
+    web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
+    kb: knowledgeBaseIds.length > 0 && (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
+  })
+  const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
   const workspaceBlock = [
@@ -1243,13 +1272,13 @@ export async function buildSystemPrompt(
     try {
       const context = buildAssistantContext()
       return instructions
-        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}`
-        : `${context}${workspaceContextBlock}${channelSecurityBlock}`
+        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
+        : `${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}`
+      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
     }
   }
 
@@ -1264,7 +1293,7 @@ export async function buildSystemPrompt(
     agentDataPath
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(

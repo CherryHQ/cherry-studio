@@ -43,7 +43,7 @@ interface Props {
   messageContainerRef: React.RefObject<HTMLDivElement>
   onStartEditing?: (messageId: string) => void
   onMenuOpenChange?: (open: boolean) => void
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   variant?: 'footer' | 'header'
 }
 
@@ -59,7 +59,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     messageContainerRef,
     onStartEditing,
     onMenuOpenChange,
-    onUpdateUseful,
+    onSelectContext,
     variant = 'footer'
   } = props
   const { t } = useTranslation()
@@ -88,7 +88,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
 
   const hasTranslationBlocks = hasTranslationParts(messageParts)
-  const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
+  const isSelectedForContext = !!message.isActiveBranch
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens =
@@ -115,12 +115,12 @@ const MessageMenuBar: FC<Props> = (props) => {
       isTranslating,
       hasTranslationBlocks,
       isUserMessage,
-      isUseful,
+      isSelectedForContext,
       isEditable,
       translateLanguages,
       getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
       startEditingMessage: onStartEditing,
-      onUpdateUseful,
+      onSelectContext,
       t
     }),
     [
@@ -133,7 +133,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       isLastMessage,
       isProcessing,
       isTranslating,
-      isUseful,
+      isSelectedForContext,
       isUserMessage,
       mainTextContent,
       menuConfig,
@@ -143,7 +143,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageForExport,
       messageParts,
       onStartEditing,
-      onUpdateUseful,
+      onSelectContext,
       selection,
       setCopied,
       t,
