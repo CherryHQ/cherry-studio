@@ -3,6 +3,7 @@ export { ImagePreviewDialog, type ImagePreviewDialogProps } from './image-previe
 export { ImagePreviewImage, type ImagePreviewImageProps } from './image-preview-image'
 export { ImagePreviewToolbar, type ImagePreviewToolbarProps } from './image-preview-toolbar'
 export { ImagePreviewTrigger, type ImagePreviewTriggerProps } from './image-preview-trigger'
+export { ImagePreviewViewport, type ImagePreviewViewportProps } from './image-preview-viewport'
 export {
   DEFAULT_IMAGE_PREVIEW_LABELS,
   type ImagePreviewAction,
@@ -14,5 +15,6 @@ export {
 export {
   type ImagePreviewTransformControls,
   type ImagePreviewTransformOptions,
+  type ImagePreviewTransformUpdate,
   useImagePreviewTransform
 } from './use-image-preview-transform'

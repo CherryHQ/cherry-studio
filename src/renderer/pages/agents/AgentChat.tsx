@@ -219,11 +219,29 @@ const AgentChat = ({
         (!!activeSession && activeSessionSource === 'none'))
   )
   const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const greetingContextRef = useRef<{ sessionId: string; text: string } | null>(null)
+  const handleGreetingChange = useCallback(
+    (greeting: string | null) => {
+      const sessionId = sessionSnapshot?.id
+      if (!sessionId) return
+      if (greeting) {
+        greetingContextRef.current = { sessionId, text: greeting }
+      } else if (greetingContextRef.current?.sessionId === sessionId) {
+        greetingContextRef.current = null
+      }
+    },
+    [sessionSnapshot?.id]
+  )
+  const getGreetingContext = useCallback(() => {
+    const current = greetingContextRef.current
+    return current && current.sessionId === sessionSnapshot?.id ? current.text : undefined
+  }, [sessionSnapshot?.id])
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
-    reservedMessages: EMPTY_MESSAGES
+    reservedMessages: EMPTY_MESSAGES,
+    getGreetingContext
   })
   const {
     hasOlder: runtimeHasOlder,
@@ -267,7 +285,7 @@ const AgentChat = ({
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel(activeAgent.id, nextModel.id, { showSuccessToast: false })
+      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
     },
     [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
   )
@@ -445,6 +463,7 @@ const AgentChat = ({
         sessionMessagesEnabled={sessionMessagesEnabled}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        onGreetingChange={handleGreetingChange}
       />
     )
   }
@@ -504,10 +523,18 @@ const AgentChat = ({
         confirmText={t('agent.session.model_switch_confirm.confirm')}
         cancelText={t('common.cancel')}
         onConfirm={async () => {
-          if (!modelSwitchTarget || modelSwitchTarget.model.id === activeModel?.id) return
-          const updatedAgent = await updateModel(modelSwitchTarget.agentId, modelSwitchTarget.model.id, {
-            showSuccessToast: false
-          })
+          if (
+            !activeAgent ||
+            !modelSwitchTarget ||
+            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.model.id === activeModel?.id
+          ) {
+            return
+          }
+          const updatedAgent = await updateModel(
+            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+            { showSuccessToast: false }
+          )
           if (updatedAgent && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
@@ -531,6 +558,7 @@ interface AgentChatSessionCenterProps {
   sessionMessagesEnabled: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  onGreetingChange: (greeting: string | null) => void
 }
 
 const AgentChatSessionCenter = ({
@@ -546,7 +574,8 @@ const AgentChatSessionCenter = ({
   isMultiSelectMode,
   sessionMessagesEnabled,
   onOpenCitationsPanel,
-  onCreateEmptySession
+  onCreateEmptySession,
+  onGreetingChange
 }: AgentChatSessionCenterProps) => {
   const composer = (
     <AgentComposerSlot
@@ -572,6 +601,9 @@ const AgentChatSessionCenter = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            conversationId={session.id}
+            mode="agent"
+            onGreetingChange={onGreetingChange}
             title={homeWelcomeText ?? ''}
           />
         </div>

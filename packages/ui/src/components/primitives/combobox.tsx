@@ -27,7 +27,7 @@ const comboboxTriggerVariants = cva(
   {
     variants: {
       state: {
-        default: 'border-border focus-visible:border-primary',
+        default: 'border-border focus-visible:border-ring',
         error: 'border border-destructive!',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
@@ -430,7 +430,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
-                'focus-visible:border-primary',
+                'focus-visible:border-ring',
                 error && 'border-destructive!',
                 disabled && 'cursor-not-allowed opacity-50',
                 comboboxInputSizeClasses[inputSize],

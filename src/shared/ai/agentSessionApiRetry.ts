@@ -13,6 +13,8 @@ export interface AgentSessionApiRetryInfo {
   retryDelayMs: number
   errorStatus: number | null
   errorCategory: string
+  /** Set when the backoff belongs to a subagent rather than the main turn. */
+  subagentType?: string
 }
 
 export type AgentSessionApiRetryState =

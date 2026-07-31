@@ -139,11 +139,16 @@
         "description": "Nhận và phản hồi tin nhắn qua WeChat bằng API iLink Bot.",
         "disconnected": "Chưa đăng nhập",
         "loginHint": "Lần đăng nhập đầu tiên yêu cầu quét mã QR. Một mã QR sẽ tự động xuất hiện khi kênh kết nối.",
+        "qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
         "qrHint": "Mở WeChat trên điện thoại của bạn, quét mã QR để đăng nhập.",
         "qrTitle": "Đăng nhập bằng mã QR WeChat",
         "title": "WeChat",
         "whoamiTip": "Mẹo: Gửi /whoami trong WeChat để lấy ID của người dùng."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Xóa tác nhân sẽ buộc dừng và xóa tất cả các phiên liên kết với tác nhân này. Bạn có chắc chắn không?",
@@ -230,6 +235,7 @@
           "discard_and_continue": "Loại bỏ và tiếp tục",
           "title": "Hủy bỏ các thay đổi chưa lưu?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Không thể tải lại nội dung tệp mới nhất.",
         "save_failed": "Không thể lưu tệp này. Tính năng tự động lưu đã tạm dừng cho đến khi bạn thử lại hoặc hủy bỏ các thay đổi.",
         "unsaved": "Chưa lưu",
@@ -320,16 +326,25 @@
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
         "no_subagents": "Không có đại lý phụ",
-        "subagents": "Đại lý phụ"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Đại lý phụ",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Hoạt động",
         "agent": "Đại lý",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Công cụ đã chọn",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
         "tools_failed": "Thất bại",
@@ -434,6 +449,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
+        "unknown_agent_tip": "Đây là một nhóm phiên lịch sử không có agent, không phải là agent thực tế. Nó chỉ có thể xem và không thể tiếp tục chạy.",
         "yesterday": "Hôm qua"
       },
       "label_one": "Phiên",
@@ -613,12 +629,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Có thể đọc và chỉnh sửa tập tin tự do. Hỏi trước khi chạy lệnh.",
-            "title": "Chế độ tự động chỉnh sửa"
+            "description": "Chỉnh sửa tệp tự do. Hỏi trước khi chạy lệnh.",
+            "title": "Tự động chấp nhận chỉnh sửa"
+          },
+          "auto": {
+            "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
+            "title": "Phê duyệt thay tôi",
+            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi."
           },
           "bypassPermissions": {
-            "description": "Có thể làm mọi thứ mà không cần hỏi. Dùng một cách thận trọng.",
-            "title": "Chế độ Tự động Hoàn toàn",
+            "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
+            "title": "Toàn quyền truy cập",
             "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt."
           },
           "confirmChange": {
@@ -626,14 +647,14 @@
             "title": "Thay đổi chế độ quyền?"
           },
           "default": {
-            "description": "Có thể đọc tập tin tự do. Hỏi trước khi chỉnh sửa hoặc chạy lệnh.",
-            "title": "Chế độ Thường"
+            "description": "Hỏi trước khi chỉnh sửa tệp hoặc chạy lệnh.",
+            "title": "Hỏi trước khi thực hiện"
           },
           "helper": "Chọn cách tác nhân xử lý việc phê duyệt công cụ.",
           "placeholder": "Chọn chế độ quyền",
           "plan": {
-            "description": "Chỉ có thể đọc tệp và lập kế hoạch. Không thể chỉnh sửa tệp hoặc chạy lệnh.",
-            "title": "Chế độ Kế hoạch"
+            "description": "Lập kế hoạch mà không chỉnh sửa tệp. Chỉ chạy các lệnh chỉ đọc hoặc đã được kiểm duyệt.",
+            "title": "Chỉ lập kế hoạch"
           },
           "title": "Chế độ quyền"
         },
@@ -669,6 +690,14 @@
       }
     },
     "sidebar_title": "Đại lý",
+    "speed": {
+      "effort": "Nỗ lực",
+      "fast": "Nhanh",
+      "faster": "Nhanh hơn",
+      "label": "Tốc độ",
+      "smarter": "Thông minh hơn",
+      "title": "Cài đặt phản hồi"
+    },
     "tasks": {
       "add": "Thêm Nhiệm vụ",
       "cancel": "Hủy",
@@ -1240,10 +1269,6 @@
           "tip": "Trợ lý sẽ sử dụng khả năng nhận diện ý định của mô hình lớn để xác định xem có nên sử dụng cơ sở tri thức để trả lời hay không. Tính năng này sẽ phụ thuộc vào khả năng của mô hình"
         }
       },
-      "max_tool_calls": {
-        "label": "Số lần gọi công cụ tối đa",
-        "tip": "Số lượng tối đa các lệnh gọi công cụ được phép trong một cuộc trò chuyện. Giá trị cao hơn cho phép thực hiện các thao tác nhiều bước phức tạp hơn nhưng có thể làm tăng lượng token sử dụng và thời gian phản hồi."
-      },
       "mcp": {
         "description": "Servidores MCP habilitados por defecto",
         "enableFirst": "Bật máy chủ này trong cài đặt MCP trước",
@@ -1449,9 +1474,8 @@
       "image_preview_failed": "Xem trước hình ảnh thất bại",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
-      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
+      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ",
       "locate_editing_message": "Định vị thông điệp gốc",
-      "mcp_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
       "new": {
         "context": "Clear Context"
       },
@@ -1557,6 +1581,7 @@
         },
         "open_file": "Mở Tệp",
         "open_file_error": "Không mở được tệp: {{path}}",
+        "open_with": "Mở bằng",
         "reveal_in_finder": "Hiển thị trong Finder"
       },
       "topics": "Chủ đề",
@@ -1591,13 +1616,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Không thể chuyển đổi sang định dạng cuộc gọi công cụ hợp lệ: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
-        "multiple_tools": "Tồn tại nhiều công cụ MCP khớp, {{tool}} đã được chọn",
-        "no_tool": "Không tìm thấy công cụ MCP phù hợp cho {{tool}}",
         "url_context": "Gemini không hỗ trợ sử dụng ngữ cảnh url và gọi hàm đồng thời"
       }
     },
@@ -1932,6 +1952,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
+        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục.",
         "yesterday": "Hôm qua"
       },
       "list": "Daftar Topik",
@@ -2299,6 +2320,12 @@
     "generate_random_seed": "Tạo hạt giống ngẫu nhiên",
     "get_embedding_dimension": "Lấy kích thước embedding",
     "go_to_settings": "Đi tới cài đặt",
+    "group": {
+      "create": "Nhóm mới",
+      "create_failed": "Không thể tạo nhóm",
+      "name_placeholder": "Nhập tên nhóm...",
+      "name_required": "Tên nhóm là bắt buộc"
+    },
     "help": "Giúp đỡ",
     "html_preview": "Xem trước HTML",
     "i_know": "Tôi biết",
@@ -2885,6 +2912,10 @@
     "code": "Mã",
     "empty_preview": "Không có nội dung để hiển thị",
     "generating": "Tạo",
+    "interactive_preview": {
+      "action": "Xem trang web",
+      "description": "Trang web này chứa tập lệnh hoặc tài nguyên bên ngoài. Khi mở, trang có thể chạy mã và kết nối Internet."
+    },
     "preview": "Xem trước",
     "split": "Tách",
     "view_mode": "Chế độ xem"
@@ -3428,6 +3459,7 @@
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
+        "max_tool_calls_default": "Mặc định ({{count}} vòng)",
         "mcp_mode": "Chế độ MCP",
         "model": "Mô hình mặc định",
         "model_clear": "Rõ ràng",
@@ -3443,8 +3475,7 @@
         "tags": "Thẻ",
         "temperature": "Nhiệt độ",
         "title": "Cài đặt cơ bản",
-        "top_p": "Top-P",
-        "unlimited": "Không giới hạn"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Thư viện",
       "dialogs": {
@@ -3818,6 +3849,7 @@
     },
     "citation": "{{count}} trích dẫn",
     "citations": "Tài liệu tham khảo",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Đã sao chép!",
     "copy": {
       "failed": "Sao chép thất bại",
@@ -4099,6 +4131,7 @@
         "write": "Lưu",
         "writing": "Tiết kiệm"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
@@ -4130,6 +4163,7 @@
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
         "webSearch": "Tìm kiếm trên web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Viết"
       },
       "noData": "Không có dữ liệu nào cho công cụ này",
@@ -4187,6 +4221,15 @@
         "plan_other": "{{count}} gói",
         "result_one": "{{count}} kết quả",
         "result_other": "{{count}} kết quả"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -4451,7 +4494,8 @@
     "save_blocked_load_failed": "Không thể lưu vì ghi chú không tải được",
     "save_failed": "Không lưu được ghi chú",
     "save_failure": {
-      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng."
+      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Tên+Nội dung",
@@ -5734,6 +5778,7 @@
         "button": "Bản phát hành",
         "title": "Ghi chú phát hành"
       },
+      "repository": "Kho lưu trữ GitHub",
       "social": {
         "title": "Tài khoản mạng xã hội"
       },
@@ -6593,7 +6638,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Việc tắt tăng tốc phần cứng cần khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+        "content_disable": "Tắt tăng tốc phần cứng cần khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+        "content_enable": "Bật tăng tốc phần cứng yêu cầu khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
         "title": "Yêu cầu khởi động lại"
       },
       "title": "Tắt Tăng tốc Phần cứng"
@@ -6648,9 +6694,6 @@
           "dxtFile": "Tệp gói DXT",
           "dxtHelp": "Chọn một tệp .dxt chứa gói máy chủ MCP",
           "dxtProcessFailed": "Không thể xử lý tệp DXT",
-          "error": {
-            "multipleServers": "Không thể nhập từ nhiều máy chủ"
-          },
           "invalid": "Đầu vào không hợp lệ, vui lòng kiểm tra định dạng JSON",
           "json": "Nhập từ JSON",
           "mcpb": "Nhập gói MCPB",
@@ -6804,6 +6847,15 @@
       "providers": "Nhà cung cấp",
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
+      "registryOptions": {
+        "custom": "Tùy chỉnh",
+        "npmTaobao": "Gương NPM Taobao",
+        "pipAliyun": "Alibaba Cloud",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Thanh Hoa",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Chọn registry để cài đặt gói nhằm khắc phục các vấn đề mạng với registry mặc định.",
       "requiresConfig": "Yêu cầu cấu hình",
       "resources": {
@@ -6979,6 +7031,7 @@
         "display": "Quản lý hiển thị",
         "preferences": "Tùy chọn"
       },
+      "hide_app": "Ẩn {{name}}",
       "open_link_external": {
         "description": "Khi được bật, các liên kết mở cửa sổ mới trong mini app sẽ mở trong trình duyệt mặc định của bạn",
         "title": "Mở liên kết cửa sổ mới trong trình duyệt"
@@ -6991,6 +7044,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
+      "show_app": "Hiển thị {{name}}",
       "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
     },
@@ -7299,6 +7353,10 @@
       "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Khi bật, Cherry Studio liên hệ với IPInfo để xác định gần đúng quốc gia hoặc khu vực, sau đó gửi kết quả đó cùng với tên của bạn, ngôn ngữ ứng dụng, ngày giờ địa phương và múi giờ đến mô hình CherryAI tích hợp để tạo lời chào. Tính năng này mặc định bị tắt.",
+        "title": "Lời chào theo ngữ cảnh do AI tạo"
+      },
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"
     },
@@ -7690,6 +7748,13 @@
           "toggle_client_email_visibility": "Chuyển đổi hiển thị email của khách hàng",
           "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
           "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Mở Token Factory",
+          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
+          "title": "10 USD tín dụng API miễn phí mỗi ngày"
         }
       }
     },

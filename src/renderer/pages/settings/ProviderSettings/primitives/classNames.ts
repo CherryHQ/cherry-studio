@@ -12,7 +12,7 @@ export const providerSettingsTypography = {
 
 /** Connection — transparent input body + same muted border as model search.
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
-const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-muted bg-muted/30 px-2.5 shadow-none'
+const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-subtle bg-muted/30 px-2.5 shadow-none'
 
 /** Connection and `ProviderSection`: 14px, deepest foreground, section-label line-height. */
 const sectionHeadingBase = 'm-0 text-sm text-foreground leading-[1.3]'
@@ -43,7 +43,7 @@ export const actionClasses = {
   icon: 'size-3 shrink-0',
   btnBase: 'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[13px] leading-tight shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
-  btnNeutral: 'border-border-muted bg-transparent text-foreground/70 hover:bg-accent hover:text-foreground'
+  btnNeutral: 'border-border-subtle bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
 } as const
 
 const providerListItemFrame =
@@ -53,27 +53,27 @@ const providerListItemFrame =
 export const providerListClasses = {
   shell: 'flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-border border-r-[0.5px]',
   headerIconButton:
-    'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+    'flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pt-2.5',
-  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
-  searchIcon: 'mr-0.5 size-3.5 shrink-0 text-muted-foreground/60',
+  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-subtle bg-background py-1 pl-2.5 pr-1',
+  searchIcon: 'mr-0.5 size-3.5 shrink-0 text-muted-foreground',
   searchInput:
-    'min-w-0 flex-1 bg-transparent text-xs leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
+    'min-w-0 flex-1 bg-transparent text-xs leading-none text-foreground outline-none placeholder:text-muted-foreground',
   searchClearButton:
-    'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+    'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-30',
   scroller: 'min-h-0 flex-1 px-2.5 pt-2 pb-2',
   sectionStack: 'flex flex-col gap-2',
   section: 'space-y-2',
   sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
-  sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
-  emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-[14px]',
+  sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-tertiary',
+  emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-tertiary text-[14px]',
   addWrap: 'shrink-0',
   addBottomWrap: '-mt-1.5',
   addButton:
-    'flex h-8 w-full items-center justify-start rounded-lg border border-border-muted border-dashed bg-transparent py-0 pr-2.5 pl-0.5 text-xs text-foreground-muted shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex h-8 w-full items-center justify-start rounded-lg border border-border-subtle border-dashed bg-transparent py-0 pr-2.5 pl-0.5 text-xs text-muted-foreground shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   addButtonContent: 'flex min-w-0 items-center gap-2.5',
   addButtonLeadingSpacer: 'w-2.5 shrink-0',
   addButtonIconSlot: 'flex size-[26px] shrink-0 items-center justify-center',
@@ -83,9 +83,9 @@ export const providerListClasses = {
   itemMain: 'flex min-w-0 flex-1 items-center gap-0',
   itemIdentity: 'flex min-w-0 flex-1 items-center gap-2.5',
   itemDragHandle:
-    'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
+    'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
   itemAvatar:
-    'shrink-0 rounded-md border border-border-muted [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
+    'shrink-0 rounded-md border border-border-subtle [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel:
     'min-w-0 truncate text-sm leading-[1.35] text-foreground font-normal group-data-[selected=true]/row:font-medium',
   itemTrailingSlot: 'relative -mr-1 ml-1 flex shrink-0 items-center justify-center',
@@ -96,23 +96,23 @@ export const providerListClasses = {
   groupHeader: cn(providerListItemFrame, 'group/row pr-2.5 hover:bg-muted'),
   groupHeaderHasSelected: 'bg-muted',
   groupTrailing: 'relative ml-2 flex size-3 shrink-0 items-center justify-center',
-  groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
+  groupChevron: 'shrink-0 text-muted-foreground transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupChevronHiddenUntilHover:
     'absolute opacity-0 transition-[opacity,transform] group-hover/row:opacity-100 group-focus-within/row:opacity-100',
   groupEnabledDot:
-    'pointer-events-none absolute size-1.5 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute size-1.5 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupBody: 'mt-1 flex flex-col gap-2 pl-3.5',
   itemMoreActions:
-    'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
+    'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
-    'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-muted bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
+    'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-subtle bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
-    'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-xs leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
-  disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
+    'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-xs leading-none text-muted-foreground shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
+  disclosureChevron: 'size-3 shrink-0 text-muted-foreground transition-transform duration-150',
   disclosureChevronOpen: 'rotate-90',
   disclosureBody: 'mt-2 flex flex-col gap-3 pl-1'
 } as const
@@ -124,56 +124,56 @@ export const customHeaderDrawerClasses = {
   bodyScroll: 'flex flex-col gap-4',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
-    'min-h-[120px] w-full resize-y rounded-xl border border-border-muted bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:border-primary placeholder:text-muted-foreground/45',
+    'min-h-[120px] w-full resize-y rounded-xl border border-border-subtle bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:border-ring placeholder:text-muted-foreground',
   /** Header rows stack; each row is `[name] [value] [delete]` on a single line. */
   headerList: 'flex flex-col gap-2',
   headerRow: 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2',
   /** Quiet trailing delete: neutral until hover, then destructive. */
   removeIconButton:
-    'size-7 shrink-0 rounded-lg text-muted-foreground/45 shadow-none transition-colors hover:bg-accent hover:text-destructive [&_svg]:size-3.5',
+    'size-7 shrink-0 rounded-lg text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-destructive [&_svg]:size-3.5',
   addRowButton:
-    'flex h-auto w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-muted py-2 text-xs text-muted-foreground shadow-none transition-colors hover:border-border-hover hover:bg-accent/40 hover:text-foreground'
+    'flex h-auto w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border-subtle py-2 text-xs text-muted-foreground shadow-none transition-colors hover:border-border-strong hover:bg-accent/40 hover:text-foreground'
 } as const
 
 export const drawerClasses = {
   form: 'flex min-h-0 flex-col gap-4 py-0',
   section: 'space-y-3',
   sectionCard: 'space-y-3.5 rounded-lg border border-border bg-background px-3 py-3 text-foreground shadow-none',
-  sectionDescription: 'text-xs leading-tight text-foreground-muted',
+  sectionDescription: 'text-xs leading-tight text-muted-foreground',
   fieldList: 'space-y-3.5',
   field: 'space-y-1.5',
-  fieldTitle: 'text-sm leading-5 text-foreground-secondary',
+  fieldTitle: 'text-sm leading-5 text-muted-foreground',
   input:
-    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-primary',
-  inputDisabled: 'bg-muted text-foreground-muted',
+    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring',
+  inputDisabled: 'bg-muted text-foreground-disabled',
   selectTrigger:
-    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-foreground-muted focus-visible:border-primary',
+    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-muted-foreground focus-visible:border-ring',
   selectContent: 'rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
-  helpText: 'text-xs leading-tight text-foreground-muted',
+  helpText: 'text-xs leading-tight text-muted-foreground',
   errorText: 'text-xs leading-tight text-destructive',
   emptyInline:
-    'rounded-md border border-dashed border-border-muted px-3 py-2 text-[13px] leading-tight text-muted-foreground/70',
+    'rounded-md border border-dashed border-border-subtle px-3 py-2 text-[13px] leading-tight text-muted-foreground',
   toggleButton:
-    'h-auto justify-start gap-1.5 px-0 py-0 text-sm leading-5 text-foreground-muted shadow-none hover:bg-transparent hover:text-foreground',
+    'h-auto justify-start gap-1.5 px-0 py-0 text-sm leading-5 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground',
   inlineRow: 'flex flex-wrap items-center gap-2',
   valueRow: 'flex min-w-0 items-center gap-2',
   responsiveValueRow: 'flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center',
-  valueSuffix: 'shrink-0 text-xs leading-tight text-foreground-muted',
-  divider: 'h-px bg-border-muted',
+  valueSuffix: 'shrink-0 text-xs leading-tight text-foreground-tertiary',
+  divider: 'h-px bg-border-subtle',
   switchCard: 'rounded-lg border border-border bg-background px-3 py-3',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
   footerTextButton:
-    'h-auto min-h-0 rounded-md px-0 py-0 text-xs leading-tight text-foreground-muted/60 shadow-none hover:bg-transparent hover:text-foreground-muted',
+    'h-auto min-h-0 rounded-md px-0 py-0 text-xs leading-tight text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground',
   healthCostWarning:
-    'shrink-0 rounded-lg border-warning bg-warning-bg px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
+    'shrink-0 rounded-lg border-warning-border bg-warning-subtle px-3 py-2.5 text-xs leading-tight text-warning-subtle-foreground shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
   healthProgressFill: 'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
-  healthProgressMeta: 'text-[13px] tabular-nums text-muted-foreground/85',
-  healthProgressCurrent: 'truncate text-[13px] text-foreground/80'
+  healthProgressMeta: 'text-[13px] tabular-nums text-foreground-tertiary',
+  healthProgressCurrent: 'truncate text-[13px] text-foreground'
 } as const
 
 export const modelListClasses = {
@@ -188,59 +188,57 @@ export const modelListClasses = {
   titleWrap: 'flex w-full min-w-0 items-center gap-3',
   titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
-  subsectionIconButton:
-    'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+  subsectionIconButton: 'size-8 rounded-lg text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   subsectionIcon: 'size-4',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
   sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1',
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
-  titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-muted',
+  titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-tertiary',
   titleHelpText: 'shrink-0 opacity-60',
-  titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-muted/70 transition-colors hover:!text-primary hover:no-underline',
+  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-link transition-colors hover:underline',
   titleHelpIconLink:
-    'inline-flex h-[1.3em] w-[1.3em] shrink-0 items-center justify-center rounded-md align-middle text-foreground-muted/70 transition-colors hover:text-primary',
+    'inline-flex h-[1.3em] w-[1.3em] shrink-0 items-center justify-center rounded-md align-middle text-link transition-colors hover:underline',
   titleHelpIcon: 'relative -top-px size-3.5 shrink-0',
-  titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-muted/50',
-  countMeta: 'text-xs leading-tight text-foreground-muted tabular-nums',
+  titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-tertiary',
+  countMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
   toolbarGhost:
-    'h-auto rounded-3xs px-2.5 py-[5px] text-[13px] leading-tight text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'h-auto rounded-3xs px-2.5 py-[5px] text-[13px] leading-tight text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
   toolbarHeaderGhost:
-    'h-auto min-h-0 rounded px-2 py-0.5 text-xs leading-tight text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'h-auto min-h-0 rounded px-2 py-0.5 text-xs leading-tight text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   toolbarHeaderIconButton:
-    'size-8 rounded p-0 text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'size-8 rounded p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   toolbarIcon: 'size-3 shrink-0',
   toolbarHeaderIcon: 'size-3 shrink-0',
   searchExpandRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
+    'flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[10px] border border-border-subtle bg-background px-2.5 py-1',
   searchCompactWrap:
-    'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
+    'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-subtle bg-background px-2.5 py-1',
   searchIconButton:
-    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
   groupToggleIconButton:
-    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
-  searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground shadow-none transition-colors hover:text-foreground disabled:opacity-40',
+  searchIcon: 'size-3 shrink-0 text-muted-foreground',
   searchInput:
-    'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
+    'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
-    'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
+    'flex h-[18px] w-[18px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-md border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-md border-border-subtle border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   fetchGuideWrap: 'relative flex shrink-0',
   fetchGuideArrow:
     'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-muted-foreground motion-reduce:animate-none',
   addModelIconButton:
-    'size-8 min-h-0 rounded-md border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-8 min-h-0 rounded-md border-border-subtle bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
-    'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'size-8 rounded-lg border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
-    'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-muted',
+    'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-tertiary',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
   virtualGroupRow: '',
   virtualGroupRowCollapsed: 'mb-2.5',
@@ -251,24 +249,24 @@ export const modelListClasses = {
    */
   manageListGroupShell: 'mb-1',
   manageListGroupHeader: 'flex items-center gap-1.5 px-1 py-[3px]',
-  manageListGroupTitle: 'text-xs leading-tight text-foreground-muted',
+  manageListGroupTitle: 'text-xs leading-tight text-foreground-tertiary',
   manageListGroupRule: 'h-px min-w-0 flex-1 bg-muted/50',
   manageListRow: 'group flex items-center gap-2 rounded-lg px-1.5 py-[5px] transition-colors hover:bg-accent/50',
   manageListRowLast: 'mb-0.5',
   manageDrawerFilterChipBase: 'h-auto min-h-0 rounded-full px-2 py-[2px] text-xs transition-colors',
-  manageDrawerFilterChipActive: 'bg-accent/50 !text-foreground',
-  manageDrawerFilterChipIdle: 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground',
+  manageDrawerFilterChipActive: 'bg-accent/50 !text-accent-foreground',
+  manageDrawerFilterChipIdle: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
   manageDrawerCapChipBase:
     'h-auto min-h-0 min-w-0 items-center gap-[3px] rounded-full px-1.5 py-[2px] text-xs transition-colors',
-  manageDrawerCapChipActive: 'bg-accent/50 !text-foreground',
-  manageDrawerCapChipIdle: 'text-foreground-muted hover:bg-accent/50 hover:text-foreground',
+  manageDrawerCapChipActive: 'bg-accent/50 !text-accent-foreground',
+  manageDrawerCapChipIdle: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
   manageDrawerCountBadge:
-    'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-xs text-muted-foreground/60 tabular-nums',
+    'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-xs text-foreground-tertiary tabular-nums',
   /** Trailing close in manage drawer title row (paired with bulk actions); matches `hover:bg-accent`. */
   manageDrawerCloseInTitle:
-    "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-lg p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
+    "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-lg p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
   manageDrawerBulkGhost:
-    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
+    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs tracking-[-0.14px] text-muted-foreground shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
   /** Enable-all hover — primary action color. */
   manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
   /** Disable-all hover — destructive (design draft). */
@@ -284,7 +282,7 @@ export const modelListClasses = {
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
   groupHeaderIconTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
   groupTitle: 'min-w-0 truncate text-sm leading-5 text-foreground',
-  groupChevron: 'size-4 shrink-0 text-muted-foreground/65 transition-transform duration-150',
+  groupChevron: 'size-4 shrink-0 text-muted-foreground transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupBody: 'grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out',
   groupBodyOpen: 'grid-rows-[1fr]',
@@ -292,7 +290,7 @@ export const modelListClasses = {
   groupBodyInner: 'min-h-0 overflow-hidden',
   groupBodyList: 'flex flex-col gap-0',
   groupOverflowHint:
-    'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-tight text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground',
+    'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-tight text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
   row: 'group flex min-h-[42px] items-center gap-2.5 px-4 py-1 text-foreground leading-none',
   rowMain: 'min-w-0 flex-1 items-center gap-2.5 self-center',
   rowAvatar:
@@ -301,112 +299,111 @@ export const modelListClasses = {
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',
   modelIdBadge:
-    'min-w-0 max-w-[50%] shrink truncate rounded-md bg-foreground/[0.05] px-1.5 py-[1px] font-mono text-xs text-foreground-muted leading-tight',
+    'min-w-0 max-w-[50%] shrink truncate rounded-md bg-background-subtle px-1.5 py-[1px] font-mono text-xs text-foreground-tertiary leading-tight',
   rowBadges: 'mt-1 flex min-h-[18px] min-w-0 max-w-full flex-wrap items-center gap-1.5',
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
     'flex h-7 min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   rowCapabilityTagCluster: 'flex min-w-0 shrink items-center',
-  rowMeta: 'mt-[3px] block min-w-0 max-w-full truncate text-xs leading-tight text-foreground/65',
+  rowMeta: 'mt-[3px] block min-w-0 max-w-full truncate text-xs leading-tight text-foreground-tertiary',
   healthStatusSlot: 'shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
   rowActionsCluster: 'flex min-h-8 min-w-0 items-center gap-2',
   rowActions: 'ml-auto min-w-0 shrink-0 items-center gap-2 self-center',
   rowInlineActions: 'flex shrink-0 items-center gap-1',
   rowActionButton:
-    'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg p-0 !text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:!text-foreground',
+    'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg p-0 !text-muted-foreground shadow-none transition-colors hover:bg-accent/40 hover:!text-foreground',
   rowDangerActionButton: 'hover:!text-foreground',
   rowIconButton:
-    'size-7 rounded-lg border border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
+    'size-7 rounded-lg border border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
 
 export const modelSyncClasses = {
   panel: 'flex min-h-0 flex-1 flex-col gap-4',
-  summaryCard: 'rounded-2xl border border-border-muted bg-muted/30 px-4 py-3',
-  summaryTitle: 'text-sm leading-5 text-foreground/85',
-  summaryMeta: 'text-[13px] leading-tight text-muted-foreground/75',
+  summaryCard: 'rounded-2xl border border-border-subtle bg-muted/30 px-4 py-3',
+  summaryTitle: 'text-sm leading-5 text-foreground',
+  summaryMeta: 'text-[13px] leading-tight text-muted-foreground',
   summaryGrid: 'mt-3 grid gap-2 sm:grid-cols-3',
   summaryMetric:
-    'rounded-xl border border-border-subtle bg-background/75 px-3 py-2 text-[13px] leading-tight text-foreground/75',
-  section: 'rounded-2xl border border-border-muted bg-background px-4 py-4 shadow-none',
+    'rounded-xl border border-border-subtle bg-background/75 px-3 py-2 text-[13px] leading-tight text-foreground',
+  section: 'rounded-2xl border border-border-subtle bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
-  sectionTitle: 'text-sm leading-5 text-foreground/85',
-  sectionMeta: 'text-[13px] leading-tight text-muted-foreground/75',
+  sectionTitle: 'text-sm leading-5 text-foreground',
+  sectionMeta: 'text-[13px] leading-tight text-muted-foreground',
   sectionActions: 'flex flex-wrap items-center gap-2',
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'rounded-lg border-border-muted px-3 py-1.25 text-foreground/70 hover:bg-accent/40 hover:text-foreground'
+    'rounded-lg border-border-subtle px-3 py-1.25 text-muted-foreground hover:bg-accent/40 hover:text-foreground'
   ),
   list: 'mt-4 space-y-2',
   row: 'flex items-start gap-3 rounded-xl border border-border-subtle bg-muted/30 px-3 py-3',
   rowBody: 'min-w-0 flex-1',
-  rowTitle: 'truncate text-sm leading-5 text-foreground/85',
-  rowMeta: 'mt-1 text-[13px] leading-tight text-muted-foreground/75',
+  rowTitle: 'truncate text-sm leading-5 text-foreground',
+  rowMeta: 'mt-1 text-[13px] leading-tight text-muted-foreground',
   rowBadgeRow: 'mt-2 flex flex-wrap items-center gap-1.5',
   rowBadge:
-    'rounded-full border border-border-muted bg-background px-2 py-0.5 text-xs leading-tight text-foreground/65',
+    'rounded-full border border-border-subtle bg-background px-2 py-0.5 text-xs leading-tight text-muted-foreground',
   impactList: 'mt-3 space-y-2',
-  impactItem:
-    'rounded-xl border border-border-subtle bg-background/80 px-3 py-2 text-[13px] leading-5 text-foreground/78',
+  impactItem: 'rounded-xl border border-border-subtle bg-background/80 px-3 py-2 text-[13px] leading-5 text-foreground',
   emptyState:
-    'rounded-2xl border border-dashed border-border-muted bg-muted/30 px-4 py-8 text-center text-sm leading-5 text-muted-foreground/75',
+    'rounded-2xl border border-dashed border-border-subtle bg-muted/30 px-4 py-8 text-center text-sm leading-5 text-foreground-tertiary',
   footer: 'flex items-center justify-end gap-2',
   /** pull preview panel — pull result side panel */
   fetchEmpty: 'flex flex-col items-center justify-center px-4 py-12 text-center',
   fetchEmptyIconWrap: 'mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted',
-  fetchEmptyIcon: 'size-4 text-foreground-muted',
-  fetchEmptyTitle: 'text-xs leading-tight text-foreground-secondary',
-  fetchEmptyDescription: 'mt-1 text-xs leading-tight text-foreground-muted',
+  fetchEmptyIcon: 'size-4 text-foreground-tertiary',
+  fetchEmptyTitle: 'text-xs leading-tight text-muted-foreground',
+  fetchEmptyDescription: 'mt-1 text-xs leading-tight text-foreground-tertiary',
   fetchSection: 'min-w-0',
   fetchSectionHeader: 'mb-2.5 flex items-center justify-between gap-3',
   fetchSectionTitleRow: 'flex items-center gap-1.5',
   fetchDotNew: 'h-[6px] w-[6px] shrink-0 rounded-full bg-primary',
   fetchDotRemoved: 'h-[6px] w-[6px] shrink-0 rounded-full bg-destructive',
   fetchSectionTitle: 'text-sm text-foreground leading-5',
-  fetchSectionCount: 'text-xs leading-tight text-foreground-muted tabular-nums',
+  fetchSectionCount: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
   fetchGhostAll:
-    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-accent hover:text-foreground',
+    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-muted-foreground shadow-none hover:bg-accent hover:text-foreground',
   fetchGhostAllRemoved:
-    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
+    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-muted-foreground shadow-none hover:bg-destructive hover:text-destructive-foreground',
   fetchList: 'space-y-1',
   fetchWarning:
-    'my-2 gap-2 rounded-lg [--model-sync-warning-accent:oklch(0.83_0.164_84)] border-[color:color-mix(in_srgb,var(--model-sync-warning-accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--warning-subtle)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
+    'my-2 gap-2 rounded-lg border-warning-border bg-warning-subtle px-2.5 py-2 text-warning-subtle-foreground text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:border-primary focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border-subtle hover:bg-accent/30 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border-subtle data-[checked=true]:bg-background',
   fetchRowRemoved:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:border-destructive/30 focus-visible:bg-destructive/[0.03] focus-visible:outline-none data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-error-border hover:bg-error-subtle focus-visible:border-error-border focus-visible:bg-error-subtle focus-visible:outline-none data-[checked=true]:border-error-border data-[checked=true]:bg-background',
   fetchAvatar:
-    'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs leading-none text-foreground-muted',
+    'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs leading-none text-foreground-tertiary',
   fetchRowId: 'truncate text-sm leading-tight text-foreground',
-  fetchRowIdStrike: 'truncate text-sm leading-tight text-foreground-muted line-through decoration-foreground-muted',
-  fetchContextValue: 'shrink-0 text-xs leading-tight text-foreground-muted tabular-nums',
+  fetchRowIdStrike:
+    'truncate text-sm leading-tight text-foreground-tertiary line-through decoration-foreground-tertiary',
+  fetchContextValue: 'shrink-0 text-xs leading-tight text-foreground-tertiary tabular-nums',
   /** Trailing capability icons — pull preview panel strip */
   fetchCapabilityStrip: 'flex shrink-0 items-center justify-end gap-[3px]',
   manageTitle: 'inline-flex min-w-0 items-center gap-2',
   manageTitleText: 'min-w-0 truncate',
   manageTitleCountBadge: 'h-5 rounded-md px-1.5 py-0 text-xs leading-5 tabular-nums',
   manageTitleActionButton:
-    'h-8 rounded-lg px-2.5 text-xs text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+    'h-8 rounded-lg px-2.5 text-xs text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
   manageTitleErrorRetryButton:
-    'relative size-7 shrink-0 rounded-lg p-0 text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
-  manageTitleErrorDot:
-    'pointer-events-none absolute right-1.5 top-1.5 size-1.5 rounded-full bg-error-base ring-1 ring-card',
+    'relative size-7 shrink-0 rounded-lg p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+  manageTitleErrorDot: 'pointer-events-none absolute right-1.5 top-1.5 size-1.5 rounded-full bg-error ring-1 ring-card',
   manageStickyHeader: 'sticky top-0 z-10 shrink-0 bg-card pt-1 pb-3',
   manageToolbar: 'mb-2.5 flex items-center gap-2',
-  manageSearchIcon: 'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60',
+  manageSearchIcon: 'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground',
   manageSearchInput: 'h-9 rounded-lg bg-muted/30 pr-7 pl-8 text-sm shadow-none',
   manageSearchClear:
-    'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
-  manageIconButton: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
+  manageIconButton: 'size-8 rounded-lg text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   manageTabs: 'w-full gap-0',
   manageTabsList:
     'h-auto w-full max-w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-lg bg-muted/40 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
   manageTabsTrigger: 'h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2 text-xs',
   manageTabsTriggerDestructive:
-    'text-error-text hover:text-error-text data-[state=active]:border-error-border data-[state=active]:bg-error-bg data-[state=active]:text-error-text dark:text-error-text dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-bg dark:data-[state=active]:text-error-text',
-  manageTabCount: 'text-[11px] text-muted-foreground/70 tabular-nums',
+    'text-error-subtle-foreground hover:text-error-subtle-foreground data-[state=active]:border-error-border data-[state=active]:bg-error-subtle data-[state=active]:text-error-subtle-foreground dark:text-error-subtle-foreground dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-subtle dark:data-[state=active]:text-error-subtle-foreground',
+  manageTabCount: 'text-[11px] text-foreground-tertiary tabular-nums',
   manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
   manageList: 'pb-1',
@@ -423,36 +420,36 @@ export const modelSyncClasses = {
   manageGroupBadge: 'h-4 rounded-md px-1.5 py-0 text-[10px] leading-4',
   manageGroupBody: 'space-y-1 overflow-hidden bg-card py-1.5',
   manageRow:
-    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success/5',
+    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success-subtle',
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
   manageRowDescriptionHelp:
     'inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:bg-accent/40 focus-visible:text-foreground',
   manageStaleBadge:
-    'h-4 shrink-0 rounded-md bg-destructive/10 px-1.5 py-0 text-[10px] leading-4 text-destructive tabular-nums',
-  manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
+    'h-4 shrink-0 rounded-md border border-error-border bg-error-subtle px-1.5 py-0 text-[10px] leading-4 text-error-subtle-foreground tabular-nums',
+  manageRowAction: 'size-8 rounded-lg text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
 
 export const apiKeyListClasses = {
-  summaryMeta: 'text-xs leading-tight text-foreground-muted tabular-nums',
-  helperText: 'text-[13px] leading-tight text-foreground-muted',
-  listWrap: 'overflow-hidden rounded-lg border border-border-muted',
+  summaryMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
+  helperText: 'text-[13px] leading-tight text-muted-foreground',
+  listWrap: 'overflow-hidden rounded-lg border border-border-subtle',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
   keyRow: 'flex flex-col gap-2 border-b border-border-subtle px-4 py-3 last:border-b-0',
   keyDisplayRow: 'flex min-w-0 items-center gap-3',
   keyTextBlock: 'min-w-0 flex-1',
   keyRowActions: 'flex shrink-0 items-center gap-1.5',
   keyLabel: 'min-w-0 truncate text-[13px] leading-tight text-foreground',
-  keyValue: 'min-w-0 flex-1 truncate font-mono text-xs leading-tight text-foreground-muted',
+  keyValue: 'min-w-0 flex-1 truncate font-mono text-xs leading-tight text-foreground-tertiary',
   keyDraftRow: 'flex min-w-0 items-center gap-2',
   keyDraftInputs: 'grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(4.5rem,6rem)_minmax(0,1fr)]',
   keyDraftInput: 'h-8 rounded-md bg-background px-2.5 text-sm leading-5',
   keyIconButton:
-    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-accent/40 hover:text-muted-foreground/70 disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
   keySaveIconButton:
-    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-success/10 hover:text-success disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success-subtle hover:text-success-subtle-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
   keyDestructiveIconButton:
-    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive/70 disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
   actionRow: 'flex items-center justify-between gap-3'
 } as const
 
@@ -463,42 +460,43 @@ export const oauthCardClasses = {
   shell: 'w-full min-w-0 overflow-hidden rounded-xl border border-border-subtle px-3 py-2.5',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
-    'h-auto min-h-0 p-0 text-xs text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
-  loginFooterDivider: 'text-xs text-muted-foreground/50',
+    'h-auto min-h-0 p-0 text-xs text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground',
+  loginFooterDivider: 'text-xs text-foreground-tertiary',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
-  externalLink: 'mt-1 inline-block text-xs leading-tight text-primary',
+  externalLink: 'mt-1 inline-block text-xs leading-tight text-link',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-border-subtle px-3 py-2.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
-    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white',
+    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',
   /** Logged-in title line — `text-xs` in structured. */
   loggedInName: 'truncate text-xs leading-tight text-foreground',
-  loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-muted-foreground/40',
-  badge: 'inline-flex items-center rounded bg-warning/10 px-1 py-[0.5px] text-[10px] leading-tight text-warning',
+  loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-foreground-tertiary',
+  badge:
+    'inline-flex items-center rounded border border-warning-border bg-warning-subtle px-1 py-[0.5px] text-[10px] leading-tight text-warning-subtle-foreground',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
   inlineBalanceBlock: 'text-right',
-  inlineBalanceLabel: 'text-xs text-muted-foreground/40',
+  inlineBalanceLabel: 'text-xs text-muted-foreground',
   inlineBalanceValue: 'text-sm leading-tight text-foreground tabular-nums',
   balanceValueSkeleton: 'inline-block w-20',
   /** CherryIN top-up CTA — solid primary background, white label (compact inline size). */
   topupPrimaryButton: 'h-auto min-h-0 px-2.5 py-[3px] text-xs shadow-none',
   logoutCompact:
-    'h-auto min-h-0 rounded-md px-1.5 py-[3px] text-xs text-muted-foreground/30 shadow-none hover:bg-transparent hover:text-foreground',
-  serviceAttribution: 'mt-2.5 border-t border-border-subtle pt-2.5 text-xs text-muted-foreground/25',
-  serviceLink: 'text-muted-foreground/40 transition-colors hover:text-foreground',
+    'h-auto min-h-0 rounded-md px-1.5 py-[3px] text-xs text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground',
+  serviceAttribution: 'mt-2.5 border-t border-border-subtle pt-2.5 text-xs text-foreground-tertiary',
+  serviceLink: 'text-muted-foreground transition-colors hover:text-foreground',
   actionsRow: 'flex flex-wrap items-center gap-2',
-  footer: 'mt-4 text-[12px] leading-[1.35] text-foreground-muted'
+  footer: 'mt-4 text-[12px] leading-[1.35] text-foreground-tertiary'
 } as const
 
 /** Shared visual for provider-settings icon buttons; size is composed per usage. */
 const fieldIconButtonBase =
-  'flex shrink-0 items-center justify-center rounded-lg border border-border-muted bg-background text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
+  'flex shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-background text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
 
 export const fieldClasses = {
   inputRow: 'flex min-w-0 items-center gap-1.5',
@@ -515,15 +513,15 @@ export const fieldClasses = {
   input:
     'min-h-0 h-auto min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none outline-none focus-visible:ring-0 ' +
     'text-sm leading-5 text-foreground ' +
-    'placeholder:text-muted-foreground/60 md:text-sm',
+    'placeholder:text-muted-foreground md:text-sm',
   /** Small 24px icon control (e.g. copy / inline settings) — for compact rows, not next to a full input. */
   iconButton: cn(fieldIconButtonBase, 'size-6'),
   /** 32px icon control that matches the connection input-group height (`h-8`) when placed beside it in an `inputRow`. */
   inputActionButton: cn(fieldIconButtonBase, 'size-8'),
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-foreground-muted/70 transition-colors hover:text-primary hover:no-underline'
+    'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-link transition-colors hover:underline'
 } as const

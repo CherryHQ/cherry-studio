@@ -145,7 +145,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
                 <span>{t('translate.detect.method.label')}</span>
                 <HelpTooltip
                   content={t('translate.detect.method.tip')}
-                  iconProps={{ className: 'text-foreground-muted' }}
+                  iconProps={{ className: 'text-foreground-tertiary' }}
                 />
               </span>
             }
@@ -175,7 +175,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
                 <span>{t('translate.settings.bidirectional')}</span>
                 <HelpTooltip
                   content={t('translate.settings.bidirectional_tip')}
-                  iconProps={{ className: 'text-foreground-muted' }}
+                  iconProps={{ className: 'text-foreground-tertiary' }}
                 />
               </span>
             }
@@ -196,7 +196,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
                     onChange={(value) => updateBidirectionalPair([value, bidirectionalPair[1]])}
                   />
                 </div>
-                <ArrowLeftRight size={12} className="shrink-0 text-foreground-muted" />
+                <ArrowLeftRight size={12} className="shrink-0 text-foreground-tertiary" />
                 <div className="flex-1">
                   <LanguagePicker
                     value={bidirectionalPair[1]}
@@ -302,7 +302,7 @@ const TranslatePromptField: FC = () => {
           <button
             type="button"
             onClick={onReset}
-            className="rounded-md text-foreground-muted text-xs transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
+            className="rounded-md text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
             {t('common.reset')}
           </button>
         )
@@ -310,7 +310,7 @@ const TranslatePromptField: FC = () => {
       <textarea
         value={local}
         onChange={(e) => schedulePersist(e.target.value)}
-        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-foreground-secondary text-sm leading-relaxed outline-none transition-colors focus:border-border-hover"
+        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-muted-foreground text-sm leading-relaxed outline-none transition-colors focus:border-ring"
       />
     </PageSidePanelSection>
   )
@@ -338,7 +338,7 @@ const CustomLanguageList: FC = () => {
       title={t('translate.custom.label')}
       actions={
         customLanguages.length > 0 && (
-          <span className="text-foreground-muted text-xs">{t('code.count', { count: customLanguages.length })}</span>
+          <span className="text-foreground-tertiary text-xs">{t('code.count', { count: customLanguages.length })}</span>
         )
       }>
       <div className="flex flex-col gap-1">
@@ -377,7 +377,7 @@ type FormErrorField = 'name' | 'code'
 type FormError = { field: FormErrorField; messageKey: string }
 type ValidLanguageForm = { value: string; langCode: PersistedLangCode; emoji: string }
 type LanguageFormValidation = { ok: false; error: FormError } | { ok: true; data: ValidLanguageForm }
-const customLanguageFieldSubtitleClassName = 'text-xs font-medium leading-4 text-foreground-secondary'
+const customLanguageFieldSubtitleClassName = 'text-xs font-medium leading-4 text-muted-foreground'
 
 const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () => void; onCancel?: () => void }> = ({
   languages,
@@ -546,12 +546,12 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
       <>
         <div className="group flex items-center gap-2 rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
           <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
-          <span className="shrink-0 font-mono text-foreground-muted text-xs">{language.langCode}</span>
+          <span className="shrink-0 font-mono text-foreground-tertiary text-xs">{language.langCode}</span>
           <IconButton
             size="xs"
             onClick={() => setEditing(true)}
             aria-label={t('common.edit')}
-            className="text-foreground-muted/70 opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
             <PenLine size={10} />
           </IconButton>
           <IconButton
@@ -559,7 +559,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             tone="destructive"
             onClick={() => setConfirmOpen(true)}
             aria-label={t('common.delete')}
-            className="text-foreground-muted/70 opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
             <X size={10} />
           </IconButton>
         </div>

@@ -31,7 +31,6 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const actions = useOptionalMessageListActions()
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
-  const isDirectory = interactive ? actions?.isDirectory : undefined
   const showInFolder = interactive ? actions?.showInFolder : undefined
   const openInExternalApp = interactive ? actions?.openInExternalApp : undefined
   const notifyError = actions?.notifyError
@@ -64,30 +63,20 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
-      // Resolve directory-ness authoritatively (single stat on the clicked
-      // path) and route accordingly: directories open in the system file
-      // manager, files open in the in-app preview pane. The preview pane is
-      // file-only — handing it a directory just renders a "can't display"
-      // dead end. `isDirectory` is fs.stat-backed and resolves false on a
-      // missing path, so a vanished file still falls through to the preview
-      // pane, which reports its own missing / unreadable state (no TOCTOU
-      // preflight, no error interpretation in the renderer).
-      //
-      // Some surfaces (e.g. Home chat) wire only `openPath` and no preview
-      // pane — there, route everything through the system file manager so the
-      // link is never a silent dead end.
       try {
-        const directory = isDirectory ? await isDirectory(targetPath) : false
-        if (directory || !openArtifactFile) {
-          await openPath?.(targetPath)
-        } else {
+        // Agent surfaces own the file-vs-directory decision so every entry
+        // point routes consistently. Surfaces without an in-app files pane
+        // keep opening paths through the system default handler.
+        if (openArtifactFile) {
           await openArtifactFile(targetPath)
+        } else {
+          await openPath?.(targetPath)
         }
       } catch {
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       }
     },
-    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, notifyError, openArtifactFile, openPath, t, targetPath]
   )
 
   const handleKeyDown = useCallback(
@@ -109,7 +98,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           onClick={canOpen ? handleOpen : undefined}
           onKeyDown={canOpen ? handleKeyDown : undefined}
           className={`inline-flex items-center gap-1 break-all ${
-            canOpen ? 'cursor-pointer text-primary hover:underline' : 'cursor-default text-foreground-secondary'
+            canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
           }`}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
           {displayName ?? displayPath}
@@ -121,7 +110,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
             <button
               type="button"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex cursor-pointer items-center rounded px-0.5 text-primary opacity-60 hover:bg-black/10 hover:opacity-100"
+              className="inline-flex cursor-pointer items-center rounded px-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
               aria-label={t('common.more')}>
               <Tooltip
                 content={t('common.more')}

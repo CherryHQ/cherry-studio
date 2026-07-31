@@ -19,7 +19,7 @@ export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefin
   const modelName = scope.model.name ?? scope.model.id
   return {
     isEnabled: true,
-    recordInputs: true,
+    recordInputs: scope.request.omitTelemetryInputs !== true,
     recordOutputs: true,
     tracer: new AdapterTracer(trace.getTracer(TRACER_NAME), topicId, modelName),
     functionId: `ai-request-${scope.requestContext.requestId}`,

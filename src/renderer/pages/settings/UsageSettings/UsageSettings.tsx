@@ -392,7 +392,7 @@ function UsageSettings() {
           <UsageSectionHeader>
             <div className="min-w-0">
               <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
-              <p className="mt-1 text-foreground-muted text-sm">
+              <p className="mt-1 text-muted-foreground text-sm">
                 {t('settings.usage.summary', {
                   window: t(WINDOW_LABEL_KEYS[windowKey]),
                   tokens: formatCompactNumber(totalTokens),
@@ -549,7 +549,7 @@ function UsageSettings() {
                   : t('settings.usage.explore.title')}
               </UsageSectionTitle>
               {selectedDateLabel && (
-                <div className="mt-1 flex items-center gap-2 text-foreground-muted text-xs">
+                <div className="mt-1 flex items-center gap-2 text-foreground-tertiary text-xs">
                   <span>{t('settings.usage.explore.selectedDate', { date: selectedDateLabel })}</span>
                   <Button
                     variant="ghost"
@@ -570,7 +570,7 @@ function UsageSettings() {
                 <div className="flex min-w-0 @[760px]/usage:flex-row flex-col @[760px]/usage:items-start @[760px]/usage:justify-between gap-3">
                   <div className="min-w-0">
                     <UsagePanelTitle>{t('settings.usage.explore.analysis')}</UsagePanelTitle>
-                    <div className="mt-1 text-foreground-muted text-xs">
+                    <div className="mt-1 text-foreground-tertiary text-xs">
                       {analysisSummary} / {formatChartValue(totalExploreMetric)}
                     </div>
                   </div>
@@ -584,7 +584,7 @@ function UsageSettings() {
                           <SlidersHorizontal className="size-4 shrink-0" />
                           <span className="min-w-0 truncate">{analysisSummary}</span>
                         </span>
-                        <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent align="end" className="w-[calc(100vw-2rem)] max-w-lg p-3">

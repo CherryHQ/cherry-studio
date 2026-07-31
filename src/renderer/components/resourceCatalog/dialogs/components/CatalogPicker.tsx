@@ -38,7 +38,7 @@ function CatalogBadges({ item }: { item: CatalogItem }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {item.inactiveBadge ? (
-        <Badge className="h-4 border-0 bg-warning/10 px-1.5 py-0 font-normal text-warning text-xs">
+        <Badge className="h-4 border-warning-border bg-warning-subtle px-1.5 py-0 font-normal text-warning-subtle-foreground text-xs">
           {item.inactiveBadge}
         </Badge>
       ) : null}
@@ -108,7 +108,7 @@ export const CatalogToggleGrid: FC<{
               <CatalogBadges item={item} />
             </div>
             {item.description ? (
-              <div className="mt-0.5 truncate text-muted-foreground/80 text-xs" title={item.description}>
+              <div className="mt-0.5 truncate text-muted-foreground text-xs" title={item.description}>
                 {item.description}
               </div>
             ) : null}
@@ -121,7 +121,7 @@ export const CatalogToggleGrid: FC<{
               key={item.id}
               className={cn(
                 'flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-                checked ? 'border-primary/40 bg-accent/30' : 'border-border/50 hover:bg-accent/20',
+                checked ? 'border-primary/40 bg-accent/30' : 'border-border-subtle hover:bg-accent/20',
                 toggleDisabled && 'opacity-50'
               )}>
               <label
@@ -147,7 +147,7 @@ export const CatalogToggleGrid: FC<{
         return (
           <div
             key={item.id}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-muted px-2.5 py-1.5">
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-subtle px-2.5 py-1.5">
             {info}
             <Tooltip
               content={disabledReason}
@@ -265,7 +265,7 @@ export const AddCatalogPopover: FC<{
             onValueChange={setSearch}
             disabled={disabled}
             placeholder={searchPlaceholder}
-            className="h-7 text-xs placeholder:text-muted-foreground/40"
+            className="h-7 text-xs placeholder:text-muted-foreground"
           />
           <CommandList>
             {filteredOptions.length === 0 ? (
@@ -285,7 +285,7 @@ export const AddCatalogPopover: FC<{
                     }}>
                     {option.item.icon ? <span className="shrink-0">{option.item.icon}</span> : null}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-foreground/70">{option.item.name}</div>
+                      <div className="truncate text-foreground">{option.item.name}</div>
                       {option.item.description ? (
                         <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
                       ) : null}
@@ -304,5 +304,5 @@ export const AddCatalogPopover: FC<{
 }
 
 export function CatalogEmptyPlaceholder({ children }: { children: ReactNode }) {
-  return <div className="py-14 text-center text-muted-foreground/80 text-xs">{children}</div>
+  return <div className="py-14 text-center text-foreground-tertiary text-xs">{children}</div>
 }

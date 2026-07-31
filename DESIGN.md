@@ -42,30 +42,33 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 
 > Internal token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,status-legacy,providers}.css`; public semantic mappings live in `packages/ui/src/styles/shadcn.css` and `packages/ui/src/styles/product.css`. This section names what each token is for; refer to those source files for resolved values.
 
-### Palette Philosophy — Neutrals via Alpha, Colors via Steps
+### Palette Philosophy — Solid Foregrounds, Alpha Surface Tints
 
-The color system follows one consistent rule:
+The color system separates contrast-bearing content from surface tinting:
 
-- **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
+- **Foreground tokens** (text and icons) use **solid `oklch` values**. Their resolved color and contrast must stay predictable across cards, popovers, translucent surfaces, vibrancy, and user wallpapers.
+- **Neutral surface tints** (borders, secondary fills, hover backgrounds, and ghost states) use **black/white + an alpha channel**. These roles intentionally harmonise with the surface beneath them and do not carry a text-contrast contract.
 - **Chromatic tokens** (`--primary`, `--destructive`, `--success`, `--warning`, `--info`, and primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
 
 When you reach for a value:
-1. If the role is "tint of the surface" (text, divider, soft fill, hover), use an approved public neutral role (`--foreground`, `--muted-foreground`, `--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
-2. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
+1. If the role is content, use the solid foreground hierarchy (`--foreground`, `--muted-foreground`, `--foreground-tertiary`, or `--foreground-disabled`).
+2. If the role is a surface tint (divider, soft fill, hover), use an approved public neutral role (`--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`, `--border-selected`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
+3. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
 
 ### Primary
-- **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, links, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
+- **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
 - **Primary Foreground**: `var(--primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: owned by the component variant (`hover:*` utility); do not consume a compatibility adapter variable from authored CSS
 
 ### Text Colors
 - **Foreground**: `var(--foreground)` — primary body text
-- **Muted Foreground**: `var(--muted-foreground)` — secondary text, helper labels, placeholders, and low-emphasis readable content
+- **Muted Foreground**: `var(--muted-foreground)` — secondary readable text, descriptions, labels, and placeholders
+- **Tertiary Foreground**: `var(--foreground-tertiary)` — timestamps, counts, empty-state copy, and icons that intentionally sit one level below readable secondary text
+- **Disabled Foreground**: `var(--foreground-disabled)` — disabled or unavailable foreground content; initially matches tertiary but may evolve independently
 - **Card / Popover / Accent / Secondary Foreground**: `var(--card-foreground)` / `var(--popover-foreground)` / `var(--accent-foreground)` / `var(--secondary-foreground)` — contrast text on each surface
 
-`--color-foreground-secondary` and `--color-foreground-muted` remain generated compatibility outputs. Do not
-consume them in authored CSS; use the official `--muted-foreground` role when its visual contract fits, or keep an
-exact migration treatment private to the owning component.
+All shared foreground roles resolve to solid colors. Do not recreate `foreground-secondary` or `foreground-muted`,
+and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 
 ### Surface & Background
 - **Background**: `var(--background)` — primary page background
@@ -89,11 +92,13 @@ exact migration treatment private to the owning component.
 - **Border**: `var(--border)` — component borders, dividers
 - **Border Subtle**: `var(--border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
 - **Border Strong**: `var(--border-strong)` — higher-emphasis structural borders
+- **Border Selected**: `var(--border-selected)` — selected-state component borders
 - **Input**: `var(--input)` — input field borders
 - **Ring**: `var(--ring)` — color source for focus feedback contained inside component bounds
 
 ### Border Token Rules
-- Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
+- Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-border-selected`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
+- Use `border-border-selected` only for selected state. Keyboard focus always uses `border-ring` / `ring-ring`.
 - Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
 - For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--border-subtle)]`.
 - Existing opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) continue to resolve through Tailwind v4's native color-opacity modifier support; `theme.css` does not enumerate separate compatibility mappings for them.
@@ -113,16 +118,18 @@ base `--{intent}` token is an accent for icons, text, or markers rather than a s
 runtime families expose `--{intent}`, `--{intent}-subtle`, `--{intent}-subtle-foreground`, and
 `--{intent}-border`; Tailwind exposes matching semantic utility names.
 
-The older `*-base`, `*-text`, `*-bg`, hover, and active outputs are compatibility providers. Do not introduce them
-in new component APIs.
+The older `*-base`, `*-text`, `*-bg`, hover, and active names remain internal frozen providers or migration
+sources only; they are no longer Tailwind utilities. Do not introduce them in component APIs.
 
 ### Brand
 Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` is a foundation scale, not a component-facing semantic contract; new component styling should express action hierarchy through `var(--primary)` and status through the stable product roles.
 
 ### Links
-Application and rendered-content links use the official `var(--primary)` role so user theme selection remains
-consistent across Markdown and rich-text surfaces. A separate link color requires a concrete product requirement
-and consumer review before becoming a stable product variable.
+- Clickable text uses `text-link` / `var(--link)`. Link color is independent from `primary`; reserve `primary` for
+  primary actions, selected states, and component accents.
+- Links use the product default blue. Hover normally adds underline without changing color; do not add a global
+  `link-hover` token.
+- See the [Variable Catalog](./packages/ui/docs/variable-catalog.md) for token ownership and contract details.
 
 ### Floating Scrims
 No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:
@@ -487,7 +494,7 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 **Tool Gallery / Code Tools**
 - Use a focused, centered gallery on `bg-background` with a constrained width (`max-w-5xl` style scale) and responsive card grid.
 - Prominent tool-entry cards may use `bg-card`, `border-border`, `p-4`, and `var(--radius-2xl)` to create a launchpad feel without adding shadows.
-- Selection should use border/ring feedback (`border-border-strong`, `ring-ring`) rather than a new chromatic accent.
+- Selection should use border/ring feedback (`border-border-selected`, `ring-ring`) rather than a new chromatic accent.
 - Hero or product icons may be circular (`rounded-full`) and use `shadow-lg` only when they behave as a visual anchor, not as repeated card elevation.
 
 **Mini App Launchpad / Settings Drawer**
@@ -778,9 +785,13 @@ Use Tailwind blur/backdrop-blur utilities directly when a component intentionall
 
 ### Opacity
 
-> Use Tailwind opacity utilities or component-level state classes.
+> Do not use opacity to encode foreground semantics.
 
-Use Tailwind opacity utilities (`opacity-40`, `opacity-70`, etc.) or component-level state classes. There are currently no public `--opacity-*` design-token aliases in `@cherrystudio/ui`.
+Foreground variables are solid and must not be weakened with color-opacity modifiers such as
+`text-foreground-tertiary/50`. Choose the correct foreground role instead. Element-level opacity may still be
+used for animation and for existing component-owned disabled treatments that intentionally fade the entire
+control; migrate those controls only when text, icon, border, and background disabled states can be designed
+together. There are no public `--opacity-*` design-token aliases in `@cherrystudio/ui`.
 
 ### Border Width
 
@@ -805,7 +816,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Use `var(--accent)` fill for outline and ghost button hover states
 - Use `var(--success)`, `var(--warning)`, `var(--info)`, and `var(--error)` for status feedback, toasts, and badges; reserve `var(--destructive)` for dangerous actions
 - Use stable feedback pairs such as `bg-error-subtle text-error-subtle-foreground border-error-border` for richer status surfaces
-- Use `var(--border)`, `var(--border-subtle)`, and `var(--border-strong)` for neutral structure instead of opacity-modified border utilities
+- Use `var(--border)`, `var(--border-subtle)`, `var(--border-strong)`, and `var(--border-selected)` for neutral structure and selection instead of opacity-modified border utilities
 - Use the body / heading font aliases at `var(--font-weight-regular)`/`var(--font-weight-medium)` for body and labels, `var(--font-weight-bold)` for page-level emphasis
 - Separate spatial zones (sidebar, main, popover) through surface color layering: `var(--sidebar)` vs `var(--background)` vs `var(--popover)`
 - Use heading size and line-height tokens directly for new headings
@@ -856,12 +867,14 @@ Use icon-library defaults unless a component has a documented reason to override
 |------|-------|-------|
 | Page background | `var(--background)` | Mode-aware page surface |
 | Primary text | `var(--foreground)` | Primary body text |
-| Secondary / muted text | `var(--muted-foreground)` | Helper, placeholder, low-emphasis readable content |
-| Primary accent | `var(--primary)` | Page-level primary actions, selected states, links, component accents |
+| Secondary / muted text | `var(--muted-foreground)` | Descriptions, labels, placeholders, readable secondary content |
+| Tertiary / disabled text | `var(--foreground-tertiary)` / `var(--foreground-disabled)` | Metadata and quiet icons / disabled content |
+| Primary accent | `var(--primary)` | Page-level primary actions, selected states, component accents |
+| Link | `var(--link)` | Clickable text |
 | Destructive action | `var(--destructive)` | Hover: shared variant state; Text: `var(--destructive-foreground)` |
 | Success / Warning / Info | `var(--success)` / `var(--warning)` / `var(--info)` | Single-token semantic accents |
 | Borders | `var(--border)` | Neutral hairline |
-| Quiet / strong borders | `var(--border-subtle)` / `var(--border-strong)` | Nested panels / higher-emphasis structure |
+| Quiet / strong / selected borders | `var(--border-subtle)` / `var(--border-strong)` / `var(--border-selected)` | Nested panels / higher-emphasis structure / selection |
 | Card surface | `var(--card)` (text: `--card-foreground`) | Layer above background |
 | Popover / floating | `var(--popover)` (text: `--popover-foreground`) | Layer above card |
 | Overlay / floating chrome | shared Dialog overlay, `bg-popover`, `border-border`, shadow utilities | Modal scrims, popovers, transient panels |

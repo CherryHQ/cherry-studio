@@ -22,17 +22,20 @@ import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 
-const inputGroupVariants = cva(['h-auto', 'rounded-md'], {
-  variants: {
-    disabled: {
-      false: null,
-      true: ['bg-background-subtle', 'border-border-hover', 'cursor-not-allowed']
+const inputGroupVariants = cva(
+  ['h-auto', 'rounded-md', 'has-[[data-slot=input-group-control]:focus-visible]:border-ring'],
+  {
+    variants: {
+      disabled: {
+        false: null,
+        true: ['bg-background-subtle', 'border-input', 'cursor-not-allowed']
+      }
+    },
+    defaultVariants: {
+      disabled: false
     }
-  },
-  defaultVariants: {
-    disabled: false
   }
-})
+)
 
 const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
   variants: {
@@ -49,7 +52,7 @@ const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
     },
     disabled: {
       false: null,
-      true: ['text-foreground/40', 'placeholder:text-foreground/40', 'disabled:opacity-100']
+      true: ['text-foreground-disabled', 'placeholder:text-foreground-disabled', 'disabled:opacity-100']
     }
   },
   defaultVariants: {
@@ -75,7 +78,7 @@ const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
     },
     disabled: {
       false: null,
-      true: 'border-background-subtle'
+      true: 'border-border-subtle'
     }
   },
   defaultVariants: {
@@ -92,7 +95,7 @@ const iconVariants = cva([], {
     },
     disabled: {
       false: null,
-      true: 'text-foreground/40'
+      true: 'text-foreground-disabled'
     }
   },
   defaultVariants: {
@@ -101,7 +104,7 @@ const iconVariants = cva([], {
   }
 })
 
-const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'], {
+const iconButtonVariants = cva(['text-muted-foreground cursor-pointer transition-colors', 'hover:shadow-none'], {
   variants: {
     disabled: {
       false: null,
@@ -114,7 +117,7 @@ const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-co
 })
 
 const buttonVariants = cva(
-  ['py-3', 'flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
+  ['py-3', 'flex flex-col', 'text-muted-foreground cursor-pointer transition-colors', 'hover:shadow-none'],
   {
     variants: {
       size: {
@@ -144,7 +147,7 @@ const buttonLabelVariants = cva([], {
     },
     disabled: {
       false: null,
-      true: ['text-foreground/40']
+      true: ['text-foreground-disabled']
     }
   },
   defaultVariants: {
@@ -153,7 +156,7 @@ const buttonLabelVariants = cva([], {
   }
 })
 
-const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60'], {
+const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foreground'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
@@ -163,7 +166,7 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60
     },
     disabled: {
       false: null,
-      true: 'text-foreground/40'
+      true: 'text-foreground-disabled'
     }
   },
   defaultVariants: {
@@ -172,7 +175,7 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60
   }
 })
 
-const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60', 'p-0'], {
+const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foreground', 'p-0'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
@@ -182,7 +185,7 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foregro
     },
     disabled: {
       false: null,
-      true: 'text-foreground/40'
+      true: 'text-foreground-disabled'
     }
   },
   defaultVariants: {

@@ -650,6 +650,18 @@ describe('Artboard', () => {
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
   })
 
+  it('promotes the image to a compositor layer only while dragging', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} />)
+
+    const image = document.querySelector('img') as HTMLImageElement
+
+    firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+    expect(image).toHaveClass('will-change-transform')
+
+    firePointer(image, 'pointerup', { clientX: 10, clientY: 10, pointerId: 1 })
+    expect(image).not.toHaveClass('will-change-transform')
+  })
+
   it('disables zoom controls at image scale boundaries', () => {
     render(<Artboard painting={makePainting()} isLoading={false} />)
 

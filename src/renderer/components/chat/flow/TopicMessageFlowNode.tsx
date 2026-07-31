@@ -23,8 +23,8 @@ const bodyXsTypographyClassName = 'text-[length:var(--font-size-body-xs)] leadin
 const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]'
 
 const roleClassNames: Record<MessageRole, string> = {
-  user: 'border-success/35 bg-success-bg',
-  assistant: 'border-info/35 bg-info-bg',
+  user: 'border-success-border bg-success-subtle',
+  assistant: 'border-info-border bg-info-subtle',
   system: 'border-border bg-muted/45',
   // The virtual root is never rendered as a flow node; entry exists only to satisfy the
   // exhaustive Record<MessageRole> type.
@@ -34,8 +34,8 @@ const roleClassNames: Record<MessageRole, string> = {
 const statusDotClassNames: Record<MessageStatus, string> = {
   pending: 'bg-warning',
   success: 'bg-success',
-  error: 'bg-destructive',
-  paused: 'bg-foreground-muted'
+  error: 'bg-error',
+  paused: 'border border-border-strong bg-muted'
 }
 
 function getModelShortLabel(modelId?: string | null) {
@@ -124,12 +124,12 @@ function TopicMessageFlowNodePreviewCard({
             {roleLabel}
           </span>
           {modelLabel ? (
-            <span className={cn('truncate font-mono text-foreground-muted', bodyXsTypographyClassName)}>
+            <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
               {modelLabel}
             </span>
           ) : null}
         </div>
-        <div className={cn('shrink-0 text-right text-foreground-muted', bodyXsTypographyClassName)}>
+        <div className={cn('shrink-0 text-right text-foreground-tertiary', bodyXsTypographyClassName)}>
           <div>{statusLabel}</div>
           <time dateTime={message?.createdAt ?? undefined}>{timeLabel}</time>
         </div>
@@ -246,7 +246,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
                 {roleLabel}
               </span>
               {modelLabel ? (
-                <span className={cn('truncate font-mono text-foreground-muted', bodyXsTypographyClassName)}>
+                <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
                   {modelLabel}
                 </span>
               ) : null}
@@ -259,7 +259,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
 
           <div
             className={cn(
-              'mt-2 flex items-center justify-between gap-2 text-foreground-muted',
+              'mt-2 flex items-center justify-between gap-2 text-foreground-tertiary',
               bodyXsTypographyClassName
             )}>
             <span className="flex min-w-0 items-center gap-1.5">

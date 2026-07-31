@@ -4,7 +4,7 @@
 // independent of the indicator — so it stays put; `inline-flex items-center justify-center`
 // keeps the indicator centered within the box. Applies to both row and header checkboxes.
 export const knowledgeDataSourceCheckboxClassName =
-  'inline-flex items-center justify-center align-middle border-border-active text-foreground hover:bg-accent data-[state=checked]:border-border-active data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:border-primary'
+  'inline-flex items-center justify-center align-middle text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:border-ring'
 
 // Shared column template for the data-source list. The header row and every data
 // row use this same grid so columns stay aligned: checkbox / name (flex) / type /

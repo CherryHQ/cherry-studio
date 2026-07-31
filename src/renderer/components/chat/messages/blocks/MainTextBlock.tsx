@@ -4,7 +4,13 @@ import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
-import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { determineCitationSource, toTooltipCitation, withCitationTags } from '@renderer/utils/citation'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import {
+  type MessageCitations,
+  type ResolvedCitationMarkers,
+  withToolCitationTags
+} from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
@@ -16,7 +22,7 @@ import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
-import ChatMarkdown from '../markdown/ChatMarkdown'
+import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -24,14 +30,19 @@ import { useScrollAnchor } from './useScrollAnchor'
 interface Props {
   id: string
   content: string
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
+  /** Tool/source-derived citations resolved from the message's own parts (assistant messages without legacy reference metadata). */
+  messageCitations?: MessageCitations
+  toolCitationProjection?: ResolvedCitationMarkers
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   userContentExpanded?: boolean
+  onPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onUserContentExpandedChange?: (expanded: boolean) => void
 }
 
@@ -43,21 +54,12 @@ const composerTokenIcon: Partial<
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
 
-const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
-  'file',
-  'folder',
-  'knowledge',
-  'quote',
-  'reference',
-  'skill'
-])
-
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
-  return COMPOSER_TOKEN_BACKED_KINDS.has(token.kind)
+  return isComposerInputTokenKind(token.kind)
 }
 
 function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
@@ -233,7 +235,7 @@ function CollapsibleUserMessageContent({
           type="button"
           aria-expanded={isExpanded}
           aria-controls={contentId}
-          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-foreground-secondary focus-visible:bg-accent/50 focus-visible:outline-none"
+          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle)}>
           <span className="shrink-0 font-normal leading-5">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
@@ -241,7 +243,7 @@ function CollapsibleUserMessageContent({
           <ChevronDown
             aria-hidden="true"
             size={16}
-            className={`shrink-0 text-foreground-muted opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+            className={`shrink-0 text-foreground-tertiary opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
           />
         </button>
       )}
@@ -252,14 +254,18 @@ function CollapsibleUserMessageContent({
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
+  inlineHtmlPreviewMode,
   isStreaming,
   citations = [],
   citationReferences,
+  messageCitations,
+  toolCitationProjection,
   role,
   mentions = [],
   composer,
   readOnlyFilePreviews,
   userContentExpanded,
+  onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
@@ -297,20 +303,52 @@ const MainTextBlock: React.FC<Props> = ({
     updateSmoothStream(content, !isStreaming)
   }, [content, isStreaming, updateSmoothStream])
 
+  const isPlayoutSettled = !isStreaming && smoothedContent === content
+  useEffect(() => {
+    onPlayoutSettledChange?.(id, isPlayoutSettled)
+  }, [id, isPlayoutSettled, onPlayoutSettledChange])
+  useEffect(
+    () => () => {
+      onPlayoutSettledChange?.(id, true)
+    },
+    [id, onPlayoutSettledChange]
+  )
+
   const block: MarkdownSource = {
     id,
     content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
+  // Upstream completion can precede the smooth-stream tail. Keep the iframe unmounted
+  // until its first srcDoc contains the complete artifact.
+  const resolvedInlineHtmlPreviewMode =
+    inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
+  // Legacy reference metadata (migrated v1 messages) wins; otherwise resolve
+  // [cite:id] markers against the message's own tool/source parts.
+  const toolCitations = useMemo(
+    () =>
+      citations.length === 0 && messageCitations?.all.length && toolCitationProjection
+        ? { citations: messageCitations, projection: toolCitationProjection }
+        : undefined,
+    [citations.length, messageCitations, toolCitationProjection]
+  )
   const processContent = useCallback(
     (rawText: string) => {
-      if (!citationReferences?.length || citations.length === 0) return rawText
-      const sourceType = determineCitationSource(citationReferences)
-      return withCitationTags(rawText, citations, sourceType)
+      if (citationReferences?.length && citations.length > 0) {
+        const sourceType = determineCitationSource(citationReferences)
+        return withCitationTags(rawText, citations, sourceType)
+      }
+      if (toolCitations) {
+        return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
+      }
+      return rawText
     },
-    [citationReferences, citations]
+    [citationReferences, citations, toolCitations]
   )
+  const toolCitedCitations = toolCitations?.projection.cited ?? []
+  const footerCitations = citations.length > 0 ? citations : toolCitedCitations
+  const trustedCitations = useMemo(() => footerCitations.map(toTooltipCitation), [footerCitations])
   const composerMarkdownContent = useMemo(() => {
     if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
     return buildComposerMessageMarkdownContent(userDisplayContent, composer, id)
@@ -354,6 +392,7 @@ const MainTextBlock: React.FC<Props> = ({
               block={{ ...block, content: composerMarkdownContent.markdown }}
               components={composerMarkdownComponents}
               postProcess={processContent}
+              trustedCitations={trustedCitations}
             />
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
@@ -362,14 +401,19 @@ const MainTextBlock: React.FC<Props> = ({
                 : userDisplayContent}
             </p>
           ) : (
-            <ChatMarkdown block={block} postProcess={processContent} />
+            <ChatMarkdown block={block} postProcess={processContent} trustedCitations={trustedCitations} />
           )}
         </CollapsibleUserMessageContent>
       ) : (
-        <ChatMarkdown block={block} postProcess={processContent} />
+        <ChatMarkdown
+          block={block}
+          inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
+          postProcess={processContent}
+          trustedCitations={trustedCitations}
+        />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
-      {citations.length > 0 && <CitationsList citations={citations} />}
+      {footerCitations.length > 0 && <CitationsList citations={footerCitations} />}
     </>
   )
 }

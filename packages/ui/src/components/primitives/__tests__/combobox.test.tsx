@@ -31,7 +31,7 @@ describe('Combobox', () => {
     render(<Combobox options={options} placeholder="Pick one" emptyText="No results" />)
 
     const trigger = screen.getByRole('button')
-    expect(trigger).toHaveClass('focus-visible:border-primary')
+    expect(trigger).toHaveClass('focus-visible:border-ring')
     expect(trigger).not.toHaveClass('aria-expanded:border-primary')
   })
 
