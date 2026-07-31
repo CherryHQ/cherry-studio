@@ -8,6 +8,7 @@ interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void
   placeholder?: string
   tooltip?: string
+  clearLabel?: string
   icon?: React.ReactNode
   maxWidth?: string | number
   collapsedSize?: number
@@ -23,6 +24,7 @@ const CollapsibleSearchBar = ({
   onSearch,
   placeholder = i18n.t('common.search'),
   tooltip = i18n.t('common.search'),
+  clearLabel = i18n.t('common.clear'),
   icon = <Search size={14} color="var(--muted-foreground)" />,
   maxWidth = '100%',
   collapsedSize = 32,
@@ -82,7 +84,8 @@ const CollapsibleSearchBar = ({
         <div className="relative flex items-center">
           <Input
             ref={inputRef}
-            type="text"
+            type="search"
+            aria-label={tooltip}
             placeholder={placeholder}
             value={searchText}
             autoFocus
@@ -102,7 +105,7 @@ const CollapsibleSearchBar = ({
           />
           <button
             type="button"
-            aria-label={searchText ? i18n.t('common.clear') : tooltip}
+            aria-label={searchText ? clearLabel : tooltip}
             className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
             onMouseDown={(e) => e.preventDefault()}
             onClick={searchText ? handleClear : () => inputRef.current?.focus()}>

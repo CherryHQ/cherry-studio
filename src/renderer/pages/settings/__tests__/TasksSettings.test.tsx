@@ -946,6 +946,18 @@ describe('TasksSettings routing and creation', () => {
     expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
   })
 
+  it('uses the header as the only creation entry when the empty state has an Agent', async () => {
+    navigationMocks.taskId = undefined
+    taskDataMock.tasks = []
+    taskPaginationMock.total = 0
+
+    render(<TasksSettings />)
+
+    await screen.findByText('settings.scheduledTasks.noTasksTitle')
+    expect(screen.queryByRole('button', { name: 'settings.scheduledTasks.manualCreate' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' })).toBeInTheDocument()
+  })
+
   it('opens a task dialog with a daily 09:00 default', async () => {
     navigationMocks.taskId = undefined
 

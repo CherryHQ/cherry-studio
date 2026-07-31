@@ -59,6 +59,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -66,6 +67,7 @@ import {
   SettingDescription,
   SettingDivider,
   SettingGroup,
+  SettingsContentBody,
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
@@ -336,19 +338,6 @@ function getWeekdayLabel(weekday: string, t: TFunction) {
     '6': t('agent.tasks.schedule.weekdays.saturday')
   }
   return labels[weekday] ?? weekday
-}
-
-function getScheduleKindLabel(kind: ScheduleKind, t: TFunction) {
-  const labels: Record<ScheduleKind, string> = {
-    hourly: t('agent.tasks.schedule.hourly'),
-    daily: t('agent.tasks.schedule.daily'),
-    weekdays: t('agent.tasks.schedule.weekdaysOnly'),
-    weekly: t('agent.tasks.schedule.weekly'),
-    interval: t('agent.tasks.schedule.interval'),
-    once: t('agent.tasks.schedule.once'),
-    cron: t('agent.tasks.schedule.custom')
-  }
-  return labels[kind]
 }
 
 function getTaskStatusLabel(status: string, t: TFunction) {
@@ -830,8 +819,8 @@ const TaskDetail: FC<{
   )
 
   return (
-    <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme}>
+    <SettingsContentColumn theme={theme} className="pt-4">
+      <div>
         <SettingTitle className="flex-wrap gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Button
@@ -893,7 +882,7 @@ const TaskDetail: FC<{
             </SettingDescription>
           )}
         </RowFlex>
-      </SettingGroup>
+      </div>
 
       <SettingGroup theme={theme}>
         <Tabs defaultValue="prompt" variant="line">
@@ -1429,39 +1418,46 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentColumn theme={theme} className="pt-2" innerClassName="flex min-h-full flex-col">
-      <div className="flex flex-1 flex-col">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <SettingTitle>
-              <span>{t('settings.scheduledTasks.title')}</span>
-            </SettingTitle>
-            <SettingDescription className="mt-0">{t('settings.scheduledTasks.description')}</SettingDescription>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button">
-                <Plus size={16} />
-                {t('settings.scheduledTasks.newTask')}
-                <ChevronDown size={14} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
-                  <PencilLine />
-                  {t('settings.scheduledTasks.manualCreate')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
-                  <Bot />
-                  {t('settings.scheduledTasks.agentCreate')}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <SettingTitle className="shrink-0">
+            <span>{t('settings.scheduledTasks.title')}</span>
+          </SettingTitle>
+          <CollapsibleSearchBar
+            onSearch={setSearchQuery}
+            placeholder={t('settings.scheduledTasks.searchPlaceholder')}
+            tooltip={t('settings.scheduledTasks.search')}
+            clearLabel={t('common.clear')}
+            maxWidth={220}
+            collapsedSize={30}
+            style={{ borderRadius: 8 }}
+          />
         </div>
-        <SettingDivider />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="sm" className="shrink-0">
+              <Plus size={12} className="lucide-custom" />
+              {t('settings.scheduledTasks.newTask')}
+              <ChevronDown size={12} className="text-primary-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
+                <PencilLine />
+                {t('settings.scheduledTasks.manualCreate')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                <Bot />
+                {t('settings.scheduledTasks.agentCreate')}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
+      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
         {tasks.length === 0 ? (
           <EmptyState
             preset={agents.length === 0 ? 'no-agent' : 'no-result'}
@@ -1474,29 +1470,17 @@ const TasksSettings: FC = () => {
             description={
               agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
             }
-            actionLabel={
-              agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : t('settings.scheduledTasks.manualCreate')
-            }
-            onAction={() => {
-              if (agents.length === 0) openRoute('/app/agents')
-              else setCreateOpen(true)
-            }}
+            actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
+            className="py-20"
+            onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
           />
         ) : (
           <>
-            <RowFlex className="mb-3 flex-wrap items-center gap-2 py-1">
-              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
-                <SearchInput
-                  aria-label={t('settings.scheduledTasks.search')}
-                  placeholder={t('settings.scheduledTasks.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                  onClear={() => setSearchQuery('')}
-                  clearLabel={t('common.clear')}
-                />
-              </div>
+            <RowFlex className="mb-3 flex-wrap items-center justify-end gap-2">
               <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger aria-label={t('settings.scheduledTasks.filterAgent')}>
+                <SelectTrigger
+                  className="h-8 min-w-32 bg-transparent"
+                  aria-label={t('settings.scheduledTasks.filterAgent')}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1511,7 +1495,9 @@ const TasksSettings: FC = () => {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger aria-label={t('settings.scheduledTasks.filterStatus')}>
+                <SelectTrigger
+                  className="h-8 min-w-32 bg-transparent"
+                  aria-label={t('settings.scheduledTasks.filterStatus')}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1531,31 +1517,34 @@ const TasksSettings: FC = () => {
                 title={t('settings.scheduledTasks.noMatchesTitle')}
                 description={t('settings.scheduledTasks.noMatches')}
                 actionLabel={t('settings.scheduledTasks.clearFilters')}
+                className="py-20"
                 onAction={clearFilters}
               />
             ) : (
-              <ItemGroup className="gap-2">
+              <ItemGroup className="gap-3">
                 {filteredTasks.map((task) => (
                   <Item
                     key={task.id}
                     asChild
-                    size="sm"
                     variant="outline"
-                    className="rounded-lg border-border-subtle px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35">
-                    <Link to="/settings/scheduled-tasks/$taskId" params={{ taskId: task.id }}>
-                      <ItemContent>
-                        <ItemTitle>{task.name}</ItemTitle>
-                        <ItemDescription>
+                    className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
+                    <Link
+                      to="/settings/scheduled-tasks/$taskId"
+                      params={{ taskId: task.id }}
+                      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                        <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
+                      </div>
+                      <ItemContent className="min-w-0">
+                        <ItemTitle className="truncate">{task.name}</ItemTitle>
+                        <ItemDescription className="truncate text-xs leading-4">
                           {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
                           {getTriggerSummary(task.trigger, t)}
                         </ItemDescription>
                       </ItemContent>
-                      <ItemActions>
-                        <Badge variant="outline">
-                          {getScheduleKindLabel(triggerToFormState(task.trigger).kind, t)}
-                        </Badge>
+                      <ItemActions className="shrink-0">
                         <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-                        <ChevronRight size={16} />
+                        <ChevronRight size={16} className="text-foreground-tertiary" />
                       </ItemActions>
                     </Link>
                   </Item>
@@ -1611,7 +1600,7 @@ const TasksSettings: FC = () => {
         onOpenChange={setCreateOpen}
         onCreate={async (agentId, request) => Boolean(await handleCreate(agentId, request))}
       />
-    </SettingsContentColumn>
+    </SettingsContentBody>
   )
 }
 
