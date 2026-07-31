@@ -66,7 +66,7 @@ describe('KnowledgeModelSelect', () => {
   })
 
   it('uses the registered model name and reports normal model selection through onChange', () => {
-    mockModels.value = [makeModel('local-embedding::qwen3-embedding-0.6b', 'Qwen3 Embedding 0.6B (Local)')]
+    mockModels.value = [makeModel('local-embedding::qwen3-embedding-0.6b', 'Qwen3 Embedding 0.6B')]
     const onChange = vi.fn()
 
     render(
@@ -79,7 +79,7 @@ describe('KnowledgeModelSelect', () => {
       />
     )
 
-    expect(screen.getByText('Qwen3 Embedding 0.6B (Local)')).toBeInTheDocument()
+    expect(screen.getByText('Qwen3 Embedding 0.6B')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'select-local-model' }))
     expect(onChange).toHaveBeenCalledWith('local-embedding::qwen3-embedding-0.6b')
   })

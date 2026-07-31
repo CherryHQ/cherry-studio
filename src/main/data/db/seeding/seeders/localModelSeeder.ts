@@ -83,7 +83,13 @@ export class LocalModelSeeder implements ISeeder {
         .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
         .limit(1)
         .all()
-      if (existing) return
+      if (existing) {
+        tx.update(userModelTable)
+          .set({ name: LOCAL_EMBEDDING_MODEL_NAME })
+          .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
+          .run()
+        return
+      }
 
       insertManyWithOrderKey(tx, userModelTable, [createLocalEmbeddingModelRow()], {
         pkColumn: userModelTable.id,

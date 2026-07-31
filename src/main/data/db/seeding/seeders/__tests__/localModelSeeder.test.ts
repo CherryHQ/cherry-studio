@@ -57,7 +57,7 @@ describe('LocalModelSeeder', () => {
     expect(model?.capabilities).toContain(MODEL_CAPABILITY.EMBEDDING)
   })
 
-  it('is idempotent and preserves existing provider and model values', async () => {
+  it('is idempotent, preserves provider values, and refreshes the built-in model name', async () => {
     const seeder = new LocalModelSeeder()
     seeder.run(dbh.db)
     await dbh.db
@@ -72,7 +72,7 @@ describe('LocalModelSeeder', () => {
     seeder.run(dbh.db)
 
     expect((await readProvider())?.name).toBe('Existing Local Provider')
-    expect((await readModel())?.name).toBe('Existing Local Model')
+    expect((await readModel())?.name).toBe(LOCAL_EMBEDDING_MODEL_NAME)
     const models = await dbh.db
       .select()
       .from(userModelTable)
