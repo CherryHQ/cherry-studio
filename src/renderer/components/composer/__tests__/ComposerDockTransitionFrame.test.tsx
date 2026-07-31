@@ -229,6 +229,23 @@ describe('ComposerDockTransitionFrame', () => {
     expect(dockLayer).not.toHaveClass('pt-(--navbar-height)')
   })
 
+  it('keeps the whole docked dock stack click-through', () => {
+    const { container } = render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={<div data-composer-inputbar="" />}
+        mainVisible
+      />
+    )
+
+    // Pointer events are re-enabled by composer content roots, not the dock
+    // stack — the layer is none and no full-width wrapper turns them back on.
+    const dockLayer = container.querySelector('[data-composer-dock-layer]')
+    expect(dockLayer).toHaveClass('pointer-events-none')
+    expect(dockLayer?.querySelector('.pointer-events-auto')).toBeNull()
+  })
+
   it('aligns composer width to the message scroller viewport', async () => {
     const { container } = render(
       <ComposerDockTransitionFrame
