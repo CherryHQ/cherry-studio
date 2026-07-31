@@ -78,6 +78,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
+import { markEntriesAutoCleanup } from './FileMigrator'
 import {
   buildAssistantSnapshot,
   buildMessageTree,
@@ -1186,6 +1187,10 @@ export class ChatMigrator extends BaseMigrator {
               .values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
               .run()
           }
+          markEntriesAutoCleanup(
+            tx,
+            batchFileRefRows.map((row) => row.fileEntryId)
+          )
         }
       })
 

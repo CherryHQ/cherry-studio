@@ -12,9 +12,8 @@
  * - `./durability` — fsync, full-write, durable unlink, and rename-only
  *   primitives for transaction state machines.
  * - `./metadata` — content-derived classification (`getFileType(path)`,
- *   `isTextFile`, `mimeToExt`).
- * - `./path` — path predicates (`isPathInside`, `isUnderInternalStorage`,
- *   `canWrite`, …).
+ *   `mimeToExt`).
+ * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
  * - `./pathSafety` — link-aware path identity and ancestor/device proofs.
  * - `./pathStatus` — `getPathStatus` + its result types.
  * - `./shell` — OS open / reveal (`open`, `showInFolder`).
@@ -56,6 +55,7 @@
  * here.
  */
 
+export { createContentHasher, hashContent, parseContentHash } from './contentHash'
 export {
   durableFileIo,
   fsyncDirectory,
@@ -70,16 +70,19 @@ export {
   type WriteFileFullySyncOptions
 } from './durability'
 export {
+  assertPathVersionUnchanged,
   atomicWriteFile,
   atomicWriteIfUnchanged,
   type AtomicWriteStream,
   compressImage,
   copy,
   createAtomicWriteStream,
+  createPreparedAtomicWriteStream,
   download,
   ensureDir,
   exists,
   hash,
+  hashWithSize,
   isSameFile,
   lstat,
   mkdir,
@@ -87,6 +90,11 @@ export {
   type PathReadability,
   PathStaleVersionError,
   type PathVersion,
+  prepareAtomicCopy,
+  prepareAtomicDownload,
+  prepareAtomicWrite,
+  type PreparedAtomicWrite,
+  type PreparedAtomicWriteState,
   probeReadable,
   read,
   readChunk,
@@ -96,8 +104,8 @@ export {
   stat,
   write
 } from './fs'
-export { decodeTextBufferIfText, getFileType, isTextFile, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
+export { decodeTextBufferIfText, getFileType, mimeToExt } from './metadata'
+export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } from './path'
 export {
   findCrossDeviceEndpoint,
   findUnsafeAncestor,

@@ -8,7 +8,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const translateMock = vi.hoisted(() => (key: string) => key)
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
+  useIpcOn: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -649,6 +655,19 @@ describe('AgentChat artifact pane', () => {
   }
 
   beforeEach(() => {
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'file.get_metadata'
+        ? Promise.resolve({
+            kind: 'file',
+            type: 'text',
+            size: 1024,
+            createdAt: 1,
+            modifiedAt: 1,
+            mime: 'text/plain'
+          })
+        : Promise.resolve(undefined)
+    )
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
       messages: [],
       isLoading: false,
@@ -679,10 +698,7 @@ describe('AgentChat artifact pane', () => {
           }
         },
         file: {
-          openPath: vi.fn(),
-          isDirectory: vi.fn().mockResolvedValue(false),
-          isTextFile: vi.fn().mockResolvedValue(true),
-          getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
+          openPath: vi.fn()
         }
       }
     })
@@ -1083,8 +1099,6 @@ describe('AgentChat artifact pane', () => {
   })
 
   it('opens Excel file paths in the files tab overlay without text sniffing', async () => {
-    const isTextFile = vi.mocked(window.api.file.isTextFile)
-
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
@@ -1098,7 +1112,6 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'report.xlsx')
-    expect(isTextFile).not.toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
   })
 
   it('opens absolute file paths outside the workspace in the files tab overlay', async () => {

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   generating: false,
   historyItems: [] as PaintingData[],
   historyIsLoading: false,
-  initialSelectionReady: true,
   persistedAt: undefined as string | undefined,
   saveCurrent: vi.fn(),
   submitting: false,
@@ -108,8 +107,8 @@ vi.mock('../hooks/usePaintingInitialProvider', () => ({
   usePaintingInitialProvider: () => ({ initialProviderId: 'provider-1' })
 }))
 
-vi.mock('../hooks/usePaintingInitialSelection', () => ({
-  usePaintingInitialSelection: () => mocks.initialSelectionReady
+vi.mock('../hooks/usePaintingInitialDraft', () => ({
+  usePaintingInitialDraft: vi.fn()
 }))
 
 vi.mock('../hooks/usePaintingList', () => ({
@@ -167,7 +166,6 @@ describe('PaintingPage showcase', () => {
     mocks.generating = false
     mocks.historyItems = []
     mocks.historyIsLoading = false
-    mocks.initialSelectionReady = true
     mocks.persistedAt = undefined
     mocks.saveCurrent.mockReset()
     mocks.submitting = false
@@ -213,24 +211,13 @@ describe('PaintingPage showcase', () => {
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
   })
 
-  it('keeps the showcase hidden until the initial history hydration is ready', () => {
+  it('shows the empty-page showcase while painting history is loading', () => {
     mocks.historyIsLoading = true
-    mocks.initialSelectionReady = false
 
     render(<PaintingPage />)
 
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
-  })
-
-  it('keeps the showcase hidden between history hydration and initial painting selection', () => {
-    mocks.historyIsLoading = false
-    mocks.initialSelectionReady = false
-
-    render(<PaintingPage />)
-
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
   })
 
   it('shows an explicit new blank draft after bootstrap even when history exists', () => {

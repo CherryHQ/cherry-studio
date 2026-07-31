@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "40096e9f-2279-4781-8c90-e159cd44e0aa",
+  "id": "b18541ea-32e5-42a4-961d-90ec93edd36e",
   "prevId": "ae655987-49e2-4365-8290-be90cf30ed7a",
   "tables": {
     "agent": {
@@ -836,13 +836,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "disconnected_path": {
-          "name": "disconnected_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "type": {
@@ -1728,6 +1721,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "external_path": {
           "name": "external_path",
           "type": "text",
@@ -1768,6 +1768,11 @@
           "columns": ["created_at"],
           "isUnique": false
         },
+        "fe_content_hash_idx": {
+          "name": "fe_content_hash_idx",
+          "columns": ["content_hash"],
+          "isUnique": false
+        },
         "fe_external_path_lower_unique_idx": {
           "name": "fe_external_path_lower_unique_idx",
           "columns": ["lower(\"external_path\")"],
@@ -1794,6 +1799,10 @@
         "fe_external_no_delete": {
           "name": "fe_external_no_delete",
           "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"deleted_at\" IS NULL"
+        },
+        "fe_contenthash_external_null": {
+          "name": "fe_contenthash_external_null",
+          "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"content_hash\" IS NULL"
         },
         "fe_size_internal_only": {
           "name": "fe_size_internal_only",

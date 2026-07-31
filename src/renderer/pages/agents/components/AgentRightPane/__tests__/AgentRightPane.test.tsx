@@ -2,6 +2,7 @@ import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifact
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type {
@@ -40,7 +41,8 @@ const {
   fileSessionState: {
     isDirty: false,
     isSaving: false,
-    saveError: undefined as Error | undefined
+    saveError: undefined as Error | undefined,
+    metadataRecoveryPending: false
   },
   fileTreeModelState: {
     hasLoaded: false,
@@ -278,6 +280,9 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
     get saveError() {
       return fileSessionState.saveError
     },
+    get metadataRecoveryPending() {
+      return fileSessionState.metadataRecoveryPending
+    },
     setDraft: vi.fn(),
     discard: fileSessionDiscardMock,
     reload: vi.fn(),
@@ -486,7 +491,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    window.api.file.getMetadata = vi.fn().mockResolvedValue({
+    ipcRequestMock.mockResolvedValue({
       kind: 'file',
       type: 'text',
       size: 1,
@@ -816,7 +821,10 @@ describe('AgentRightPane', () => {
     await waitFor(() => {
       expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
     })
-    expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/workspace/report.md' })
+    expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/workspace/report.md'
+    })
   })
 
   it('ignores a stale artifact metadata resolution after the workspace switches', async () => {
@@ -824,11 +832,10 @@ describe('AgentRightPane', () => {
       workspacePath: '/workspace-a',
       filePath: 'report.md'
     })
-    type FileMetadataResult = Awaited<ReturnType<typeof window.api.file.getMetadata>>
-    let resolveMetadata: (metadata: FileMetadataResult) => void = () => {}
-    vi.mocked(window.api.file.getMetadata).mockImplementationOnce(
+    let resolveMetadata: (metadata: PhysicalFileMetadata | null) => void = () => {}
+    ipcRequestMock.mockImplementationOnce(
       () =>
-        new Promise<FileMetadataResult>((resolve) => {
+        new Promise<PhysicalFileMetadata | null>((resolve) => {
           resolveMetadata = resolve
         })
     )
@@ -857,7 +864,7 @@ describe('AgentRightPane', () => {
   })
 
   it('opens the files pane without previewing a declared directory', async () => {
-    vi.mocked(window.api.file.getMetadata).mockResolvedValue({
+    ipcRequestMock.mockResolvedValue({
       kind: 'directory',
       size: 0,
       createdAt: 1,
@@ -879,7 +886,10 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     await waitFor(() => {
-      expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/workspace/html in canvas' })
+      expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+        kind: 'path',
+        path: '/workspace/html in canvas'
+      })
     })
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()

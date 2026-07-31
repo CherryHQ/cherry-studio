@@ -19,8 +19,22 @@
     {
       "idx": 2,
       "version": "6",
-      "when": 1785430156902,
-      "tag": "0002_bitter_the_fallen",
+      "when": 1785476603915,
+      "tag": "0002_strange_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785514531244,
+      "tag": "0003_slow_proudstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785522110545,
+      "tag": "0004_plain_tony_stark",
       "breakpoints": true
     }
   ]
