@@ -44,6 +44,7 @@ import type { MessageListItem } from '../types'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
+import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
@@ -507,6 +508,9 @@ function renderPart(
 
     case 'data-compaction-anchor':
       return <CompactionAnchorBlock key={partId} />
+
+    case 'data-conversation-reset':
+      return <ConversationResetBlock key={partId} />
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data

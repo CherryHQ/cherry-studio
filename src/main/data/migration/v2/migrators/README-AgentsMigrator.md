@@ -45,8 +45,11 @@ resolves migration storage through the live application path registry.
   dropped and logged.
 
 The main `BEGIN`/`COMMIT` region contains only synchronous better-sqlite3 work.
-Filesystem probing, message-file materialization, and temporary message
-staging complete before `BEGIN`.
+Filesystem probing and message-file materialization complete before `BEGIN`.
+Messages are normalized into a file-backed SQLite TEMP table in 100-row pages,
+then read and inserted in 100-row pages inside the transaction. This keeps
+message payload memory bounded while preserving atomic import and one final FTS
+rebuild. The temporary tables are dropped before workspace copying.
 
 ## Filesystem split
 
@@ -57,7 +60,8 @@ not require permission to create them. The copy uses a private staging
 directory, verifies the copied source and destination content, and atomically
 publishes the result. If the destination directory already exists, migration
 leaves it untouched and skips the legacy Claude config copy. This copy also
-runs when `agents.db` is absent.
+runs when `agents.db` is absent. Large config trees report throttled scan, copy,
+and verification progress by file count and bytes without logging file content.
 
 For each migrated Agent:
 
@@ -81,6 +85,10 @@ For each migrated Agent:
 - Ordinary workspace symlinks remain links. Targets under identity entries are
   rewritten to Agent data; other internal targets are rewritten to the new
   Session workspace; external and dangling targets retain their meaning.
+- Ordinary workspace content is scanned once. The first verified private
+  staging copy is reused as the regular-content source for later Sessions, so
+  migration does not need an additional full-size template. Symlinks are
+  omitted while cloning and recreated with each Session's rewritten target.
 
 Existing identity targets are never overwritten. Identical files from a prior
 attempt are accepted recursively; different files keep both the existing v2
@@ -98,12 +106,14 @@ The filesystem migration is additive. It never removes or rewrites the v1
 because those paths remain the source of truth when a user downgrades to v1.
 
 Each entry records its source metadata before copying, verifies that the source
-metadata is unchanged after the copy, and requires the private staging entry
-and published destination to match the same copied-content fingerprint. A
-source that changes inside that window aborts the migration. UUID staging paths
-keep partial copies out of the final workspace and only the current run's
-staging path is removed; the migration never sweeps other prefix-matching
-entries.
+metadata is unchanged after the copy, and requires the complete private staging
+entry to match the copied-content fingerprint before atomically publishing it.
+Successful publication does not re-read the same bytes; an existing or
+concurrently created destination is fingerprinted and reused only when it is
+identical. A source that changes inside that window aborts before workspace
+publication. UUID staging paths keep partial copies out of the final workspace
+and only the current run's staging path is removed; the migration never sweeps
+other prefix-matching entries.
 
 `app_state.key = 'migration_v2_status'` records that the v2 database and file
 copies are ready. It does not mean the v1-compatible source layout was removed,

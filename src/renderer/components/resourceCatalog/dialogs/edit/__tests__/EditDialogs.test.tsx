@@ -293,10 +293,8 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
-          'agent.settings.tooling.permissionMode.acceptEdits.title': 'Auto-edit Mode',
-          'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
-          'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
-          'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
+          // Permission-mode titles intentionally absent: they fall through to the card
+          // definitions' own fallbacks, so copy changes need no edit here.
           'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
           'common.add': 'Add',
@@ -1159,7 +1157,8 @@ describe('edit dialogs', () => {
 
     expect(screen.queryByRole('tab', { name: 'Permission' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('combobox', { name: 'Permission mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan Mode' }))
+    // Name matches loosely: each option renders its title and its description.
+    fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
     expect(screen.queryByText('Max turns')).not.toBeInTheDocument()

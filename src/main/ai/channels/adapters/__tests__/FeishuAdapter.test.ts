@@ -157,6 +157,34 @@ describe('FeishuAdapter', () => {
     expect(mockWsStart).not.toHaveBeenCalled()
   })
 
+  it('emits a QR code and credentials when registration completes', async () => {
+    registrationMocks.begin.mockResolvedValue({
+      deviceCode: 'device-code',
+      verificationUri: 'https://accounts.feishu.cn/device/qr',
+      interval: 1,
+      expiresIn: 600
+    })
+    registrationMocks.poll.mockResolvedValue({
+      appId: 'new-app-id',
+      appSecret: 'new-app-secret'
+    })
+    const adapter = createAdapter({ app_id: '', app_secret: '' })
+    const onQr = vi.fn()
+    const onCredentials = vi.fn()
+    adapter.on('qr', onQr)
+    adapter.on('credentials', onCredentials)
+
+    await adapter.connect()
+
+    await vi.waitFor(() => {
+      expect(onQr).toHaveBeenCalledWith('https://accounts.feishu.cn/device/qr')
+      expect(onCredentials).toHaveBeenCalledWith({
+        appId: 'new-app-id',
+        appSecret: 'new-app-secret'
+      })
+    })
+  })
+
   it('does not emit a QR code when disconnected before registration begins', async () => {
     let resolveBegin!: (value: {
       deviceCode: string

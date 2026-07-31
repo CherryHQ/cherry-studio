@@ -195,7 +195,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   return (
     <div
       data-composer-viewport-inset-target=""
-      className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
+      // pointer-events-auto: the composer dock stack is click-through; override
+      // composers re-enable interaction on their own root.
+      className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>

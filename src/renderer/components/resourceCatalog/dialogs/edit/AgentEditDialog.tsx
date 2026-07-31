@@ -16,6 +16,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -582,6 +583,8 @@ function PermissionModeField({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
   const { t } = useTranslation()
+  const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
+  const selectedPermissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
 
   return (
     <FormField
@@ -600,13 +603,23 @@ function PermissionModeField({
                 <SelectTrigger
                   className="w-48 shrink-0"
                   aria-label={t('library.config.agent.field.permission_mode.label')}>
-                  <SelectValue />
+                  {/* Own children so the trigger stays one line: the items below are two. */}
+                  <SelectValue>
+                    {selectedPermissionModeCard && (
+                      <span className={selectedPermissionModeCard.dangerous ? 'text-destructive' : undefined}>
+                        {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
+                      </span>
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
               </FormControl>
               <SelectContent portalContainer={portalContainer}>
                 {permissionModeCards.map((card) => (
                   <SelectItem key={card.mode} value={card.mode}>
-                    {t(card.titleKey, card.titleFallback)}
+                    <div className="flex items-center gap-2">
+                      <PermissionModeIcon mode={card.mode} size={16} />
+                      <PermissionModeOptionLabel card={card} t={t} />
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>

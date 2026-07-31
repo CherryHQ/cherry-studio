@@ -38,7 +38,7 @@ describe('resource create DTO mapping', () => {
       skillIds: ['skill-1'],
       configuration: {
         avatar: '🤖',
-        permission_mode: 'bypassPermissions'
+        permission_mode: 'auto'
       }
     })
   })

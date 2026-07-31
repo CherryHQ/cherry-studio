@@ -460,6 +460,8 @@ export async function buildClaudeCodeSessionSettings(
       fastMode: options?.fastMode === true
     },
     includePartialMessages: true,
+    agentProgressSummaries: true,
+    forwardSubagentText: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,
     allowedTools: finalAllowedTools,
@@ -830,9 +832,10 @@ async function buildToolPermissions(
     // headless interactive-tool denial at fire time. Mirrored by `interactiveToolPermissionHook` so
     // the denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
     // this branch stays so an interactive follow-up on a warm connection can reach the approval path.
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     if (
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
-      application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
+      interactionState.userResponse === 'unavailable'
     ) {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
@@ -853,16 +856,37 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    // A detached background agent outlives the turn that spawned it, and since SDK 0.3.186 its
-    // permission prompts are forwarded here instead of being auto-denied. The approval chunk below
-    // is dropped by the connection event loop once that turn's stream is gone, which would leave
-    // this promise pending until the session closes. Deny out-of-turn approvals outright; the
-    // auto-approved branch above still lets background work run unattended.
-    if (!application.get('AgentSessionRuntimeService').hasLiveTurnStream(session.id)) {
-      logger.warn('Approval requested outside a live turn — denying', { toolName })
+    const hasLiveTurnStream = interactionState.userResponse === 'stream'
+    const isBackgroundAgent = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    const requiresUserResponse =
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      opts.matchedAskRule !== undefined
+
+    // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
+    // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
+    // callback and remain authoritative. A user-configured ask rule and tools that need actual
+    // user-authored input stay on the interaction path below.
+    if (isBackgroundAgent && !requiresUserResponse) {
+      return { behavior: 'allow', updatedInput: input }
+    }
+
+    // Interactive background requests are rendered as independent assistant messages. This is
+    // intentionally separate from "has a live turn": the parent turn may be complete while its
+    // background agent is still waiting for the user. Channel/scheduled runs remain fail-closed.
+    if (
+      (!hasLiveTurnStream && !requiresUserResponse) ||
+      (requiresUserResponse &&
+        (!hasLiveTurnStream || isBackgroundAgent) &&
+        interactionState.userResponse === 'unavailable')
+    ) {
+      logger.warn('Approval requested outside a live interactive turn — denying', {
+        toolName,
+        isBackgroundAgent
+      })
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
+    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
     const approvalId = randomUUID()
     const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -876,13 +900,16 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
+        presentation,
         signal: opts.signal,
         resolve
       })
       emit({
-        type: 'tool-approval-request',
         approvalId,
         toolCallId: opts.toolUseID,
+        toolName,
+        input,
+        presentation,
         providerMetadata: { cherry: { transport: 'claude-agent', toolName } satisfies CherryToolMeta }
       })
     })
@@ -936,7 +963,7 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
 
-    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -963,7 +990,8 @@ async function buildToolPermissions(
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const action = typeof toolInput?.action === 'string' ? toolInput.action : ''
     if (!HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+      return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -984,7 +1012,8 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'mcp__skills__install_skill') return {}
     if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+      return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -1037,11 +1066,6 @@ async function buildToolPermissions(
       return {}
     }
 
-    logger.info('Requiring approval for file-tool path outside the session workspace and agent data directory', {
-      sessionId: session.id,
-      toolName,
-      requestedPath
-    })
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
