@@ -9,6 +9,6 @@ import type { RequestFeature } from '../feature'
  */
 export const providerWebSearchFeature: RequestFeature = {
   name: 'provider-web-search',
-  applies: (scope) => Boolean(scope.capabilities?.enableWebSearch && scope.capabilities?.webSearchPluginConfig),
+  applies: (scope) => scope.webToolRoutes?.webSearch === 'server' && Boolean(scope.capabilities?.webSearchPluginConfig),
   contributeModelAdapters: (scope) => [providerToolPlugin('webSearch', scope.capabilities!.webSearchPluginConfig)]
 }

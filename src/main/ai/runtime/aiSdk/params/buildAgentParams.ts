@@ -18,7 +18,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
@@ -120,11 +120,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
+  const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
+  const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, hasFunctionTools)
   const capabilities = assistant
-    ? resolveCapabilities(model, provider, assistant, {
-        webToolRoutes,
-        hasFunctionTools: tools !== undefined && Object.keys(tools).length > 0
-      })
+    ? resolveCapabilities(model, provider, assistant, { webToolRoutes: finalWebToolRoutes })
     : undefined
 
   const { endpointType } = resolvedEndpoint
@@ -169,7 +168,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoning,
     requestContext,
     mcpToolIds,
-    webToolRoutes,
+    webToolRoutes: finalWebToolRoutes,
     hasFileAttachments,
     knowledgeBaseIds
   }
@@ -339,7 +338,6 @@ async function resolveRequestWebToolRoutes(
 
   return resolveWebToolRoutes(model, provider, {
     webSearchEnabled: clientWebToolsEnabled,
-    urlContextEnabled: assistant.settings.enableUrlContext === true,
     clientSearchAvailable,
     clientFetchAvailable,
     clientToolsPreferred
@@ -398,13 +396,23 @@ function buildAgentOptions(
 
   let providerOptions =
     assistant && capabilities
-      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
-          aiSdkProviderId,
-          runtimeProviderId: sdkConfig.providerId,
-          providerOptionsKey: sdkConfig.providerOptionsKey,
-          endpointType,
-          reasoning
-        })
+      ? buildCapabilityProviderOptions(
+          assistant,
+          model,
+          provider,
+          {
+            enableReasoning: capabilities.enableReasoning,
+            enableGenerateImage: capabilities.enableGenerateImage,
+            enableWebSearch: scope.webToolRoutes?.webSearch === 'server'
+          },
+          {
+            aiSdkProviderId,
+            runtimeProviderId: sdkConfig.providerId,
+            providerOptionsKey: sdkConfig.providerOptionsKey,
+            endpointType,
+            reasoning
+          }
+        )
       : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
         // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
         // gateway/topic-naming requests are unchanged.

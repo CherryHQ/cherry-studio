@@ -1594,7 +1594,6 @@
         "image_or_document": "Încarcă imagine sau fișier document",
         "upload_from_local": "Încarcă fișier local..."
       },
-      "url_context": "Context URL",
       "web_search": {
         "builtin": {
           "disabled_content": "Modelul curent nu acceptă căutarea web",
@@ -1616,8 +1615,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
-        "url_context": "Gemini nu acceptă utilizarea simultană a contextului URL și a apelării funcțiilor"
+        "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor"
       }
     },
     "message": {

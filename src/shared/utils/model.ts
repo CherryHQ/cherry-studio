@@ -183,6 +183,10 @@ export const isGemini3Model = (model: Model): boolean => {
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
 
+/** Pre-3 Gemini models reject requests mixing google server tools with function tools. */
+export const isWebToolConflictProneGeminiModel = (model: Model): boolean =>
+  isGeminiModel(model) && !isGemini3Model(model)
+
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>
   VENDOR_PATTERNS.grok.test(getLowerBaseModelName(getRawModelId(model)))

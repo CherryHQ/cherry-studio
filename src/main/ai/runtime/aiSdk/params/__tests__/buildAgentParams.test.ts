@@ -122,7 +122,7 @@ describe('buildAgentParams provider resolution', () => {
       apiModelId: 'gemini-2.5-pro',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
-    const assistant = makeAssistant({ settings: { enableUrlContext: true } })
+    const assistant = makeAssistant({ settings: { enableWebSearch: true } })
 
     const result = await buildAgentParams({
       request: { callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
@@ -155,7 +155,7 @@ describe('buildAgentParams provider resolution', () => {
       apiModelId: 'gemini-3-pro',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
-    const assistant = makeAssistant({ settings: { enableUrlContext: true } })
+    const assistant = makeAssistant({ settings: { enableWebSearch: true } })
 
     const result = await buildAgentParams({
       request: { callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
@@ -187,7 +187,7 @@ describe('buildAgentParams web-tool routing', () => {
     apiModelId: 'claude-sonnet-4-6',
     capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
   })
-  const assistant = makeAssistant({ settings: { enableWebSearch: true, enableUrlContext: true } })
+  const assistant = makeAssistant({ settings: { enableWebSearch: true } })
   const clientSearchEntry: ToolEntry = {
     name: 'web_search',
     namespace: 'web',

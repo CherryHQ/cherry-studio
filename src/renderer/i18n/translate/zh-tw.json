@@ -1594,7 +1594,6 @@
         "image_or_document": "上傳圖片或檔案",
         "upload_from_local": "上傳本機檔案..."
       },
-      "url_context": "網頁上下文",
       "web_search": {
         "builtin": {
           "disabled_content": "目前模型不支援網路搜尋功能",
@@ -1616,8 +1615,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫",
-        "url_context": "Gemini 不支援同時使用網頁內容與函式呼叫"
+        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫"
       }
     },
     "message": {

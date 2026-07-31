@@ -2,10 +2,11 @@
  * Derive per-request capability flags + provider-builtin web search config
  * from (model, provider, assistant).
  *
- * Replaces the capability-detection half of the dead `parameterBuilder.ts`.
- * Read by `agentParams/features/*` to gate plugins like
- * `providerToolPlugin('webSearch' / 'urlContext')` and to let callers
- * set `streamOutput` / tool-use flags without duplicating these checks.
+ * Web tool routing is NOT decided here: `scope.webToolRoutes` (the finalized
+ * plan from `resolveWebToolRoutes`/`finalizeWebToolRoutes`) is the single
+ * source of truth that gates both the client tools and the server features.
+ * This module only materialises the server web-search plugin config for the
+ * side the plan already selected.
  */
 
 import { application } from '@application'
@@ -18,7 +19,6 @@ import {
   isAnthropicModel,
   isFixedReasoningModel,
   isFunctionCallingModel,
-  isGemini3Model,
   isGeminiModel,
   isGenerateImageModel,
   isGrokModel,
@@ -35,8 +35,6 @@ import { buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
 
 export interface ResolvedCapabilities {
   enableReasoning: boolean
-  enableWebSearch: boolean
-  enableUrlContext: boolean
   enableGenerateImage: boolean
   isSupportedToolUse: boolean
   streamOutput: boolean
@@ -44,10 +42,8 @@ export interface ResolvedCapabilities {
 }
 
 export interface ResolveCapabilitiesOptions {
-  /** The selected implementation for each mutually exclusive web capability. */
+  /** The finalized web-tool plan; web routing itself lives on the request scope, not here. */
   webToolRoutes?: WebToolRoutes
-  /** Whether this request exposes any custom/function tools to the model. */
-  hasFunctionTools?: boolean
 }
 
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
@@ -70,11 +66,6 @@ export function resolveCapabilities(
   const enableReasoning =
     isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
-  const enableWebSearch = options.webToolRoutes?.webSearch === 'server'
-
-  const hasIncompatibleGeminiTools = isGeminiModel(model) && !isGemini3Model(model) && options.hasFunctionTools === true
-  const enableUrlContext = options.webToolRoutes?.webFetch === 'server' && !hasIncompatibleGeminiTools
-
   // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
   // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),
   // not this capability. Kept `&& false` so the provider-option plumbing below never fires.
@@ -84,9 +75,9 @@ export function resolveCapabilities(
 
   const streamOutput = assistant.settings?.streamOutput !== false
 
-  // Build provider-builtin web search config when enabled
+  // Build provider-builtin web search config when the plan routed search to the server side
   let webSearchPluginConfig: WebSearchPluginConfig | undefined
-  if (enableWebSearch) {
+  if (options.webToolRoutes?.webSearch === 'server') {
     const preferenceService = application.get('PreferenceService')
     const webSearchConfig = {
       maxResults: preferenceService.get('chat.web_search.max_results'),
@@ -105,8 +96,6 @@ export function resolveCapabilities(
 
   return {
     enableReasoning,
-    enableWebSearch,
-    enableUrlContext,
     enableGenerateImage,
     isSupportedToolUse,
     streamOutput,

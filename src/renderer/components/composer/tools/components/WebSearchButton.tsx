@@ -13,7 +13,7 @@ import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { isOpenAIWebSearchModel } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
-import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel } from '@shared/utils/model'
+import { isGPT5SeriesReasoningModel, isWebToolConflictProneGeminiModel } from '@shared/utils/model'
 import { isBuiltinWebSearchAvailable, isGeminiWebSearchProvider, resolveWebToolRoutes } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
@@ -40,7 +40,6 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const webSearchRoute = model
     ? resolveWebToolRoutes(model, modelProvider, {
         webSearchEnabled: true,
-        urlContextEnabled: assistant?.settings.enableUrlContext === true,
         clientSearchAvailable,
         clientFetchAvailable,
         clientToolsPreferred
@@ -59,8 +58,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       assistant &&
       model &&
       isGeminiWebSearchProvider(modelProvider) &&
-      isGeminiModel(model) &&
-      !isGemini3Model(model) &&
+      isWebToolConflictProneGeminiModel(model) &&
       getEffectiveMcpMode(assistant) !== 'disabled'
   )
   const hasOpenAIMinimalWebSearchConflict = Boolean(

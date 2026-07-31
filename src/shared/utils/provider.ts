@@ -13,7 +13,8 @@ import {
   isFunctionCallingModel,
   isGeminiModel,
   isNonChatModel,
-  isPureGenerateImageModel
+  isPureGenerateImageModel,
+  isWebToolConflictProneGeminiModel
 } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
@@ -244,7 +245,6 @@ export function resolveWebToolRoutes(
   provider: Pick<Provider, 'serverTools'> | undefined,
   options: {
     webSearchEnabled: boolean
-    urlContextEnabled: boolean
     clientSearchAvailable: boolean
     clientFetchAvailable: boolean
     clientToolsPreferred: boolean
@@ -256,7 +256,7 @@ export function resolveWebToolRoutes(
   const serverSearchAvailable =
     options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider) : false
   const serverFetchAvailable =
-    options.urlContextEnabled && provider ? isBuiltinWebFetchAvailable(model, provider) : false
+    options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider) : false
   const clientAvailable = clientSearchAvailable || clientFetchAvailable
   const serverAvailable = serverSearchAvailable || serverFetchAvailable
 
@@ -286,6 +286,19 @@ export function resolveWebToolRoutes(
           ? 'server'
           : 'none'
   }
+}
+
+/**
+ * Final request-time amendment to the routes: pre-3 Gemini rejects requests
+ * mixing native url-context with function tools, so the server fetch route is
+ * withdrawn once the resolved ToolSet is known. The amended routes are the
+ * single source of truth consumers read off the request scope.
+ */
+export function finalizeWebToolRoutes(routes: WebToolRoutes, model: Model, hasFunctionTools: boolean): WebToolRoutes {
+  if (routes.webFetch === 'server' && hasFunctionTools && isWebToolConflictProneGeminiModel(model)) {
+    return { ...routes, webFetch: 'none' }
+  }
+  return routes
 }
 
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS = ['ollama', 'lmstudio', 'nvidia', 'gpustack'] as const

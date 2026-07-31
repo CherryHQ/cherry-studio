@@ -1604,7 +1604,6 @@
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
-      "url_context": "URL Context",
       "web_search": {
         "builtin": {
           "disabled_content": "The current model does not support web search",
@@ -1626,8 +1625,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "url_context": "Gemini does not support using url context and function calling simultaneously"
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously"
       }
     },
     "message": {
