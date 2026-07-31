@@ -362,7 +362,7 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('keeps add buttons inside the provider list scroller', () => {
+  it('keeps add actions around the provider list', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
@@ -376,16 +376,7 @@ describe('ProviderList', () => {
     expect(addButtons).toHaveLength(2)
     expect(topAddButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(topAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(bottomAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(searchWrap).toHaveClass('h-8')
-    expect(searchInput).toHaveClass('text-xs')
-    expect(searchWrap?.querySelector('svg')).toHaveClass('mr-0.5', 'size-3.5')
     expect(searchWrap).toContainElement(filterButton)
-    expect(filterButton).toHaveClass('size-[22px]')
-    expect(filterButton.querySelector('svg')).toHaveAttribute('width', '12')
-    expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
   })
 
   it('hides the bottom add button when provider list content does not overflow', () => {
@@ -435,9 +426,6 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
-    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

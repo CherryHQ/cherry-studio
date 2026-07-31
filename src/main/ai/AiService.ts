@@ -274,6 +274,9 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
+  // Cancellable one-shot text requests opt in with a renderer-generated request id.
+  // Existing callers without an id continue to use generateText directly.
+  private readonly textRequests = new Map<string, AbortController>()
   // Per-request AbortControllers for the `ai.image.generate` route, paired with the
   // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
   // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
@@ -315,12 +318,17 @@ export class AiService extends BaseService {
     payload: AiToolApprovalRespondRequest,
     senderWc: Electron.WebContents | undefined
   ): Promise<AiToolApprovalRespondResponse> {
-    // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
-      approved: payload.approved,
-      reason: payload.reason,
-      updatedInput: payload.updatedInput
-    })
+    // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
+    // the exact `canUseTool` invocation that issued this approval id.
+    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+      payload.approvalId,
+      {
+        approved: payload.approved,
+        reason: payload.reason,
+        updatedInput: payload.updatedInput
+      },
+      payload.anchorId
+    )
     if (dispatched) return { ok: true }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
@@ -530,6 +538,24 @@ export class AiService extends BaseService {
   }
 
   // ── Non-streaming text generation (agent.generate) ──
+
+  async runTextRequest(requestId: string, payload: AiGenerateRequest): Promise<AiGenerateResult> {
+    const controller = new AbortController()
+    this.textRequests.set(requestId, controller)
+    try {
+      return await this.generateText({
+        ...payload,
+        requestOptions: { ...payload.requestOptions, signal: controller.signal }
+      })
+    } finally {
+      this.textRequests.delete(requestId)
+    }
+  }
+
+  /** Abort the in-flight text request for `requestId`; a no-op on an unknown id. */
+  abortText(requestId: string): void {
+    this.textRequests.get(requestId)?.abort()
+  }
 
   async generateText(
     request: AsInProcess<AiGenerateRequest>,

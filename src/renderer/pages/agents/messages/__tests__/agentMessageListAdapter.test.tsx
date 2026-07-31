@@ -329,7 +329,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
-    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
@@ -354,9 +353,6 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.showInFolder?.('/Users/me/report.md')
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
-
-    void value?.actions.isDirectory?.('dist/assets')
-    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/tmp/workspace/dist/assets')
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({

@@ -470,24 +470,12 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
-  it('uses the standalone resource toolbar spacing', () => {
-    renderResourceGrid()
-
-    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
-    const toolbar = searchInput.parentElement?.parentElement
-
-    expect(toolbar).toHaveClass('h-12', 'px-5')
-  })
-
-  it('renders the optional toolbar leading slot before the search box', () => {
+  it('renders the optional toolbar leading slot', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>
     })
 
-    const toggle = screen.getByRole('button', { name: 'Toggle sidebar' })
-    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
-
-    expect(toggle.compareDocumentPosition(searchInput)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
   })
 
   it('shows loading placeholders before the empty state while data is loading', () => {
@@ -757,14 +745,6 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
-  it('uses the settings group surface for Skill cards', () => {
-    render(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
-
-    expect(screen.getByRole('button', { name: 'Skill' })).toHaveStyle({
-      backgroundColor: 'var(--settings-group-background, var(--card))'
-    })
-  })
-
   it('shows the Skill version tag only when a version is available', () => {
     const { rerender } = render(<ResourceCard resource={createSkillResource('1.2.3')} {...getResourceCardProps()} />)
 

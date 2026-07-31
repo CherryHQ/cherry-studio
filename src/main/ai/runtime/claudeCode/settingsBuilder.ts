@@ -41,6 +41,7 @@ import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
+import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -63,7 +64,13 @@ import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  CONFIG_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
@@ -396,8 +403,19 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath
   )
 
-  // 5. System prompt
-  const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null, agentDataPath)
+  // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
+  // step 6 exposes the kb_* tools — a composer-only selection on an unbound agent still gets them, and
+  // without the guidance the model would never emit the `[cite:id]` markers those results need.
+  const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
+  const systemPrompt = await buildSystemPrompt(
+    session,
+    agent,
+    cwd,
+    linkedChannelSnapshot !== null,
+    agentDataPath,
+    knowledgeBaseScope,
+    disallowedTools
+  )
 
   // 6. MCP servers (session + built-in)
   const mcpServers = buildMcpServers(
@@ -460,6 +478,8 @@ export async function buildClaudeCodeSessionSettings(
       fastMode: options?.fastMode === true
     },
     includePartialMessages: true,
+    agentProgressSummaries: true,
+    forwardSubagentText: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,
     allowedTools: finalAllowedTools,
@@ -830,9 +850,10 @@ async function buildToolPermissions(
     // headless interactive-tool denial at fire time. Mirrored by `interactiveToolPermissionHook` so
     // the denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
     // this branch stays so an interactive follow-up on a warm connection can reach the approval path.
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     if (
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
-      application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
+      interactionState.userResponse === 'unavailable'
     ) {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
@@ -853,16 +874,37 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    // A detached background agent outlives the turn that spawned it, and since SDK 0.3.186 its
-    // permission prompts are forwarded here instead of being auto-denied. The approval chunk below
-    // is dropped by the connection event loop once that turn's stream is gone, which would leave
-    // this promise pending until the session closes. Deny out-of-turn approvals outright; the
-    // auto-approved branch above still lets background work run unattended.
-    if (!application.get('AgentSessionRuntimeService').hasLiveTurnStream(session.id)) {
-      logger.warn('Approval requested outside a live turn — denying', { toolName })
+    const hasLiveTurnStream = interactionState.userResponse === 'stream'
+    const isBackgroundAgent = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    const requiresUserResponse =
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      opts.matchedAskRule !== undefined
+
+    // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
+    // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
+    // callback and remain authoritative. A user-configured ask rule and tools that need actual
+    // user-authored input stay on the interaction path below.
+    if (isBackgroundAgent && !requiresUserResponse) {
+      return { behavior: 'allow', updatedInput: input }
+    }
+
+    // Interactive background requests are rendered as independent assistant messages. This is
+    // intentionally separate from "has a live turn": the parent turn may be complete while its
+    // background agent is still waiting for the user. Channel/scheduled runs remain fail-closed.
+    if (
+      (!hasLiveTurnStream && !requiresUserResponse) ||
+      (requiresUserResponse &&
+        (!hasLiveTurnStream || isBackgroundAgent) &&
+        interactionState.userResponse === 'unavailable')
+    ) {
+      logger.warn('Approval requested outside a live interactive turn — denying', {
+        toolName,
+        isBackgroundAgent
+      })
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
+    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
     const approvalId = randomUUID()
     const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -876,13 +918,16 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
+        presentation,
         signal: opts.signal,
         resolve
       })
       emit({
-        type: 'tool-approval-request',
         approvalId,
         toolCallId: opts.toolUseID,
+        toolName,
+        input,
+        presentation,
         providerMetadata: { cherry: { transport: 'claude-agent', toolName } satisfies CherryToolMeta }
       })
     })
@@ -936,7 +981,7 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
 
-    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -963,7 +1008,8 @@ async function buildToolPermissions(
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const action = typeof toolInput?.action === 'string' ? toolInput.action : ''
     if (!HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+      return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -984,7 +1030,8 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'mcp__skills__install_skill') return {}
     if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+      return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -1037,11 +1084,6 @@ async function buildToolPermissions(
       return {}
     }
 
-    logger.info('Requiring approval for file-tool path outside the session workspace and agent data directory', {
-      sessionId: session.id,
-      toolName,
-      requestedPath
-    })
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -1174,7 +1216,11 @@ export async function buildSystemPrompt(
   agent: AgentEntity,
   cwd: string,
   channelLinked?: boolean,
-  agentDataPath = cwd
+  agentDataPath = cwd,
+  /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
+  knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
+  /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
+  disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd })
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
 
@@ -1204,6 +1250,13 @@ export async function buildSystemPrompt(
   // Channel security (still scoped per session — channels link to a session)
   const isChannelLinked = channelLinked ?? Boolean(channelService.findBySessionId(session.id))
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
+  const unavailableTools = new Set(disallowedTools)
+  const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
+  const citationsGuidance = buildCitationsGuidance({
+    web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
+    kb: knowledgeBaseIds.length > 0 && (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
+  })
+  const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
   const workspaceBlock = [
@@ -1218,13 +1271,13 @@ export async function buildSystemPrompt(
     try {
       const context = buildAssistantContext()
       return instructions
-        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}`
-        : `${context}${workspaceContextBlock}${channelSecurityBlock}`
+        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
+        : `${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}`
+      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
     }
   }
 
@@ -1239,7 +1292,7 @@ export async function buildSystemPrompt(
     agentDataPath
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(

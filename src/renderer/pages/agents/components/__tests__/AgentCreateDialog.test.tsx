@@ -70,7 +70,7 @@ describe('AgentCreateDialog', () => {
         instructions: 'Agent instructions',
         knowledgeBaseIds: ['kb-1'],
         skillIds: ['skill-a', 'skill-b'],
-        configuration: { avatar: '🤖', permission_mode: 'bypassPermissions' }
+        configuration: { avatar: '🤖', permission_mode: 'default' }
       })
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))

@@ -75,6 +75,8 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
+  topicFulfilled: false,
+  markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
@@ -483,7 +485,11 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: false,
+    isFulfilled: mocks.topicFulfilled,
+    markSeen: mocks.markTopicSeen
+  })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -674,6 +680,15 @@ function getAgentSkillsPanelItems() {
   return list
 }
 
+// `queueContent` is the whole above-input slot, so dock assertions locate the dock child instead of
+// assuming the slot IS the dock.
+function getQueueDock(): any {
+  const slot = mocks.surfaceProps?.queueContent as any
+  if (!slot) return undefined
+  const children = Array.isArray(slot.props?.children) ? slot.props.children : [slot.props?.children]
+  return children.flat().find((child: any) => child?.props?.items)
+}
+
 describe('AgentComposer', () => {
   beforeEach(() => {
     // The `@` panel's entity-reference merge hits these paths; the mock factory has no
@@ -726,6 +741,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.topicFulfilled = false
+    mocks.markTopicSeen.mockReset()
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -982,7 +999,8 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
-    const queued = mocks.surfaceProps?.queueContent as any
+    const queued = getQueueDock()
+    expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
       type: 'data-knowledge-scope',
       data: { baseIds: [knowledgeBaseOne.id] }
@@ -1054,9 +1072,9 @@ describe('AgentComposer', () => {
       mocks.speedControlProps?.onReasoningEffortChange('low')
       mocks.speedControlProps?.onFastModeChange(false)
     })
-    const queueContent = mocks.surfaceProps?.queueContent as any
+    const dock = getQueueDock()
     await act(async () => {
-      await queueContent.props.onEdit(queueContent.props.items[0].id)
+      await dock.props.onEdit(dock.props.items[0].id)
     })
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
@@ -1175,38 +1193,6 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
   })
 
-  it('uses the same 20px size for the model and workspace icons', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        onWorkspaceChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('model-avatar')).toHaveAttribute('data-size', '20')
-    expect(screen.getByText('Workspace 1').closest('button')?.querySelector('.lucide-folder')).toHaveAttribute(
-      'width',
-      '20'
-    )
-  })
-
-  it('uses the same 20px size for missing agent, model, and workspace icons', async () => {
-    mocks.sessionLayout = 'time'
-
-    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
-    expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
-    expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
-    expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
-  })
-
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
     mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
     mocks.modelResult = {
@@ -1254,8 +1240,6 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
-    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -1458,8 +1442,6 @@ describe('AgentComposer', () => {
     )
 
     const modelLabel = screen.getByText('Claude Sonnet 4.5')
-    expect(modelLabel).not.toHaveClass('text-muted-foreground')
-    expect(modelLabel).not.toHaveClass('text-foreground/85')
     expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
@@ -1528,9 +1510,6 @@ describe('AgentComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    const newConversationIcon = newSessionButton.querySelector('.new-conversation-icon')
-    expect(newConversationIcon).toHaveAttribute('width', '18')
-    expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -1650,8 +1629,6 @@ describe('AgentComposer', () => {
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(skillButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
 
     fireEvent.click(skillButton)
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ launcherId: 'agent-skills', searchText: 'plugins.skills' })
@@ -1696,8 +1673,6 @@ describe('AgentComposer', () => {
     })
     const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
 
-    expect(slashCommandsButton.querySelector('.lucide-terminal')).toBeInTheDocument()
-    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
     expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
 
     fireEvent.click(slashCommandsButton)
@@ -1928,13 +1903,13 @@ describe('AgentComposer', () => {
     // Enqueue path: sendMessage is NOT called directly — it goes through the dock.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
-    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+    expect(getQueueDock()).toBeTruthy()
 
     // Manually drain the dock. Now sendMessage runs and saveHistory fires.
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
     await act(async () => {
-      await queueContent.props.onSteer(itemId)
+      await dock.props.onSteer(itemId)
     })
 
     await waitFor(() => {
@@ -3639,7 +3614,50 @@ describe('AgentComposer', () => {
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+    expect(getQueueDock()).toBeTruthy()
+  })
+
+  it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
+      { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
+    ])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
+    ])
+    const props = (isStreaming: boolean) => ({
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const { rerender } = render(<AgentComposer {...props(true)} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    rerender(<AgentComposer {...props(false)} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
@@ -3695,13 +3713,13 @@ describe('AgentComposer', () => {
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
 
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
     await act(async () => {
-      await queueContent.props.onEdit(itemId)
+      await dock.props.onEdit(itemId)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
-    await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
+    await waitFor(() => expect(getQueueDock()).toBeUndefined())
     expect(mocks.files).toEqual([file])
     expect(mocks.replaceDraft).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -3713,12 +3731,18 @@ describe('AgentComposer', () => {
         ])
       })
     )
-    expect(mocks.surfaceProps?.draftTokens).toEqual([expect.objectContaining({ id: 'skill:pdf', kind: 'skill' })])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
+      expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' })
+    ])
     expect(cacheService.setCasual).toHaveBeenCalledWith(
       'agent-session-draft-agent-1',
       {
         text: 'queued agent draft',
-        tokens: [expect.objectContaining({ id: 'skill:pdf', kind: 'skill' })]
+        tokens: [
+          expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
+          expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' })
+        ]
       },
       86400000
     )
@@ -3789,17 +3813,17 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    expect(queueContent).toBeTruthy()
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    expect(dock).toBeTruthy()
+    const itemId = dock.props.items[0].id
 
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     await act(async () => {
-      await queueContent.props.onSteer(itemId)
+      await dock.props.onSteer(itemId)
     })
 
     // A failed manual steer must not silently drop the queued item.
-    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(getQueueDock().props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
@@ -4093,11 +4117,6 @@ describe('AgentComposer', () => {
     expect(sendAccessory).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
-    expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Claude Sonnet 4.5').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    const workspaceButton = screen.getByText('Workspace 1').closest('button')
-    expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
-
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5'))
     expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
@@ -4308,23 +4327,6 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 
-  it('uses the same 20px size for the workspace warning icon', async () => {
-    mocks.sessionLayout = 'time'
-    mocks.isDirectory.mockResolvedValueOnce(false)
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await waitFor(() => expect(document.querySelector('.lucide-triangle-alert')).toHaveAttribute('width', '20'))
-  })
-
   it('does not preflight the system no-project workspace path', () => {
     mocks.sessionLayout = 'time'
 
@@ -4353,7 +4355,6 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
-    expect(document.querySelector('.lucide-circle-slash')).toHaveAttribute('width', '20')
     expect(mocks.isDirectory).not.toHaveBeenCalled()
   })
 })

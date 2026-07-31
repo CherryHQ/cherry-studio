@@ -185,7 +185,7 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
-  it('does not add a separate dock-side padding outside the composer layout', () => {
+  it('keeps the whole docked dock stack click-through', () => {
     const { container } = render(
       <ComposerDockTransitionFrame
         placement="docked"
@@ -195,38 +195,11 @@ describe('ComposerDockTransitionFrame', () => {
       />
     )
 
-    expect(container.querySelector('[data-composer-dock-layer]')).not.toHaveClass('px-4')
-  })
-
-  it('keeps home placement bottom offset and removes it when the inputbar is expanded', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="home"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="" />}
-      />
-    )
-
+    // Pointer events are re-enabled by composer content roots, not the dock
+    // stack — the layer is none and no full-width wrapper turns them back on.
     const dockLayer = container.querySelector('[data-composer-dock-layer]')
-    expect(dockLayer).toHaveClass('pb-[12vh]')
-    expect(dockLayer).toHaveClass('has-[.inputbar-container.expanded]:pb-0')
-    expect(dockLayer).not.toHaveClass('pt-(--navbar-height)')
-  })
-
-  it('keeps docked placement free of home placement offsets', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="docked"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="" />}
-        mainVisible
-      />
-    )
-
-    const dockLayer = container.querySelector('[data-composer-dock-layer]')
-    expect(dockLayer).not.toHaveClass('pb-[12vh]')
-    expect(dockLayer).not.toHaveClass('has-[.inputbar-container.expanded]:pb-0')
-    expect(dockLayer).not.toHaveClass('pt-(--navbar-height)')
+    expect(dockLayer).toHaveClass('pointer-events-none')
+    expect(dockLayer?.querySelector('.pointer-events-auto')).toBeNull()
   })
 
   it('aligns composer width to the message scroller viewport', async () => {
@@ -278,6 +251,5 @@ describe('ComposerDockTransitionFrame', () => {
 
     const surface = container.querySelector('[data-composer-dock-surface]')
     expect(surface).toHaveAttribute('data-composer-dock-motion', 'home-to-docked')
-    expect(surface).toHaveClass('animation-chat-composer-dock-down')
   })
 })

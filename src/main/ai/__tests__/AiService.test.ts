@@ -192,6 +192,28 @@ describe('AiService', () => {
     mockRecordRequest.mockResolvedValue(undefined)
   })
 
+  it('aborts a registered one-shot text request', async () => {
+    const service = createService()
+    let capturedSignal: AbortSignal | undefined
+    vi.spyOn(service, 'generateText').mockImplementation(
+      (request) =>
+        new Promise((_resolve, reject) => {
+          capturedSignal = request.requestOptions?.signal
+          capturedSignal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Text generation aborted', 'AbortError')),
+            { once: true }
+          )
+        })
+    )
+
+    const pending = service.runTextRequest('greeting-1', { prompt: 'hello' })
+    service.abortText('greeting-1')
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(capturedSignal?.aborted).toBe(true)
+  })
+
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
     const stream = new ReadableStream()
@@ -726,11 +748,15 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    expect(respondToolApproval).toHaveBeenCalledWith('agent-approval-1', {
-      approved: true,
-      reason: undefined,
-      updatedInput: undefined
-    })
+    expect(respondToolApproval).toHaveBeenCalledWith(
+      'agent-approval-1',
+      {
+        approved: true,
+        reason: undefined,
+        updatedInput: undefined
+      },
+      undefined
+    )
     // Fast-path short-circuits before any DB read or continue dispatch.
     expect(getById).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()

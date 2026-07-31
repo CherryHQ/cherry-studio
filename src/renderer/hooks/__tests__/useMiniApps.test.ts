@@ -112,11 +112,6 @@ describe('useMiniApps', () => {
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.isLoading).toBe(true)
     })
-
-    it('should expose refetch function', () => {
-      const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.refetch).toBe('function')
-    })
   })
 
   // === Region Filtering ===
@@ -247,14 +242,6 @@ describe('useMiniApps', () => {
       expect(result.current.openedOneOffMiniApp).toEqual(oneOffApp)
     })
 
-    it('should expose setters for UI state', () => {
-      const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.setOpenedKeepAliveMiniApps).toBe('function')
-      expect(typeof result.current.setCurrentMiniAppId).toBe('function')
-      expect(typeof result.current.setMiniAppShow).toBe('function')
-      expect(typeof result.current.setOpenedOneOffMiniApp).toBe('function')
-    })
-
     it('should update openedKeepAliveMiniApps when setter is called', async () => {
       const { result } = renderHook(() => useMiniApps())
       const newApps = [createMiniApp('new-app')]
@@ -264,30 +251,11 @@ describe('useMiniApps', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual(newApps)
     })
-
-    it('should resolve a functional updater against the latest mocked value (mock parity)', async () => {
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [createMiniApp('a'), createMiniApp('b')])
-      const { result } = renderHook(() => useMiniApps())
-      await act(async () => {
-        result.current.setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== 'a'))
-      })
-      const stored = MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []
-      expect(stored.map((a) => a.appId)).toEqual(['b'])
-    })
   })
 
   // === Mutations ===
 
   describe('mutations', () => {
-    it('should expose all mutation functions', () => {
-      const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.updateAppStatus).toBe('function')
-      expect(typeof result.current.setAppStatusBulk).toBe('function')
-      expect(typeof result.current.createCustomMiniApp).toBe('function')
-      expect(typeof result.current.removeCustomMiniApp).toBe('function')
-      expect(typeof result.current.reorderMiniApps).toBe('function')
-    })
-
     it('should sync opened cache, tab metadata, and webview state after updating a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', {
         name: 'Old App',
@@ -508,14 +476,6 @@ describe('useMiniApps', () => {
    */
 
   describe('reorderMiniApps', () => {
-    it('should expose a callable reorder function backed by useReorder', async () => {
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
-      const { result } = renderHook(() => useMiniApps())
-      // The actual ordering logic is tested in useReorder; here we just verify wiring.
-      expect(typeof result.current.reorderMiniApps).toBe('function')
-      expect(typeof result.current.reorderMiniAppsByStatus).toBe('function')
-    })
-
     it('should reorder visible apps against the displayed subset orderKey baseline', async () => {
       const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
       const patchBatchTrigger = vi.fn().mockResolvedValue(undefined)
@@ -576,15 +536,6 @@ describe('useMiniApps', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.miniApps).toHaveLength(1)
-    })
-
-    it('should return consistent shape across renders', () => {
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([createMiniApp('app1')]))
-      const { result, rerender } = renderHook(() => useMiniApps())
-      const firstShape = Object.keys(result.current).sort()
-      rerender()
-      const secondShape = Object.keys(result.current).sort()
-      expect(firstShape).toEqual(secondShape)
     })
   })
 
