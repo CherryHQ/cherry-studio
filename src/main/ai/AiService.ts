@@ -1030,14 +1030,10 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const {
-      sdkConfig,
-      credentialReceipt,
-      options = {},
-      provider,
-      model,
-      assistant
-    } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, options, provider, model, assistant } = await this.buildAgentParamsFor(
+      request,
+      signal
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
