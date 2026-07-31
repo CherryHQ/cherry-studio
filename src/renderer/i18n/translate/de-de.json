@@ -434,6 +434,7 @@
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
+        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
         "yesterday": "Gestern"
       },
       "label_one": "Sitzung",
@@ -1933,6 +1934,7 @@
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_assistant": "Unverknüpfter Assistent",
+        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
         "yesterday": "Gestern"
       },
       "list": "Themenliste",
@@ -2300,6 +2302,12 @@
     "generate_random_seed": "Zufälligen Seed generieren",
     "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
+    "group": {
+      "create": "[to be translated]:New Group",
+      "create_failed": "[to be translated]:Failed to create group",
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required"
+    },
     "help": "Hilfe",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
@@ -6726,9 +6734,6 @@
           "dxtFile": "DXT-Paket-Datei",
           "dxtHelp": "MCP-Server-Datei .dxt auswählen",
           "dxtProcessFailed": "DXT-Datei verarbeiten fehlgeschlagen",
-          "error": {
-            "multipleServers": "Import von mehreren Servern nicht möglich"
-          },
           "invalid": "Ungültige Eingabe, bitte JSON-Format überprüfen",
           "json": "Von JSON importieren",
           "mcpb": "MCPB-Bundle importieren",

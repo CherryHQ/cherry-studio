@@ -330,6 +330,22 @@ interface WindowTypeMetadataBase {
    * See `WindowQuirks` for each flag's semantics.
    */
   quirks?: WindowQuirks
+  /**
+   * Whether this window type can originate DB writes from its renderer. Required
+   * flag (no default): the registry constructor fails closed if any registered
+   * entry omits it — future WindowType additions must explicitly set this so
+   * a1 `acquireMutationCapableWindowHold()` cannot silently leak a writer.
+   *
+   * Drives the restore write-quiesce scope: every window whose type declares
+   * `mutationCapable: true` is destroyed + blocked from opening while the hold
+   * is held. Set based on empirical inspection of each type's renderer code —
+   * only `true` for windows that ship a full `preload.js` and have code paths
+   * that call DataApi mutations / `Preference_Set` / `usePreference` setters.
+   * Toolbar/Print/Popups that are read-only or session-scoped stay `false`.
+   * See docs/references/backup/backup-architecture.md §9 step 1 for the full
+   * classification rationale and static-scan guard.
+   */
+  mutationCapable: boolean
 }
 
 /**

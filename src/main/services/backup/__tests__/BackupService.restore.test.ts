@@ -1,3 +1,4 @@
+import type * as Electron from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -15,7 +16,11 @@ const {
   agentPause,
   agentDrain,
   relaunchMock,
-  broadcastMock
+  broadcastMock,
+  windowManagerAcquireHold,
+  notificationShow,
+  notificationClose,
+  notificationSupported
 } = vi.hoisted(() => ({
   importBackup: vi.fn(),
   admitArchiveMock: vi.fn(),
@@ -31,7 +36,18 @@ const {
   agentPause: vi.fn(() => ({ dispose: vi.fn() })),
   agentDrain: vi.fn(async () => ({ stragglerIds: [] as string[] })),
   relaunchMock: vi.fn(),
-  broadcastMock: vi.fn()
+  broadcastMock: vi.fn(),
+  // a1 WindowManager hold: real impl returns Disposable; tests exercise
+  // success and failure paths via the return shape. The default success
+  // branch returns a Disposable-shaped object so existing flow assertions
+  // (hold pushed onto restoreQuiesceHolds) keep working.
+  windowManagerAcquireHold: vi.fn(() => ({ dispose: vi.fn() })),
+  // Native Notification mock: real Electron `Notification.show()` is
+  // fire-and-forget and OS-dependent; tests assert `show` was called
+  // without waiting for OS delivery.
+  notificationShow: vi.fn(),
+  notificationClose: vi.fn(),
+  notificationSupported: vi.fn(() => true)
 }))
 
 vi.mock('../ImportOrchestrator', () => ({
@@ -75,10 +91,30 @@ vi.mock('@application', async () => {
     if (name === 'IpcApiService') {
       return { broadcast: broadcastMock }
     }
+    if (name === 'WindowManager') {
+      return { acquireMutationCapableWindowHold: windowManagerAcquireHold }
+    }
     return innerGet(name)
   })
   ;(mocked.application as unknown as { relaunch: typeof relaunchMock }).relaunch = relaunchMock
   return mocked
+})
+
+// Mock Electron Notification (a1 — used by BackupService for post-seal progress).
+// `isSupported()` and `show()` are the only methods we touch; the constructor
+// returns an object that records the show call for assertion.
+vi.mock('electron', async () => {
+  const actual = await vi.importActual<typeof Electron>('electron')
+  const NotificationMock = vi.fn().mockImplementation(() => ({
+    show: notificationShow,
+    close: notificationClose
+  }))
+  ;(NotificationMock as unknown as { isSupported: typeof notificationSupported }).isSupported = notificationSupported
+  return {
+    ...actual,
+    app: { getLocale: () => 'en-US' },
+    Notification: NotificationMock
+  }
 })
 
 import { BaseService } from '@main/core/lifecycle'
@@ -126,6 +162,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
     drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
     relaunchMock.mockImplementation(() => {})
+    notificationSupported.mockReturnValue(true)
   })
 
   describe('performRestoreRecovery (boot)', () => {
@@ -355,6 +392,79 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(holdDispose).toHaveBeenCalledTimes(1)
     })
 
+    it('a1 hold failure → unrecoverable: BACKUP_RESTORE_HOLD_FAILED + scheduled relaunch (partial state)', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      // a1 throws — e.g. a renderer process refused to be destroyed cleanly.
+      // BackupService must surface RESTORE_HOLD_FAILED and schedule a relaunch
+      // (rather than silently release into a "no main window" state).
+      windowManagerAcquireHold.mockImplementation(() => {
+        throw new Error('renderer refused destroy')
+      })
+      const service = new BackupService()
+
+      vi.useFakeTimers()
+      try {
+        await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toSatisfy(
+          (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_HOLD_FAILED'
+        )
+        // a1 was attempted before any other writer pause (no Channel/AI/Job
+        // pauses should have run, because we abort right after a1).
+        expect(windowManagerAcquireHold).toHaveBeenCalledWith('restore-quiesce')
+        expect(channelPause).not.toHaveBeenCalled()
+        expect(aiPause).not.toHaveBeenCalled()
+        expect(agentPause).not.toHaveBeenCalled()
+        expect(jobManagerPause).not.toHaveBeenCalled()
+        // BACKUP_IN_PROGRESS must NOT be set — a1 throw short-circuited
+        // before the flag flip.
+        expect(isBackupInProgress()).toBe(false)
+        // The relaunch is scheduled via setTimeout(0). Fast-forward microtasks
+        // so the scheduled callback runs.
+        await vi.advanceTimersByTimeAsync(0)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('a1 hold is acquired FIRST in quiesceWriters (before flag/channel/AI/agent/job)', async () => {
+      // Order check: capture call timestamps of every pause / hold call.
+      const callOrder: string[] = []
+      windowManagerAcquireHold.mockImplementation(() => {
+        callOrder.push('a1')
+        return { dispose: vi.fn() }
+      })
+      channelPause.mockImplementation(() => {
+        callOrder.push('channel')
+        return { dispose: vi.fn() }
+      })
+      aiPause.mockImplementation(() => {
+        callOrder.push('ai')
+        return { dispose: vi.fn() }
+      })
+      agentPause.mockImplementation(() => {
+        callOrder.push('agent')
+        return { dispose: vi.fn() }
+      })
+      jobManagerPause.mockImplementation(() => {
+        callOrder.push('job')
+        return { dispose: vi.fn() }
+      })
+      const service = new BackupService()
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        // a1 is the first quiesce action; the existing service-side chain runs
+        // after. setBackupInProgress is set between a1 and channel but does
+        // not register a call here, so the order in `callOrder` is:
+        // a1 → channel → ai → agent → job.
+        expect(callOrder[0]).toBe('a1')
+        expect(callOrder).toEqual(['a1', 'channel', 'ai', 'agent', 'job'])
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
     it('aborts on startupRecoveryPending — BACKUP_RESTORE_DRAIN_UNCLEAN, no proceed / relaunch', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: true })
       const holdDispose = vi.fn()
@@ -371,29 +481,148 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(holdDispose).toHaveBeenCalledTimes(1)
     })
 
-    it('proceeds on clean verdict — seals, broadcasts the summary, and WAITS (no auto relaunch)', async () => {
+    it('shows separate native notifications for snapshot, merge, seal, and completion', async () => {
+      importBackup.mockImplementationOnce(async (options: { onProgress?: (update: { phase: string }) => void }) => {
+        await runQuiesceViaImportBackupMock()
+        for (const phase of ['snapshot', 'merge', 'seal']) {
+          options.onProgress?.({ phase })
+        }
+        return { summary: { toRestore: [], toSkip: [], degradations: [] } }
+      })
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : okJournal('staged')
+      })
+      const service = new BackupService()
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        expect(notificationShow).toHaveBeenCalledTimes(4)
+        expect(notificationClose).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('skips native notifications when the platform does not support them but still relaunches', async () => {
+      notificationSupported.mockReturnValue(false)
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : okJournal('staged')
+      })
+      const service = new BackupService()
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        expect(notificationShow).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('falls back to application.relaunch when the delayed staged relaunch is unavailable', async () => {
+      const service = new BackupService()
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : { kind: 'corrupt', error: 'gone' }
+      })
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('falls back again when the staged relaunch itself throws', async () => {
+      const service = new BackupService()
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        return journalReadCount <= 1 ? { kind: 'none' } : okJournal('staged')
+      })
+      relaunchMock.mockImplementationOnce(() => {
+        throw new Error('staged relaunch failed')
+      })
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(relaunchMock).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('proceeds on clean verdict — seals, broadcasts the summary, shows Notification, and AUTO-RELAUNCHES after delay', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
       const holdDispose = vi.fn()
       jobManagerPause.mockReturnValue({ dispose: holdDispose })
+      windowManagerAcquireHold.mockReturnValue({ dispose: holdDispose })
       const service = new BackupService()
 
-      await service.startRestore({ archivePath: '/x.cherrybackup' })
-
-      expect(afterQuiesce).toHaveBeenCalledTimes(1)
-      // backup.restore_summary integration contract: the renderer confirm dialog owns
-      // the restart via backup.restore_relaunch — the spine must broadcast and keep waiting.
-      expect(relaunchMock).not.toHaveBeenCalled()
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
-        toRestore: [],
-        toSkip: [],
-        degradations: []
+      // Track how many times the journal is read so we can flip to
+      // `staged` AFTER the startRestore journal-guard check passes
+      // (the guard runs against the pre-restore state) and stays
+      // `staged` for the post-delay relaunchStagedRestore() call.
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        // First reads: pre-seal (none); from the seal onwards: staged.
+        if (journalReadCount <= 1) return { kind: 'none' }
+        return okJournal('staged')
       })
-      // Quiesce survives the resolved request: the write window stays closed from
-      // seal until the user-confirmed relaunch exits the process.
-      expect(isBackupInProgress()).toBe(true)
-      expect(holdDispose).not.toHaveBeenCalled()
 
-      setBackupInProgress(false) // module-singleton gate — reset for later tests
+      // Use fake timers so the 2.75s post-seal relaunch delay doesn't
+      // make the test slow — the relaunch callback is fired by
+      // `setTimeout(then, 2750)`.
+      vi.useFakeTimers()
+      try {
+        const restorePromise = service.startRestore({ archivePath: '/x.cherrybackup' })
+        // startRestore returns synchronously up to the importBackup await; the
+        // schedulePostSealRelaunch setTimeout(then, 2750) is queued inside.
+        await restorePromise
+
+        // a1 ordering: WindowManager hold is acquired FIRST, then the
+        // existing flag / channel / AI / agent / job pauses run. Assert
+        // the a1 hold was acquired with the documented reason before
+        // anything else got a pause.
+        expect(windowManagerAcquireHold).toHaveBeenCalledWith('restore-quiesce')
+
+        // Right after the resolved promise: a1 hold acquired, summary
+        // broadcast, Notification shown, but auto-relaunch is still
+        // pending the 2.75s delay.
+        expect(afterQuiesce).toHaveBeenCalledTimes(1)
+        expect(relaunchMock).not.toHaveBeenCalled()
+        expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+          toRestore: [],
+          toSkip: [],
+          degradations: []
+        })
+        expect(notificationShow).toHaveBeenCalledTimes(1)
+        // Quiesce survives the resolved request: the write window stays closed
+        // from seal through the relaunch (held until process exit).
+        expect(isBackupInProgress()).toBe(true)
+        expect(holdDispose).not.toHaveBeenCalled()
+
+        // Fast-forward past the 2.75s delay → the auto-relaunch fires.
+        await vi.advanceTimersByTimeAsync(5000)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false) // module-singleton gate — reset for later tests
+      }
     })
 
     it('onStop releases a sealed restore quiesce hold for same-process lifecycle restart (CR-008)', async () => {
@@ -445,12 +674,29 @@ describe('BackupService restore journal lifecycle (A7)', () => {
         await runQuiesceViaImportBackupMock()
         return { summary }
       })
+      // Flip from pre-seal `none` to post-seal `staged` once the
+      // startRestore journal-guard has passed.
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        if (journalReadCount <= 1) return { kind: 'none' }
+        return okJournal('staged')
+      })
       const service = new BackupService()
-      await service.startRestore({ archivePath: '/x.cherrybackup' })
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', summary)
-      expect(relaunchMock).not.toHaveBeenCalled()
-      expect(isBackupInProgress()).toBe(true)
-      setBackupInProgress(false)
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', summary)
+        // Pre-delay: relaunch is queued but not yet fired.
+        expect(relaunchMock).not.toHaveBeenCalled()
+        expect(isBackupInProgress()).toBe(true)
+        // After the delay: auto-relaunch fires.
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
     })
 
     it('a second startRestore during the sealed wait does NOT release the held quiesce (CR-001)', async () => {
@@ -504,24 +750,50 @@ describe('BackupService restore journal lifecycle (A7)', () => {
           admitArchive: (a: string, b: string, c: string) => Promise<unknown>
           planResources: unknown
           planRoots: unknown
+          quiesceWriters: () => Promise<void>
         }
         expect(deps.planResources).toBeDefined()
         expect(deps.planRoots).toBeDefined()
+        // a1 — drive quiesceWriters so the WindowManager hold runs in the
+        // real flow (the production ImportOrchestrator calls this first;
+        // the test previously omitted it because quiesceWriters had no
+        // observable effect — now a1 acquire must run).
+        await deps.quiesceWriters()
         await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
         return { summary: { toRestore: [], toSkip: [], degradations: [] } }
       })
+      // Flip from pre-seal `none` to post-seal `staged` so the
+      // post-delay relaunch can fire.
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        if (journalReadCount <= 1) return { kind: 'none' }
+        return okJournal('staged')
+      })
       const service = new BackupService()
 
-      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
-        restoreId: expect.stringMatching(/^rst-/)
-      })
-      // Sealed success broadcasts the summary and waits for the renderer's backup.restore_relaunch.
-      expect(relaunchMock).not.toHaveBeenCalled()
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
-        toRestore: [],
-        toSkip: [],
-        degradations: []
-      })
+      vi.useFakeTimers()
+      try {
+        await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
+          restoreId: expect.stringMatching(/^rst-/)
+        })
+        // a1: WindowManager hold acquired before any other pause. Sealed success
+        // broadcasts the summary + shows Notification + auto-relaunches after delay.
+        expect(windowManagerAcquireHold).toHaveBeenCalledWith('restore-quiesce')
+        expect(notificationShow).toHaveBeenCalledTimes(1)
+        // Pre-delay: relaunch is queued but not yet fired.
+        expect(relaunchMock).not.toHaveBeenCalled()
+        expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+          toRestore: [],
+          toSkip: [],
+          degradations: []
+        })
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
     })
 
     it('admits preset=lite through admitArchive', async () => {
@@ -535,22 +807,46 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       importBackup.mockImplementation(async () => {
         const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
           admitArchive: (a: string, b: string, c: string) => Promise<unknown>
+          quiesceWriters: () => Promise<void>
         }
+        // a1 — drive quiesceWriters in the test mock (production calls
+        // this first; the test previously omitted it because the call
+        // had no observable effect — now a1 acquire must run).
+        await deps.quiesceWriters()
         await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
         return { summary: { toRestore: [], toSkip: [], degradations: [] } }
       })
+      // Flip from pre-seal `none` to post-seal `staged` so the
+      // post-delay relaunch can fire.
+      let journalReadCount = 0
+      readRestoreJournalMock.mockImplementation(() => {
+        journalReadCount += 1
+        if (journalReadCount <= 1) return { kind: 'none' }
+        return okJournal('staged')
+      })
       const service = new BackupService()
 
-      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
-        restoreId: expect.stringMatching(/^rst-/)
-      })
-      // Sealed success broadcasts the summary and waits for the renderer's backup.restore_relaunch.
-      expect(relaunchMock).not.toHaveBeenCalled()
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
-        toRestore: [],
-        toSkip: [],
-        degradations: []
-      })
+      vi.useFakeTimers()
+      try {
+        await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
+          restoreId: expect.stringMatching(/^rst-/)
+        })
+        // a1 ordering still holds for the lite path.
+        expect(windowManagerAcquireHold).toHaveBeenCalledWith('restore-quiesce')
+        expect(notificationShow).toHaveBeenCalledTimes(1)
+        // Pre-delay: relaunch is queued but not yet fired.
+        expect(relaunchMock).not.toHaveBeenCalled()
+        expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+          toRestore: [],
+          toSkip: [],
+          degradations: []
+        })
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
     })
   })
 

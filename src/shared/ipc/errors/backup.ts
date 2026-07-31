@@ -30,6 +30,12 @@ export const backupErrorCodes = {
   RESTORE_RELAUNCH_UNAVAILABLE: 'BACKUP_RESTORE_RELAUNCH_UNAVAILABLE',
   /** A prior restore journal is still staged or promoting. */
   RESTORE_PENDING: 'BACKUP_RESTORE_PENDING',
+  /**
+   * The a1 WindowManager hold failed to acquire (could not destroy mutation-
+   * capable renderers cleanly). Treated as unrecoverable — the renderer process
+   * state is now undefined and the app must relaunch.
+   */
+  RESTORE_HOLD_FAILED: 'BACKUP_RESTORE_HOLD_FAILED',
   /** Export outputPath targets an app-managed directory. */
   UNSAFE_OUTPUT_PATH: 'BACKUP_UNSAFE_OUTPUT_PATH',
   /** Archive backupFormatVersion is not supported. */

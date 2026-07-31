@@ -22,8 +22,14 @@ type RegistryEntry = WindowTypeMetadata
 // these tests to their current config. Instead, we swap them out for minimal fixtures per test.
 const fixtureKey = WindowType.SelectionToolbar // reuse the enum value; we overwrite the entry below
 
-function setFixture(entry: RegistryEntry): void {
-  ;(WINDOW_TYPE_REGISTRY as Record<string, RegistryEntry>)[fixtureKey] = entry
+function setFixture(entry: Omit<RegistryEntry, 'mutationCapable'>): void {
+  // a1 fail-closed requires mutationCapable on every registry entry; test fixtures are
+  // minimal (no DB-write semantics) so default to false unless a test overrides it.
+  // Cast: the fixture is a complete entry, but TS can't narrow the lifecycle union here.
+  ;(WINDOW_TYPE_REGISTRY as Record<string, RegistryEntry>)[fixtureKey] = {
+    mutationCapable: false,
+    ...entry
+  } as RegistryEntry
 }
 
 function resetPlatform(): void {

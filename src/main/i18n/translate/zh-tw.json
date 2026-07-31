@@ -48,6 +48,18 @@
     "zoomIn": "放大",
     "zoomOut": "縮小"
   },
+  "backup": {
+    "restore": {
+      "notification": {
+        "completed": "[to be translated]:Restore complete — the app will restart momentarily.",
+        "manual_restart": "[to be translated]:Restore complete — please restart Cherry Studio manually.",
+        "merge": "[to be translated]:Restoring backup: merging data…",
+        "seal": "[to be translated]:Restoring backup: sealing data…",
+        "snapshot": "[to be translated]:Restoring backup: creating a snapshot…",
+        "title": "[to be translated]:Cherry Studio"
+      }
+    }
+  },
   "common": {
     "copy": "複製",
     "cut": "剪下",

@@ -44,10 +44,12 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { isDev } from '@main/core/platform'
 import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { clearRestoreJournal, readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { getKnowledgeVectorStoreFilePathSync } from '@main/features/knowledge'
+import { t } from '@main/i18n'
 import { isPathInside } from '@main/utils/file'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -58,7 +60,7 @@ import type {
   RestoreStatus
 } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
-import { app } from 'electron'
+import { app, Notification } from 'electron'
 
 import { admitArchive } from './admitArchive'
 import { contributorManager } from './contributors/ContributorManager'
@@ -170,6 +172,8 @@ export class BackupService extends BaseService {
    * between disclosure and the preboot gate). Empty outside a restore.
    */
   private restoreQuiesceHolds: Disposable[] = []
+  /** The currently visible native restore notification, if the platform supports it. */
+  private restoreProgressNotification?: Notification
   /** Finalized contributor registry, available only in the current backup surface. */
   private registry?: ReturnType<typeof contributorManager.getRegistry>
   /**
@@ -419,27 +423,70 @@ export class BackupService extends BaseService {
         // presets.
         admitArchive: (path, workDir, migrationsFolder) => admitArchive(path, workDir, migrationsFolder),
         quiesceWriters: async () => {
-          // Write quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject (DataApi /
-          // Preference / IpcApi gates), then pause + drain every mutation writer before
-          // createSnapshot. ORDER MATTERS — the channel must pause admission and DRAIN its
-          // flushed batches (which wait on AI admission) to completion BEFORE the AI writers
-          // pause (ChannelMessageHandler.drainInFlight contract): pausing AI first would
-          // deadlock those in-flight batches. After the channel drain, pause AiStreamManager
-          // + AgentSessionRuntimeService + JobManager (admission gates), then drainInFlight
-          // each (PRECONDITION: a live pause hold must precede drain, else the verdict is a
-          // point-in-time snapshot). Unclean verdict (stragglers / startupRecoveryPending)
-          // aborts restore — promotion is NOT a backstop for writes that slip past
-          // (vaayne A7). The a1 WindowManager hold (destroying mutation-capable renderers)
-          // remains follow-up; this covers all service-side writers (#17014).
+          // Write quiesce: a1 (WindowManager mutation-capable window hold) FIRST
+          // → set BACKUP_IN_PROGRESS → Channel pause+drain → AI/Agent/Job pause+drain.
+          //
+          // a1 FIRST: acquiring the WindowManager hold destroys every live
+          // mutation-capable renderer BrowserWindow (Main/SubWindow/QuickAssistant/
+          // SelectionAction) and blocks subsequent opens of those types. That
+          // physically removes the source of renderer-originated IPC, so the
+          // BACKUP_IN_PROGRESS gate (step 2) is a defense-in-depth layer rather
+          // than the only barrier. Without a1, the IPC gate still misses legacy
+          // File_/Cache_/Backup_* routes and any in-flight renderer turn already
+          // past the gate's await boundary.
+          //
+          // If a1 acquire throws midway (partial destroy), it rolls back its own
+          // flag but cannot revive the renderer processes that already received
+          // `destroy()`. That is unrecoverable from the user's perspective — the
+          // app is now in a "no main window" state. We catch, log a hard error,
+          // schedule a main-process relaunch, and re-throw as a typed IpcError so
+          // the renderer surfaces the failure.
+          //
+          // Then: set BACKUP_IN_PROGRESS so IPC mutations reject (DataApi /
+          // Preference / IpcApi gates), then pause + drain every mutation writer
+          // before createSnapshot. ORDER MATTERS — the channel must pause admission
+          // and DRAIN its flushed batches (which wait on AI admission) to completion
+          // BEFORE the AI writers pause (ChannelMessageHandler.drainInFlight
+          // contract): pausing AI first would deadlock those in-flight batches.
+          // After the channel drain, pause AiStreamManager + AgentSessionRuntimeService
+          // + JobManager (admission gates), then drainInFlight each (PRECONDITION: a
+          // live pause hold must precede drain, else the verdict is a point-in-time
+          // snapshot). Unclean verdict (stragglers / startupRecoveryPending) aborts
+          // restore — promotion is NOT a backstop for writes that slip past
+          // (vaayne A7).
+          this.restoreQuiesceHolds = []
+          try {
+            const windowManager = application.get('WindowManager')
+            const a1Hold = windowManager.acquireMutationCapableWindowHold('restore-quiesce')
+            // Push directly onto this.restoreQuiesceHolds so a mid-acquire abort
+            // still releases what was acquired (the finally clause disposes this
+            // list, not a local variable the throw would skip).
+            this.restoreQuiesceHolds.push(a1Hold)
+          } catch (e) {
+            // Partial destroy is irreversible — the renderer processes that did
+            // receive destroy() cannot be revived. Surface as unrecoverable: log
+            // a hard error, schedule a relaunch so the user lands on a clean
+            // main window, and throw a typed IpcError the renderer can branch on.
+            const detail = e instanceof Error ? e.message : String(e)
+            logger.error('a1 mutation-capable window hold failed mid-acquire; relaunching (unrecoverable)', e as Error)
+            setTimeout(() => {
+              try {
+                application.relaunch()
+              } catch (relaunchErr) {
+                logger.error('a1 unrecoverable relaunch failed', relaunchErr as Error)
+              }
+            }, 0)
+            throw new IpcError(
+              backupErrorCodes.RESTORE_HOLD_FAILED,
+              `restore aborted: a1 WindowManager hold failed (${detail}); relaunching`
+            )
+          }
           setBackupInProgress(true)
           acquiredQuiesce = true
           const channelManager = application.get('ChannelManager')
           const aiStream = application.get('AiStreamManager')
           const agentRuntime = application.get('AgentSessionRuntimeService')
           const jobManager = application.get('JobManager')
-          // Reset first so an abort mid-quiesce still releases every writer paused so far
-          // (the finally clause disposes this list, not a local that the throw would skip).
-          this.restoreQuiesceHolds = []
           const abortUnclean = (
             writer: string,
             verdict: { stragglerIds: string[]; startupRecoveryPending?: boolean }
@@ -488,24 +535,44 @@ export class BackupService extends BaseService {
       const { summary } = await importOrch.importBackup({
         archivePath,
         restoreId,
-        signal: abortController.signal
-        // onProgress wiring to the renderer lands with the restore progress UI.
+        signal: abortController.signal,
+        onProgress: (update) => {
+          this.showRestoreProgressNotification(update.phase)
+        }
       })
-      // Staged journal written → broadcast the disclosure summary and WAIT. The
-      // renderer's confirm dialog owns the restart via the backup.restore_relaunch route
-      // (backup.restore_summary integration contract): broadcasting and then
-      // relaunching unconditionally would leave no window to read or click.
-      // Quiesce + BACKUP_IN_PROGRESS stay HELD from seal to process exit so the
-      // write window never reopens between disclosure and the preboot gate —
-      // post-seal writes would raise whole-batch clean-expire risk. `sealed`
-      // routes the finally: only a failure short of seal releases the holds.
-      // A second restore in this session is blocked by the staged-journal guard
-      // above, not by activeOperation.
+      // Staged journal written → broadcast the disclosure summary. The a1
+      // WindowManager hold (acquired in quiesceWriters) already destroyed
+      // every mutation-capable renderer, so the renderer's RestoreV2Popup is
+      // gone — it cannot drive the relaunch itself. The user-confirmed
+      // relaunch path (backup.restore_relaunch) is therefore unreachable
+      // here and we must main-process auto-relaunch instead.
+      //
+      // Flow on seal:
+      //   1. broadcast the disclosure summary (live disclosure; renderer
+      //      can also recover it from the journal after relaunch)
+      //   2. show a native Notification (close+rebuild per phase: snapshot,
+      //      merge, seal — Electron Notification has no in-place body update
+      //      so each phase is a new Notification)
+      //   3. delay 2.5–3s (best-effort: `application.relaunch()` calls
+      //      `app.exit(0)` which does not wait for the OS notification
+      //      service to deliver the toast)
+      //   4. main-process auto-relaunch via `relaunchStagedRestore()`
+      //   5. dev mode: only broadcast + Notification ("please relaunch
+      //      manually"); §9 step 4 — dev mode does not relaunch
+      //
+      // Quiesce + BACKUP_IN_PROGRESS + a1 hold stay HELD from seal to
+      // process exit so the write window never reopens between disclosure
+      // and the preboot gate. `sealed` routes the finally: only a failure
+      // short of seal releases the holds. A second restore in this session
+      // is blocked by the staged-journal guard above, not by activeOperation.
       sealed = true
       this.activeOperation = null
       // The orchestrator's summary IS journal.summary — broadcast it verbatim so the live
       // payload and the post-relaunch journal read can never disagree.
       this.broadcastRestoreSummary(summary)
+      // Native Notification + auto-relaunch (production); in dev, only
+      // broadcast + Notification and let the user restart manually.
+      this.schedulePostSealRelaunch()
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)
@@ -513,6 +580,101 @@ export class BackupService extends BaseService {
       if (!sealed && acquiredQuiesce) this.releaseRestoreQuiesce()
       if (this.activeOperation === active) this.activeOperation = null
     }
+  }
+
+  /**
+   * Post-seal native Notification + main-process auto-relaunch. Runs once
+   * after `startRestore` seals a journal; the hold list (a1 WindowManager +
+   * service-side writers + BACKUP_IN_PROGRESS flag) keeps the write window
+   * closed until the relaunch exits the process. The Notification is
+   * best-effort — Electron `show()` is fire-and-forget and the OS may not
+   * surface it before `app.exit(0)` (called inside `application.relaunch()`)
+   * tears the process down; we delay the relaunch 2.5–3s to give the
+   * notification service a chance to deliver.
+   *
+   * In dev mode (§9 step 4: "dev mode does not relaunch → prompt manual"),
+   * we surface a "please relaunch manually" Notification and skip the
+   * `relaunch()` call so the developer can inspect the sealed journal
+   * before the next boot's preboot gate runs.
+   */
+  private showRestoreProgressNotification(phase: string): void {
+    switch (phase) {
+      case 'snapshot':
+        this.showRestoreNotification(t('backup.restore.notification.snapshot'))
+        return
+      case 'merge':
+        this.showRestoreNotification(t('backup.restore.notification.merge'))
+        return
+      case 'seal':
+        this.showRestoreNotification(t('backup.restore.notification.seal'))
+        return
+      default:
+        return
+    }
+  }
+
+  /**
+   * Show one best-effort native notification and replace the previous phase toast.
+   * Electron notifications cannot update their body after show(), so each restore
+   * phase closes the old instance before creating the next one.
+   */
+  private showRestoreNotification(body: string): void {
+    if (!Notification.isSupported()) {
+      logger.warn('Native Notification not supported on this platform; skipping restore notification')
+      return
+    }
+
+    try {
+      this.restoreProgressNotification?.close()
+    } catch (e) {
+      logger.warn('native restore Notification close failed', e as Error)
+    }
+
+    try {
+      const notification = new Notification({ title: t('backup.restore.notification.title'), body, silent: false })
+      notification.show()
+      this.restoreProgressNotification = notification
+    } catch (e) {
+      logger.warn('native Notification construction/show failed', e as Error)
+      this.restoreProgressNotification = undefined
+    }
+  }
+
+  private schedulePostSealRelaunch(): void {
+    const completedBody = t('backup.restore.notification.completed')
+    const manualBody = t('backup.restore.notification.manual_restart')
+
+    const showNotificationThen = (body: string, then: () => void): void => {
+      this.showRestoreNotification(body)
+      // Best-effort OS delivery delay. macOS Notification Center typically
+      // delivers in 500ms–1s; Windows toast can take up to 2s. The 2.5–3s
+      // window covers both before the process exits.
+      setTimeout(then, 2750)
+    }
+
+    if (isDev) {
+      logger.info('dev mode: skipping auto-relaunch; showing manual-relaunch notification')
+      showNotificationThen(manualBody, () => {
+        logger.info('dev mode: please restart Cherry Studio manually to apply the restore')
+      })
+      return
+    }
+
+    showNotificationThen(completedBody, () => {
+      try {
+        this.relaunchStagedRestore()
+      } catch (e) {
+        // A sealed restore must never strand the process with destroyed windows
+        // and held writers. Fall back to a plain process relaunch if the staged
+        // journal is no longer available when the delayed callback runs.
+        logger.error('post-seal staged relaunch failed; falling back to app relaunch', e as Error)
+        try {
+          application.relaunch()
+        } catch (relaunchErr) {
+          logger.error('post-seal fallback app relaunch failed', relaunchErr as Error)
+        }
+      }
+    })
   }
 
   /** Best-effort live disclosure; the renderer can recover it from the journal. */
@@ -536,6 +698,16 @@ export class BackupService extends BaseService {
       hold.dispose()
     }
     this.restoreQuiesceHolds = []
+    // Close any in-flight progress Notification so a failed restore does not leave a stale
+    // native notification + a leaked Notification instance. The success path holds quiesce
+    // until relaunch-exit (releaseRestoreQuiesce only runs on the !sealed failure path and
+    // onStop), so this only matters when control returns to the user. (adversarial review R3 P1)
+    try {
+      this.restoreProgressNotification?.close()
+    } catch (e) {
+      logger.warn('native restore Notification close on release failed', e as Error)
+    }
+    this.restoreProgressNotification = undefined
   }
 
   /**

@@ -5,6 +5,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowType } from '@main/core/window/types'
 import { assertNotBackupInProgress } from '@main/data/db/backup/quiesceGate'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
@@ -27,6 +28,10 @@ function isIpcApiReadRoute(route: string): boolean {
   if (dot < 0) return false
   const action = route.slice(dot + 1)
   return /^(?:get|list|is|has|check|fetch|probe|search|discover|read|batch_get)(?:_|$)/.test(action)
+}
+
+function isWindowBlockedDuringRestoreError(error: unknown): error is Error {
+  return error instanceof Error && error.name === 'WindowBlockedDuringRestoreError'
 }
 
 /**
@@ -93,7 +98,10 @@ export class IpcApiService extends BaseService {
       return { ok: true, data }
     } catch (e) {
       // Never throw to ipcMain.handle: Electron's reject drops code/data, so serialize into the result.
-      return { ok: false, error: IpcError.from(e).toJSON() }
+      const error = isWindowBlockedDuringRestoreError(e)
+        ? new IpcError(backupErrorCodes.IN_PROGRESS, e.message)
+        : IpcError.from(e)
+      return { ok: false, error: error.toJSON() }
     } finally {
       if (DIAGNOSTICS_ENABLED) {
         const dt = performance.now() - t0

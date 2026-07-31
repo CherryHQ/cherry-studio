@@ -16,7 +16,7 @@ import {
 import { isDev, isMac } from '@main/core/platform'
 import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
-import type { WindowType } from '@main/core/window/types'
+import { WindowType } from '@main/core/window/types'
 import {
   type ManagedWindow,
   type OpenWindowArgs,
@@ -34,6 +34,26 @@ import { app, BrowserWindow, screen, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
+
+/**
+ * Thrown when a caller asks to open a mutation-capable window type while a
+ * restore write-quiesce hold (`acquireMutationCapableWindowHold`) is in
+ * effect. WindowManager-domain error — IPC facades translate it to
+ * `IpcError(BACKUP_IN_PROGRESS)` for the renderer; main-side callers fail
+ * closed by default. Non-mutation-capable types (Print, SelectionToolbar)
+ * are NOT affected by the hold and pass through normally.
+ */
+export class WindowBlockedDuringRestoreError extends Error {
+  readonly type: WindowType
+  constructor(type: WindowType) {
+    super(
+      `WindowType '${type}' is blocked while a restore write-quiesce hold is held. ` +
+        `Wait for the restore to seal and relaunch, or cancel it.`
+    )
+    this.name = 'WindowBlockedDuringRestoreError'
+    this.type = type
+  }
+}
 
 /** GC tick interval in ms — minute-grained precision is sufficient for decay/inactivity. */
 const WARMUP_GC_INTERVAL = 60_000
@@ -139,6 +159,21 @@ export class WindowManager extends BaseService {
    * `state.idle.length === 0` inside the loop.
    */
   private activeWarmupTypes = new Set<WindowType>()
+
+  /**
+   * a1 restore write-quiesce flag: true while a restore is holding
+   * `acquireMutationCapableWindowHold`. While true, `open()` throws
+   * `WindowBlockedDuringRestoreError` for any mutation-capable window type
+   * (per registry `mutationCapable` flag) and `replenishStandby` setImmediate
+   * callbacks refuse to create new mutation-capable instances. Non-mutation-
+   * capable types (Print, SelectionToolbar) are unaffected.
+   *
+   * One-shot Disposable — re-acquiring while already held throws. Design:
+   * `BackupService.startRestore` serializes via `activeOperation` mutual
+   * exclusion, so a single backup is the only consumer and refcount is YAGNI.
+   */
+  private mutationCapableHoldAcquired = false
+  private mutationCapableOpenBlocked = false
 
   // ─── Events ────────────────────────────────────────────────────
 
@@ -278,6 +313,13 @@ export class WindowManager extends BaseService {
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null
     this.activeWarmupTypes.clear()
+    // a1: clear the mutation-capable hold flag on lifecycle tear-down. The
+    // Disposable returned by acquireMutationCapableWindowHold may have been
+    // already disposed (sealed → relaunch), but if a force-stop reaches this
+    // point with the hold still set we don't want any lingering state to
+    // gate the next process boot's first open().
+    this.mutationCapableHoldAcquired = false
+    this.mutationCapableOpenBlocked = false
     // Signal any pending setImmediate standby replenish callbacks to bail out.
     // They check `state.suspended` at execution time.
     for (const state of this.warmupStates.values()) {
@@ -315,6 +357,17 @@ export class WindowManager extends BaseService {
    */
   public open<T = unknown>(type: WindowType, args?: OpenWindowArgs<T>): string {
     const metadata = getWindowTypeMetadata(type)
+
+    // a1: block mutation-capable window opens while a restore write-quiesce
+    // hold is held. Per-type routing: Print / SelectionToolbar (read-only /
+    // non-DB IPC) pass through; Main / SubWindow / QuickAssistant /
+    // SelectionAction (full preload + DataApi/Preference write paths) are
+    // rejected so the snapshot→relaunch window cannot leak a writer. The
+    // hold itself destroys every live mutation-capable window on acquire, so
+    // the runtime block here just guards against re-creation.
+    if (this.mutationCapableOpenBlocked && metadata.mutationCapable) {
+      throw new WindowBlockedDuringRestoreError(type)
+    }
 
     if (metadata.lifecycle === 'singleton') {
       // Step A: hidden instance awaiting promotion (eager warmup or close→hide).
@@ -410,6 +463,14 @@ export class WindowManager extends BaseService {
    */
   public create<T = unknown>(type: WindowType, args?: OpenWindowArgs<T>): string {
     const metadata = getWindowTypeMetadata(type)
+
+    // a1: same per-type block as `open()`. `create()` is the bypass-reuse
+    // variant, but during the restore window the renderer is the untrusted
+    // party — guard it the same way so a programmatic force-create cannot
+    // reintroduce a writer.
+    if (this.mutationCapableOpenBlocked && metadata.mutationCapable) {
+      throw new WindowBlockedDuringRestoreError(type)
+    }
 
     if (metadata.lifecycle === 'singleton') {
       const existing = this.findWindowByType(type)
@@ -736,6 +797,139 @@ export class WindowManager extends BaseService {
     return count
   }
 
+  // ─── Public API: a1 restore write-quiesce hold ─────────────
+
+  /**
+   * Acquire the a1 mutation-capable window hold for the restore write-quiesce
+   * window. The hold:
+   *   1. destroys every currently-open mutation-capable BrowserWindow
+   *      (kill renderer process — the strongest available barrier; a disabled
+   *      window's renderer JS still runs and sends IPC);
+   *   2. blocks subsequent opens of mutation-capable window types via
+   *      `WindowBlockedDuringRestoreError` (non-mutation-capable types —
+   *      Print, SelectionToolbar — pass through normally);
+   *   3. pauses pool/replenish so `setImmediate` callbacks cannot sneak a
+   *      fresh mutation-capable standby window into the live set.
+   *
+   * The returned {@link Disposable} releases steps 2 and 3 (allow new opens,
+   * unpause replenish). Step 1 (the destroyed renderers) is intentionally
+   * irreversible — a restore that fails this acquisition is unrecoverable
+   * and the caller is expected to relaunch the app rather than let the user
+   * run with no main window.
+   *
+   * One-shot: a second concurrent acquisition throws `WindowBlockedDuringRestoreError`.
+   * Refcount is YAGNI here because `BackupService.startRestore` is the only
+   * caller and it serializes via `activeOperation` mutual exclusion.
+   *
+   * Partial-state semantics: if the destroy phase throws midway, the hold
+   * rolls back its own flags (`mutationCapableHoldAcquired = false`) so a
+   * future open() can recover, but the windows that already received
+   * `destroy()` are gone. The caller (BackupService) treats this as
+   * unrecoverable: warn + relaunch, never release silently into a "no main
+   * window" state.
+   *
+   * @param reason - Optional free-text reason for logging (e.g. 'restore-quiesce')
+   * @returns Disposable that releases the open-block / pool-pause
+   */
+  public acquireMutationCapableWindowHold(reason?: string): Disposable {
+    if (this.mutationCapableHoldAcquired) {
+      throw new WindowBlockedDuringRestoreError(this.firstOpenMutationCapableType())
+    }
+    this.mutationCapableHoldAcquired = true
+    this.mutationCapableOpenBlocked = true
+    const suspendedBeforeAcquire = new Map<WindowType, boolean>()
+    try {
+      // Snapshot the set of currently-open mutation-capable windows before
+      // any destroy so we don't read a half-mutated map. The destroy path
+      // itself runs synchronously: `BrowserWindow.destroy()` only schedules
+      // the renderer exit, but `this.windows.delete` runs in the `closed`
+      // listener — both happen after this method returns, so a fresh
+      // iteration here is safe.
+      const toDestroy: BrowserWindow[] = []
+      for (const [type, ids] of this.windowsByType) {
+        const metadata = getWindowTypeMetadata(type)
+        if (!metadata.mutationCapable) continue
+        for (const id of ids) {
+          const managed = this.windows.get(id)
+          if (managed && !managed.window.isDestroyed()) {
+            toDestroy.push(managed.window)
+          }
+        }
+      }
+
+      logger.info('a1 mutation-capable window hold acquired', {
+        reason: reason ?? 'unspecified',
+        destroyCount: toDestroy.length
+      })
+
+      // Phase 1: destroy every live mutation-capable window. Singleton
+      // (`destroyWindow`) and pooled-in-use both go through the same
+      // destroyWindow path which skips the `close` event — only `closed`
+      // fires, which is what we want (the user did not choose to close
+      // these; the system is taking them away for the restore window).
+      for (const win of toDestroy) {
+        this.destroyWindow(win)
+      }
+
+      for (const [type, state] of this.warmupStates) {
+        const metadata = getWindowTypeMetadata(type)
+        if (metadata.lifecycle !== 'pooled' || !metadata.mutationCapable) continue
+        suspendedBeforeAcquire.set(type, state.suspended)
+        if (!state.suspended) {
+          state.suspended = true
+          logger.info('a1 suspended mutation-capable pool', { type })
+        }
+      }
+    } catch (err) {
+      // Restore every pool state changed by this acquisition before exposing the
+      // manager to a later open attempt. A pre-existing suspension belongs to
+      // the pool owner and must not be cleared by this hold.
+      for (const [type, suspended] of suspendedBeforeAcquire) {
+        const state = this.warmupStates.get(type)
+        if (state) state.suspended = suspended
+      }
+      this.mutationCapableHoldAcquired = false
+      this.mutationCapableOpenBlocked = false
+      logger.error('a1 mutation-capable window hold failed mid-acquire', err as Error)
+      throw err
+    }
+
+    let released = false
+    return {
+      dispose: () => {
+        if (released) return
+        released = true
+        this.mutationCapableHoldAcquired = false
+        this.mutationCapableOpenBlocked = false
+        for (const [type, suspended] of suspendedBeforeAcquire) {
+          const state = this.warmupStates.get(type)
+          if (!state) continue
+          state.suspended = suspended
+          logger.info(suspended ? 'a1 preserved suspended mutation-capable pool' : 'a1 resumed mutation-capable pool', {
+            type
+          })
+        }
+        logger.info('a1 mutation-capable window hold released')
+      }
+    }
+  }
+
+  /**
+   * Helper: return a representative mutation-capable type currently registered
+   * with `mutationCapable: true` for error messages. Only used when the hold
+   * is already acquired and a second acquire attempts to start; surfaces a
+   * concrete WindowType in the error rather than a generic "held" message.
+   */
+  private firstOpenMutationCapableType(): WindowType {
+    for (const [type, metadata] of Object.entries(WINDOW_TYPE_REGISTRY)) {
+      if (metadata && metadata.mutationCapable) return type as WindowType
+    }
+    // The flag is required for every registered type, so this branch is
+    // unreachable in normal flow. Returning Main is the safest fallback
+    // because it's the highest-privilege surface.
+    return WindowType.Main
+  }
+
   // ─── Public API: Pool management ──────────────────────────────
 
   /**
@@ -789,6 +983,13 @@ export class WindowManager extends BaseService {
 
     const state = this.warmupStates.get(type)
     if (!state || !state.suspended) return
+
+    if (this.mutationCapableOpenBlocked && metadata.mutationCapable) {
+      // A pool owner may call resumePool() while restore is sealing. Keep the
+      // original suspension in place so this path cannot warm a new renderer.
+      logger.info('resumePool() ignored during mutation-capable restore hold', { type })
+      return
+    }
 
     state.suspended = false
     state.lastActivityAt = Date.now()
@@ -889,6 +1090,14 @@ export class WindowManager extends BaseService {
     // Do not prewarm during app quit — otherwise newly created pooled windows
     // would re-trigger the close intercept and stall app.quit().
     if (application.isQuitting) return
+    // a1: do not schedule a fresh creation while the restore hold is up.
+    // createIdleWindow would route through createWindow → BrowserWindow, and
+    // even if the open() guard catches it later, scheduling the work burns a
+    // setImmediate slot. Bail here so the prewarm clock stops.
+    if (this.mutationCapableHoldAcquired) {
+      const metadata = getWindowTypeMetadata(type)
+      if (metadata.mutationCapable) return
+    }
     const target = cfg.standbySize ?? 0
     if (target <= 0 || state.suspended) return
     const shortfall = target - state.idle.length - state.inflightCreates
@@ -897,6 +1106,14 @@ export class WindowManager extends BaseService {
       setImmediate(() => {
         try {
           if (state.suspended) return
+          // a1: second-line guard. A hold acquired AFTER this setImmediate
+          // was scheduled (between scheduling and execution) must still
+          // block the create — createIdleWindow would otherwise sneak a
+          // mutation-capable window into the live set during the snapshot.
+          if (this.mutationCapableHoldAcquired) {
+            const metadata = getWindowTypeMetadata(type)
+            if (metadata.mutationCapable) return
+          }
           this.createIdleWindow(type, state)
         } catch (err) {
           logger.error('standbySize replenish failed', { type, err })
@@ -1088,6 +1305,12 @@ export class WindowManager extends BaseService {
 
   /** Create a hidden window and add it directly to the pool as idle */
   private createIdleWindow(type: WindowType, state: WarmupState): void {
+    const metadata = getWindowTypeMetadata(type)
+    if (this.mutationCapableOpenBlocked && metadata.mutationCapable) {
+      // This is the final creation gate for warmPool, lazy backfill, and
+      // deferred standby replenishment paths that do not enter open().
+      throw new WindowBlockedDuringRestoreError(type)
+    }
     const windowId = this.createWindow(type, undefined, true)
     state.managed.add(windowId)
     state.idle.push(windowId)

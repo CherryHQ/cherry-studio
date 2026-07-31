@@ -221,6 +221,29 @@ const lazyStandbyPoolConfig = {
 
 vi.mock('../windowRegistry', () => {
   const registry: Record<string, unknown> = {
+    mutationPooled: {
+      type: 'mutationPooled',
+      lifecycle: 'pooled',
+      mutationCapable: true,
+      poolConfig,
+      htmlPath: 'windows/mutationPooled/index.html',
+      windowOptions: {}
+    },
+    readOnlyPooled: {
+      type: 'readOnlyPooled',
+      lifecycle: 'pooled',
+      mutationCapable: false,
+      poolConfig,
+      htmlPath: 'windows/readOnlyPooled/index.html',
+      windowOptions: {}
+    },
+    mutationSingleton: {
+      type: 'mutationSingleton',
+      lifecycle: 'singleton',
+      mutationCapable: true,
+      htmlPath: 'windows/mutationSingleton/index.html',
+      windowOptions: {}
+    },
     pooled: {
       type: 'pooled',
       lifecycle: 'pooled',
@@ -886,6 +909,93 @@ describe('WindowManager', () => {
         // After resume, close should pool (not destroy)
         expect(createdWindows[0].destroy).not.toHaveBeenCalled()
         expect(createdWindows[0].hide).toHaveBeenCalled()
+      })
+    })
+
+    describe('a1 mutation-capable restore hold', () => {
+      it('destroys mutation-capable windows and blocks only mutation-capable opens', () => {
+        const singletonId = wm.open('mutationSingleton' as never)
+        const pooledId = wm.open('mutationPooled' as never)
+        wm.close(pooledId)
+        const hold = wm.acquireMutationCapableWindowHold('restore-quiesce')
+
+        expect(createdWindows[0].destroy).toHaveBeenCalled()
+        expect(createdWindows[1].destroy).toHaveBeenCalled()
+        expect(() => wm.open('mutationSingleton' as never)).toThrow('blocked while a restore')
+        expect(() => wm.open('readOnlyPooled' as never)).not.toThrow()
+        expect(wm.getWindow(singletonId)).toBeDefined()
+
+        hold.dispose()
+        expect(() => wm.open('mutationSingleton' as never)).not.toThrow()
+      })
+
+      it('does not let resumePool or idle creation bypass the hold', () => {
+        const pooledId = wm.open('mutationPooled' as never)
+        wm.close(pooledId)
+        const hold = wm.acquireMutationCapableWindowHold('restore-quiesce')
+        const state = (wm as unknown as { warmupStates: Map<string, { suspended: boolean }> }).warmupStates.get(
+          'mutationPooled'
+        )!
+        simulateWindowClosed(wm, pooledId)
+        const before = createdWindows.length
+
+        wm.resumePool('mutationPooled' as never)
+        expect(state.suspended).toBe(true)
+        expect(createdWindows).toHaveLength(before)
+        expect(() =>
+          (wm as unknown as { createIdleWindow: (type: string, state: unknown) => void }).createIdleWindow(
+            'mutationPooled',
+            state
+          )
+        ).toThrow('blocked while a restore')
+
+        hold.dispose()
+      })
+
+      it('restores each pool to its pre-hold suspended state', () => {
+        wm.open('mutationPooled' as never)
+        const hold = wm.acquireMutationCapableWindowHold('restore-quiesce')
+        const states = (wm as unknown as { warmupStates: Map<string, { suspended: boolean }> }).warmupStates
+        expect(states.get('mutationPooled')?.suspended).toBe(true)
+        hold.dispose()
+        expect(states.get('mutationPooled')?.suspended).toBe(false)
+
+        wm.suspendPool('mutationPooled' as never)
+        const secondHold = wm.acquireMutationCapableWindowHold('restore-quiesce')
+        secondHold.dispose()
+        expect(states.get('mutationPooled')?.suspended).toBe(true)
+      })
+
+      it('rolls back flags and pool state when acquisition fails', () => {
+        wm.open('mutationPooled' as never)
+        const window = createdWindows[0]
+        window.destroy.mockImplementationOnce(() => {
+          throw new Error('destroy failed')
+        })
+
+        expect(() => wm.acquireMutationCapableWindowHold('restore-quiesce')).toThrow('destroy failed')
+        const internals = wm as unknown as {
+          mutationCapableHoldAcquired: boolean
+          mutationCapableOpenBlocked: boolean
+          warmupStates: Map<string, { suspended: boolean }>
+        }
+        expect(internals.mutationCapableHoldAcquired).toBe(false)
+        expect(internals.mutationCapableOpenBlocked).toBe(false)
+        expect(internals.warmupStates.get('mutationPooled')?.suspended).toBe(false)
+        expect(() => wm.open('mutationSingleton' as never)).not.toThrow()
+      })
+
+      it('rejects a second hold and clears hold flags during destruction', async () => {
+        wm.acquireMutationCapableWindowHold('restore-quiesce')
+        expect(() => wm.acquireMutationCapableWindowHold('restore-quiesce')).toThrow('blocked while a restore')
+
+        await wm._doDestroy()
+        const internals = wm as unknown as {
+          mutationCapableHoldAcquired: boolean
+          mutationCapableOpenBlocked: boolean
+        }
+        expect(internals.mutationCapableHoldAcquired).toBe(false)
+        expect(internals.mutationCapableOpenBlocked).toBe(false)
       })
     })
 

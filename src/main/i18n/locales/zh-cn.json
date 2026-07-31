@@ -48,6 +48,18 @@
     "zoomIn": "放大",
     "zoomOut": "缩小"
   },
+  "backup": {
+    "restore": {
+      "notification": {
+        "completed": "恢复完成，应用即将重启。",
+        "manual_restart": "恢复完成，请手动重启 Cherry Studio。",
+        "merge": "正在恢复备份：合并数据…",
+        "seal": "正在恢复备份：封存数据…",
+        "snapshot": "正在恢复备份：创建快照…",
+        "title": "Cherry Studio"
+      }
+    }
+  },
   "common": {
     "copy": "复制",
     "cut": "剪切",

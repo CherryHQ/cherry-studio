@@ -48,6 +48,18 @@
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out"
   },
+  "backup": {
+    "restore": {
+      "notification": {
+        "completed": "Restore complete — the app will restart momentarily.",
+        "manual_restart": "Restore complete — please restart Cherry Studio manually.",
+        "merge": "Restoring backup: merging data…",
+        "seal": "Restoring backup: sealing data…",
+        "snapshot": "Restoring backup: creating a snapshot…",
+        "title": "Cherry Studio"
+      }
+    }
+  },
   "common": {
     "copy": "Copy",
     "cut": "Cut",

@@ -98,7 +98,12 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // every show/hide/minimize/restore, replacing the manual app.dock?.show()
       // / app.dock?.hide() calls that used to live in the close handler.
       macShowInDock: true
-    }
+    },
+    // Main ships the full preload and runs every data-domain surface, so it
+    // originates DB writes via DataApi / Preference / IpcApi. a1 quiesce
+    // destroys it; the renderer's life ends with the process, which is the
+    // strongest available barrier.
+    mutationCapable: true
   },
 
   // Hidden one-shot print surface. PrintService owns loading generated paper HTML
@@ -127,7 +132,11 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     behavior: {
       // Hidden helper window: do not bring the macOS Dock icon back in tray mode.
       macShowInDock: false
-    }
+    },
+    // Print has no preload (`''`) — the renderer cannot reach any IPC write
+    // surface. PrintService loads the HTML, prints, and the window closes;
+    // no DB writes originate from the Print surface.
+    mutationCapable: false
   },
 
   // Detached tab window — multi-instance, one per user-detached Tab.
@@ -203,7 +212,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         // focus switches. Mirrors the Main window's choice above; do not remove.
         backgroundThrottling: false
       }
-    }
+    },
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)
     //   - backgroundColor / darkTheme (theme snapshot at create time)
@@ -213,6 +222,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // every BrowserWindow (see WindowManager.ts:1186-1201). SubWindow inherits both
     // automatically; do NOT attach another setWindowOpenHandler here or in the
     // service — Electron's API is single-slot and would overwrite WM's version.
+    // SubWindow is a detached tab carrying the full preload — it can reach
+    // every IPC write surface that the Main window can. a1 quiesce destroys
+    // every live instance, including in-use detached tabs.
+    mutationCapable: true
   },
 
   // Quick Assistant window — singleton floating panel.
@@ -286,7 +299,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // Re-apply the floating level after every show/showInactive — macOS silently
       // demotes it across cycles. The actual level is read from `behavior.alwaysOnTop`.
       macReapplyAlwaysOnTop: true
-    }
+    },
+    // QuickAssistant ships the full preload and TranslateWindow
+    // (renderer/windows/quickAssistant/translate/TranslateWindow.tsx:19) writes
+    // `feature.translate.mini_window.target_lang` via the `setTargetLanguage`
+    // tuple element of `usePreference` — a live preference write. a1 quiesce
+    // destroys the floating panel; the user does not see the popup during restore.
+    mutationCapable: true
   },
 
   // Floating toolbar that appears near user text selections.
@@ -387,7 +406,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       macRestoreFocusOnHide: true,
       macClearHoverOnHide: true,
       macReapplyAlwaysOnTop: true
-    }
+    },
+    // SelectionToolbar is read-only on the renderer side: every `usePreference`
+    // call destructures the value tuple only (no setter), and the IpcApi calls
+    // it issues (`write_to_clipboard`, `system.shell`, `selection.process_action`,
+    // `hide_toolbar`) are non-DB side effects. The toolbar is a transient UI
+    // surface, not a writer — a1 quiesce must NOT destroy it. Static-scan test
+    // (`windowRegistry.invariants.test.ts`) enforces this.
+    mutationCapable: false
   },
 
   // Action result window — pooled for instant reuse.
@@ -457,7 +483,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // permanent availability commitment.
       inactivityTimeout: 300,
       warmup: 'eager'
-    }
+    },
+    // SelectionAction ships the full preload and ActionTranslate
+    // (renderer/windows/selection/action/components/ActionTranslate.tsx:42-43)
+    // destructures the setter from `usePreference` for
+    // `feature.translate.action.preferred_lang` and `feature.translate.action.alter_lang`
+    // — direct preference writes. ActionWindow.tsx:44-46 also reads
+    // `feature.selection.auto_close` / `auto_pin` / `action_window_opacity`
+    // (read-only here, but the surface is otherwise mutating). a1 quiesce
+    // destroys every live action window including pool standby and in-use.
+    mutationCapable: true
   }
 }
 
@@ -465,7 +500,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
  * Get window type metadata.
  * @param type - The window type to look up
  * @returns The metadata for the specified window type
- * @throws Error if the window type is not registered
+ * @throws Error if the window type is not registered, or if a registered entry
+ *   is missing the required `mutationCapable` flag (a1 fail-closed guard: a
+ *   window type without an explicit classification would silently bypass the
+ *   acquireMutationCapableWindowHold scope).
  */
 export function getWindowTypeMetadata(type: WindowType): WindowTypeMetadata {
   const metadata = WINDOW_TYPE_REGISTRY[type]
@@ -473,6 +511,18 @@ export function getWindowTypeMetadata(type: WindowType): WindowTypeMetadata {
     throw new Error(
       `WindowType '${type}' is not registered in WINDOW_TYPE_REGISTRY. ` +
         `Register it before calling open() or create().`
+    )
+  }
+  // a1 fail-closed: any new WindowType must explicitly opt in or out of
+  // mutation-capable classification. A missing flag would let the hold
+  // silently leak a writer; throw at lookup time so the developer sees the
+  // problem during registry construction / first access.
+  if (typeof metadata.mutationCapable !== 'boolean') {
+    throw new Error(
+      `WindowType '${type}' is missing the required 'mutationCapable' flag in ` +
+        `WINDOW_TYPE_REGISTRY. Set it to true (renderer can originate DB writes) ` +
+        `or false (read-only / non-DB IPC only). See windowManager types.ts for ` +
+        `the rationale and backup-architecture.md §9 step 1.`
     )
   }
   return metadata

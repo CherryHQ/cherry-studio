@@ -132,6 +132,21 @@ describe('IpcApiService request handling', () => {
     expect(result).toEqual({ ok: false, error: { code: 'ROUTE_NOT_FOUND', message: 'Unknown IpcApi route: demo.add' } })
   })
 
+  it('maps a WindowBlockedDuringRestoreError to BACKUP_IN_PROGRESS', async () => {
+    const blocked = new Error('SelectionAction is blocked while restore is active')
+    blocked.name = 'WindowBlockedDuringRestoreError'
+    dispatchMock.mockRejectedValue(blocked)
+    const svc = makeService()
+    ;(svc as unknown as { onInit(): void }).onInit()
+
+    const result = await registeredHandler()(trustedEvent, 'selection.open_action', {})
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'BACKUP_IN_PROGRESS', message: blocked.message }
+    })
+  })
+
   it('normalizes a thrown native Error into an INTERNAL error result', async () => {
     dispatchMock.mockRejectedValue(new Error('handler exploded'))
     const svc = makeService()
