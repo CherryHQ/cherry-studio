@@ -21,6 +21,7 @@ export interface PrepareKnowledgeItemOptions {
   onCreatedItem: (item: KnowledgeItem) => void
   runMutation: <T>(task: () => T) => Promise<T>
   signal: AbortSignal
+  onDirectoryCopyProgress: (percent: number) => void
 }
 
 export async function prepareKnowledgeItem({
@@ -28,7 +29,8 @@ export async function prepareKnowledgeItem({
   item,
   onCreatedItem,
   runMutation,
-  signal
+  signal,
+  onDirectoryCopyProgress
 }: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
   signal.throwIfAborted()
 
@@ -36,7 +38,7 @@ export async function prepareKnowledgeItem({
     return [item]
   }
 
-  return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal)
+  return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal, onDirectoryCopyProgress)
 }
 
 async function prepareDirectoryForRuntime(
@@ -44,12 +46,19 @@ async function prepareDirectoryForRuntime(
   item: KnowledgeItemOf<'directory'>,
   onCreatedItem: (item: KnowledgeItem) => void,
   runMutation: <T>(task: () => T) => Promise<T>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onDirectoryCopyProgress: (percent: number) => void
 ): Promise<IndexableKnowledgeItem[]> {
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.
   const reservedTopLevelNames = collectReservedTopLevelNames(baseId, item.id)
-  const { pathPrefix, children } = await expandDirectoryOwnerToTree(item, baseId, reservedTopLevelNames, signal)
+  const { pathPrefix, children } = await expandDirectoryOwnerToTree(
+    item,
+    baseId,
+    reservedTopLevelNames,
+    signal,
+    onDirectoryCopyProgress
+  )
   signal.throwIfAborted()
 
   if (children.length === 0) {

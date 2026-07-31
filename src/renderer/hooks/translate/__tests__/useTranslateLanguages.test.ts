@@ -1,10 +1,11 @@
 import { toast } from '@renderer/services/toast'
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useTranslateLanguages } from '../useTranslateLanguages'
+import { setLanguagesQuery } from './testUtils'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
@@ -21,17 +22,7 @@ describe('useTranslateLanguages', () => {
   })
 
   it('loads languages and exposes label helpers', () => {
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: languagesFixture,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(languagesFixture)
 
     const { result } = renderHook(() => useTranslateLanguages())
 
@@ -43,17 +34,7 @@ describe('useTranslateLanguages', () => {
 
   it('toasts a user-visible load error exactly once across re-renders', () => {
     const err = new Error('IPC down')
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: undefined,
-          isLoading: false,
-          isRefreshing: false,
-          error: err,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(undefined, { error: err })
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { rerender, result } = renderHook(() => useTranslateLanguages())
@@ -67,17 +48,7 @@ describe('useTranslateLanguages', () => {
   })
 
   it('logs a warning for invalid lang code strings but stays silent for null', () => {
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: languagesFixture,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(languagesFixture)
     const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
 
     const { result } = renderHook(() => useTranslateLanguages())

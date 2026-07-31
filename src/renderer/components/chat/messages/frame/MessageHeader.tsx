@@ -112,7 +112,7 @@ const MessageHeader: FC<Props> = memo(
               {username}
             </span>
             {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-muted text-xs leading-5">
+              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
@@ -125,7 +125,7 @@ const MessageHeader: FC<Props> = memo(
               </Tooltip>
             )}
             <div
-              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
+              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
               <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
               {renderConfig.showEstimatedTokens &&
                 isBubbleStyle &&

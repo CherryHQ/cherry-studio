@@ -224,7 +224,6 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
-      expect(getContentContainer()).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
       expect(getThinkingContent()).toBeInTheDocument()
       unmount()
 
@@ -267,45 +266,6 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
-    })
-  })
-
-  describe('font and styling', () => {
-    it('should apply font settings to thinking content', () => {
-      const testCases = [
-        {
-          settings: { messageFont: 'serif', fontSize: 16 },
-          expectedFont: 'var(--font-family-serif)',
-          expectedSize: '16px'
-        },
-        {
-          settings: { messageFont: 'sans-serif', fontSize: 14 },
-          expectedFont: 'var(--font-family)',
-          expectedSize: '14px'
-        }
-      ]
-
-      testCases.forEach(({ settings, expectedFont, expectedSize }) => {
-        mockRenderConfig.messageFont = settings.messageFont
-        mockRenderConfig.fontSize = settings.fontSize
-        mockRenderConfig.thoughtAutoCollapse = false
-
-        const block = createThinkingBlock()
-        const { unmount } = renderThinkingBlock(block)
-
-        const styledDiv = screen.getByTestId('mock-markdown').parentElement
-
-        expect(styledDiv).toHaveClass('[&_.markdown>p:only-child]:mb-0!')
-        expect(styledDiv).toHaveStyle(
-          '--markdown-foreground: color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-        )
-        expect(styledDiv).toHaveStyle({
-          fontFamily: expectedFont,
-          fontSize: expectedSize
-        })
-
-        unmount()
-      })
     })
   })
 

@@ -100,7 +100,7 @@ const KnowledgePageDetailSection = () => {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t('common.back')}
-                    className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                    className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                     onClick={closeFilePreview}>
                     <ArrowLeft className="size-3.5" />
                   </Button>

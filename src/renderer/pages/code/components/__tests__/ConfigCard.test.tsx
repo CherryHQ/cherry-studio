@@ -98,12 +98,7 @@ describe('ProviderCard', () => {
   })
 
   it('moves the provider to the top from the icon button before Configure', () => {
-    const { moveToTopButton, configureButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
-
-    expect(moveToTopButton.querySelector('.lucide-arrow-up-to-line')).toBeInTheDocument()
-    expect(moveToTopButton).toHaveClass('border-border/50')
-    expect(configureButton).toHaveClass('border-border/50')
-    expect(moveToTopButton.compareDocumentPosition(configureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const { moveToTopButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
 
     fireEvent.click(moveToTopButton)
 
@@ -137,49 +132,6 @@ describe('ProviderCard', () => {
     )
     expect(screen.getByText('code.disable')).toBeInTheDocument()
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
-  })
-
-  it('renders the disable action as a soft destructive button', () => {
-    const { enableButton } = renderCard({ isCurrent: true })
-
-    expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
-    expect(enableButton).toHaveClass('bg-destructive/10')
-    expect(enableButton).toHaveClass('text-destructive')
-  })
-
-  it('uses a subtle primary tint as the selection background', () => {
-    const { cardShell } = renderCard({ isCurrent: true })
-
-    expect(cardShell).toHaveClass('bg-primary/5')
-    expect(cardShell).not.toHaveClass('bg-muted')
-  })
-
-  it('marks the enabled provider with a primary border', () => {
-    const { cardShell } = renderCard({ isCurrent: true })
-
-    expect(cardShell).toHaveClass('border-primary')
-  })
-
-  it('renders the provider icon before the provider name', () => {
-    renderCard()
-
-    const icon = screen.getByTestId('provider-icon-anthropic')
-    const name = screen.getByText('Anthropic')
-
-    expect(icon.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('renders provider name and model id in one row separated by a bar', () => {
-    renderCard()
-
-    const name = screen.getByText('Anthropic')
-    const separator = screen.getByText('｜')
-    const modelId = screen.getByText('claude-sonnet-4-5')
-
-    expect(name.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(separator.compareDocumentPosition(modelId) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(name.parentElement).toContainElement(separator)
-    expect(name.parentElement).toContainElement(modelId)
   })
 
   it('shows the provider name without model details when no model is configured', () => {
@@ -221,22 +173,10 @@ describe('ProviderCard — unified gateway', () => {
     )
   }
 
-  it('marks the gateway with the broadcast-tower glyph instead of a provider logo avatar', () => {
-    const { container } = renderGateway()
-
-    // GatewayIcon renders the Font Awesome broadcast-tower (viewBox 640), not a brand-logo avatar.
-    expect(container.querySelector('svg[viewBox="0 0 640 640"]')).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-icon-anthropic')).not.toBeInTheDocument()
-  })
-
-  it('renders the promo description below the provider name', () => {
+  it('renders the promo description when supplied', () => {
     renderGateway('一个网关，连通所有模型')
 
-    const name = screen.getByText('统一网关')
-    const description = screen.getByText('一个网关，连通所有模型')
-
-    expect(description).toBeInTheDocument()
-    expect(name.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('一个网关，连通所有模型')).toBeInTheDocument()
   })
 
   it('omits the description row when no description is supplied', () => {

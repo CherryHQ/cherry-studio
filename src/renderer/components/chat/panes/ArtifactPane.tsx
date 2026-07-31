@@ -569,7 +569,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {fileSession?.saveError && (
           <div
             role="alert"
-            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-bg px-3 py-2 text-error-text text-xs">
+            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
             <AlertCircle className="size-4 shrink-0" />
             <span className="min-w-0 flex-1">{t('agent.preview_pane.edit.save_failed')}</span>
             <Button

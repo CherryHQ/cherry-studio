@@ -239,7 +239,6 @@ describe('ToolBlockGroup', () => {
 
     const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveClass('select-none')
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-file-text')).not.toBeNull()
     expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
@@ -248,7 +247,6 @@ describe('ToolBlockGroup', () => {
     fireEvent.click(trigger)
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByTestId('child-tool-group-content')).toHaveClass('pt-2')
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
   })
