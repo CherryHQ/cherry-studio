@@ -69,8 +69,7 @@ export const getI18n = (): Record<string, any> => {
 // surfacing the raw marker — the marker is a real string, so a plain ?? on the
 // current language would never fall back.
 const UNTRANSLATED_MARKER = '[to be translated]:'
-const isUntranslatedMarker = (value: string | undefined): boolean =>
-  !!value && value.startsWith(UNTRANSLATED_MARKER)
+const isUntranslatedMarker = (value: string | undefined): boolean => !!value && value.startsWith(UNTRANSLATED_MARKER)
 
 export const t = (key: string, params?: Record<string, string | number>): string => {
   const resolve = (translation: any): string | undefined => {
@@ -88,9 +87,7 @@ export const t = (key: string, params?: Record<string, string | number>): string
   // absent or still carries the untranslated marker.
   const currentValue = resolve(getI18n().translation)
   const value =
-    currentValue && !isUntranslatedMarker(currentValue)
-      ? currentValue
-      : resolve(locales[defaultLanguage].translation)
+    currentValue && !isUntranslatedMarker(currentValue) ? currentValue : resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }

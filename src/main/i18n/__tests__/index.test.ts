@@ -66,9 +66,7 @@ describe('main i18n', () => {
       // a real string, so a naive ?? would not fall back — t() must treat it as missing
       // and surface the en-US text instead.
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
-      expect(t('backup.restore.notification.completed')).toBe(
-        'Restore complete — the app will restart momentarily.'
-      )
+      expect(t('backup.restore.notification.completed')).toBe('Restore complete — the app will restart momentarily.')
     })
   })
 
