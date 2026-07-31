@@ -600,6 +600,111 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__*']))
   })
 
+  it('appends web-only citation guidance to the system prompt by default', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    const systemPrompt = settings.systemPrompt as string
+    expect(systemPrompt).toContain('## Citations')
+    expect(systemPrompt).toContain('mcp__cherry-tools__web_search')
+    expect(systemPrompt).not.toContain('mcp__cherry-tools__kb_search')
+  })
+
+  it('includes kb_search in citation guidance when the agent has bound knowledge bases', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: ['kb-1'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
+  })
+
+  // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
+  // frozen composer selection alone — the guidance has to follow, or those results never get cited.
+  it('includes kb_search in citation guidance for a composer-only selection on an unbound Agent', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: [],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      knowledgeBaseIds: ['kb-selected']
+    })
+
+    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
+  })
+
+  it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.systemPrompt as string).not.toContain('## Citations')
+  })
+
+  it('omits citation guidance when dependency propagation blocks every lookup tool', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: ['kb-1'],
+      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch', 'mcp__cherry-tools__kb_search'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
+    expect(settings.systemPrompt as string).not.toContain('## Citations')
+  })
+
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
