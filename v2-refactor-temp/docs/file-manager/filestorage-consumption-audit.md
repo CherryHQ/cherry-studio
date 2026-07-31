@@ -32,7 +32,7 @@ import { ipcApi } from '@renderer/ipc'
 await ipcApi.request('file.<action>', input)   // route 为 dot-snake：namespace.action
 ```
 
-RFC §7.2 用 camelCase 记概念方法（`getMetadata`、`createInternalEntry`），落到 IpcApi 是 dot-snake route（`file.get_metadata`、`file.create_internal_entry`）。**关键现状：当前 IpcApi 有 12 条 file 路由，单项操作大多仍缺失、只有 batch 版**（`get_metadata` 已在 C-1 补了单项，见下）——所以 Reroute/Abolish 的改写不仅是换调用，多数还要**先新增单项路由**（schema + handler + preload 无关，走统一 IpcApi 通道）。
+RFC §7.2 用 camelCase 记概念方法（`getMetadata`、`createInternalEntry`），落到 IpcApi 是 dot-snake route（`file.get_metadata`、`file.create_internal_entry`）。**关键现状：当前 IpcApi 有 14 条 file 路由，单项操作大多仍缺失、只有 batch 版**（`get_metadata` 已在 C-1 补了单项，见下；`read` / `write_if_unchanged` 亦已补）——所以 Reroute/Abolish 的改写不仅是换调用，多数还要**先新增单项路由**（schema + handler + preload 无关，走统一 IpcApi 通道）。
 
 | §7.2 概念方法 | IpcApi route | 现状 |
 | --- | --- | --- |
@@ -281,13 +281,17 @@ Notes 的结构性操作把「外部文件树」当模型直接裸操作 `fs`，
 - **Defer（Notes）**：10 条 + `write` 内容支——命运绑定 Notes→entry 系统决策，本轮不动；但 sanitize 抽纯函数、`deleteExternal*` 的 trash 语义可先决策（§4.4）。
 - **需求方待决**：§0.1 路由现状（哪些单项 route 值得新增 vs 复用 batch）+ §5 四个语义缺口（temp-file 归宿①、read 抽取②、getMetadata 探针③、trashItem④）——不定这些，改写无法定稿。
 
-**建议推进顺序**：补齐单项 IpcApi 路由（§0.1，schema+handler；路径入参/出参先用 `as FilePath` cast，见 §7）→ Reroute 批（§3）→ P1/P4 Abolish（改写机械，依赖 `file.get_metadata`）→ 决策 §5 缺口 → P2/P5 Abolish（依赖缺口①）→ Notes 专项（Defer 桶，独立 PR）。绝对路径类型统一（§7）作为后续清理项，**不阻塞上述任何一步**。
+**建议推进顺序**：补齐单项 IpcApi 路由（§0.1，schema+handler；路径入参/出参用 `AbsoluteFilePathSchema.parse()` 构造 brand——**`as` 强断已被 lint 规则 `filepath-brand/no-as-filepath` 禁止**，见 §7）→ Reroute 批（§3）→ P1/P4 Abolish（改写机械，依赖 `file.get_metadata`）→ 决策 §5 缺口 → P2/P5 Abolish（依赖缺口①）→ Notes 专项（Defer 桶，独立 PR）。绝对路径类型统一（§7）作为后续清理项，**不阻塞上述任何一步**。
 
 ---
 
-## 7. 已知债务：绝对路径类型未统一（后续清理，非阻塞）
+## 7. ✅ 绝对路径类型未统一（主体已由 #16740 解决）
 
-> **状态：已知债务，非阻塞（决定于 2026-07-13）**。原为阻塞项，现决定**不为此暂停迁移**——路径边界先用 `as FilePath` cast，类型统一作为后续清理项。保留本节分析作为清理依据。
+> **状态更新（#16740 合入后）**：本节 §7.4 描述的修复方向**已经落地**——`AbsoluteFilePathSchema`（原 `AbsolutePathSchema`）现在 `.brand<'AbsoluteFilePath'>()`，校验与 brand 合一；`FilePathHandleSchema.path` 直接用它；类型 `FilePath` 更名为 `AbsoluteFilePath`。**`as FilePath` 这个迁移期权宜写法已被 lint 规则 `filepath-brand/no-as-filepath` 禁止**，构造一律走 `AbsoluteFilePathSchema.parse()` / `.safeParse()`。
+>
+> **仍未完成**（见 §7.6）：`select` / `save` 的返回类型、`FileHandle` 自身的 brand。
+>
+> 下面 §7.1–§7.5 保留为**历史分析**，记录这笔债务当初为什么存在、以及为什么决定不阻塞迁移。读的时候请以本框为准。
 
 ### 7.1 现象
 
@@ -342,3 +346,9 @@ Notes 的结构性操作把「外部文件树」当模型直接裸操作 `fs`，
 - `FileManager.getPhysicalPath` 等返回 `FilePath` 的实现处
 
 > 具体重构方案（`z.brand` vs phantom-brand `transform`；是否顺带统一 `Base64String`/`UrlString`/`UrlString` 等 sibling 类型）**另开设计**，不在本审计范围。
+
+### 7.6 剩余项（#16740 之后）
+
+- **`select` / `save` 仍返回裸 `string`**（`ipc.ts` 的 `select(...): Promise<string[]>`）。§7.1 描述的"选出的路径喂不进自己的 handle"因此**仍然成立**，只是现在的桥接方式从 `as` 变成了 `AbsoluteFilePathSchema.parse()`——多一次运行时校验，不再是无声强断。
+- **`handle.ts` 两个 TODO 只消化了第一个**：schema 与类型已打通（TODO 1 ✅），`FileHandle` 自身的 brand 尚未加（TODO 2，见 `src/shared/data/types/file.ts:354-355`）。
+- 相关后续：[#17431](https://github.com/CherryHQ/cherry-studio/issues/17431)（`AgentWorkspacePathSchema` 的 brand 化）、[#17429](https://github.com/CherryHQ/cherry-studio/issues/17429)（分隔符规范化与 brand 洗白）。
