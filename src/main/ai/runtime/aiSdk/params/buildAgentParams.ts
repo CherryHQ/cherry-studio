@@ -397,7 +397,6 @@ function buildAgentOptions(
   let providerOptions =
     assistant && capabilities
       ? buildCapabilityProviderOptions(
-          assistant,
           model,
           provider,
           {
