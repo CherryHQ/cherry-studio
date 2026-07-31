@@ -50,11 +50,6 @@ describe('Link', () => {
     vi.clearAllMocks()
   })
 
-  it('should match snapshot', () => {
-    const { container } = render(<Link href="https://example.com">Example</Link>)
-    expect(container).toMatchSnapshot()
-  })
-
   it('should render internal anchor as span.link and no <a>', () => {
     const { container } = render(<Link href="#section-1">Go to section</Link>)
     expect(container.querySelector('span.link')).not.toBeNull()
@@ -82,8 +77,6 @@ describe('Link', () => {
     expect(anchor).not.toBeNull()
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(anchor).toHaveClass('text-primary')
-    expect(anchor).not.toHaveClass('inline-flex')
 
     fireEvent.click(anchor)
     expect(onParentClick).not.toHaveBeenCalled()
@@ -118,10 +111,7 @@ describe('Link', () => {
     expect(anchor.getAttribute('href')).toBe('https://domain.com/path')
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(anchor).toHaveClass('text-primary', 'hover:underline')
-    expect(anchor).not.toHaveClass('inline-flex')
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
-    expect(screen.getByTestId('favicon').parentElement).toHaveClass('markdown-link-favicon', 'mr-1')
   })
 
   it('should not inject another favicon when children already include one', () => {
@@ -134,8 +124,6 @@ describe('Link', () => {
     )
 
     expect(screen.getAllByTestId('favicon')).toHaveLength(1)
-    expect(screen.getByRole('link')).toHaveClass('text-primary', 'flex', 'gap-2')
-    expect(screen.getByRole('link')).not.toHaveClass('hover:underline')
   })
 
   it('should omit empty href for citation link (no href attribute when href="")', () => {

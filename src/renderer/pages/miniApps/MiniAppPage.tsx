@@ -21,7 +21,7 @@ import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
-const MINI_APP_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
 
 // currentTab.url is always the app-relative route written by openTab(`/app/mini-app/<id>`),
 // never an absolute or live webview URL, so a direct compare is enough.
@@ -194,7 +194,7 @@ const MiniAppPage: FC = () => {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <div className="text-[14px] text-foreground-secondary">
+          <div className="text-[14px] text-muted-foreground">
             {t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}
           </div>
         </div>
@@ -210,7 +210,7 @@ const MiniAppPage: FC = () => {
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           {sharedCacheReady ? (
-            <div className="text-[14px] text-foreground-secondary">{t('miniApp.error.not_found')}</div>
+            <div className="text-[14px] text-muted-foreground">{t('miniApp.error.not_found')}</div>
           ) : (
             <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} />
           )}

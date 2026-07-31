@@ -136,7 +136,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           return (
             <div
               key={`${citation.number}-${citation.url || citation.title}`}
-              className="flex size-5 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-background text-foreground-secondary">
+              className="flex size-5 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-background text-muted-foreground">
               {citation.type === 'websearch' && hostname ? (
                 <Favicon hostname={hostname} alt={citation.title || ''} />
               ) : (
@@ -147,7 +147,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
         })}
       </div>
       <span className="h-3.5 w-px bg-border-subtle" />
-      <span className="font-medium text-foreground-secondary">{t('message.citation', { count })}</span>
+      <span className="font-medium text-muted-foreground">{t('message.citation', { count })}</span>
     </Button>
   )
 }
@@ -226,7 +226,7 @@ const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> =
 
   return (
     <div
-      className="-translate-y-1/2 absolute top-1/2 right-0 flex cursor-pointer items-center justify-center rounded p-1 text-foreground-secondary opacity-0 transition-opacity duration-300 hover:bg-muted hover:opacity-100 group-hover:opacity-100"
+      className="-translate-y-1/2 absolute top-1/2 right-0 flex cursor-pointer items-center justify-center rounded p-1 text-muted-foreground opacity-0 transition-opacity duration-300 hover:bg-muted hover:opacity-100 group-hover:opacity-100"
       onClick={handleCopy}>
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </div>
@@ -275,7 +275,7 @@ const WebSearchCitation: React.FC<{
               className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
               href={citation.url}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
-              {displayTitle || <span className="text-primary">{citation.hostname}</span>}
+              {displayTitle || <span className="text-link">{citation.hostname}</span>}
             </a>
           ) : (
             <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">{titleContent}</span>
@@ -293,7 +293,7 @@ const WebSearchCitation: React.FC<{
           </div>
         ) : (
           fetchedContent && (
-            <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
+            <div className="selectable-text cursor-text select-text break-all text-[13px] text-muted-foreground leading-[1.6]">
               {fetchedContent}
             </div>
           )
@@ -327,7 +327,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
           </div>
           {citation.content && <CopyButton content={citation.content} actions={actions} />}
         </div>
-        <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
+        <div className="selectable-text cursor-text select-text break-all text-[13px] text-muted-foreground leading-[1.6]">
           {citation.content ?? ''}
         </div>
       </div>

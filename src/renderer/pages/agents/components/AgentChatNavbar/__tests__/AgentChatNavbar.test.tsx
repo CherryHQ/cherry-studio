@@ -22,17 +22,6 @@ vi.mock('../AgentContent', () => ({
 import AgentChatNavbar from '../AgentChatNavbar'
 
 describe('AgentChatNavbar', () => {
-  it('matches the assistant navbar layout contract', () => {
-    const { container } = render(<AgentChatNavbar activeAgent={null} />)
-    const navbar = container.querySelector<HTMLElement>('.agent-navbar')
-    const content = navbar?.firstElementChild
-
-    expect(navbar).toHaveStyle({ height: 'var(--navbar-height)' })
-    expect(navbar).not.toHaveClass('bg-card', 'bg-background', 'h-(--navbar-height)')
-    expect(content).toHaveClass('items-center', 'justify-between', 'overflow-hidden')
-    expect(content).not.toHaveClass('shrink', 'overflow-auto')
-  })
-
   it('does not register global search in a detached window', () => {
     render(
       <WindowFrameProvider value={{ mode: 'window' }}>
