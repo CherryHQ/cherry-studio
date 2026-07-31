@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -23,6 +23,7 @@ interface VersionStatusCardProps {
   launching?: boolean
   running?: boolean
   stopping?: boolean
+  launchDisabledHint?: string
   /** Failure message of the last install/upgrade attempt; renders a persistent failure row. */
   installError?: string
   onShowError?: () => void
@@ -44,6 +45,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   launching,
   running,
   stopping,
+  launchDisabledHint,
   installError,
   onShowError
 }) => {
@@ -69,6 +71,38 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
     status.applicationStatus !== 'broken' &&
     status.applicationStatus !== 'conflict' &&
     status.applicationStatus !== 'unknown'
+
+  const launchButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={running ? onStop : onLaunch}
+      disabled={busy || (running ? stopping : !canLaunch || launching)}
+      className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
+      {running && stopping ? (
+        <>
+          <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+          {t('openclaw.gateway.stop')}
+        </>
+      ) : running ? (
+        <>
+          <Square size={12} />
+          {t('openclaw.gateway.stop')}
+        </>
+      ) : launching ? (
+        <>
+          <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+          {t('code.launching')}
+        </>
+      ) : (
+        <>
+          <Play size={12} />
+          {t('code.launch.label')}
+        </>
+      )}
+    </Button>
+  )
 
   return (
     <div className="rounded-lg border border-border-subtle bg-background px-4 py-5">
@@ -166,35 +200,13 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           )}
 
           {isInstalled ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={running ? onStop : onLaunch}
-              disabled={busy || (running ? stopping : !canLaunch || launching)}
-              className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
-              {running && stopping ? (
-                <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                  {t('openclaw.gateway.stop')}
-                </>
-              ) : running ? (
-                <>
-                  <Square size={12} />
-                  {t('openclaw.gateway.stop')}
-                </>
-              ) : launching ? (
-                <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                  {t('code.launching')}
-                </>
-              ) : (
-                <>
-                  <Play size={12} />
-                  {t('code.launch.label')}
-                </>
-              )}
-            </Button>
+            launchDisabledHint && !running && !canLaunch ? (
+              <Tooltip content={launchDisabledHint} placement="top" delay={300} sideOffset={6}>
+                {launchButton}
+              </Tooltip>
+            ) : (
+              launchButton
+            )
           ) : (
             !failedRemoval &&
             !retryInstall && (

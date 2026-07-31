@@ -77,10 +77,13 @@ describe('VersionStatusCard', () => {
         status={{ source: 'none', installed: true, canUpgrade: false }}
         onLaunch={vi.fn()}
         canLaunch={false}
+        launchDisabledHint="Choose a provider"
       />
     )
 
-    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+    const launchButton = screen.getByRole('button', { name: 'code.launch.label' })
+    expect(launchButton).toBeDisabled()
+    expect(launchButton.parentElement).toHaveAttribute('data-title', 'Choose a provider')
   })
 
   it('renders the launching state', () => {
