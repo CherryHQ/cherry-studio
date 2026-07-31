@@ -162,6 +162,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
             {t('settings.prompts.titleLabel')}
             <Input
+              autoFocus
               placeholder={t('settings.prompts.titlePlaceholder')}
               value={formData.title}
               onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}

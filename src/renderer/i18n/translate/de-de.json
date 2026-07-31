@@ -139,11 +139,16 @@
         "description": "Nachrichten über WeChat mit der iLink Bot API empfangen und beantworten.",
         "disconnected": "Getrennt",
         "loginHint": "Die erste Anmeldung erfordert das Scannen eines QR-Codes. Überprüfe die App-Logs für die Anmelde-URL.",
+        "qrExpired": "QR-Code abgelaufen. Bitte versuchen Sie es erneut, indem Sie den Kanal wechseln.",
         "qrHint": "Öffnen Sie WeChat auf Ihrem Telefon, scannen Sie den QR-Code, um sich anzumelden.",
         "qrTitle": "WeChat-QR-Login",
         "title": "WeChat",
         "whoamiTip": "Tipp: Sende /whoami in WeChat, um die ID eines Benutzers zu erhalten."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",
         "no_subagents": "Keine Unteragenten",
-        "subagents": "Unteragenten"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Unteragenten",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Aktivität",
         "agent": "Agent",
         "context": "Kontext",
         "no_tasks": "Keine aktiven Aufgaben",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Ausgewähltes Werkzeug",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} abgeschlossen",
         "tasks": "Aufgaben",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Aktiv",
         "tools_done": "Fertig",
         "tools_failed": "Fehlgeschlagen",
@@ -434,7 +448,7 @@
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
-        "unknown_agent_tip": "[to be translated]:This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+        "unknown_agent_tip": "Dies ist eine historische Sitzungsgruppe ohne Agent, kein tatsächlicher Agent. Sie ist nur anzeigbar und kann nicht weiter ausgeführt werden.",
         "yesterday": "Gestern"
       },
       "label_one": "Sitzung",
@@ -614,12 +628,16 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
-            "title": "Dateibearbeitungen automatisch akzeptieren"
+            "description": "Bearbeitet Dateien frei. Fragt vor Befehlen.",
+            "title": "Bearbeitungen automatisch annehmen"
+          },
+          "auto": {
+            "description": "Läuft ohne routinemäßige Rückfragen. Eine Sicherheitsprüfung blockiert riskante Aktionen.",
+            "title": "Für mich genehmigen"
           },
           "bypassPermissions": {
-            "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
-            "title": "Alle Berechtigungsprüfungen überspringen",
+            "description": "Überspringt Berechtigungsprüfungen. Kann Dateien löschen und das Netzwerk nutzen.",
+            "title": "Vollzugriff",
             "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
           },
           "confirmChange": {
@@ -627,14 +645,14 @@
             "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
-            "title": "Standard (vor Fortsetzung fragen)"
+            "description": "Fragt vor dem Bearbeiten von Dateien oder dem Ausführen von Befehlen.",
+            "title": "Vor Aktionen fragen"
           },
           "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
           "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
-            "title": "Planungsmodus"
+            "description": "Plant, ohne Dateien zu bearbeiten. Es laufen nur schreibgeschützte oder geprüfte Befehle.",
+            "title": "Nur planen"
           },
           "title": "Berechtigungsmodus"
         },
@@ -670,6 +688,14 @@
       }
     },
     "sidebar_title": "Agenten",
+    "speed": {
+      "effort": "Aufwand",
+      "fast": "Schnell",
+      "faster": "Schneller",
+      "label": "Geschwindigkeit",
+      "smarter": "Intelligenter",
+      "title": "Antworteinstellungen"
+    },
     "tasks": {
       "add": "Aufgabe hinzufügen",
       "cancel": "Abbrechen",
@@ -1558,6 +1584,7 @@
         },
         "open_file": "Datei öffnen",
         "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
+        "open_with": "Öffnen mit",
         "reveal_in_finder": "Im Finder anzeigen"
       },
       "topics": "Themen",
@@ -1933,7 +1960,7 @@
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_assistant": "Unverknüpfter Assistent",
-        "unknown_assistant_tip": "[to be translated]:This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
+        "unknown_assistant_tip": "Dies ist eine historische Gesprächsgruppe ohne Assistent, kein eigentlicher Assistent. Verschieben Sie das Gespräch zu einem vorhandenen Assistenten, um fortzufahren.",
         "yesterday": "Gestern"
       },
       "list": "Themenliste",
@@ -2302,10 +2329,10 @@
     "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
     "group": {
-      "create": "[to be translated]:New Group",
-      "create_failed": "[to be translated]:Failed to create group",
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required"
+      "create": "Neue Gruppe",
+      "create_failed": "Gruppe konnte nicht erstellt werden",
+      "name_placeholder": "Gruppennamen eingeben...",
+      "name_required": "Gruppenname ist erforderlich"
     },
     "help": "Hilfe",
     "html_preview": "HTML-Vorschau",
@@ -2893,6 +2920,10 @@
     "code": "Code",
     "empty_preview": "Kein Inhalt zum Anzeigen",
     "generating": "Wird generiert",
+    "interactive_preview": {
+      "action": "Webseite anzeigen",
+      "description": "Diese Webseite enthält Skripte oder externe Ressourcen. Beim Öffnen kann Code ausgeführt und eine Internetverbindung hergestellt werden."
+    },
     "preview": "Vorschau",
     "split": "Geteilte Ansicht",
     "view_mode": "Ansichtsmodus"
@@ -3436,6 +3467,7 @@
         "json_invalid": "Ungültiges JSON-Format",
         "max_tokens": "Maximale Token",
         "max_tool_calls": "Maximale Tool-Aufrufe",
+        "max_tool_calls_default": "Standard ({{count}} Runden)",
         "mcp_mode": "MCP-Modus",
         "model": "Standardmodell",
         "model_clear": "Klar",
@@ -3451,8 +3483,7 @@
         "tags": "Tags",
         "temperature": "Temperatur",
         "title": "Grundeinstellungen",
-        "top_p": "Top-P",
-        "unlimited": "Unbegrenzt"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Bibliothek",
       "dialogs": {
@@ -3826,6 +3857,7 @@
     },
     "citation": "{{count}} Zitate",
     "citations": "Zitate",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Kopiert",
     "copy": {
       "failed": "Kopieren fehlgeschlagen",
@@ -4107,6 +4139,7 @@
         "write": "Speichern",
         "writing": "Speichern"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
@@ -4138,6 +4171,7 @@
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
         "webSearch": "Websuche",
+        "workflow": "[to be translated]:Workflow",
         "write": "Schreiben"
       },
       "noData": "Keine Daten für dieses Tool verfügbar",
@@ -4195,6 +4229,15 @@
         "plan_other": "{{count}} Pläne",
         "result_one": "{{count}} Ergebnis",
         "result_other": "{{count}} Ergebnisse"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -5746,6 +5789,7 @@
         "button": "Anzeigen",
         "title": "Changelog"
       },
+      "repository": "GitHub-Repository",
       "social": {
         "title": "Social-Media-Konten"
       },
@@ -6605,7 +6649,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Deaktivierung der Hardwarebeschleunigung erfordert Neustart. Jetzt neu starten?",
+        "content_disable": "Die Deaktivierung der Hardwarebeschleunigung erfordert einen Neustart der App, um wirksam zu werden. Möchten Sie jetzt neu starten?",
+        "content_enable": "Die Aktivierung der Hardwarebeschleunigung erfordert einen Neustart der App, um wirksam zu werden. Möchten Sie jetzt neu starten?",
         "title": "Anwendungsneustart erforderlich"
       },
       "title": "Hardwarebeschleunigung deaktivieren"
@@ -6813,6 +6858,15 @@
       "providers": "Anbieter",
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
+      "registryOptions": {
+        "custom": "Benutzerdefiniert",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Quelle für Paketinstallation auswählen um Netzwerkprobleme der Standardquelle zu lösen",
       "requiresConfig": "Konfiguration erforderlich",
       "resources": {
@@ -6988,6 +7042,7 @@
         "display": "Anzeigeverwaltung",
         "preferences": "Einstellungen"
       },
+      "hide_app": "{{name}} ausblenden",
       "open_link_external": {
         "description": "Wenn aktiviert, öffnen Links, die in einem Mini-App-Fenster ein neues Fenster öffnen, in Ihrem Standardbrowser.",
         "title": "Neue Fensterlinks im Browser öffnen"
@@ -7000,6 +7055,7 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
+      "show_app": "{{name}} anzeigen",
       "title": "Mini-Apps-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
     },

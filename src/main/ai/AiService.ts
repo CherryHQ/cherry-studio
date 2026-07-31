@@ -315,12 +315,17 @@ export class AiService extends BaseService {
     payload: AiToolApprovalRespondRequest,
     senderWc: Electron.WebContents | undefined
   ): Promise<AiToolApprovalRespondResponse> {
-    // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
-      approved: payload.approved,
-      reason: payload.reason,
-      updatedInput: payload.updatedInput
-    })
+    // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
+    // the exact `canUseTool` invocation that issued this approval id.
+    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+      payload.approvalId,
+      {
+        approved: payload.approved,
+        reason: payload.reason,
+        updatedInput: payload.updatedInput
+      },
+      payload.anchorId
+    )
     if (dispatched) return { ok: true }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.

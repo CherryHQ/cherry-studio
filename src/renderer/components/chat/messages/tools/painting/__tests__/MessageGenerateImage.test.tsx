@@ -64,7 +64,7 @@ describe('MessageGenerateImageToolTitle', () => {
     expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
   })
 
-  it('lays multiple generated images out as a grid of separate tiles', async () => {
+  it('groups multiple generated images into one preview sequence', async () => {
     getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
     render(
       <MessageGenerateImageToolTitle
@@ -76,9 +76,10 @@ describe('MessageGenerateImageToolTitle', () => {
         })}
       />
     )
-    await waitFor(() => expect(screen.getAllByTestId('image-block')).toHaveLength(2))
-    const tiles = screen.getAllByTestId('image-block').map((el) => el.textContent)
-    expect(tiles).toEqual(['file:///data/f1.png', 'file:///data/f2.png'])
+    await waitFor(() =>
+      expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png|file:///data/f2.png')
+    )
+    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
   })
 
   it('renders agent MCP image blocks without resolving FileEntry paths', () => {
