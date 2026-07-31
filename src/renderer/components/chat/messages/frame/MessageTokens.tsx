@@ -23,7 +23,7 @@ function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () =>
   return (
     <button
       type="button"
-      className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       onClick={onLocate}>
       {label}
     </button>
@@ -73,7 +73,7 @@ function AssistantMessageTokens({
         <button
           type="button"
           aria-describedby={showAllDetails ? contentId : undefined}
-          className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           onFocus={() => setShowAllDetails(true)}
           onBlur={() => setShowAllDetails(false)}
           onClick={onLocate}>

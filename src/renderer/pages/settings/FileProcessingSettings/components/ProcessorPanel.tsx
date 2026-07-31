@@ -199,7 +199,7 @@ export function ProcessorPanel({
       </div>
 
       {supportsApiSettings(processor) ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <SettingRow className="items-start gap-4 py-0">
             <SettingRowTitle className="w-24 shrink-0 pt-2">
               {t('settings.tool.file_processing.fields.api_key')}
@@ -237,7 +237,7 @@ export function ProcessorPanel({
             </div>
           </SettingRow>
           {entry.capability.apiHost !== undefined ? (
-            <div className="border-border-muted border-t pt-3">
+            <div className="border-border-subtle border-t pt-3">
               <SettingRow className="items-center gap-4 py-0">
                 <SettingRowTitle className="w-24 shrink-0">
                   {t('settings.tool.file_processing.fields.api_base_url')}
@@ -267,7 +267,7 @@ export function ProcessorPanel({
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
       {processor.id === 'local-paddleocr' ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div className="min-w-0 flex-1">
@@ -281,7 +281,7 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'system' ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div>

@@ -104,7 +104,7 @@ describe('DetailHeader', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
+    expect(screen.getByText('失败')).toHaveClass('bg-error-subtle', 'text-error-subtle-foreground')
 
     const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
     fireEvent.click(rebuildTrigger)

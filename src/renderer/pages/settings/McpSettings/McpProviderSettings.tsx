@@ -114,7 +114,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   asChild
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-primary">
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-link">
                   <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
                     <ExternalLink size={13} />
                   </a>
@@ -149,7 +149,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
-            className="mt-3.5 inline-flex items-center text-primary text-xs hover:underline">
+            className="mt-3.5 inline-flex items-center text-link text-xs hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
         )}
@@ -218,7 +218,7 @@ const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    className={cn('flex items-center justify-between gap-3 border-border-subtle border-b pb-1.5', className)}
     {...props}
   />
 )
@@ -242,7 +242,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+      'flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
       className
     )}
     {...props}

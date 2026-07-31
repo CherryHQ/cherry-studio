@@ -141,7 +141,7 @@ export function UsageDistributionChart({
       return dateFormatter.format(parseDateKey(periodKey))
     }
     const axis = (
-      <div className="mt-2 flex min-w-0 justify-between gap-3 text-foreground-muted text-xs">
+      <div className="mt-2 flex min-w-0 justify-between gap-3 text-foreground-tertiary text-xs">
         <span className="truncate">{formatPeriod(periodKeys[0])}</span>
         <span className="truncate">{formatPeriod(periodKeys[periodKeys.length - 1])}</span>
       </div>
@@ -151,7 +151,7 @@ export function UsageDistributionChart({
         {chartSeries.map((series, index) => (
           <div key={series.key} className="flex min-w-0 items-center gap-2 text-xs">
             <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: seriesColor(index) }} />
-            <span className="min-w-0 truncate text-foreground-muted">
+            <span className="min-w-0 truncate text-muted-foreground">
               {series.identity ? renderBucketLabel(series.identity) : t('common.other')}
             </span>
             <span className="ml-auto shrink-0 font-medium text-foreground">{formatChartValue(series.total)}</span>

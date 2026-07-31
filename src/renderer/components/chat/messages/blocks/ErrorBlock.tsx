@@ -17,8 +17,8 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 429, 500, 502, 503, 504]
-const ERROR_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const ERROR_DETAIL_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 interface Props {
   partId: string
@@ -51,7 +51,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--primary)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
           }}
         />
       )
@@ -221,7 +221,7 @@ const MessageErrorInfo: React.FC<{
       {canRemoveErrorPart && (
         <button
           type="button"
-          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-muted opacity-0 transition-all duration-150"
+          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted-foreground opacity-0 transition-all duration-150"
           onClick={onRemoveErrorPart}
           aria-label="close"
           title={t('common.close')}>
@@ -231,7 +231,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="flex shrink-0 items-center justify-center text-error-base">
+        <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
         <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
@@ -239,7 +239,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
+        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>
@@ -251,7 +251,7 @@ const MessageErrorInfo: React.FC<{
             size="sm"
             type="button"
             variant="outline"
-            className="rounded-[5px] text-foreground-secondary hover:border-border-hover hover:bg-accent hover:text-foreground"
+            className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
             onClick={onNavigate}>
             {t('error.diagnosis.go_to_settings')}
           </Button>
