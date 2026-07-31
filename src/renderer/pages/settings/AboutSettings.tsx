@@ -212,7 +212,7 @@ const AboutSettings: FC = () => {
 
             <div className="flex min-h-18 flex-col items-start justify-center">
               <div className="mb-1 font-bold text-foreground text-lg">Cherry Studio</div>
-              <div className="text-foreground-secondary text-sm">{t('settings.about.description')}</div>
+              <div className="text-muted-foreground text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 aria-label={t('settings.about.releases.title')}
@@ -290,10 +290,10 @@ const AboutSettings: FC = () => {
           <SettingRow className="gap-3">
             <SettingRowTitle className="gap-2.5">
               {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
-              <IndicatorLight color="green" />
+              <IndicatorLight color="var(--success)" />
             </SettingRowTitle>
           </SettingRow>
-          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
+          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-muted-foreground text-sm [&_p]:m-0">
             <Streamdown mode="static">
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')

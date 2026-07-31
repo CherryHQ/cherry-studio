@@ -1272,7 +1272,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-inherit')
-    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('hover:text-muted-foreground/70')
+    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('text-muted-foreground')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
