@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
   fsRead: vi.fn(),
-  getMetadata: vi.fn(),
   safeOpen: vi.fn(),
   toastError: vi.fn(),
   getDocument: vi.fn(),
@@ -190,8 +189,8 @@ const filePath = '/tmp/workspace/paper.pdf' as AbsoluteFilePath
 let initialDataTheme: string | null
 let themeBackground: string
 
-function renderPreview(refreshKey = 0) {
-  return render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" refreshKey={refreshKey} />)
+function renderPreview(refreshKey = 0, size = 1024) {
+  return render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size }} refreshKey={refreshKey} />)
 }
 
 async function flushPdfEffects() {
@@ -217,7 +216,6 @@ describe('PdfFilePreview', () => {
       return property === '--background' ? themeBackground : getPropertyValue.call(this, property)
     })
     mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
     mocks.safeOpen.mockResolvedValue(undefined)
     mocks.loadingTaskDestroy.mockResolvedValue(undefined)
     mocks.getDocument.mockReturnValue({
@@ -226,7 +224,7 @@ describe('PdfFilePreview', () => {
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { fs: { read: mocks.fsRead }, file: { getMetadata: mocks.getMetadata } }
+      value: { fs: { read: mocks.fsRead } }
     })
   })
 
@@ -334,9 +332,7 @@ describe('PdfFilePreview', () => {
   })
 
   it('rejects oversized PDFs via metadata before reading bytes and offers an external open', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 + 1 })
-
-    renderPreview()
+    renderPreview(0, 50 * 1024 * 1024 + 1)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.pdf.too_large.title')
     expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.pdf.too_large.description')
@@ -351,7 +347,7 @@ describe('PdfFilePreview', () => {
     const view = renderPreview()
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
 
-    view.rerender(<PdfFilePreview filePath={filePath} fileName="paper.pdf" refreshKey={1} />)
+    view.rerender(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size: 1024 }} refreshKey={1} />)
 
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
     expect(mocks.fsRead).toHaveBeenLastCalledWith(filePath)

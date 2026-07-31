@@ -2243,7 +2243,10 @@ export default function ComposerSurface({
   )
 
   return (
-    <NarrowLayout narrowMode={narrowMode} withSidePadding style={{ width: '100%' }}>
+    // pointer-events-auto: the composer dock stack above is click-through so the
+    // pane behind the flanks stays interactive; this width-capped box is where
+    // pointer events come back on.
+    <NarrowLayout narrowMode={narrowMode} withSidePadding className="pointer-events-auto" style={{ width: '100%' }}>
       <div className="w-full">
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
