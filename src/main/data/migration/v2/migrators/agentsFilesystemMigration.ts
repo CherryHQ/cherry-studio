@@ -20,6 +20,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import {
   agentDataDirectoryPath,
+  assertAgentStoragePath,
   ensureAgentDataDirectory,
   ensureAgentStorageDirectory
 } from '@main/ai/agents/agentDataDirectory'
@@ -223,6 +224,19 @@ function isPathInsideOrEqual(childPath: string, parentPath: string): boolean {
   return path.normalize(childPath) === path.normalize(parentPath) || isPathInside(childPath, parentPath)
 }
 
+function pathsOverlap(leftPath: string, rightPath: string): boolean {
+  return isPathInsideOrEqual(leftPath, rightPath) || isPathInsideOrEqual(rightPath, leftPath)
+}
+
+async function realpathIfExists(targetPath: string): Promise<string | undefined> {
+  try {
+    return await realpath(targetPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
 export interface AgentFileSessionPlan {
   sourceSessionId: string
   finalSessionId: string
@@ -346,6 +360,27 @@ async function copyIdentityEntry(
   const sourceSnapshot = await identityCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
   if (!sourceSnapshot) return undefined
 
+  const existingDestination = await filesystemEntrySnapshot(destinationPath)
+  if (existingDestination) {
+    if (existingDestination.fingerprint !== sourceSnapshot.copiedFingerprint) {
+      throw new Error(`Legacy Agent identity destination conflict: ${destinationPath}`)
+    }
+    if (
+      (await identitySourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)) !== sourceSnapshot.metadataFingerprint
+    ) {
+      throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
+    }
+    logger.info('Reusing identical identity entry created after migration target cleanup', {
+      sourcePath,
+      destinationPath
+    })
+    return {
+      copied: false,
+      fileCount: sourceSnapshot.fileCount,
+      byteCount: sourceSnapshot.byteCount
+    }
+  }
+
   const stagingPrefix = `.${path.basename(destinationPath)}.migration-`
   const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
 
@@ -364,7 +399,6 @@ async function copyIdentityEntry(
       throw new Error(`Legacy Agent identity copy verification failed: ${sourcePath}`)
     }
 
-    await removeTreeWithoutFollowing(destinationPath)
     const racedDestinationStat = await lstatIfExists(destinationPath)
     if (racedDestinationStat) {
       const racedDestinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
@@ -768,15 +802,16 @@ async function copyClaudeSessionEntry(
     }
   }
 
-  const existingDestination = await filesystemEntrySnapshot(destinationPath)
-  if (existingDestination) {
-    if (existingDestination.fingerprint !== sourceContentSnapshot.fingerprint) {
+  await removeTreeWithoutFollowing(destinationPath)
+  const cleanedDestinationRace = await filesystemEntrySnapshot(destinationPath)
+  if (cleanedDestinationRace) {
+    if (cleanedDestinationRace.fingerprint !== sourceContentSnapshot.fingerprint) {
       throw new Error(`Legacy Claude session cache destination conflict: ${destinationPath}`)
     }
     if ((await filesystemEntryMetadataFingerprint(sourcePath)) !== sourceMetadataFingerprint) {
       throw new Error(`Legacy Claude session cache changed while being copied: ${sourcePath}`)
     }
-    logger.info('Reusing identical Claude session cache entry from an earlier migration attempt', {
+    logger.info('Reusing identical Claude session cache entry created after target cleanup', {
       sourcePath,
       destinationPath
     })
@@ -1924,6 +1959,81 @@ async function publishPreparedWorkspaceEntries(
   return { publishedEntries, reusedEntries }
 }
 
+async function clearLegacyAgentMigrationTargets(input: {
+  agentsDataRoot: string
+  agents: Array<{ sourceAgentId: string; finalAgentId: string }>
+  sessions: AgentFileSessionPlan[]
+}): Promise<void> {
+  await ensureAgentStorageDirectory(input.agentsDataRoot, input.agentsDataRoot)
+
+  const targetPaths = new Map<string, { path: string; exists: boolean }>()
+  for (const { finalAgentId } of input.agents) {
+    const targetPath = path.resolve(agentDataDirectoryPath(input.agentsDataRoot, finalAgentId))
+    targetPaths.set(targetPath, { path: targetPath, exists: false })
+  }
+  for (const session of input.sessions) {
+    if (!session.isManagedDefault || !session.systemWorkspacePath) continue
+    const targetPath = path.resolve(session.systemWorkspacePath)
+    targetPaths.set(targetPath, { path: targetPath, exists: false })
+  }
+
+  const normalizedRoot = path.resolve(input.agentsDataRoot)
+  const targets = Array.from(targetPaths.values())
+  for (const target of targets) {
+    if (target.path === normalizedRoot || !isPathInside(target.path, normalizedRoot)) {
+      throw new Error(`Legacy Agent migration cleanup target escapes its root: ${target.path}`)
+    }
+    await assertAgentStoragePath(input.agentsDataRoot, path.dirname(target.path))
+    target.exists = Boolean(await lstatIfExists(target.path))
+  }
+
+  for (let leftIndex = 0; leftIndex < targets.length; leftIndex++) {
+    for (let rightIndex = leftIndex + 1; rightIndex < targets.length; rightIndex++) {
+      if (pathsOverlap(targets[leftIndex].path, targets[rightIndex].path)) {
+        throw new Error(
+          `Legacy Agent migration cleanup targets overlap: ${targets[leftIndex].path} and ${targets[rightIndex].path}`
+        )
+      }
+    }
+  }
+
+  const sourcePaths = new Set(
+    input.sessions
+      .map((session) => path.resolve(session.sourceWorkspacePath))
+      .concat(
+        input.agents.map(({ sourceAgentId }) =>
+          path.resolve(legacyAgentWorkspacePath(input.agentsDataRoot, sourceAgentId))
+        )
+      )
+  )
+  const resolvedSources = new Map<string, string | undefined>()
+  for (const sourcePath of sourcePaths) {
+    resolvedSources.set(sourcePath, await realpathIfExists(sourcePath))
+  }
+
+  for (const target of targets) {
+    const targetStat = await lstatIfExists(target.path)
+    const resolvedTarget = targetStat && !targetStat.isSymbolicLink() ? await realpathIfExists(target.path) : undefined
+    for (const [sourcePath, resolvedSource] of resolvedSources) {
+      if (
+        pathsOverlap(target.path, sourcePath) ||
+        (resolvedTarget && resolvedSource && pathsOverlap(resolvedTarget, resolvedSource))
+      ) {
+        throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${target.path}`)
+      }
+    }
+  }
+
+  for (const target of targets) {
+    await removeTreeWithoutFollowing(target.path)
+  }
+
+  logger.info('Cleared stale Agent migration filesystem targets before copying', {
+    targets: targets.length,
+    removedTargets: targets.filter((target) => target.exists).length
+  })
+}
+
 export async function stageLegacyAgentFiles(input: {
   agentsDataRoot: string
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
@@ -1939,6 +2049,8 @@ export async function stageLegacyAgentFiles(input: {
     })
     return
   }
+
+  await clearLegacyAgentMigrationTargets(input)
 
   const plansByAgent = new Map<string, AgentFileSessionPlan[]>()
   for (const session of input.sessions) {
