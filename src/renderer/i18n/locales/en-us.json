@@ -198,6 +198,11 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
+      "local_greetings": {
+        "plan": "Tell me the outcome you want, and I’ll help make a plan.",
+        "progress": "What task can I help you move forward today?",
+        "research": "Need help researching, planning, or drafting something?"
+      },
       "welcome_title": "What should we work on today?"
     },
     "icon": {
@@ -633,7 +638,8 @@
           },
           "auto": {
             "description": "Runs without routine prompts. A safety check blocks risky actions.",
-            "title": "Approve for Me"
+            "title": "Approve for Me",
+            "warning": "Needs a model that supports it; others may ignore it or keep asking."
           },
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
@@ -1267,10 +1273,6 @@
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
       },
-      "max_tool_calls": {
-        "label": "Max Tool Calls",
-        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
-      },
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
@@ -1440,6 +1442,11 @@
       "view_full_content": "View Full Content"
     },
     "home": {
+      "local_greetings": {
+        "casual": "What’s on your mind today?",
+        "explore": "What would you like to explore together?",
+        "play": "Up for a quick chat, a curious question, or a game?"
+      },
       "welcome_title": "What should we talk about today?"
     },
     "input": {
@@ -1476,9 +1483,8 @@
       "image_preview_failed": "Image preview failed",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
-      "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Clear Context"
       },
@@ -1619,13 +1625,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}",
         "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
@@ -2594,6 +2595,10 @@
     "user": "User"
   },
   "file_preview": {
+    "directory": {
+      "description": "Select a file in this folder to preview it.",
+      "title": "This is a folder"
+    },
     "html": {
       "empty": {
         "description": "This HTML file has no content.",
@@ -2642,9 +2647,9 @@
     "pdf": {
       "too_large": {
         "action": "Open with default app",
-        "description": "PDF files larger than {{limit}} MiB cannot be previewed.",
+        "description": "Part of this PDF is too large to preview safely in the app.",
         "open_error": "Couldn't open this file",
-        "title": "File is too large"
+        "title": "Can't preview this PDF"
       }
     },
     "text": {
@@ -2659,6 +2664,10 @@
         "description": "Text files larger than {{limit}} MiB cannot be previewed.",
         "title": "File is too large"
       }
+    },
+    "unavailable": {
+      "description": "The file may have been moved, deleted, or cannot be accessed.",
+      "title": "File unavailable"
     },
     "unsupported": {
       "action": "Open with default app",
@@ -3066,6 +3075,7 @@
       "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
+        "copying": "Copying {{percent}}%",
         "embedding": "Embedding",
         "error": "Error",
         "pending": "Waiting",
@@ -3856,6 +3866,7 @@
       }
     },
     "citation": "{{count}} citations",
+    "citation_source": "Citation source {{number}}",
     "citations": "References",
     "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",
@@ -5224,6 +5235,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7360,6 +7372,10 @@
       "prevent_sleep_when_busy": "Keep the system awake while tasks are running"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Local rotating Chat and Agent greetings are generated on your device and remain available while this option is off. The displayed greeting is included as untrusted context in your first message so your selected model can understand brief replies; developer traces may record it. Enable this option to contact IPInfo for a coarse country or region; if unavailable, the app uses the app-language region as a labeled fallback. The country or region hint, your name, app language, local date and time, time zone, Chat or Agent mode, the base fallback greeting, and the previous greeting are sent to the fixed built-in CherryAI Qwen model for contextual enhancement. Disabled by default.",
+        "title": "AI-enhanced contextual greetings"
+      },
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
     },
@@ -7707,6 +7723,13 @@
         "topup": "Top Up",
         "usage_title": "Usage",
         "usage_unit": "tokens"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Open Token Factory",
+          "description": "Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
+          "title": "$10 in free daily API credits"
+        }
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",

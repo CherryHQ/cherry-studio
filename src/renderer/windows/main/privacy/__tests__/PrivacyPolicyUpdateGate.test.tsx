@@ -51,6 +51,7 @@ describe('PrivacyPolicyUpdateGate', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '')
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', false)
   })
 
   it('shows an acknowledgement notice and opens the full policy', () => {
@@ -75,6 +76,15 @@ describe('PrivacyPolicyUpdateGate', () => {
     expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
   })
 
+  it('requires acknowledgement when the previously accepted policy is outdated', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '20260531')
+
+    render(<PrivacyPolicyUpdateGate />)
+
+    expect(screen.getByRole('heading', { name: 'privacy_policy_update.title' })).toBeInTheDocument()
+    expect(LATEST_PRIVACY_POLICY_VERSION).toBe('20260731')
+  })
+
   it('does not block the app when data collection is already disabled', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
 
@@ -82,6 +92,23 @@ describe('PrivacyPolicyUpdateGate', () => {
 
     expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
+  })
+
+  it('requires acknowledgement before contextual greetings can use remote services', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', true)
+
+    render(<PrivacyPolicyUpdateGate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.privacy.accept_and_continue' }))
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(
+        LATEST_PRIVACY_POLICY_VERSION
+      )
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.conversation_greeting.enabled')).toBe(true)
   })
 
   it('acknowledges the update from the notice without changing data collection', async () => {
@@ -120,6 +147,7 @@ describe('PrivacyPolicyUpdateGate', () => {
 
   it('continues without consent after disabling data collection', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', true)
     render(<PrivacyPolicyUpdateGate />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.decline' }))
@@ -127,6 +155,7 @@ describe('PrivacyPolicyUpdateGate', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
     )
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.conversation_greeting.enabled')).toBe(false)
     expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
   })

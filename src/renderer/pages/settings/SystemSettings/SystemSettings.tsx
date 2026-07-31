@@ -210,7 +210,7 @@ const SystemSettings: FC = () => {
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="select-text break-all text-right font-mono text-foreground-muted text-xs">
+                <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
                   {clientId}
                 </span>
                 <CopyButton textToCopy={clientId} successFeedback="icon" />

@@ -103,7 +103,7 @@ export const DialogModelTrigger = ({
     </span>
     <ChevronDown
       aria-hidden="true"
-      className={cn('size-3.5 shrink-0 text-muted-foreground/70 transition-opacity', chevronClassName)}
+      className={cn('size-3.5 shrink-0 text-muted-foreground transition-opacity', chevronClassName)}
     />
   </Button>
 )
