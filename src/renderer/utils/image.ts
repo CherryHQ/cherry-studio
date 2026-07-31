@@ -794,11 +794,21 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
     const { content, mime } = await ipcApi.request('file.read', {
       handle: createFilePathHandle(path),
-      options: { encoding: 'binary' }
+      options: { mode: 'full', encoding: 'binary' }
     })
     return new Blob([content.slice() as unknown as BlobPart], { type: mime })
   }
 
   const response = await fetch(src)
   return response.blob()
+}
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
 }
