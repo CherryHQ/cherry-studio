@@ -7353,6 +7353,10 @@
       "prevent_sleep_when_busy": "Menține sistemul activ cât timp rulează sarcinile"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Când este lucru este activat, Cherry Studio contactează IPInfo pentru a detecta aproximativ țara sau regiunea și trimite rezultatul, împreună cu numele dvs., limba aplicației, data și ora locală și fusul orar, către modelul CherryAI integrat pentru a genera saluturi. Dezactivat în mod implicit.",
+        "title": "Saluturi contextuale generate de IA"
+      },
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"
     },

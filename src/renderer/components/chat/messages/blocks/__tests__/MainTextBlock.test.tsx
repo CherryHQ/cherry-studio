@@ -201,6 +201,7 @@ vi.mock('react-i18next', () => ({
 
 // Mock citation utilities
 vi.mock('@renderer/utils/citation', () => ({
+  toTooltipCitation: vi.fn((citation: Citation) => citation),
   withCitationTags: vi.fn((content: string, citations: any[]) => {
     if (citations.length > 0) {
       return `${content} [processed-citations]`
