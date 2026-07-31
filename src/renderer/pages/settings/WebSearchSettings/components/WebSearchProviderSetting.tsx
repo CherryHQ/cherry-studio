@@ -1,10 +1,10 @@
-import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
 import {
   SettingDivider,
   SettingGroup,
   SettingHelpLink,
   SettingHelpText,
-  SettingHelpTextRow,
+  SettingRowTitle,
   SettingsContentColumn,
   SettingSubtitle,
   SettingTitle,
@@ -28,7 +28,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
-import { ArrowRight, ExternalLink, List } from 'lucide-react'
+import { Activity, ArrowRight, ExternalLink, List, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,10 +37,7 @@ import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
 
-const providerFormClassName = 'flex w-full flex-col gap-4'
-const providerFieldClassName = 'flex flex-col gap-2'
-const providerFieldHeaderClassName = 'flex items-center justify-between gap-3'
-const providerHelpRowClassName = 'flex min-h-5 flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-0.5'
+const providerFormClassName = 'flex w-full flex-col gap-3 border-border-subtle border-t pt-4'
 
 type SetCapabilityApiHost = (
   providerId: WebSearchProviderId,
@@ -151,9 +148,10 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
   const showApiKeySettings = provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng'
+  const showInlineApiKeySettings = showApiKeySettings && !usesLlmProviderApiKey
   const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
-  const showApiKeyCheckButton = showApiKeySettings && !usesLlmProviderApiKey && providerCheck.canCheck
+  const showApiKeyCheckButton = showInlineApiKeySettings && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
   const showApiHostSetting = entry.providerCapability.apiHost !== undefined
   const isDefault = defaultProvider?.id === provider.id
@@ -291,12 +289,12 @@ export const WebSearchProviderSetting: FC<Props> = ({
 
   return (
     <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme}>
+      <SettingGroup theme={theme} className="flex w-full flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <SettingTitle>
-              <Flex className="min-w-0 items-center gap-2.5">
-                <span className="truncate font-semibold text-[17px] text-foreground">{provider.name}</span>
+            <SettingTitle className="justify-start">
+              <Flex className="min-w-0 items-center gap-1.5">
+                <span className="truncate">{provider.name}</span>
                 {officialWebsite && (
                   <SettingTitleExternalLink href={officialWebsite}>
                     <ExternalLink size={13} />
@@ -304,28 +302,31 @@ export const WebSearchProviderSetting: FC<Props> = ({
                 )}
               </Flex>
             </SettingTitle>
-            <SettingHelpText className="mt-1.5">{t(descriptionKey)}</SettingHelpText>
+            <SettingHelpText className="mt-1">{t(descriptionKey)}</SettingHelpText>
           </div>
-          <Button
-            variant="outline"
-            className="shrink-0"
-            disabled={isDefault}
-            onClick={() =>
-              void persist(async () => {
-                if (!isDefault) {
+          {isDefault ? (
+            <Badge className="shrink-0 rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
+              {t('common.default')}
+            </Badge>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() =>
+                void persist(async () => {
                   await onSetDefaultProvider(provider)
-                }
-              }, 'Failed to set default web search provider')
-            }>
-            {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
-          </Button>
+                }, 'Failed to set default web search provider')
+              }>
+              {t('settings.tool.websearch.set_as_default')}
+            </Button>
+          )}
         </div>
-        <SettingDivider style={{ width: '100%', margin: '8px 0 12px' }} />
 
         <div className={providerFormClassName}>
           {usesLlmProviderApiKey && (
-            <div className={providerFieldClassName}>
-              <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
+            <div className="flex flex-col gap-2">
+              <SettingRowTitle className="font-medium">{t('settings.provider.api_key.label')}</SettingRowTitle>
               <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
                 <ArrowRight size={13} />
                 {t('navigate.provider_settings')}
@@ -333,22 +334,17 @@ export const WebSearchProviderSetting: FC<Props> = ({
             </div>
           )}
 
-          {showApiKeySettings && !usesLlmProviderApiKey && (
-            <div className={providerFieldClassName}>
-              <div className={providerFieldHeaderClassName}>
-                <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
-                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label={t('settings.provider.api.key.list.open')}
-                    onClick={openApiKeyList}>
-                    <List size={14} />
-                  </Button>
-                </Tooltip>
+          {showInlineApiKeySettings && (
+            <div className="flex flex-col gap-2">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <SettingRowTitle className="font-medium">{t('settings.provider.api_key.label')}</SettingRowTitle>
+                {apiKeyWebsite && (
+                  <SettingHelpLink className="text-xs leading-5" target="_blank" href={apiKeyWebsite}>
+                    {t('settings.provider.get_api_key')}
+                  </SettingHelpLink>
+                )}
               </div>
-              <ButtonGroup className="w-full">
+              <div className="flex min-w-0 items-center gap-2">
                 <Input
                   type="password"
                   value={apiKeysInput}
@@ -359,28 +355,42 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   autoFocus={provider.apiKeys.length === 0}
                   className="min-w-0 flex-1"
                 />
-                <Button
-                  variant="outline"
-                  className="h-9 shrink-0 px-3 shadow-none"
-                  disabled={providerCheck.checking}
-                  onClick={() => void checkProvider()}>
-                  {t('settings.tool.websearch.check')}
-                </Button>
-              </ButtonGroup>
-              {apiKeyWebsite && (
-                <SettingHelpTextRow className={providerHelpRowClassName}>
-                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                </SettingHelpTextRow>
-              )}
+                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                    aria-label={t('settings.provider.api.key.list.open')}
+                    onClick={openApiKeyList}>
+                    <List size={14} />
+                  </Button>
+                </Tooltip>
+                {showApiKeyCheckButton && (
+                  <Tooltip content={t('settings.tool.websearch.check')} delay={500}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                      disabled={providerCheck.checking}
+                      aria-label={t('settings.tool.websearch.check')}
+                      onClick={() => void checkProvider()}>
+                      {providerCheck.checking ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
             </div>
           )}
 
           {showApiHostSetting && (
-            <div className={providerFieldClassName}>
-              <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-              <ButtonGroup className="w-full">
+            <div
+              className={`flex flex-col gap-2 ${
+                usesLlmProviderApiKey || showInlineApiKeySettings ? 'border-border-subtle border-t pt-3' : ''
+              }`}>
+              <SettingRowTitle className="font-medium">{t('settings.provider.api_host')}</SettingRowTitle>
+              <div className="flex min-w-0 items-center gap-2">
                 <Input
                   value={apiHostInput}
                   placeholder={t('settings.provider.api_host')}
@@ -389,15 +399,20 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   className="min-w-0 flex-1"
                 />
                 {showApiHostCheckButton && (
-                  <Button
-                    variant="outline"
-                    className="h-9 shrink-0 px-3 shadow-none"
-                    disabled={providerCheck.checking}
-                    onClick={() => void checkProvider()}>
-                    {t('settings.tool.websearch.check')}
-                  </Button>
+                  <Tooltip content={t('settings.tool.websearch.check')} delay={500}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                      disabled={providerCheck.checking}
+                      aria-label={t('settings.tool.websearch.check')}
+                      onClick={() => void checkProvider()}>
+                      {providerCheck.checking ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+                    </Button>
+                  </Tooltip>
                 )}
-              </ButtonGroup>
+              </div>
             </div>
           )}
 
@@ -405,7 +420,13 @@ export const WebSearchProviderSetting: FC<Props> = ({
             <>
               <SettingDivider style={{ marginTop: 0, marginBottom: 0 }} />
               <SettingSubtitle
-                style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+                style={{
+                  marginTop: 5,
+                  marginBottom: 10,
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center'
+                }}>
                 {t('settings.provider.basic_auth.label')}
                 <InfoTooltip
                   placement="right"

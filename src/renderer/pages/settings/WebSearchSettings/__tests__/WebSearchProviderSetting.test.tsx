@@ -192,7 +192,8 @@ describe('WebSearchProviderSetting', () => {
     expect(screen.queryByPlaceholderText('settings.provider.api_key.label')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.provider.api_host')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.is_default' })).toBeDisabled()
+    expect(screen.getByText('common.default')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.tool.websearch.is_default' })).not.toBeInTheDocument()
   })
 
   it('persists API host changes for the active capability and checks fetchUrls providers', async () => {

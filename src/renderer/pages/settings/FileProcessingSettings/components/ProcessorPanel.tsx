@@ -4,7 +4,6 @@ import {
   SettingGroup,
   SettingHelpLink,
   SettingHelpText,
-  SettingHelpTextRow,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -200,57 +199,51 @@ export function ProcessorPanel({
 
       {supportsApiSettings(processor) ? (
         <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
-          <SettingRow className="items-start gap-4 py-0">
-            <SettingRowTitle className="w-24 shrink-0 pt-2">
-              {t('settings.tool.file_processing.fields.api_key')}
-            </SettingRowTitle>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <Input
-                  type="password"
-                  value={apiKeysInput}
-                  onChange={(event) => setApiKeysInput(event.target.value)}
-                  onBlur={() => void handleApiKeysBlur()}
-                  placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
-                  spellCheck={false}
-                />
-                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0"
-                    aria-label={t('settings.provider.api.key.list.open')}
-                    onClick={() => void openApiKeyList()}>
-                    <List size={13} />
-                  </Button>
-                </Tooltip>
-              </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <SettingRowTitle className="font-medium">
+                {t('settings.tool.file_processing.fields.api_key')}
+              </SettingRowTitle>
               {apiKeyWebsite ? (
-                <SettingHelpTextRow className="justify-start gap-4">
-                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                  <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-                </SettingHelpTextRow>
+                <SettingHelpLink className="text-xs leading-5" target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
               ) : null}
             </div>
-          </SettingRow>
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                type="password"
+                value={apiKeysInput}
+                onChange={(event) => setApiKeysInput(event.target.value)}
+                onBlur={() => void handleApiKeysBlur()}
+                placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
+                spellCheck={false}
+                className="min-w-0 flex-1"
+              />
+              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                  aria-label={t('settings.provider.api.key.list.open')}
+                  onClick={() => void openApiKeyList()}>
+                  <List size={14} />
+                </Button>
+              </Tooltip>
+            </div>
+          </div>
           {entry.capability.apiHost !== undefined ? (
-            <div className="border-border-subtle border-t pt-3">
-              <SettingRow className="items-center gap-4 py-0">
-                <SettingRowTitle className="w-24 shrink-0">
-                  {t('settings.tool.file_processing.fields.api_base_url')}
-                </SettingRowTitle>
-                <div className="min-w-0 flex-1">
-                  <Input
-                    value={apiHostInput}
-                    onChange={(event) => setApiHostInput(event.target.value)}
-                    onBlur={() => void handleApiHostBlur()}
-                    placeholder={t('settings.provider.api_host')}
-                  />
-                </div>
-              </SettingRow>
+            <div className="flex flex-col gap-2 border-border-subtle border-t pt-3">
+              <SettingRowTitle className="font-medium">
+                {t('settings.tool.file_processing.fields.api_base_url')}
+              </SettingRowTitle>
+              <Input
+                value={apiHostInput}
+                onChange={(event) => setApiHostInput(event.target.value)}
+                onBlur={() => void handleApiHostBlur()}
+                placeholder={t('settings.provider.api_host')}
+              />
             </div>
           ) : null}
         </div>
