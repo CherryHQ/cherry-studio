@@ -129,6 +129,30 @@ describe('KnowledgeItemService', () => {
       expect(second.nextCursor).toBeUndefined()
     })
 
+    it('lists directories before files across page boundaries', async () => {
+      await seedItem({
+        id: DIR_A_ID,
+        type: 'directory',
+        createdAt: 1000,
+        data: { source: '/older-directory' }
+      })
+      await seedItem({
+        id: DIR_B_ID,
+        type: 'directory',
+        createdAt: 2000,
+        data: { source: '/newer-directory' }
+      })
+      await seedItem({ id: ITEM_1_ID, type: 'file', createdAt: 4000, data: createFileItemData(ITEM_1_ID) })
+      await seedItem({ id: ITEM_2_ID, type: 'file', createdAt: 3000, data: createFileItemData(ITEM_2_ID) })
+
+      const first = service.list(KNOWLEDGE_BASE_ID, { limit: 2 })
+      const second = service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor: first.nextCursor })
+
+      expect(first.items.map((item) => item.id)).toEqual([DIR_B_ID, DIR_A_ID])
+      expect(second.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
     it('tiebreaks rows sharing a createdAt by id without overlap or gaps', async () => {
       // All four share a createdAt, so only the `id ASC` tiebreaker separates them — and the
       // page boundary lands *inside* that equal-createdAt run. `createdAt = Date.now()` makes

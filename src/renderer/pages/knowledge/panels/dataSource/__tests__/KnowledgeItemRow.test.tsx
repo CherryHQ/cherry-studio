@@ -169,32 +169,35 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string) =>
-      (
-        ({
-          'knowledge.data_source.status.ready': '就绪',
-          'knowledge.data_source.status.error': '失败',
-          'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
-          'knowledge.data_source.status.embedding': '向量化中',
-          'knowledge.data_source.status.chunking': '分块中',
-          'knowledge.data_source.status.pending': '等待中',
-          'knowledge.data_source.actions.preview_source': '预览原文',
-          'knowledge.data_source.actions.view_chunks': '查看 Chunks',
-          'knowledge.data_source.actions.reindex': '重新索引',
-          'knowledge.data_source.actions.delete': '删除',
-          'knowledge.data_source.delete_failed': '删除数据源失败',
-          'knowledge.data_source.preview.failed': '预览原文失败',
-          'knowledge.data_source.reindex_failed': '数据源重新索引失败',
-          'knowledge.data_source.filters.file': '文件',
-          'knowledge.data_source.filters.note': '笔记',
-          'knowledge.data_source.filters.directory': '目录',
-          'knowledge.data_source.filters.url': '链接',
-          'knowledge.data_source.table.select_row': '选择行',
-          'knowledge.data_source.table.open_row': '打开行',
-          'common.more': '更多',
-          'knowledge.rag.file_processing': '文件处理'
-        }) as Record<string, string>
-      )[key] ?? key
+    t: (key: string, options?: Record<string, number>) => {
+      if (key === 'knowledge.data_source.status.copying') {
+        return `复制中 ${options?.percent}%`
+      }
+      const translations: Record<string, string> = {
+        'knowledge.data_source.status.ready': '就绪',
+        'knowledge.data_source.status.error': '失败',
+        'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
+        'knowledge.data_source.status.embedding': '向量化中',
+        'knowledge.data_source.status.chunking': '分块中',
+        'knowledge.data_source.status.pending': '等待中',
+        'knowledge.data_source.actions.preview_source': '预览原文',
+        'knowledge.data_source.actions.view_chunks': '查看 Chunks',
+        'knowledge.data_source.actions.reindex': '重新索引',
+        'knowledge.data_source.actions.delete': '删除',
+        'knowledge.data_source.delete_failed': '删除数据源失败',
+        'knowledge.data_source.preview.failed': '预览原文失败',
+        'knowledge.data_source.reindex_failed': '数据源重新索引失败',
+        'knowledge.data_source.filters.file': '文件',
+        'knowledge.data_source.filters.note': '笔记',
+        'knowledge.data_source.filters.directory': '目录',
+        'knowledge.data_source.filters.url': '链接',
+        'knowledge.data_source.table.select_row': '选择行',
+        'knowledge.data_source.table.open_row': '打开行',
+        'common.more': '更多',
+        'knowledge.rag.file_processing': '文件处理'
+      }
+      return translations[key] ?? key
+    }
   })
 }))
 
@@ -307,6 +310,25 @@ describe('KnowledgeItemRow', () => {
 
     expect(screen.getByText('向量化中')).toBeInTheDocument()
     expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+  })
+
+  it('shows the copy percentage while preparing a directory', () => {
+    mockUseSharedCacheValue.mockReturnValue(38)
+
+    render(
+      <KnowledgeItemRow item={createDirectoryItem({ id: 'directory-1', status: 'preparing' })} {...defaultHandlers} />
+    )
+
+    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.directory_copy_progress.directory-1')
+    expect(screen.getByText('复制中 38%')).toBeInTheDocument()
+  })
+
+  it('shows the pending label before directory copy progress is available', () => {
+    render(
+      <KnowledgeItemRow item={createDirectoryItem({ id: 'directory-1', status: 'preparing' })} {...defaultHandlers} />
+    )
+
+    expect(screen.getByText('等待中')).toBeInTheDocument()
   })
 
   it('does not subscribe to the progress key at all for non-embedding rows', () => {

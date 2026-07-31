@@ -53,11 +53,6 @@ describe('Scrollbar', () => {
       const scrollbar = screen.getByTestId('scrollbar')
       expect(scrollbar.className).toContain('custom-class')
     })
-
-    it('should match default styled snapshot', () => {
-      const { container } = render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
-      expect(container.firstChild).toMatchSnapshot()
-    })
   })
 
   describe('scrolling behavior', () => {

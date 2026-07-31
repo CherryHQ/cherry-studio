@@ -1,4 +1,5 @@
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -46,6 +47,29 @@ describe('reindex-subtree job handler', () => {
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
     // A clean rebuild with nothing skipped omits skippedMissingSource entirely (exact-object match).
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 1 })
+  })
+
+  it('clears stale directory copy progress before marking the directory as preparing', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createDirectoryItem('dir-1')
+    const child = createNoteItem('note-1', 'dir-1')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
+        if (options.leafOnly) return [child]
+        if (options.includeRoots) return [root, child]
+        return [child]
+      }
+    )
+    MockMainCacheServiceExport.cacheService.setShared('knowledge.item.directory_copy_progress.dir-1', 100)
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
+
+    expect(MockMainCacheServiceExport.cacheService.deleteShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1'
+    )
+    expect(MockMainCacheServiceExport.cacheService.deleteShared.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeItemUpdateStatusMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('routes container descendant cleanup through best-effort delete before deleting rows', async () => {

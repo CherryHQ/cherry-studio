@@ -116,13 +116,14 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
 
         <Command
           shouldFilter={false}
-          className="min-h-0 flex-1 bg-card [&_[data-slot=command-input-wrapper]>svg]:size-8 [&_[data-slot=command-input-wrapper]>svg]:rounded-full [&_[data-slot=command-input-wrapper]>svg]:bg-secondary [&_[data-slot=command-input-wrapper]>svg]:p-2 [&_[data-slot=command-input-wrapper]>svg]:text-foreground-muted [&_[data-slot=command-input-wrapper]>svg]:opacity-100 [&_[data-slot=command-input-wrapper]]:h-[38px] [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=command-input-wrapper]]:gap-2.5 [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input]]:h-full [&_[data-slot=command-input]]:py-0 [&_[data-slot=command-input]]:text-foreground [&_[data-slot=command-input]]:text-sm">
+          className="min-h-0 flex-1 bg-card [&_[data-slot=command-input-wrapper]>svg]:size-8 [&_[data-slot=command-input-wrapper]>svg]:rounded-full [&_[data-slot=command-input-wrapper]>svg]:bg-secondary [&_[data-slot=command-input-wrapper]>svg]:p-2 [&_[data-slot=command-input-wrapper]>svg]:text-foreground-tertiary [&_[data-slot=command-input-wrapper]>svg]:opacity-100 [&_[data-slot=command-input-wrapper]]:h-[38px] [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=command-input-wrapper]]:gap-2.5 [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input]]:h-full [&_[data-slot=command-input]]:py-0 [&_[data-slot=command-input]]:text-foreground [&_[data-slot=command-input]]:text-sm">
           <div className="flex items-center gap-2 border-border border-b py-1 pr-3">
             <CommandInput
+              autoFocus
               value={query}
               onValueChange={setQuery}
               placeholder={labels.searchPlaceholder}
-              className="placeholder:text-foreground-muted"
+              className="placeholder:text-muted-foreground"
             />
             {toolbar ? <div className="flex shrink-0 items-center">{toolbar}</div> : null}
           </div>
@@ -138,7 +139,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                     value="__conversation_picker_create_new__"
                     className="group h-9 cursor-pointer gap-2.5 rounded-md px-2.5"
                     onSelect={() => createAction.onSelect()}>
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
                       {createAction.icon}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
@@ -150,7 +151,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
               {isLoading ? (
                 <div
                   role="status"
-                  className="flex min-h-48 items-center justify-center gap-2 text-foreground-muted text-sm">
+                  className="flex min-h-48 items-center justify-center gap-2 text-foreground-tertiary text-sm">
                   <Loader2 className="size-4 animate-spin" />
                   <span>{labels.loadingText}</span>
                 </div>
@@ -168,7 +169,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                           logger.error('Conversation picker onSelect rejected', error as Error)
                         )
                       }>
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
                         {item.icon}
                       </span>
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
@@ -178,7 +179,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                   ))}
                 </CommandGroup>
               ) : (
-                <div className="flex min-h-48 items-center justify-center text-foreground-muted text-sm">
+                <div className="flex min-h-48 items-center justify-center text-foreground-tertiary text-sm">
                   {labels.emptyText}
                 </div>
               )}

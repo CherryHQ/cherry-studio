@@ -22,12 +22,14 @@ export interface PrepareKnowledgeItemOptions {
   baseId: string
   item: KnowledgeItem
   signal: AbortSignal
+  onDirectoryCopyProgress: (percent: number) => void
 }
 
 export async function prepareKnowledgeItem({
   baseId,
   item,
-  signal
+  signal,
+  onDirectoryCopyProgress
 }: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
   signal.throwIfAborted()
 
@@ -35,13 +37,14 @@ export async function prepareKnowledgeItem({
     return [item]
   }
 
-  return await prepareDirectoryForRuntime(baseId, item, signal)
+  return await prepareDirectoryForRuntime(baseId, item, signal, onDirectoryCopyProgress)
 }
 
 async function prepareDirectoryForRuntime(
   baseId: string,
   item: KnowledgeItemOf<'directory'>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onDirectoryCopyProgress: (percent: number) => void
 ): Promise<IndexableKnowledgeItem[]> {
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.
@@ -55,7 +58,7 @@ async function prepareDirectoryForRuntime(
   // shows the on-disk name (e.g. `docs_2`) and delete removes the shell by it.
   knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix)
 
-  const children = await expandDirectoryOwnerToTree(item, baseId, pathPrefix, signal)
+  const children = await expandDirectoryOwnerToTree(item, baseId, pathPrefix, signal, onDirectoryCopyProgress)
   signal.throwIfAborted()
 
   if (children.length === 0) {

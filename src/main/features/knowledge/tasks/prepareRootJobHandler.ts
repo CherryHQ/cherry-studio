@@ -1,5 +1,6 @@
 import './jobTypes'
 
+import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
@@ -16,10 +17,12 @@ import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 import { prepareKnowledgeItem } from './prepareItem'
+import { directoryCopyProgressCacheKey } from './utils/directoryCopyProgress'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
+const DIRECTORY_COPY_PROGRESS_LINGER_TTL_MS = 60_000
 
 export function createPrepareRootJobHandler(
   knowledgeLockManager: KeyedMutex,
@@ -41,6 +44,8 @@ export function createPrepareRootJobHandler(
 
     async execute(ctx) {
       const { baseId, itemId } = ctx.input
+      const cacheService = application.get('CacheService')
+      const progressKey = directoryCopyProgressCacheKey(itemId)
 
       ctx.signal.throwIfAborted()
       // Validate the container before destructive cleanup; delete-base/delete-items can remove it first.
@@ -49,16 +54,30 @@ export function createPrepareRootJobHandler(
         return
       }
 
+      cacheService.deleteShared(progressKey)
       // Drop stale expanded leaves before scanning so first attempts and retries stay idempotent.
       await deletePreviousLeafExpansion(baseId, itemId, knowledgeLockManager)
 
       ctx.signal.throwIfAborted()
       reportKnowledgeProgress(ctx, 0, { stage: 'scanning' })
+      let lastCopyPercent: number | null = null
 
-      // Source expansion creates child items, so it runs under the base mutation lock.
-      const leafItems = await scanRootItem(ctx, knowledgeLockManager)
-      // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
-      await enqueueLeafItems(ctx, leafItems, ingestionService)
+      try {
+        // Source expansion creates child items, so it runs under the base mutation lock.
+        const leafItems = await scanRootItem(ctx, knowledgeLockManager, (percent) => {
+          if (percent === lastCopyPercent) return
+          lastCopyPercent = percent
+          cacheService.setShared(progressKey, percent)
+          reportKnowledgeProgress(ctx, Math.round(percent / 2), { stage: 'copying' })
+        })
+        // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
+        await enqueueLeafItems(ctx, leafItems, ingestionService)
+      } finally {
+        const percent = cacheService.getShared(progressKey)
+        if (percent != null) {
+          cacheService.setShared(progressKey, percent, DIRECTORY_COPY_PROGRESS_LINGER_TTL_MS)
+        }
+      }
     },
 
     async onSettled(event) {
@@ -124,7 +143,8 @@ async function deletePreviousLeafExpansion(
 
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
-  knowledgeLockManager: KeyedMutex
+  knowledgeLockManager: KeyedMutex,
+  onDirectoryCopyProgress: Parameters<typeof prepareKnowledgeItem>[0]['onDirectoryCopyProgress']
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 
@@ -144,7 +164,8 @@ async function scanRootItem(
     const leaves = await prepareKnowledgeItem({
       baseId,
       item: result.item,
-      signal: ctx.signal
+      signal: ctx.signal,
+      onDirectoryCopyProgress
     })
     if (leaves.length > 0) {
       knowledgeItemService.updateStatus(itemId, 'processing')

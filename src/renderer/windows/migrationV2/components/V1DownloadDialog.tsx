@@ -1,9 +1,8 @@
 /**
  * v1 download offer.
  *
- * Opens on a failure that follows a retry — the point where the user has exhausted the
- * in-app options and needs a way off the upgrade. Dismissing leaves the failure screen
- * untouched; the offer returns the next time a retried run fails.
+ * Opens when the user chooses "Continue using V1" from the failure page's More options.
+ * Dismissing leaves the failure screen untouched.
  */
 
 import {

@@ -375,7 +375,7 @@ describe('Sidebar resize handle', () => {
     }
   })
 
-  it('renders full docked mini app icons directly without avatar chrome', () => {
+  it('renders apps and direct mini app icons together in one full docked list', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
@@ -391,32 +391,13 @@ describe('Sidebar resize handle', () => {
       />
     )
 
+    expect(screen.getByText('Chat')).toBeInTheDocument()
+    expect(screen.getByText('Qwen')).toBeInTheDocument()
     expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
     expect(container.querySelector('[data-testid="resolved-mini-app-logo"]')).toHaveStyle({
       width: '16px',
       height: '16px'
     })
-  })
-
-  it('renders apps and mini apps together in one continuous list', () => {
-    const dockedTab: SidebarMiniAppTab = {
-      title: 'Qwen',
-      miniApp: { id: 'qwen', logo: 'qwen' }
-    }
-
-    const { getByText } = render(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={[...entries, miniEntry(dockedTab)]}
-      />
-    )
-
-    // App and mini app rows go through the same resolved-entry render path, so both
-    // appear in the single list.
-    expect(getByText('Chat')).toBeInTheDocument()
-    expect(getByText('Qwen')).toBeInTheDocument()
   })
 
   it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {

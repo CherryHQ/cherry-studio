@@ -101,7 +101,8 @@ describe('initCrashTelemetry', () => {
       initCrashTelemetry()
 
       const events = processOnMock.mock.calls.map(([event]) => event)
-      expect(events).toContain('uncaughtException')
+      expect(events).toContain('uncaughtExceptionMonitor')
+      expect(events).not.toContain('uncaughtException')
       expect(events).toContain('unhandledRejection')
     })
 
@@ -113,7 +114,7 @@ describe('initCrashTelemetry', () => {
       initCrashTelemetry()
 
       const events = processOnMock.mock.calls.map(([event]) => event)
-      expect(events).not.toContain('uncaughtException')
+      expect(events).not.toContain('uncaughtExceptionMonitor')
       expect(events).not.toContain('unhandledRejection')
     })
   })

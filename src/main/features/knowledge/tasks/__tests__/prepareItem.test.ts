@@ -52,7 +52,8 @@ function createPrepareOptions(item: KnowledgeItem): PrepareKnowledgeItemOptions 
   return {
     baseId,
     item,
-    signal
+    signal,
+    onDirectoryCopyProgress: vi.fn()
   }
 }
 
@@ -165,7 +166,13 @@ describe('prepareKnowledgeItem', () => {
     const options = createPrepareOptions(root)
     await expect(prepareKnowledgeItem(options)).resolves.toEqual([childFile])
 
-    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, baseId, 'dir-root-prefix', options.signal)
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(
+      root,
+      baseId,
+      'dir-root-prefix',
+      options.signal,
+      options.onDirectoryCopyProgress
+    )
     expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
     // The container prefix must be pinned BEFORE any byte is copied (expansion) or any child
     // row is created, so a mid-expansion crash leaves the pinned row for the retry to reclaim.

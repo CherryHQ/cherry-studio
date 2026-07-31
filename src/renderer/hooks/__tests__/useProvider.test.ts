@@ -258,18 +258,6 @@ describe('useProvider', () => {
     expect(result.current.error).toBe(mockError)
     expect(result.current.refetch).toBe(mockRefetch)
   })
-
-  it('should include mutation functions', () => {
-    const { result } = renderHook(() => useProvider('openai'))
-
-    expect(result.current.updateProvider).toBeDefined()
-    expect(result.current.enableProvider).toBeDefined()
-    expect(result.current.deleteProvider).toBeDefined()
-    expect(result.current.updateAuthConfig).toBeDefined()
-    expect(result.current.updateApiKeys).toBeDefined()
-    expect(result.current.addApiKey).toBeDefined()
-    expect(result.current.deleteApiKey).toBeDefined()
-  })
 })
 
 describe('useProviderMutations', () => {

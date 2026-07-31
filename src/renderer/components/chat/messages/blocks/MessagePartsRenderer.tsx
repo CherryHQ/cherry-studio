@@ -20,6 +20,12 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import {
+  type MessageCitations,
+  resolveCitationMarkerParts,
+  type ResolvedCitationMarkers,
+  resolveMessageCitations
+} from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
@@ -33,7 +39,7 @@ import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
-import ChatMarkdown from '../markdown/ChatMarkdown'
+import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
@@ -44,6 +50,7 @@ import type { MessageListItem } from '../types'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
+import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
@@ -177,15 +184,21 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 type GroupedEntry = PartEntry | PartEntry[]
 
 interface RenderGroupedEntryOptions {
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
+  messageCitations?: MessageCitations
+  citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
 }
+
+const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -466,7 +479,10 @@ function renderPart(
   options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
-  if ((partType as string) === 'data-citation') return null
+  const inlineHtmlPreviewMode =
+    message.role === 'assistant'
+      ? (options?.inlineHtmlPreviewMode ?? (message.status === 'success' ? 'ready' : undefined))
+      : undefined
 
   switch (partType) {
     case 'reasoning': {
@@ -502,6 +518,9 @@ function renderPart(
     case 'data-compaction-anchor':
       return <CompactionAnchorBlock key={partId} />
 
+    case 'data-conversation-reset':
+      return <ConversationResetBlock key={partId} />
+
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
       return (
@@ -530,10 +549,14 @@ function renderPart(
           isStreaming={isStreaming}
           citations={citations}
           citationReferences={citationReferences}
+          inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+          messageCitations={message.role === 'assistant' ? options?.messageCitations : undefined}
+          toolCitationProjection={options?.citationProjectionByPart?.get(part)}
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
+          onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
             message.role === 'user' && options?.onTextPartExpandedChange
               ? (expanded) => options.onTextPartExpandedChange?.(partId, expanded)
@@ -547,7 +570,15 @@ function renderPart(
       const codeData = (part as { data: { content: string; language?: string } }).data
       const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
       return (
-        <MainTextBlock key={partId} id={partId} content={codeContent} isStreaming={isStreaming} role={message.role} />
+        <MainTextBlock
+          key={partId}
+          id={partId}
+          content={codeContent}
+          inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+          isStreaming={isStreaming}
+          role={message.role}
+          onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
+        />
       )
     }
 
@@ -763,11 +794,7 @@ function renderGroupedEntry(
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: '100%' }}>
-            {images.map((src, i) => (
-              <ImageBlock key={`${groupKey}-img-${i}`} images={[src]} isSingle={false} />
-            ))}
-          </div>
+          <ImageBlock images={images} isSingle={false} />
         </AnimatedBlockWrapper>
       )
     }
@@ -807,7 +834,7 @@ function renderGroupedEntry(
 
   const wrapperClassName =
     entry.part.type === 'text'
-      ? 'text-black dark:text-foreground'
+      ? 'text-foreground'
       : isReasoningMessagePart(entry.part)
         ? 'message-thought-wrapper'
         : undefined
@@ -1143,6 +1170,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     () => ({ ...renderOptions, settleActiveTools: true, settleStreamingReasoning: true }),
     [renderOptions]
   )
+  const activeResultRenderOptions = useMemo<RenderGroupedEntryOptions>(
+    () => ({ ...renderOptions, inlineHtmlPreviewMode: 'generating' }),
+    [renderOptions]
+  )
 
   if (isActive) {
     const resultContent = liveResultItems.map((item) => {
@@ -1156,7 +1187,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           isStreaming={openTextTailIndex === item.entry.index}
           isTranslationOverlayActive={isTranslationOverlayActive}
           message={message}
-          renderOptions={renderOptions}
+          renderOptions={activeResultRenderOptions}
         />
       )
     })
@@ -1302,6 +1333,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     wasActiveTurnProcessingRef.current = isActiveTurnProcessing
   }, [isActiveTurnProcessing, requestFollowRecovery])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const handleTextPartExpandedChange = React.useCallback((partId: string, expanded: boolean) => {
     setExpandedTextPartIds((current) => {
       const hasPartId = current.has(partId)
@@ -1312,6 +1346,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         next.add(partId)
       } else {
         next.delete(partId)
+      }
+      return next
+    })
+  }, [])
+  const handleTextPlayoutSettledChange = React.useCallback((partId: string, settled: boolean) => {
+    setUnsettledTextPlayoutPartIds((current) => {
+      const isUnsettled = current.has(partId)
+      if (isUnsettled === !settled) return current
+
+      const next = new Set(current)
+      if (settled) {
+        next.delete(partId)
+      } else {
+        next.add(partId)
       }
       return next
     })
@@ -1337,22 +1385,54 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getDisplayEntries(partEntries, message, visibleComposerFileTokens),
     [message, partEntries, visibleComposerFileTokens]
   )
-  const hasVisibleEntry = useMemo(
-    () => displayEntries.some((entry) => isPotentiallyVisibleEntry(entry, message.id)),
+  const hasVisibleNonArtifactEntry = useMemo(
+    () =>
+      displayEntries.some(
+        (entry) => isPotentiallyVisibleEntry(entry, message.id) && !isReportArtifactEntry(entry, message.id)
+      ),
     [displayEntries, message.id]
   )
+  const messageCitations = useMemo(() => resolveMessageCitations(messageParts), [messageParts])
+  const citationProjectionByPart = useMemo(() => {
+    if (message.role !== 'assistant' || messageCitations.all.length === 0) return EMPTY_CITATION_PROJECTIONS
+    const textParts = messageParts.filter((part) => {
+      if (part.type !== 'text') return false
+      const references = getCherryMeta(part)?.references as ContentReference[] | undefined
+      return !references?.length || convertReferencesToCitations(references).length === 0
+    })
+    const projections = resolveCitationMarkerParts(
+      textParts.map((part) => (part.type === 'text' ? part.text || '' : '')),
+      messageCitations
+    )
+    return new Map(textParts.map((part, index) => [part, projections[index]]))
+  }, [message.role, messageCitations, messageParts])
   const renderOptions = useMemo(
     () => ({
+      citationProjectionByPart,
       expandedTextPartIds,
+      messageCitations,
       readOnlyFilePreviews,
+      onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
-    [expandedTextPartIds, handleTextPartExpandedChange, readOnlyFilePreviews]
+    [
+      expandedTextPartIds,
+      citationProjectionByPart,
+      handleTextPartExpandedChange,
+      handleTextPlayoutSettledChange,
+      messageCitations,
+      readOnlyFilePreviews
+    ]
   )
+  const canRenderReportArtifacts =
+    !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
 
   // No parts to render — normal for user messages (content is in message text, not parts)
-  // But if the message is processing (pending/streaming), show the loading placeholder
-  if (partEntries.length === 0 || (!hasVisibleEntry && reportArtifactToolResponses.length === 0)) {
+  // But if the message is processing (pending/streaming), show the loading placeholder.
+  // Report-artifact entries don't count as renderable here: the live layout filters
+  // them out and the card itself is gated on canRenderReportArtifacts, so a message
+  // whose only content is report_artifacts must keep its placeholder until the card can show.
+  if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
@@ -1384,8 +1464,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         renderOptions={renderOptions}
       />
       {isActiveTurnProcessing && activeTurnStatus?.(null)}
-      {reportArtifactToolResponses.length > 0 && (
-        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreamLive} animation="fade">
+      {canRenderReportArtifacts && (
+        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
         </AnimatedBlockWrapper>
       )}

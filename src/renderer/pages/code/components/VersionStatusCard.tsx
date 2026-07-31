@@ -71,7 +71,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
     status.applicationStatus !== 'unknown'
 
   return (
-    <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
+    <div className="rounded-lg border border-border-subtle bg-background px-4 py-5">
       <div className="flex items-center gap-3">
         <CliIcon id={toolId} size={28} className="size-7 shrink-0" />
 
@@ -87,14 +87,14 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             ) : (
               cleanlyInstalled &&
               !canUpgrade && (
-                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                <span className="shrink-0 rounded border border-success-border bg-success-subtle px-1.5 py-0.5 text-[10px] text-success-subtle-foreground">
                   {t('code.up_to_date')}
                 </span>
               )
             )}
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground/60 text-xs">
+          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
             {isInstalled
               ? status.current && <span className="font-mono">v{status.current}</span>
               : status.latest && (
@@ -120,10 +120,10 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               size="sm"
               onClick={onUpgrade}
               disabled={busy}
-              className="shrink-0 gap-1 text-warning hover:bg-warning/10 hover:text-warning">
+              className="shrink-0 gap-1 text-warning hover:bg-warning-subtle hover:text-warning-subtle-foreground">
               {isUpgrading ? (
                 <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-warning/30 border-t-warning" />
+                  <span className="size-3 animate-spin rounded-full border-2 border-warning-border border-t-warning" />
                   {t('code.installing')}
                 </>
               ) : (
@@ -139,7 +139,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-muted-foreground/30 hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
               aria-label={t('settings.dependencies.uninstall')}

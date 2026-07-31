@@ -285,6 +285,24 @@ import Sidebar from '../Sidebar'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+const calculatorMiniApp: FakeMiniApp = {
+  appId: 'calculator',
+  name: 'Calculator',
+  logo: 'calculator-logo',
+  url: 'https://calc.example'
+}
+const weatherMiniApp: FakeMiniApp = {
+  appId: 'weather',
+  name: 'Weather',
+  logo: 'weather-logo',
+  url: 'https://weather.example'
+}
+
+function configureMiniApps(favoriteIds: string[], apps: FakeMiniApp[] = [calculatorMiniApp]) {
+  mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+  mocks.sidebarMiniAppFavorites = favoriteIds.map(miniAppFavorite)
+  mocks.allApps = apps
+}
 
 afterEach(() => {
   cleanup()
@@ -408,12 +426,7 @@ describe('app Sidebar', () => {
   })
 
   it('renders favorite mini apps directly in the sidebar mini app section', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
-    mocks.allApps = [
-      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
-      { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
-    ]
+    configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
     mocks.activeTab = {
       id: 'calculator-tab',
       type: 'route',
@@ -437,12 +450,7 @@ describe('app Sidebar', () => {
   })
 
   it('removes a sidebar mini app favorite from the context menu', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
-    mocks.allApps = [
-      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
-      { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
-    ]
+    configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
 
     render(<Sidebar />)
 
@@ -458,7 +466,7 @@ describe('app Sidebar', () => {
   it('reorders sidebar favorites through a single mixed drag', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files')]
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.allApps = [calculatorMiniApp]
 
     render(<Sidebar />)
     // Mixed list is [assistants, knowledge, files, calculator]; drag files to front.
@@ -473,12 +481,7 @@ describe('app Sidebar', () => {
   })
 
   it('reorders sidebar mini apps through favorites without touching the mini app order key', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
-    mocks.allApps = [
-      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
-      { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
-    ]
+    configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
 
     render(<Sidebar />)
     // Mixed list is [assistants, mini_app, calculator, weather]; drag weather above calculator.
@@ -496,9 +499,7 @@ describe('app Sidebar', () => {
   })
 
   it('drag-reorders a mini app above a built-in app, interleaving the two types', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps(['calculator'])
 
     render(<Sidebar />)
     // Mixed list is [assistants, mini_app, calculator]; drag calculator to the very top.
@@ -512,8 +513,7 @@ describe('app Sidebar', () => {
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps([])
 
     render(<Sidebar />)
 
@@ -521,9 +521,7 @@ describe('app Sidebar', () => {
   })
 
   it('drops stale mini app ids from sidebar favorites', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('stale')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps(['calculator', 'stale'])
 
     render(<Sidebar />)
 
@@ -532,9 +530,7 @@ describe('app Sidebar', () => {
   })
 
   it('does not render hidden mini apps left in sidebar favorites', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps(['calculator'])
     mocks.visibleMiniApps = []
 
     render(<Sidebar />)
@@ -543,9 +539,7 @@ describe('app Sidebar', () => {
   })
 
   it('reuses the active tab from the sidebar mini app section', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps(['calculator'])
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -568,9 +562,7 @@ describe('app Sidebar', () => {
   })
 
   it('does nothing when the active tab is already on the target mini app route', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps(['calculator'])
     mocks.activeTab = {
       id: 'calculator-tab',
       type: 'route',
@@ -586,9 +578,7 @@ describe('app Sidebar', () => {
   })
 
   it('opens a forced mini app tab when the active tab is pinned', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    configureMiniApps(['calculator'])
     mocks.activeTab = {
       id: 'chat',
       type: 'route',

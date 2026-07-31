@@ -69,6 +69,8 @@ function createDirectoryOwner(source: string): KnowledgeItem {
   }
 }
 
+const ignoreCopyProgress = vi.fn()
+
 describe('chooseDirectoryPathPrefix', () => {
   it('uses the directory basename when that top-level name is free', () => {
     expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/anna'), new Set())).toBe('anna')
@@ -136,7 +138,7 @@ describe('expandDirectoryOwnerToTree', () => {
 
     const owner = createDirectoryOwner(rootDir)
     const pathPrefix = chooseDirectoryPathPrefix(owner, new Set())
-    const children = await expandDirectoryOwnerToTree(owner, 'kb-1', pathPrefix, createSignal())
+    const children = await expandDirectoryOwnerToTree(owner, 'kb-1', pathPrefix, createSignal(), ignoreCopyProgress)
 
     expect(pathPrefix).toBe('anna')
     expect(children).toEqual([
@@ -177,7 +179,8 @@ describe('expandDirectoryOwnerToTree', () => {
       owner,
       'kb-1',
       chooseDirectoryPathPrefix(owner, new Set()),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(JSON.stringify(children)).not.toContain(emptyDir)
@@ -231,7 +234,8 @@ describe('expandDirectoryOwnerToTree', () => {
       owner,
       'kb-1',
       chooseDirectoryPathPrefix(owner, new Set()),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(children).toEqual([
@@ -254,6 +258,23 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
+  it('reports copied files against the supported-file total', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'workspace')
+    const nestedDir = path.join(rootDir, 'guides')
+    realFs.mkdirSync(nestedDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
+    realFs.writeFileSync(path.join(nestedDir, 'guide.txt'), 'guide')
+    realFs.writeFileSync(path.join(rootDir, 'app.exe'), 'binary')
+    const onCopyProgress = vi.fn()
+    const owner = createDirectoryOwner(rootDir)
+    const pathPrefix = chooseDirectoryPathPrefix(owner, new Set())
+
+    await expandDirectoryOwnerToTree(owner, 'kb-1', pathPrefix, createSignal(), onCopyProgress)
+
+    expect(onCopyProgress.mock.calls.map(([percent]) => percent)).toEqual([0, 50, 100])
+  })
+
   it('gives same-basename files in different subdirectories distinct relative paths', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'project')
@@ -270,7 +291,8 @@ describe('expandDirectoryOwnerToTree', () => {
       owner,
       'kb-1',
       chooseDirectoryPathPrefix(owner, new Set()),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     const relativePaths = JSON.stringify(children)
@@ -290,7 +312,7 @@ describe('expandDirectoryOwnerToTree', () => {
     const owner = createDirectoryOwner(rootDir)
     // A prior `project` directory already occupies that top-level name under raw/.
     const pathPrefix = chooseDirectoryPathPrefix(owner, new Set(['project']))
-    const children = await expandDirectoryOwnerToTree(owner, 'kb-1', pathPrefix, createSignal())
+    const children = await expandDirectoryOwnerToTree(owner, 'kb-1', pathPrefix, createSignal(), ignoreCopyProgress)
 
     expect(pathPrefix).toBe('project_1')
     expect(children).toEqual([
@@ -304,6 +326,31 @@ describe('expandDirectoryOwnerToTree', () => {
     ])
   })
 
+  it('dedupes a dotted directory name after the whole basename, not before a fake extension', async () => {
+    tempRoot = createTempRoot()
+    // A folder literally named `report.v2`: the trailing `.v2` is part of the name,
+    // not a file extension, so the suffix must land after it (`report.v2_1`).
+    const rootDir = path.join(tempRoot, 'report.v2')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'notes.md'), '# notes')
+
+    const owner = createDirectoryOwner(rootDir)
+    // A prior `report.v2` directory already occupies that top-level name under raw/.
+    const pathPrefix = chooseDirectoryPathPrefix(owner, new Set(['report.v2']))
+    const children = await expandDirectoryOwnerToTree(owner, 'kb-1', pathPrefix, createSignal(), ignoreCopyProgress)
+
+    expect(pathPrefix).toBe('report.v2_1')
+    expect(children).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(rootDir, 'notes.md'),
+          relativePath: 'report.v2_1/notes.md'
+        }
+      }
+    ])
+  })
+
   it('stops before reading when the runtime signal is already aborted', async () => {
     tempRoot = createTempRoot()
     const controller = new AbortController()
@@ -311,7 +358,7 @@ describe('expandDirectoryOwnerToTree', () => {
     controller.abort(abortError)
 
     await expect(
-      expandDirectoryOwnerToTree(createDirectoryOwner(tempRoot), 'kb-1', 'root', controller.signal)
+      expandDirectoryOwnerToTree(createDirectoryOwner(tempRoot), 'kb-1', 'root', controller.signal, ignoreCopyProgress)
     ).rejects.toBe(abortError)
   })
 })

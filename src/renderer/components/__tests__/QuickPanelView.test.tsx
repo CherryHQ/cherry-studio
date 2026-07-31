@@ -156,6 +156,22 @@ function wrapWithProviders(children: React.ReactNode) {
   return <QuickPanelProvider>{children}</QuickPanelProvider>
 }
 
+function renderOpenPanel({
+  input = createInputAdapter(),
+  ...openProps
+}: React.ComponentProps<typeof OpenPanelOnMount> & {
+  input?: ReturnType<typeof createInputAdapter>
+}) {
+  return render(
+    wrapWithProviders(
+      <>
+        <QuickPanelView inputAdapter={input.adapter} />
+        <OpenPanelOnMount {...openProps} />
+      </>
+    )
+  )
+}
+
 describe('QuickPanelView', () => {
   beforeEach(() => {
     // 添加一个假的 composer textarea 到 document.body
@@ -185,18 +201,12 @@ describe('QuickPanelView', () => {
       const list = createList(100)
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
+      })
 
       // 检查面板可见
       const panel = screen.getByTestId('quick-panel')
@@ -209,18 +219,12 @@ describe('QuickPanelView', () => {
       const list = createList(1)
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 3' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item 3' }
+      })
 
       const panel = screen.getByTestId('quick-panel')
       expect(panel).toHaveClass('right-2', 'left-2')
@@ -234,18 +238,12 @@ describe('QuickPanelView', () => {
       const list = createList(1)
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
+      })
 
       const panelBody = screen.getByTestId('quick-panel-body')
       expect(panelBody).toHaveAttribute('data-slot', 'quick-panel-content')
@@ -255,18 +253,12 @@ describe('QuickPanelView', () => {
       const list = createList(1, 'Selected', { isSelected: true })
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
+      })
 
       const selectedRow = screen.getByText('Selected 1').closest('[data-id="Selected-1"]')
       expect(selectedRow).toHaveClass('bg-accent')
@@ -277,19 +269,13 @@ describe('QuickPanelView', () => {
       const list = createList(3, 'Item')
       const input = createInputAdapter('/Item1')
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item3' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item3' }
+      })
 
       const panel = screen.getByTestId('quick-panel')
       expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument()
@@ -305,19 +291,13 @@ describe('QuickPanelView', () => {
       const list = createList(3, 'Item')
       const input = createInputAdapter('/Item3')
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item1' }
+      })
 
       const panel = screen.getByTestId('quick-panel')
 
@@ -334,19 +314,13 @@ describe('QuickPanelView', () => {
       const list = createList(3, 'Item')
       const input = createInputAdapter('/Item1')
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item1' }
+      })
 
       expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
 
@@ -401,18 +375,12 @@ describe('QuickPanelView', () => {
       const list = createList(100)
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
+      })
 
       const panel = screen.getByTestId('quick-panel')
       const focused = panel.querySelectorAll('.focused')
@@ -424,14 +392,7 @@ describe('QuickPanelView', () => {
       const list = createList(100, 'Item')
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
-          </>
-        )
-      )
+      renderOpenPanel({ input, list })
 
       const keySequence = [
         { key: 'ArrowDown', expected: 'Item 2' },
@@ -448,14 +409,7 @@ describe('QuickPanelView', () => {
       const list = createList(100, 'Item')
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
-          </>
-        )
-      )
+      renderOpenPanel({ input, list })
 
       const keySequence = [
         { key: 'PageDown', expected: `Item ${PAGE_SIZE + 1}` },
@@ -472,14 +426,7 @@ describe('QuickPanelView', () => {
       const list = createList(100, 'Item')
       const input = createInputAdapter()
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
-          </>
-        )
-      )
+      renderOpenPanel({ input, list })
 
       const keySequence = [
         { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
@@ -500,19 +447,13 @@ describe('QuickPanelView', () => {
       const input = createInputAdapter('/Item1')
       const list = createList(1, 'Item', { action })
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="/"
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: '/',
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 0, originalText: '/Item1' }
+      })
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
@@ -528,18 +469,11 @@ describe('QuickPanelView', () => {
         { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
       ]
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={createInputAdapter().adapter} />
-            <OpenPanelOnMount
-              list={list}
-              panelOptions={{ readOnly: true }}
-              triggerInfo={{ type: 'button', position: 0 }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        list,
+        panelOptions: { readOnly: true },
+        triggerInfo: { type: 'button', position: 0 }
+      })
 
       // Regular status rows stay inert in a read-only panel.
       fireEvent.click(screen.getByText('Server 1'))
@@ -558,18 +492,11 @@ describe('QuickPanelView', () => {
         { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
       ]
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={createInputAdapter().adapter} />
-            <OpenPanelOnMount
-              list={list}
-              panelOptions={{ readOnly: true }}
-              triggerInfo={{ type: 'button', position: 0 }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        list,
+        panelOptions: { readOnly: true },
+        triggerInfo: { type: 'button', position: 0 }
+      })
 
       const body = screen.getByTestId('quick-panel-body')
       fireEvent.keyDown(body, { key: 'ArrowDown' }) // highlights the footer (status rows stay inert)
@@ -582,19 +509,13 @@ describe('QuickPanelView', () => {
     it('keeps the root input panel when slash follows whitespace', () => {
       const input = createInputAdapter('hello /', 7)
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={createList(1)}
-              symbol="/"
-              queryAnchor={6}
-              triggerInfo={{ type: 'input', position: 6, originalText: '/' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list: createList(1),
+        symbol: '/',
+        queryAnchor: 6,
+        triggerInfo: { type: 'input', position: 6, originalText: '/' }
+      })
 
       expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     })
@@ -602,19 +523,13 @@ describe('QuickPanelView', () => {
     it('keeps the root input panel when slash is at the beginning of a line', () => {
       const input = createInputAdapter('hello\n/', 7)
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={createList(1)}
-              symbol="/"
-              queryAnchor={6}
-              triggerInfo={{ type: 'input', position: 6, originalText: '/' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list: createList(1),
+        symbol: '/',
+        queryAnchor: 6,
+        triggerInfo: { type: 'input', position: 6, originalText: '/' }
+      })
 
       expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     })
@@ -622,20 +537,14 @@ describe('QuickPanelView', () => {
     it('closes the root input panel when slash is attached to previous text', async () => {
       const input = createInputAdapter('hello/', 6)
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={createList(1)}
-              symbol="/"
-              queryAnchor={5}
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 5, originalText: '/' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list: createList(1),
+        symbol: '/',
+        queryAnchor: 5,
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 5, originalText: '/' }
+      })
 
       await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
@@ -643,20 +552,14 @@ describe('QuickPanelView', () => {
     it('closes the root input panel when slash query contains whitespace', async () => {
       const input = createInputAdapter('hello /image', 12)
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={createList(1)}
-              symbol="/"
-              queryAnchor={6}
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list: createList(1),
+        symbol: '/',
+        queryAnchor: 6,
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 6, originalText: '/image' }
+      })
 
       input.setText('hello /image prompt')
 
@@ -666,20 +569,14 @@ describe('QuickPanelView', () => {
     it('closes the root input panel when cursor is not at the end of the slash query segment', async () => {
       const input = createInputAdapter('hello /imageTail', 12)
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={createList(1)}
-              symbol="/"
-              queryAnchor={6}
-              trackInputQuery
-              triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list: createList(1),
+        symbol: '/',
+        queryAnchor: 6,
+        trackInputQuery: true,
+        triggerInfo: { type: 'input', position: 6, originalText: '/image' }
+      })
 
       await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
@@ -704,18 +601,12 @@ describe('QuickPanelView', () => {
         }
       }
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={[rootItem]}
-              symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Child' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list: [rootItem],
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Child' }
+      })
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
@@ -732,19 +623,13 @@ describe('QuickPanelView', () => {
       const input = createInputAdapter('/Alpha')
       const list = createList(2, 'Prompt')
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="multi-select-panel"
-              panelOptions={{ multiple: true }}
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Alpha' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: 'multi-select-panel',
+        panelOptions: { multiple: true },
+        triggerInfo: { type: 'input', position: 0, originalText: '/Alpha' }
+      })
 
       expect(screen.getByText('Prompt 1')).toBeInTheDocument()
       expect(screen.getByText('Prompt 2')).toBeInTheDocument()
@@ -777,19 +662,13 @@ describe('QuickPanelView', () => {
         }
       ]
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              symbol="multi-select-panel"
-              panelOptions={{ multiple: true }}
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Prompt' }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        symbol: 'multi-select-panel',
+        panelOptions: { multiple: true },
+        triggerInfo: { type: 'input', position: 0, originalText: '/Prompt' }
+      })
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
@@ -823,14 +702,7 @@ describe('QuickPanelView', () => {
         }
       }
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={[rootItem]} />
-          </>
-        )
-      )
+      renderOpenPanel({ input, list: [rootItem] })
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
@@ -845,20 +717,14 @@ describe('QuickPanelView', () => {
         { id: 'second', label: 'Duplicate', filterText: 'duplicate', icon: 'second icon' }
       ]
 
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount
-              list={list}
-              panelOptions={{
-                multiple: true,
-                sortFn: (items) => items.map((item) => ({ ...item }))
-              }}
-            />
-          </>
-        )
-      )
+      renderOpenPanel({
+        input,
+        list,
+        panelOptions: {
+          multiple: true,
+          sortFn: (items) => items.map((item) => ({ ...item }))
+        }
+      })
 
       const panel = screen.getByTestId('quick-panel')
       const getRow = (id: string) => panel.querySelector(`[data-id="${id}"]`)

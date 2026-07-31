@@ -31,6 +31,7 @@ import {
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -91,7 +92,7 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_DEFAULT_MAX_TOOL_CALLS = 20
+const UI_MAX_TOOL_CALLS = 100
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -769,7 +770,13 @@ function AssistantAdvancedFields({
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tool_calls')}
-        valueLabel={values.enableMaxToolCalls ? undefined : t('library.config.basic.unlimited')}
+        valueLabel={
+          values.enableMaxToolCalls
+            ? undefined
+            : t('library.config.basic.max_tool_calls_default', {
+                count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+              })
+        }
         description={t('library.config.basic.field.max_tool_calls.hint')}
         enabled={values.enableMaxToolCalls}
         onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
@@ -781,6 +788,7 @@ function AssistantAdvancedFields({
               <EditableNumber
                 block
                 min={1}
+                max={UI_MAX_TOOL_CALLS}
                 step={1}
                 precision={0}
                 align="start"
@@ -788,7 +796,9 @@ function AssistantAdvancedFields({
                 className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
                 value={field.value}
                 onChange={(value) =>
-                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)
+                  field.onChange(
+                    typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+                  )
                 }
               />
             )}
@@ -834,7 +844,7 @@ function ToggleFieldGroup({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground/60 text-xs">{valueLabel}</span> : null}
+          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {enabled && control ? <div className="w-36">{control}</div> : null}
@@ -954,7 +964,7 @@ function CustomParameterRow({
   })()
 
   return (
-    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
+    <div className="rounded-xs border border-border-subtle bg-accent/15 p-2">
       <div className="flex items-stretch gap-2">
         <Input
           placeholder={t('library.config.basic.custom_params_name')}
@@ -1021,9 +1031,7 @@ function CustomParameterRow({
             placeholder='{"key": "value"}'
             hasError={jsonInvalid}
           />
-          {jsonInvalid ? (
-            <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>
-          ) : null}
+          {jsonInvalid ? <p className="mt-1 text-error text-xs">{t('library.config.basic.json_invalid')}</p> : null}
         </div>
       ) : null}
     </div>
