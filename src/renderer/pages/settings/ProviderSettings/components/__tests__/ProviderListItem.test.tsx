@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderListItem from '../ProviderListItem'
@@ -25,6 +25,15 @@ afterEach(() => {
 
 describe('ProviderListItem', () => {
   const provider = { id: 'silicon-flow', name: '硅基流动' } as any
+
+  it.each(['Enter', ' '])('selects the provider when the row receives %j', (key) => {
+    const onClick = vi.fn()
+    render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={onClick} />)
+
+    fireEvent.keyDown(screen.getByRole('button'), { key })
+
+    expect(onClick).toHaveBeenCalledOnce()
+  })
 
   it('renders provider logos at 26px in the list', () => {
     render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
@@ -68,7 +77,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).toHaveClass('right-1.5')
+    expect(container.querySelector('span[aria-hidden].bg-success')).toHaveClass('right-1.5')
   })
 
   it('reserves a trailing slot when enabled-state dot is shown', () => {
@@ -121,10 +130,29 @@ describe('ProviderListItem', () => {
     expect(screen.getByTestId('provider-list-menu-silicon-flow')).toHaveClass('size-5')
   })
 
-  it('wraps the row action with renderMenuButton when provided', () => {
+  it('opens the row menu without selecting the provider', () => {
+    const onClick = vi.fn()
+    const onOpenMenu = vi.fn()
     render(
       <ProviderListItem
-        provider={{ ...provider, isEnabled: false }}
+        provider={provider}
+        selected={false}
+        dragging={false}
+        onClick={onClick}
+        onOpenMenu={onOpenMenu}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('provider-list-menu-silicon-flow'))
+
+    expect(onOpenMenu).toHaveBeenCalledOnce()
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('passes the menu button through the supplied wrapper', () => {
+    render(
+      <ProviderListItem
+        provider={provider}
         selected={false}
         dragging={false}
         onClick={vi.fn()}

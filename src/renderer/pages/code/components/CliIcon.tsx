@@ -20,7 +20,7 @@ export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
     return (
       <div
         className={cn(
-          'flex items-center justify-center rounded-md bg-accent/50 font-medium text-foreground/70',
+          'flex items-center justify-center rounded-md bg-accent/50 font-medium text-muted-foreground',
           className
         )}
         style={{ width: size, height: size, fontSize: size * 0.4 }}>

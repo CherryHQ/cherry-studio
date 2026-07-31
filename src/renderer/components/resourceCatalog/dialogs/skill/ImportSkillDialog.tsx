@@ -237,7 +237,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             <h3 className="font-semibold text-foreground text-lg leading-none">
               {t('library.import_skill_dialog.title')}
             </h3>
-            <p className="mt-2 text-foreground-secondary text-sm">{t('library.import_skill_dialog.subtitle')}</p>
+            <p className="mt-2 text-muted-foreground text-sm">{t('library.import_skill_dialog.subtitle')}</p>
           </div>
         </div>
 
@@ -264,13 +264,11 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
                 'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
               void handleDroppedEntries(droppedFiles)
             }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-subtle border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
-              <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
-              <p className="mb-1 text-foreground-secondary text-xs">
-                {t('library.import_skill_dialog.local.drop_hint')}
-              </p>
-              <p className="text-foreground-muted text-xs">{t('library.import_skill_dialog.local.formats')}</p>
+              <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
+              <p className="mb-1 text-muted-foreground text-xs">{t('library.import_skill_dialog.local.drop_hint')}</p>
+              <p className="text-muted-foreground text-xs">{t('library.import_skill_dialog.local.formats')}</p>
             </DropzoneEmptyState>
           </Dropzone>
 
@@ -311,8 +309,8 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
   return (
     <Scrollbar
       data-testid="skill-import-results"
-      className="mt-4 max-h-44 rounded-md border border-border-muted bg-background-subtle/50">
-      <div className="divide-y divide-border-muted">
+      className="mt-4 max-h-44 rounded-md border border-border-subtle bg-background-subtle/50">
+      <div className="divide-y divide-border-subtle">
         {items.map((item) => (
           <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
             <ImportItemStatusIcon status={item.status} />
@@ -321,7 +319,7 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
                 {item.status === 'success' ? (item.skillName ?? item.name) : item.name}
               </div>
               {item.status !== 'success' ? (
-                <div className="mt-0.5 truncate text-foreground-muted">
+                <div className="mt-0.5 truncate text-foreground-tertiary">
                   {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
                   {item.status === 'installing' ? t('common.loading') : null}
                   {item.status === 'error' ? item.error : null}
@@ -337,15 +335,15 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
 
 function ImportItemStatusIcon({ status }: { status: ImportItemStatus }) {
   if (status === 'installing') {
-    return <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-foreground-muted" />
+    return <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-foreground-tertiary" />
   }
   if (status === 'success') {
     return <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
   }
   if (status === 'error') {
-    return <CircleAlert size={14} className="mt-0.5 shrink-0 text-destructive" />
+    return <CircleAlert size={14} className="mt-0.5 shrink-0 text-error" />
   }
-  return <span className="mt-1.5 size-2 shrink-0 rounded-full bg-foreground-muted" />
+  return <span className="mt-1.5 size-2 shrink-0 rounded-full border border-border-strong bg-muted" />
 }
 
 function StatusBanner({ status }: { status: ImportStatus }) {

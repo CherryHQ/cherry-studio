@@ -374,7 +374,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           const inputId = `provider-request-config-endpoint-${type}`
           return (
             <div key={type} className="space-y-1.5">
-              <Label className="text-muted-foreground/60 text-xs" htmlFor={inputId}>
+              <Label className="text-muted-foreground text-xs" htmlFor={inputId}>
                 {label}
               </Label>
               <InputGroup className={fieldClasses.inputGroup}>
@@ -393,7 +393,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 />
               </InputGroup>
               {isPrimary && (
-                <p className="wrap-break-word text-muted-foreground/40 text-xs leading-relaxed">
+                <p className="wrap-break-word text-muted-foreground text-xs leading-relaxed">
                   {t('settings.provider.api_host_drawer_hint')}
                 </p>
               )}
@@ -434,7 +434,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-muted-foreground/60 text-xs">{t('settings.provider.copilot.custom_headers')}</span>
+            <span className="text-muted-foreground text-xs">{t('settings.provider.copilot.custom_headers')}</span>
             <Tooltip content={toggleLabel}>
               <button
                 type="button"
@@ -520,7 +520,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 placeholder={t('settings.provider.copilot.headers_json_placeholder')}
                 className={customHeaderDrawerClasses.headersJsonEditor}
               />
-              <p className="text-muted-foreground/40 text-xs leading-relaxed">
+              <p className="text-muted-foreground text-xs leading-relaxed">
                 {t('settings.provider.copilot.headers_description')}
               </p>
             </div>

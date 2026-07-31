@@ -81,7 +81,7 @@ const BuiltinMcpServerList: FC = () => {
             <div
               key={server.id}
               className={cn(
-                'group flex min-h-16 items-center gap-3 rounded-lg border border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+                'group flex min-h-16 items-center gap-3 rounded-lg border border-border-subtle px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
                 isInstalled && 'bg-muted/25'
               )}>
               <div className="min-w-0 flex-1">
@@ -114,7 +114,7 @@ const BuiltinMcpServerList: FC = () => {
                       {server.reference && (
                         <a
                           href={server.reference}
-                          className="wrap-break-word mt-2 inline-block text-primary hover:underline">
+                          className="wrap-break-word mt-2 inline-block text-link hover:underline">
                           {server.reference}
                         </a>
                       )}
@@ -125,7 +125,7 @@ const BuiltinMcpServerList: FC = () => {
               <div className="ml-3 flex min-w-21.5 shrink-0 items-center justify-end self-center">
                 {isInstalled ? (
                   <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs">
-                    <Check size={13} className="text-success/75" />
+                    <Check size={13} className="text-success" />
                     {t('settings.skills.installed')}
                   </div>
                 ) : (

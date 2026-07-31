@@ -151,18 +151,32 @@ describe('validateMigrationContractSources', () => {
     expect(registry.rules.filter((rule) => rule.strategy === 'preserve')).toEqual([])
   })
 
-  it('migrates the former prefixed product API to the unprefixed public contract', () => {
+  it('migrates exact former prefixed product APIs to the unprefixed public contract', () => {
     const registry = JSON.parse(sources.migrationRegistry) as {
       rules: Array<{ source: string; target: string | null; strategy: string }>
     }
 
-    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS) {
+    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS.filter((token) => token !== 'link')) {
       expect(registry.rules).toContainEqual({
         source: `--cs-${token}`,
         target: `--${token}`,
         strategy: 'exact'
       })
     }
+  })
+
+  it('keeps the runtime-accent link migration under review', () => {
+    const registry = JSON.parse(sources.migrationRegistry) as {
+      rules: Array<{ source: string; target: string | null; strategy: string }>
+    }
+
+    expect(registry.rules).toContainEqual(
+      expect.objectContaining({
+        source: '--cs-link',
+        target: null,
+        strategy: 'review'
+      })
+    )
   })
 
   it('keeps renderer Sidebar effects out of the shared migration contract', () => {
