@@ -184,7 +184,7 @@
 
 ## 实施计划
 
-### 阶段 0 — Native SDK 可编译/可打包基础 〔状态：未开始〕
+### 阶段 0 — Native SDK 可编译/可打包基础 〔状态：✅ 已完成〕
 
 **阶段依赖**：无。
 
@@ -274,7 +274,7 @@ git diff --check
 
 **阶段验证 review**：由 clean-context Validation Reviewer 对照 D1、D3–D5、D8、非目标 2/3、invariant 1/4/5、diff、packaged-artifact inspection、validation ledger 和三个 Writer 的并行分派证据做有界验证。
 
-### 阶段 1 — Windows Shell fallback 与 Git Bash 可选 UX 〔状态：未开始〕
+### 阶段 1 — Windows Shell fallback 与 Git Bash 可选 UX 〔状态：进行中〕
 
 **阶段依赖**：依赖阶段 0 已提供并验证的 native Claude 启动和新 SDK。
 
