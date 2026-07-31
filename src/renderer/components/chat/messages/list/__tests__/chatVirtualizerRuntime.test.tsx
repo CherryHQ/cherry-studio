@@ -425,6 +425,47 @@ describe('useChatVirtualizerRuntime', () => {
     view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
 
     expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={[]} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={['message-first']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    expect(runtime?.shift).toBe(false)
+  })
+
+  it('does not claim shift support for an equal-length sliding window', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    view.rerender(
+      <RuntimeProbe
+        items={['message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    expect(runtime?.shift).toBe(false)
+  })
+
+  it('does not treat mixed removals as a start shift', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    view.rerender(
+      <RuntimeProbe items={['message-b', 'message-c']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
+
+    expect(runtime?.shift).toBe(false)
   })
 
   it('checks reach-top from the scroll path', () => {

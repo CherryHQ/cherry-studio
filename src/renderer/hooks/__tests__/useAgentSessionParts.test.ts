@@ -1,6 +1,6 @@
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dataApiMocks = vi.hoisted(() => ({
@@ -171,6 +171,68 @@ describe('useAgentSessionParts', () => {
 
     expect(result.current.messages[0]).not.toBe(originalMessage)
     expect(result.current.messages[0].parts).toEqual([{ type: 'text', text: 'updated' }])
+  })
+
+  it('does not let a stale session refresh replace the current session projection cache', async () => {
+    const rowFor = (sessionId: string, text: string): AgentSessionMessageEntity =>
+      ({
+        id: `message-${sessionId}`,
+        sessionId,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text }] },
+        searchableText: text,
+        status: 'success',
+        modelId: null,
+        messageSnapshot: null,
+        stats: null,
+        runtimeResumeToken: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:01.000Z'
+      }) as AgentSessionMessageEntity
+    const sessionOneRow = rowFor('session-1', 'one')
+    const sessionTwoRow = rowFor('session-2', 'two')
+    let resolveSessionOneRefresh!: (pages: Array<{ items: AgentSessionMessageEntity[] }>) => void
+    const sessionOneMutate = vi.fn(
+      () =>
+        new Promise<Array<{ items: AgentSessionMessageEntity[] }>>((resolve) => {
+          resolveSessionOneRefresh = resolve
+        })
+    )
+    const sessionTwoMutate = vi.fn()
+    dataApiMocks.useInfiniteQuery.mockImplementation((_path: string, config: { params: { sessionId: string } }) => {
+      const isSessionOne = config.params.sessionId === 'session-1'
+      return {
+        pages: [{ items: [isSessionOne ? sessionOneRow : sessionTwoRow] }],
+        isLoading: false,
+        isRefreshing: false,
+        hasNext: false,
+        loadNext: vi.fn(),
+        mutate: isSessionOne ? sessionOneMutate : sessionTwoMutate
+      }
+    })
+    dataApiMocks.useInfiniteFlatItems.mockImplementation((pages: Array<{ items: AgentSessionMessageEntity[] }>) =>
+      pages.flatMap((page) => page.items)
+    )
+
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionParts(sessionId), {
+      initialProps: { sessionId: 'session-1' }
+    })
+    let staleRefresh!: Promise<unknown>
+    act(() => {
+      staleRefresh = result.current.refresh()
+    })
+
+    rerender({ sessionId: 'session-2' })
+    const sessionTwoMessage = result.current.messages[0]
+
+    await act(async () => {
+      resolveSessionOneRefresh([{ items: [rowFor('session-1', 'refreshed one')] }])
+      await staleRefresh
+    })
+    rerender({ sessionId: 'session-2' })
+
+    expect(result.current.messages[0]).toBe(sessionTwoMessage)
+    expect(result.current.messages[0].id).toBe('message-session-2')
   })
 
   it('overlays live background-agent flow parts onto the original assistant row', () => {

@@ -101,19 +101,27 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
 
-  const messageProjectionRef = useRef<{
-    byId: Map<string, CachedAgentSessionMessage>
-    messages: CherryUIMessage[]
-  }>({ byId: new Map(), messages: [] })
+  const messageProjectionRef = useRef<
+    | {
+        byId: Map<string, CachedAgentSessionMessage>
+        messages: CherryUIMessage[]
+        ownerToken: symbol
+      }
+    | undefined
+  >(undefined)
+  const projectionOwnerToken = useMemo(() => Symbol(sessionId), [sessionId])
+  const currentProjectionOwnerTokenRef = useRef(projectionOwnerToken)
+  currentProjectionOwnerTokenRef.current = projectionOwnerToken
   // `updatedAt` is the persisted row revision. Reuse unchanged projections so
   // downstream WeakMap caches and message-group memoization survive revalidation.
   const projectMessages = useCallback(
     (sourceRows: AgentSessionMessageEntity[]): CherryUIMessage[] => {
       const previousProjection = messageProjectionRef.current
+      const previousById = previousProjection?.ownerToken === projectionOwnerToken ? previousProjection.byId : undefined
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
         const liveParts = flowParts?.[row.id]
-        const cached = previousProjection.byId.get(row.id)
+        const cached = previousById?.get(row.id)
         if (
           cached?.sessionId === row.sessionId &&
           cached.updatedAt === row.updatedAt &&
@@ -139,16 +147,20 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
         })
         return projectedMessage
       })
-      const previousMessages = previousProjection.messages
+      const previousMessages =
+        previousProjection?.ownerToken === projectionOwnerToken ? previousProjection.messages : undefined
       const stableMessages =
+        previousMessages !== undefined &&
         previousMessages.length === nextMessages.length &&
         nextMessages.every((message, index) => message === previousMessages[index])
           ? previousMessages
           : nextMessages
-      messageProjectionRef.current = { byId: nextById, messages: stableMessages }
+      if (currentProjectionOwnerTokenRef.current === projectionOwnerToken) {
+        messageProjectionRef.current = { byId: nextById, messages: stableMessages, ownerToken: projectionOwnerToken }
+      }
       return stableMessages
     },
-    [flowParts]
+    [flowParts, projectionOwnerToken]
   )
 
   const messages = useMemo<CherryUIMessage[]>(() => {
@@ -157,15 +169,17 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   const refreshMessages = useCallback(async (): Promise<CherryUIMessage[]> => {
     if (!enabled) return []
+    const fallbackMessages =
+      messageProjectionRef.current?.ownerToken === projectionOwnerToken ? messageProjectionRef.current.messages : []
     const refreshedPages = await mutate()
-    if (!refreshedPages) return messageProjectionRef.current.messages
+    if (!refreshedPages) return fallbackMessages
     const flat: AgentSessionMessageEntity[] = []
     for (let i = refreshedPages.length - 1; i >= 0; i--) {
       const page = refreshedPages[i]
       for (let j = page.items.length - 1; j >= 0; j--) flat.push(page.items[j])
     }
     return projectMessages(flat)
-  }, [enabled, mutate, projectMessages])
+  }, [enabled, mutate, projectMessages, projectionOwnerToken])
 
   const seedReservedMessages = useCallback(
     async (messages: CherryUIMessage[]): Promise<void> => {

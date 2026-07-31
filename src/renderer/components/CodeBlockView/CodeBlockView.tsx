@@ -33,15 +33,6 @@ import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
-const CODE_EDITOR_PREFERENCE_KEYS = {
-  enabled: 'chat.code.editor.enabled',
-  autocompletion: 'chat.code.editor.autocompletion',
-  foldGutter: 'chat.code.editor.fold_gutter',
-  highlightActiveLine: 'chat.code.editor.highlight_active_line',
-  keymap: 'chat.code.editor.keymap',
-  themeLight: 'chat.code.editor.theme_light',
-  themeDark: 'chat.code.editor.theme_dark'
-} as const
 const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
 const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
@@ -82,7 +73,15 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
-  const [codeEditor] = useMultiplePreferences(CODE_EDITOR_PREFERENCE_KEYS)
+  const [codeEditor] = useMultiplePreferences({
+    enabled: 'chat.code.editor.enabled',
+    autocompletion: 'chat.code.editor.autocompletion',
+    foldGutter: 'chat.code.editor.fold_gutter',
+    highlightActiveLine: 'chat.code.editor.highlight_active_line',
+    keymap: 'chat.code.editor.keymap',
+    themeLight: 'chat.code.editor.theme_light',
+    themeDark: 'chat.code.editor.theme_dark'
+  })
 
   const { activeCmTheme } = useCodeStyle()
 

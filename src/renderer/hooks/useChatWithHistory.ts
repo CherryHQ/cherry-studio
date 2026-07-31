@@ -79,7 +79,10 @@ export function useChatWithHistory(
   const { status: topicStreamStatus, activeExecutions: liveExecutions } = useTopicStreamStatus(topicId)
   const activeExecutions = liveExecutions.length > 0 ? liveExecutions : EMPTY_EXECUTIONS
 
-  const resumeInFlightRef = useRef<{ token: symbol; topicId: string } | null>(null)
+  const topicSelectionToken = useMemo(() => Symbol(topicId), [topicId])
+  const currentTopicSelectionTokenRef = useRef(topicSelectionToken)
+  currentTopicSelectionTokenRef.current = topicSelectionToken
+  const resumeInFlightRef = useRef<{ ownerToken: symbol; token: symbol } | null>(null)
 
   // `status` and `resumeStream` are read through refs so `resumeActiveStream`
   // keeps one identity per topic. With them in the deps, the "mount" effect
@@ -98,10 +101,10 @@ export function useChatWithHistory(
     (reason: 'mount' | 'started-event') => {
       if (!enabled) return
       if (reason === 'mount' && (statusRef.current === 'streaming' || statusRef.current === 'submitted')) return
-      if (resumeInFlightRef.current?.topicId === topicId) return
+      if (resumeInFlightRef.current?.ownerToken === topicSelectionToken) return
 
       const token = Symbol(topicId)
-      resumeInFlightRef.current = { token, topicId }
+      resumeInFlightRef.current = { ownerToken: topicSelectionToken, token }
       void (async () => {
         if (reason === 'started-event') {
           try {
@@ -109,6 +112,15 @@ export function useChatWithHistory(
           } catch (err) {
             logger.warn('Failed to refresh messages before resuming stream', { topicId, err })
           }
+        }
+
+        // A refresh started for topic A may settle after this hook has switched
+        // to topic B. Do not let that stale task call B's latest resume callback.
+        if (
+          resumeInFlightRef.current?.token !== token ||
+          currentTopicSelectionTokenRef.current !== topicSelectionToken
+        ) {
+          return
         }
 
         if (statusRef.current === 'streaming' || statusRef.current === 'submitted') {
@@ -124,7 +136,7 @@ export function useChatWithHistory(
           if (resumeInFlightRef.current?.token === token) resumeInFlightRef.current = null
         })
     },
-    [enabled, topicId]
+    [enabled, topicId, topicSelectionToken]
   )
 
   // One attach attempt per topic selection — not per status change.

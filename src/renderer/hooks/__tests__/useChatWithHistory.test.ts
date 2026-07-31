@@ -208,6 +208,94 @@ describe('useChatWithHistory', () => {
     await waitFor(() => expect(resumeStream).toHaveBeenCalledTimes(1))
   })
 
+  it('does not let a stale topic refresh resume the newly selected topic', async () => {
+    let resolveTopicOneRefresh!: () => void
+    const topicOneRefresh = vi.fn(
+      () =>
+        new Promise<CherryUIMessage[]>((resolve) => {
+          resolveTopicOneRefresh = () => resolve(refreshedMessages)
+        })
+    )
+    const topicTwoRefresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const resumeTopicOne = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const resumeTopicTwo = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    mockUseChat.mockImplementation(({ chat }: { chat: { id: string } }) => ({
+      messages: [] as CherryUIMessage[],
+      setMessages,
+      stop,
+      status: 'ready',
+      error: undefined,
+      sendMessage,
+      regenerate,
+      resumeStream: chat.id === 'topic-1' ? resumeTopicOne : resumeTopicTwo
+    }))
+
+    const { rerender } = renderHook(
+      ({ topicId, refresh }: { topicId: string; refresh: () => Promise<CherryUIMessage[]> }) =>
+        useChatWithHistory(topicId, [], refresh),
+      { initialProps: { topicId: 'topic-1', refresh: topicOneRefresh } }
+    )
+    await waitFor(() => expect(resumeTopicOne).toHaveBeenCalledTimes(1))
+
+    setMockStatus('topic-1', 'pending')
+    rerender({ topicId: 'topic-1', refresh: topicOneRefresh })
+    await waitFor(() => expect(topicOneRefresh).toHaveBeenCalledTimes(1))
+
+    rerender({ topicId: 'topic-2', refresh: topicTwoRefresh })
+    await waitFor(() => expect(resumeTopicTwo).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      resolveTopicOneRefresh()
+    })
+
+    await waitFor(() => expect(resumeTopicTwo).toHaveBeenCalledTimes(1))
+  })
+
+  it('does not reuse a stale in-flight refresh after selecting the same topic again', async () => {
+    let resolveFirstTopicRefresh!: () => void
+    const topicOneRefresh = vi.fn(
+      () =>
+        new Promise<CherryUIMessage[]>((resolve) => {
+          resolveFirstTopicRefresh = () => resolve(refreshedMessages)
+        })
+    )
+    const topicTwoRefresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const resumeTopicOne = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const resumeTopicTwo = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    mockUseChat.mockImplementation(({ chat }: { chat: { id: string } }) => ({
+      messages: [] as CherryUIMessage[],
+      setMessages,
+      stop,
+      status: chat.id === 'topic-2' ? 'streaming' : 'ready',
+      error: undefined,
+      sendMessage,
+      regenerate,
+      resumeStream: chat.id === 'topic-1' ? resumeTopicOne : resumeTopicTwo
+    }))
+
+    const { rerender } = renderHook(
+      ({ topicId, refresh }: { topicId: string; refresh: () => Promise<CherryUIMessage[]> }) =>
+        useChatWithHistory(topicId, [], refresh),
+      { initialProps: { topicId: 'topic-1', refresh: topicOneRefresh } }
+    )
+    await waitFor(() => expect(resumeTopicOne).toHaveBeenCalledTimes(1))
+
+    setMockStatus('topic-1', 'pending')
+    rerender({ topicId: 'topic-1', refresh: topicOneRefresh })
+    await waitFor(() => expect(topicOneRefresh).toHaveBeenCalledTimes(1))
+
+    rerender({ topicId: 'topic-2', refresh: topicTwoRefresh })
+    expect(resumeTopicTwo).not.toHaveBeenCalled()
+
+    rerender({ topicId: 'topic-1', refresh: topicOneRefresh })
+    await waitFor(() => expect(resumeTopicOne).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      resolveFirstTopicRefresh()
+    })
+    await waitFor(() => expect(resumeTopicOne).toHaveBeenCalledTimes(2))
+  })
+
   it('stop() fires streamAbort IPC even on reconnected streams', async () => {
     // The AI SDK's `ChatTransport.reconnectToStream` contract doesn't carry an
     // abortSignal, so streams produced by reconnect lack the listener that
