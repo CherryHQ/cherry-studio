@@ -513,10 +513,13 @@ export function useChatVirtualizerRuntime<T>({
   const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
   const previousDataKeysRef = useRef<string[]>([])
   const previousDataKeys = previousDataKeysRef.current
-  const shift =
+  const addedAtStart =
     previousDataKeys.length > 0 &&
     dataKeys.length > previousDataKeys.length &&
     dataKeys.indexOf(previousDataKeys[0]) > 0
+  const removedFromStart =
+    dataKeys.length > 0 && dataKeys.length < previousDataKeys.length && previousDataKeys.indexOf(dataKeys[0]) > 0
+  const shift = addedAtStart || removedFromStart
 
   useEffect(() => {
     previousDataKeysRef.current = dataKeys

@@ -33,6 +33,17 @@ import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
+const CODE_EDITOR_PREFERENCE_KEYS = {
+  enabled: 'chat.code.editor.enabled',
+  autocompletion: 'chat.code.editor.autocompletion',
+  foldGutter: 'chat.code.editor.fold_gutter',
+  highlightActiveLine: 'chat.code.editor.highlight_active_line',
+  keymap: 'chat.code.editor.keymap',
+  themeLight: 'chat.code.editor.theme_light',
+  themeDark: 'chat.code.editor.theme_dark'
+} as const
+const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
+const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
 interface Props {
   children: string
@@ -71,15 +82,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
-  const [codeEditor] = useMultiplePreferences({
-    enabled: 'chat.code.editor.enabled',
-    autocompletion: 'chat.code.editor.autocompletion',
-    foldGutter: 'chat.code.editor.fold_gutter',
-    highlightActiveLine: 'chat.code.editor.highlight_active_line',
-    keymap: 'chat.code.editor.keymap',
-    themeLight: 'chat.code.editor.theme_light',
-    themeDark: 'chat.code.editor.theme_dark'
-  })
+  const [codeEditor] = useMultiplePreferences(CODE_EDITOR_PREFERENCE_KEYS)
 
   const { activeCmTheme } = useCodeStyle()
 
@@ -128,6 +131,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
+  const handleRequestExpand = useCallback(() => setExpandOverride(true), [])
 
   // 重置用户操作
   useEffect(() => {
@@ -309,11 +313,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           expanded={shouldExpand}
           wrapped={shouldWrap}
           maxHeight={sourceMaxHeight}
-          onRequestExpand={maxHeight === undefined && codeCollapsible ? () => setExpandOverride(true) : undefined}
+          onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
-          options={{
-            highlight: !isStreaming
-          }}
+          options={isStreaming ? STREAMING_CODE_VIEWER_OPTIONS : HIGHLIGHTED_CODE_VIEWER_OPTIONS}
         />
       ),
     [
@@ -325,6 +327,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
+      handleRequestExpand,
       isStreaming,
       language,
       maxHeight,

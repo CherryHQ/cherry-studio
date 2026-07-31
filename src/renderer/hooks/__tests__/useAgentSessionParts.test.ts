@@ -81,6 +81,7 @@ describe('toAgentSessionUIMessage', () => {
 describe('useAgentSessionParts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     mockAgentSessionPartsDataApi()
   })
 
@@ -130,6 +131,46 @@ describe('useAgentSessionParts', () => {
     const listener = dataApiMocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
     listener?.()
     expect(mutate).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves unchanged message identities across revalidation and replaces updated rows', () => {
+    const originalRow = {
+      id: 'message-1',
+      sessionId: 'session-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'original' }] },
+      searchableText: 'original',
+      status: 'success',
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z'
+    } as AgentSessionMessageEntity
+    mockAgentSessionPartsDataApi([{ items: [originalRow] }])
+
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+    const originalMessage = result.current.messages[0]
+    const revalidatedRow = {
+      ...originalRow,
+      data: { parts: [{ type: 'text', text: 'original' }] }
+    } as AgentSessionMessageEntity
+    mockAgentSessionPartsDataApi([{ items: [revalidatedRow] }])
+    rerender()
+
+    expect(result.current.messages[0]).toBe(originalMessage)
+
+    const updatedRow = {
+      ...revalidatedRow,
+      data: { parts: [{ type: 'text', text: 'updated' }] },
+      updatedAt: '2026-01-01T00:00:02.000Z'
+    } as AgentSessionMessageEntity
+    mockAgentSessionPartsDataApi([{ items: [updatedRow] }])
+    rerender()
+
+    expect(result.current.messages[0]).not.toBe(originalMessage)
+    expect(result.current.messages[0].parts).toEqual([{ type: 'text', text: 'updated' }])
   })
 
   it('overlays live background-agent flow parts onto the original assistant row', () => {

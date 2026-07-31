@@ -16,9 +16,19 @@ import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowP
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 const PAGE_SIZE = 50
+
+interface CachedAgentSessionMessage {
+  liveParts: CherryMessagePart[] | undefined
+  message: CherryUIMessage
+  modelId: AgentSessionMessageEntity['modelId']
+  role: AgentSessionMessageEntity['role']
+  sessionId: string
+  status: AgentSessionMessageEntity['status']
+  updatedAt: string
+}
 
 export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
   const metadata: CherryUIMessage['metadata'] = {}
@@ -91,30 +101,71 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
 
+  const messageProjectionRef = useRef<{
+    byId: Map<string, CachedAgentSessionMessage>
+    messages: CherryUIMessage[]
+  }>({ byId: new Map(), messages: [] })
+  // `updatedAt` is the persisted row revision. Reuse unchanged projections so
+  // downstream WeakMap caches and message-group memoization survive revalidation.
+  const projectMessages = useCallback(
+    (sourceRows: AgentSessionMessageEntity[]): CherryUIMessage[] => {
+      const previousProjection = messageProjectionRef.current
+      const nextById = new Map<string, CachedAgentSessionMessage>()
+      const nextMessages = sourceRows.map((row) => {
+        const liveParts = flowParts?.[row.id]
+        const cached = previousProjection.byId.get(row.id)
+        if (
+          cached?.sessionId === row.sessionId &&
+          cached.updatedAt === row.updatedAt &&
+          cached.role === row.role &&
+          cached.status === row.status &&
+          cached.modelId === row.modelId &&
+          cached.liveParts === liveParts
+        ) {
+          nextById.set(row.id, cached)
+          return cached.message
+        }
+
+        const message = toAgentSessionUIMessage(row)
+        const projectedMessage = liveParts ? { ...message, parts: liveParts } : message
+        nextById.set(row.id, {
+          liveParts,
+          message: projectedMessage,
+          modelId: row.modelId,
+          role: row.role,
+          sessionId: row.sessionId,
+          status: row.status,
+          updatedAt: row.updatedAt
+        })
+        return projectedMessage
+      })
+      const previousMessages = previousProjection.messages
+      const stableMessages =
+        previousMessages.length === nextMessages.length &&
+        nextMessages.every((message, index) => message === previousMessages[index])
+          ? previousMessages
+          : nextMessages
+      messageProjectionRef.current = { byId: nextById, messages: stableMessages }
+      return stableMessages
+    },
+    [flowParts]
+  )
+
   const messages = useMemo<CherryUIMessage[]>(() => {
-    return rows.map((row) => {
-      const message = toAgentSessionUIMessage(row)
-      const liveParts = flowParts?.[row.id]
-      return liveParts ? { ...message, parts: liveParts } : message
-    })
-  }, [flowParts, rows])
+    return projectMessages(rows)
+  }, [projectMessages, rows])
 
   const refreshMessages = useCallback(async (): Promise<CherryUIMessage[]> => {
     if (!enabled) return []
     const refreshedPages = await mutate()
+    if (!refreshedPages) return messageProjectionRef.current.messages
     const flat: AgentSessionMessageEntity[] = []
-    if (refreshedPages) {
-      for (let i = refreshedPages.length - 1; i >= 0; i--) {
-        const page = refreshedPages[i]
-        for (let j = page.items.length - 1; j >= 0; j--) flat.push(page.items[j])
-      }
+    for (let i = refreshedPages.length - 1; i >= 0; i--) {
+      const page = refreshedPages[i]
+      for (let j = page.items.length - 1; j >= 0; j--) flat.push(page.items[j])
     }
-    return flat.map((row) => {
-      const message = toAgentSessionUIMessage(row)
-      const liveParts = flowParts?.[row.id]
-      return liveParts ? { ...message, parts: liveParts } : message
-    })
-  }, [enabled, flowParts, mutate])
+    return projectMessages(flat)
+  }, [enabled, mutate, projectMessages])
 
   const seedReservedMessages = useCallback(
     async (messages: CherryUIMessage[]): Promise<void> => {
