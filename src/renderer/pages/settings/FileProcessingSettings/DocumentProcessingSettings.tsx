@@ -11,6 +11,11 @@ import { type FileProcessingMenuEntry, getFeatureSections } from './utils/filePr
 
 const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
 
+const documentProcessingFieldClassName =
+  '[&_input[data-slot=input]]:h-8 [&_input[data-slot=input]]:rounded-lg [&_input[data-slot=input]]:border-border-subtle ' +
+  '[&_input[data-slot=input]]:bg-muted/30 [&_input[data-slot=input]]:px-2.5 [&_input[data-slot=input]]:shadow-none ' +
+  '[&_input[data-slot=input]:focus-visible]:ring-[1px] [&_input[data-slot=input]:focus-visible]:ring-ring/35'
+
 const DocumentProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
@@ -45,7 +50,7 @@ const DocumentProcessingSettings: FC = () => {
   const activeEntry = menuEntries.find((entry) => entry.key === activeKey) ?? menuEntries[0]
 
   return (
-    <SettingsContentColumn theme={themeMode}>
+    <SettingsContentColumn theme={themeMode} innerClassName={documentProcessingFieldClassName}>
       {availableProcessors.status === 'error' ? (
         <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
           {t('settings.tool.file_processing.errors.load_processors_failed')}

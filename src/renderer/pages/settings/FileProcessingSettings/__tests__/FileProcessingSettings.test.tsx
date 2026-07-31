@@ -311,6 +311,21 @@ describe('processing settings pages', () => {
     ).toBeInTheDocument()
   })
 
+  it('uses the web search field treatment for document processing inputs', async () => {
+    const { container } = render(<DocumentProcessingSettings />)
+
+    await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
+
+    expect(container.firstElementChild?.firstElementChild).toHaveClass(
+      '[&_input[data-slot=input]]:h-8',
+      '[&_input[data-slot=input]]:rounded-lg',
+      '[&_input[data-slot=input]]:border-border-subtle',
+      '[&_input[data-slot=input]]:bg-muted/30',
+      '[&_input[data-slot=input]]:shadow-none',
+      '[&_input[data-slot=input]:focus-visible]:ring-[1px]'
+    )
+  })
+
   it('shows only the processors for the selected feature', async () => {
     const ocrSettings = render(<OcrSettings />)
 
