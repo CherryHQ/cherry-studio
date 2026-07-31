@@ -195,18 +195,23 @@ function materializeInvocationUsage(buckets: InvocationUsageBuckets | undefined)
 
 function pendingInvocationFromAssistant(
   message: SDKAssistantMessage,
-  messageAssociation: PendingInvocationUsage['messageAssociation']
+  messageAssociation: PendingInvocationUsage['messageAssociation'],
+  fallbackModel: string
 ): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
   const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
   return {
     requestId: message.message.id,
-    model: message.message.model,
+    model: resolveSdkInvocationModel(message.message.model, fallbackModel),
     messageAssociation,
     ...(assistantUsage ? { assistantUsage } : {}),
     completionObserved: isComplete,
     isStreamStopped: false
   }
+}
+
+function resolveSdkInvocationModel(model: unknown, fallbackModel: string): string {
+  return typeof model === 'string' && model.trim() ? model : fallbackModel
 }
 
 function selectAssistantUsage(
@@ -814,7 +819,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     if (this.committedInvocationIds.has(message.message.id)) return
 
-    const next = pendingInvocationFromAssistant(message, messageAssociation)
+    const next = pendingInvocationFromAssistant(message, messageAssociation, this.adapterModelId ?? this.input.modelId)
     this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
     if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
       this.commitInvocationUsage(next.requestId)
@@ -834,7 +839,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
       this.captureInvocationForLane(lane, {
         requestId: sdkMessage.id,
-        model: sdkMessage.model,
+        model: resolveSdkInvocationModel(sdkMessage.model, this.adapterModelId ?? this.input.modelId),
         messageAssociation,
         ...(startUsage ? { startUsage } : {}),
         timing: {

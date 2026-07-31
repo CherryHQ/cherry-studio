@@ -2,6 +2,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
+import type { Citation } from '@renderer/types/message'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'es-toolkit/compat'
@@ -21,6 +22,7 @@ interface Props {
   postProcess?: (text: string) => string
   className?: string
   components?: Partial<Components>
+  trustedCitations?: readonly Citation[]
 }
 
 export type InlineHtmlPreviewMode = 'generating' | 'ready'
@@ -28,7 +30,14 @@ export type InlineHtmlPreviewMode = 'generating' | 'ready'
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
 
-const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, className, components }) => {
+const ChatMarkdown: FC<Props> = ({
+  block,
+  inlineHtmlPreviewMode,
+  postProcess,
+  className,
+  components,
+  trustedCitations
+}) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
@@ -52,11 +61,16 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
   }, [block.status, block.content, inlineHtmlPreviewMode, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
+  const citationRegistry = useMemo(
+    () => new Map((trustedCitations ?? []).map((citation) => [citation.number, citation])),
+    [trustedCitations]
+  )
   const chatComponents = useChatMarkdownComponents({
     blockId: block.id,
     inlineHtmlPreviewMode,
     hasStyleElement,
-    isStreaming
+    isStreaming,
+    citationRegistry
   })
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),

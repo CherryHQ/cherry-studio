@@ -498,7 +498,7 @@ describe('AgentSelector', () => {
         skillIds: [],
         configuration: {
           avatar: '🤖',
-          permission_mode: 'auto'
+          permission_mode: 'default'
         }
       })
     )

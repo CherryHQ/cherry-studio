@@ -86,7 +86,8 @@ async function expandDirectoryNode(
   baseId: string,
   pathPrefix: string,
   node: DirectoryEntryNode,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onFileCopied: () => void
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
@@ -106,6 +107,7 @@ async function expandDirectoryNode(
       overwrite: true
     })
     signal.throwIfAborted()
+    onFileCopied()
 
     return {
       type: 'file',
@@ -123,7 +125,7 @@ async function expandDirectoryNode(
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied)
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -146,7 +148,8 @@ export async function expandDirectoryOwnerToTree(
   owner: KnowledgeItem,
   baseId: string,
   reservedTopLevelNames: Set<string>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onCopyProgress: (percent: number) => void
 ): Promise<ExpandedDirectoryTree> {
   if (owner.type !== 'directory') {
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
@@ -167,13 +170,36 @@ export async function expandDirectoryOwnerToTree(
 
   const children = await readDirectoryTree(resolvedPath, signal)
   const expandedChildren: ExpandedDirectoryNode[] = []
+  const totalFiles = countSupportedFiles(children)
+  let copiedFiles = 0
+  if (totalFiles > 0) {
+    onCopyProgress(0)
+  }
+  const onFileCopied = () => {
+    copiedFiles += 1
+    onCopyProgress(Math.round((copiedFiles / totalFiles) * 100))
+  }
 
   for (const child of children) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied)
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }
   }
 
   return { pathPrefix, children: expandedChildren }
+}
+
+function countSupportedFiles(nodes: DirectoryEntryNode[]): number {
+  let count = 0
+  for (const node of nodes) {
+    if (node.type === 'file') {
+      if (KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
+        count += 1
+      }
+    } else {
+      count += countSupportedFiles(node.children ?? [])
+    }
+  }
+  return count
 }

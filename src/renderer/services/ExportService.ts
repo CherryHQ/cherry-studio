@@ -18,12 +18,14 @@ import { getTitleFromString, messagesToPlainText, processCitations } from '@rend
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { stripCitationMarkers } from '@renderer/utils/message/citations'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
   getCitationContent,
   getMainTextContent,
   getNamingTextContent,
-  getThinkingContent
+  getThinkingContent,
+  getToolCitationExport
 } from '@renderer/utils/message/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -219,6 +221,10 @@ const createBaseMarkdown = async (
       }
       // 使用 DOMPurify 安全地处理思维链内容
       reasoningContent = sanitizeReasoningContent(reasoningContent)
+      // The model cites its sources while reasoning too, but the `[N]` numbering below
+      // belongs to the answer body — strip rather than resolve, so no internal marker
+      // survives and no second, conflicting sequence appears.
+      reasoningContent = stripCitationMarkers(reasoningContent)
       if (forceDollarMathInMarkdown) {
         reasoningContent = convertMathFormula(reasoningContent)
       }
@@ -232,8 +238,13 @@ const createBaseMarkdown = async (
     }
   }
 
-  const content = getComposerTextFromMessage(message, getMainTextContent(message))
-  let citation = excludeCitations ? '' : getCitationContent(message)
+  const rawContent = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Tool-derived citations live as `[cite:id]` markers in the text with no persisted
+  // reference metadata, so resolve them to plain `[N]` here — otherwise the internal
+  // marker leaks into the export and the sources list comes back empty. Messages that
+  // do carry reference metadata keep the legacy path (see `getToolCitationExport`).
+  const { content, citation: toolCitation } = getToolCitationExport(message, rawContent)
+  let citation = excludeCitations ? '' : getCitationContent(message) || toolCitation
 
   let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
@@ -632,7 +643,9 @@ export const exportMessageToNotion = async (
   const notionBlocks = await convertMarkdownToNotionBlocks(content)
 
   if (notionExportReasoning && message) {
-    const thinkingContent = getThinkingContent(message)
+    // Same reason as `createBaseMarkdown`: the body arrives already resolved, so the trace is the
+    // only way an internal marker could still reach Notion.
+    const thinkingContent = stripCitationMarkers(getThinkingContent(message))
     if (thinkingContent) {
       const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
       if (notionBlocks.length > 0) {
@@ -663,7 +676,7 @@ export const exportMessagesToNotion = async (title: string, messages: Exportable
     const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
 
     if (notionExportReasoning) {
-      const thinkingContent = getThinkingContent(message)
+      const thinkingContent = stripCitationMarkers(getThinkingContent(message))
       if (thinkingContent) {
         const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
         if (messageBlocks.length > 0) {
