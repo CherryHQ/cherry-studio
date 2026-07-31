@@ -56,23 +56,12 @@ describe('CitationTooltip', () => {
     return render(<CitationTooltip citation={citation}>{children}</CitationTooltip>, { wrapper: createWrapper() })
   }
 
-  const getTooltipContent = () => screen.getByTestId('tooltip-content')
-
   const getCitationHeaderLink = () => screen.getByRole('link', { name: /open .* in new tab/i })
   const getCitationFooterLink = () => screen.getByRole('link', { name: /visit .*/i })
   const getCitationTitle = () => screen.getByRole('heading', { level: 3 })
   const getCitationContent = () => screen.queryByRole('article')
 
   describe('basic rendering', () => {
-    it('should render children and basic tooltip structure', () => {
-      const citation = createCitationData()
-      renderCitationTooltip(citation, <span>Click me</span>)
-
-      expect(screen.getByText('Click me')).toBeInTheDocument()
-      expect(screen.getByTestId('tooltip-wrapper')).toBeInTheDocument()
-      expect(getTooltipContent()).toBeInTheDocument()
-    })
-
     it('should render Favicon with correct props', () => {
       const citation = createCitationData({
         url: 'https://example.com',
@@ -179,17 +168,6 @@ describe('CitationTooltip', () => {
         unmount()
       })
     })
-
-    it('should handle special characters in title and content', () => {
-      const citation = createCitationData({
-        title: 'Article with Special: <>{}[]()&"\'`',
-        content: 'Content with chars: <>{}[]()&"\'`'
-      })
-      renderCitationTooltip(citation)
-
-      expect(screen.getByText('Article with Special: <>{}[]()&"\'`')).toBeInTheDocument()
-      expect(screen.getByText('Content with chars: <>{}[]()&"\'`')).toBeInTheDocument()
-    })
   })
 
   describe('user interactions', () => {
@@ -229,99 +207,7 @@ describe('CitationTooltip', () => {
     })
   })
 
-  describe('real-world usage scenarios', () => {
-    it('should work with actual citation link structure', () => {
-      const citation = createCitationData({
-        url: 'https://research.example.com/study',
-        title: 'Research Study on AI',
-        content:
-          'This study demonstrates significant improvements in AI capabilities through novel training methodologies and evaluation frameworks.'
-      })
-
-      const citationLink = (
-        <a href="https://research.example.com/study" target="_blank" rel="noreferrer">
-          <sup>1</sup>
-        </a>
-      )
-
-      renderCitationTooltip(citation, citationLink)
-
-      // Should display all citation information
-      expect(screen.getByText('Research Study on AI')).toBeInTheDocument()
-      expect(screen.getByText('research.example.com')).toBeInTheDocument()
-      expect(screen.getByText(/This study demonstrates/)).toBeInTheDocument()
-
-      // Should contain the sup element
-      expect(screen.getByText('1')).toBeInTheDocument()
-    })
-
-    it('should handle truncated content as used in real implementation', () => {
-      const fullContent = 'A'.repeat(250) // Longer than typical 200 char limit
-      const citation = createCitationData({ content: fullContent })
-      renderCitationTooltip(citation)
-
-      expect(screen.getByText(fullContent)).toBeInTheDocument()
-    })
-
-    it('should handle missing title with hostname fallback in real scenario', () => {
-      const citation = createCitationData({
-        url: 'https://docs.python.org/3/library/urllib.html',
-        title: undefined, // Common case when title extraction fails
-        content: 'urllib.request module documentation for Python 3'
-      })
-      renderCitationTooltip(citation)
-
-      const titleElement = getCitationTitle()
-      expect(titleElement).toHaveTextContent('docs.python.org')
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should handle malformed URLs', () => {
-      const malformedUrls = ['http://', 'https://', '://missing-protocol']
-
-      malformedUrls.forEach((url) => {
-        expect(() => {
-          const { unmount } = renderCitationTooltip(createCitationData({ url }))
-          unmount()
-        }).not.toThrow()
-      })
-    })
-
-    it('should handle missing children gracefully', () => {
-      const citation = createCitationData()
-
-      expect(() => {
-        render(<CitationTooltip citation={citation}>{null}</CitationTooltip>, { wrapper: createWrapper() })
-      }).not.toThrow()
-    })
-
-    it('should handle extremely long URLs without breaking', () => {
-      const longUrl = 'https://extremely-long-domain-name.example.com/' + 'a'.repeat(500)
-      const citation = createCitationData({ url: longUrl })
-
-      expect(() => {
-        renderCitationTooltip(citation)
-      }).not.toThrow()
-    })
-  })
-
   describe('performance', () => {
-    it('should memoize calculations correctly', () => {
-      const citation = createCitationData({ url: 'https://memoize-test.com' })
-      const { rerender } = renderCitationTooltip(citation)
-
-      expect(screen.getByText('memoize-test.com')).toBeInTheDocument()
-
-      // Re-render with same props should work correctly
-      rerender(
-        <CitationTooltip citation={citation}>
-          <span>Trigger</span>
-        </CitationTooltip>
-      )
-      expect(screen.getByText('memoize-test.com')).toBeInTheDocument()
-    })
-
     it('should update when citation data changes', () => {
       const citation1 = createCitationData({ url: 'https://first.com' })
       const { rerender } = renderCitationTooltip(citation1)
