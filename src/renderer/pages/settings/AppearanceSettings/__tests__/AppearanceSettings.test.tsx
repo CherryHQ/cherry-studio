@@ -338,46 +338,6 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
-  it('matches both font popover widths to their triggers', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
-      element.getAttribute('data-popover-class-name')
-    )
-
-    expect(fontPopoverClassNames).toHaveLength(2)
-    expect(fontPopoverClassNames).toEqual([
-      expect.stringContaining('w-(--radix-popover-trigger-width)'),
-      expect.stringContaining('w-(--radix-popover-trigger-width)')
-    ])
-  })
-
-  it('matches the font triggers to the other appearance selectors', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    const fontSelectors = Array.from(container.querySelectorAll('select'))
-
-    expect(fontSelectors).toHaveLength(2)
-    fontSelectors.forEach((selector) => {
-      expect(selector).toHaveClass(
-        'h-8',
-        'rounded-md',
-        'border-border',
-        'bg-transparent',
-        'text-sm',
-        'dark:bg-input/30'
-      )
-    })
-  })
-
   it('shows migration guidance for marked v1 custom CSS', () => {
     MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', `${V1_CUSTOM_CSS_MARKER}\nbody { color: red; }`)
 

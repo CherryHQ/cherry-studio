@@ -260,6 +260,9 @@ export type SharedCacheSchema = {
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
+  'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
+  'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
+  'agent.session.flow_parts.${sessionId}': CacheValueTypes.CacheAgentSessionFlowParts
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -292,6 +295,9 @@ export type SharedCacheSchema = {
   // Nothing evicts an entry — that is the point, and it costs a handful of rows per
   // session. Null is the cache miss (see the `jobs.state` precedent above).
   'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Directory copy progress for a knowledge item, main -> all windows. Like
+  // embedding progress, the prepare job owns this runtime-only value.
+  'knowledge.item.directory_copy_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -303,6 +309,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
+  'agent.session.background_tasks.${sessionId}': [],
+  'agent.session.task_events.${sessionId}': {},
+  'agent.session.flow_parts.${sessionId}': {},
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -315,7 +324,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'jobs.state.${jobId}': null,
   'jobs.progress.${jobId}': { progress: 0 },
   'knowledge.item.embedding_progress.${itemId}': null,
-  'mini_app.transient_descriptor.${appId}': null
+  'mini_app.transient_descriptor.${appId}': null,
+  'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
 /**

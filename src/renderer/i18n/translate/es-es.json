@@ -139,11 +139,16 @@
         "description": "Recibe y responde a mensajes a través de WeChat utilizando la API de iLink Bot.",
         "disconnected": "Desconectado",
         "loginHint": "El primer inicio de sesión requiere escanear un código QR. Verifica los registros de la aplicación para obtener la URL de inicio de sesión.",
+        "qrExpired": "Código QR expirado. Por favor, inténtalo de nuevo cambiando el canal.",
         "qrHint": "Abre WeChat en tu teléfono, escanea el código QR para iniciar sesión.",
         "qrTitle": "Inicio de sesión con código QR de WeChat",
         "title": "WeChat",
         "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} más",
         "no_artifacts": "No se han declarado entregables",
         "no_subagents": "Sin subagentes",
-        "subagents": "Subagentes"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Subagentes",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Actividad",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sin tareas activas",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Herramienta seleccionada",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} completado",
         "tasks": "Tareas",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Activo",
         "tools_done": "Hecho",
         "tools_failed": "Falló",
@@ -614,12 +628,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Las ediciones de archivos y las operaciones del sistema de archivos se aprueban automáticamente.",
-            "title": "Aceptar automáticamente las ediciones de archivos"
+            "description": "Edita archivos libremente. Pregunta antes de los comandos.",
+            "title": "Aceptar ediciones automáticamente"
+          },
+          "auto": {
+            "description": "Se ejecuta sin preguntas rutinarias. Una comprobación de seguridad bloquea las acciones arriesgadas.",
+            "title": "Aprobar por mí",
+            "warning": "Requiere un modelo compatible; otros pueden ignorarlo o seguir preguntando."
           },
           "bypassPermissions": {
-            "description": "Todos los mensajes de permiso se omiten — úsalo con precaución.",
-            "title": "Omitir verificaciones de permisos",
+            "description": "Omite las comprobaciones de permisos. Puede eliminar archivos y usar la red.",
+            "title": "Acceso completo",
             "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
           },
           "confirmChange": {
@@ -627,14 +646,14 @@
             "title": "¿Cambiar modo de permisos?"
           },
           "default": {
-            "description": "Se aplican los controles de permisos normales.",
-            "title": "Predeterminado (preguntar antes de continuar)"
+            "description": "Pregunta antes de editar archivos o ejecutar comandos.",
+            "title": "Preguntar antes de actuar"
           },
           "helper": "Especifica cómo el agente maneja la autorización de uso de herramientas",
           "placeholder": "Seleccionar modo de permisos",
           "plan": {
-            "description": "Claude solo puede usar herramientas de solo lectura y presenta un plan antes de ejecutarlo.",
-            "title": "Modo de planificación (próximamente)"
+            "description": "Planifica sin editar archivos. Solo se ejecutan comandos de solo lectura o verificados.",
+            "title": "Solo planificar"
           },
           "title": "Modo de permisos"
         },
@@ -1249,10 +1268,6 @@
           "tip": "El agente utilizará la capacidad del modelo grande para el reconocimiento de intenciones y decidirá si necesita invocar la base de conocimientos para responder. Esta función dependerá de las capacidades del modelo"
         }
       },
-      "max_tool_calls": {
-        "label": "Llamadas Máximas de Herramientas",
-        "tip": "Número máximo de llamadas a herramientas permitidas en una sola conversación. Valores más altos permiten operaciones de múltiples pasos más complejas, pero pueden incrementar el uso de tokens y el tiempo de respuesta."
-      },
       "mcp": {
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
@@ -1458,9 +1473,8 @@
       "image_preview_failed": "La vista previa de la imagen falló",
       "knowledge_base": "Base de conocimientos",
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
-      "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
+      "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas",
       "locate_editing_message": "Localizar mensaje original",
-      "mcp_unavailable": "Selecciona un modelo con capacidad para herramientas o habilita el uso de herramientas en el prompt.",
       "new": {
         "context": "Limpiar contexto {{Command}}"
       },
@@ -1601,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "No se puede convertir al formato de llamada de herramienta válido: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones",
-        "multiple_tools": "Existen múltiples herramientas MCP coincidentes, se ha seleccionado {{tool}}",
-        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}",
         "url_context": "Gemini no admite el uso simultáneo del contexto de la página web y las llamadas a funciones."
       }
     },
@@ -3449,6 +3458,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Llamadas máximas de herramientas",
+        "max_tool_calls_default": "Predeterminado ({{count}} rondas)",
         "mcp_mode": "Modo MCP",
         "model": "Modelo predeterminado",
         "model_clear": "Claro",
@@ -3464,8 +3474,7 @@
         "tags": "Etiquetas",
         "temperature": "Temperatura",
         "title": "Configuración básica",
-        "top_p": "Top-P",
-        "unlimited": "Ilimitado"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Biblioteca",
       "dialogs": {
@@ -3839,6 +3848,7 @@
     },
     "citation": "{{count}} contenido citado",
     "citations": "Citas",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiado",
     "copy": {
       "failed": "Copia fallida",
@@ -4120,6 +4130,7 @@
         "write": "Guardar",
         "writing": "Guardando"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
@@ -4151,6 +4162,7 @@
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
         "webSearch": "Búsqueda en la web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Escribir"
       },
       "noData": "No hay datos disponibles para esta herramienta.",
@@ -4208,6 +4220,15 @@
         "plan_other": "{{count}} planes",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -7721,6 +7742,13 @@
           "toggle_client_email_visibility": "Alternar la visibilidad del correo electrónico del cliente",
           "toggle_private_key_visibility": "Alternar la visibilidad de la clave privada",
           "toggle_project_id_visibility": "Alternar la visibilidad del ID del proyecto"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Abrir Token Factory",
+          "description": "Equivale a 10 USD diarios en créditos de API: unos 10M–111M tokens de entrada/salida con las tarifas actuales, según el modelo y el tipo de token. Los créditos se restablecen a diario; actualmente no se admiten recargas.",
+          "title": "10 USD diarios en créditos de API gratuitos"
         }
       }
     },

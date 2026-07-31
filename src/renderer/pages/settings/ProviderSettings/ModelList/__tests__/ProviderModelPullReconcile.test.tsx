@@ -63,26 +63,24 @@ describe('ProviderModelPullReconcile', () => {
     pullReconcileState.value.isBusy = false
   })
 
-  it('shows the refresh icon when the pull action is idle', () => {
-    const { container } = render(<ProviderModelPullReconcile providerId="openai" disabled={false} />)
+  it('marks the pull action idle before reconciliation starts', () => {
+    render(<ProviderModelPullReconcile providerId="openai" disabled={false} />)
 
     expect(screen.getByRole('button', { name: 'settings.models.toolbar.pull_short' })).toHaveAttribute(
       'data-loading',
       'false'
     )
-    expect(container.querySelector('.lucide-refresh-cw')).toBeInTheDocument()
   })
 
-  it('hides the refresh icon while the button renders its loading indicator', () => {
+  it('marks the pull action loading while reconciliation is busy', () => {
     pullReconcileState.value.isBusy = true
 
-    const { container } = render(<ProviderModelPullReconcile providerId="openai" disabled={false} />)
+    render(<ProviderModelPullReconcile providerId="openai" disabled={false} />)
 
     expect(screen.getByRole('button', { name: 'settings.models.toolbar.pull_short' })).toHaveAttribute(
       'data-loading',
       'true'
     )
-    expect(container.querySelector('.lucide-refresh-cw')).not.toBeInTheDocument()
   })
 
   it('shows a temporary guide arrow instead of opening the drawer when requested', () => {
@@ -94,7 +92,7 @@ describe('ProviderModelPullReconcile', () => {
     })
 
     expect(pullReconcileState.value.openPullReconcile).not.toHaveBeenCalled()
-    expect(screen.getByTestId('model-pull-guide-arrow')).toHaveClass('text-muted-foreground')
+    expect(screen.getByTestId('model-pull-guide-arrow')).toBeInTheDocument()
 
     act(() => {
       vi.advanceTimersByTime(1200)

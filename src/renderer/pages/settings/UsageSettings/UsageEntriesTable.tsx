@@ -107,7 +107,7 @@ export function UsageEntriesTable({
     <UsagePanel>
       <UsagePanelHeader className="flex min-w-0 items-center justify-between gap-3">
         <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
-        <div className="text-foreground-muted text-xs">
+        <div className="text-foreground-tertiary text-xs">
           {t('settings.usage.explore.totalEntries', { count: entryTotal })}
         </div>
       </UsagePanelHeader>

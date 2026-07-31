@@ -85,7 +85,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         {/* min-w-160 (640px): keep wide tables on one page within the ~800px reading column; the viewport scrolls only when narrower. */}
         <table
           ref={tableRef}
-          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-muted [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-muted [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:hover]:bg-accent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
+          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-subtle [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-subtle [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:hover]:bg-accent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
           style={{
             border: '0.5px solid var(--border)',
             borderRadius: 'var(--radius-md)',
@@ -101,7 +101,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           {canCopyTable && (
             <Tooltip content={t('common.copy')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
@@ -112,7 +112,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           {canExportExcel && (
             <Tooltip content={t('common.export.excel')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.export.excel')}
                 onClick={handleExportExcel}>

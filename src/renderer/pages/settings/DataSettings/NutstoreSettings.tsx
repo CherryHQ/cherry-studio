@@ -35,7 +35,7 @@ import { type FileStat } from 'webdav'
 
 import NutstorePathPopup from './NutstorePathPopup'
 
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -182,7 +182,7 @@ const NutstoreSettings: FC = () => {
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {nutstoreSyncState.lastSyncTime && (
@@ -242,7 +242,7 @@ const NutstoreSettings: FC = () => {
         <>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-            <span className="text-foreground-muted">{nutstoreUsername}</span>
+            <span className="text-foreground-tertiary">{nutstoreUsername}</span>
           </SettingRow>
 
           <SettingDivider />

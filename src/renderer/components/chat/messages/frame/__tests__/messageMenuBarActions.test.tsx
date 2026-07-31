@@ -176,7 +176,7 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
     isTranslating: false,
     hasTranslationBlocks: false,
     isUserMessage: false,
-    isUseful: false,
+    isSelectedForContext: false,
     isEditable: true,
     translateLanguages: [],
     startEditingMessage: vi.fn(),

@@ -470,6 +470,12 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       <span
         aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
         aria-busy={isCompacting || undefined}
+        // The cached reading is only refreshed when a turn settles, so it goes stale mid-turn. Main
+        // throttles this and answers on the shared-cache key; a session with no live connection
+        // keeps showing its last reading.
+        onPointerEnter={() => {
+          void ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+        }}
         className={cn(
           'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]',
           isCompacting && 'animate-pulse'
@@ -1479,30 +1485,32 @@ const AgentComposerInner = ({
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
-                  else toast.error(t('chat.input.send_failed'))
-                }}
-                onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-              />
-            ) : undefined
+            <>
+              {queuedFollowups.length > 0 ? (
+                <QueuedFollowupsDock
+                  items={queuedFollowups}
+                  paused={followupPaused}
+                  onTogglePause={() => setFollowupPaused(!followupPaused)}
+                  onSteer={async (id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    // Only drop the item once the send actually succeeds; a failed manual
+                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent) removeFollowup(id)
+                    else toast.error(t('chat.input.send_failed'))
+                  }}
+                  onEdit={(id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                  }}
+                  onRemove={removeFollowup}
+                  onReorder={reorderFollowups}
+                />
+              ) : undefined}
+            </>
           }
           supportedExts={supportedExts}
           setFiles={setFiles}

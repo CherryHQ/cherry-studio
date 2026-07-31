@@ -139,11 +139,16 @@
         "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
         "disconnected": "Not logged in",
         "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
+        "qrExpired": "QR code expired. Please retry by toggling the channel.",
         "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
         "qrTitle": "WeChat QR Login",
         "title": "WeChat",
         "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} background task running",
+      "background_running_other": "{{count}} background tasks running"
     },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} more",
         "no_artifacts": "No declared deliverables",
         "no_subagents": "No sub-agents",
-        "subagents": "Sub-agents"
+        "shell_tasks": "Background commands",
+        "subagents": "Sub-agents",
+        "workflows": "Workflows"
       },
       "status": {
         "activity": "Activity",
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "No active tasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Subtasks",
         "selected_tool": "Selected tool",
+        "stop_run_task": "Stop task",
+        "stop_run_task_failed": "Failed to stop task",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
+        "tool_uses_one": "{{count}} tool call",
+        "tool_uses_other": "{{count}} tool calls",
         "tools_active": "Active",
         "tools_done": "Done",
         "tools_failed": "Failed",
@@ -614,12 +628,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Can read and edit files freely. Asks before running commands.",
-            "title": "Auto-edit Mode"
+            "description": "Edits files freely. Asks before commands.",
+            "title": "Auto-accept Edits"
+          },
+          "auto": {
+            "description": "Runs without routine prompts. A safety check blocks risky actions.",
+            "title": "Approve for Me",
+            "warning": "Needs a model that supports it; others may ignore it or keep asking."
           },
           "bypassPermissions": {
-            "description": "Can do everything without asking. Use with caution.",
-            "title": "Full Auto Mode",
+            "description": "Skips permission checks. Can delete files and use the network.",
+            "title": "Full Access",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
           "confirmChange": {
@@ -627,14 +646,14 @@
             "title": "Change permission mode?"
           },
           "default": {
-            "description": "Can read files freely. Asks before editing or running commands.",
-            "title": "Normal Mode"
+            "description": "Asks before editing files or running commands.",
+            "title": "Ask Before Acting"
           },
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "description": "Can only read files and make plans. Cannot edit files or run commands.",
-            "title": "Plan Mode"
+            "description": "Plans without editing files. Only read-only or vetted commands run.",
+            "title": "Plan Only"
           },
           "title": "Permission mode"
         },
@@ -1249,10 +1268,6 @@
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
       },
-      "max_tool_calls": {
-        "label": "Max Tool Calls",
-        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
-      },
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
@@ -1458,9 +1473,8 @@
       "image_preview_failed": "Image preview failed",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
-      "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Clear Context"
       },
@@ -1601,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}",
         "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
@@ -2571,6 +2580,10 @@
     "user": "User"
   },
   "file_preview": {
+    "directory": {
+      "description": "Select a file in this folder to preview it.",
+      "title": "This is a folder"
+    },
     "html": {
       "empty": {
         "description": "This HTML file has no content.",
@@ -2636,6 +2649,10 @@
         "description": "Text files larger than {{limit}} MiB cannot be previewed.",
         "title": "File is too large"
       }
+    },
+    "unavailable": {
+      "description": "The file may have been moved, deleted, or cannot be accessed.",
+      "title": "File unavailable"
     },
     "unsupported": {
       "action": "Open with default app",
@@ -3043,6 +3060,7 @@
       "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
+        "copying": "Copying {{percent}}%",
         "embedding": "Embedding",
         "error": "Error",
         "pending": "Waiting",
@@ -3833,7 +3851,9 @@
       }
     },
     "citation": "{{count}} citations",
+    "citation_source": "Citation source {{number}}",
     "citations": "References",
+    "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",
     "copy": {
       "failed": "Copy failed",
@@ -4115,6 +4135,7 @@
         "write": "Write",
         "writing": "Writing it out"
       },
+      "agent_background": "Running in background",
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
@@ -4146,6 +4167,7 @@
         "tool": "Tool",
         "webFetch": "Web Fetch",
         "webSearch": "Web Search",
+        "workflow": "Workflow",
         "write": "Write"
       },
       "noData": "No data available for this tool",
@@ -4203,6 +4225,15 @@
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} result",
         "result_other": "{{count}} results"
+      },
+      "workflow": {
+        "orchestrating": "Orchestrating workflow",
+        "run_id": "Run ID",
+        "script": "Workflow script",
+        "script_path": "Script path",
+        "started": "Started workflow",
+        "summary": "Summary",
+        "workflow": "workflow"
       }
     },
     "topic": {
@@ -5189,6 +5220,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7672,6 +7704,13 @@
         "topup": "Top Up",
         "usage_title": "Usage",
         "usage_unit": "tokens"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Open Token Factory",
+          "description": "Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
+          "title": "$10 in free daily API credits"
+        }
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",

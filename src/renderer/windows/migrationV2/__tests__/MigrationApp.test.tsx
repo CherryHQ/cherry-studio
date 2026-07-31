@@ -436,7 +436,7 @@ describe('MigrationApp', () => {
       'border-0',
       'bg-transparent',
       'px-1.5',
-      'text-foreground-muted',
+      'text-muted-foreground',
       'text-xs',
       'shadow-none',
       'hover:bg-transparent',
