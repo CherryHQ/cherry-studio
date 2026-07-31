@@ -151,13 +151,17 @@ export function cleanupTerminalRestoreArtifacts(): void {
   }
 
   try {
-    const stagingRoot = application.getPath('feature.backup.restore.staging')
-    fs.rmSync(path.join(stagingRoot, journal.restoreId), { recursive: true, force: true })
-    logger.info('Terminal restore staging cleared; journal kept for BackupService disclosure', {
-      restoreId: journal.restoreId,
-      state: journal.state,
-      step: journal.step
-    })
+    // Reuse removeStagingTree's containment guard — restoreId is schema-checked only as a
+    // non-empty string, so a corrupted/hand-edited terminal journal could otherwise make the
+    // preboot cleanup delete outside the staging root. (security: path traversal)
+    const cleared = removeStagingTree(journal.restoreId)
+    if (cleared) {
+      logger.info('Terminal restore staging cleared; journal kept for BackupService disclosure', {
+        restoreId: journal.restoreId,
+        state: journal.state,
+        step: journal.step
+      })
+    }
   } catch (error) {
     logger.warn('Failed to clear terminal restore staging — will retry on the next launch', {
       restoreId: journal.restoreId,
@@ -725,15 +729,16 @@ function finalize(
  * schema-checked only as a non-empty string and this runs preboot with full fs
  * privileges, so refuse any id whose joined path leaves the staging root.
  */
-function removeStagingTree(restoreId: string): void {
+function removeStagingTree(restoreId: string): boolean {
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   const target = path.resolve(stagingRoot, restoreId)
   const rel = path.relative(stagingRoot, target)
   if (rel === '' || rel.split(path.sep).includes('..') || path.isAbsolute(rel)) {
     logger.error('Refusing to delete staging outside the staging root', { restoreId })
-    return
+    return false
   }
   fs.rmSync(target, { recursive: true, force: true })
+  return true
 }
 
 function quarantineCorruptJournal(error: string): void {

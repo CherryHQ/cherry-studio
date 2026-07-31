@@ -424,6 +424,27 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(true)
   })
 
+  it('refuses terminal cleanup when restoreId escapes the staging root (security)', async () => {
+    makeDb(livePath(), 'old')
+    const outside = join(userData, 'outside-dir')
+    mkdirSync(outside, { recursive: true })
+    writeFileSync(join(outside, 'keep.txt'), 'keep')
+    // A corrupted/hand-edited terminal journal could carry a traversal restoreId; the preboot
+    // cleanup must refuse to delete outside the staging root (security: path traversal).
+    const journal = await buildJournal({
+      state: 'completed',
+      step: 'integrity-ok',
+      chain: [{ folderMillis: 1, hash: 'x' }]
+    })
+    writeRestoreJournal({ ...journal, restoreId: '../outside-dir' } as RestoreJournal)
+
+    cleanupTerminalRestoreArtifacts()
+
+    // Outside file untouched; journal retained (terminal) for retry next launch.
+    expect(existsSync(join(outside, 'keep.txt'))).toBe(true)
+    expect(journalState()).toBe('completed')
+  })
+
   it('promotes a valid staged restore end to end (DB swap + manifest + terminal journal)', async () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
