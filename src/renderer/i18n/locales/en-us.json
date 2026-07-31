@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "Runs without routine prompts. A safety check blocks risky actions.",
-            "title": "Approve for Me"
+            "title": "Approve for Me",
+            "warning": "Needs a model that supports it; others may ignore it or keep asking."
           },
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
@@ -3064,6 +3065,7 @@
       "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
+        "copying": "Copying {{percent}}%",
         "embedding": "Embedding",
         "error": "Error",
         "pending": "Waiting",
@@ -3854,6 +3856,7 @@
       }
     },
     "citation": "{{count}} citations",
+    "citation_source": "Citation source {{number}}",
     "citations": "References",
     "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",
@@ -5222,6 +5225,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7705,6 +7709,13 @@
         "topup": "Top Up",
         "usage_title": "Usage",
         "usage_unit": "tokens"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Open Token Factory",
+          "description": "Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
+          "title": "$10 in free daily API credits"
+        }
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",

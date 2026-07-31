@@ -3,6 +3,7 @@
  *
  * Encapsulates everything that makes chat markdown look like chat markdown:
  *   - `<a>`   → Link with citation routing (CitationTooltip vs Hyperlink card)
+ *   - `<sup>` → CitationSup: tooltip for URL-less citations (knowledge/memory)
  *   - `<code>`→ CodeBlock with file-path detection + save action
  *   - `<table>`→ Table with copy/Excel export actions
  *   - `<img>` → ImageViewer with modal preview
@@ -18,10 +19,12 @@
 
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
+import type { Citation } from '@renderer/types/message'
 import { useMemo } from 'react'
 import type { Components } from 'streamdown'
 
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
+import CitationSup from './CitationSup'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
@@ -35,17 +38,20 @@ interface Options {
   hasStyleElement?: boolean
   /** True while the owning markdown block is still receiving stream chunks. */
   isStreaming?: boolean
+  citationRegistry?: ReadonlyMap<number, Citation>
 }
 
 export function useChatMarkdownComponents({
   blockId,
   inlineHtmlPreviewMode,
   hasStyleElement = false,
-  isStreaming = false
+  isStreaming = false,
+  citationRegistry
 }: Options): Partial<Components> {
   return useMemo(() => {
     const result: Partial<Components> = {
-      a: (props: any) => <Link {...props} />,
+      a: (props: any) => <Link {...props} citationRegistry={citationRegistry} />,
+      sup: (props: any) => <CitationSup {...props} citationRegistry={citationRegistry} />,
       code: (props: any) => (
         <CodeBlock
           {...props}
@@ -68,5 +74,5 @@ export function useChatMarkdownComponents({
       result.style = MarkdownShadowDomRenderer as Components['style']
     }
     return result
-  }, [blockId, hasStyleElement, inlineHtmlPreviewMode, isStreaming])
+  }, [blockId, citationRegistry, hasStyleElement, inlineHtmlPreviewMode, isStreaming])
 }

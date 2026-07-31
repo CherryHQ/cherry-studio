@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
-            "title": "Approuver pour moi"
+            "title": "Approuver pour moi",
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
@@ -7741,6 +7742,13 @@
           "toggle_client_email_visibility": "Basculer la visibilité de l'e-mail du client",
           "toggle_private_key_visibility": "Basculer la visibilité de la clé privée",
           "toggle_project_id_visibility": "Basculer la visibilité de l'ID du projet"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Ouvrir Token Factory",
+          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
+          "title": "10 USD de crédits API gratuits par jour"
         }
       }
     },
