@@ -1,21 +1,16 @@
 import '@testing-library/jest-dom/vitest'
 
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../onboarding/OnboardingPage', () => ({
-  default: ({ onComplete }: { onComplete: (status: 'completed' | 'skipped') => void }) => (
-    <>
-      <button type="button" data-testid="onboarding-page" onClick={() => onComplete('completed')}>
-        onboarding
-      </button>
-      <button type="button" data-testid="skip-onboarding" onClick={() => onComplete('skipped')}>
-        skip
-      </button>
-    </>
-  )
+  default: () => <div data-testid="onboarding-page">onboarding</div>
+}))
+
+vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
+  PrivacyPolicyUpdateGate: () => <div data-testid="privacy-policy-gate">privacy-policy-gate</div>
 }))
 
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
@@ -41,6 +36,12 @@ vi.mock('@renderer/components/ThemeProvider', () => ({
 
 import MainApp, { MainWindowContent } from '../MainApp'
 
+function appendBootSpinner() {
+  const spinner = document.createElement('div')
+  spinner.id = 'spinner'
+  document.body.appendChild(spinner)
+}
+
 describe('MainWindowContent', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
@@ -52,39 +53,14 @@ describe('MainWindowContent', () => {
 
   it('renders onboarding before the user completes first-run setup', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
+    appendBootSpinner()
 
     render(<MainWindowContent />)
 
     expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
-  })
-
-  it('marks onboarding complete when the flow completes', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
-
-    const { rerender } = render(<MainWindowContent />)
-    fireEvent.click(screen.getByTestId('onboarding-page'))
-
-    await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
-    })
-
-    rerender(<MainWindowContent />)
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
-  })
-
-  it('marks onboarding skipped when the user chooses to set it up later', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
-
-    const { rerender } = render(<MainWindowContent />)
-    fireEvent.click(screen.getByTestId('skip-onboarding'))
-
-    await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('skipped')
-    })
-
-    rerender(<MainWindowContent />)
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
+    expect(document.getElementById('spinner')).toBeNull()
   })
 
   it.each(['completed', 'skipped'] as const)('renders the normal app shell when onboarding is %s', (status) => {
@@ -95,15 +71,14 @@ describe('MainWindowContent', () => {
     expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
   })
 })
 
 describe('MainApp top-level error boundary', () => {
   it('shows the window fatal fallback instead of a white screen when a provider throws', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const spinner = document.createElement('div')
-    spinner.id = 'spinner'
-    document.body.appendChild(spinner)
+    appendBootSpinner()
 
     render(<MainApp />)
 

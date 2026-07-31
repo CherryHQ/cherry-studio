@@ -3,6 +3,8 @@
  * Uses setupTestDatabase() per CLAUDE.md testing guidelines.
  */
 
+import { readFileSync } from 'node:fs'
+
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
@@ -129,7 +131,7 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { providerRegistryService } = await import('../ProviderRegistryService')
+const { mergePresetModel, providerRegistryService } = await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -221,6 +223,15 @@ describe('ProviderRegistryService', () => {
         providerRegistryService.getProviderPreset('does-not-exist', ['endpointConfigs', 'models'], 'also-missing')
       ).toEqual({ endpointConfigs: null, models: [] })
     })
+
+    it('treats an explicit null preset id as authoritative custom provenance', () => {
+      setupRegistryData()
+
+      expect(providerRegistryService.getProviderPreset('openai', ['endpointConfigs', 'models'], null)).toEqual({
+        endpointConfigs: null,
+        models: []
+      })
+    })
   })
 
   describe('registry load failure', () => {
@@ -268,6 +279,46 @@ describe('ProviderRegistryService', () => {
       expect(models[0].maxOutputTokens).toBe(4096)
     })
 
+    it('merges parameter support and provider pricing overrides into the runtime baseline', () => {
+      const model = mergePresetModel(
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          parameterSupport: {
+            temperature: { supported: true },
+            topP: { supported: true },
+            topK: { supported: false },
+            frequencyPenalty: true,
+            presencePenalty: true,
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          },
+          pricing: {
+            input: { perMillionTokens: 5 },
+            output: { perMillionTokens: 15 }
+          }
+        } as any,
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          parameterSupport: { temperature: { supported: false } },
+          pricing: { output: { perMillionTokens: 12 } }
+        } as any,
+        'openai'
+      )
+
+      expect(model.parameterSupport).toMatchObject({
+        temperature: { supported: false },
+        topP: { supported: true },
+        maxTokens: true
+      })
+      expect(model.pricing).toMatchObject({
+        input: { perMillionTokens: 5 },
+        output: { perMillionTokens: 12 }
+      })
+    })
+
     it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
@@ -290,6 +341,26 @@ describe('ProviderRegistryService', () => {
         providerId: 'custom-openai-models',
         presetModelId: 'gpt-4o'
       })
+    })
+
+    it('does not apply provider-specific registry data when a custom row collides with a registry id', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: null,
+        name: 'User OpenAI Relay',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const lookup = providerRegistryService.lookupModel('openai', 'gpt-4o')
+      const catalog = providerRegistryService.listProviderRegistryModels({
+        providerId: 'openai',
+        presetProviderId: null
+      })
+
+      expect(lookup.presetModel?.id).toBe('gpt-4o')
+      expect(lookup.registryOverride).toBeNull()
+      expect(catalog).toEqual([])
     })
 
     it('should handle models not in registry', async () => {
@@ -440,7 +511,7 @@ describe('ProviderRegistryService', () => {
       expect(models[0].name).toBe('GPT-4o')
     })
 
-    it('preserves the exact apiModelId identity for same-canonical variants (keeps canonical presetModelId)', async () => {
+    it('preserves provider display names and exact apiModelId identities for same-canonical variants', async () => {
       // A provider serving one canonical model under several apiModelIds (tokenhub's dated 原厂直供 variants).
       mockReadModels.mockReturnValue({
         version: '1.0',
@@ -472,9 +543,21 @@ describe('ProviderRegistryService', () => {
       } as ReturnType<typeof readProviderRegistry>)
 
       const [dated] = providerRegistryService.resolveModels('tokenhub', ['deepseek-v4-flash-202605'])
+      const catalog = providerRegistryService.listProviderRegistryModels({ providerId: 'tokenhub' })
+
+      expect(
+        catalog.map((model) => ({
+          apiModelId: model.apiModelId,
+          name: model.name
+        }))
+      ).toEqual([
+        { apiModelId: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        { apiModelId: 'deepseek-v4-flash-202605', name: 'DeepSeek-V4-Flash 原厂直供' }
+      ])
       // unique id rebuilt from the apiModelId (NOT collapsed to the canonical tokenhub::deepseek-v4-flash)
       expect(dated.id).toBe(createUniqueModelId('tokenhub', 'deepseek-v4-flash-202605'))
       expect(dated.apiModelId).toBe('deepseek-v4-flash-202605')
+      expect(dated.name).toBe('DeepSeek-V4-Flash 原厂直供')
       expect(dated.presetModelId).toBe('deepseek-v4-flash') // canonical preset preserved for metadata
     })
 
@@ -619,6 +702,32 @@ describe('ProviderRegistryService', () => {
       ])
       expect(disabled.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
         'cherryin:qwen-image:qwen-image'
+      ])
+    })
+
+    it('lists the seven Radeon Cloud provider-registry models', () => {
+      const readGeneratedRegistry = <T>(filename: string): T =>
+        JSON.parse(
+          readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
+        ) as T
+      mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
+      mockReadProviderModels.mockReturnValue(
+        readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
+      )
+      mockReadProviders.mockReturnValue(
+        readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json')
+      )
+
+      const models = providerRegistryService.listProviderRegistryModels({ providerId: 'radeon-cloud' })
+
+      expect(models.map(({ presetModelId, apiModelId }) => [presetModelId, apiModelId])).toEqual([
+        ['deepseek-v4-flash', 'DeepSeek-V4-Flash'],
+        ['deepseek-v4-pro', 'DeepSeek-V4-Pro'],
+        ['glm-5-1', 'GLM-5.1'],
+        ['glm-5-2', 'GLM-5.2'],
+        ['gpt-oss-120b', 'gpt-oss-120b'],
+        ['kimi-k2-6', 'Kimi-K2.6'],
+        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B']
       ])
     })
 

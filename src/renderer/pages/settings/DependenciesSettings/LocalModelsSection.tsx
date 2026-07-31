@@ -127,7 +127,8 @@ const ModelCard: FC<ModelCardProps> = ({
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start gap-3">
         <div
           className={cn(
@@ -138,7 +139,7 @@ const ModelCard: FC<ModelCardProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-foreground text-sm">{name}</span>
+            <span className="truncate text-foreground text-sm">{name}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
@@ -179,12 +180,12 @@ const ModelCard: FC<ModelCardProps> = ({
       {!ready && (
         <div className="mt-3 border-border border-t pt-3">
           {downloading ? (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onCancel}>
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onCancel}>
               <X className="size-3.5" />
               {t('settings.dependencies.localModels.cancel')}
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onDownload}>
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onDownload}>
               <Download className="size-3.5" />
               {t('settings.dependencies.localModels.download')}
             </Button>
@@ -220,7 +221,10 @@ const LocalModelsSection: FC = () => {
       {unsupported ? (
         <div
           role="status"
-          className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
+          className="rounded-xl border border-border border-dashed px-4 py-6 text-center text-muted-foreground text-xs leading-5"
+          style={{
+            backgroundColor: 'var(--settings-group-background, color-mix(in srgb, var(--card) 50%, transparent))'
+          }}>
           {t('settings.dependencies.localModels.unsupported')}
         </div>
       ) : (

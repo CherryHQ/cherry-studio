@@ -191,6 +191,10 @@ function mergeUnique<T>(...groups: readonly (readonly T[] | null | undefined)[])
   return Array.from(new Set(groups.flatMap((group) => group ?? [])))
 }
 
+function sanitizeAttributeName(attribute: SanitizeAttribute): string {
+  return Array.isArray(attribute) ? attribute[0] : attribute
+}
+
 export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): MarkdownSanitizeSchema {
   const svgAttributes = Object.fromEntries(
     SVG_ELEMENTS.map((tagName) => [tagName, mergeUnique(schema.attributes?.[tagName], SVG_ATTRIBUTES)])
@@ -209,7 +213,12 @@ export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): Ma
         'data-composer-token-block',
         'dataComposerTokenBlock'
       ]),
-      sup: mergeUnique(schema.attributes?.sup, ['data-citation']),
+      // The attribute is an opaque display id. Full citation JSON is deliberately rejected so
+      // untrusted markdown cannot supply tooltip URLs, titles, or content.
+      sup: mergeUnique(
+        schema.attributes?.sup?.filter((attribute) => sanitizeAttributeName(attribute) !== 'dataCitation'),
+        [['dataCitation', /^[1-9]\d*$/]]
+      ),
       ...svgAttributes
     },
     protocols: {

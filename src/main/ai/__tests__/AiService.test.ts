@@ -3,9 +3,12 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
+const mockCreateAgent = vi.fn()
+const mockEmbedMany = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
+const mockAssistantGetById = vi.fn()
 const mockMessageGetById = vi.fn()
 const mockMessageUpdate = vi.fn()
 const mockMessageApplyApproval = vi.fn()
@@ -19,10 +22,17 @@ const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
+const mockRecordRequest = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
     get: mockApplicationGet
+  }
+}))
+
+vi.mock('@data/services/AssistantService', () => ({
+  assistantDataService: {
+    getById: (...args: unknown[]) => mockAssistantGetById(...args)
   }
 }))
 
@@ -80,11 +90,59 @@ vi.mock('@main/data/services/MessageService', () => ({
 }))
 
 vi.mock('@cherrystudio/ai-core', () => ({
-  createAgent: vi.fn(),
-  embedMany: vi.fn(),
-  generateImage: (...args: unknown[]) => mockGenerateImage(...args),
-  rerank: (...args: unknown[]) => mockRerank(...args)
+  createAgent: (...args: unknown[]) => mockCreateAgent(...args),
+  embedMany: async (...args: unknown[]) => {
+    const result = await mockEmbedMany(...args)
+    const params = args[2] as { onProviderCall?: (event: unknown) => void }
+    params.onProviderCall?.({
+      modality: 'embedding',
+      requestId: 'ai-core:embedding:test',
+      providerId: args[0],
+      modelId: 'test-embedding-model',
+      usage: result.usage,
+      metrics: { timeCompletionMs: 10 },
+      completedAt: 100
+    })
+    return result
+  },
+  generateImage: async (...args: unknown[]) => {
+    const result = await mockGenerateImage(...args)
+    const params = args[2] as { onProviderCall?: (event: unknown) => void }
+    params.onProviderCall?.({
+      modality: 'image',
+      requestId: 'ai-core:image:test',
+      providerId: args[0],
+      modelId: 'test-model',
+      imageCount: result.images?.length ?? 0,
+      metrics: { timeCompletionMs: 10 },
+      completedAt: 100
+    })
+    return result
+  },
+  rerank: async (...args: unknown[]) => {
+    const result = await mockRerank(...args)
+    const params = args[2] as { onProviderCall?: (event: unknown) => void }
+    params.onProviderCall?.({
+      modality: 'rerank',
+      requestId: 'ai-core:rerank:test',
+      providerId: args[0],
+      modelId: 'test-reranker',
+      metrics: { timeCompletionMs: 10 },
+      completedAt: 100
+    })
+    return result
+  }
 }))
+
+vi.mock('@main/data/services/AiUsageRecordService', async (importActual) => {
+  const actual = (await importActual()) as object
+  return {
+    ...actual,
+    aiUsageRecordService: {
+      recordInvocation: (...args: unknown[]) => mockRecordRequest(...args)
+    }
+  }
+})
 
 const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
@@ -101,6 +159,8 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateAgent.mockReset()
+    mockAssistantGetById.mockReturnValue(undefined)
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
     mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
@@ -127,6 +187,31 @@ describe('AiService', () => {
       isEnabled: true,
       isHidden: false
     })
+    // Default: resolve, like the real usage-record store's best-effort contract. Individual
+    // tests override with mockRejectedValueOnce to exercise the failure path.
+    mockRecordRequest.mockResolvedValue(undefined)
+  })
+
+  it('aborts a registered one-shot text request', async () => {
+    const service = createService()
+    let capturedSignal: AbortSignal | undefined
+    vi.spyOn(service, 'generateText').mockImplementation(
+      (request) =>
+        new Promise((_resolve, reject) => {
+          capturedSignal = request.requestOptions?.signal
+          capturedSignal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Text generation aborted', 'AbortError')),
+            { once: true }
+          )
+        })
+    )
+
+    const pending = service.runTextRequest('greeting-1', { prompt: 'hello' })
+    service.abortText('greeting-1')
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(capturedSignal?.aborted).toBe(true)
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
@@ -239,6 +324,12 @@ describe('AiService', () => {
         providerId: 'test-provider',
         providerSettings: {},
         modelId: 'test-model'
+      },
+      model: {
+        id: 'test-provider::test-model',
+        providerId: 'test-provider',
+        modelId: 'test-model',
+        pricing: { input: { perMillionTokens: null }, output: { perMillionTokens: null }, perImage: { price: 0.05 } }
       }
     } as never)
 
@@ -396,6 +487,157 @@ describe('AiService', () => {
       })
     )
   })
+
+  // The direct (non-job) image path observes the actual ImageModel doGenerate
+  // call in aiCore. These tests pin both the usage payload and the fact that
+  // local persistence happens after the provider output has been recorded.
+  describe('generateImage — AI usage record (direct path)', () => {
+    function stubDirectImage(service: InstanceType<typeof AiService>) {
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
+      const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue(fileEntry) } : undefined
+      )
+      return fileEntry
+    }
+
+    it('records the provider output count with modality "image"', async () => {
+      const service = createService()
+      stubDirectImage(service)
+
+      await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({ modelId: 'test-model' }),
+          modality: 'image',
+          imageCount: 1
+        })
+      )
+    })
+
+    it('records the provider output before local file persistence can fail', async () => {
+      const service = createService()
+      mockAssistantGetById.mockReturnValue({
+        id: 'assistant-1',
+        name: 'Image Assistant',
+        emoji: '🎨'
+      })
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' },
+        assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: 'first', mediaType: 'image/png' },
+          { base64: 'second', mediaType: 'image/png' }
+        ]
+      })
+      const createInternalEntry = vi.fn().mockRejectedValue(new Error('disk full'))
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          assistantId: 'assistant-1',
+          prompt: 'draw a cat',
+          paramValues: {}
+        })
+      ).rejects.toThrow('disk full')
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modality: 'image',
+          imageCount: 2,
+          context: expect.objectContaining({
+            source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+          })
+        })
+      )
+      expect(mockRecordRequest.mock.invocationCallOrder[0]).toBeLessThan(
+        createInternalEntry.mock.invocationCallOrder[0]
+      )
+    })
+  })
+
+  // `embedMany`'s usage-record write had zero coverage before this: neither the payload
+  // shape (modality/token count) nor the failure-must-not-disrupt-the-request
+  // contract was tested.
+  describe('embedMany — AI usage record', () => {
+    function stubEmbedding(service: InstanceType<typeof AiService>) {
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
+        credentialReceipt: {
+          attribution: 'explicit',
+          id: 'key-a',
+          label: 'Primary',
+          masked: 'sk-a****aaaa'
+        },
+        provider: {
+          id: 'test-provider',
+          name: 'Test Provider',
+          apiFeatures: { reportsActualCost: false }
+        },
+        model: {
+          id: 'test-provider::test-embedding-model',
+          providerId: 'test-provider',
+          name: 'Test Embedding Model'
+        },
+        assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
+      } as never)
+      mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+    }
+
+    it('records the usage entry with modality "embedding" and the token count', async () => {
+      const service = createService()
+      stubEmbedding(service)
+
+      await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: 'ai-core:embedding:test',
+          context: expect.objectContaining({
+            credentialReceipt: {
+              attribution: 'explicit',
+              id: 'key-a',
+              label: 'Primary',
+              masked: 'sk-a****aaaa'
+            },
+            source: { type: 'assistant', id: 'assistant-1', name: 'Embedding Assistant', icon: '📚' }
+          }),
+          modality: 'embedding',
+          usage: { inputTokens: 42, totalTokens: 42 }
+        })
+      )
+    })
+
+    it('records an embedding request when the provider explicitly reports zero tokens', async () => {
+      const service = createService()
+      stubEmbedding(service)
+      mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 0 } })
+
+      await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modality: 'embedding',
+          usage: { inputTokens: 0, totalTokens: 0 }
+        })
+      )
+    })
+  })
 })
 
 describe('AiService.onInit', () => {
@@ -466,7 +708,7 @@ describe('AiService tool approval', () => {
   }
 
   /**
-   * The `ai.respond_tool_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
+   * The `ai.tool.respond_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
    * (the IpcApi handler in `handlers/ai.ts` resolves the WebContents from `ctx.senderId` and calls
    * it). Adapt to the old `(event, payload)` call shape so the cases below read unchanged.
    */
@@ -506,11 +748,15 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    expect(respondToolApproval).toHaveBeenCalledWith('agent-approval-1', {
-      approved: true,
-      reason: undefined,
-      updatedInput: undefined
-    })
+    expect(respondToolApproval).toHaveBeenCalledWith(
+      'agent-approval-1',
+      {
+        approved: true,
+        reason: undefined,
+        updatedInput: undefined
+      },
+      undefined
+    )
     // Fast-path short-circuits before any DB read or continue dispatch.
     expect(getById).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()
@@ -763,7 +1009,7 @@ describe('AiService tool approval', () => {
   })
 
   // Payload validation (empty `approvalId`, missing `approved`) now lives in the IpcApi router's
-  // zod parse of `ai.respond_tool_approval`, not in `respondToolApproval` — so the invalid-payload
+  // zod parse of `ai.tool.respond_approval`, not in `respondToolApproval` — so the invalid-payload
   // case is no longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing").
 
   it('routes rerank requests through ai-core rerank', async () => {
@@ -778,6 +1024,17 @@ describe('AiService tool approval', () => {
       options: {
         headers: { 'x-test': 'yes' },
         maxRetries: 0
+      },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: {
+        id: 'test-provider',
+        name: 'Test Provider',
+        apiFeatures: { reportsActualCost: false }
+      },
+      model: {
+        id: 'test-provider::test-reranker',
+        providerId: 'test-provider',
+        name: 'Test Reranker'
       }
     } as never)
 
@@ -818,6 +1075,13 @@ describe('AiService tool approval', () => {
         headers: { 'x-test': 'yes' },
         maxRetries: 0,
         abortSignal: abortController.signal
+      })
+    )
+    expect(mockRecordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'ai-core:rerank:test',
+        modality: 'rerank',
+        metrics: { timeCompletionMs: 10 }
       })
     )
   })
@@ -882,6 +1146,27 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('checks embedding models with the normal embedding path', async () => {
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-embedding',
+      providerId: 'test-provider',
+      apiModelId: 'test-embedding',
+      name: 'Test Embedding',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-embedding'
+    })
+
+    expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
@@ -923,17 +1208,28 @@ describe('imageInputEntryParams', () => {
 
 describe('AiService.generateImage — custom async transport (job path)', () => {
   // Force the job branch by resolving to a custom-transport provider id; real
-  // resolveImageTransport('ppio', …) returns a transport, so generateImage routes
-  // through generateImageViaJob.
+  // hasImageTransport('ppio', …) routes through generateImageViaJob before
+  // buildAgentParamsFor can select and rotate a serving key.
   function stubResolution(service: InstanceType<typeof AiService>) {
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' }
-    } as never)
+    mockProviderGetByProviderId.mockReturnValue({ id: 'ppio' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image'
+    })
+    mockAssistantGetById.mockReturnValue({
+      id: 'assistant-1',
+      name: 'Image Assistant',
+      emoji: '🎨'
+    })
+    return vi
+      .spyOn(service as never, 'buildAgentParamsFor')
+      .mockRejectedValue(new Error('job path must not select a serving key before execution'))
   }
 
   it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
     const service = createService()
-    stubResolution(service)
+    const buildAgentParamsFor = stubResolution(service)
 
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
@@ -951,6 +1247,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
     const result = await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
+      assistantId: 'assistant-1',
       prompt: 'a cat',
       paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],
@@ -959,10 +1256,16 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
-      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
+      expect.objectContaining({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        inputFileIds: ['in-1'],
+        source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+      })
     )
     expect(result).toEqual({ files: outputFiles })
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+    expect(buildAgentParamsFor).not.toHaveBeenCalled()
   })
 
   it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
@@ -1161,7 +1464,10 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'claude-code' })
 
     expect(result).toBe(registryModels)
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'claude-code' })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
+      providerId: 'claude-code',
+      presetProviderId: null
+    })
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
@@ -1177,7 +1483,10 @@ describe('AiService.listModels', () => {
 
     expect(result).toBe(apiModels)
     expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'openai' })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
+      providerId: 'openai',
+      presetProviderId: null
+    })
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {

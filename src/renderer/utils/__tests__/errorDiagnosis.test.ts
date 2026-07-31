@@ -1,4 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -35,7 +36,7 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+// listModels goes through ipcApi.request('ai.provider.model.list', …) now (Main IPC).
 const { mockListModels } = vi.hoisted(() => ({ mockListModels: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockListModels(input) }
@@ -44,7 +45,10 @@ vi.mock('@renderer/ipc', () => ({
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockListModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }])
+    mockListModels.mockResolvedValue([
+      { id: 'cherryai::deepseek', name: 'DeepSeek', providerId: 'cherryai' },
+      { id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, name: 'Qwen', providerId: 'cherryai' }
+    ])
   })
 
   describe('diagnoseError', () => {
@@ -91,7 +95,7 @@ describe('ErrorDiagnosisService', () => {
       await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Invalid diagnosis response format')
     })
 
-    it('uses CherryAI free model as primary', async () => {
+    it('uses the default CherryAI free model as primary regardless of list order', async () => {
       const mockResult = {
         summary: 'Error',
         category: 'unknown',
@@ -101,14 +105,13 @@ describe('ErrorDiagnosisService', () => {
       mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
 
       await diagnoseError(makeError(), 'en')
-      // First call should use CherryAI free model (primary), not defaultModel
       expect(mockFetchGenerate.mock.calls[0][0]).toEqual(
-        expect.objectContaining({ model: expect.objectContaining({ id: 'qwen' }) })
+        expect.objectContaining({ model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }) })
       )
     })
 
-    it('falls back to defaultModel when CherryAI is unavailable', async () => {
-      mockListModels.mockResolvedValue([])
+    it('falls back to defaultModel when the default CherryAI free model is unavailable', async () => {
+      mockListModels.mockResolvedValue([{ id: 'cherryai::deepseek', name: 'DeepSeek', providerId: 'cherryai' }])
       const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
       mockReadDefaultModel.mockResolvedValueOnce(customModel as any)
 
@@ -136,7 +139,7 @@ describe('ErrorDiagnosisService', () => {
       await diagnoseError(makeError(), 'en')
       expect(mockFetchGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: expect.objectContaining({ id: 'qwen' })
+          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
         })
       )
     })
@@ -173,6 +176,101 @@ describe('ErrorDiagnosisService', () => {
 
       const result = await diagnoseError(makeError(), 'en')
       expect(result.category).toBe('unknown')
+    })
+
+    it('forwards responseBody and uses its quota signal in the prompt', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+      const providerJson = '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
+
+      await diagnoseError(makeError({ statusCode: 429, responseBody: providerJson }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('billing_hard_limit_reached')
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+    })
+
+    it('does not route insufficient permissions to quota context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'insufficient permissions' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('quota or account balance is exhausted')
+    })
+
+    it('does not route an unqualified MCP mention to MCP context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'something mcp related' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('MCP (Model Context Protocol) server error')
+    })
+
+    it('routes a qualified MCP timeout to MCP context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'mcp', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'MCP server timeout' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('MCP (Model Context Protocol) server error')
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('forwards finishReason for safety-blocked responses', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ name: 'AI_NoObjectGeneratedError', finishReason: 'SAFETY' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('SAFETY')
+      expect(callArgs.prompt.toLowerCase()).toContain('safety')
+    })
+
+    it('forwards structured data as serialized JSON', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ data: { error: { code: 'invalid_api_key', message: 'Key revoked' } } }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('invalid_api_key')
+      expect(callArgs.content).toContain('Key revoked')
+    })
+
+    it('routes HTTP 402 to quota context instead of rate-limit context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 402, message: 'Payment Required' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('hitting a rate limit')
+    })
+
+    it('falls back to provider and model fields on the error', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ providerId: 'anthropic', modelId: 'claude-sonnet-4-5' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('anthropic')
+      expect(callArgs.content).toContain('claude-sonnet-4-5')
     })
   })
 })

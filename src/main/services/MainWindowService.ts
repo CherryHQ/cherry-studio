@@ -3,15 +3,18 @@ import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, shell } from 'electron'
-import path, { join } from 'path'
+import { app, nativeImage, nativeTheme, session, shell } from 'electron'
+import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -54,6 +57,7 @@ export class MainWindowService extends BaseService {
 
   protected async onInit() {
     const windowManager = application.get('WindowManager')
+    this.setupHtmlArtifactPreviewSession()
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -71,6 +75,7 @@ export class MainWindowService extends BaseService {
     )
 
     this.registerWindowShortcuts()
+    this.registerContextMenu()
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
@@ -82,6 +87,19 @@ export class MainWindowService extends BaseService {
     }
     app.on('browser-window-created', handler)
     this.registerDisposable(() => app.removeListener('browser-window-created', handler))
+  }
+
+  private registerContextMenu() {
+    // App-level so every webContents gets the menu — the main window's own
+    // (web-contents-created fires during BrowserWindow construction, before
+    // onWindowCreatedByType) and all webviews like miniapp. Must stay a single
+    // registration here: a per-window one would stack one app listener per
+    // singleton main-window rebuild and pop duplicate menus.
+    const handler = (_: Electron.Event, webContents: Electron.WebContents) => {
+      contextMenu.contextMenu(webContents)
+    }
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
   }
 
   protected async onReady() {
@@ -197,7 +215,7 @@ export class MainWindowService extends BaseService {
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
-    this.setupContextMenu(mainWindow)
+    this.setupHtmlArtifactWebviews(mainWindow)
     this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
@@ -247,19 +265,61 @@ export class MainWindowService extends BaseService {
     }
   }
 
-  private setupContextMenu(mainWindow: BrowserWindow) {
-    contextMenu.contextMenu(mainWindow.webContents)
-    // setup context menu for all webviews like miniapp
-    app.on('web-contents-created', (_, webContents) => {
-      contextMenu.contextMenu(webContents)
+  private setupHtmlArtifactPreviewSession() {
+    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    const handleWillDownload = (event: Electron.Event) => event.preventDefault()
+    const userAgent = previewSession
+      .getUserAgent()
+      .replace(/CherryStudio\/\S+\s/, '')
+      .replace(/Electron\/\S+\s/, '')
+
+    previewSession.setUserAgent(userAgent)
+    previewSession.setPermissionCheckHandler(() => false)
+    previewSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+    previewSession.on('will-download', handleWillDownload)
+    previewSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      callback({ cancel: !isAllowedHtmlArtifactRequest(details.url) })
     })
 
-    // Dangerous API
-    if (isDev) {
-      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/preload.js')
+    this.registerDisposable(() => {
+      previewSession.setPermissionCheckHandler(null)
+      previewSession.setPermissionRequestHandler(null)
+      previewSession.removeListener('will-download', handleWillDownload)
+      previewSession.webRequest.onBeforeRequest(null)
+    })
+  }
+
+  private setupHtmlArtifactWebviews(mainWindow: BrowserWindow) {
+    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+
+    mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+      if (params.partition !== HTML_ARTIFACT_PREVIEW_PARTITION) return
+
+      if (!params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+        event.preventDefault()
+        return
+      }
+
+      delete webPreferences.preload
+      webPreferences.nodeIntegration = false
+      webPreferences.nodeIntegrationInSubFrames = false
+      webPreferences.contextIsolation = true
+      webPreferences.sandbox = true
+      webPreferences.webSecurity = true
+      webPreferences.allowRunningInsecureContent = false
+      webPreferences.safeDialogs = true
+    })
+
+    mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
+      if (webContents.session !== previewSession) return
+
+      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      webContents.on('will-navigate', (event, url) => {
+        if (!url.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+          event.preventDefault()
+        }
       })
-    }
+    })
   }
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
@@ -306,7 +366,8 @@ export class MainWindowService extends BaseService {
     })
 
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:517')) {
+      // In-app navigation (dev-server origin, or a packaged page under the app root).
+      if (isAppRendererUrl(url)) {
         return
       }
 

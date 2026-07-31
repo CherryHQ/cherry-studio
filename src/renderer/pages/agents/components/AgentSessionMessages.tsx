@@ -14,6 +14,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { memo, useEffect, useMemo } from 'react'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -24,6 +25,8 @@ type Props = {
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
+  onBindRuntime?: MessageListActions['bindRuntime']
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -44,6 +47,8 @@ const AgentSessionMessages = ({
   activeAgent,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
+  onBindRuntime,
   optimisticAskUserQuestionInputsByToolCallId = {},
   isLoading,
   hasOlder = false,
@@ -72,6 +77,25 @@ const AgentSessionMessages = ({
         : undefined,
     [activeAgent]
   )
+  const backgroundTaskAnchorMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'assistant') continue
+      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      if (parts.length > 0) return message.id
+    }
+    return undefined
+  }, [messages, partsByMessageId])
+  const messageTail = useMemo(
+    () =>
+      backgroundTaskAnchorMessageId
+        ? {
+            messageId: backgroundTaskAnchorMessageId,
+            content: <AgentSessionBackgroundTasks sessionId={sessionId} />
+          }
+        : undefined,
+    [backgroundTaskAnchorMessageId, sessionId]
+  )
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -91,6 +115,8 @@ const AgentSessionMessages = ({
     messages,
     partsByMessageId,
     streamingLayers,
+    localSendGeneration,
+    onBindRuntime,
     assistantProfile,
     assistantId: agentId,
     isLoading,
@@ -102,15 +128,16 @@ const AgentSessionMessages = ({
     deleteMessage,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path
+    workspacePath: session?.workspace?.path,
+    messageTail
   })
 
   useEffect(() => {
-    void ipcApi.request('ai.prewarm_agent_session', { sessionId }).catch((error) => {
+    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
       logger.warn('Failed to prewarm agent session', error as Error)
     })
     return () => {
-      void ipcApi.request('ai.close_agent_session_warm', { sessionId }).catch((error) => {
+      void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
         logger.warn('Failed to close agent session warm query', error as Error)
       })
     }

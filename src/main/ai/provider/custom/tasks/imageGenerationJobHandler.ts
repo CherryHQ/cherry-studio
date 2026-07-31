@@ -1,6 +1,8 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
+import { type AiUsageCaptureContext, aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -8,7 +10,7 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import { providerToAiSdkConfig } from '../../config'
+import { resolveProviderAiSdkConfig } from '../../config'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
@@ -28,10 +30,10 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * recovery (`'retry'`) re-dispatches the job, which then resumes polling the
  * same task instead of re-submitting.
  *
- * Secrets are never persisted — the apiKey is re-read from provider config on
- * every attempt via `providerToAiSdkConfig`. Input images / mask are referenced
- * by FileEntry id and read back from FileManager (keeps the payload under the
- * 1MB job cap and restart-safe).
+ * Secrets are never persisted. A resumed remote task resolves the submit key
+ * by its persisted non-secret id; a new submit uses normal key selection.
+ * Input images / mask are referenced by FileEntry id and read back from
+ * FileManager (keeps the payload under the 1MB job cap and restart-safe).
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
   recovery: 'retry',
@@ -51,7 +53,48 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-      const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
+      const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
+      const persistedCaptureContext = readCaptureContext(ctx.metadata.usageCaptureContext)
+      const resumedApiKey = persistedTaskId
+        ? resolvePersistedApiKey(providerId, persistedCaptureContext?.credentialReceipt)
+        : undefined
+      const { config, credentialReceipt: selectedCredentialReceipt } = await resolveProviderAiSdkConfig(
+        provider,
+        model,
+        resumedApiKey ? { apiKeyOverride: resumedApiKey } : undefined
+      )
+      const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
+      const captureContext = persistedTaskId
+        ? persistedCaptureContext
+        : createAiUsageCaptureContext({
+            providerId: provider.id,
+            providerName: provider.name,
+            modelId: sdkConfig.modelId,
+            modelName: model.name,
+            pricing: model.pricing,
+            trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+            reportedCostCurrency: provider.reportedCostCurrency,
+            credentialReceipt: selectedCredentialReceipt,
+            source: input.source ?? null,
+            messageRef: null
+          })
+      const usageStartedAt = persistedTaskId
+        ? typeof ctx.metadata.usageStartedAt === 'number' && Number.isFinite(ctx.metadata.usageStartedAt)
+          ? ctx.metadata.usageStartedAt
+          : Date.now()
+        : Date.now()
+      if (!persistedTaskId) {
+        await ctx.patchMetadata({
+          usageCaptureContext: captureContext,
+          usageStartedAt,
+          credentialReceipt: selectedCredentialReceipt
+        })
+      } else if (!captureContext) {
+        logger.warn('Resumed image job has no immutable usage context; skipping attribution', {
+          jobId: ctx.jobId,
+          taskId: persistedTaskId
+        })
+      }
       const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
       if (!transport) {
         throw new Error(
@@ -60,7 +103,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       }
 
       let urls: string[]
-      const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
       if (persistedTaskId) {
         // Restart-resume: skip submit, continue polling the persisted remote task.
         logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
@@ -72,7 +114,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         } else if (submit.taskId) {
           // CRITICAL: persist before polling — without this, restart-recovery
           // re-submits, wasting the user's vendor quota.
-          await ctx.patchMetadata({ taskId: submit.taskId })
+          await ctx.patchMetadata({
+            taskId: submit.taskId,
+            credentialReceipt: selectedCredentialReceipt
+          })
           urls = await pollUntilDone(transport, submit.taskId, ctx)
         } else {
           // A malformed submit response (neither URLs nor a task id) must fail the
@@ -81,10 +126,26 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         }
       }
 
+      // Record before local download: the provider invocation completed even if
+      // file persistence fails. Polling is part of this invocation, not another
+      // billable call; a successful zero-image response is still an observable
+      // invocation. The stable job id keeps restart delivery idempotent.
+      if (captureContext) {
+        const completedAt = Date.now()
+        aiUsageRecordService.recordInvocation({
+          requestId: `custom-image:${ctx.jobId}`,
+          context: captureContext,
+          modality: 'image',
+          imageCount: urls.length,
+          metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },
+          completedAt
+        })
+      }
+
       // An empty URL list from a *successful* submit/poll (e.g. content moderation
       // or a degraded vendor response that still charged) must fail rather than
-      // complete as a silent zero-image "success". Covers both submit.imageUrls === []
-      // and poll() === []; the malformed-submit (neither field) case threw above.
+      // complete as a silent zero-image "success". It was recorded above with
+      // imageCount=0 because the provider invocation itself did complete.
       if (urls.length === 0) {
         throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
       }
@@ -100,6 +161,44 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       await deleteImageInputEntries([...(input.inputFileIds ?? []), input.maskFileId])
     }
   }
+}
+
+function resolvePersistedApiKey(
+  providerId: string,
+  receipt: AiUsageCaptureContext['credentialReceipt'] | undefined
+): string | undefined {
+  if (receipt?.attribution !== 'explicit' && receipt?.attribution !== 'matched') return undefined
+  const key = providerService.getApiKeys(providerId, { enabled: true }).find((entry) => entry.id === receipt.id)
+  if (!key) {
+    throw new Error(
+      `Image generation job: API key '${receipt.id}' used to submit the remote task is unavailable or disabled`
+    )
+  }
+  return key.key
+}
+
+function readCaptureContext(value: unknown): AiUsageCaptureContext | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const context = value as Partial<AiUsageCaptureContext>
+  if (
+    typeof context.providerId !== 'string' ||
+    typeof context.modelId !== 'string' ||
+    typeof context.trustProviderReportedCost !== 'boolean' ||
+    !context.credentialReceipt
+  ) {
+    return undefined
+  }
+  const cloned = {
+    ...structuredClone(context),
+    reportedCostCurrency: context.reportedCostCurrency ?? null
+  } as AiUsageCaptureContext
+  const freeze = (candidate: unknown): void => {
+    if (!candidate || typeof candidate !== 'object' || Object.isFrozen(candidate)) return
+    for (const nested of Object.values(candidate)) freeze(nested)
+    Object.freeze(candidate)
+  }
+  freeze(cloned)
+  return cloned
 }
 
 /**

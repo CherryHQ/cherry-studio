@@ -66,11 +66,16 @@ Format: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/` (enforced by ESLint `data-sche
 
 ### NO_ENSURE List
 
-Keys in the `NO_ENSURE` array (in `pathRegistry.ts`) skip auto-ensure. Two entry forms:
+Keys in the `NO_ENSURE` array (in `pathRegistry.ts`) skip auto-ensure. This is
+required not only for read-only/external paths, but also when the owning
+business workflow must control when materialization happens so a path lookup or
+database-only operation cannot create files. Two entry forms:
 - **Namespace prefix** (e.g. `'sys.'`, `'external.'`) — matches all keys under it
 - **Exact PathKey** — for individual read-only paths (asar bundle, packaged resources, etc.)
 
-Add a key to NO_ENSURE only if the target is **read-only in production** or **owned by a third party**.
+Add a key to NO_ENSURE only if the target is **read-only in production**,
+**owned by a third party**, or has an explicit owner that performs validated
+materialization separately from path resolution.
 Type-checked via `satisfies` — typos and stale references fail at compile time.
 
 ## The `.` Separator Is Semantic, Not Physical
@@ -109,8 +114,8 @@ The filename is validated — absolute paths, `..`, and separators trigger a war
 
 ```ts
 const workspace = path.join(
-  application.getPath('feature.agents.workspaces'),
-  shortId
+  application.getPath('feature.agents.data'),
+  agentId
 )
 ```
 
@@ -134,6 +139,9 @@ No object literals besides the registry itself — the ESLint rule validates eve
 `buildPathRegistry()` runs once during preboot (after `app.setPath('userData', ...)`, before `app.whenReady()`). Key implications:
 
 - Every value must depend only on sync Electron APIs, `process.resourcesPath`, or Node built-ins
+- User-facing OS folders (`downloads`, `documents`, `desktop`) are best-effort: if Electron cannot resolve a
+  redirected known folder, the registry logs a warning and falls back to the conventional directory under the
+  user's home instead of aborting startup
 - Calling `application.getPath()` before `initPathRegistry()` throws
 - `LoggerService` and `BootConfigService` bypass the registry — they read from `paths/constants.ts` directly (they run before the registry exists)
 

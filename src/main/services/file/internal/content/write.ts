@@ -1,9 +1,8 @@
 /**
- * Write content to a managed FileEntry or a raw FilePath.
+ * Write content to a managed FileEntry.
  *
- * Pure functions taking `FileManagerDeps` as the first argument. Each entry-
- * aware write goes through `atomicWriteFile` (or `atomicWriteIfUnchanged`)
- * and updates DB / versionCache accordingly:
+ * Each write goes through `atomicWriteFile` (or
+ * `atomicWriteIfUnchanged`) and updates DB / versionCache accordingly:
  * - internal origin: DB `size` is updated to the new byte count
  * - external origin: DB `size` stays `null` (CHECK enforces) — only mtime
  *   changes are observable, so the row is left untouched
@@ -22,7 +21,6 @@ import {
   stat as fsStat
 } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
@@ -118,18 +116,4 @@ export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Atomi
     }
   })
   return stream
-}
-
-export async function writeByPath(_deps: FileManagerDeps, target: FilePath, data: string | Uint8Array): Promise<void> {
-  await atomicWriteFile(target, data)
-}
-
-export async function writeIfUnchangedByPath(
-  _deps: FileManagerDeps,
-  target: FilePath,
-  data: string | Uint8Array,
-  expected: { mtime: number; size: number },
-  expectedContentHash?: string
-): Promise<{ mtime: number; size: number }> {
-  return atomicWriteIfUnchanged(target, data, expected, expectedContentHash)
 }

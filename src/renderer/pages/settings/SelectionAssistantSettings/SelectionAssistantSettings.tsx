@@ -100,7 +100,7 @@ const SelectionAssistantSettings: FC = () => {
           <div className="flex items-center">
             <button
               type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
+              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:underline"
               onClick={() =>
                 ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
               }>
@@ -138,7 +138,7 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingLabel>
               <SettingRowTitle>
-                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--color-error-base)' }} />
+                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--error)' }} />
                 {t('selection.settings.linux.wayland_title')}
               </SettingRowTitle>
               {linuxEnvInfo.isLinuxCompositorCompatible ? (
@@ -149,9 +149,9 @@ const SelectionAssistantSettings: FC = () => {
                   </SettingDescription>
                   <ChecklistItem style={{ marginTop: 6 }}>
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
-                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
                     )}
                     <span>
                       {t('selection.settings.linux.xwayland_label')}
@@ -162,9 +162,9 @@ const SelectionAssistantSettings: FC = () => {
                   </ChecklistItem>
                   <ChecklistItem>
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
                     )}
                     <span>
                       {t('selection.settings.linux.input_group_label')}
@@ -221,7 +221,7 @@ const SelectionAssistantSettings: FC = () => {
                   content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
-                      <Link to="/settings/shortcut" style={{ color: 'var(--color-primary)' }}>
+                      <Link to="/settings/shortcut" style={{ color: 'var(--link)' }}>
                         {t('selection.settings.toolbar.trigger_mode.shortcut_link')}
                       </Link>
                     </div>
@@ -288,7 +288,6 @@ const SelectionAssistantSettings: FC = () => {
                 className="w-25"
                 min={20}
                 max={100}
-                inverted
                 value={[opacityValue]}
                 onValueChange={(value) => setOpacityValue(value[0])}
                 onValueCommit={(value) => setActionWindowOpacity(value[0])}
@@ -307,7 +306,7 @@ const SelectionAssistantSettings: FC = () => {
                   {t('selection.settings.advanced.filter_mode.title')}
                   {isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
                     <span style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center' }}>
-                      （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--color-error-base)' }} />
+                      （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--error)' }} />
                       {t('selection.settings.linux.filter_warning_text')}）
                     </span>
                   )}
@@ -371,10 +370,10 @@ const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )
 const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 flex items-center text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mb-0.5 flex items-center text-foreground-tertiary text-xs', className)} {...props} />
 )
 
 export default SelectionAssistantSettings

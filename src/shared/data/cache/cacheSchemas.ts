@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -129,7 +130,7 @@ export type UseCacheSchema = {
   'knowledge.recall.search_queries': Record<string, string[]>
 
   // Notes page state
-  'notes.active_file_path': string | undefined
+  'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -178,7 +179,12 @@ export type UseCacheSchema = {
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
-  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
+  'message.ui.${messageId}': {
+    foldSelected?: boolean
+    multiModelMessageStyle?: string
+    useful?: boolean
+    disclosures?: Record<string, boolean>
+  }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -248,9 +254,15 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  // Runtime-only opt-out shared across windows; resets when the app exits.
+  'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
+  'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
+  'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
+  'agent.session.flow_parts.${sessionId}': CacheValueTypes.CacheAgentSessionFlowParts
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -273,15 +285,33 @@ export type SharedCacheSchema = {
   // active, then left to linger under a short TTL after the job exits so the
   // polled item status can reach its terminal state before the value vanishes.
   'knowledge.item.embedding_progress.${itemId}': number | null
+  // A mini app opened via `openSmartMiniApp` (OpenClaw's dashboard, the S3 help page,
+  // the release notes) has no database row, so `/app/mini-app/<id>` is unresolvable
+  // through DataApi. Publishing the descriptor here — not into the keep-alive list,
+  // which doubles as the per-window WebView LRU — makes it readable by every window
+  // and outlives any single window's eviction, so detaching such a tab and attaching
+  // it back both keep resolving. Memory-only: the URL can hold a session secret (the
+  // OpenClaw dashboard embeds the gateway auth token) and must not reach disk.
+  // Nothing evicts an entry — that is the point, and it costs a handful of rows per
+  // session. Null is the cache miss (see the `jobs.state` precedent above).
+  'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Directory copy progress for a knowledge item, main -> all windows. Like
+  // embedding progress, the prepare job owns this runtime-only value.
+  'knowledge.item.directory_copy_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
+  'agent.session.background_tasks.${sessionId}': [],
+  'agent.session.task_events.${sessionId}': {},
+  'agent.session.flow_parts.${sessionId}': {},
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -293,7 +323,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
   'jobs.progress.${jobId}': { progress: 0 },
-  'knowledge.item.embedding_progress.${itemId}': null
+  'knowledge.item.embedding_progress.${itemId}': null,
+  'mini_app.transient_descriptor.${appId}': null,
+  'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
 /**
@@ -302,6 +334,10 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
+  // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
+  'ui.tab.normal_tabs': CacheValueTypes.Tab[]
+  'ui.tab.active_tab_id': string
   'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
@@ -338,6 +374,8 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
+  'ui.tab.normal_tabs': [],
+  'ui.tab.active_tab_id': '',
   'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)

@@ -349,6 +349,8 @@ export const ModelSchema = z.object({
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
+  /** Whether this exact provider-model pair supports the provider's Fast transport. */
+  supportsFastMode: z.boolean().optional(),
   /** Parameter support */
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 

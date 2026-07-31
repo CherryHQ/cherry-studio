@@ -23,7 +23,7 @@ const CollapsibleSearchBar = ({
   onSearch,
   placeholder = i18n.t('common.search'),
   tooltip = i18n.t('common.search'),
-  icon = <Search size={14} color="var(--color-foreground-secondary)" />,
+  icon = <Search size={14} color="var(--muted-foreground)" />,
   maxWidth = '100%',
   collapsedSize = 32,
   animated = true,
@@ -86,7 +86,7 @@ const CollapsibleSearchBar = ({
             placeholder={placeholder}
             value={searchText}
             autoFocus
-            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-border-hover focus-visible:ring-0"
+            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-ring focus-visible:ring-0"
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {

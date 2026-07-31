@@ -97,6 +97,7 @@ export function S3BackupModal({
           <DialogTitle>{t('settings.data.s3.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={t('settings.data.s3.backup.modal.filename.placeholder')}
@@ -156,8 +157,7 @@ export function useS3RestoreModal({
         root,
         autoSync: false,
         syncInterval: 0,
-        maxBackups: 0,
-        skipBackupFile: false
+        maxBackups: 0
       })
       setBackupFiles(files)
     } catch (error: any) {
@@ -196,8 +196,7 @@ export function useS3RestoreModal({
         fileName: selectedFile,
         autoSync: false,
         syncInterval: 0,
-        maxBackups: 0,
-        skipBackupFile: false
+        maxBackups: 0
       })
       toast.success(t('message.restore.success'))
       setIsRestoreModalVisible(false)

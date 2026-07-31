@@ -108,6 +108,46 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('common.detail')).toBeNull()
   })
 
+  it('uses structured provider data when classifying an error', () => {
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'APICallError',
+          message: 'Rate limit exceeded',
+          stack: null,
+          statusCode: 429,
+          responseBody: '{"error":{"type":"insufficient_quota"}}'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('ignores non-serializable provider data when classifying an error', () => {
+    const circularData: Record<string, unknown> = {}
+    circularData.self = circularData
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'APICallError',
+          message: 'Rate limit exceeded',
+          stack: null,
+          statusCode: 429,
+          data: circularData as never
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+  })
+
   it('routes error actions through provider capabilities', async () => {
     const openErrorDetail = vi.fn()
     const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)

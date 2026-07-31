@@ -8,14 +8,22 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { v7 as uuidv7 } from 'uuid'
 
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
-import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import type { StreamListener } from '../types'
+import {
+  type ChatContextProvider,
+  type DispatchContext,
+  type PreparedDispatch,
+  withGreetingContext
+} from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels } from './modelResolution'
 
@@ -82,6 +90,12 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
       : undefined
 
+    const greetingContext = validateConversationGreeting(
+      req.greetingContext?.trim() && temporaryChatService.listMessages(req.topicId).length === 0
+        ? req.greetingContext
+        : undefined
+    )
+
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
     temporaryChatService.appendMessage(req.topicId, {
       role: 'user',
@@ -91,31 +105,38 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     })
 
     const prior = temporaryChatService.listMessages(req.topicId)
-    const history: CherryUIMessage[] = prior.map((m) => ({
-      id: m.id,
-      role: toContentRole(m.role),
-      parts: m.data.parts ?? []
-    }))
+    const history = withGreetingContext(
+      prior.map((m) => ({
+        id: m.id,
+        role: toContentRole(m.role),
+        parts: m.data.parts ?? []
+      })),
+      greetingContext
+    )
 
+    const messageId = uuidv7()
     const listeners: StreamListener[] = [
       subscriber,
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, messageSnapshot }),
+        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })
     ]
 
-    // No pre-allocated `messageId`: AI SDK generates one for the UI; the service generates its own on append.
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
       trigger: 'submit-message',
       assistantId,
       uniqueModelId: model.id,
+      messageId,
       messages: history,
-      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined
+      ...(greetingContext ? { omitTelemetryInputs: true } : {}),
+      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
+      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 
     return {

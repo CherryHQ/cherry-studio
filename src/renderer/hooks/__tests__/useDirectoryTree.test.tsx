@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type {
   CreateTreeIpcResult,
   SerializedTreeNode,
@@ -33,6 +34,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -195,6 +197,88 @@ describe('useDirectoryTree', () => {
     })
 
     expect(mocks.dispose).toHaveBeenCalledWith('t-first')
+  })
+
+  it('does not expose the previous root while the next root loads', async () => {
+    let resolveSecond: ((value: CreateTreeIpcResult) => void) | null = null
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 't-first', snapshot: makeSnapshot('/notes', ['a.md']) })
+      .mockImplementationOnce(
+        () =>
+          new Promise<CreateTreeIpcResult>((resolve) => {
+            resolveSecond = resolve
+          })
+      )
+    mocks.onMutation.mockReturnValue(() => {})
+
+    const { rerender, result } = renderHook(({ root }: { root: string }) => useDirectoryTree(root), {
+      initialProps: { root: '/notes' }
+    })
+    await waitFor(() => {
+      expect(result.current.root?.path).toBe('/notes')
+    })
+
+    rerender({ root: '/notes2' })
+
+    expect(result.current.root).toBeNull()
+    expect(result.current.treeId).toBeNull()
+    expect(result.current.getNode('/notes/a.md')).toBeNull()
+    expect(result.current.isLoading).toBe(true)
+
+    await act(async () => {
+      resolveSecond?.({ treeId: 't-second', snapshot: makeSnapshot('/notes2', []) })
+    })
+    await waitFor(() => {
+      expect(result.current.root?.path).toBe('/notes2')
+    })
+    expect(result.current.root?.children).toEqual({})
+  })
+
+  it('does not retain the previous root when the next root fails to load', async () => {
+    const nextError = new Error('notes2 failed')
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    let resolveThird: ((value: CreateTreeIpcResult) => void) | null = null
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 't-first', snapshot: makeSnapshot('/notes', ['a.md']) })
+      .mockRejectedValueOnce(nextError)
+      .mockImplementationOnce(
+        () =>
+          new Promise<CreateTreeIpcResult>((resolve) => {
+            resolveThird = resolve
+          })
+      )
+    mocks.onMutation.mockReturnValue(() => {})
+
+    const { rerender, result } = renderHook(({ root }: { root: string }) => useDirectoryTree(root), {
+      initialProps: { root: '/notes' }
+    })
+    await waitFor(() => {
+      expect(result.current.root?.path).toBe('/notes')
+    })
+
+    rerender({ root: '/notes2' })
+
+    await waitFor(() => {
+      expect(result.current.error).toBe(nextError)
+    })
+    expect(result.current.root).toBeNull()
+    expect(result.current.treeId).toBeNull()
+    expect(result.current.getNode('/notes/a.md')).toBeNull()
+    expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /notes2', nextError)
+
+    rerender({ root: '/notes' })
+
+    expect(result.current.root).toBeNull()
+    expect(result.current.treeId).toBeNull()
+    expect(result.current.error).toBeNull()
+    expect(result.current.isLoading).toBe(true)
+
+    await act(async () => {
+      resolveThird?.({ treeId: 't-third', snapshot: makeSnapshot('/notes', []) })
+    })
+    await waitFor(() => {
+      expect(result.current.treeId).toBe('t-third')
+    })
   })
 
   it('does not call setError when File_TreeCreate rejects after unmount', async () => {

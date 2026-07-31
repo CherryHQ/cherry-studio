@@ -6,6 +6,24 @@ export default defineCreator({
   modelsDevProviders: ['alibaba', 'alibaba-cn'],
   families: ['qwen', 'qvq'],
   idPrefixes: ['qwen', 'qvq', 'tongyi'],
+  serverTools: {
+    'web-search': [
+      'qwen3-8-max-preview',
+      'qwen3-7-max',
+      'qwen3-6-max-preview',
+      'qwen3-max',
+      'qwen3-7-plus',
+      'qwen3-6-plus',
+      'qwen3-5-plus',
+      'qwen-plus',
+      'qwen3-6-flash',
+      'qwen3-5-flash',
+      'qwen-flash',
+      'qwen-turbo',
+      'qwq-plus',
+      'qwen-plus-character'
+    ]
+  },
   reasoningFamilies: [
     // Upstream sometimes reports reasoning controls for non-thinking coder /
     // instruct SKUs. This template grants no membership and blocks the broad

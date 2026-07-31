@@ -141,10 +141,10 @@ export const AssistantSchema = z.strictObject({
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
   /**
-   * Human-readable model name resolved from `user_model.name` at read time.
-   * Read-only embedded field — edits go through `modelId`. Renderer consumers
-   * (list / grid / card) display this directly instead of re-resolving the
-   * `providerId::modelId` unique id against provider state.
+   * Human-readable model name resolved from the current runtime Model at read
+   * time. Read-only embedded field — edits go through `modelId`. Renderer
+   * consumers (list / grid / card) display this directly instead of
+   * re-resolving the `providerId::modelId` unique id against provider state.
    * `null` when the model row is missing (e.g. user removed the model after
    * binding).
    */

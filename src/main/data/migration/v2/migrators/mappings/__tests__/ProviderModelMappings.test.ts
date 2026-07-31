@@ -27,10 +27,8 @@ describe('ProviderModelMappings', () => {
 
       expect(enabled.capabilities).toEqual(['function-call'])
       expect(enabled.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: true })
-      expect(enabled.userOverrides).toEqual(['capabilities'])
       expect(disabled.capabilities).toEqual([])
       expect(disabled.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: false })
-      expect(disabled.userOverrides).toBeNull()
     })
 
     it('leaves inferred v1 web-search entries to the v2 registry default', () => {
@@ -129,10 +127,11 @@ describe('ProviderModelMappings', () => {
         location: '',
         credentials: undefined
       })
+      // adapterFamily is not persisted — read-time inference routes
+      // google-generate-content to the google adapter.
       expect(result.endpointConfigs).toEqual({
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
-          baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1',
-          adapterFamily: 'google'
+          baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1'
         }
       })
     })
@@ -154,10 +153,10 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      // adapterFamily is not persisted — read-time inference covers it.
       expect(result.endpointConfigs).toEqual({
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://example.openai.azure.com/openai/deployments/deployment-1',
-          adapterFamily: 'openai-compatible'
+          baseUrl: 'https://example.openai.azure.com/openai/deployments/deployment-1'
         }
       })
       expect(result.authConfig).toEqual({
@@ -384,9 +383,12 @@ describe('ProviderModelMappings', () => {
         {}
       )
 
-      expect(result.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toMatchObject({
-        baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
-        adapterFamily: 'anthropic'
+      // The row deliberately stores NO adapterFamily for ANTHROPIC_MESSAGES:
+      // the legacy-type hint ('openai-compatible') must not be persisted, and
+      // read-time inference resolves the endpoint protocol ('anthropic') —
+      // covered by ProviderService.readMerge.test.ts.
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toEqual({
+        baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic'
       })
     })
 
@@ -427,6 +429,67 @@ describe('ProviderModelMappings', () => {
         baseUrl: 'https://api.openai.com/v1',
         adapterFamily: 'openai-compatible'
       })
+    })
+  })
+
+  describe('transformModel pricing', () => {
+    it('maps the legacy CNY symbol to the CNY currency code', () => {
+      const result = transformModel(
+        {
+          id: 'glm-4',
+          name: 'GLM-4',
+          pricing: { input_per_million_tokens: 8, output_per_million_tokens: 16, currencySymbol: '¥' }
+        } as never,
+        'zhipu'
+      )
+
+      expect(result.pricing).toEqual({
+        input: { perMillionTokens: 8, currency: 'CNY' },
+        output: { perMillionTokens: 16, currency: 'CNY' }
+      })
+    })
+
+    it('maps the legacy USD symbol and an absent symbol to the USD currency code', () => {
+      const withSymbol = transformModel(
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          pricing: { input_per_million_tokens: 3, output_per_million_tokens: 15, currencySymbol: '$' }
+        } as never,
+        'openai'
+      )
+      const withoutSymbol = transformModel(
+        {
+          id: 'gpt-4o-mini',
+          name: 'GPT-4o mini',
+          pricing: { input_per_million_tokens: 0.15, output_per_million_tokens: 0.6 }
+        } as never,
+        'openai'
+      )
+
+      expect(withSymbol.pricing).toEqual({
+        input: { perMillionTokens: 3, currency: 'USD' },
+        output: { perMillionTokens: 15, currency: 'USD' }
+      })
+      expect(withoutSymbol.pricing).toEqual({
+        input: { perMillionTokens: 0.15, currency: 'USD' },
+        output: { perMillionTokens: 0.6, currency: 'USD' }
+      })
+    })
+
+    it('drops pricing in currencies the v2 contract cannot represent', () => {
+      for (const currencySymbol of ['€', '£', 'CAD']) {
+        const result = transformModel(
+          {
+            id: `unsupported-${currencySymbol}`,
+            name: 'Unsupported currency',
+            pricing: { input_per_million_tokens: 3, output_per_million_tokens: 15, currencySymbol }
+          } as never,
+          'custom'
+        )
+
+        expect(result.pricing).toBeNull()
+      }
     })
   })
 })

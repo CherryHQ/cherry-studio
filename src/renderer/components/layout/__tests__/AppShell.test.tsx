@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -77,7 +78,13 @@ vi.mock('../../GlobalSearch/globalSearchGroups', () => ({
 }))
 
 vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
-  default: () => null
+  default: () => <div data-testid="mini-app-pool" />
+}))
+
+vi.mock('../../ResourceViewSourceProvider', () => ({
+  ResourceViewSourceProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="resource-view-source-provider">{children}</div>
+  )
 }))
 
 vi.mock('../AppShellTabBar', () => ({
@@ -104,6 +111,17 @@ afterEach(() => {
 })
 
 describe('AppShell', () => {
+  it('owns the resource source provider at the route host boundary', () => {
+    render(<AppShell />)
+
+    const provider = screen.getByTestId('resource-view-source-provider')
+
+    expect(provider).toContainElement(screen.getByTestId('tab-router'))
+    expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
+    expect(provider).not.toContainElement(screen.getByTestId('sidebar'))
+    expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
+  })
+
   it('opens global search from the shell-level shortcut', () => {
     render(<AppShell />)
 
@@ -129,6 +147,7 @@ describe('AppShell', () => {
     expect(contentColumn.parentElement).toBe(root)
     expect(contentColumn).toContainElement(tabBar)
     expect(contentColumn).toContainElement(tabRouter)
+    expect(contentColumn.querySelector('main')).toHaveAttribute('data-ui', 'app.content')
     expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
   })

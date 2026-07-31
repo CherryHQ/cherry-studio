@@ -16,7 +16,8 @@ export default defineCreator({
     { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'hunyuan-t1' },
-    { pattern: 'hunyuan-a13b' }
+    { pattern: 'hunyuan-a13b' },
+    { pattern: '^hy3' }
   ],
   // Web search is a per-request enhancement on Hunyuan's chat/reasoning models. `hunyuan` covers the
   // `hunyuan-*` chat ids; `hy3-preview` lives in a different namespace, so it's listed explicitly (the

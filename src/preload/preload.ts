@@ -1,4 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -12,9 +13,9 @@ import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
+  AbsoluteFilePath,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  FilePath,
   GetPhysicalPathIpcParams,
   PhysicalFileMetadata
 } from '@shared/types/file'
@@ -72,7 +73,6 @@ const api = {
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
@@ -85,7 +85,7 @@ const api = {
   backup: {
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
     // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
-    backup: (fileName: string, destinationPath: string, skipBackupFile: boolean) =>
+    backup: (fileName: string, destinationPath: string, skipBackupFile?: boolean) =>
       ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
     backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
@@ -125,7 +125,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams): Promise<FileEntry> =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
-    getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<FilePath> =>
+    getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<AbsoluteFilePath> =>
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
     permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
@@ -308,11 +308,11 @@ const api = {
   // Data API related APIs
   dataApi: {
     request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
-    subscribe: (path: string, callback: (data: any, event: string) => void) => {
-      const channel = `${IpcChannel.DataApi_Stream}:${path}`
-      const listener = (_: any, data: any, event: string) => callback(data, event)
-      ipcRenderer.on(channel, listener)
-      return () => ipcRenderer.off(channel, listener)
+    // DataApi data change notifications: single fixed channel, main → all windows.
+    onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
+      const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
+      ipcRenderer.on(IpcChannel.DataApi_DataChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.DataApi_DataChanged, listener)
     }
   },
   // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc

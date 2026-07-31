@@ -12,7 +12,13 @@
  */
 
 import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, objectValues, ServerToolConfigSchema } from '@cherrystudio/provider-registry'
+import {
+  CURRENCY,
+  ENDPOINT_TYPE,
+  FastModeTransportSchema,
+  objectValues,
+  ServerToolConfigSchema
+} from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 export type { ServerTool, ServerToolConfig }
@@ -27,7 +33,8 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional()
+  verbosity: z.boolean().optional(),
+  reportsActualCost: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
@@ -241,6 +248,20 @@ export const EndpointConfigSchema = z.object({
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
 
+/**
+ * The row-persisted subset of {@link EndpointConfigSchema} — only fields the
+ * user explicitly owns. Registry-owned fields (`modelsApiUrls`,
+ * `adapterFamily`) resolve from the registry at read time; persisting them
+ * through the renderer write contract would freeze a snapshot that goes stale
+ * (#17096).
+ */
+export const EndpointConfigOverrideSchema = z.object({
+  /** User-owned base URL override for this endpoint type's API */
+  baseUrl: z.string().optional()
+})
+
+export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>
+
 export const ProviderSchema = z.object({
   /** Provider ID */
   id: z.string(),
@@ -277,12 +298,7 @@ export const ProviderSchema = z.object({
    * the registry; absent/`'api'` for normal providers.
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
-  /**
-   * Provider-native (server-executed) built-in tools this host serves itself —
-   * Carried from the registry (resolved live in `rowToRuntimeProvider`). Each
-   * entry states whether it applies to every chat model or needs model-specific
-   * eligibility. Absent ⇒ `[]`.
-   */
+  /** Provider-native (server-executed) built-in tools resolved from the registry. */
   serverTools: z.array(ServerToolConfigSchema).optional(),
   /**
    * Which credential kinds this provider accepts (`'api-key'` / `'oauth'` /
@@ -299,6 +315,13 @@ export const ProviderSchema = z.object({
    * from the registry; absent ⇒ false.
    */
   authOptional: z.boolean().optional(),
+  /**
+   * Registry-owned currency for provider-reported costs that omit currency
+   * from the wire payload. Never inferred for custom providers.
+   */
+  reportedCostCurrency: z.enum(objectValues(CURRENCY)).optional(),
+  /** Provider-owned transport for Fast requests. Effective availability is model-specific. */
+  fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */
@@ -318,7 +341,8 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
-  verbosity: false
+  verbosity: false,
+  reportsActualCost: false
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

@@ -4,27 +4,33 @@ const {
   appGetMock,
   getDeviceTypeMock,
   getCountryMock,
+  getDetectedCountryMock,
   getFontsMock,
   isTrustedMock,
   openPathMock,
   openExternalMock,
   isSafeMock,
+  nativeThemeMock,
   platform
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   getDeviceTypeMock: vi.fn(),
   getCountryMock: vi.fn(),
+  getDetectedCountryMock: vi.fn(),
   getFontsMock: vi.fn(),
   isTrustedMock: vi.fn(),
   openPathMock: vi.fn(),
   openExternalMock: vi.fn(),
   isSafeMock: vi.fn(),
+  nativeThemeMock: { shouldUseDarkColors: false },
   platform: { isMac: true }
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/utils/system', () => ({ getDeviceType: getDeviceTypeMock }))
-vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { getCountry: getCountryMock, getDetectedCountry: getDetectedCountryMock }
+}))
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeMock }))
 vi.mock('@main/core/platform', () => ({
   get isMac() {
@@ -32,6 +38,7 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 vi.mock('electron', () => ({
+  nativeTheme: nativeThemeMock,
   systemPreferences: { isTrustedAccessibilityClient: isTrustedMock },
   shell: { openPath: openPathMock, openExternal: openExternalMock }
 }))
@@ -47,6 +54,7 @@ const ctx = (senderId: string | null) => ({ senderId })
 beforeEach(() => {
   vi.clearAllMocks()
   platform.isMac = true
+  nativeThemeMock.shouldUseDarkColors = false
   appGetMock.mockImplementation((name: string) => {
     if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
@@ -59,9 +67,21 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.get_device_type'](undefined, ctx('w1'))).toBe('mac')
   })
 
+  it('get_native_theme returns Electron resolved theme', async () => {
+    expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('light')
+
+    nativeThemeMock.shouldUseDarkColors = true
+    expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('dark')
+  })
+
   it('get_ip_country delegates to RegionService', async () => {
     getCountryMock.mockResolvedValue('US')
     expect(await systemHandlers['system.get_ip_country'](undefined, ctx('w1'))).toBe('US')
+  })
+
+  it('ip_country.detect preserves an unavailable detection instead of applying the legacy CN fallback', async () => {
+    getDetectedCountryMock.mockResolvedValue(null)
+    expect(await systemHandlers['system.ip_country.detect'](undefined, ctx('w1'))).toBeNull()
   })
 
   it('get_fonts strips wrapping quotes and drops empties', async () => {

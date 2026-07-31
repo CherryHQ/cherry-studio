@@ -140,6 +140,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   },
   { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
   { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
+  { pattern: '^gemini-robotics', toggle: true },
   { pattern: '^gemini-[\\d.]+.*flash', toggle: true, template: true },
   { pattern: 'gemini-2[.-]5-flash-lite.*$', budget: { min: 512, max: 24576 }, template: true },
   { pattern: 'gemini-flash-lite-latest$', budget: { min: 512, max: 24576 }, template: true },
@@ -152,6 +153,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
   { pattern: '^gemini.*thinking' },
   { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
+  { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
   {
     pattern:
       '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
@@ -175,7 +177,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
   // nvidia
-  { pattern: 'nemotron-(?:nano|super|3-(?:nano|super|ultra))' },
+  { pattern: '(?:llama-3-1-)?nemotron-(?:nano|super|ultra|3-(?:nano|super|ultra))' },
   // openai
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
   { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
@@ -206,11 +208,13 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
+  { pattern: '^hy3' },
   // upstage
   { pattern: '^solar-pro-?[23]' },
   // vercel
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },
+  { pattern: '^laguna-s' },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
   { pattern: '^grok-3-mini', effort: ['low', 'high'] },

@@ -77,8 +77,8 @@ const assistantMessage = {
   createdAt: '2026-01-01T00:00:00.000Z',
   status: 'success',
   stats: {
-    promptTokens: 10,
-    completionTokens: 32,
+    inputTokens: 10,
+    outputTokens: 32,
     totalTokens: 42
   }
 } as MessageListItem

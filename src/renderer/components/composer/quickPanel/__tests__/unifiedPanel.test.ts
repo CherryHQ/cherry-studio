@@ -1,4 +1,5 @@
 import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
+import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
@@ -216,6 +217,112 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       searchText: 'pdf'
     })
     expect(insertSkill).toHaveBeenCalledOnce()
+  })
+
+  it('matches flattened submenu items by searchAliases when label and description are React nodes', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-plan',
+              kind: 'command',
+              label: createElement('span', null, 'Plan Only'),
+              description: createElement('span', null, 'Plans without editing files.'),
+              icon: 'plan',
+              sources: ['popover'],
+              searchAliases: ['Plan Only', 'Plans without editing files.'],
+              action: vi.fn()
+            },
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: createElement('span', null, 'Approve for Me'),
+              icon: 'auto',
+              sources: ['popover'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    // Without aliases, a React-node label leaves only whitespace filterText and never matches.
+    expect(getVisibleItems(options, 'approve for me')).toEqual([])
+
+    const matches = getVisibleItems(options, 'plan only')
+    expect(matches).toHaveLength(1)
+
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+    matches[0].action?.({
+      action: 'enter',
+      context: actionContext,
+      item: matches[0],
+      parentPanel: options,
+      searchText: 'plan only'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'permission-mode-plan' }),
+      expect.anything()
+    )
+  })
+
+  it('excludes persistent launchers while keeping the bare-root customize footer', () => {
+    const launchers = [
+      {
+        id: 'thinking',
+        kind: 'command' as const,
+        label: 'Thinking',
+        icon: 'brain',
+        sources: ['popover'] as const
+      },
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        icon: 'paperclip',
+        sources: ['popover'] as const
+      }
+    ]
+    const additionalItems = [
+      {
+        id: 'composer:customize-toolbar',
+        label: 'Customize toolbar',
+        icon: 'settings',
+        fixedToBottom: true
+      }
+    ]
+
+    const pinned = createUnifiedQuickPanelOpenOptions(launchers, {
+      quickPanel,
+      additionalItems,
+      excludedLauncherIds: new Set(['thinking'])
+    })
+    expect(pinned.list.map((item) => item.id)).toEqual(['attachment', 'composer:customize-toolbar'])
+
+    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel, additionalItems })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment', 'composer:customize-toolbar'])
+  })
+
+  it('excludes leading items by the same excludedLauncherIds filter as launchers', () => {
+    const leadingItems = [{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]
+
+    const pinned = createUnifiedQuickPanelOpenOptions([], {
+      quickPanel,
+      leadingItems,
+      excludedLauncherIds: new Set(['new-topic'])
+    })
+    expect(pinned.list).toEqual([])
+
+    const unpinned = createUnifiedQuickPanelOpenOptions([], { quickPanel, leadingItems })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['new-topic'])
   })
 
   it('drops bottom-pinned chrome from category views seeded with a search text', () => {

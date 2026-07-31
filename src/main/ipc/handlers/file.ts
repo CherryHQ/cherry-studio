@@ -1,6 +1,17 @@
 import { application } from '@application'
-import { dispatchHandle, getMetadataByPath, safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
+import {
+  dispatchHandle,
+  getMetadataByPath,
+  readByPath,
+  readChunkByPath,
+  safeOpen,
+  showInFolder as showPathInFolder,
+  writeIfUnchangedByPath
+} from '@main/services/file'
+import { PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { CreateInternalEntryIpcParams } from '@shared/types/file'
@@ -10,6 +21,34 @@ import type { CreateInternalEntryIpcParams } from '@shared/types/file'
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+  'file.read': async ({ handle, options }) => {
+    const fileManager = application.get('FileManager')
+    if (options.mode === 'range') {
+      return dispatchHandle(
+        handle as FileHandle,
+        (entryId) => fileManager.readChunk(entryId, options.offset, options.length),
+        (path) => readChunkByPath(path, options.offset, options.length)
+      )
+    }
+    return dispatchHandle(
+      handle as FileHandle,
+      (entryId) => fileManager.read(entryId, { encoding: options.encoding }),
+      (path) => readByPath(path, { encoding: options.encoding })
+    )
+  },
+  'file.write_if_unchanged': async ({ path, data, expectedVersion }) => {
+    try {
+      return await writeIfUnchangedByPath(path, data, expectedVersion)
+    } catch (error) {
+      if (error instanceof PathStaleVersionError) {
+        throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {
+          expected: error.expected,
+          current: error.current
+        })
+      }
+      throw error
+    }
+  },
   'file.batch_get_metadata': async ({ items }) => {
     const fileManager = application.get('FileManager')
     const pairs = await Promise.all(

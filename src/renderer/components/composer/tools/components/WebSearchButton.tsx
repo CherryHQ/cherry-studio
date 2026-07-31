@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -145,10 +146,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   useEffect(() => {
     return launcher.registerLaunchers([
       {
-        id: 'web-search',
-        kind: 'command',
+        ...WEB_SEARCH_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
-        order: 30,
         label: t('chat.input.web_search.label'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),

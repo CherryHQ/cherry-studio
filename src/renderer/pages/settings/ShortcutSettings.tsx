@@ -14,7 +14,7 @@ import {
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
@@ -459,9 +459,9 @@ const ShortcutSettings: FC = () => {
             type="button"
             variant="ghost"
             className={cn(
-              'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
+              'h-8 w-36 rounded-lg border-border-subtle bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
-              hasConflict && 'border-red-500 focus-visible:ring-red-500/50'
+              hasConflict && 'border-error-border focus-visible:ring-error/50'
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
@@ -473,7 +473,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -498,8 +498,8 @@ const ShortcutSettings: FC = () => {
             )}
             <RowFlex
               className={cn(
-                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
-                hasSystemConflict && 'border-red-500',
+                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border-subtle hover:bg-muted/35',
+                hasSystemConflict && 'border-error-border',
                 isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed opacity-50'
               )}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
@@ -507,8 +507,8 @@ const ShortcutSettings: FC = () => {
                 <Kbd
                   key={key}
                   className={cn(
-                    'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
-                    hasSystemConflict && 'border-red-500/60 text-red-500'
+                    'min-w-6 rounded-md border border-border-subtle bg-card px-1.5 py-0.75 text-card-foreground text-xs shadow-none',
+                    hasSystemConflict && 'border-error-border text-error'
                   )}>
                   {formatKeyDisplay(key, isMac)}
                 </Kbd>
@@ -516,7 +516,7 @@ const ShortcutSettings: FC = () => {
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictMessage}
             </span>
           )}
@@ -528,17 +528,15 @@ const ShortcutSettings: FC = () => {
       <div className="relative flex flex-col items-end">
         <span
           className={cn(
-            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border/60 hover:bg-muted/30',
-            hasSystemConflict && 'border-red-500 text-red-500',
+            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border-subtle hover:bg-muted/30',
+            hasSystemConflict && 'border-error-border text-error',
             isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
           )}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
-            {conflictMessage}
-          </span>
+          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">{conflictMessage}</span>
         )}
       </div>
     )
@@ -577,10 +575,10 @@ const ShortcutSettings: FC = () => {
         className={cn(
           'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
           !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border/50 border-b'
+          !isLast && 'border-border-subtle border-b'
         )}>
         <div className="min-w-0 pr-2">
-          <div className="truncate font-medium text-[14px] text-foreground">{record.label}</div>
+          <div className="truncate text-[14px] text-foreground">{record.label}</div>
         </div>
         <div className="flex min-h-9 items-center justify-end">{renderShortcutCell(record)}</div>
         <div className="flex justify-end">
@@ -601,67 +599,69 @@ const ShortcutSettings: FC = () => {
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
-            <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
-              <h1 className={settingsContentHeaderTitleClassName}>
-                {activeGroup === 'all'
-                  ? t('settings.shortcuts.title')
-                  : groupOptions.find((item) => item.key === activeGroup)?.label}
-              </h1>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2.5 text-xs shadow-none"
-                  onClick={() => void handleToggleVisibleShortcuts(true)}>
-                  {t('settings.shortcuts.all_enable')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2.5 text-xs shadow-none"
-                  onClick={() => void handleToggleVisibleShortcuts(false)}>
-                  {t('settings.shortcuts.all_disable')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
-                  onClick={handleResetAllShortcuts}>
-                  <Undo2 size={13} />
-                  {t('settings.shortcuts.reset')}
-                </Button>
+            <SettingGroup theme={theme}>
+              <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
+                <h1 className={settingsContentHeaderTitleClassName}>
+                  {activeGroup === 'all'
+                    ? t('settings.shortcuts.title')
+                    : groupOptions.find((item) => item.key === activeGroup)?.label}
+                </h1>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs shadow-none"
+                    onClick={() => void handleToggleVisibleShortcuts(true)}>
+                    {t('settings.shortcuts.all_enable')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs shadow-none"
+                    onClick={() => void handleToggleVisibleShortcuts(false)}>
+                    {t('settings.shortcuts.all_disable')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
+                    onClick={handleResetAllShortcuts}>
+                    <Undo2 size={13} />
+                    {t('settings.shortcuts.reset')}
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            <div className="mb-3 flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
-                <Input
-                  className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
-                  placeholder={t('settings.shortcuts.search_placeholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                  <Input
+                    className="h-9 w-full rounded-lg border-border-subtle bg-background pr-3 pl-9"
+                    placeholder={t('settings.shortcuts.search_placeholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <ShortcutGroupFilterMenu
+                  groups={groupOptions}
+                  activeGroup={activeGroup}
+                  onSelect={(group) => {
+                    setActiveGroup(group)
+                    setSearchQuery('')
+                  }}
                 />
               </div>
-              <ShortcutGroupFilterMenu
-                groups={groupOptions}
-                activeGroup={activeGroup}
-                onSelect={(group) => {
-                  setActiveGroup(group)
-                  setSearchQuery('')
-                }}
-              />
-            </div>
 
-            {visibleShortcuts.length > 0 ? (
-              <div>
-                {visibleShortcuts.map((record, index) =>
-                  renderShortcutRow(record, index === visibleShortcuts.length - 1)
-                )}
-              </div>
-            ) : (
-              <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
-            )}
+              {visibleShortcuts.length > 0 ? (
+                <div>
+                  {visibleShortcuts.map((record, index) =>
+                    renderShortcutRow(record, index === visibleShortcuts.length - 1)
+                  )}
+                </div>
+              ) : (
+                <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+              )}
+            </SettingGroup>
           </SettingsContentBody>
         </Scrollbar>
       </div>

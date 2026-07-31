@@ -5,7 +5,7 @@
 
 import * as z from 'zod'
 
-import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
+import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
 import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
@@ -32,8 +32,21 @@ export const ApiFeaturesSchema = z.object({
   /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
   serviceTier: z.boolean().default(false),
   /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false)
+  verbosity: z.boolean().default(false),
+
+  // --- Response feature flags ---
+
+  /** Whether the provider returns the actual billed cost in its usage response */
+  reportsActualCost: z.boolean().default(false)
 })
+
+/**
+ * Provider-owned transport used to request faster processing.
+ *
+ * Model availability remains a provider-model concern; this only describes
+ * how the provider carries an enabled Fast request.
+ */
+export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
 
 /** A provider-native tool plus the scope of models on which the host serves it. */
 export const ServerToolConfigSchema = z.object({
@@ -166,15 +179,18 @@ export const ProviderConfigSchema = z
      * local provider still needs its baseUrl input. Defaults false.
      */
     authOptional: z.boolean().default(false),
-    /**
-     * Provider-native (server-executed) built-in tools this host serves itself.
-     * `modelScope` distinguishes provider-wide tools (OpenRouter web search) from
-     * tools that still require tool-specific model eligibility. Absent ⇒ `[]`
-     * (the app falls back to its own agentic tools). See {@link SERVER_TOOL}.
-     */
+    /** Provider-native (server-executed) built-in tools served by this host. */
     serverTools: z.array(ServerToolConfigSchema).default([]),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
+    /**
+     * Registry-owned currency for provider-reported costs whose wire payload
+     * carries an amount but no currency. Absent means the amount stays
+     * unpriced; consumers must not infer a default currency.
+     */
+    reportedCostCurrency: ZodCurrencySchema,
+    /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
+    fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })

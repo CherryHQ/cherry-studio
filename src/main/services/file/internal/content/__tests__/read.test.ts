@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,7 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { read, readByPath } = await import('../read')
+const { read, readChunk } = await import('../read')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -35,7 +35,7 @@ describe('internal/content/read', () => {
       fileRefService,
       danglingCache: {
         check: vi.fn(),
-        onFsEvent: vi.fn((p: FilePath, state: 'present' | 'missing') => {
+        onFsEvent: vi.fn((p: AbsoluteFilePath, state: 'present' | 'missing') => {
           onFsEventCalls.push({ path: p, state })
         }),
         addEntry: vi.fn(),
@@ -127,6 +127,30 @@ describe('internal/content/read', () => {
     expect(result.mime).toBe('application/pdf')
   })
 
+  it('reads a byte range for an existing external entry', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c04' as FileEntryId
+    const file = path.join(tmp, 'range.pdf')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3, 4, 5]))
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'range',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const chunk = await readChunk(deps, id, 2, 3)
+
+    expect(Array.from(chunk.content)).toEqual([2, 3, 4])
+    expect(chunk.mime).toBe('application/pdf')
+    expect(chunk.version.size).toBe(6)
+  })
+
   it('throws when entry id does not exist', async () => {
     await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc' as FileEntryId)).rejects.toThrow(/not found/i)
   })
@@ -151,18 +175,23 @@ describe('internal/content/read', () => {
     expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
   })
 
-  it('readByPath bypasses entry resolution', async () => {
-    const file = path.join(tmp, 'direct.txt') as FilePath
-    await writeFile(file, 'direct content', 'utf-8')
-    const result = await readByPath(deps, file)
-    expect(result.content).toBe('direct content')
-  })
+  it('updates DanglingCache to "missing" when a chunk read finds an external file missing', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c11' as FileEntryId
+    const file = path.join(tmp, 'gone-range.pdf')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'gone-range',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
 
-  it('proves CanonicalExternalPath brand is unused (read uses raw FilePath)', () => {
-    // Sanity: external-path lookup goes through fileEntryService.findByExternalPath,
-    // not through internal/content/read. This test exists to prevent accidental
-    // signature drift between modules.
-    const _brand: CanonicalExternalPath = '/tmp/x' as CanonicalExternalPath
-    expect(typeof _brand).toBe('string')
+    await expect(readChunk(deps, id, 0, 4)).rejects.toThrow(/ENOENT/)
+    expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
   })
 })

@@ -28,7 +28,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
-import { ExternalLink, List } from 'lucide-react'
+import { ArrowRight, ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -327,7 +327,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
             <div className={providerFieldClassName}>
               <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
               <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
-                <ExternalLink size={14} />
+                <ArrowRight size={13} />
                 {t('navigate.provider_settings')}
               </Button>
             </div>
@@ -341,7 +341,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="text-foreground-secondary hover:text-foreground"
+                    className="text-muted-foreground hover:text-foreground"
                     aria-label={t('settings.provider.api.key.list.open')}
                     onClick={openApiKeyList}>
                     <List size={14} />
@@ -412,7 +412,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   content={t('settings.provider.basic_auth.tip')}
                   iconProps={{
                     size: 16,
-                    color: 'var(--color-foreground-secondary)',
+                    color: 'var(--muted-foreground)',
                     className: 'ml-1 cursor-pointer'
                   }}
                 />

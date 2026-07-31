@@ -2,6 +2,7 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -24,12 +25,11 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@shared/utils/model'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
+import { isSupportFastMode, isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
 
-import { resolveProviderOptionsKey } from '../provider/endpoint'
 import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
@@ -38,6 +38,25 @@ import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './r
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
+
+export function applyFastModeToProviderOptions(
+  provider: Pick<Provider, 'fastMode'>,
+  model: Pick<Model, 'supportsFastMode'>,
+  providerOptions: ProviderOptions,
+  fastMode: boolean
+): ProviderOptions {
+  if (!fastMode || !isSupportFastMode(provider, model) || provider.fastMode.transport !== 'openai-priority') {
+    return providerOptions
+  }
+
+  return {
+    ...providerOptions,
+    openai: {
+      ...providerOptions.openai,
+      serviceTier: 'priority'
+    }
+  }
+}
 
 type GroqProvider = Provider & { id: 'groq' }
 type NonGroqProvider = Provider & { id: Exclude<string, 'groq'> }
@@ -95,6 +114,19 @@ function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
   return undefined
 }
 
+function shouldNormalizeOpenAICompatibleReasoning(
+  providerId: AppProviderId,
+  endpointType: EndpointType | undefined
+): boolean {
+  return (
+    providerId === 'openai-compatible' ||
+    providerId === 'github-copilot-openai-compatible' ||
+    providerId === 'google-vertex-maas' ||
+    (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+      (providerId === 'aihubmix' || providerId === SystemProviderIds.dmxapi))
+  )
+}
+
 export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   standardParams: Partial<Record<AiSdkParam, any>>
   providerParams: Record<string, any>
@@ -120,24 +152,24 @@ export function buildCapabilityProviderOptions(
   context: {
     aiSdkProviderId: AppProviderId
     runtimeProviderId: AppProviderId
+    providerOptionsKey: string
     endpointType: EndpointType | undefined
     reasoning: ResolvedReasoningInvocation
   }
 ): Record<string, Record<string, JSONValue>> {
   const rawProviderId = context.runtimeProviderId
-  const providerOptionsKey = resolveProviderOptionsKey(rawProviderId)
+  const providerOptionsKey = context.providerOptionsKey
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
   const resolvedReasoningOptions = capabilities.enableReasoning
-    ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id)
+    ? encodeReasoningOptions(providerOptionsKey, context.reasoning)
     : {
         providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
         options: {}
       }
-  const reasoningOptions =
-    rawProviderId === 'openai-compatible' || rawProviderId === 'google-vertex-maas'
-      ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
-      : resolvedReasoningOptions
+  const reasoningOptions = shouldNormalizeOpenAICompatibleReasoning(rawProviderId, context.endpointType)
+    ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
+    : resolvedReasoningOptions
 
   let providerSpecificOptions: Record<string, any> = {}
 
@@ -177,12 +209,13 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildBedrockProviderOptions(assistant, model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
-      providerSpecificOptions = buildOllamaProviderOptions(reasoningOptions.options)
+      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
       break
     case 'cherryin':
     case 'cherryin-chat':
     case 'newapi':
     case 'aihubmix':
+    case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
       providerSpecificOptions = buildAIGatewayOptions(
         model,
@@ -225,86 +258,23 @@ export function buildCapabilityProviderOptions(
 }
 
 function encodeReasoningOptions(
-  aiSdkProviderId: AppProviderId,
-  endpointType: EndpointType | undefined,
-  invocation: ResolvedReasoningInvocation,
-  actualProviderId?: string
+  providerOptionsKey: string,
+  invocation: ResolvedReasoningInvocation
 ): { providerId: string; options: Record<string, unknown> } {
-  let providerId: string
-  switch (aiSdkProviderId) {
-    case 'openai':
-    case 'openai-chat':
-    case 'azure':
-    case 'azure-responses':
-    case 'huggingface':
-      providerId = 'openai'
-      break
-    case 'anthropic':
-    case 'azure-anthropic':
-      providerId = 'anthropic'
-      break
-    case 'google-vertex-anthropic':
-      providerId = resolveProviderOptionsKey(aiSdkProviderId)
-      break
-    case 'google':
-      providerId = 'google'
-      break
-    case 'google-vertex':
-    case 'google-vertex-maas':
-      providerId = resolveProviderOptionsKey(aiSdkProviderId)
-      break
-    case 'xai':
-    case 'xai-responses':
-      providerId = 'xai'
-      break
-    case 'bedrock':
-      providerId = 'bedrock'
-      break
-    case SystemProviderIds.ollama:
-      providerId = 'ollama'
-      break
-    case 'cherryin':
-    case 'cherryin-chat':
-    case 'newapi':
-    case 'aihubmix':
-    case SystemProviderIds.gateway:
-      if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-        providerId = 'anthropic'
-      } else if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
-        providerId = 'google'
-      } else if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
-        providerId = 'openai'
-      } else {
-        providerId = aiSdkProviderId
-      }
-      break
-    case 'openai-compatible':
-      // createOpenAICompatible() names the language model after the concrete
-      // provider. Unknown compatible fields are forwarded only from that
-      // namespace; the canonical openai-compatible namespace is schema-stripped.
-      providerId = actualProviderId ?? aiSdkProviderId
-      break
-    default:
-      providerId = aiSdkProviderId
-  }
-  return { providerId, options: encodeReasoningInvocation(invocation) }
+  return { providerId: providerOptionsKey, options: encodeReasoningInvocation(invocation) }
 }
 
 /** Build the single providerOptions namespace that owns reasoning for this endpoint adapter. */
 export function buildResolvedReasoningProviderOptions(context: {
   aiSdkProviderId: AppProviderId
+  providerOptionsKey: string
   endpointType: EndpointType | undefined
   reasoning: ResolvedReasoningInvocation
-  actualProviderId?: string
 }): Record<string, Record<string, unknown>> {
-  const encoded = encodeReasoningOptions(
-    context.aiSdkProviderId,
-    context.endpointType,
-    context.reasoning,
-    context.actualProviderId
-  )
-  const options =
-    context.aiSdkProviderId === 'openai-compatible' ? normalizeOpenAICompatibleParams(encoded.options) : encoded.options
+  const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
+  const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
+    ? normalizeOpenAICompatibleParams(encoded.options)
+    : encoded.options
   return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
 }
 
@@ -490,9 +460,18 @@ function buildBedrockProviderOptions(
 }
 
 function buildOllamaProviderOptions(
+  model: Model,
   reasoningOptions: Record<string, unknown>
 ): Record<string, Record<string, unknown>> {
-  return { ollama: reasoningOptions }
+  return {
+    ollama: {
+      ...reasoningOptions,
+      // Ollama defaults to a 2048-token context window unless num_ctx is supplied;
+      // forward the model's configured contextWindow so large-context models are
+      // not silently truncated.
+      ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
+    }
+  }
 }
 
 function buildGenericProviderOptions(

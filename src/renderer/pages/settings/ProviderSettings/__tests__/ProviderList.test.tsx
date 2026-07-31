@@ -13,6 +13,9 @@ const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
+const { providerEditorDrawerSpy } = vi.hoisted(() => ({
+  providerEditorDrawerSpy: vi.fn()
+}))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
 let providerListScrollerClientHeight = 100
@@ -117,7 +120,10 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
 }))
 
 vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
-  default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
+  default: (props: any) => {
+    providerEditorDrawerSpy(props)
+    return <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'} />
+  }
 }))
 
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
@@ -247,6 +253,47 @@ describe('ProviderList', () => {
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
   })
 
+  it('offers only safe canonical preset sources to the custom provider editor', () => {
+    const canonicalOpenAI = {
+      ...providers[0],
+      presetProviderId: 'openai',
+      authType: 'api-key'
+    }
+    const canonicalNewApi = {
+      id: 'new-api',
+      name: 'New API',
+      presetProviderId: 'new-api',
+      authType: 'api-key',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://localhost:3000' }
+      }
+    }
+    useProvidersMock.mockReturnValue({
+      providers: [
+        canonicalOpenAI,
+        canonicalNewApi,
+        { ...canonicalOpenAI, id: 'openai-work' },
+        {
+          ...providers[1],
+          id: 'claude-code',
+          presetProviderId: 'claude-code',
+          authType: 'api-key',
+          authMethods: ['external-cli']
+        }
+      ],
+      createProvider: vi.fn()
+    })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        presetSources: [canonicalOpenAI, canonicalNewApi],
+        onSelectPreset: expect.any(Function)
+      })
+    )
+  })
+
   it('triggers add and reorder actions', () => {
     const reorderableProviders = [
       { ...providers[0], isEnabled: true },
@@ -315,7 +362,7 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('keeps add buttons inside the provider list scroller', () => {
+  it('keeps add actions around the provider list', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
@@ -329,16 +376,7 @@ describe('ProviderList', () => {
     expect(addButtons).toHaveLength(2)
     expect(topAddButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(topAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(bottomAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(searchWrap).toHaveClass('h-8')
-    expect(searchInput).toHaveClass('text-xs')
-    expect(searchWrap?.querySelector('svg')).toHaveClass('mr-0.5', 'size-3.5')
     expect(searchWrap).toContainElement(filterButton)
-    expect(filterButton).toHaveClass('size-[22px]')
-    expect(filterButton.querySelector('svg')).toHaveAttribute('width', '12')
-    expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
   })
 
   it('hides the bottom add button when provider list content does not overflow', () => {
@@ -388,9 +426,6 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
-    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

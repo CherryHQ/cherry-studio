@@ -63,17 +63,12 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     selectedIds: new Set(),
     onSelect: vi.fn(),
     onOpen: vi.fn(),
-    onSelectAll: vi.fn(),
-    visibleSelectionState: false,
     onDelete: vi.fn(),
     onRestore: vi.fn(),
     onRename: vi.fn(),
     onShowInFolder: vi.fn(),
     isTrash: false,
     menuActions,
-    sortKey: 'name',
-    sortDir: 'asc',
-    onSort: vi.fn(),
     scrollRef: { current: document.createElement('div') },
     renamingId,
     onRenameConfirm: vi.fn(),
@@ -158,16 +153,28 @@ describe('FileList', () => {
     expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
   })
 
-  it('selects files only through checkboxes', () => {
+  it('opens rows while checkbox interactions only select', () => {
     const onSelect = vi.fn()
+    const onOpen = vi.fn()
 
-    render(<FileList {...fileListProps(null)} onSelect={onSelect} />)
+    render(<FileList {...fileListProps(null)} onSelect={onSelect} onOpen={onOpen} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    fireEvent.click(checkbox)
+    expect(onSelect).toHaveBeenCalledWith(file.id)
+    expect(onOpen).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByText(file.name))
-    expect(onSelect).not.toHaveBeenCalled()
+    expect(onOpen).toHaveBeenCalledWith(file)
+    expect(onSelect).toHaveBeenCalledOnce()
+  })
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_file' }))
-    expect(onSelect).toHaveBeenCalledWith(file.id)
+  it('uses the selected border only for the checked checkbox state', () => {
+    render(<FileList {...fileListProps(null)} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    expect(checkbox).toHaveClass('data-[state=checked]:border-border-selected')
+    expect(checkbox).not.toHaveClass('border-border-selected')
   })
 
   it('opens files through the existing action', () => {
@@ -175,30 +182,10 @@ describe('FileList', () => {
 
     render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+    const openButton = screen.getByRole('button', { name: 'files.open' })
+    fireEvent.click(openButton)
 
     expect(onOpen).toHaveBeenCalledWith(file)
-  })
-
-  it('opens a file on a single row click', () => {
-    const onOpen = vi.fn()
-
-    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
-
-    fireEvent.click(screen.getByText(file.name))
-
-    expect(onOpen).toHaveBeenCalledWith(file)
-  })
-
-  it('does not open when clicking the checkbox column', () => {
-    const onOpen = vi.fn()
-
-    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
-
-    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    fireEvent.click(checkbox.parentElement as HTMLElement)
-
-    expect(onOpen).not.toHaveBeenCalled()
   })
 
   it('does not open a missing file on a row click', () => {

@@ -45,7 +45,7 @@ const DataSourcePanelHeader = ({
 
   if (selectedCount > 0) {
     return (
-      <div className="flex min-h-8 min-w-0 items-center justify-between gap-3">
+      <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="truncate text-foreground text-sm">
             {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
@@ -53,7 +53,7 @@ const DataSourcePanelHeader = ({
           {/* Selection only covers loaded rows; warn when unloaded pages remain so the
               checked-all state doesn't read as "all rows in the base". */}
           {total > loadedCount ? (
-            <span className="shrink-0 text-foreground-muted text-xs">
+            <span className="shrink-0 text-foreground-tertiary text-xs">
               {t('knowledge.data_source.bulk.loaded_only_hint', { total })}
             </span>
           ) : null}
@@ -73,8 +73,8 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <div className="flex min-h-8 min-w-0 items-center justify-between gap-2">
-      <span className="min-w-0 truncate text-foreground-muted text-xs leading-4">
+    <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-2">
+      <span className="min-w-0 truncate pl-1 text-foreground-tertiary text-xs leading-4">
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
       <div className="flex shrink-0 items-center gap-2">
@@ -83,12 +83,12 @@ const DataSourcePanelHeader = ({
             <PopoverTrigger asChild>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 aria-haspopup="menu"
                 aria-expanded={isSourceMenuOpen}
-                className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground">
-                <Plus className="size-3.5" />
+                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 font-medium text-muted-foreground text-xs leading-4 shadow-none hover:bg-accent hover:text-foreground">
+                <Plus className="size-3" />
                 {t('knowledge.data_source.toolbar.add')}
               </Button>
             </PopoverTrigger>

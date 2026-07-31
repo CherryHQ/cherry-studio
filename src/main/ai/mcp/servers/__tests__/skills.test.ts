@@ -1,447 +1,255 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mocks must be declared before importing SkillsServer
-const mockSkillInstall = vi.fn()
-const mockSkillUninstallByFolderName = vi.fn()
-const mockSkillList = vi.fn()
-const mockSkillToggle = vi.fn()
-const mockSkillInstallFromDirectory = vi.fn()
-const mockSkillGetSkillDirectory = vi.fn()
-const mockSkillGetInstalledSkillDirectory = vi.fn()
-const mockSkillGetByFolderName = vi.fn()
-const mockNetFetch = vi.fn()
-const mockMkdir = vi.fn()
-const mockReaddir = vi.fn()
-
-vi.mock('node:fs/promises', () => ({
-  mkdir: (...args: unknown[]) => mockMkdir(...args),
-  readdir: (...args: unknown[]) => mockReaddir(...args)
-}))
+const { installMock, toggleMock } = vi.hoisted(() => ({ installMock: vi.fn(), toggleMock: vi.fn() }))
+const fetchMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: {
-    install: mockSkillInstall,
-    uninstallByFolderName: mockSkillUninstallByFolderName,
-    list: mockSkillList,
-    toggle: mockSkillToggle,
-    installFromDirectory: mockSkillInstallFromDirectory,
-    getSkillDirectory: mockSkillGetSkillDirectory,
-    getInstalledSkillDirectory: mockSkillGetInstalledSkillDirectory,
-    getByFolderName: mockSkillGetByFolderName
-  }
+  skillService: { install: installMock, toggle: toggleMock }
 }))
-
-// Override net.fetch with our local mock — electron is mocked globally in main.setup.ts
-const electron = await import('electron')
-vi.mocked(electron.net.fetch).mockImplementation(mockNetFetch)
+vi.mock('electron', () => ({ net: { fetch: fetchMock } }))
 
 const { default: SkillsServer } = await import('../skills')
 type SkillsServerInstance = InstanceType<typeof SkillsServer>
 
-function createServer(agentId = 'agent_test') {
+function createServer(agentId = 'agent-1') {
   return new SkillsServer(agentId)
 }
 
-async function callTool(server: SkillsServerInstance, args: Record<string, unknown>) {
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const callToolHandler = handlers?.get('tools/call')
-  if (!callToolHandler) {
-    throw new Error('No tools/call handler registered')
-  }
-  return callToolHandler({ method: 'tools/call', params: { name: 'skills', arguments: args } }, {})
+function handlers(server: SkillsServerInstance) {
+  return (server.mcpServer.server as any)._requestHandlers
 }
 
-async function listTools(server: SkillsServerInstance) {
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const listHandler = handlers?.get('tools/list')
-  if (!listHandler) {
-    throw new Error('No tools/list handler registered')
-  }
-  return listHandler({ method: 'tools/list', params: {} }, {})
+async function listTools(server: SkillsServerInstance): Promise<any> {
+  return handlers(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
+}
+
+async function callTool(server: SkillsServerInstance, name: string, args: Record<string, unknown>): Promise<any> {
+  return handlers(server).get('tools/call')({ method: 'tools/call', params: { name, arguments: args } }, {})
+}
+
+function mockMarketplace(skills: unknown[]) {
+  fetchMock.mockImplementation(async (url: string) => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => {
+      if (url.startsWith('https://skills.sh/')) return { skills: [] }
+      if (url.startsWith('https://clawhub.ai/')) return { results: [] }
+      return { skills }
+    }
+  }))
 }
 
 describe('SkillsServer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSkillToggle.mockReturnValue({ id: 'skill-1', isEnabled: true })
   })
 
-  it('should expose only the skills tool', async () => {
-    const server = createServer()
-    const result = await listTools(server)
-    expect(result.tools).toHaveLength(1)
-    expect(result.tools[0].name).toBe('skills')
+  it('exposes exactly search_skills and install_skill', async () => {
+    const result = await listTools(createServer())
+    expect(result.tools.map((t: any) => t.name)).toEqual(['search_skills', 'install_skill'])
   })
 
-  describe('search action', () => {
-    it('should search marketplace skills', async () => {
-      const mockResponse = {
+  describe('search_skills', () => {
+    it('returns matches with an install_source built from the real directoryPath', async () => {
+      mockMarketplace([
+        {
+          id: 's1',
+          name: 'React Best Practices',
+          namespace: 'vercel-labs',
+          description: 'React perf',
+          author: 'vercel',
+          stars: 42,
+          installs: 100,
+          sourceUrl: 'https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices',
+          metadata: {
+            repoOwner: 'vercel-labs',
+            repoName: 'agent-skills',
+            directoryPath: 'skills/react-best-practices'
+          }
+        }
+      ])
+
+      const result = await callTool(createServer(), 'search_skills', { query: 'react perf' })
+      const payload = JSON.parse(
+        result.content[0].text.slice(result.content[0].text.indexOf('['), result.content[0].text.lastIndexOf(']') + 1)
+      )
+
+      expect(result.isError).toBeFalsy()
+      expect(payload).toEqual([
+        expect.objectContaining({
+          stars: 42,
+          source_registry: 'claude-plugins.dev',
+          source_url: 'https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices',
+          install_source: 'claude-plugins:vercel-labs/agent-skills/skills/react-best-practices'
+        })
+      ])
+    })
+
+    it('searches every marketplace supported by the renderer', async () => {
+      fetchMock.mockImplementation(async (url: string) => ({
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          skills: [
-            {
-              name: 'gh-create-pr',
-              description: 'Create GitHub PRs',
-              author: 'test-author',
-              namespace: '@test-owner/test-repo',
-              installs: 42,
-              metadata: { repoOwner: 'test-owner', repoName: 'test-repo' }
+        statusText: 'OK',
+        json: async () => {
+          if (url.startsWith('https://skills.sh/')) {
+            return {
+              query: 'developer tools',
+              count: 1,
+              skills: [
+                {
+                  id: 'owner/repo/web-search',
+                  skillId: 'web-search',
+                  name: 'Web Search',
+                  source: 'owner/repo',
+                  installs: 12
+                }
+              ]
             }
-          ],
-          total: 1
-        })
-      }
-      mockNetFetch.mockResolvedValue(mockResponse)
+          }
+          if (url.startsWith('https://clawhub.ai/')) {
+            return {
+              results: [
+                {
+                  score: 1,
+                  slug: 'code-review',
+                  displayName: 'Code Review',
+                  summary: 'Review code',
+                  version: '1.0.0',
+                  updatedAt: 1,
+                  ownerHandle: 'owner'
+                }
+              ]
+            }
+          }
+          return { skills: [] }
+        }
+      }))
 
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'search', query: 'github pr' })
+      const result = await callTool(createServer(), 'search_skills', { query: 'developer tools' })
+      const payload = JSON.parse(
+        result.content[0].text.slice(result.content[0].text.indexOf('['), result.content[0].text.lastIndexOf(']') + 1)
+      )
 
-      expect(mockNetFetch).toHaveBeenCalledWith(expect.stringContaining('/api/skills'), { method: 'GET' })
-      expect(result.content[0].text).toContain('gh-create-pr')
-      expect(result.content[0].text).toContain('test-owner/test-repo/gh-create-pr')
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(payload).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ source_registry: 'skills.sh', install_source: 'skills.sh:owner/repo/web-search' }),
+          expect.objectContaining({ source_registry: 'clawhub.ai', install_source: 'clawhub:owner/code-review' })
+        ])
+      )
     })
 
-    it('should handle empty search results', async () => {
-      mockNetFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ skills: [], total: 0 })
-      })
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'search', query: 'nonexistent' })
-
-      expect(result.content[0].text).toContain('No skills found')
-    })
-
-    it('should error when query is missing', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'search' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'query' is required")
-    })
-  })
-
-  describe('install action', () => {
-    it('should install and auto-enable a marketplace skill', async () => {
-      mockSkillInstall.mockResolvedValue({
-        id: 'skill-1',
-        name: 'gh-create-pr',
-        description: 'Create PRs',
-        folderName: 'gh-create-pr',
-        isEnabled: false
-      })
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' })
-
-      expect(mockSkillInstall).toHaveBeenCalledWith({
-        installSource: 'claude-plugins:owner/repo/gh-create-pr'
-      })
-      expect(mockSkillToggle).toHaveBeenCalledWith({
-        skillId: 'skill-1',
-        agentId: 'agent_1',
-        isEnabled: true
-      })
-      expect(result.content[0].text).toContain('Skill installed and enabled for this agent')
-      expect(result.content[0].text).toContain('gh-create-pr')
-    })
-
-    it('should warn when toggle fails after install', async () => {
-      mockSkillInstall.mockResolvedValue({
-        id: 'skill-1',
-        name: 'gh-create-pr',
-        description: 'Create PRs',
-        folderName: 'gh-create-pr',
-        isEnabled: false
-      })
-      mockSkillToggle.mockReturnValue(null)
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' })
-
-      expect(result.content[0].text).toContain('warning: failed to enable')
-      expect(result.content[0].text).toContain('Enabled: false')
-    })
-
-    it('should error when identifier is missing', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'install' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'identifier' is required")
-    })
-  })
-
-  describe('remove action', () => {
-    it('should remove an installed skill', async () => {
-      mockSkillUninstallByFolderName.mockResolvedValue(undefined)
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'remove', name: 'gh-create-pr' })
-
-      expect(mockSkillUninstallByFolderName).toHaveBeenCalledWith('gh-create-pr')
-      expect(result.content[0].text).toContain('removed')
-    })
-
-    it('should error when name is missing', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'remove' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'name' is required")
-    })
-  })
-
-  describe('list action', () => {
-    it('should list installed skills with absolute on-disk paths', async () => {
-      mockSkillList.mockResolvedValue([
-        { id: '1', name: 'gh-create-pr', description: 'Create PRs', folderName: 'gh-create-pr', isEnabled: true },
-        { id: '2', name: 'code-review', description: 'Review code', folderName: 'code-review', isEnabled: true }
+    it('builds install_source from directoryPath, not the display name (regression)', async () => {
+      // Real data has display names that differ entirely from the directory.
+      mockMarketplace([
+        {
+          id: 'ad',
+          name: 'Agent Development',
+          namespace: 'anthropics',
+          installs: 1,
+          metadata: {
+            repoOwner: 'anthropics',
+            repoName: 'claude-code',
+            directoryPath: 'plugins/plugin-dev/skills/agent-development'
+          }
+        }
       ])
-      mockSkillGetInstalledSkillDirectory.mockImplementation(
-        (skill: { folderName: string }) => `/global-skills/${skill.folderName}`
-      )
 
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'list' })
+      const result = await callTool(createServer(), 'search_skills', { query: 'agent dev' })
 
-      // list is scoped to the current agent so enablement reflects
-      // the per-agent state, not a shared global flag.
-      expect(mockSkillList).toHaveBeenCalledWith({ agentId: 'agent_1' })
-      const parsed = JSON.parse(result.content[0].text)
-      expect(parsed).toHaveLength(2)
-      // Each entry must include the absolute path so the model can patch the
-      // skill in place via Read / Edit on the symlinked files.
-      expect(parsed[0]).toMatchObject({
-        name: 'gh-create-pr',
-        folder: 'gh-create-pr',
-        path: '/global-skills/gh-create-pr',
-        enabled: true
-      })
-      expect(parsed[1]).toMatchObject({
-        name: 'code-review',
-        folder: 'code-review',
-        path: '/global-skills/code-review',
-        enabled: true
-      })
-      expect(mockSkillGetInstalledSkillDirectory).toHaveBeenCalledWith(
-        expect.objectContaining({ folderName: 'gh-create-pr' })
+      expect(result.content[0].text).toContain(
+        'claude-plugins:anthropics/claude-code/plugins/plugin-dev/skills/agent-development'
       )
-      expect(mockSkillGetInstalledSkillDirectory).toHaveBeenCalledWith(
-        expect.objectContaining({ folderName: 'code-review' })
-      )
+      // The identifier must NOT be assembled from the display name.
+      expect(result.content[0].text).not.toContain('anthropics/claude-code/Agent Development')
     })
 
-    it('should list a system skill with its external source path', async () => {
-      const systemSkill = {
-        id: 'system-1',
-        name: 'system-skill',
-        description: 'External skill',
-        folderName: 'system-skill',
-        source: 'system',
-        sourceUrl: 'file:///home/test/.codex/skills/system-skill',
-        isEnabled: true
-      }
-      mockSkillList.mockResolvedValue([systemSkill])
-      mockSkillGetInstalledSkillDirectory.mockReturnValue('/home/test/.codex/skills/system-skill')
+    it('drops results without a resolvable install directory (fail closed)', async () => {
+      mockMarketplace([{ id: 'x', name: 'No Dir', namespace: 'ns', metadata: { repoOwner: 'o', repoName: 'r' } }])
 
-      const result = await callTool(createServer('agent_1'), { action: 'list' })
-      const parsed = JSON.parse(result.content[0].text)
+      const result = await callTool(createServer(), 'search_skills', { query: 'x' })
 
-      expect(parsed[0].path).toBe('/home/test/.codex/skills/system-skill')
-      expect(mockSkillGetInstalledSkillDirectory).toHaveBeenCalledWith(systemSkill)
+      expect(result.content[0].text).toContain('No installable skills found')
     })
 
-    it('should handle empty list', async () => {
-      mockSkillList.mockResolvedValue([])
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'list' })
-
-      expect(result.content[0].text).toBe('No skills installed.')
+    it('errors when the query is missing', async () => {
+      const result = await callTool(createServer(), 'search_skills', {})
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toMatch(/query/i)
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 
-  describe('init action', () => {
-    it('should create the skill directory and return its path', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockSkillGetByFolderName.mockResolvedValue(null)
-      mockReaddir.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
-      mockMkdir.mockResolvedValue(undefined)
+  describe('install_skill', () => {
+    it('installs the exact install_source via SkillService and enables it for the current agent', async () => {
+      const server = createServer('agent-42')
+      mockMarketplace([
+        {
+          id: 'react',
+          name: 'React Best Practices',
+          namespace: 'vercel-labs',
+          metadata: {
+            repoOwner: 'vercel-labs',
+            repoName: 'agent-skills',
+            directoryPath: 'skills/react-best-practices'
+          }
+        }
+      ])
+      installMock.mockResolvedValue({
+        id: 'skill-1',
+        name: 'React Best Practices',
+        folderName: 'react-best-practices',
+        description: 'React perf'
+      })
+      toggleMock.mockReturnValue({ id: 'skill-1', isEnabled: true })
 
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'init', name: 'my-skill' })
+      const installSource = 'claude-plugins:vercel-labs/agent-skills/skills/react-best-practices'
+      await callTool(server, 'search_skills', { query: 'react' })
+      const result = await callTool(server, 'install_skill', { install_source: installSource })
 
-      expect(mockSkillGetSkillDirectory).toHaveBeenCalledWith('my-skill')
-      expect(mockMkdir).toHaveBeenCalledWith('/global-skills/my-skill', { recursive: true })
-      expect(result.content[0].text).toContain('/global-skills/my-skill')
-      expect(result.content[0].text).toContain('register')
+      expect(installMock).toHaveBeenCalledWith({ installSource })
+      expect(toggleMock).toHaveBeenCalledWith({ skillId: 'skill-1', agentId: 'agent-42', isEnabled: true })
+      expect(result.isError).toBeFalsy()
+      expect(result.content[0].text).toContain('installed and enabled for this agent')
     })
 
-    it('should reject when a skill with the same folder name already exists in DB', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockSkillGetByFolderName.mockResolvedValue({
-        id: 'existing-id',
-        name: 'My Existing Skill',
-        folderName: 'my-skill'
+    it('rejects an install_source that was not returned by this server session', async () => {
+      const result = await callTool(createServer(), 'install_skill', {
+        install_source: 'skills.sh:owner/repo/unreviewed'
       })
 
-      const server = createServer()
-      const result = await callTool(server, { action: 'init', name: 'my-skill' })
-
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('already exists')
-      expect(result.content[0].text).toContain('My Existing Skill')
-      expect(result.content[0].text).toContain('action="remove"')
-      expect(mockMkdir).not.toHaveBeenCalled()
+      expect(result.content[0].text).toContain('was not returned by search_skills in this session')
+      expect(installMock).not.toHaveBeenCalled()
     })
 
-    it('should reject when directory exists and is non-empty but not tracked in DB', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockSkillGetByFolderName.mockResolvedValue(null)
-      mockReaddir.mockResolvedValue(['SKILL.md', 'scripts'])
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'init', name: 'my-skill' })
-
+    it('errors when install_source is missing (never touches SkillService)', async () => {
+      const result = await callTool(createServer(), 'install_skill', {})
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('already exists and is non-empty')
-      expect(mockMkdir).not.toHaveBeenCalled()
+      expect(installMock).not.toHaveBeenCalled()
     })
 
-    it('should allow init when directory exists but is empty', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockSkillGetByFolderName.mockResolvedValue(null)
-      mockReaddir.mockResolvedValue([])
-      mockMkdir.mockResolvedValue(undefined)
-
+    it('surfaces an install failure as an error result, not a throw', async () => {
       const server = createServer()
-      const result = await callTool(server, { action: 'init', name: 'my-skill' })
-
-      expect(result.content[0].text).toContain('Skill directory ready at:')
-      expect(mockMkdir).toHaveBeenCalled()
-    })
-
-    it('should reject when readdir fails with non-ENOENT error (e.g. EACCES)', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockSkillGetByFolderName.mockResolvedValue(null)
-      mockReaddir.mockRejectedValue(Object.assign(new Error('Permission denied'), { code: 'EACCES' }))
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'init', name: 'my-skill' })
-
+      mockMarketplace([
+        {
+          id: 'c',
+          name: 'C',
+          namespace: 'a',
+          metadata: { repoOwner: 'a', repoName: 'b', directoryPath: 'c' }
+        }
+      ])
+      installMock.mockRejectedValue(new Error('clone failed'))
+      await callTool(server, 'search_skills', { query: 'c' })
+      const result = await callTool(server, 'install_skill', { install_source: 'claude-plugins:a/b/c' })
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Cannot read skill directory')
-      expect(mockMkdir).not.toHaveBeenCalled()
-    })
-
-    it('should error when name is missing', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'init' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'name' is required")
+      expect(result.content[0].text).toContain('clone failed')
     })
   })
 
-  describe('register action', () => {
-    it('should register an in-place skill and enable it', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockReaddir.mockResolvedValue(['SKILL.md', 'scripts'])
-      mockSkillInstallFromDirectory.mockResolvedValue({
-        id: 'skill-2',
-        name: 'My Skill',
-        description: 'Cool skill',
-        folderName: 'my-skill',
-        isEnabled: false
-      })
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'register', name: 'my-skill' })
-
-      expect(mockSkillInstallFromDirectory).toHaveBeenCalledWith({ directoryPath: '/global-skills/my-skill' })
-      expect(mockSkillToggle).toHaveBeenCalledWith({
-        skillId: 'skill-2',
-        agentId: 'agent_1',
-        isEnabled: true
-      })
-      expect(result.content[0].text).toContain('My Skill')
-      expect(result.content[0].text).toContain('registered and enabled for this agent')
-    })
-
-    it('should error when SKILL.md is missing from directory', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockReaddir.mockResolvedValue(['scripts', 'README.md'])
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'register', name: 'my-skill' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('No SKILL.md found')
-      expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
-    })
-
-    it('should error when directory does not exist', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockReaddir.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'register', name: 'my-skill' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('does not exist')
-      expect(result.content[0].text).toContain('Did you call action="init" first')
-      expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
-    })
-
-    it('should error with InternalError when readdir fails with EACCES', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockReaddir.mockRejectedValue(Object.assign(new Error('Permission denied'), { code: 'EACCES' }))
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'register', name: 'my-skill' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Cannot read skill directory')
-      expect(result.content[0].text).not.toContain('Did you call action="init" first')
-      expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
-    })
-
-    it('should warn when toggle fails after register', async () => {
-      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
-      mockReaddir.mockResolvedValue(['SKILL.md'])
-      mockSkillInstallFromDirectory.mockResolvedValue({
-        id: 'skill-2',
-        name: 'My Skill',
-        description: 'Cool skill',
-        folderName: 'my-skill',
-        isEnabled: false
-      })
-      mockSkillToggle.mockReturnValue(null)
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'register', name: 'my-skill' })
-
-      expect(result.content[0].text).toContain('warning: failed to enable')
-      expect(result.content[0].text).toContain('Enabled: false')
-    })
-
-    it('should error when name is missing', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'register' })
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'name' is required")
-    })
-  })
-
-  it('should handle unknown action', async () => {
-    const server = createServer()
-    const result = await callTool(server, { action: 'unknown' })
-
+  it('rejects an unknown tool', async () => {
+    const result = await callTool(createServer(), 'nope', {})
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('Unknown action')
   })
 })

@@ -177,6 +177,28 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('u2')?.parentId).toBe('u1')
   })
 
+  it('preserves a block-less clear marker as the parent of following messages', async () => {
+    const b1 = block('b1', 'u1')
+    const b3 = block('b3', 'u2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('clear-1', 'user', [], { type: 'clear' }),
+      msg('u2', 'user', ['b3'])
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b3])
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    expect(msgMap.get('clear-1')).toEqual(
+      expect.objectContaining({
+        parentId: 'u1',
+        data: { parts: [{ type: 'data-clear', data: {} }] }
+      })
+    )
+    expect(msgMap.get('u2')?.parentId).toBe('clear-1')
+  })
+
   it('resolves parentId through second-pass skipped messages (transform failure)', async () => {
     // u1 → a1 (has block IDs but blocks not in lookup → 0 resolved blocks → skipped) → u2
     const b1 = block('b1', 'u1')

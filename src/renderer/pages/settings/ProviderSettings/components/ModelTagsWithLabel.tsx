@@ -4,7 +4,10 @@ import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { memo } from 'react'
 
-export type ModelTagsWithLabelModel = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities' | 'endpointTypes'> &
+export type ModelTagsWithLabelModel = Pick<
+  Model,
+  'id' | 'name' | 'providerId' | 'capabilities' | 'inputModalities' | 'endpointTypes'
+> &
   Partial<Pick<Model, 'description' | 'group'>>
 
 interface ModelTagsProps {

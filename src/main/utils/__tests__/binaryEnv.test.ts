@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { getBinaryIsolatedHomeEnv, getBinarySearchDirs, mergeBinaryExecutionEnv } from '../binaryEnv'
+import { getBinaryIsolatedHomeEnv, getBinarySearchDirs, getBinaryShimsDir, mergeBinaryExecutionEnv } from '../binaryEnv'
 
 // Real `node:path` (posix on CI) — the dedup's canonicalization runs against
 // the actual normalize()/delimiter, not an identity stub. Windows case-folding
 // is covered separately in binaryEnv.windows.test.ts.
 
 describe('getBinarySearchDirs', () => {
+  it('exposes the mise shims directory without relying on search order', () => {
+    expect(getBinaryShimsDir()).toBe('/mock/feature.binary.data/shims')
+  })
+
   it('returns the mise shims dir before the bundled cherry.bin dir', () => {
     // Shims must precede cherry.bin so a user-installed copy shadows the bundled
     // one — the same ordering getBinaryPath() and shellEnv.ts rely on. The global

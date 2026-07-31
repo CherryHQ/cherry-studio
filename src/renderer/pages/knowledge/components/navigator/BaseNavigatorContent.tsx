@@ -8,6 +8,7 @@ import type { BaseNavigatorContentProps } from './types'
 import { UNGROUPED_SECTION_VALUE } from './types'
 
 const BaseNavigatorContent = ({
+  isLoading,
   sections,
   groups,
   groupById,
@@ -48,10 +49,18 @@ const BaseNavigatorContent = ({
   // shape keeps the accordion.
   const flatSection = groups.length === 0 && sections.length === 1 && sections[0].groupId === null ? sections[0] : null
 
+  // `pt-1 pb-3` mirrors the assistant and agent rails' list padding — the top inset is
+  // what separates the first row from the create action above it.
   return (
-    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-2.5 pb-3">
-      {sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
-        <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
+    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden pt-1 pb-3">
+      {isLoading ? (
+        <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+          {t('common.loading')}
+        </div>
+      ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
+        // The navigator only mounts once a base exists (zero bases takes over the whole
+        // page), so an empty list here can only mean the search matched nothing.
+        <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
       ) : flatSection ? (
         <div className="space-y-1">
           {flatSection.items.map((base) => (

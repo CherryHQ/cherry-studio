@@ -1,11 +1,15 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { memo, useEffect, useId, useMemo, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
+
+// This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
+const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
 
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */
@@ -39,11 +43,15 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
 
   return (
     <div
-      className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
-      style={{
-        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-        fontSize
-      }}>
+      className="relative [&_.markdown>p:only-child]:mb-0!"
+      style={
+        {
+          '--markdown-foreground': THINKING_MUTED_COLOR,
+          color: THINKING_MUTED_COLOR,
+          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+          fontSize
+        } as CSSProperties
+      }>
       <ChatMarkdown block={block} />
     </div>
   )
@@ -58,6 +66,17 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
 
   const isThinking = isStreaming
   const previewText = useMemo(() => (content ?? '').replace(/\s+/g, ' ').trim(), [content])
+
+  // While streaming, surface the latest sliver of reasoning on the collapsed title row and keep it
+  // scrolled to the end so the newest words stay visible — without auto-expanding the full block.
+  const showRollingPreview = isThinking && previewText.length > 0
+  const previewRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showRollingPreview) return
+    const el = previewRef.current
+    if (el) el.scrollLeft = el.scrollWidth
+  }, [previewText, showRollingPreview])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -76,7 +95,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         tabIndex={0}
         aria-expanded={isExpanded}
         aria-controls={contentId}
-        className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
         onClick={() => withScrollAnchor(() => setIsExpanded((expanded) => !expanded))}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
@@ -88,10 +107,23 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
           trailing={
-            showTitlePreview && previewText ? (
+            showRollingPreview ? (
+              <div
+                ref={previewRef}
+                aria-hidden="true"
+                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[13px] leading-5"
+                style={{
+                  color: THINKING_MUTED_COLOR,
+                  maskImage: 'linear-gradient(to right, transparent, black 24px)',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent, black 24px)'
+                }}>
+                {previewText}
+              </div>
+            ) : showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
-                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-foreground-muted leading-5">
+                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] leading-5"
+                style={{ color: THINKING_MUTED_COLOR }}>
                 {previewText}
               </span>
             ) : null
@@ -101,7 +133,8 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
       <div
         id={contentId}
         hidden={!isExpanded}
-        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5">
+        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5"
+        style={{ color: THINKING_SECONDARY_COLOR }}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </div>
     </div>

@@ -14,7 +14,7 @@
  * settings patch when at least one returned non-null.
  */
 import type { AssistantSettings } from '@renderer/types/assistant'
-import { deriveThinkingOptions, nearestThinkingOption } from '@shared/ai/reasoning'
+import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -26,17 +26,7 @@ export type ReasoningEffortPatch = {
   reasoning_effort?: ReasoningEffortOption
 }
 
-/** Project a current selection onto the next model's renderer vocabulary. */
-export function resolveReasoningEffortForModel(
-  nextModel: Model,
-  currentEffort: ReasoningEffortOption | undefined
-): ReasoningEffortOption | undefined {
-  const supportedOptions = deriveThinkingOptions(nextModel)
-  if (!supportedOptions?.some((option) => option !== 'default')) return undefined
-  if (currentEffort && supportedOptions.includes(currentEffort)) return currentEffort
-  if (currentEffort !== undefined) return nearestThinkingOption(currentEffort, supportedOptions) ?? supportedOptions[0]
-  return supportedOptions[0]
-}
+export { resolveReasoningEffortForModel }
 
 export function hasModelBuiltinWebSearch(model: Model, provider: Provider | undefined): boolean {
   return !!provider && isBuiltinWebSearchAvailable(model, provider)

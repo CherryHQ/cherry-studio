@@ -12,11 +12,11 @@ export interface StatusBadgeProps extends ComponentProps<typeof Badge> {
 
 const statusClassNames: Record<StatusBadgeStatus, string> = {
   idle: 'bg-secondary text-secondary-foreground',
-  loading: 'bg-info/10 text-info',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  error: 'bg-destructive/10 text-destructive',
-  info: 'bg-info/10 text-info',
+  loading: 'border-info-border bg-info-subtle text-info-subtle-foreground',
+  success: 'border-success-border bg-success-subtle text-success-subtle-foreground',
+  warning: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+  error: 'border-error-border bg-error-subtle text-error-subtle-foreground',
+  info: 'border-info-border bg-info-subtle text-info-subtle-foreground',
   muted: 'bg-muted text-muted-foreground'
 }
 

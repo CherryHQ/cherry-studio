@@ -77,12 +77,16 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     if (!enabled) return
 
     const frame = frameRef.current
-    const editorElement = frame?.querySelector<HTMLElement>('.composer-tiptap')
     const inputbarElement = frame?.closest<HTMLElement>('[data-composer-inputbar]')
-    if (!editorElement || !inputbarElement) return
+    if (!frame || !inputbarElement) return
 
+    // Observe the frame rather than `.composer-tiptap`: Tiptap builds the
+    // editor in an effect, so that element does not exist yet on a composer
+    // that mounts already enabled. Watching the frame catches both the editor's
+    // insertion and its later content edits, and the measurement below reruns
+    // off the resulting revision bump.
     const mutationObserver = new MutationObserver(requestMeasurement)
-    mutationObserver.observe(editorElement, {
+    mutationObserver.observe(frame, {
       characterData: true,
       childList: true,
       subtree: true

@@ -1,6 +1,6 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
-import type { CreateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 /** Map the shared create-wizard values to the Assistant DataApi contract. */
 export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAssistantDto {
@@ -15,7 +15,7 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
 }
 
 /** Map the shared create-wizard values to the Agent DataApi contract. */
-export function buildCreateAgentDto(values: ResourceCreateValues): CreateAgentDto {
+export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
   return {
     type: 'claude-code',
     name: values.name,
@@ -24,10 +24,14 @@ export function buildCreateAgentDto(values: ResourceCreateValues): CreateAgentDt
     smallModel: values.modelId,
     description: values.description,
     instructions: values.prompt,
+    knowledgeBaseIds: values.knowledgeBaseIds,
     skillIds: values.skillIds,
     configuration: {
       avatar: values.avatar,
-      permission_mode: 'bypassPermissions'
+      // A new agent asks before acting. `auto` reads as the friendlier default, but it
+      // leans on a model-side classifier that not every model implements, so making it
+      // the default silently degrades on those. Escalating is the user's call.
+      permission_mode: 'default'
     }
   }
 }

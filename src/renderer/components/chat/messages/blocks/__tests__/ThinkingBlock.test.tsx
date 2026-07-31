@@ -156,6 +156,32 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
+
+    it('should keep the newest rolling reasoning visible while streaming without expanding', () => {
+      const block = createThinkingBlock({
+        status: 'streaming',
+        content: 'First thought\n\nsecond thought\tthird thought'
+      })
+      const { rerender } = renderThinkingBlock(block)
+      const preview = screen.getByText('First thought second thought third thought')
+      Object.defineProperty(preview, 'scrollWidth', {
+        configurable: true,
+        value: 240
+      })
+
+      rerender(
+        <ThinkingBlock
+          id={block.id}
+          content={`${block.content} fourth thought`}
+          isStreaming={block.status === 'streaming'}
+        />
+      )
+
+      expect(screen.getByText('First thought second thought third thought fourth thought')).toBe(preview)
+      expect(preview.scrollLeft).toBe(240)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
   })
 
   describe('thinking status display', () => {
@@ -198,7 +224,6 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
-      expect(getContentContainer()).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
       expect(getThinkingContent()).toBeInTheDocument()
       unmount()
 
@@ -241,42 +266,6 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
-    })
-  })
-
-  describe('font and styling', () => {
-    it('should apply font settings to thinking content', () => {
-      const testCases = [
-        {
-          settings: { messageFont: 'serif', fontSize: 16 },
-          expectedFont: 'var(--font-family-serif)',
-          expectedSize: '16px'
-        },
-        {
-          settings: { messageFont: 'sans-serif', fontSize: 14 },
-          expectedFont: 'var(--font-family)',
-          expectedSize: '14px'
-        }
-      ]
-
-      testCases.forEach(({ settings, expectedFont, expectedSize }) => {
-        mockRenderConfig.messageFont = settings.messageFont
-        mockRenderConfig.fontSize = settings.fontSize
-        mockRenderConfig.thoughtAutoCollapse = false
-
-        const block = createThinkingBlock()
-        const { unmount } = renderThinkingBlock(block)
-
-        const styledDiv = screen.getByTestId('mock-markdown').parentElement
-
-        expect(styledDiv).toHaveClass('text-foreground-muted', '[&_.markdown>p:only-child]:mb-0!')
-        expect(styledDiv).toHaveStyle({
-          fontFamily: expectedFont,
-          fontSize: expectedSize
-        })
-
-        unmount()
-      })
     })
   })
 

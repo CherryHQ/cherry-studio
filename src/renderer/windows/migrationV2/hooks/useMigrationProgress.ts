@@ -70,7 +70,7 @@ export function useMigrationProgress() {
       }
     }
 
-    window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
+    const cleanupProgressListener = window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
 
     // Request initial progress
     window.electron.ipcRenderer
@@ -96,9 +96,7 @@ export function useMigrationProgress() {
         logger.error('Failed to get last migration error', error)
       })
 
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
-    }
+    return cleanupProgressListener
   }, [applyMigrationStageTiming])
 
   return {
@@ -146,6 +144,11 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
   }, [])
 
+  // Main maps the language to a regional site; the renderer never names a URL.
+  const openDownloadPage = useCallback((language: string): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDownloadPage, language)
+  }, [])
+
   return {
     startMigration,
     retry,
@@ -153,6 +156,7 @@ export function useMigrationActions() {
     restart,
     skipMigration,
     saveDiagnostics,
-    showDiagnosticBundleInFolder
+    showDiagnosticBundleInFolder,
+    openDownloadPage
   }
 }

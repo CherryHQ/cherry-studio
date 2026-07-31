@@ -113,6 +113,6 @@ describe('LocalModelsSection', () => {
 
     await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
     expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
-    expect(screen.getByText('settings.dependencies.localModels.unsupported')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 })
