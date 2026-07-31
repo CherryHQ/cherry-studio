@@ -117,7 +117,6 @@ const mocks = vi.hoisted(() => ({
   treeOnMutation: vi.fn(),
   ipcRequest: vi.fn(),
   fsReadText: vi.fn(),
-  isTextFile: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
@@ -560,7 +559,13 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest }
+  ipcApi: {
+    // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
+    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
+    // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
+    request: (route: string, input: unknown) =>
+      route === 'file.get_metadata' ? mocks.getMetadata(input) : mocks.ipcRequest(route, input)
+  }
 }))
 
 vi.mock('@renderer/utils/editor', () => ({
@@ -610,10 +615,10 @@ describe('ArtifactPane', () => {
     mocks.showInFolder.mockResolvedValue(undefined)
     mocks.externalApps = []
     mocks.isDirectory.mockResolvedValue(false)
-    // Default: tests select text files; override per-test for binary cases.
-    mocks.isTextFile.mockResolvedValue(true)
-    // Default: tests use tiny files; override per-test to exercise the size gate.
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
+    // Default: tiny text files. `getMetadata().type` drives text detection
+    // (via useIsTextFile) and `.size` drives the size gate — override per-test
+    // for binary / large-file cases.
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'text' })
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -621,11 +626,9 @@ describe('ArtifactPane', () => {
         file: {
           openPath: mocks.openPath,
           showInFolder: mocks.showInFolder,
-          isTextFile: mocks.isTextFile,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
-          listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata
+          listDirectoryEntries: mocks.listDirectoryEntries
         },
         fs: {
           readText: mocks.fsReadText
@@ -1351,13 +1354,13 @@ describe('ArtifactPane', () => {
     const oversizedDraftBytes = new Blob([oversizedDraft]).size
     expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     let diskSize = 1024
-    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number }) => void
+    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number; type: string }) => void
     mocks.getMetadata.mockImplementation(() =>
       diskSize > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
         ? new Promise((resolve) => {
             resolveOversizedMetadata = resolve
           })
-        : Promise.resolve({ kind: 'file', size: diskSize })
+        : Promise.resolve({ kind: 'file', size: diskSize, type: 'text' })
     )
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
@@ -1402,7 +1405,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
 
     await act(async () => {
-      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes })
+      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes, type: 'text' })
     })
   })
 

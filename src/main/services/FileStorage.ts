@@ -1,9 +1,24 @@
+/**
+ * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
+ * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
+ * the migration is complete.
+ *
+ * Do NOT add new features or new call sites here — route new file
+ * functionality through `FileManager` instead. Existing consumers should be
+ * migrated off this module as part of the ongoing migration.
+ */
+/* eslint-disable filepath-brand/no-as-filepath -- v1 raw-path regime: every
+ * public method here takes a bare `string` path straight from legacy IPC or an
+ * Electron dialog, with no validation layer of its own. Introducing
+ * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
+ * already `@deprecated` and slated for deletion, changing v1 behavior instead of
+ * migrating it. The casts only feed `getFileType`, which reads the extension. */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation } from '@main/services/file'
-import { decodeTextBufferIfText } from '@main/utils/file'
+import { getFileType } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -11,9 +26,8 @@ import {
   readTextFileWithAutoEncoding
 } from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import type { FileType } from '@shared/types/file'
-import { FILE_TYPE } from '@shared/types/file'
-import { KB, MB } from '@shared/utils/constants'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
 import * as crypto from 'crypto'
@@ -104,7 +118,7 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
-          const type = await this.getFileType(filePath)
+          const type = await getFileType(filePath as AbsoluteFilePath)
 
           return {
             id,
@@ -122,15 +136,6 @@ class FileStorage {
     }
 
     return null
-  }
-
-  public getFileType = async (filePath: string): Promise<FileType> => {
-    const ext = path.extname(filePath)
-    const fileType = getFileTypeByExt(ext)
-
-    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath).catch(() => false))
-      ? FILE_TYPE.TEXT
-      : fileType
   }
 
   public selectFile = async (
@@ -152,7 +157,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = await this.getFileType(filePath)
+      const fileType = await getFileType(filePath as AbsoluteFilePath)
 
       return {
         id: uuidv4(),
@@ -218,7 +223,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = await this.getFileType(destPath)
+    const fileType = await getFileType(destPath as AbsoluteFilePath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -243,7 +248,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const fileType = await this.getFileType(filePath)
+    const fileType = await getFileType(filePath as AbsoluteFilePath)
 
     return {
       id: uuidv4(),
@@ -878,7 +883,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = await this.getFileType(destPath)
+      const fileType = await getFileType(destPath as AbsoluteFilePath)
 
       return {
         id: uuid,
@@ -959,51 +964,6 @@ class FileStorage {
 
   public getFilePathById(file: FileMetadata): string {
     return path.join(this.storageDir, file.id + file.ext)
-  }
-
-  /**
-   * Rejects when the file cannot be opened or read, so callers can tell
-   * "binary file" apart from "sniff failed" (e.g. file deleted or unreadable).
-   */
-  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    try {
-      return await this._isTextFile(filePath)
-    } catch (error) {
-      logger.error('Failed to check if file is text:', error as Error)
-      throw error
-    }
-  }
-
-  private _isTextFile = async (filePath: string): Promise<boolean> => {
-    const length = 8 * KB
-    const maxCharacterBytes = 4
-    const fileHandle = await fs.promises.open(filePath, 'r')
-    try {
-      const buffer = Buffer.alloc(length + maxCharacterBytes)
-      const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
-
-      const firstEnd = Math.min(bytesRead, length)
-      const lastEnd = Math.min(bytesRead, length + maxCharacterBytes)
-
-      // A fixed byte window can end midway through a UTF-8, GB18030, or other
-      // multibyte character. Try the next few byte boundaries so valid text is
-      // not rejected solely because the sample ended inside that character.
-      for (let end = firstEnd; end <= lastEnd; end++) {
-        if (decodeTextBufferIfText(buffer.subarray(0, end)) !== null) return true
-      }
-      return false
-    } finally {
-      await fileHandle.close()
-    }
-  }
-
-  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    try {
-      const stat = await fs.promises.stat(filePath)
-      return stat.isDirectory()
-    } catch {
-      return false
-    }
   }
 
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
