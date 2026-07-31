@@ -1,6 +1,6 @@
 import type { GetAgentResponse, Tool } from '@renderer/types'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ToolsSettings from '../ToolsSettings'
 
@@ -27,12 +27,13 @@ vi.mock('react-i18next', () => ({
   }
 }))
 
-const createAgent = (tools: Tool[]): GetAgentResponse => ({
+const createAgent = (tools: Tool[], allowedTools?: string[]): GetAgentResponse => ({
   id: 'agent-1',
   type: 'claude-code',
   model: 'claude-test',
   accessible_paths: [],
   tools,
+  allowed_tools: allowedTools,
   created_at: '2026-07-31T00:00:00.000Z',
   updated_at: '2026-07-31T00:00:00.000Z'
 })
@@ -40,6 +41,10 @@ const createAgent = (tools: Tool[]): GetAgentResponse => ({
 const update = vi.fn(async () => undefined)
 
 describe('ToolsSettings', () => {
+  beforeEach(() => {
+    update.mockClear()
+  })
+
   it('uses the translated description for the PowerShell builtin tool', () => {
     render(
       <ToolsSettings
@@ -75,5 +80,33 @@ describe('ToolsSettings', () => {
     )
 
     expect(screen.getByText('Future builtin SDK description')).toBeInTheDocument()
+  })
+
+  it('preserves opaque PowerShell while removing other unavailable IDs when toggling a visible tool', async () => {
+    render(
+      <ToolsSettings
+        agentBase={createAgent(
+          [
+            {
+              id: 'VisibleTool',
+              name: 'Visible Tool',
+              type: 'builtin',
+              requirePermissions: true
+            }
+          ],
+          ['PowerShell', 'StaleTool']
+        )}
+        update={update}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Toggle Visible Tool' }))
+
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith({
+        id: 'agent-1',
+        allowed_tools: ['PowerShell', 'VisibleTool']
+      })
+    })
   })
 })

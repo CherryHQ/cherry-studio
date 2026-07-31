@@ -20,6 +20,7 @@ import {
   SettingsItem,
   SettingsTitle
 } from '../shared'
+import { sanitizeAllowedToolIds } from './toolSelection'
 
 const cardStyles: CardProps['styles'] = {
   header: {
@@ -76,7 +77,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
     const allowed = agentBase?.allowed_tools ?? []
-    const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
+    const sanitized = sanitizeAllowedToolIds(allowed, availableTools)
     const merged = uniq([...sanitized, ...autoToolIds])
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
@@ -113,7 +114,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
       }
       setIsUpdatingTools(true)
       const next = isApproved ? [...approvedToolIds, toolId] : approvedToolIds.filter((id) => id !== toolId)
-      const sanitized = uniq(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
+      const sanitized = uniq(sanitizeAllowedToolIds(next, availableTools).concat(autoToolIds))
       try {
         await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
       } finally {

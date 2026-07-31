@@ -129,6 +129,7 @@ describe('mergeUserEnvironmentVariables', () => {
     'PowerShell_Telemetry_OptOut',
     'CHERRY_STUDIO_NODE_PROXY_RULES',
     'cherry_studio_node_proxy_bypass_rules',
+    'bUn_OpTiOnS',
     'node_options',
     '__proto__',
     'constructor',
@@ -154,6 +155,52 @@ describe('mergeUserEnvironmentVariables', () => {
     expect(result).toEqual({
       env: { KEEP: 'base', USER_SETTING: 'allowed' },
       blockedKeys: ['ANTHROPIC_API_KEY', 'claude_code_git_bash_path', 'NODE_OPTIONS']
+    })
+  })
+
+  it('removes inherited BUN_OPTIONS on non-Windows without mutating the input or removing normal variables', () => {
+    const env = { BUN_OPTIONS: '--preload=/tmp/injected.js', PATH: '/usr/bin', USER_SETTING: 'kept' }
+
+    const result = mergeUserEnvironmentVariables(env, undefined, false)
+
+    expect(result).toEqual({ env: { PATH: '/usr/bin', USER_SETTING: 'kept' }, blockedKeys: [] })
+    expect(env).toEqual({ BUN_OPTIONS: '--preload=/tmp/injected.js', PATH: '/usr/bin', USER_SETTING: 'kept' })
+  })
+
+  it('removes every inherited BUN_OPTIONS casing variant on Windows without mutating the input', () => {
+    const env = {
+      BUN_OPTIONS: '--preload=first.js',
+      Bun_Options: '--preload=second.js',
+      bun_options: '--preload=third.js',
+      PATH: 'C:\\Windows\\System32',
+      USER_SETTING: 'kept'
+    }
+
+    const result = mergeUserEnvironmentVariables(env, undefined, true)
+
+    expect(result).toEqual({
+      env: { PATH: 'C:\\Windows\\System32', USER_SETTING: 'kept' },
+      blockedKeys: []
+    })
+    expect(env).toEqual({
+      BUN_OPTIONS: '--preload=first.js',
+      Bun_Options: '--preload=second.js',
+      bun_options: '--preload=third.js',
+      PATH: 'C:\\Windows\\System32',
+      USER_SETTING: 'kept'
+    })
+  })
+
+  it('blocks Agent-provided BUN_OPTIONS in any spelling while preserving normal Agent variables', () => {
+    const result = mergeUserEnvironmentVariables(
+      { BUN_OPTIONS: '--preload=inherited.js', KEEP: 'base' },
+      { bUn_OpTiOnS: '--preload=agent.js', USER_SETTING: 'allowed' },
+      false
+    )
+
+    expect(result).toEqual({
+      env: { KEEP: 'base', USER_SETTING: 'allowed' },
+      blockedKeys: ['bUn_OpTiOnS']
     })
   })
 

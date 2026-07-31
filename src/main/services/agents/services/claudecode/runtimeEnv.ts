@@ -6,6 +6,8 @@ const MANAGED_SHELL_ENV_KEYS = new Set([
   'POWERSHELL_TELEMETRY_OPTOUT'
 ])
 
+const BUN_OPTIONS_ENV_KEY = 'BUN_OPTIONS'
+
 const BLOCKED_USER_ENV_KEYS = new Set([
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -23,6 +25,7 @@ const BLOCKED_USER_ENV_KEYS = new Set([
   'CHERRY_STUDIO_BUN_PATH',
   'CHERRY_STUDIO_NODE_PROXY_RULES',
   'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  BUN_OPTIONS_ENV_KEY,
   'NODE_OPTIONS',
   '__PROTO__',
   'CONSTRUCTOR',
@@ -68,6 +71,12 @@ export function mergeUserEnvironmentVariables(
 ): { env: Record<string, string>; blockedKeys: string[] } {
   const nextEnv = { ...env }
   const blockedKeys: string[] = []
+
+  if (windows) {
+    removeKeysCaseInsensitively(nextEnv, new Set([BUN_OPTIONS_ENV_KEY]))
+  } else {
+    delete nextEnv[BUN_OPTIONS_ENV_KEY]
+  }
 
   if (userEnv === null || typeof userEnv !== 'object' || Array.isArray(userEnv)) {
     return { env: nextEnv, blockedKeys }
