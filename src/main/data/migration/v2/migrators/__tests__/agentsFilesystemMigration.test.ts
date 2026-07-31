@@ -690,7 +690,7 @@ describe('agentsFilesystemMigration', () => {
     )
   })
 
-  it('bounds outstanding filesystem work for a high-fan-out workspace', async () => {
+  it('bounds and continuously refills filesystem work for a high-fan-out workspace', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceBundle = path.join(legacyWorkspace, 'bundle', 'nested')
     const fileCount = 64
@@ -717,13 +717,28 @@ describe('agentsFilesystemMigration', () => {
       return result
     }
     const addSpy = vi.spyOn(PQueue.prototype, 'add').mockImplementation(trackedAdd as PQueue['add'])
+    let releaseFirst!: () => void
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    copyMutation.afterCopyFile = async (sourcePath) => {
+      if (sourcePath.endsWith('file-000.txt')) await firstBlocked
+    }
 
     try {
-      await stageLegacyAgentFiles({
+      const migration = stageLegacyAgentFiles({
         agentsDataRoot,
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [session]
       })
+      try {
+        await vi.waitFor(() => {
+          expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
+        })
+      } finally {
+        releaseFirst()
+        await migration
+      }
     } finally {
       addSpy.mockRestore()
     }

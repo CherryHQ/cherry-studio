@@ -63,8 +63,7 @@ class FilesystemBranchScheduler {
 }
 
 // Keep the current branch inline and borrow only immediately available slots.
-// Each batch therefore retains at most the global concurrency number of Promises,
-// even when recursive directories discover more high-fan-out descendants.
+// Long-lived workers continuously refill from the shared cursor while retaining a bounded worker set.
 async function processFilesystemEntriesWithWorkers<T>(
   entries: string[],
   scheduler: FilesystemBranchScheduler,
@@ -72,27 +71,23 @@ async function processFilesystemEntriesWithWorkers<T>(
   recordResult?: (result: T, index: number) => void
 ): Promise<void> {
   let nextIndex = 0
-  while (nextIndex < entries.length) {
-    const inlineIndex = nextIndex++
-    const operations: Array<Promise<void>> = []
-    while (nextIndex < entries.length) {
-      const index = nextIndex
-      const operation = scheduler.tryRun(async () => {
-        const result = await processEntry(entries[index], index)
-        recordResult?.(result, index)
-      })
-      if (!operation) break
-      nextIndex++
-      operations.push(operation)
+
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++
+      if (index >= entries.length) return
+      const result = await processEntry(entries[index], index)
+      recordResult?.(result, index)
     }
-    operations.push(
-      (async () => {
-        const result = await processEntry(entries[inlineIndex], inlineIndex)
-        recordResult?.(result, inlineIndex)
-      })()
-    )
-    await settleFilesystemOperations(operations)
   }
+
+  const workers: Array<Promise<void>> = [worker()]
+  while (workers.length < entries.length && workers.length < AGENT_MIGRATION_FILESYSTEM_CONCURRENCY) {
+    const borrowed = scheduler.tryRun(worker)
+    if (!borrowed) break
+    workers.push(borrowed)
+  }
+  await settleFilesystemOperations(workers)
 }
 
 export interface AgentFilesystemMigrationProgress {
