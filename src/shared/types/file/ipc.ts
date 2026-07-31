@@ -41,7 +41,7 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
 import type {
   AbsoluteFilePath,
@@ -389,10 +389,10 @@ export interface FileIpcApi {
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /**
-   * Compute xxhash-h64 of file content.
+   * Compute a tagged XXH3-64 hash of file content.
    * @phase 2 — not yet wired
    */
-  getContentHash(handle: FileHandle): Promise<string>
+  getContentHash(handle: FileHandle): Promise<ContentHash>
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
   //
@@ -407,20 +407,20 @@ export interface FileIpcApi {
   /**
    * Optimistic-concurrency write. Throws StaleVersionError on version mismatch.
    *
-   * `expectedContentHash` (xxhash-h64 hex) is optional and only consulted on
+   * `expectedContentHash` (tagged XXH3-64) is optional and only consulted on
    * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — the generic FileHandle API is not yet wired. ArtifactPane uses
-   * the narrower path-only IpcApi route `file.write_if_unchanged`, whose OCC
-   * input is `FileVersion` only.
+   * @phase 2 — wired through the generic `file.write_if_unchanged` IpcApi
+   * route. Entry handles use FileManager's managed commit protocol; path
+   * handles use the guarded path-only OCC primitive.
    */
   writeIfUnchanged(
     handle: FileHandle,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion>
 
   // ─── E. Trash / Delete ───

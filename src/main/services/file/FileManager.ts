@@ -16,6 +16,7 @@
  * class only owns:
  * - lifecycle (`onInit` / `onStop`; remaining legacy IPC handlers via `BaseService`)
  * - per-instance `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
+ * - per-instance content-write lock shared by foreground writes and hash backfill
  *
  * External Main callers go through the lifecycle-managed singleton via
  * `application.get('FileManager')`. The `internal/*` tree is a private
@@ -39,9 +40,9 @@
  * orchestration.
  *
  * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
- * dispatches read, metadata, open, and show-in-folder routes. Entry arms call
- * FileManager; path arms call helpers under `utils/*`. ArtifactPane's
- * `file.write_if_unchanged` route remains path-only. The legacy
+ * dispatches read, metadata, open, show-in-folder, and optimistic-write
+ * routes. Entry arms call FileManager; path arms call helpers under `utils/*`.
+ * The legacy
  * `File_PermanentDelete` handler still uses the same dispatcher here until its
  * remaining preload consumers migrate:
  *
@@ -121,26 +122,29 @@
 
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
+import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
-import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
+import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import { FileEntryIdSchema, FileHandleSchema } from '@shared/data/types/file'
+import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AbsoluteFilePath,
   BatchCreateResult,
   BatchMutationResult,
-  CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
-import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 import * as z from 'zod'
 
@@ -180,6 +184,9 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
+import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
+import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
+import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -210,12 +217,9 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
   }
 }
 
-// Main-side parameter types are structurally identical to the IPC variants —
-// `CreateInternalEntryIpcParams` is a discriminated union on `source`
-// (`'path' | 'url' | 'base64' | 'bytes'`) that type-gates which of
-// `name`/`ext` each source may pass (see ipc.ts JSDoc).
-// Re-exported under shorter names for Main callers.
-export type CreateInternalEntryParams = CreateInternalEntryIpcParams
+// Main consumes the schema-derived transport type so validation and the
+// implementation cannot drift into accepting renderer-supplied metadata.
+export type CreateInternalEntryParams = CreateInternalEntryInput
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
 // ─── File IPC input schemas ───
@@ -223,20 +227,6 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 // Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
 // boundary is the gate (path-traversal / null bytes / whitespace-only names
 // rejected here, before downstream factories see them).
-const SafeExtNullableSchema = SafeExtSchema.nullable()
-
-export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
-  z.strictObject({ source: z.literal('url'), url: z.url() }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
-  z.strictObject({
-    source: z.literal('bytes'),
-    data: z.instanceof(Uint8Array),
-    name: SafeNameSchema,
-    ext: SafeExtNullableSchema
-  })
-])
-
 export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsoluteFilePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
@@ -262,7 +252,7 @@ export const PermanentDeleteIpcSchema = FileHandleSchema
  *
  * ## Opt-in hash fallback
  *
- * `writeIfUnchanged` accepts an optional `expectedContentHash` (xxhash-h64 hex
+ * `writeIfUnchanged` accepts an optional algorithm-tagged `expectedContentHash`
  * of the content the caller last observed). When supplied AND the observed
  * mtime is ambiguous (ms === 0 AND size matches), the implementation re-hashes
  * the file on disk and throws `StaleVersionError` on mismatch. When omitted
@@ -315,6 +305,8 @@ export interface ReadResult<T> {
  * process exit — all result in **no** rename onto the target path.
  */
 export interface AtomicWriteStream extends Writable {
+  /** True after the prepared tmp file enters the non-abortable commit phase. */
+  readonly commitStarted: boolean
   /** Cancel the write; unlink the tmp file. Idempotent; awaitable. */
   abort(): Promise<void>
 }
@@ -325,7 +317,7 @@ export interface AtomicWriteStream extends Writable {
  * Thrown by `writeIfUnchanged` when the current file version does not match the
  * caller's expected version. Caller should refresh or present a conflict UX.
  *
- * Note: this implementation uses the xxhash-h64 fallback path described on
+ * Note: this implementation uses the tagged XXH3-64 fallback path described on
  * `FileVersion` when mtime resolution is ambiguous — a `StaleVersionError`
  * under that branch means the hash also diverged, i.e. the content genuinely
  * differs even when `(mtime, size)` looked equal.
@@ -341,6 +333,22 @@ export class StaleVersionError extends Error {
         `got mtime=${current.mtime} size=${current.size}`
     )
     this.name = 'StaleVersionError'
+  }
+}
+
+/**
+ * The atomic rename committed new bytes, but the DB metadata finalize step
+ * failed. Callers must refresh instead of retrying blindly; the NULL hash is
+ * the durable recovery marker consumed by the startup reconciliation job.
+ */
+export class ContentCommittedMetadataPendingError extends Error {
+  constructor(
+    public readonly entryId: FileEntryId,
+    public readonly version: FileVersion,
+    options?: { cause?: unknown }
+  ) {
+    super(`Entry ${entryId} content committed but metadata is pending recovery`, options)
+    this.name = 'ContentCommittedMetadataPendingError'
   }
 }
 
@@ -377,6 +385,9 @@ export class StaleVersionError extends Error {
  * otherwise.
  */
 export interface IFileManager {
+  /** Return active internal entries matching a content hash; consumers choose whether to reuse one. */
+  findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
+
   // ─── Entry Creation ───
   //
   // Naming follows strict create-vs-ensure convention:
@@ -463,8 +474,8 @@ export interface IFileManager {
   /** Get FileVersion (stat-based) — live for both origins. */
   getVersion(id: FileEntryId): Promise<FileVersion>
 
-  /** Compute xxhash-h64 of file content. Reads full file. */
-  getContentHash(id: FileEntryId): Promise<string>
+  /** Compute an algorithm-tagged xxh3-64 hash of file content. Reads full file. */
+  getContentHash(id: FileEntryId): Promise<ContentHash>
 
   // ─── Writing ───
 
@@ -490,10 +501,10 @@ export interface IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion>
 
-  /** Stream write with atomic commit (tmp + rename on close). Works for both origins. */
+  /** Stream write with atomic commit (tmp + rename during `.end()`). Works for both origins. */
   createWriteStream(id: FileEntryId): Promise<AtomicWriteStream>
 
   // ─── Rename ───
@@ -638,22 +649,60 @@ export interface IFileManager {
  */
 @Injectable('FileManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['JobManager'])
 export class FileManager extends BaseService implements IFileManager {
   // Per-instance VersionCache so each `new FileManager()` (e.g. in tests) gets
   // a fresh cache — file-manager-architecture.md §1.6.1 / §12 mandate this is
   // a class private field, not a module singleton, for test-isolation reasons.
   private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
+  private readonly _contentWriteLock = new KeyedMutex()
+  private readonly activeWriteStreams = new Set<AtomicWriteStream>()
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: this._versionCache
+    versionCache: this._versionCache,
+    contentWriteLock: this._contentWriteLock
   }
 
+  private readonly contentHashBackfillJobHandler = createContentHashBackfillJobHandler(this.deps)
+
   protected override async onInit(): Promise<void> {
+    const generation = ensureContentMetadataGeneration()
+    if (generation.applied) {
+      fileManagerLogger.info('content metadata generation applied', { invalidated: generation.invalidated })
+    }
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
+    application.get('JobManager').registerHandler('file.contenthash-backfill', this.contentHashBackfillJobHandler)
+  }
+
+  protected override onAllReady(): void {
+    try {
+      const pending = this.deps.fileEntryService.countInternalMissingContentHash()
+      if (pending === 0) return
+      application
+        .get('JobManager')
+        .enqueue('file.contenthash-backfill', {}, { idempotencyKey: 'file.contenthash-backfill' })
+      fileManagerLogger.info('contentHash backfill: enqueued', { pending })
+    } catch (err) {
+      fileManagerLogger.warn('contentHash backfill: failed to enqueue at startup', { err })
+    }
+  }
+
+  protected override async onStop(): Promise<void> {
+    const streams = [...this.activeWriteStreams]
+    await Promise.allSettled(
+      streams.map(async (stream) => {
+        if (stream.commitStarted) {
+          await finished(stream)
+        } else {
+          await stream.abort()
+        }
+      })
+    )
+    this.activeWriteStreams.clear()
   }
 
   /**
@@ -678,7 +727,7 @@ export class FileManager extends BaseService implements IFileManager {
     // remain the actual gate — same pattern used by every other IPC handler
     // in this file.
     this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
-      this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params) as CreateInternalEntryIpcParams)
+      this.createInternalEntry(createInternalEntryInputSchema.parse(params))
     )
     this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
       this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params) as EnsureExternalEntryIpcParams)
@@ -691,7 +740,10 @@ export class FileManager extends BaseService implements IFileManager {
       return dispatchHandle(
         handle,
         (entryId) => this.permanentDelete(entryId),
-        (path) => fsRemove(path)
+        async (path) => {
+          await assertOutsideManagedStorageMutation(path)
+          await fsRemove(path)
+        }
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
@@ -820,6 +872,10 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
+  async findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]> {
+    return this.deps.fileEntryService.findInternalByContentHash(contentHash)
+  }
+
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
     return internalEnsureExternal(this.deps, params)
   }
@@ -864,7 +920,7 @@ export class FileManager extends BaseService implements IFileManager {
     return { mtime: s.modifiedAt, size: s.size }
   }
 
-  async getContentHash(id: FileEntryId): Promise<string> {
+  async getContentHash(id: FileEntryId): Promise<ContentHash> {
     return internalHash(this.deps, id)
   }
 
@@ -956,13 +1012,18 @@ export class FileManager extends BaseService implements IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion> {
     return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
-    return internalCreateWriteStream(this.deps, id)
+    const stream = await internalCreateWriteStream(this.deps, id)
+    this.activeWriteStreams.add(stream)
+    const forget = () => this.activeWriteStreams.delete(stream)
+    stream.once('finish', forget)
+    stream.once('close', forget)
+    return stream
   }
 
   /** Alias kept for backwards compatibility; prefer `createWriteStream`. */

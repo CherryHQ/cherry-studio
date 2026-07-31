@@ -17,6 +17,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { assertOutsideManagedStorageMutation } from '@main/services/file'
 import { getFileType } from '@main/utils/file'
 import {
   checkName,
@@ -282,6 +283,7 @@ class FileStorage {
       if (!filePath) return
 
       const nativePath = normalizeTrashPath(filePath)
+      await assertOutsideManagedStorageMutation(nativePath)
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -299,6 +301,7 @@ class FileStorage {
       if (!dirPath) return
 
       const nativePath = normalizeTrashPath(dirPath)
+      await assertOutsideManagedStorageMutation(nativePath)
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -313,6 +316,7 @@ class FileStorage {
 
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
     try {
+      await assertOutsideManagedStorageMutation(filePath, newPath)
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
@@ -334,6 +338,7 @@ class FileStorage {
 
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
     try {
+      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
@@ -361,6 +366,7 @@ class FileStorage {
 
       const dirPath = path.dirname(filePath)
       const newFilePath = path.join(dirPath, newName + '.md')
+      await assertOutsideManagedStorageMutation(filePath, newFilePath)
 
       // 如果目标文件已存在，抛出错误
       if (fs.existsSync(newFilePath)) {
@@ -384,6 +390,7 @@ class FileStorage {
 
       const parentDir = path.dirname(dirPath)
       const newDirPath = path.join(parentDir, newName)
+      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
 
       // 如果目标目录已存在，抛出错误
       if (fs.existsSync(newDirPath)) {
@@ -524,6 +531,7 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
+    await assertOutsideManagedStorageMutation(filePath)
     await fs.promises.writeFile(filePath, data)
   }
 
@@ -544,6 +552,7 @@ class FileStorage {
 
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
+      await assertOutsideManagedStorageMutation(dirPath)
       logger.debug(`Attempting to create directory: ${dirPath}`)
       await fs.promises.mkdir(dirPath, { recursive: true })
       return dirPath
@@ -611,78 +620,6 @@ class FileStorage {
     } catch (error) {
       logger.error('Failed to save base64 image:', error as Error)
       throw error
-    }
-  }
-
-  public savePastedImage = async (
-    _: Electron.IpcMainInvokeEvent,
-    imageData: Uint8Array | Buffer,
-    extension?: string
-  ): Promise<FileMetadata> => {
-    try {
-      const uuid = uuidv4()
-      const ext = extension || '.png'
-      const destPath = path.join(this.storageDir, uuid + ext)
-
-      logger.debug('Saving pasted image:', {
-        storageDir: this.storageDir,
-        destPath,
-        bufferSize: imageData.length
-      })
-
-      // 确保目录存在
-      if (!fs.existsSync(this.storageDir)) {
-        fs.mkdirSync(this.storageDir, { recursive: true })
-      }
-
-      // 确保 imageData 是 Buffer
-      const buffer = Buffer.isBuffer(imageData) ? imageData : Buffer.from(imageData)
-
-      // 如果图片大于1MB，进行压缩处理
-      if (buffer.length > MB) {
-        await this.compressImageBuffer(buffer, destPath, ext)
-      } else {
-        await fs.promises.writeFile(destPath, buffer)
-      }
-
-      const stats = await fs.promises.stat(destPath)
-
-      return {
-        id: uuid,
-        origin_name: `pasted_image_${uuid}${ext}`,
-        name: uuid + ext,
-        path: destPath,
-        created_at: new Date().toISOString(),
-        size: stats.size,
-        ext: ext.slice(1),
-        type: getFileTypeByExt(ext),
-        count: 1
-      }
-    } catch (error) {
-      logger.error('Failed to save pasted image:', error as Error)
-      throw error
-    }
-  }
-
-  private async compressImageBuffer(imageBuffer: Buffer, destPath: string, ext: string): Promise<void> {
-    try {
-      // 创建临时文件
-      const tempPath = path.join(this.tempDir, `temp_${uuidv4()}${ext}`)
-      await fs.promises.writeFile(tempPath, imageBuffer)
-
-      // 使用现有的压缩方法
-      await this.compressImage(tempPath, destPath)
-
-      // 清理临时文件
-      try {
-        await fs.promises.unlink(tempPath)
-      } catch (error) {
-        logger.warn('Failed to cleanup temp file:', error as Error)
-      }
-    } catch (error) {
-      logger.error('Image buffer compression failed, saving original:', error as Error)
-      // 压缩失败时保存原始文件
-      await fs.promises.writeFile(destPath, imageBuffer)
     }
   }
 
@@ -854,6 +791,7 @@ class FileStorage {
         return null
       }
 
+      await assertOutsideManagedStorageMutation(result.filePath)
       writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
@@ -871,6 +809,7 @@ class FileStorage {
       })
 
       if (filePath) {
+        await assertOutsideManagedStorageMutation(filePath)
         const parseResult = parseDataUrl(data)
         fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
         return true
@@ -1059,6 +998,7 @@ class FileStorage {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 
       const basePath = path.resolve(targetPath)
+      await assertOutsideManagedStorageMutation(basePath)
       const MARKDOWN_EXTS = ['.md', '.markdown']
 
       // Filter markdown files

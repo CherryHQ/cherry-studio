@@ -68,7 +68,6 @@ export enum IpcChannel {
   File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
   File_SaveImage = 'file:saveImage',
-  File_SavePastedImage = 'file:savePastedImage',
   File_BinaryImage = 'file:binaryImage',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',

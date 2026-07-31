@@ -235,6 +235,7 @@
           "discard_and_continue": "Απόρριψη και συνέχεια",
           "title": "Απόρριψη μη αποθηκευμένων αλλαγών;"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Αδυναμία επαναφόρτωσης του πιο πρόσφατου περιεχομένου αρχείου.",
         "save_failed": "Δεν είναι δυνατή η αποθήκευση αυτού του αρχείου. Η αυτόματη αποθήκευση έχει διακοπεί έως ότου προσπαθήσετε ξανά ή απορρίψετε τις αλλαγές.",
         "unsaved": "Μη αποθηκευμένο",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Η αποθήκευση μπλοκαρίστηκε επειδή η σημείωση απέτυχε να φορτωθεί",
     "save_failed": "Αποτυχία αποθήκευσης σημείωσης",
     "save_failure": {
-      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί."
+      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Όνομα + Περιεχόμενο",

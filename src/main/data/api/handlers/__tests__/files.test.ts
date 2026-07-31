@@ -1,7 +1,7 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
-import type { FileEntryId } from '@shared/data/types/file'
+import { ContentHashSchema, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -108,6 +108,39 @@ describe('fileHandlers (DataApi)', () => {
         'name',
         'ZodError'
       )
+    })
+  })
+
+  describe('GET /files/entries/by-content-hash', () => {
+    it('validates a tagged hash and returns active internal exact matches oldest-first', async () => {
+      const hash = ContentHashSchema.parse('xxh3-64:9555e8555c62dcfd')
+      const now = Date.now()
+      await Promise.all([
+        seedEntry('019606a0-0000-7000-8000-000000000a31', { contentHash: hash, createdAt: now }),
+        seedEntry('019606a0-0000-7000-8000-000000000a30', { contentHash: hash, createdAt: now - 1 }),
+        seedEntry('019606a0-0000-7000-8000-000000000a32', {
+          contentHash: hash,
+          deletedAt: now,
+          createdAt: now - 2
+        }),
+        seedEntry('019606a0-0000-7000-8000-000000000a33', {
+          origin: 'external',
+          size: null,
+          externalPath: '/tmp/content-hash.txt',
+          contentHash: null,
+          createdAt: now - 3
+        })
+      ])
+
+      const handler = fileHandlers['/files/entries/by-content-hash']
+      await expect(handler.GET({ query: { contentHash: '9555e8555c62dcfd' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+      await expect(handler.GET({ query: { contentHash: hash } } as never)).resolves.toMatchObject([
+        { id: '019606a0-0000-7000-8000-000000000a30' },
+        { id: '019606a0-0000-7000-8000-000000000a31' }
+      ])
     })
   })
 

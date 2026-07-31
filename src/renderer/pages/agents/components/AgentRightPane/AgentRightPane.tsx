@@ -389,7 +389,8 @@ function AgentRightPaneStateProvider({
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
-  const fileSession = useFileEditSession(editPath)
+  const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
+  const fileSession = useFileEditSession(editHandle)
   const discardFileDraft = fileSession.discard
   const systemWorkspacePath = workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM ? workspacePath : undefined
   const { root: systemWorkspaceRoot, version: systemWorkspaceTreeVersion } = useDirectoryTree(

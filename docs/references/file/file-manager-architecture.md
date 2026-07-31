@@ -32,6 +32,7 @@ FileEntry
 ├── name: filename (without extension)
 ├── ext: extension (without leading dot), nullable
 ├── size: bytes
+├── contentHash: '{algo}:{hex}' content-dedup detection hash; internal-only, null while unknown/in-flight/awaiting repair
 ├── externalPath: absolute path, non-null only when origin='external'
 ├── deletedAt: ms epoch | null
 ├── createdAt / updatedAt
@@ -190,8 +191,20 @@ Invariants:
 | `ext` | SoT | Pure projection of `externalPath` (extname) |
 | `size` | SoT (non-null, ≥ 0) | **Always `null`** — no DB snapshot; live value via `getMetadata` |
 | `externalPath` | NULL | Absolute path (the authoritative identity of external) |
+| `contentHash` | Detection substrate `{algo}:{hex}` (for example `xxh3-64:…`); maintained on every write; `null` means unknown, in-flight, or awaiting repair | **Always `null`** — content lives outside Cherry (`fe_contenthash_external_null` CHECK) |
 
 For external entries the row stores only identity + stable projections. `name` / `ext` do not drift because `externalPath` is fixed for the lifetime of the entry (external rename by the user surfaces as a dangling entry, not an in-place rewrite of `name`). `size` / `mtime` are served live by File IPC `getMetadata(id)` on demand — see [§3 External Entry Liveness Model](#3-external-entry-liveness-model).
+
+#### Content-level dedup detection (`contentHash`)
+
+`contentHash` is a **detection substrate** for content-level deduplication, not an identity or key. It is orthogonal to external-path deduplication: external paths enforce identity and upsert behavior, while internal hashes only surface possible content matches for a consumer-defined policy.
+
+- **Tagged format.** Values use `{algo}:{lowercase hex}`; the current producer is XXH3-64 via native `@node-rs/xxhash`. Keeping the algorithm in the value allows old and new algorithms to coexist during a future incremental migration.
+- **Internal-only and derived by Main.** `createInternalEntry`, `write`, `writeIfUnchanged`, and `createWriteStream` persist the current hash and size. Renderer/callers cannot provide an authoritative hash. Bytes, base64, copy, download, and stream sources calculate both values incrementally from the same byte stream that materializes the durable tmp file; no post-write reread or caller-trusted shortcut is used. External rows never carry either snapshot.
+- **Non-null is a trust invariant.** A non-null hash describes the current managed blob. Before replacing internal content, FileManager atomically snapshots the old metadata, sets `contentHash = NULL`, and records the foreground `commitAt` in `updatedAt`; after rename it writes the prepared `size` / `contentHash` while preserving the row's current `updatedAt`. Rename failure restores the old metadata (and restores the old timestamp only when no concurrent metadata update advanced it). Rename success followed by DB-finalize failure keeps the hash null and throws `ContentCommittedMetadataPendingError`; callers refresh the file state and must not retry the same write automatically.
+- **Non-unique by design.** `fe_content_hash_idx` is a plain index. Multiple logical entries may contain identical bytes, and a collision must never raise a constraint violation. `FileEntryService.findInternalByContentHash`, exposed to renderers through DataApi `GET /files/entries/by-content-hash`, returns active candidates oldest-first without selecting one; FileManager retains the same query for Main-side consumers.
+- **Insert-always remains unchanged.** `createInternalEntry` never looks up or reuses candidates. A consumer may hash source bytes, query candidates, apply its own secondary check or user decision, and then either reuse or create; the created entry's persisted hash is still derived independently by Main from the bytes it writes.
+- **Startup trust generation + reconciliation.** Before File IPC registration, FileManager checks `app_state['fileManager:contentMetadataGeneration']`. A missing, malformed, or non-v2 marker causes one synchronous transaction to null every non-null internal hash (explicitly preserving `updatedAt`) and write `{ version: 2 }`. This safely invalidates hashes created by older releases without rewriting an executed migration. After all services are ready, the singleton `file.contenthash-backfill` job keyset-pages through null rows by `id`, including trashed rows, and rebuilds `size` and `contentHash` from one read. It shares FileManager's per-entry write lock and persists with `contentHash IS NULL`, so it cannot overwrite a foreground write. Missing or unreadable blobs remain null for the next startup attempt. During reconciliation, dedup queries may temporarily miss candidates but never trust an incorrect non-null hash.
 
 ### 1.3 FileRef (Business Reference)
 
@@ -590,7 +603,7 @@ interface FileVersion {
 
 Used as a fast signal for detecting external changes. Two tiers of usage:
 - Fast path: `statVersion(path)` (microsecond-level, covers 99% of cases)
-- Deep path: `contentHash(path)` → xxhash-h64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed)
+- Deep path: `contentHash(path)` → tagged XXH3-64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed). This uses the same algorithm as persisted dedup detection, but the OCC value is computed on demand and is not persisted by the comparison itself.
 
 Rationale for mtime + size as a signature:
 - Six scenarios where mtime alone fails—multiple writes within the same ms, clock rewind, backup preserving mtime, user touch, low-precision FS (FAT32), in-place 1-byte edit—are covered by size or hash as fallbacks
@@ -625,7 +638,7 @@ writeIfUnchanged(id, data, expectedVersion: FileVersion): Promise<FileVersion>
 | First-time write, overwrite, migration, preprocessing | `write` | No concurrency semantics |
 | Editor save (Notes, Markdown, and other potential future consumers) | `writeIfUnchanged` | Must detect external changes |
 
-On conflict, `writeIfUnchanged` throws `StaleVersionError`, and the caller decides on UX after catching (dialog, three-way merge, keep both versions, etc.).
+On conflict, `writeIfUnchanged` throws `StaleVersionError`, and the caller decides on UX after catching (dialog, three-way merge, keep both versions, etc.). Both entry and raw-path arms fully prepare the tmp payload first, then re-stat immediately before rename; an edit that lands while a large payload is being materialized is therefore detected before replacement.
 
 **Behavior on external**: write / writeIfUnchanged / createWriteStream / rename / permanentDelete **all apply**—Cherry supports user-explicitly-triggered external file modifications (editor save, UI rename, user-confirmed delete), delegated to the FS primitives at `@main/utils/file/fs` (atomic write / rename / remove). Cherry **does not** perform automatic / watcher-driven external file modifications.
 
@@ -647,14 +660,14 @@ FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 e
 
 ### 5.1 tmp + fsync + rename Flow
 
-All writes (entry/internal to userData, entry/external to externalPath, path-handle to any path) follow the POSIX atomic flow:
+All writes (entry/internal to userData, entry/external to externalPath, path-handle to any path) use `PreparedAtomicWrite` and follow the POSIX atomic flow:
 
 ```
 1. Create {target}.tmp-{uuid} in the same directory
-2. Write data to the tmp fd
-3. fsync(tmp fd)                  ← data flushed to disk
-4. rename(tmp, target)             ← atomic replacement (POSIX guarantee)
-5. fsync(dir fd)                   ← rename metadata flushed to disk
+2. Write data while incrementally deriving size + contentHash
+3. fsync(tmp fd)                  ← data flushed to disk; state = prepared
+4. rename(tmp, target)            ← atomic replacement (POSIX guarantee)
+5. fsync(dir fd)                  ← rename metadata flushed to disk; state = committed
 ```
 
 Key rules:
@@ -663,6 +676,9 @@ Key rules:
 - **tmp naming**: `{target}.tmp-{uuidv7}`—UUID avoids concurrent-write conflicts
 - **Crash residue**: FileManager's on-demand orphan sweep cleans up by `^.+\.tmp-<uuidv7>$`
 - **2× disk usage** is an inherent cost of POSIX rename semantics, unavoidable
+- `commit()` and `abort()` are terminal and idempotent; a prepared write can enter only one terminal state
+
+For an internal entry, steps 3–5 are wrapped by the recoverable metadata protocol described in §1.2: mark hash unknown before rename, finalize exact prepared metadata afterward. A DB failure before rename leaves the target and old metadata untouched; a DB failure after rename leaves a durable null recovery marker instead of a stale non-null hash.
 
 ### 5.2 Stream Variant
 
@@ -670,11 +686,13 @@ Key rules:
 createWriteStream(id): Promise<AtomicWriteStream>
 ```
 
-Stream writes also follow tmp + rename. The returned `AtomicWriteStream` extends `Writable`; `.close()` triggers fsync + rename + fsync(dir); `.abort()` cancels and unlinks the tmp.
+Stream writes also follow the same prepared commit. The returned `AtomicWriteStream` extends `Writable`; `_final()` does not complete until rename, DB finalization, and version-cache update all succeed, so `finish` is an end-to-end success signal. `.abort()` / stream errors before commit unlink the tmp and do not replace the target. During shutdown, FileManager aborts streams that have not entered commit and waits for streams that have.
 
 ### 5.3 FS Primitive Access Policy
 
 The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` primitives exported by `@main/utils/file/fs` **are open to modules outside the file module**. BootConfig, MCP oauth storage, and any other main-process service that needs a safe atomic write imports them directly; scattered ad-hoc tmp+rename implementations are not introduced.
+
+Renderer-provided raw paths are a separate trust boundary. Before any renderer-reachable path write/move/rename/delete/mkdir/import, Main rejects lexical or realpath overlap with `application.getPath('feature.files.data')`, including ancestors and symlinks into the managed tree. Internal FileManager operations use entry ids and are not routed through that raw-path guard.
 
 ---
 
@@ -918,7 +936,7 @@ CREATE TABLE file_upload (
   file_entry_id   TEXT NOT NULL REFERENCES file_entry(id) ON DELETE CASCADE,
   provider        TEXT NOT NULL,
   remote_id       TEXT NOT NULL,
-  content_version TEXT NOT NULL,   -- xxhash-h64 at upload time
+  content_version TEXT NOT NULL,   -- XXH3-64 at upload time
   uploaded_at     INTEGER NOT NULL,
   expires_at      INTEGER,
   status          TEXT NOT NULL,   -- 'active' | 'expired' | 'failed'
@@ -1132,7 +1150,7 @@ file_module's crash window is very narrow:
 | Operation | Order | Crash mid-operation | Recovery |
 |---|---|---|---|
 | createInternalEntry | FS write UUID file → DB insert | Orphan file | Orphan sweep |
-| write (internal) | atomic tmp+rename + DB update | One of new/old files preserved | Naturally consistent |
+| write (internal) | prepare tmp → mark hash null → atomic rename → finalize size/hash | Crash before rename preserves old bytes; crash after rename leaves new bytes + null hash | Startup reconciliation rebuilds null metadata |
 | trash / restore / rename | DB only | None | None |
 | permanentDelete (internal) | DB delete → best-effort FS unlink | Crash after DB delete leaves an orphan blob | Orphan sweep |
 | copy (internal) | FS copy → DB insert | Orphan file | Orphan sweep |
@@ -1372,7 +1390,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; TTL-based lazy expiration (§11.6, 30 min); refreshed on query / FS observation / watcher; no periodic background sweep — IO cost scales with query frequency, not entry count |
 | **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |
-| **Content hash algorithm** | xxhash-h64 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s). 64-bit collision space is sufficient for distinguishing successive versions within a single file's write history — the `xxhash-wasm` package shipped in this version exposes only h32 / h64, and h64 is the strongest variant available; revisit if a 128-bit variant becomes a dependency-cost tradeoff worth taking. |
+| **Content hash algorithm** | XXH3-64 via native `@node-rs/xxhash`, stored as `{algo}:{hex}` | One implementation serves persisted dedup detection and on-demand OCC comparison. The native package avoids the previous WASM throughput ceiling and provides incremental XXH3-64 hashing; its XXH3-128 API is one-shot only, which would require buffering streamed files. The 64-bit value is a candidate signal, never an identity: collisions only produce a candidate that the consumer must verify, and the algorithm tag preserves an incremental upgrade path. |
 | **Does write carry version** | Split into write / writeIfUnchanged | Force the caller to explicitly choose; avoid silent degradation to blind write when version is forgotten |
 | **Atomic write fsync** | On by default | Correctness guarantee takes precedence over performance; Cherry is not a high-throughput scenario |
 | **Trash model** | deletedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |

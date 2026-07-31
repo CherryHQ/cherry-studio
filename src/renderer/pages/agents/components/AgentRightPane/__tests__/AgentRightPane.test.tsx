@@ -41,7 +41,8 @@ const {
   fileSessionState: {
     isDirty: false,
     isSaving: false,
-    saveError: undefined as Error | undefined
+    saveError: undefined as Error | undefined,
+    metadataRecoveryPending: false
   },
   fileTreeModelState: {
     hasLoaded: false,
@@ -278,6 +279,9 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
     conflict: false,
     get saveError() {
       return fileSessionState.saveError
+    },
+    get metadataRecoveryPending() {
+      return fileSessionState.metadataRecoveryPending
     },
     setDraft: vi.fn(),
     discard: fileSessionDiscardMock,

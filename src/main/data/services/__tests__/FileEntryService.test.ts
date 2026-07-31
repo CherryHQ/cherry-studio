@@ -11,7 +11,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -223,6 +223,182 @@ describe('FileEntryService', () => {
       const causeMsg = (caught as Error & { cause?: { message?: string } }).cause?.message ?? ''
       const envelope = (caught as Error).message
       expect(causeMsg + envelope).toMatch(/UNIQUE|fe_external_path_lower_unique_idx/i)
+    })
+  })
+
+  describe('content hash queries', () => {
+    const hash = 'xxh3-64:9555e8555c62dcfd' as ContentHash
+
+    it('returns active internal candidates in creation/id order and excludes trashed rows', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000032' as FileEntryId,
+          origin: 'internal',
+          name: 'later-id',
+          ext: 'txt',
+          size: 1,
+          contentHash: hash,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000031' as FileEntryId,
+          origin: 'internal',
+          name: 'earlier-id',
+          ext: 'txt',
+          size: 1,
+          contentHash: hash,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000033' as FileEntryId,
+          origin: 'internal',
+          name: 'trashed',
+          ext: 'txt',
+          size: 1,
+          contentHash: hash,
+          externalPath: null,
+          deletedAt: now,
+          createdAt: now - 1,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000034' as FileEntryId,
+          origin: 'external',
+          name: 'external',
+          ext: 'txt',
+          size: null,
+          contentHash: null,
+          externalPath: '/Users/me/external.txt',
+          deletedAt: null,
+          createdAt: now - 2,
+          updatedAt: now
+        }
+      ])
+
+      expect(fileEntryService.findInternalByContentHash(hash).map((entry) => entry.id)).toEqual([
+        '019606a0-0000-7000-8000-000000000031',
+        '019606a0-0000-7000-8000-000000000032'
+      ])
+    })
+
+    it('counts and pages every internal null hash, including trashed rows', () => {
+      const ids = [
+        '019606a0-0000-7000-8000-000000000041',
+        '019606a0-0000-7000-8000-000000000042',
+        '019606a0-0000-7000-8000-000000000043'
+      ] as FileEntryId[]
+      for (const [index, id] of ids.entries()) {
+        fileEntryService.create({ id, origin: 'internal', name: `missing-${index}`, ext: 'txt', size: 1 })
+      }
+      fileEntryService.update(ids[1], { deletedAt: Date.now() })
+      fileEntryService.repairInternalContentMetadataIfUnknown(ids[2], { size: 1, contentHash: hash })
+      fileEntryService.create({
+        origin: 'external',
+        name: 'external',
+        ext: 'txt',
+        externalPath: '/Users/me/missing-hash.txt'
+      })
+
+      expect(fileEntryService.countInternalMissingContentHash()).toBe(2)
+      const firstPage = fileEntryService.findInternalMissingContentHash(null, 1)
+      expect(firstPage.map((entry) => entry.id)).toEqual([ids[0]])
+      const secondPage = fileEntryService.findInternalMissingContentHash(firstPage[0].id, 1)
+      expect(secondPage.map((entry) => entry.id)).toEqual([ids[1]])
+      expect(fileEntryService.findInternalMissingContentHash(secondPage[0].id, 1)).toEqual([])
+    })
+
+    it('fills an internal null content hash once without overwriting a foreground value', () => {
+      const id = '019606a0-0000-7000-8000-000000000044' as FileEntryId
+      const firstHash = 'xxh3-64:1111111111111111' as ContentHash
+      const staleHash = 'xxh3-64:2222222222222222' as ContentHash
+      fileEntryService.create({ id, origin: 'internal', name: 'missing', ext: 'txt', size: 1 })
+
+      expect(fileEntryService.repairInternalContentMetadataIfUnknown(id, { size: 1, contentHash: firstHash })).toBe(
+        true
+      )
+      expect(fileEntryService.repairInternalContentMetadataIfUnknown(id, { size: 1, contentHash: staleHash })).toBe(
+        false
+      )
+      expect(fileEntryService.getById(id)).toMatchObject({ contentHash: firstHash })
+    })
+
+    it('commits exact bytes metadata without overwriting a concurrent updatedAt', () => {
+      const id = '019606a0-0000-7000-8000-000000000045' as FileEntryId
+      const oldHash = 'xxh3-64:1111111111111111' as ContentHash
+      const nextHash = 'xxh3-64:2222222222222222' as ContentHash
+      fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'before',
+        ext: 'txt',
+        size: 1,
+        contentHash: oldHash
+      })
+      const original = fileEntryService.getById(id)
+      const commitAt = original.updatedAt + 10
+
+      const snapshot = fileEntryService.beginInternalContentCommit(id, commitAt)
+      expect(snapshot).toEqual({
+        size: 1,
+        contentHash: oldHash,
+        updatedAt: original.updatedAt,
+        commitAt
+      })
+      expect(fileEntryService.getById(id)).toMatchObject({ contentHash: null, updatedAt: commitAt })
+
+      const renamed = fileEntryService.update(id, { name: 'concurrent' })
+      expect(fileEntryService.completeInternalContentCommit(id, { size: 4, contentHash: nextHash })).toBe(true)
+      expect(fileEntryService.getById(id)).toMatchObject({
+        name: 'concurrent',
+        size: 4,
+        contentHash: nextHash,
+        updatedAt: renamed.updatedAt
+      })
+    })
+
+    it('restores old bytes metadata and timestamp after a failed filesystem commit', () => {
+      const id = '019606a0-0000-7000-8000-000000000046' as FileEntryId
+      const oldHash = 'xxh3-64:3333333333333333' as ContentHash
+      fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'restore',
+        ext: 'txt',
+        size: 3,
+        contentHash: oldHash
+      })
+      const original = fileEntryService.getById(id)
+      const snapshot = fileEntryService.beginInternalContentCommit(id, original.updatedAt + 10)
+
+      expect(fileEntryService.restoreInternalContentAfterFailedCommit(id, snapshot)).toBe(true)
+      expect(fileEntryService.getById(id)).toMatchObject({
+        size: 3,
+        contentHash: oldHash,
+        updatedAt: original.updatedAt
+      })
+    })
+
+    it('repairs null bytes metadata without changing updatedAt', () => {
+      const id = '019606a0-0000-7000-8000-000000000047' as FileEntryId
+      const repairedHash = 'xxh3-64:4444444444444444' as ContentHash
+      fileEntryService.create({ id, origin: 'internal', name: 'repair', ext: 'txt', size: 1 })
+      const before = fileEntryService.getById(id)
+
+      expect(fileEntryService.repairInternalContentMetadataIfUnknown(id, { size: 9, contentHash: repairedHash })).toBe(
+        true
+      )
+      expect(fileEntryService.getById(id)).toMatchObject({
+        size: 9,
+        contentHash: repairedHash,
+        updatedAt: before.updatedAt
+      })
     })
   })
 
@@ -986,9 +1162,24 @@ describe('FileEntryService', () => {
       expect(entry.origin).toBe('internal')
       if (entry.origin === 'internal') {
         expect(entry.size).toBe(11)
+        expect(entry.contentHash).toBeNull()
       }
       expect(entry.createdAt).toBeGreaterThan(0)
       expect(entry.updatedAt).toBeGreaterThan(0)
+    })
+
+    it('persists an internal content hash', () => {
+      const id = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
+      const contentHash = 'xxh3-64:9555e8555c62dcfd' as ContentHash
+      const entry = fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'hashed',
+        ext: 'txt',
+        size: 5,
+        contentHash
+      })
+      expect(entry).toMatchObject({ id, contentHash })
     })
 
     it('inserts an external row with size=null in DB; size absent on BO projection', async () => {

@@ -152,6 +152,19 @@ describe('FileManager v2 IPC handler registration', () => {
     await expect(handler!({} as never, { source: 'url' as const, url: 'not-a-url' })).rejects.toThrow()
   })
 
+  it('createInternalEntry rejects renderer-supplied contentHash at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    await expect(
+      handler!({} as never, {
+        source: 'bytes' as const,
+        data: new Uint8Array([1]),
+        name: 'payload',
+        ext: 'bin',
+        contentHash: 'xxh3-64:deadbeefdeadbeef'
+      })
+    ).rejects.toThrow()
+  })
+
   it('createInternalEntry rejects relative path source at the schema boundary', async () => {
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
     await expect(handler!({} as never, { source: 'path' as const, path: 'relative/file.txt' })).rejects.toThrow()

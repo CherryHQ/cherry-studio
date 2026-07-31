@@ -149,8 +149,6 @@ const api = {
     saveImage: (name: string, data: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    savePastedImage: (imageData: Uint8Array, extension?: string) =>
-      ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),

@@ -62,7 +62,8 @@ describe('internal/system/tempCopy', () => {
         onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
         clear: vi.fn()
       },
-      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
+      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
     }
   })
 
