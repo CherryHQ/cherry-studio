@@ -18,13 +18,13 @@ const createInstallUrl = (payload: unknown) => {
 }
 
 const getPreviewServers = () => {
-  const [path, options] = openSettingsInMainWindowMock.mock.calls.at(-1)!
+  const [path] = openSettingsInMainWindowMock.mock.calls.at(-1)!
   const url = new URL(path, 'https://cherry.local')
   const protocolInstall = url.searchParams.get('protocolInstall')
   const requestId = url.searchParams.get('protocolInstallRequestId')
   if (!protocolInstall) throw new Error('Missing protocol install preview payload')
   if (!requestId) throw new Error('Missing protocol install request id')
-  return { servers: JSON.parse(protocolInstall), requestId, path: url.pathname, options }
+  return { servers: JSON.parse(protocolInstall), requestId, path: url.pathname }
 }
 
 describe('MCP install protocol handler', () => {
@@ -37,25 +37,17 @@ describe('MCP install protocol handler', () => {
   it('previews a sanitized single server without persisting it before confirmation', async () => {
     handleMcpProtocolUrl(
       createInstallUrl({
-        id: 'caller-controlled-id',
         name: 'remote-server',
         type: 'streamableHttp',
-        url: 'https://example.com/mcp',
-        createdAt: '2020-01-01T00:00:00.000Z',
-        updatedAt: '2020-01-01T00:00:00.000Z',
-        installSource: 'manual',
-        isActive: true,
-        isTrusted: true,
-        trustedAt: 123
+        url: 'https://example.com/mcp'
       })
     )
 
     expect(await dbh.db.select().from(mcpServerTable)).toEqual([])
 
-    const { servers, requestId, path, options } = getPreviewServers()
+    const { servers, requestId, path } = getPreviewServers()
     expect(path).toBe('/settings/mcp/servers')
     expect(requestId).toEqual(expect.any(String))
-    expect(options).toEqual({ delivery: 'init-data' })
     expect(servers).toHaveLength(1)
     expect(servers[0]).toMatchObject({
       name: 'remote-server',
@@ -66,11 +58,40 @@ describe('MCP install protocol handler', () => {
       isTrusted: false
     })
     expect(servers[0].installedAt).toEqual(expect.any(Number))
-    expect(servers[0]).not.toHaveProperty('id')
-    expect(servers[0]).not.toHaveProperty('createdAt')
-    expect(servers[0]).not.toHaveProperty('updatedAt')
     expect(servers[0]).not.toHaveProperty('url')
     expect(servers[0]).not.toHaveProperty('trustedAt')
+  })
+
+  it.each(['id', 'createdAt', 'installedAt', 'env', 'headers', 'dxtPath', 'registryUrl', 'timeout', 'installSource'])(
+    'rejects the unreviewed %s field',
+    (field) => {
+      expect(() =>
+        handleMcpProtocolUrl(createInstallUrl({ name: 'unsafe-server', command: 'npx', [field]: 'unsafe-value' }))
+      ).toThrow()
+      expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects mixed URL and command configurations that cannot be fully previewed', () => {
+    expect(() =>
+      handleMcpProtocolUrl(
+        createInstallUrl({
+          name: 'ambiguous-server',
+          baseUrl: 'https://example.com/mcp',
+          command: 'npx',
+          args: ['unsafe-package']
+        })
+      )
+    ).toThrow()
+    expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { name: 'url-with-stdio', type: 'stdio', baseUrl: 'https://example.com/mcp' },
+    { name: 'command-with-sse', type: 'sse', command: 'npx' }
+  ])('rejects connection settings that conflict with the declared type', (server) => {
+    expect(() => handleMcpProtocolUrl(createInstallUrl(server))).toThrow()
+    expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
 
   it('fills names from mcpServers keys and preserves preview order', () => {

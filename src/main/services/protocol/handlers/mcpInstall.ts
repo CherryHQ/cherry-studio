@@ -4,8 +4,28 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import { type CreateMcpServerDto, CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
+
+const ProtocolMcpServerMetadataSchema = {
+  name: z.string().min(1),
+  description: z.string().optional()
+}
+
+const ProtocolMcpServerSchema = z.union([
+  z.strictObject({
+    ...ProtocolMcpServerMetadataSchema,
+    type: z.enum(['sse', 'streamableHttp']).optional(),
+    baseUrl: z.string().min(1)
+  }),
+  z.strictObject({
+    ...ProtocolMcpServerMetadataSchema,
+    type: z.literal('stdio').optional(),
+    command: z.string().min(1),
+    args: z.array(z.string()).optional()
+  })
+])
 
 function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpServerDto {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -15,9 +35,6 @@ function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpS
   const candidate = { ...(value as Record<string, unknown>) }
   const legacyUrl = candidate.url
 
-  delete candidate.id
-  delete candidate.createdAt
-  delete candidate.updatedAt
   delete candidate.url
 
   if (!candidate.name && fallbackName) {
@@ -27,13 +44,15 @@ function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpS
     candidate.baseUrl = legacyUrl
   }
 
+  const protocolServer = ProtocolMcpServerSchema.parse(candidate)
+
   return CreateMcpServerSchema.parse({
-    ...candidate,
+    ...protocolServer,
     installSource: 'protocol',
     isTrusted: false,
     isActive: false,
     trustedAt: undefined,
-    installedAt: candidate.installedAt ?? Date.now()
+    installedAt: Date.now()
   })
 }
 
@@ -85,8 +104,7 @@ export function handleMcpProtocolUrl(url: URL) {
           const protocolInstallRequestId = randomUUID()
           logger.debug('Prepared MCP protocol install preview', { count: serverDtos.length })
           openSettingsInMainWindow(
-            `/settings/mcp/servers?protocolInstall=${protocolInstall}&protocolInstallRequestId=${protocolInstallRequestId}`,
-            { delivery: 'init-data' }
+            `/settings/mcp/servers?protocolInstall=${protocolInstall}&protocolInstallRequestId=${protocolInstallRequestId}`
           )
           break
         }

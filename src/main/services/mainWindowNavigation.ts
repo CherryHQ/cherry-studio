@@ -27,10 +27,6 @@ export const isAllowedRoute = (path: string): boolean =>
 
 let nextNavigationRequestId = 0
 
-export interface MainWindowNavigationOptions {
-  delivery?: 'auto' | 'init-data'
-}
-
 export function acknowledgeMainWindowNavigation(windowId: string, requestId: number): void {
   const windowManager = application.get('WindowManager')
   const initData = windowManager.getInitData(windowId)
@@ -59,18 +55,16 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  *   creation and the renderer picks it up on cold start.
  *
  * Do NOT push navigation through init data on a live window: init data is
- * lifecycle state, persists in the store, and replays on renderer reload. The
- * narrow `init-data` override is reserved for callers that may run before the
- * renderer has mounted its event listener.
+ * lifecycle state, persists in the store, and replays on renderer reload.
  */
-export function openRouteInMainWindow(path: string, options: MainWindowNavigationOptions = {}): void {
+export function openRouteInMainWindow(path: string): void {
   const windowManager = application.get('WindowManager')
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
   const mainWindowId = mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
 
-  if (mainWindowId && options.delivery !== 'init-data') {
+  if (mainWindowId) {
     application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
     mainWindowService.showMainWindow()
     return
@@ -83,6 +77,6 @@ export function openRouteInMainWindow(path: string, options: MainWindowNavigatio
   } satisfies MainWindowInitData)
 }
 
-export function openSettingsInMainWindow(path?: SettingsPath, options?: MainWindowNavigationOptions): void {
-  openRouteInMainWindow(normalizeSettingsPath(path), options)
+export function openSettingsInMainWindow(path?: SettingsPath): void {
+  openRouteInMainWindow(normalizeSettingsPath(path))
 }

@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "Δεν υπάρχουν διαθέσιμες υποδείξεις",
         "requiredField": "Υποχρεωτικό πεδίο"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Εντολή εκκίνησης",
         "message": "Αυτό το MCP εγκαταστάθηκε από εξωτερική πηγή μέσω πρωτοκόλλου. Η εκτέλεση άγνωστων εργαλείων ενδέχεται να βλάψει τον υπολογιστή σας.",

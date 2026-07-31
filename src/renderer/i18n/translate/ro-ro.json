@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "Nu există prompturi disponibile",
         "requiredField": "Câmp obligatoriu"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Comandă pornire",
         "message": "Acest MCP a fost instalat dintr-o sursă externă prin protocol. Rularea instrumentelor necunoscute poate dăuna computerului tău.",

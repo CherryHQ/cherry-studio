@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "利用可能なプロンプトはありません",
         "requiredField": "必須フィールド"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "起動コマンド",
         "message": "このMCPは外部ソースからプロトコル経由でインストールされました。不明なツールを実行すると、コンピューターに危害を及ぼす可能性があります。",

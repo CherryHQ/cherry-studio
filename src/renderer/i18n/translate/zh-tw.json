@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "無可用提示",
         "requiredField": "必填欄位"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "啟動命令",
         "message": "此 MCP 透過協議從外部來源安裝，執行來源不明的工具可能會對您的電腦造成危害。",

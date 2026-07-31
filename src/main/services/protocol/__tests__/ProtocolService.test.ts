@@ -2,34 +2,52 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appMock, loggerMock, handlersMock, ipcApiServiceMock, mainWindowServiceMock, oauthRuntimeServiceMock } =
-  vi.hoisted(() => {
-    const appMock = {
-      on: vi.fn(),
-      removeListener: vi.fn(),
-      setAsDefaultProtocolClient: vi.fn()
-    }
-    const loggerMock = {
-      debug: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn()
-    }
-    const handlersMock = {
-      handleMcpProtocolUrl: vi.fn(),
-      handleNavigateProtocolUrl: vi.fn(),
-      handleProvidersProtocolUrl: vi.fn()
-    }
-    const ipcApiServiceMock = {
-      broadcast: vi.fn()
-    }
-    const mainWindowServiceMock = {
-      showMainWindow: vi.fn()
-    }
-    const oauthRuntimeServiceMock = {
-      handleDeepLinkCallback: vi.fn()
-    }
-    return { appMock, loggerMock, handlersMock, ipcApiServiceMock, mainWindowServiceMock, oauthRuntimeServiceMock }
-  })
+const {
+  appMock,
+  loggerMock,
+  handlersMock,
+  ipcApiServiceMock,
+  mainWindowServiceMock,
+  oauthRuntimeServiceMock,
+  windowManagerMock
+} = vi.hoisted(() => {
+  const appMock = {
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    setAsDefaultProtocolClient: vi.fn()
+  }
+  const loggerMock = {
+    debug: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn()
+  }
+  const handlersMock = {
+    handleMcpProtocolUrl: vi.fn(),
+    handleNavigateProtocolUrl: vi.fn(),
+    handleProvidersProtocolUrl: vi.fn()
+  }
+  const ipcApiServiceMock = {
+    broadcast: vi.fn()
+  }
+  const mainWindowServiceMock = {
+    showMainWindow: vi.fn()
+  }
+  const oauthRuntimeServiceMock = {
+    handleDeepLinkCallback: vi.fn()
+  }
+  const windowManagerMock = {
+    getWindowType: vi.fn(() => 'main')
+  }
+  return {
+    appMock,
+    loggerMock,
+    handlersMock,
+    ipcApiServiceMock,
+    mainWindowServiceMock,
+    oauthRuntimeServiceMock,
+    windowManagerMock
+  }
+})
 
 vi.mock('electron', () => ({ app: appMock }))
 
@@ -45,6 +63,7 @@ vi.mock('@application', () => ({
       if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
       if (name === 'OAuthRuntimeService') return oauthRuntimeServiceMock
+      if (name === 'WindowManager') return windowManagerMock
       throw new Error(`unexpected service: ${name}`)
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
@@ -92,6 +111,11 @@ describe('ProtocolService', () => {
     }
   }
 
+  async function markProtocolHandlingReady() {
+    await (service as any).onAllReady()
+    service.onMainRendererReady('main-1')
+  }
+
   beforeEach(() => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
@@ -106,7 +130,7 @@ describe('ProtocolService', () => {
   })
 
   it('logs malformed protocol URLs instead of throwing', async () => {
-    await (service as any).onAllReady()
+    await markProtocolHandlingReady()
 
     expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
 
@@ -138,7 +162,7 @@ describe('ProtocolService', () => {
   it('logs asynchronous providers handler failures', async () => {
     const error = new Error('failed')
     handlersMock.handleProvidersProtocolUrl.mockRejectedValueOnce(error)
-    await (service as any).onAllReady()
+    await markProtocolHandlingReady()
 
     ;(service as any).handleProtocolUrl('cherrystudio://providers/api-keys?v=1&data=abc')
 
@@ -148,7 +172,7 @@ describe('ProtocolService', () => {
   })
 
   it('broadcasts unknown protocol hosts to all windows', async () => {
-    await (service as any).onAllReady()
+    await markProtocolHandlingReady()
 
     ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
 
@@ -165,7 +189,7 @@ describe('ProtocolService', () => {
       return call[1] as (event: { preventDefault: () => void }, url: string) => void
     }
 
-    it('queues a cold-start URL until all services are ready and replays it only once', async () => {
+    it('queues a cold-start URL until services and the main renderer are ready and replays it only once', async () => {
       process.argv = ['electron', '.']
       await (service as any).onInit()
       const handler = getOpenUrlHandler()
@@ -179,12 +203,17 @@ describe('ProtocolService', () => {
       await (service as any).onAllReady()
       await (service as any).onAllReady()
 
+      expect(handlersMock.handleMcpProtocolUrl).not.toHaveBeenCalled()
+
+      service.onMainRendererReady('main-1')
+      service.onMainRendererReady('main-1')
+
       expect(handlersMock.handleMcpProtocolUrl).toHaveBeenCalledTimes(1)
       expect(handlersMock.handleMcpProtocolUrl.mock.calls[0][0].href).toBe('cherrystudio://mcp/install?servers=abc')
     })
 
     it('handles a hot-start URL immediately', async () => {
-      await (service as any).onAllReady()
+      await markProtocolHandlingReady()
 
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
 
@@ -203,8 +232,33 @@ describe('ProtocolService', () => {
 
       await (service as any).onAllReady()
 
+      expect(handledUrls).toEqual([])
+
+      service.onMainRendererReady('main-1')
+
       expect(handledUrls).toEqual(['cherrystudio://mcp/install?servers=first', 'cherrystudio://navigate/agents'])
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
+    })
+
+    it('waits for services when the main renderer becomes ready first', async () => {
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+
+      await (service as any).onAllReady()
+
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+    })
+
+    it('ignores readiness notifications from non-main windows', async () => {
+      windowManagerMock.getWindowType.mockReturnValueOnce('subWindow')
+      await (service as any).onAllReady()
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+
+      service.onMainRendererReady('subwindow-1')
+
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
     })
   })
 
@@ -217,7 +271,7 @@ describe('ProtocolService', () => {
 
     it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {
       await (service as any).onInit()
-      await (service as any).onAllReady()
+      await markProtocolHandlingReady()
       const handler = getSecondInstanceHandler()
 
       handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])

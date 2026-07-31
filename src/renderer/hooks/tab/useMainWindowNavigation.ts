@@ -127,4 +127,8 @@ export function useMainWindowNavigation() {
   }, [initData, handleRoute])
 
   useMainRouteEventBridge(handleRoute)
+
+  useEffect(() => {
+    void ipcApi.request('navigation.protocol_dispatch_ready')
+  }, [])
 }

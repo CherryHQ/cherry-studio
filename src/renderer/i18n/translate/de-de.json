@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Startbefehl",
         "message": "Dieses MCP wurde über ein Protokoll aus einer externen Quelle installiert. Das Ausführen unbekannter Tools kann Ihren Computer schädigen.",

@@ -56,6 +56,13 @@ afterEach(() => {
 })
 
 describe('useMainWindowNavigation', () => {
+  it('announces readiness after mounting the navigation listeners', () => {
+    render(<MainWindowNavigationHarness />)
+
+    expect(mocks.ipcListeners.has('navigation.open_route_requested')).toBe(true)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.protocol_dispatch_ready')
+  })
+
   it('opens a settings tab for renderer settings-tab events', () => {
     render(<MainWindowNavigationHarness />)
 

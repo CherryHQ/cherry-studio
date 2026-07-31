@@ -41,6 +41,7 @@ describe('McpProtocolInstallDialog', () => {
 
     render(<McpProtocolInstallDialog open servers={servers} onOpenChange={vi.fn()} onInstall={onInstall} />)
 
+    expect(screen.getByRole('heading', { name: 'settings.mcp.protocolInstall.title' })).toBeInTheDocument()
     expect(screen.getByText('stdio-preview')).toBeInTheDocument()
     expect(screen.getByText('npx -y example-server')).toBeInTheDocument()
     expect(screen.getByText('http-preview')).toBeInTheDocument()

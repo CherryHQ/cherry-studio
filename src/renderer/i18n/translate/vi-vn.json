@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "Không có lời nhắc nào có sẵn",
         "requiredField": "Trường bắt buộc"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Lệnh khởi động",
         "message": "MCP này đã được cài đặt từ một nguồn bên ngoài thông qua giao thức. Việc chạy các công cụ không rõ nguồn gốc có thể gây hại cho máy tính của bạn.",

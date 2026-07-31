@@ -6849,6 +6849,9 @@
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
       },
+      "protocolInstall": {
+        "title": "Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Startup command",
         "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",

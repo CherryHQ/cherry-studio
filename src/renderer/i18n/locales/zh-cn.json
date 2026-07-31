@@ -6849,6 +6849,9 @@
         "noPromptsAvailable": "无可用提示",
         "requiredField": "必填字段"
       },
+      "protocolInstall": {
+        "title": "安装 MCP"
+      },
       "protocolInstallWarning": {
         "command": "启动命令",
         "message": "该 MCP 是通过协议从外部来源安装的，运行来历不明的工具可能对您的计算机造成危害。",

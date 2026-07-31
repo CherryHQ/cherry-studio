@@ -7,6 +7,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
 import { app } from 'electron'
 
 import { handleMcpProtocolUrl } from './handlers/mcpInstall'
@@ -27,7 +28,8 @@ const logger = loggerService.withContext('ProtocolService')
 // at call time inside listener callbacks — safe because OS events fire post-bootstrap.
 export class ProtocolService extends BaseService {
   private pendingProtocolUrls: string[] = []
-  private isProtocolHandlingReady = false
+  private areServicesReady = false
+  private isMainRendererReady = false
 
   protected async onInit() {
     // NOTE: Background phase's onInit runs on the first microtask after startPhase(),
@@ -68,11 +70,20 @@ export class ProtocolService extends BaseService {
   }
 
   protected async onAllReady() {
-    this.isProtocolHandlingReady = true
+    this.areServicesReady = true
     this.flushPendingProtocolUrls()
 
     // Runs after all bootstrap phases — application.getPath() is safe
     await this.setupAppImageDeepLink()
+  }
+
+  public onMainRendererReady(windowId: string) {
+    if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
+      return
+    }
+
+    this.isMainRendererReady = true
+    this.flushPendingProtocolUrls()
   }
 
   private registerProtocolScheme() {
@@ -93,7 +104,7 @@ export class ProtocolService extends BaseService {
   private handleProtocolUrl(url: string) {
     if (!url) return
 
-    if (!this.isProtocolHandlingReady) {
+    if (!this.areServicesReady || !this.isMainRendererReady) {
       this.pendingProtocolUrls.push(url)
       return
     }
@@ -102,6 +113,10 @@ export class ProtocolService extends BaseService {
   }
 
   private flushPendingProtocolUrls() {
+    if (!this.areServicesReady || !this.isMainRendererReady) {
+      return
+    }
+
     const pendingUrls = this.pendingProtocolUrls.splice(0)
     for (const url of pendingUrls) {
       this.dispatchProtocolUrl(url)

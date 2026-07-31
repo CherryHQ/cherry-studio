@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   acknowledgeMainWindowNavigation,
@@ -19,5 +20,8 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
   },
   'navigation.ack_open_route': async ({ requestId }, { senderId }) => {
     if (senderId) acknowledgeMainWindowNavigation(senderId, requestId)
+  },
+  'navigation.protocol_dispatch_ready': async (_input, { senderId }) => {
+    if (senderId) application.get('ProtocolService').onMainRendererReady(senderId)
   }
 }

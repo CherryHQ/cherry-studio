@@ -41,7 +41,7 @@ const McpProtocolInstallDialog = ({ open, servers, onOpenChange, onInstall }: Mc
     <Dialog open={open} onOpenChange={(next) => !installing && onOpenChange(next)}>
       <DialogContent size="lg" closeOnOverlayClick={!installing} className="flex max-h-[70vh] flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>{t('settings.mcp.install')} MCP</DialogTitle>
+          <DialogTitle>{t('settings.mcp.protocolInstall.title')}</DialogTitle>
         </DialogHeader>
 
         <Scrollbar className="min-h-0 flex-1 pr-3">

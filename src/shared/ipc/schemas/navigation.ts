@@ -36,6 +36,12 @@ export const navigationRequestSchemas = {
       requestId: z.number().int().nonnegative()
     }),
     output: z.void()
+  }),
+  // Renderer-ready handshake for protocol URLs captured during cold start.
+  // The main process validates that the caller is the managed main window.
+  'navigation.protocol_dispatch_ready': defineRoute({
+    input: z.void(),
+    output: z.void()
   })
 }
 

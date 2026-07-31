@@ -92,20 +92,6 @@ describe('mainWindowNavigation', () => {
 
       expect(secondRequest.requestId).toBeGreaterThan(firstRequest.requestId)
     })
-
-    it('uses navigation init data when explicitly requested even if the main window is alive', () => {
-      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      windowManagerMock.getWindowId.mockReturnValue('main-1')
-
-      openRouteInMainWindow('/settings/mcp/settings/server-1', { delivery: 'init-data' })
-
-      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
-      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
-        kind: 'navigation',
-        to: '/settings/mcp/settings/server-1',
-        requestId: expect.any(Number)
-      })
-    })
   })
 
   describe('openSettingsInMainWindow', () => {

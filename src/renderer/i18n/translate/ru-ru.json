@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "Нет доступных подсказок",
         "requiredField": "Обязательное поле"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Команда запуска",
         "message": "Этот MCP был установлен из внешнего источника через протокол. Запуск неизвестных инструментов может повредить ваш компьютер.",

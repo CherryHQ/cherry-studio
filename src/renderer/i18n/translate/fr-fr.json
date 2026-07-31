@@ -6845,6 +6845,9 @@
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "Commande de démarrage",
         "message": "Ce MCP a été installé depuis une source externe via le protocole. L'exécution d'outils inconnus peut endommager votre ordinateur.",
