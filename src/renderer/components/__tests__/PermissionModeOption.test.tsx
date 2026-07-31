@@ -44,6 +44,15 @@ describe('PermissionModeOptionLabel', () => {
     expect(screen.getByText('Needs a model that supports it.')).toBeInTheDocument()
   })
 
+  // Single-line containers (the composer quick panel row is a fixed 30px) opt out and
+  // render the caveat themselves; a stacked warning would overflow the row.
+  it('drops the warning line when the container cannot take a second line', () => {
+    render(<PermissionModeOptionLabel card={withWarning} t={t} withDescription={false} withWarning={false} />)
+
+    expect(screen.getByText('Approve for Me')).toBeInTheDocument()
+    expect(screen.queryByText('Needs a model that supports it.')).not.toBeInTheDocument()
+  })
+
   it('renders no warning line for a mode without one', () => {
     render(<PermissionModeOptionLabel card={withoutWarning} t={t} />)
 
