@@ -1,6 +1,9 @@
 import type * as FsPromises from 'node:fs/promises'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it, vi } from 'vitest'
+
 import type {
   CherryMessagePart,
   DynamicToolUIPart,
@@ -9,8 +12,6 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it, vi } from 'vitest'
 
 // Use the repo-wide application mock; the default `getPath` already
 // returns deterministic `/mock/<key>/<filename>` paths.

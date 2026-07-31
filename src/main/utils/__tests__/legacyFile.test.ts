@@ -3,10 +3,11 @@ import * as fsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FILE_TYPE } from '@shared/types/file'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE } from '@shared/types/file'
 
 import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../legacyFile'
 import { getAllFiles, getFileType, isPathInside, untildify } from '../legacyFile'

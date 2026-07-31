@@ -3,13 +3,14 @@
  * compatibility engine for real archives.
  */
 import { preferenceService } from '@data/PreferenceService'
+import { type CreateDirectoryOptions } from 'webdav'
+
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import { type CreateDirectoryOptions } from 'webdav'
 
 import { recordManualBackupCompletion, type RemoteSyncState, setBackupSyncState } from './BackupService'
 

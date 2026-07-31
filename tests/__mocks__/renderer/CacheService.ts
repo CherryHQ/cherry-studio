@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+import { vi } from 'vitest'
+
 import type {
   InferSharedCacheValue,
   InferUseCacheValue,
@@ -9,8 +12,6 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
-import { vi } from 'vitest'
 
 /**
  * Local mirror of production's `CacheSetStateAction` — importing it from

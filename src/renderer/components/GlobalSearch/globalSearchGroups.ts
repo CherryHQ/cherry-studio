@@ -1,4 +1,6 @@
 import { cacheService } from '@data/CacheService'
+import dayjs from 'dayjs'
+
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type {
@@ -9,7 +11,6 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import dayjs from 'dayjs'
 
 export const GLOBAL_SEARCH_RECENT_ITEM_LIMIT = 20
 export const GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT = 6

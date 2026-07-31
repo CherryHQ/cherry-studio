@@ -1,5 +1,3 @@
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
@@ -7,6 +5,9 @@ import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
 import AgentChat from '../AgentChat'
 

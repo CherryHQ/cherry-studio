@@ -1,3 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   InfoTooltip,
   InputGroup,
@@ -7,7 +11,6 @@ import {
   InputNumber,
   Switch
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
@@ -29,8 +32,6 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">

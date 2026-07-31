@@ -1,5 +1,6 @@
-import type * as LifecycleModule from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as LifecycleModule from '@main/core/lifecycle'
 
 vi.mock('@logger', () => ({
   loggerService: {

@@ -1,9 +1,10 @@
 import { useMutation } from '@data/hooks/useDataApi'
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { useGroups } from '@renderer/hooks/useGroups'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { Group } from '@shared/data/types/group'
-import { useCallback } from 'react'
 
 import { normalizeKnowledgeError } from '../utils/error'
 

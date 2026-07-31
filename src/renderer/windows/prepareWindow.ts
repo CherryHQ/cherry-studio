@@ -1,5 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { DataApiDevtools } from '@data/utils/dataApiDevtools'
+
 import { initI18n } from '@renderer/i18n/resolver'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 

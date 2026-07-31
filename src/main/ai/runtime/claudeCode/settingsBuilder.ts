@@ -13,8 +13,9 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'

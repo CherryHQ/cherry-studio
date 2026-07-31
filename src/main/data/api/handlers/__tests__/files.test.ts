@@ -1,14 +1,15 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { FileEntryStats } from '@shared/data/api/schemas/files'
-import { ContentHashSchema, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { FileEntryStats } from '@shared/data/api/schemas/files'
+import { ContentHashSchema, type FileEntryId } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')

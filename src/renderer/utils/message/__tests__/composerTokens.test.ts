@@ -1,8 +1,9 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import { describe, expect, it } from 'vitest'
 
 import {
   getComposerTextFromMessage,

@@ -10,13 +10,14 @@
  * cleanup on stop.
  */
 
+import { app } from 'electron'
+import { autoUpdater } from 'electron-updater'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { regionService } from '@main/services/RegionService'
-import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AppUpdaterService } from '../AppUpdaterService'
 

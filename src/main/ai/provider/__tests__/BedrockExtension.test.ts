@@ -1,9 +1,10 @@
 import path from 'node:path'
 
+import { describe, expect, it } from 'vitest'
+
 import { coreExtensions, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import { isServerToolModelEligible, SERVER_TOOL } from '@cherrystudio/provider-registry'
 import { readModelRegistry, readProviderRegistry } from '@cherrystudio/provider-registry/node'
-import { describe, expect, it } from 'vitest'
 
 import { BedrockExtension, extensions } from '../extensions'
 

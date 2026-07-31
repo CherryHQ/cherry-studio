@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import {
@@ -8,7 +10,6 @@ import {
 } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { AGENT_RUNTIME_CAPABILITIES } from '../agentRuntimeCapabilities'
 

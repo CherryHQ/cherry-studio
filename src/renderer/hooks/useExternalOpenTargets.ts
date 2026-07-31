@@ -1,12 +1,13 @@
 import { usePersistCache } from '@data/hooks/useCache'
+import { useCallback, useMemo } from 'react'
+import useSWRImmutable from 'swr/immutable'
+
 import {
   type ExternalOpenTargetPathKind,
   externalOpenTargetService,
   getExternalOpenTargetScope
 } from '@renderer/services/externalOpenTargetService'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
-import { useCallback, useMemo } from 'react'
-import useSWRImmutable from 'swr/immutable'
 
 export function useExternalOpenTargets(
   targetPath: string,

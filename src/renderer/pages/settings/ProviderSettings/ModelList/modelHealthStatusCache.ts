@@ -1,7 +1,8 @@
 import { cacheService } from '@data/CacheService'
+import { useCallback, useSyncExternalStore } from 'react'
+
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useSyncExternalStore } from 'react'
 
 // Per-model keys in the window memory cache: a row subscribes to its own model only,
 // so one streamed result never invalidates the other rows.

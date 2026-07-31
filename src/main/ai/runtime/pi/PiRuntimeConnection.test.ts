@@ -2,10 +2,11 @@ import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 

@@ -1,10 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import SendMessageButton from '@renderer/components/SendMessageButton'
-import { toast } from '@renderer/services/toast'
-import { getAppEdition } from '@renderer/utils/appEdition'
-import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
@@ -16,6 +10,13 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import SendMessageButton from '@renderer/components/SendMessageButton'
+import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { getComposerEditorMinHeight } from './composerSizing'

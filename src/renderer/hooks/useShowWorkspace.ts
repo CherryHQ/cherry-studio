@@ -1,8 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('useShowWorkspace')
 

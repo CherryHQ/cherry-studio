@@ -1,7 +1,8 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can

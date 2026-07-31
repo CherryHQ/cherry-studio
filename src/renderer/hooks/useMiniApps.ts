@@ -3,6 +3,9 @@ import { useCache } from '@data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -16,8 +19,6 @@ import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schema
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Data Flow Design:

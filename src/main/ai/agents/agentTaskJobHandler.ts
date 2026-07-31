@@ -9,9 +9,10 @@
  * restart, making the breaker effectively unreachable in practice).
  */
 
-import { application } from '@application'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobService } from '@data/services/JobService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 

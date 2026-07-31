@@ -11,6 +11,8 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
+import * as z from 'zod'
+
 import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
 import {
   CURRENCY,
@@ -20,7 +22,6 @@ import {
   ProviderEditionSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
-import * as z from 'zod'
 
 export type { ServerTool, ServerToolConfig }
 

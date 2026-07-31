@@ -1,15 +1,16 @@
-import { Button } from '@cherrystudio/ui'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
-import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LoginOauthPanel')
 

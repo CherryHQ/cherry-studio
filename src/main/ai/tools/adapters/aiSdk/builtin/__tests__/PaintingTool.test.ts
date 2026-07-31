@@ -1,12 +1,13 @@
 import { resolve } from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { Tool } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
-import type { Tool } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolApplyScope } from '../../types'
 

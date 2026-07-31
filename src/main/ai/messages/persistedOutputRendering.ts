@@ -18,9 +18,12 @@
  * them.
  */
 
+import { fileEntryService } from '@data/services/FileEntryService'
+import type { UIMessage } from 'ai'
+import { isToolUIPart } from 'ai'
+
 import { application } from '@application'
 import { ContextPrompts } from '@cherrystudio/ai-core'
-import { fileEntryService } from '@data/services/FileEntryService'
 import { loggerService } from '@logger'
 import { isToolOutputBlobEntry, spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
 import {
@@ -29,8 +32,6 @@ import {
   type PersistedToolOutputBlobRef,
   type PersistedToolOutputRef
 } from '@shared/ai/transport'
-import type { UIMessage } from 'ai'
-import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('PersistedOutputRendering')
 

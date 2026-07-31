@@ -1,5 +1,6 @@
-import type { JobContext } from '@main/core/job/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobContext } from '@main/core/job/types'
 
 import type { FileProcessingJobPayload } from '../shared'
 

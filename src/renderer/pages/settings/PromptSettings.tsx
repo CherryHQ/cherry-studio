@@ -1,3 +1,9 @@
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
+import { useReorder } from '@data/hooks/useReorder'
+import { GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Badge,
@@ -15,8 +21,6 @@ import {
   Skeleton,
   type SortableDragHandleProps
 } from '@cherrystudio/ui'
-import { useDataChange, useQuery } from '@data/hooks/useDataApi'
-import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
@@ -31,9 +35,6 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { type PromptTargetOption, PromptTargetPopover } from './PromptTargetPopover'
 

@@ -8,8 +8,11 @@
 
 import path from 'node:path'
 
-import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
+import { eq } from 'drizzle-orm'
+import { session, webContents } from 'electron'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { markSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
@@ -17,8 +20,6 @@ import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { MINI_APP_BRIDGE_CHANNEL, MINI_APP_STREAM_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
 import { MINI_APP_SCHEME, MiniAppManifestSchema, resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
-import { session, webContents } from 'electron'
 
 import { ACTIVITY_COUNT_FLUSH_MS, miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'

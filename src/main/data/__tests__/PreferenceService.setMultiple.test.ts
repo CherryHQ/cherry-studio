@@ -1,8 +1,9 @@
 import { preferenceTable } from '@data/db/schemas/preference'
-import { BaseService } from '@main/core/lifecycle'
 import { setupTestDatabase } from '@test-helpers/db'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 vi.unmock('@main/data/PreferenceService')
 

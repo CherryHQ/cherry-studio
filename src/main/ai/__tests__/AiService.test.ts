@@ -1,12 +1,13 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { BaseService } from '@main/core/lifecycle/BaseService'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
-import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { isGatewayRoutableModel } from '@shared/utils/model'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'

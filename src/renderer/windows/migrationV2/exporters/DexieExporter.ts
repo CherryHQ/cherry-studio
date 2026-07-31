@@ -10,10 +10,11 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
+import { Dexie, type IndexableType } from 'dexie'
+
 import { loggerService } from '@logger'
 import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { Dexie, type IndexableType } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'

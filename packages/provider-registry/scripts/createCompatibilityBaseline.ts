@@ -43,7 +43,7 @@ async function createCompatibilityBaseline(): Promise<void> {
       targetPath,
       `/* eslint-disable */\n// AUTO-GENERATED compatibility contract. Never edit or replace this file.\n${bundle}`
     )
-    execFileSync('pnpm', ['biome', 'format', '--write', '--no-errors-on-unmatched', targetPath], {
+    execFileSync('pnpm', ['oxfmt', '--write', targetPath], {
       cwd: repositoryRoot,
       stdio: 'inherit'
     })

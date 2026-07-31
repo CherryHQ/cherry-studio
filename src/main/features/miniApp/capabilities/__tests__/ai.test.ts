@@ -1,10 +1,11 @@
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
 
 import { MiniAppUnavailableError } from '../../errors'
 import { resetHiddenBudgets } from '../quota'

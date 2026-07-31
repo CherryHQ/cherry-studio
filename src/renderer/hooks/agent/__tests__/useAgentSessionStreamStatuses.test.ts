@@ -6,10 +6,11 @@
  * branch (derived state changes → re-render) must hold.
  */
 import { cacheService } from '@data/CacheService'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 
 import { useAgentSessionStreamStatuses } from '../useAgentSessionStreamStatuses'
 

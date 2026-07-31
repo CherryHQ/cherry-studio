@@ -8,6 +8,9 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
+import Database from 'better-sqlite3'
+import { eq, sql } from 'drizzle-orm'
+
 import { loggerService } from '@logger'
 import {
   CHERRY_META_DIR,
@@ -24,8 +27,6 @@ import {
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import Database from 'better-sqlite3'
-import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
@@ -1166,8 +1167,14 @@ export class KnowledgeMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const baseResult = ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).get()
-      const itemResult = ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).get()
+      const baseResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeBaseTable)
+        .get()
+      const itemResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeItemTable)
+        .get()
 
       const targetBaseCount = baseResult?.count ?? 0
       const targetItemCount = itemResult?.count ?? 0

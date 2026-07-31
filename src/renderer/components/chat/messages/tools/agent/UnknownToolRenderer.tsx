@@ -105,7 +105,7 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
           />
         ))}
         {!normalizedInput && !normalizedOutput && mcpImages.length === 0 && (
-          <div className="p-3 text-foreground-500 text-xs">{t('message.tools.noData')}</div>
+          <div className="text-foreground-500 p-3 text-xs">{t('message.tools.noData')}</div>
         )}
       </div>
     )

@@ -1,5 +1,6 @@
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+
 import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'

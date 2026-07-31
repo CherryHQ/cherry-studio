@@ -1,8 +1,9 @@
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 
 type MockChildrenProps = { children?: ReactNode }
 type MockPassthroughProps = MockChildrenProps & Record<string, unknown>

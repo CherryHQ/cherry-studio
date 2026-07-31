@@ -1,8 +1,9 @@
-import type { Model } from '@shared/data/types/model'
-import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { PaintingData } from '../../model/types/paintingData'
 

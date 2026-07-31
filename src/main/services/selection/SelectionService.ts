@@ -1,12 +1,3 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
-import { WindowType } from '@main/core/window/types'
-import { getApplicationId } from '@main/utils/appEdition'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import type { BrowserWindow } from 'electron'
 import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
@@ -16,6 +7,16 @@ import type {
   SelectionHookInstance,
   TextSelectionData
 } from 'selection-hook'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
+import { getApplicationId } from '@main/utils/appEdition'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 

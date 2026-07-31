@@ -1,10 +1,11 @@
 import { bearer } from '@elysia/bearer'
+import { Elysia } from 'elysia'
+
 import {
   ANTIGRAVITY_MODEL_PATH_SEPARATOR,
   isReservedGeminiGatewayModelId,
   stripGeminiGatewayModelSuffix
 } from '@shared/utils/apiGateway'
-import { Elysia } from 'elysia'
 
 import type { InputParamsMap } from '../adapters'
 import { googleEnvelope } from '../errors'

@@ -4,6 +4,7 @@ import { lstat, open, readdir, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { agentService } from '@data/services/AgentService'
+
 import { loggerService } from '@logger'
 import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { isWin } from '@main/core/platform'

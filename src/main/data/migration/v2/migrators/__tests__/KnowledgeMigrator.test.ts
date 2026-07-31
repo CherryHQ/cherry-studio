@@ -1,13 +1,14 @@
 import fs from 'node:fs'
 
+import Database from 'better-sqlite3'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { assertSafeKnowledgeRelativePath, CHERRY_META_DIR } from '@main/features/knowledge'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
-import Database from 'better-sqlite3'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')

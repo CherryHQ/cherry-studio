@@ -1,3 +1,9 @@
+import type { VariantProps } from 'class-variance-authority'
+import { cva } from 'class-variance-authority'
+import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import {
   InputGroup,
@@ -16,11 +22,6 @@ import {
 } from '@cherrystudio/ui/components/primitives/select'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { toUndefinedIfNull } from '@cherrystudio/ui/utils/index'
-import type { VariantProps } from 'class-variance-authority'
-import { cva } from 'class-variance-authority'
-import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
 
 const inputGroupVariants = cva(
   ['h-auto', 'rounded-md', 'has-[[data-slot=input-group-control]:focus-visible]:border-ring'],
@@ -104,7 +105,7 @@ const iconVariants = cva([], {
   }
 })
 
-const iconButtonVariants = cva(['text-muted-foreground cursor-pointer transition-colors', 'hover:shadow-none'], {
+const iconButtonVariants = cva(['cursor-pointer text-muted-foreground transition-colors', 'hover:shadow-none'], {
   variants: {
     disabled: {
       false: null,
@@ -117,7 +118,7 @@ const iconButtonVariants = cva(['text-muted-foreground cursor-pointer transition
 })
 
 const buttonVariants = cva(
-  ['py-3', 'flex flex-col', 'text-muted-foreground cursor-pointer transition-colors', 'hover:shadow-none'],
+  ['py-3', 'flex flex-col', 'cursor-pointer text-muted-foreground transition-colors', 'hover:shadow-none'],
   {
     variants: {
       size: {
@@ -196,16 +197,16 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-f
 
 const selectTriggerVariants = cva(
   [
-    'border-none box-content pl-3 aria-expanded:border-none aria-expanded:ring-0 bg-transparent',
+    'box-content border-none bg-transparent pl-3 aria-expanded:border-none aria-expanded:ring-0',
     '*:data-[slot=select-value]:text-foreground',
     '[&_svg]:text-secondary-foreground!'
   ],
   {
     variants: {
       size: {
-        sm: ['h-5', 'pl-6 pr-3 py-3', '*:data-[slot=select-value]:text-sm'],
-        md: ['h-5', 'pl-6 pr-3 py-[13px]'],
-        lg: ['h-6', 'pl-7 pr-4 py-3', '*:data-[slot=select-value]:text-lg']
+        sm: ['h-5', 'py-3 pr-3 pl-6', '*:data-[slot=select-value]:text-sm'],
+        md: ['h-5', 'py-[13px] pr-3 pl-6'],
+        lg: ['h-6', 'py-3 pr-4 pl-7', '*:data-[slot=select-value]:text-lg']
       }
     }
   }
@@ -263,8 +264,7 @@ interface SelectGroup {
 }
 
 interface CompositeInputProps
-  extends Omit<InputProps, 'size' | 'disabled' | 'prefix'>,
-    VariantProps<typeof inputVariants> {
+  extends Omit<InputProps, 'size' | 'disabled' | 'prefix'>, VariantProps<typeof inputVariants> {
   buttonProps?: {
     label?: ReactNode
     onClick: React.DOMAttributes<HTMLButtonElement>['onClick']

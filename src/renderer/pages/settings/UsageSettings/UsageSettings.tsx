@@ -1,3 +1,8 @@
+import { usePersistCache } from '@data/hooks/useCache'
+import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ButtonGroup,
@@ -9,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
@@ -19,9 +23,6 @@ import type {
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
-import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type BoundedTimeRange,

@@ -14,6 +14,9 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -23,8 +26,6 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 

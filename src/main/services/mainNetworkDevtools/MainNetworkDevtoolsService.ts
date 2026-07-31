@@ -3,14 +3,15 @@ import http, { type ClientRequest, type IncomingMessage, type RequestOptions } f
 import https from 'node:https'
 import type { AddressInfo } from 'node:net'
 
+import { net } from 'electron'
+import type WebSocket from 'ws'
+import type { WebSocketServer } from 'ws'
+
 import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
-import { net } from 'electron'
-import type WebSocket from 'ws'
-import type { WebSocketServer } from 'ws'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 

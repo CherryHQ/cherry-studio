@@ -36,8 +36,9 @@ import type {
   ToolUseBlock,
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
-import { loggerService } from '@logger'
 import type { FinishReason, UIMessageChunk } from 'ai'
+
+import { loggerService } from '@logger'
 
 import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'

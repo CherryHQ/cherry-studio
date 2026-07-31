@@ -7,9 +7,10 @@
  * renderer always observes the original chunk ordering.
  */
 
-import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebContentsListener } from '../WebContentsListener'
 

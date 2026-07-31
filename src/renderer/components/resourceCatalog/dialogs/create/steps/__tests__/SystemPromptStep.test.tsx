@@ -1,10 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { Form } from '@cherrystudio/ui'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Form } from '@cherrystudio/ui'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { SystemPromptStep } from '../SystemPromptStep'

@@ -1,8 +1,9 @@
 import { fileURLToPath } from 'node:url'
 
+import { describe, expect, it } from 'vitest'
+
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { buildAgentUserContent } from '../agentUserContent'
 

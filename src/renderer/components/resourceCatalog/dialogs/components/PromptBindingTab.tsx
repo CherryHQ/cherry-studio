@@ -1,13 +1,14 @@
-import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import { GripVertical, Plus, Unlink, Zap } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, Plus, Unlink, Zap } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { PromptEditDialog } from '../edit'
 import { AddCatalogPopover, CatalogEmptyPlaceholder } from './CatalogPicker'

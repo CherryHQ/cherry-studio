@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -42,7 +43,6 @@ vi.mock('ws', () => {
 })
 
 import '../slack/SlackAdapter'
-
 import { registerAdapterFactory } from '../../ChannelManager'
 
 function getFactory() {

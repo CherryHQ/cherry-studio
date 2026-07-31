@@ -5,8 +5,9 @@ import {
   ListToolsRequestSchema,
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
-import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),

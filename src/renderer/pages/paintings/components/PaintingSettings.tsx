@@ -1,7 +1,8 @@
-import { InfoTooltip } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { InfoTooltip } from '@cherrystudio/ui'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'

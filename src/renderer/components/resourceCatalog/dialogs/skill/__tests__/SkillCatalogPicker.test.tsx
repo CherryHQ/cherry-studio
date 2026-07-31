@@ -1,10 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
-import type { InstalledSkill } from '@shared/data/types/agent'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import type { InstalledSkill } from '@shared/data/types/agent'
 
 import { SkillCatalogPicker } from '../SkillCatalogPicker'
 

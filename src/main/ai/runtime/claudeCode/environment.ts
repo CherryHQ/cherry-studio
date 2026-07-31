@@ -7,8 +7,9 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'

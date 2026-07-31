@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, test, vi } from 'vitest'
+
 // Import Message, MessageBlock, and necessary enums
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
-import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // --- Mocks Setup ---
 

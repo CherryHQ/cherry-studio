@@ -1,6 +1,7 @@
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DshSubagentCoordinator, type DshSubagentSink } from '../dshChildFlow'
 

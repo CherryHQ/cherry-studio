@@ -1,5 +1,9 @@
-import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import type { ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   type ResourcePaneConfig,
@@ -39,9 +43,6 @@ import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import type { ReactNode } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
@@ -248,9 +249,9 @@ const AgentChat = ({
   const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId
   const shouldFetchSessionHistoryOnMount = Boolean(
     sessionSnapshot &&
-      (conversationBootstrap.sessionSource === 'query' ||
-        conversationBootstrap.sessionSource === 'pending' ||
-        conversationBootstrap.sessionSource === 'none')
+    (conversationBootstrap.sessionSource === 'query' ||
+      conversationBootstrap.sessionSource === 'pending' ||
+      conversationBootstrap.sessionSource === 'none')
   )
   const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
@@ -275,11 +276,11 @@ const AgentChat = ({
   )
   const isEmptyConversation = Boolean(
     sessionSnapshot &&
-      sessionMessagesEnabled &&
-      !runtime.isLoading &&
-      !runtime.isPending &&
-      !runtime.hasOlder &&
-      runtime.uiMessages.length === 0
+    sessionMessagesEnabled &&
+    !runtime.isLoading &&
+    !runtime.isPending &&
+    !runtime.hasOlder &&
+    runtime.uiMessages.length === 0
   )
   const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
   const runAfterFileNavigation = useCallback(

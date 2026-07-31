@@ -13,6 +13,9 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
+import { isEqual } from 'es-toolkit/compat'
+
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -47,7 +50,6 @@ import {
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
 import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
-import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
@@ -63,7 +65,6 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
-import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'

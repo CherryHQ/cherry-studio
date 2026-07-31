@@ -11,7 +11,6 @@
  *   - presetMiniAppId === null  →  pure custom app
  */
 
-import { application } from '@application'
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import {
   type InsertMiniAppRow,
@@ -21,6 +20,9 @@ import {
   miniAppTable
 } from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import { and, asc, desc, eq, getTableColumns, gt, inArray, lt, ne } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -29,7 +31,6 @@ import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schema
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, MiniAppId, SiteMiniApp } from '@shared/data/types/miniApp'
 import { type MiniAppManifest, MiniAppManifestSchema, resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { and, asc, desc, eq, getTableColumns, gt, inArray, lt, ne } from 'drizzle-orm'
 
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'

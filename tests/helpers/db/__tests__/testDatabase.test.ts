@@ -1,14 +1,15 @@
 import { existsSync } from 'node:fs'
 
-import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import type { MessageData } from '@shared/data/types/message'
 import { eq } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 
-import { withRoot } from '../messageTree'
+import { application } from '@application'
+import type { MessageData } from '@shared/data/types/message'
+
 import { truncateAll } from '../internal/truncate'
+import { withRoot } from '../messageTree'
 import { setupTestDatabase } from '../testDatabase'
 
 function mainText(content: string): MessageData {

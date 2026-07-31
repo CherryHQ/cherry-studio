@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { MINI_APP_BRIDGE_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { sweepAbandonedStaging } from '../../install/installer'
 import { recoverInterruptedPublishes } from '../../install/publishJournal'

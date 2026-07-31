@@ -1,8 +1,10 @@
 import type { ChildProcess } from 'node:child_process'
 
-import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { Mutex } from 'async-mutex'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
@@ -17,7 +19,6 @@ import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGate
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 import { redactLiteral, redactSecretText } from '@shared/utils/redaction'
-import { Mutex } from 'async-mutex'
 
 import {
   createDeepSeekHarnessDirectIdentity,

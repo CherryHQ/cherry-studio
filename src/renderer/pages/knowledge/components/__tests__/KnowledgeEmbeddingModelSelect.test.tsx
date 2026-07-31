@@ -1,9 +1,10 @@
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import { KnowledgeEmbeddingModelSelect } from '../KnowledgeEmbeddingModelSelect'
 

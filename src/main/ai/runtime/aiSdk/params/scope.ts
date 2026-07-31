@@ -10,6 +10,7 @@
  */
 
 import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
+
 import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'

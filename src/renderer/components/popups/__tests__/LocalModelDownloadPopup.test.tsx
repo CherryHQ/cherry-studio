@@ -1,7 +1,8 @@
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 const { toastError, localModel } = vi.hoisted(() => ({
   toastError: vi.fn(),

@@ -1,9 +1,10 @@
 import type * as CryptoModule from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
+import type * as PathModule from 'path'
+
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
-import type * as PathModule from 'path'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
@@ -323,10 +324,11 @@ vi.mock('node-stream-zip', () => ({
   default: { async: MockStreamZipAsync }
 }))
 
+import * as path from 'path'
+
 // Import after mocks
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
-import * as path from 'path'
 
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
 import WebDav from '../WebDav'

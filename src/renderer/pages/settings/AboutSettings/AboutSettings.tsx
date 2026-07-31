@@ -1,3 +1,21 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { debounce } from 'es-toolkit/compat'
+import {
+  BadgeQuestionMark,
+  Briefcase,
+  Bug,
+  Building2,
+  FileArchive,
+  Github,
+  Globe,
+  Mail,
+  MessageSquareText,
+  Rss
+} from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -8,7 +26,6 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { FeedbackDialog } from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
@@ -30,22 +47,6 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { debounce } from 'es-toolkit/compat'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Bug,
-  Building2,
-  FileArchive,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss
-} from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 

@@ -18,10 +18,30 @@
  * module-level layering rules.
  */
 
-import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+  type SQLWrapper
+} from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
+import { ZodError } from 'zod'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
@@ -43,25 +63,6 @@ import {
 } from '@shared/data/types/file'
 import type { FileType } from '@shared/types/file'
 import { type CanonicalFilePath, fileTypeMap } from '@shared/utils/file'
-import {
-  and,
-  asc,
-  count,
-  eq,
-  gt,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  notInArray,
-  or,
-  type SQL,
-  sql,
-  type SQLWrapper
-} from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
-import { ZodError } from 'zod'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 

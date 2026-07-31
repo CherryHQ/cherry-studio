@@ -1,5 +1,8 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
@@ -13,8 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { isWin } from '@renderer/utils/platform'
 import { defaultLanguage } from '@shared/utils/languages'
-import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWindowRuntime')
 

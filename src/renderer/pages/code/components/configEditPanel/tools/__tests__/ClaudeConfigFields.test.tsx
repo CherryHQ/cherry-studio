@@ -1,8 +1,9 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
 

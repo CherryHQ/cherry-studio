@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
@@ -8,8 +11,6 @@ import type {
   CreateAgentChannelDto,
   UpdateAgentChannelDto
 } from '@shared/data/api/schemas/agentChannels'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useChannels')
 

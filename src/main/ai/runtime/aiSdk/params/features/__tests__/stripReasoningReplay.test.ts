@@ -1,8 +1,9 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { RequestScope } from '../../scope'
 import { createStripReasoningReplayMiddleware, stripReasoningReplayFeature } from '../stripReasoningReplay'

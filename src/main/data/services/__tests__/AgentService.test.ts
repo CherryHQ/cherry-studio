@@ -1,8 +1,6 @@
 import '@data/services/AgentSessionMessageService'
-
 import { randomUUID } from 'node:crypto'
 
-import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -23,13 +21,15 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
-import { ErrorCode } from '@shared/data/api/errors'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+import { application } from '@application'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import { ErrorCode } from '@shared/data/api/errors'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))

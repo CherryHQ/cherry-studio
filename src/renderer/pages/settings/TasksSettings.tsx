@@ -1,3 +1,30 @@
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  CalendarCheck2,
+  CalendarClock,
+  CalendarFold,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleSlash,
+  CircleStop,
+  CircleX,
+  Clock3,
+  Folder,
+  Loader2,
+  MoreHorizontal,
+  PencilLine,
+  Play,
+  Plus,
+  Trash2
+} from 'lucide-react'
+import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Alert,
@@ -93,32 +120,6 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import type { TFunction } from 'i18next'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  CalendarCheck2,
-  CalendarClock,
-  CalendarFold,
-  ChevronDown,
-  ChevronRight,
-  CircleCheck,
-  CircleSlash,
-  CircleStop,
-  CircleX,
-  Clock3,
-  Folder,
-  Loader2,
-  MoreHorizontal,
-  PencilLine,
-  Play,
-  Plus,
-  Trash2
-} from 'lucide-react'
-import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
 const ALL_TASKS_FILTER = 'all'

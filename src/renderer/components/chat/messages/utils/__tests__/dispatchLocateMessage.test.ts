@@ -1,5 +1,6 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import type { MessageListRuntime } from '../../types'
 import { dispatchLocateMessage } from '../dispatchLocateMessage'

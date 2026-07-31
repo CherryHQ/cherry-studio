@@ -1,11 +1,13 @@
-import { loggerService } from '@logger'
+import fs from 'fs/promises'
+import path from 'path'
+
 import type {
   OAuthClientInformation,
   OAuthClientInformationMixed,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth.js'
-import fs from 'fs/promises'
-import path from 'path'
+
+import { loggerService } from '@logger'
 
 import type { IOAuthStorage, OAuthStorageData } from './types'
 import { OAuthStorageSchema } from './types'

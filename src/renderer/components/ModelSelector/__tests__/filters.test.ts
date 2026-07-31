@@ -1,7 +1,8 @@
-import { MODALITY, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+
+import { MODALITY, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { useModelTagFilter } from '../filters'
 

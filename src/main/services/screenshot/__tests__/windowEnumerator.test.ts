@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { RawWindowInfo } from '@main/services/screenshot/types'
 import { listWindowsOffThread, readWindowInfo } from '@main/services/screenshot/windowEnumerator'
-import { describe, expect, it, vi } from 'vitest'
 
 const workerConstructor = vi.hoisted(() => vi.fn())
 

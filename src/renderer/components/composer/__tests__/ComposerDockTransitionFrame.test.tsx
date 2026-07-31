@@ -1,6 +1,7 @@
-import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 
 import ComposerDockTransitionFrame from '../ComposerDockTransitionFrame'
 
@@ -30,24 +31,24 @@ function InsetProbe() {
 
 describe('ComposerDockTransitionFrame', () => {
   beforeEach(() => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(
-      this: HTMLElement
-    ) {
-      if (this.hasAttribute('data-composer-inputbar')) {
-        return rect(620, 820)
-      }
-      if (this.hasAttribute('data-composer-viewport-inset-target')) {
-        return rect(640, 840)
-      }
-      if (this.hasAttribute('data-composer-dock-surface')) {
-        return rect(600, 820)
-      }
-      if (this.hasAttribute('data-message-virtual-list-scroller')) {
-        return rect(0, 900, 8, 1008)
-      }
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.hasAttribute('data-composer-inputbar')) {
+          return rect(620, 820)
+        }
+        if (this.hasAttribute('data-composer-viewport-inset-target')) {
+          return rect(640, 840)
+        }
+        if (this.hasAttribute('data-composer-dock-surface')) {
+          return rect(600, 820)
+        }
+        if (this.hasAttribute('data-message-virtual-list-scroller')) {
+          return rect(0, 900, 8, 1008)
+        }
 
-      return rect(0, 900)
-    })
+        return rect(0, 900)
+      }
+    )
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function clientWidth(this: HTMLElement) {
       if (this.hasAttribute('data-message-virtual-list-scroller')) return 988
       return 1020
@@ -91,17 +92,17 @@ describe('ComposerDockTransitionFrame', () => {
     // A mid-swap composer (lazy chunk still loading behind Suspense) is hidden
     // and measures as a zero rect. Insets must hold instead of collapsing the
     // message list with a full-height bottom margin.
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(
-      this: HTMLElement
-    ) {
-      if (this.hasAttribute('data-composer-inputbar')) {
-        return rect(0, 0, 0, 0)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.hasAttribute('data-composer-inputbar')) {
+          return rect(0, 0, 0, 0)
+        }
+        if (this.hasAttribute('data-composer-dock-surface')) {
+          return rect(600, 820)
+        }
+        return rect(0, 900)
       }
-      if (this.hasAttribute('data-composer-dock-surface')) {
-        return rect(600, 820)
-      }
-      return rect(0, 900)
-    })
+    )
     rerender(
       <ComposerDockTransitionFrame
         placement="docked"
@@ -138,17 +139,17 @@ describe('ComposerDockTransitionFrame', () => {
   })
 
   it('measures only the active composer layer while the primary composer stays mounted', async () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(
-      this: HTMLElement
-    ) {
-      if (this.hasAttribute('data-composer-viewport-inset-target')) {
-        return this.closest('[data-testid="primary-layer"]') ? rect(620, 820) : rect(640, 840)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.hasAttribute('data-composer-viewport-inset-target')) {
+          return this.closest('[data-testid="primary-layer"]') ? rect(620, 820) : rect(640, 840)
+        }
+        if (this.hasAttribute('data-composer-dock-surface')) {
+          return rect(600, 820)
+        }
+        return rect(0, 900)
       }
-      if (this.hasAttribute('data-composer-dock-surface')) {
-        return rect(600, 820)
-      }
-      return rect(0, 900)
-    })
+    )
 
     const composer = (overrideActive: boolean) => (
       <div data-composer-active-override={overrideActive ? 'tool-permission:approval-1' : undefined}>

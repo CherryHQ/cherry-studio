@@ -1,4 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
+import type { WebviewTag } from 'electron'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useCommandContextKey } from '@renderer/hooks/command'
@@ -12,8 +15,6 @@ import {
 } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { WebviewTag } from 'electron'
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across

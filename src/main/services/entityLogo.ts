@@ -1,5 +1,6 @@
 import { miniAppService } from '@data/services/MiniAppService'
 import { providerService } from '@data/services/ProviderService'
+
 import { bindLogoImage } from '@main/services/entityImageBinding'
 import type { LogoImageIntent } from '@shared/ipc/schemas/entityImage'
 

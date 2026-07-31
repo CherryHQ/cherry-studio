@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   type BridgeResult,
   MINI_APP_EVENT_CHANNEL,
   MINI_APP_GUEST_LIMITS,
   MINI_APP_STREAM_CHANNEL
 } from '@shared/ipc/schemas/miniAppBridge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const exposeInMainWorld = vi.fn()
 // Typed to the wire contract: inferred from the default implementation, the mock's

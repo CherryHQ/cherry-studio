@@ -1,8 +1,9 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { KnowledgeModelSelect } from '../KnowledgeModelSelect'
 

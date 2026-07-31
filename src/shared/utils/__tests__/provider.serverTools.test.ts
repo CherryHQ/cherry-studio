@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -7,7 +9,6 @@ import {
   isServerToolModelEligible,
   resolveWebToolRoutes
 } from '@shared/utils/provider'
-import { describe, expect, it } from 'vitest'
 
 const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   id: `provider::${apiModelId}`,

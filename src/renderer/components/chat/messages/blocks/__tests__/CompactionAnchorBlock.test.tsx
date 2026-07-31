@@ -1,6 +1,7 @@
-import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 
 import CompactionAnchorBlock from '../CompactionAnchorBlock'
 

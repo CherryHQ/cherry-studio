@@ -13,9 +13,10 @@
  * the path after the write) and appended to the request's fs_read allow-list.
  */
 
+import { messageService } from '@data/services/MessageService'
+
 import { application } from '@application'
 import type { VFSStorageAdapter } from '@cherrystudio/ai-core'
-import { messageService } from '@data/services/MessageService'
 
 import { persistToolOutputText } from './toolOutputStore'
 

@@ -1,5 +1,6 @@
-import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+
+import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
 import { createTokenhubTransport, TokenhubApiError, TokenhubTaskFailedError } from '../tokenhub/tokenhubTransport'

@@ -1,8 +1,9 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import type { FileMetadata } from '@renderer/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type { FileMetadata } from '@renderer/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -520,11 +521,11 @@ describe('Artboard', () => {
         // bar's own measured height (24) comes out of the 400 first, so the binding
         // constraint is (400-24)/1024: contain-fit is 376x376.
         clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
-        clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
-          this: HTMLElement
-        ) {
-          return this.dataset.testid === 'artboard-prompt-bar-measure' ? 24 : 400
-        })
+        clientHeight = vi
+          .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+          .mockImplementation(function (this: HTMLElement) {
+            return this.dataset.testid === 'artboard-prompt-bar-measure' ? 24 : 400
+          })
         naturalWidth = vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(1024)
         naturalHeight = vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(1024)
       })

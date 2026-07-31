@@ -1,16 +1,17 @@
-import { Scrollbar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import LanguageSelect from '@renderer/components/LanguageSelect'
-import { useTranslate } from '@renderer/hooks/translate'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import { toast } from '@renderer/services/toast'
 import { isEmpty } from 'es-toolkit/compat'
 import { ArrowLeftRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
+import LanguageSelect from '@renderer/components/LanguageSelect'
+import { useTranslate } from '@renderer/hooks/translate'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
+import { toast } from '@renderer/services/toast'
 
 interface Props {
   text: string

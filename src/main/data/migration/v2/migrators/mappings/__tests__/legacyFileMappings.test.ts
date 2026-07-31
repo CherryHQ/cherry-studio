@@ -1,5 +1,6 @@
-import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { describe, expect, it } from 'vitest'
+
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 
 import { hasLostOriginalFilename, legacyStorageNames, normalizeExt } from '../legacyFileMappings'
 

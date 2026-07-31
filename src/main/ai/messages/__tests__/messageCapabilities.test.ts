@@ -1,7 +1,8 @@
-import { MODALITY } from '@cherrystudio/provider-registry'
-import type { Model } from '@shared/data/types/model'
 import type { ModelMessage, UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import { MODALITY } from '@cherrystudio/provider-registry'
+import type { Model } from '@shared/data/types/model'
 
 import {
   gateToolResultMedia,

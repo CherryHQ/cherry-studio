@@ -1,6 +1,7 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
 
 const knowledgeServiceSearch = vi.fn()
 // Hoisted: the SUT calls `loggerService.withContext()` at module load (before the plain consts run),

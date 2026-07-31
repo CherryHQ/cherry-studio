@@ -2,8 +2,14 @@
  * IPC handler for migration communication between Main and Renderer
  */
 
+import fs from 'fs/promises'
+import path from 'path'
+
 import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import {
@@ -18,10 +24,6 @@ import {
   type PreparedMigrationExportPaths,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
-import fs from 'fs/promises'
-import path from 'path'
-import * as z from 'zod'
 
 import { migrationEngine } from '../core/MigrationEngine'
 import { isValidLocalDate } from '../utils/localDate'

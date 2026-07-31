@@ -1,3 +1,5 @@
+import { TraceMethod } from '@mcp-trace/trace-core'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'

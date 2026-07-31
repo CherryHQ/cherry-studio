@@ -1,4 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
@@ -6,8 +9,6 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 

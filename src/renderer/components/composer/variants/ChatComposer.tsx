@@ -1,3 +1,7 @@
+import { Eraser } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
@@ -66,9 +70,6 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { Eraser } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -863,9 +864,9 @@ const ChatComposerInner = ({
     !externalContextControls &&
     Boolean(
       runtimeModel ||
-        mentionedModels.length > 0 ||
-        mentionedModelSelectorValue.length > 0 ||
-        lockedMentionedModels.length > 0
+      mentionedModels.length > 0 ||
+      mentionedModelSelectorValue.length > 0 ||
+      lockedMentionedModels.length > 0
     )
   const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
   const providers = resolvedProviders ?? loadedProviders

@@ -1,5 +1,9 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
+import { isUndefined, omitBy } from 'es-toolkit/compat'
+import { useCallback } from 'react'
+import type { SWRConfiguration } from 'swr'
+
 import { loggerService } from '@logger'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type {
@@ -11,9 +15,6 @@ import type {
 } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { isUndefined, omitBy } from 'es-toolkit/compat'
-import { useCallback } from 'react'
-import type { SWRConfiguration } from 'swr'
 
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')

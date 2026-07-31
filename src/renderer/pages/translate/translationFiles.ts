@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+
 import { ipcApi } from '@renderer/ipc'
 import { type FileEntryId, translateHistorySourceType } from '@shared/data/types/file'
 import type { TranslateHistory } from '@shared/data/types/translate'

@@ -1,3 +1,8 @@
+import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
@@ -6,10 +11,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
 import { createFilePathHandle } from '@shared/utils/file'
-import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean
@@ -251,10 +252,10 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         {/* Header */}
         <div>
           <div>
-            <h3 className="font-semibold text-foreground text-lg leading-none">
+            <h3 className="text-lg leading-none font-semibold text-foreground">
               {t('library.import_skill_dialog.title')}
             </h3>
-            <p className="mt-2 text-muted-foreground text-sm">{t('library.import_skill_dialog.subtitle')}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('library.import_skill_dialog.subtitle')}</p>
           </div>
         </div>
 
@@ -281,11 +282,11 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
                 'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
               void handleDroppedEntries(droppedFiles)
             }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-subtle border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
               <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
-              <p className="mb-1 text-muted-foreground text-xs">{t('library.import_skill_dialog.local.drop_hint')}</p>
-              <p className="text-muted-foreground text-xs">{t('library.import_skill_dialog.local.formats')}</p>
+              <p className="mb-1 text-xs text-muted-foreground">{t('library.import_skill_dialog.local.drop_hint')}</p>
+              <p className="text-xs text-muted-foreground">{t('library.import_skill_dialog.local.formats')}</p>
             </DropzoneEmptyState>
           </Dropzone>
 
@@ -326,7 +327,7 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
   return (
     <Scrollbar
       data-testid="skill-import-results"
-      className="mt-4 max-h-44 w-full min-w-0 max-w-full overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
+      className="mt-4 max-h-44 w-full max-w-full min-w-0 overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
       <div className="min-w-0 divide-y divide-border-subtle">
         {items.map((item) => {
           const displayName = item.status === 'success' ? (item.skillName ?? item.name) : item.name
@@ -340,7 +341,7 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
                 </div>
                 {item.status !== 'success' ? (
                   <div
-                    className="mt-0.5 min-w-0 whitespace-normal break-words text-foreground-tertiary [overflow-wrap:anywhere]"
+                    className="mt-0.5 min-w-0 [overflow-wrap:anywhere] break-words whitespace-normal text-foreground-tertiary"
                     title={item.status === 'error' ? item.error : undefined}>
                     {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
                     {item.status === 'installing' ? t('common.loading') : null}

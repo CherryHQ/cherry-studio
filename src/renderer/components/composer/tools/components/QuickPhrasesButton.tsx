@@ -1,4 +1,9 @@
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { Globe2, Plus, Settings2, Zap } from 'lucide-react'
+import type { Dispatch, SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
@@ -19,10 +24,6 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ListPromptsQueryParams } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { Globe2, Plus, Settings2, Zap } from 'lucide-react'
-import type { Dispatch, SetStateAction } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   launcher: ToolLauncherApi

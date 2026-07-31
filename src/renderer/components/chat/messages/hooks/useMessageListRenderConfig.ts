@@ -1,6 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
-import type { MessageRenderConfigUpdate } from '@renderer/components/chat/messages/types'
 import { useCallback, useMemo } from 'react'
+
+import type { MessageRenderConfigUpdate } from '@renderer/components/chat/messages/types'
 
 export function useMessageListRenderConfig() {
   const [userName] = usePreference('app.user.name')

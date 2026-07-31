@@ -1,7 +1,8 @@
 import { type InsertNoteRow, noteTable } from '@data/db/schemas/note'
+import { eq, sql } from 'drizzle-orm'
+
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'

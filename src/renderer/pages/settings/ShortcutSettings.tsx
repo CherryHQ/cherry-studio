@@ -1,3 +1,11 @@
+import { preferenceService } from '@data/PreferenceService'
+import { getRouteApi } from '@tanstack/react-router'
+import { isEmpty } from 'es-toolkit/compat'
+import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -12,7 +20,6 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -49,12 +56,6 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { getRouteApi } from '@tanstack/react-router'
-import { isEmpty } from 'es-toolkit/compat'
-import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ShortcutSettings')
 const shortcutRouteApi = getRouteApi('/settings/shortcut')

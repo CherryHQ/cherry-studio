@@ -1,9 +1,10 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import Selector from '@renderer/components/Selector'
-import type { MultiModelGridPopoverTrigger } from '@shared/data/preference/preferenceTypes'
 import { Settings } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import Selector from '@renderer/components/Selector'
+import type { MultiModelGridPopoverTrigger } from '@shared/data/preference/preferenceTypes'
 
 import { useMessageListActions, useMessageRenderConfig } from '../MessageListProvider'
 import { defaultMessageRenderConfig } from '../types'

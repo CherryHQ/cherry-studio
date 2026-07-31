@@ -10,6 +10,8 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
+import { useCallback, useMemo, useRef } from 'react'
+
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
@@ -17,7 +19,6 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useMemo, useRef } from 'react'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 

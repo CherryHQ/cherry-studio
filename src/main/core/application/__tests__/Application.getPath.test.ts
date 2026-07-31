@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 // Type-only import used to give vi.importActual a generic argument that
 // satisfies @typescript-eslint/consistent-type-imports (which forbids
 // inline `import()` type annotations).
 import type * as PathRegistryModule from '@main/core/paths/pathRegistry'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')

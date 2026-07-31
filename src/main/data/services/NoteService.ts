@@ -1,10 +1,11 @@
-import { application } from '@application'
 import { type NoteRow, noteTable } from '@data/db/schemas/note'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import { and, asc, eq, inArray, not, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { DeleteNoteQuery, RewriteNotePathDto, UpsertNoteDto } from '@shared/data/api/schemas/notes'
 import type { Note } from '@shared/data/types/note'
-import { and, asc, eq, inArray, not, sql } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
 

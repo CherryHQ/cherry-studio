@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+
 import { ipcApi } from '@renderer/ipc'
 import type { ExternalOpenTargetResult } from '@shared/types/externalApp'
 import { normalizeExt } from '@shared/utils/file'

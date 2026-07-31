@@ -2,9 +2,6 @@
  * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
  */
 
-import { createAgent } from '@cherrystudio/ai-core'
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import { isAbortError } from '@main/utils/error'
 import {
   InvalidResponseDataError,
   type LanguageModelUsage,
@@ -13,6 +10,10 @@ import {
   type UIMessage,
   type UIMessageChunk
 } from 'ai'
+
+import { createAgent } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { isAbortError } from '@main/utils/error'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'

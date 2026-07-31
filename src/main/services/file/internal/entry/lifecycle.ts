@@ -16,6 +16,7 @@
  */
 
 import type { DbOrTx } from '@data/db/types'
+
 import { loggerService } from '@logger'
 import { remove as fsRemove } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'

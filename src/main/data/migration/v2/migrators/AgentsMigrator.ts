@@ -1,3 +1,5 @@
+import path from 'path'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -11,6 +13,10 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -22,10 +28,6 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import { eq, inArray, sql } from 'drizzle-orm'
-import path from 'path'
-import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'

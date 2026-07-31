@@ -1,12 +1,13 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ShortcutSettings from '../ShortcutSettings'
 

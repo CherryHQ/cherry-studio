@@ -1,9 +1,10 @@
-import { Form, FormField, FormItem } from '@cherrystudio/ui'
-import type { PermissionMode } from '@renderer/types/agent'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { TFunction } from 'i18next'
 import { useForm } from 'react-hook-form'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { Form, FormField, FormItem } from '@cherrystudio/ui'
+import type { PermissionMode } from '@renderer/types/agent'
 
 import * as PermissionModeComponents from '../PermissionModeOption'
 import { QuickPanelRow } from '../QuickPanel/list'

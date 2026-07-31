@@ -18,6 +18,8 @@
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { useCallback, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -27,7 +29,6 @@ import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } fr
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useRef } from 'react'
 
 const logger = loggerService.withContext('useAssistant')
 

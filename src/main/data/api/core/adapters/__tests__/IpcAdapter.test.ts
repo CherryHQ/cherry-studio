@@ -1,3 +1,6 @@
+import { ipcMain } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * IpcAdapter source-trust gate tests.
  *
@@ -8,8 +11,6 @@
  * wiring: rejection short-circuits, trusted requests pass through.
  */
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiServer } from '../../ApiServer'
 import { IpcAdapter } from '../IpcAdapter'

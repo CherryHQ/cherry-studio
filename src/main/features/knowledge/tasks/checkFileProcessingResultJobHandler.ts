@@ -1,7 +1,7 @@
 import './jobTypes'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 
 import { application } from '@application'
-import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'

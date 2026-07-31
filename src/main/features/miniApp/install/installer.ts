@@ -10,9 +10,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
+import { eq } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { getAppLanguage } from '@main/i18n'
@@ -28,7 +30,6 @@ import {
   MiniAppManifestSchema,
   resolveLocalizedText
 } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
 
 import { miniAppActivityLog } from '../activityLog'
 import { ownedFileEntryIds, reclaimEntries } from '../capabilities/file'

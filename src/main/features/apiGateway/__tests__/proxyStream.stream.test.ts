@@ -1,8 +1,9 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { StreamListener } from '@main/ai/streamManager/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Exercises the streaming path of `processMessage`: the `ReadableStream` wiring,

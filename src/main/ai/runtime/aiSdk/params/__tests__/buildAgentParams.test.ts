@@ -3,12 +3,13 @@ import path from 'node:path'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
+
+import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 

@@ -3,10 +3,11 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 
 const mocks = vi.hoisted(() => ({
   loadInput: vi.fn(),

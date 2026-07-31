@@ -11,12 +11,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelMiddleware } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createContextMiddleware, type VFSStorageAdapter } from '@cherrystudio/ai-core'
 import { MIN_IN_FLIGHT_TRUNCATE_THRESHOLD } from '@main/ai/constants'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import type { LanguageModelMiddleware } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getByIdMock, adapterFactoryMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn(),

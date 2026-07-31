@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+
 import { skillService } from '@main/ai/skills/SkillService'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'

@@ -1,8 +1,9 @@
-import type { Message } from '@shared/data/types/message'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Message } from '@shared/data/types/message'
 
 import { useTopicMessages } from '../useTopicMessages'
 

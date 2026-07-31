@@ -1,9 +1,10 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import { useCallbackRef } from '@radix-ui/react-use-callback-ref'
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { cva } from 'class-variance-authority'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 /* -------------------------------------------------------------------------------------------------
  * Variants
@@ -11,7 +12,7 @@ import * as React from 'react'
 
 const textareaVariants = cva(
   cn(
-    'flex field-sizing-content min-h-16 w-full border bg-transparent px-4 py-3 text-lg transition-[color,box-shadow] outline-none resize-y',
+    'flex field-sizing-content min-h-16 w-full resize-y border bg-transparent px-4 py-3 text-lg transition-[color,box-shadow] outline-none',
     'rounded-md',
     'border-input text-foreground placeholder:text-muted-foreground',
     'focus-visible:border-primary',
@@ -99,7 +100,7 @@ function TextareaCharCount({ value = '', maxLength, className, ...props }: Texta
     <div
       data-slot="textarea-char-count"
       {...props}
-      className={cn('absolute bottom-2 right-2 text-xs text-muted-foreground', className)}>
+      className={cn('absolute right-2 bottom-2 text-xs text-muted-foreground', className)}>
       {value.length}/{maxLength}
     </div>
   )

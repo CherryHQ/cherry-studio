@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { eq, inArray } from 'drizzle-orm'
+
 import { loggerService } from '@logger'
 import {
   assertSafeKnowledgeRelativePath,
@@ -25,7 +27,6 @@ import {
   type KnowledgeItemData,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { LegacyKnowledgeVectorBaseReader, LegacyKnowledgeVectorRow } from '../utils/KnowledgeVectorSourceReader'

@@ -1,6 +1,7 @@
 import type { Span } from '@opentelemetry/api'
-import type { UniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import {
   applyTurnInputAttributes,

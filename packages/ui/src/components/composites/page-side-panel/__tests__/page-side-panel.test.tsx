@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
 
 import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
 

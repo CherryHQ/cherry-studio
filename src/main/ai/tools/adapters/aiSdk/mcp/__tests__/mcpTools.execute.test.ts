@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToolRegistry } from '../../registry'
 

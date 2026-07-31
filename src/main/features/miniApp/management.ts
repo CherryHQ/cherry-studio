@@ -1,8 +1,10 @@
 import fs from 'node:fs'
 
-import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
+import { eq } from 'drizzle-orm'
+
+import { application } from '@application'
 import { getAppLanguage } from '@main/i18n'
 import { getDirectorySize } from '@main/utils/fileOperations'
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
@@ -12,7 +14,6 @@ import {
   MiniAppManifestSchema,
   resolveLocalizedText
 } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
 
 import { miniAppActivityLog } from './activityLog'
 import { fileCapability } from './capabilities/file'

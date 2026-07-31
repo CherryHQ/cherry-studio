@@ -1,8 +1,9 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { applyAgentPromptCacheKey } from '../utils/promptCacheKey'
 

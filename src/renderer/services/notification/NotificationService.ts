@@ -1,4 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
+
 import { ipcApi } from '@renderer/ipc'
 import type { Notification } from '@renderer/types/notification'
 

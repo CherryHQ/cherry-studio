@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import {
   hoistSystemMessages,

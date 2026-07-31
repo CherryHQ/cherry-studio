@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'

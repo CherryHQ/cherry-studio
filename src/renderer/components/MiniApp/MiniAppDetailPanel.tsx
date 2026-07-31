@@ -1,3 +1,10 @@
+import { useMutation } from '@data/hooks/useDataApi'
+import type { TFunction } from 'i18next'
+import { Info } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Button,
@@ -13,7 +20,6 @@ import {
   TabsTrigger,
   Tooltip
 } from '@cherrystudio/ui'
-import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
@@ -34,11 +40,6 @@ import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
 import type { MiniAppActivityEntry, MiniAppActivityGrant, MiniAppActivityListing } from '@shared/types/miniAppActivity'
 import type { QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
 import { isNonChatModel } from '@shared/utils/model'
-import type { TFunction } from 'i18next'
-import { Info } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type DestructiveAction = 'clear_data' | 'uninstall'
 

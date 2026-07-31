@@ -1,12 +1,13 @@
 import { cacheService } from '@data/CacheService'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   LOCAL_MODEL_STATUS_CACHE_KEY,
   type LocalModelBundleId,
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useLocalModel } from '../useLocalModel'
 

@@ -1,10 +1,11 @@
+import { useCallback, useMemo } from 'react'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   executeSessionMenuAction,
   resolveSessionMenuActions,
   type SessionActionContext
 } from '@renderer/components/chat/actions/sessionItemActions'
-import { useCallback, useMemo } from 'react'
 
 export function createSessionActionContext(context: SessionActionContext): SessionActionContext {
   return context

@@ -1,3 +1,7 @@
+import { and, eq } from 'drizzle-orm'
+import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { isEqual } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
@@ -21,9 +25,6 @@ import {
   toBootConfigKey
 } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
-import { and, eq } from 'drizzle-orm'
-import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
-import { isEqual } from 'es-toolkit/compat'
 
 import { preferenceTable } from './db/schemas/preference'
 

@@ -1,6 +1,7 @@
-import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 import MessageMcpTool from '../mcp/MessageMcpTool'
 

@@ -5,8 +5,9 @@
  */
 
 import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
-import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   type AgentNotificationContext,

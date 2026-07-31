@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import type { FileEntryStats } from '@shared/data/api/schemas/files'
-import type { FileEntry } from '@shared/data/types/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import type { FileEntryStats } from '@shared/data/api/schemas/files'
+import type { FileEntry } from '@shared/data/types/file'
 
 const platformState = vi.hoisted(() => ({
   isMac: true

@@ -1,4 +1,6 @@
 import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
@@ -10,7 +12,6 @@ import {
   type KnowledgeItem,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 

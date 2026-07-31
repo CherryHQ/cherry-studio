@@ -13,9 +13,10 @@
  * per-session dispose path; `onStop`/`onDestroy` sweep whatever shutdown leaves behind.
  */
 
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'

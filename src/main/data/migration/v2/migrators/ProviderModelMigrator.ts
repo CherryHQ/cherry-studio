@@ -8,14 +8,6 @@
  * data would be written twice.
  */
 
-import { application } from '@application'
-import {
-  ENDPOINT_TYPE,
-  type EndpointType,
-  type ProtoModelConfig,
-  type ProtoProviderConfig
-} from '@cherrystudio/provider-registry'
-import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
@@ -26,6 +18,17 @@ import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeder
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
+import { desc, eq, notInArray, sql } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
+
+import { application } from '@application'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type ProtoModelConfig,
+  type ProtoProviderConfig
+} from '@cherrystudio/provider-registry'
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { isRetiredProvider } from '@main/data/retiredProviders'
@@ -39,8 +42,6 @@ import {
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { EndpointDialect } from '@shared/data/types/provider'
-import { desc, eq, notInArray, sql } from 'drizzle-orm'
-import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'

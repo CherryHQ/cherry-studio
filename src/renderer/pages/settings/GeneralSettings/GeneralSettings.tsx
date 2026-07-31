@@ -1,5 +1,10 @@
-import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { ChevronDown } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import Selector from '@renderer/components/Selector'
@@ -19,10 +24,6 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
 import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
 

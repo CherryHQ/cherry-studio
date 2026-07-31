@@ -4,13 +4,14 @@
  * reading would divide the old model's tokens by the new model's window.
  */
 import { cacheService } from '@data/CacheService'
+import { renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import type { Model } from '@shared/data/types/model'
-import { renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgentSessionContextUsage } from '../useAgentSessionContextUsage'
 

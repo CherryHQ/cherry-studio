@@ -4,10 +4,11 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { loggerService } from '@logger'
 import { sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { v5 as uuidv5 } from 'uuid'
+
+import { loggerService } from '@logger'
 
 import type { MigrationContext } from '../core/MigrationContext'
 

@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 /** Whether the user must acknowledge the latest privacy policy before continuing. */

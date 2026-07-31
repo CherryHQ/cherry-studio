@@ -1,5 +1,6 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem, type OptionItem } from '../baseConfigItem'
 import { imageGenerationToFields } from '../imageGenerationToFields'

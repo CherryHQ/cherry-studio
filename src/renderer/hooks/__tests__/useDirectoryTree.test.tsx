@@ -1,3 +1,7 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { loggerService } from '@logger'
 import type {
   CreateTreeIpcResult,
@@ -5,9 +9,6 @@ import type {
   TreeMutationEvent,
   TreeMutationPushPayload
 } from '@shared/utils/file'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { StrictMode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useDirectoryTree } from '../useDirectoryTree'
 

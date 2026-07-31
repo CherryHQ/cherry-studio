@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -10,16 +9,18 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from '../../danglingCache'
 import { createVersionCacheImpl } from '../../versionCache'
@@ -35,9 +36,8 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
 }))
 
-const { ENTRY_CLEANUP_BATCH_LIMIT, ENTRY_CLEANUP_GRACE_MS, runEntryCleanup, summariseEntryCleanup } = await import(
-  '../entryCleanup'
-)
+const { ENTRY_CLEANUP_BATCH_LIMIT, ENTRY_CLEANUP_GRACE_MS, runEntryCleanup, summariseEntryCleanup } =
+  await import('../entryCleanup')
 
 const HOUR = 60 * 60 * 1000
 

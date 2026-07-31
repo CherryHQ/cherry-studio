@@ -1,7 +1,10 @@
-import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { app, net, shell } from 'electron'
+import type { ZodType } from 'zod'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { SignatureClient } from '@main/ai/provider/cherryai'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -14,8 +17,6 @@ import {
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import { app, net, shell } from 'electron'
-import type { ZodType } from 'zod'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'

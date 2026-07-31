@@ -11,9 +11,12 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import type { MiniAppInstallationRow } from '@data/db/schemas/miniApp'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
+import { eq } from 'drizzle-orm'
+import { gt as semverGt } from 'semver'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { getAppLanguage } from '@main/i18n'
@@ -28,8 +31,6 @@ import {
   MiniAppManifestSchema,
   resolveLocalizedText
 } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
-import { gt as semverGt } from 'semver'
 
 import { miniAppActivityLog } from '../activityLog'
 import {

@@ -1,13 +1,14 @@
 import { dataApiService } from '@data/DataApiService'
-import type * as RendererConstantModule from '@renderer/utils/platform'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
-import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Cache } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 
 import { createSWRTestWrapper as makeWrapper } from './testUtils'
 

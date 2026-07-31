@@ -1,8 +1,9 @@
-import { application } from '@application'
 import type { InsertJobRow, JobRow } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   BaseService,

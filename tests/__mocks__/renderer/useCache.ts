@@ -1,3 +1,5 @@
+import { vi } from 'vitest'
+
 import type {
   InferSharedCacheValue,
   InferUseCacheValue,
@@ -9,7 +11,6 @@ import type {
   UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
-import { vi } from 'vitest'
 
 /**
  * Mock useCache hooks for testing

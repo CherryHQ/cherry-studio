@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 import type { ModelOption } from '../types/paintingModel'

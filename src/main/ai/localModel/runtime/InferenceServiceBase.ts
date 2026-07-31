@@ -1,3 +1,5 @@
+import PQueue from 'p-queue'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn } from '@main/core/lifecycle'
@@ -9,7 +11,6 @@ import type {
 } from '@main/core/utilityProcess/types'
 import { isUtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import type { LocalModelCapability } from '@shared/data/presets/localModel'
-import PQueue from 'p-queue'
 
 import { bundleForCapability } from '../catalog/catalog'
 import { localModelStorageService } from '../installation/LocalModelStorageService'

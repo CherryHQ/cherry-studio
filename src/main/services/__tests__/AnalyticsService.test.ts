@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Exercises the data-collection preference and reconcile-after-settle convergence. The reachable

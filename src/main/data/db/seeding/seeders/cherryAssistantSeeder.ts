@@ -1,9 +1,10 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
-import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
+
+import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
 import type { DbType, ISeeder } from '../../types'
 

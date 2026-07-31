@@ -1,6 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { getForegroundColor } from '@renderer/utils/style'
 import Color from 'color'
+
+import { getForegroundColor } from '@renderer/utils/style'
 
 export default function useUserTheme() {
   const [colorPrimary, setColorPrimary] = usePreference('ui.theme_user.color_primary')

@@ -1,4 +1,5 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+
 import type { JobSettledEvent } from '@main/core/job/types'
 import type { LoggerService } from '@main/core/logger/LoggerService'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'

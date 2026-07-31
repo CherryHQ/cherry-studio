@@ -1,10 +1,11 @@
+import { ChevronDown } from 'lucide-react'
+import { useMemo } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown } from 'lucide-react'
-import { useMemo } from 'react'
 
 export { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 

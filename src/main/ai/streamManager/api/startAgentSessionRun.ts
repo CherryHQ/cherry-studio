@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
+
+import { application } from '@application'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
