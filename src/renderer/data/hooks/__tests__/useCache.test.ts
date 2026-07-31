@@ -27,6 +27,8 @@ import type {
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
+import { installCacheApiMock } from './testUtils'
+
 // Undo the global mocks from renderer.setup.ts — the functional-updater tests
 // need the real wiring so the hook setter and our assertions read/write the same
 // single store. (The type-only suites below don't touch these modules at runtime.)
@@ -205,17 +207,7 @@ describe('functional updater (runtime)', () => {
   beforeEach(() => {
     // CacheService best-effort broadcasts cross-window sync through window.api.cache;
     // stub it so the in-process Map operations we assert on run without warnings.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        cache: {
-          broadcastSync: vi.fn(),
-          onSync: vi.fn(),
-          onSyncBatch: vi.fn(),
-          getAllShared: vi.fn(async () => ({}))
-        }
-      }
-    })
+    installCacheApiMock()
 
     // Reset the singleton keys these suites touch (state persists across tests).
     cacheService.set('chat.selected_message_ids', [])

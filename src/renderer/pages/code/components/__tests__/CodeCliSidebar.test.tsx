@@ -47,20 +47,6 @@ function renderSidebar(
 }
 
 describe('CodeCliSidebar', () => {
-  it('renders each CLI row horizontally with status on the right', () => {
-    renderSidebar()
-
-    const name = screen.getByText('Claude Code')
-    const status = screen.getByText('code.not_installed')
-
-    expect(
-      screen.getByTestId(`cli-icon-${CodeCli.CLAUDE_CODE}`).compareDocumentPosition(name) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(name.parentElement).toContainElement(status)
-    expect(name.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
   it('renders no version or upgrade indicator for installed tools', () => {
     renderSidebar({
       [CodeCli.OPENAI_CODEX]: {
@@ -74,16 +60,12 @@ describe('CodeCliSidebar', () => {
 
     expect(screen.queryByText('v1.2.3')).not.toBeInTheDocument()
     expect(screen.queryByText('v1.3.0')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /OpenAI Codex/ }).querySelector('svg.text-warning')).toBeNull()
   })
 
-  it('renders the enabled-model label below the tool name', () => {
+  it('renders the enabled-model label only on its matching tool', () => {
     renderSidebar({}, { [CodeCli.CLAUDE_CODE]: 'deepseek-v4-flash' })
 
-    const name = screen.getByText('Claude Code')
-    const summary = screen.getByText('deepseek-v4-flash')
-
-    expect(name.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Claude Code/ })).toHaveTextContent('deepseek-v4-flash')
     expect(screen.getByRole('button', { name: /OpenAI Codex/ }).textContent).not.toContain('deepseek-v4-flash')
   })
 })

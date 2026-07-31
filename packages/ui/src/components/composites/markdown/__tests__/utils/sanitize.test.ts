@@ -117,4 +117,20 @@ describe('Markdown sanitize schema', () => {
     expect(output).toContain('<span data-composer-token-index="0" data-composer-token-block="block-1"></span>')
     expect(output).not.toContain('onclick')
   })
+
+  it('keeps only opaque numeric citation ids', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process('<sup data-citation="2">2</sup><sup data-citation=\'{"url":"https://attacker.example"}\'>3</sup>')
+    )
+
+    expect(output).toContain('<sup data-citation="2">2</sup>')
+    expect(output).toContain('<sup>3</sup>')
+    expect(output).not.toContain('attacker.example')
+  })
 })

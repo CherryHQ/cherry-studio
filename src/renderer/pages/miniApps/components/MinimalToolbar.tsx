@@ -9,7 +9,7 @@ import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, ExternalLink, Link, Pin, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Code, ExternalLink, LayoutGrid, Link, RotateCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -298,7 +298,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 className={toolbarButtonClassName({ active: isPinned })}
                 aria-label={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
                 aria-pressed={isPinned}>
-                <Pin size={14} />
+                <LayoutGrid size={14} />
               </Button>
             </Tooltip>
           )}

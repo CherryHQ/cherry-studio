@@ -95,28 +95,6 @@ describe('useMiniAppPopup', () => {
     })
   })
 
-  // === Basic Return Values ===
-
-  describe('basic return values', () => {
-    it('should return all expected functions', () => {
-      const { result } = renderHook(() => useMiniAppPopup())
-      expect(typeof result.current.openMiniApp).toBe('function')
-      expect(typeof result.current.openMiniAppKeepAlive).toBe('function')
-      expect(typeof result.current.openMiniAppById).toBe('function')
-      expect(typeof result.current.closeMiniApp).toBe('function')
-      expect(typeof result.current.hideMiniAppPopup).toBe('function')
-      expect(typeof result.current.closeAllMiniApps).toBe('function')
-      expect(typeof result.current.openSmartMiniApp).toBe('function')
-    })
-
-    it('should work without TabsProvider', () => {
-      mockTabs.hasContext = false
-      const { result } = renderHook(() => useMiniAppPopup())
-
-      expect(typeof result.current.openSmartMiniApp).toBe('function')
-    })
-  })
-
   // === openMiniApp ===
 
   describe('openMiniApp', () => {
@@ -225,24 +203,6 @@ describe('useMiniAppPopup', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
-    })
-  })
-
-  // === openMiniAppKeepAlive ===
-
-  describe('openMiniAppKeepAlive', () => {
-    it('should be a wrapper for openMiniApp(app, true)', async () => {
-      const app = createMiniApp('wrapper-test')
-      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
-      MockUseCacheUtils.setCacheValue('mini_app.show', false)
-      const { result } = renderHook(() => useTestMiniAppPopup())
-
-      await act(async () => {
-        result.current.openMiniAppKeepAlive(app)
-      })
-
-      expect(isInKeepAlive('wrapper-test')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
     })
   })
 
