@@ -84,7 +84,7 @@ export function AgentToolCallCard({
       />
     ),
     classNames: {
-      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
   const canShowInlineDetails =

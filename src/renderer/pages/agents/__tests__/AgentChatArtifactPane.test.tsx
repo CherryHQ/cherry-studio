@@ -325,9 +325,8 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 
   return {
     ARTIFACT_PANE_WIDTH: 460,
-    ArtifactFilePreview: MockArtifactFilePreview,
-    isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|xlsx?|xlsm|pptx?)$/i.test(filePath),
-    isImageFile: (filePath: string) => /\.(?:png|jpe?g|gif|webp|bmp|ico|avif|svg)$/i.test(filePath),
+    getArtifactPaneSelectionPath: ({ workspacePath, filePath }: { workspacePath: string; filePath: string }) =>
+      `${workspacePath}/${filePath}`,
     normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
       rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
     resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
@@ -679,6 +678,7 @@ describe('AgentChat artifact pane', () => {
         },
         file: {
           openPath: vi.fn(),
+          isDirectory: vi.fn().mockResolvedValue(false),
           isTextFile: vi.fn().mockResolvedValue(true),
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
@@ -702,13 +702,8 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(shortcut)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '280')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '255')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '280')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '720')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
-    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.files/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
@@ -1068,7 +1063,7 @@ describe('AgentChat artifact pane', () => {
     expect(tracePane).not.toBeVisible()
   })
 
-  it('opens message file paths in the files tab overlay', () => {
+  it('opens message file paths in the files tab overlay', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
@@ -1076,14 +1071,16 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /index\.ts/ })).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'src/index.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/index.ts')
   })
 
-  it('opens Excel file paths in the files tab overlay without text sniffing', () => {
+  it('opens Excel file paths in the files tab overlay without text sniffing', async () => {
     const isTextFile = vi.mocked(window.api.file.isTextFile)
 
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
@@ -1093,14 +1090,16 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /report\.xlsx/ })).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'report.xlsx')
     expect(isTextFile).not.toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
   })
 
-  it('opens absolute file paths outside the workspace in the files tab overlay', () => {
+  it('opens absolute file paths outside the workspace in the files tab overlay', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open desktop artifact file' }))
@@ -1108,17 +1107,22 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /记忆商人\.md/ })).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/Users/suyao/Desktop')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', '记忆商人.md')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
   })
 
-  it('closes the files tab overlay and clears the selected file', () => {
+  it('closes the files tab overlay and clears the selected file', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close' }))
 
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()

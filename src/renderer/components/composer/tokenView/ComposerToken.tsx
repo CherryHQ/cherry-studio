@@ -435,7 +435,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-neutral-100 px-5 py-4 text-center text-foreground-secondary text-sm dark:bg-neutral-800"
+        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -464,7 +464,7 @@ function FileTokenPreviewCard({
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
-                <span className="text-border-muted">·</span>
+                <span className="text-foreground-tertiary">·</span>
                 <span className="shrink-0">{sizeLabel}</span>
               </>
             )}
@@ -721,7 +721,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName="size-full rounded-[5px] bg-neutral-100 text-foreground dark:bg-neutral-800"
+          removeButtonClassName="size-full rounded-[5px] bg-muted text-foreground"
           removeIconClassName="size-3"
         />
       </span>

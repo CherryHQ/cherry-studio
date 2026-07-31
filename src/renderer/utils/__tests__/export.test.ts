@@ -2,6 +2,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as MessageFind from '@renderer/utils/message/find'
 import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // --- Mocks Setup ---
@@ -20,7 +21,10 @@ beforeEach(() => {
 })
 
 // Mock the find utility functions - crucial for the test
-vi.mock('@renderer/utils/message/find', () => ({
+vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
+  // `[cite:id]` resolution is the behaviour under test in the copy case below,
+  // so keep the real implementation rather than restating it as a mock.
+  getToolCitationExport: (await importOriginal<typeof MessageFind>()).getToolCitationExport,
   // Gated copy/naming variant — text-only here (the mock never synthesises
   // code/error/translation), which already matches dropping error/translation.
   getNamingTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
@@ -290,6 +294,30 @@ describe('export', () => {
 
       expect(result).toBe('/pdf/ hello')
       expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
+    })
+
+    it('should resolve tool citation markers to plain numbers before copying', () => {
+      // Left in place, `remove-markdown` mangles a chain of markers down to a bare
+      // `cite:<id>` and the internal id lands on the clipboard.
+      const testMessage = createExportView([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [
+            { id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' },
+            { id: '3f2a1b9c-2', title: 'Second', url: 'https://b.com/y', content: 'beta' }
+          ]
+        },
+        { type: 'text', text: 'Prices rose. [cite:3f2a1b9c-1][cite:3f2a1b9c-2]' }
+      ])
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const result = messageToPlainText(testMessage)
+
+      expect(result).toBe('Prices rose. [1][2]')
+      expect(result).not.toContain('cite:')
     })
   })
 

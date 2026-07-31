@@ -259,13 +259,6 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
-  const isDirectory = useCallback(
-    (path: string) => {
-      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
-  )
-
   const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
     const open = leafCapabilities.openInExternalApp
     if (!open) return undefined
@@ -423,7 +416,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
-      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -441,7 +433,6 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
-      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

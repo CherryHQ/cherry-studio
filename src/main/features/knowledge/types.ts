@@ -22,6 +22,9 @@ export type KnowledgeProgressDetail =
       totalFiles: number
     }
   | {
+      stage: 'copying'
+    }
+  | {
       stage: 'scanning'
     }
   | {

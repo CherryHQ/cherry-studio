@@ -108,7 +108,7 @@ describe('MigrationDiagnosticPanel', () => {
     ).toBeInTheDocument()
     const section = container.querySelector('section')
     expect(section).toHaveClass('space-y-3', 'rounded-xl', 'border', 'border-border', 'bg-muted/15', 'px-4', 'py-3')
-    expect(section).not.toHaveClass('border-warning', 'bg-warning-bg')
+    expect(section).not.toHaveClass('border-warning', 'bg-warning-subtle')
     expect(screen.queryByTestId('toast-host')).not.toBeInTheDocument()
   })
 
