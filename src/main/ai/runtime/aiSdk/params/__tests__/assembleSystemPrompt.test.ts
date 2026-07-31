@@ -110,7 +110,8 @@ describe('assembleSystemPrompt', () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),
       model,
-      tools: { web_search: {} } as unknown as ToolSet
+      tools: { web_search: {} } as unknown as ToolSet,
+      hasCitableTools: true
     })
     expect(out).toContain('<citations>')
     expect(out).toContain('[cite:ID]')
@@ -120,7 +121,8 @@ describe('assembleSystemPrompt', () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),
       model,
-      tools: { kb_search: {} } as unknown as ToolSet
+      tools: { kb_search: {} } as unknown as ToolSet,
+      hasCitableTools: true
     })
     expect(out).toContain('<citations>')
   })
@@ -129,7 +131,8 @@ describe('assembleSystemPrompt', () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),
       model,
-      tools: { kb_read: {} } as unknown as ToolSet
+      tools: { kb_read: {} } as unknown as ToolSet,
+      hasCitableTools: true
     })
     expect(out).toContain('<citations>')
   })
@@ -139,7 +142,8 @@ describe('assembleSystemPrompt', () => {
       assistant: makeAssistant({ prompt: 'base' }),
       model,
       tools: { tool_search: {} } as unknown as ToolSet,
-      deferredEntries: [{ name: 'web_search', namespace: 'web' }] as never
+      deferredEntries: [{ name: 'web_search', namespace: 'web' }] as never,
+      hasCitableTools: true
     })
     expect(out).toContain('<citations>')
   })
@@ -149,6 +153,16 @@ describe('assembleSystemPrompt', () => {
       assistant: makeAssistant({ prompt: 'base' }),
       model,
       tools: { other_tool: {}, kb_list: {} } as unknown as ToolSet
+    })
+    expect(out).toBe('base')
+  })
+
+  it('does not infer citation capability from a same-named final tool', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { web_search: {} } as unknown as ToolSet,
+      hasCitableTools: false
     })
     expect(out).toBe('base')
   })

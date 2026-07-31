@@ -682,6 +682,29 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.systemPrompt as string).not.toContain('## Citations')
   })
 
+  it('omits citation guidance when dependency propagation blocks every lookup tool', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: ['kb-1'],
+      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch', 'mcp__cherry-tools__kb_search'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
+    expect(settings.systemPrompt as string).not.toContain('## Citations')
+  })
+
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

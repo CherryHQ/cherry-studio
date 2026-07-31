@@ -413,7 +413,8 @@ export async function buildClaudeCodeSessionSettings(
     cwd,
     linkedChannelSnapshot !== null,
     agentDataPath,
-    knowledgeBaseScope
+    knowledgeBaseScope,
+    disallowedTools
   )
 
   // 6. MCP servers (session + built-in)
@@ -1217,7 +1218,9 @@ export async function buildSystemPrompt(
   channelLinked?: boolean,
   agentDataPath = cwd,
   /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
-  knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? []
+  knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
+  /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
+  disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd })
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
 
@@ -1247,8 +1250,8 @@ export async function buildSystemPrompt(
   // Channel security (still scoped per session — channels link to a session)
   const isChannelLinked = channelLinked ?? Boolean(channelService.findBySessionId(session.id))
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
-  const disabledTools = new Set(agent.disabledTools ?? [])
-  const isLookupEnabled = (toolName: string) => !disabledTools.has(toCherryBuiltinRuntimeName(toolName))
+  const unavailableTools = new Set(disallowedTools)
+  const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
   const citationsGuidance = buildCitationsGuidance({
     web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
     kb: knowledgeBaseIds.length > 0 && (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
