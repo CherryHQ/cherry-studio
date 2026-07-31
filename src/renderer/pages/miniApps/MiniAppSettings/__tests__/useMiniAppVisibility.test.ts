@@ -63,7 +63,7 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.hide(mocks.miniApps[0]))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('miniApp.hide_failed')
+      expect(toast.error).toHaveBeenCalledWith('Internal error: hide failed')
     })
   })
 
