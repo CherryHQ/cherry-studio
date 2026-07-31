@@ -34,6 +34,10 @@ interface Props {
   isLatestAssistantGroup?: boolean
   directAssistantModelsByUserId?: ReadonlyMap<string, Model[]>
   onMultiModelMessageStyleChange?: (style: MultiModelMessageStyle) => void
+  messageTail?: {
+    messageId: string
+    content: ReactNode
+  }
 }
 
 function pickPreferredSelectedMessage(
@@ -55,7 +59,8 @@ const MessageGroup = ({
   registerMessageElement,
   isLatestAssistantGroup = false,
   directAssistantModelsByUserId,
-  onMultiModelMessageStyleChange
+  onMultiModelMessageStyleChange,
+  messageTail
 }: Props) => {
   const messageLength = messages.length
 
@@ -301,6 +306,7 @@ const MessageGroup = ({
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
         showModelIdentity: isMultiModelGroup && multiModelMessageStyle !== 'fold',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
+        messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
         topic,
@@ -362,7 +368,8 @@ const MessageGroup = ({
       onSelectContext,
       groupContextMessageId,
       gridPopoverTrigger,
-      partsByMessageId
+      partsByMessageId,
+      messageTail
     ]
   )
 
@@ -528,6 +535,7 @@ export default memo(MessageGroup, (prev, next) => {
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
+    prev.messageTail === next.messageTail &&
     messageArrayShallowEqual(prev.messages, next.messages) &&
     messagePartsShallowEqual(prev.partsByMessageId, next.partsByMessageId, prev.messages)
   )

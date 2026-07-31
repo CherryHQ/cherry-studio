@@ -38,13 +38,12 @@ describe('ConversationStageCenter', () => {
     optionalPresentationState.value = undefined
   })
 
-  it('provides the shared full-height center frame around the composer stage', () => {
-    const { container } = render(
-      <ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />
-    )
+  it('forwards the placement and stage content', () => {
+    render(<ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />)
 
-    expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'flex-1')
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('stage-main')).toHaveTextContent('messages')
+    expect(screen.getByTestId('stage-composer')).toHaveTextContent('composer')
   })
 
   it('elevates the composer when the right panel is maximized', () => {

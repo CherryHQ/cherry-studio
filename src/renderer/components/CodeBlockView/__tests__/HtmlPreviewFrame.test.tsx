@@ -23,6 +23,14 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
   })
 
+  it('uses a white browser canvas when the HTML does not declare a background', () => {
+    const { container } = render(<HtmlPreviewFrame html="<main>Preview</main>" title="common.html_preview" />)
+    const iframe = container.querySelector('iframe')
+
+    expect(iframe).toHaveClass('bg-white')
+    expect(iframe?.parentElement).toHaveClass('bg-white')
+  })
+
   it('renders untrusted local files in a fully restricted, script-less sandbox with a strict CSP', () => {
     const { container } = render(
       <HtmlPreviewFrame
@@ -54,6 +62,15 @@ describe('HtmlPreviewFrame', () => {
     expect(result).toContain(`<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_RESTRICTED_CSP}">`)
     // The meta must precede the body content it governs.
     expect(result.indexOf('Content-Security-Policy')).toBeLessThan(result.indexOf('hi'))
+  })
+
+  it('does not inject security elements into a fake head inside a comment', () => {
+    const html = '<!-- <head> -->\n<img src="ht&#x0A;tps://example.com/pixel">'
+    const result = injectHtmlPreviewCsp(injectHtmlPreviewBase(html), HTML_PREVIEW_RESTRICTED_CSP)
+
+    expect(result.indexOf('Content-Security-Policy')).toBeGreaterThan(result.indexOf('-->'))
+    expect(result.indexOf('Content-Security-Policy')).toBeLessThan(result.indexOf('<img'))
+    expect(result).toContain('<head><meta http-equiv="Content-Security-Policy"')
   })
 
   it('uses the provided file base URL for relative links in local artifact previews', () => {

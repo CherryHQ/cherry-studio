@@ -139,11 +139,16 @@
         "description": "Nhận và phản hồi tin nhắn qua WeChat bằng API iLink Bot.",
         "disconnected": "Chưa đăng nhập",
         "loginHint": "Lần đăng nhập đầu tiên yêu cầu quét mã QR. Một mã QR sẽ tự động xuất hiện khi kênh kết nối.",
+        "qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
         "qrHint": "Mở WeChat trên điện thoại của bạn, quét mã QR để đăng nhập.",
         "qrTitle": "Đăng nhập bằng mã QR WeChat",
         "title": "WeChat",
         "whoamiTip": "Mẹo: Gửi /whoami trong WeChat để lấy ID của người dùng."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Xóa tác nhân sẽ buộc dừng và xóa tất cả các phiên liên kết với tác nhân này. Bạn có chắc chắn không?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
         "no_subagents": "Không có đại lý phụ",
-        "subagents": "Đại lý phụ"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Đại lý phụ",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Hoạt động",
         "agent": "Đại lý",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Công cụ đã chọn",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
         "tools_failed": "Thất bại",
@@ -434,12 +448,19 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
+        "unknown_agent_tip": "Đây là một nhóm phiên lịch sử không có agent, không phải là agent thực tế. Nó chỉ có thể xem và không thể tiếp tục chạy.",
         "yesterday": "Hôm qua"
       },
       "label_one": "Phiên",
       "label_other": " sessions",
       "list": {
         "title": "Nhiệm vụ"
+      },
+      "model_switch_confirm": {
+        "confirm": "Chuyển đổi mô hình",
+        "description": "Các mô hình khác nhau có thể hiểu và xử lý ngữ cảnh theo cách khác nhau. Việc chuyển đổi có thể ảnh hưởng đến tính liên tục hoặc chất lượng của các phản hồi tiếp theo. Bạn có muốn tiếp tục không?",
+        "skip_for_app_run": "Đừng hỏi lại cho đến khi tôi thoát ứng dụng",
+        "title": "Chuyển sang \"{{model}}\"?"
       },
       "new": "Nhiệm vụ mới",
       "pin": {
@@ -607,12 +628,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Có thể đọc và chỉnh sửa tập tin tự do. Hỏi trước khi chạy lệnh.",
-            "title": "Chế độ tự động chỉnh sửa"
+            "description": "Chỉnh sửa tệp tự do. Hỏi trước khi chạy lệnh.",
+            "title": "Tự động chấp nhận chỉnh sửa"
+          },
+          "auto": {
+            "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
+            "title": "Phê duyệt thay tôi",
+            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi."
           },
           "bypassPermissions": {
-            "description": "Có thể làm mọi thứ mà không cần hỏi. Dùng một cách thận trọng.",
-            "title": "Chế độ Tự động Hoàn toàn",
+            "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
+            "title": "Toàn quyền truy cập",
             "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt."
           },
           "confirmChange": {
@@ -620,14 +646,14 @@
             "title": "Thay đổi chế độ quyền?"
           },
           "default": {
-            "description": "Có thể đọc tập tin tự do. Hỏi trước khi chỉnh sửa hoặc chạy lệnh.",
-            "title": "Chế độ Thường"
+            "description": "Hỏi trước khi chỉnh sửa tệp hoặc chạy lệnh.",
+            "title": "Hỏi trước khi thực hiện"
           },
           "helper": "Chọn cách tác nhân xử lý việc phê duyệt công cụ.",
           "placeholder": "Chọn chế độ quyền",
           "plan": {
-            "description": "Chỉ có thể đọc tệp và lập kế hoạch. Không thể chỉnh sửa tệp hoặc chạy lệnh.",
-            "title": "Chế độ Kế hoạch"
+            "description": "Lập kế hoạch mà không chỉnh sửa tệp. Chỉ chạy các lệnh chỉ đọc hoặc đã được kiểm duyệt.",
+            "title": "Chỉ lập kế hoạch"
           },
           "title": "Chế độ quyền"
         },
@@ -663,6 +689,14 @@
       }
     },
     "sidebar_title": "Đại lý",
+    "speed": {
+      "effort": "Nỗ lực",
+      "fast": "Nhanh",
+      "faster": "Nhanh hơn",
+      "label": "Tốc độ",
+      "smarter": "Thông minh hơn",
+      "title": "Cài đặt phản hồi"
+    },
     "tasks": {
       "add": "Thêm Nhiệm vụ",
       "cancel": "Hủy",
@@ -1234,10 +1268,6 @@
           "tip": "Trợ lý sẽ sử dụng khả năng nhận diện ý định của mô hình lớn để xác định xem có nên sử dụng cơ sở tri thức để trả lời hay không. Tính năng này sẽ phụ thuộc vào khả năng của mô hình"
         }
       },
-      "max_tool_calls": {
-        "label": "Số lần gọi công cụ tối đa",
-        "tip": "Số lượng tối đa các lệnh gọi công cụ được phép trong một cuộc trò chuyện. Giá trị cao hơn cho phép thực hiện các thao tác nhiều bước phức tạp hơn nhưng có thể làm tăng lượng token sử dụng và thời gian phản hồi."
-      },
       "mcp": {
         "description": "Servidores MCP habilitados por defecto",
         "enableFirst": "Bật máy chủ này trong cài đặt MCP trước",
@@ -1443,9 +1473,8 @@
       "image_preview_failed": "Xem trước hình ảnh thất bại",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
-      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
+      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ",
       "locate_editing_message": "Định vị thông điệp gốc",
-      "mcp_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
       "new": {
         "context": "Clear Context"
       },
@@ -1551,6 +1580,7 @@
         },
         "open_file": "Mở Tệp",
         "open_file_error": "Không mở được tệp: {{path}}",
+        "open_with": "Mở bằng",
         "reveal_in_finder": "Hiển thị trong Finder"
       },
       "topics": "Chủ đề",
@@ -1585,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Không thể chuyển đổi sang định dạng cuộc gọi công cụ hợp lệ: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
-        "multiple_tools": "Tồn tại nhiều công cụ MCP khớp, {{tool}} đã được chọn",
-        "no_tool": "Không tìm thấy công cụ MCP phù hợp cho {{tool}}",
         "url_context": "Gemini không hỗ trợ sử dụng ngữ cảnh url và gọi hàm đồng thời"
       }
     },
@@ -1633,17 +1658,17 @@
       "token_details": {
         "cache_read": "Đọc bộ nhớ đệm",
         "cache_write": "Ghi vào bộ nhớ đệm",
-        "cost": "[to be translated]:Cost",
-        "cost_billed": "[to be translated]:Billed by provider",
-        "cost_estimated": "[to be translated]:Estimated",
-        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
+        "cost": "Chi phí",
+        "cost_billed": "Thanh toán bởi nhà cung cấp",
+        "cost_estimated": "Ước tính",
+        "end_to_end_throughput": "Thông lượng đầu cuối",
         "input": "Đầu vào",
         "input_breakdown": "Phân tích đầu vào",
-        "lane_approval": "[to be translated]:Approval",
-        "lane_model": "[to be translated]:Model",
-        "lane_other": "[to be translated]:Other",
-        "lane_tool": "[to be translated]:Tool",
-        "model_throughput": "[to be translated]:Model generation TPS",
+        "lane_approval": "Phê duyệt",
+        "lane_model": "Mô hình",
+        "lane_other": "Khác",
+        "lane_tool": "Công cụ",
+        "model_throughput": "TPS tạo mô hình",
         "output": "Kết quả đầu ra",
         "reasoning": "Lý luận",
         "reasoning_time": "Suy luận",
@@ -1652,7 +1677,7 @@
         "text_output": "Đầu ra văn bản",
         "tokens": "{{value}} Mã thông báo",
         "tokens_per_second_value": "{{value}} Token/giây",
-        "total_duration": "[to be translated]:End-to-end duration",
+        "total_duration": "Thời lượng từ đầu đến cuối",
         "uncached": "Uncached",
         "usage": "Sử dụng token",
         "waiting_first_token": "Đang chờ"
@@ -1926,6 +1951,7 @@
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
+        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục.",
         "yesterday": "Hôm qua"
       },
       "list": "Daftar Topik",
@@ -2293,6 +2319,12 @@
     "generate_random_seed": "Tạo hạt giống ngẫu nhiên",
     "get_embedding_dimension": "Lấy kích thước embedding",
     "go_to_settings": "Đi tới cài đặt",
+    "group": {
+      "create": "Nhóm mới",
+      "create_failed": "Không thể tạo nhóm",
+      "name_placeholder": "Nhập tên nhóm...",
+      "name_required": "Tên nhóm là bắt buộc"
+    },
     "help": "Giúp đỡ",
     "html_preview": "Xem trước HTML",
     "i_know": "Tôi biết",
@@ -2320,7 +2352,7 @@
     "open_in": "Mở trong {{name}}",
     "open_in_new_tab": "Mở trong tab mới",
     "open_sidebar": "Mở thanh bên",
-    "other": "[to be translated]:Other",
+    "other": "Khác",
     "placeholders": {
       "select": {
         "model": "Chọn một mô hình"
@@ -2879,6 +2911,10 @@
     "code": "Mã",
     "empty_preview": "Không có nội dung để hiển thị",
     "generating": "Tạo",
+    "interactive_preview": {
+      "action": "Xem trang web",
+      "description": "Trang web này chứa tập lệnh hoặc tài nguyên bên ngoài. Khi mở, trang có thể chạy mã và kết nối Internet."
+    },
     "preview": "Xem trước",
     "split": "Tách",
     "view_mode": "Chế độ xem"
@@ -3422,6 +3458,7 @@
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
+        "max_tool_calls_default": "Mặc định ({{count}} vòng)",
         "mcp_mode": "Chế độ MCP",
         "model": "Mô hình mặc định",
         "model_clear": "Rõ ràng",
@@ -3437,8 +3474,7 @@
         "tags": "Thẻ",
         "temperature": "Nhiệt độ",
         "title": "Cài đặt cơ bản",
-        "top_p": "Top-P",
-        "unlimited": "Không giới hạn"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Thư viện",
       "dialogs": {
@@ -3812,6 +3848,7 @@
     },
     "citation": "{{count}} trích dẫn",
     "citations": "Tài liệu tham khảo",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Đã sao chép!",
     "copy": {
       "failed": "Sao chép thất bại",
@@ -4093,6 +4130,7 @@
         "write": "Lưu",
         "writing": "Tiết kiệm"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
@@ -4124,6 +4162,7 @@
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
         "webSearch": "Tìm kiếm trên web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Viết"
       },
       "noData": "Không có dữ liệu nào cho công cụ này",
@@ -4181,6 +4220,15 @@
         "plan_other": "{{count}} gói",
         "result_one": "{{count}} kết quả",
         "result_other": "{{count}} kết quả"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -4323,7 +4371,7 @@
     },
     "pinned": "Đã ghim",
     "price": {
-      "cache_read": "[to be translated]:Cache Read Price",
+      "cache_read": "Giá Đọc Cache",
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
@@ -5220,6 +5268,7 @@
       "label": "Bạn có chắc chắn muốn khôi phục dữ liệu không?"
     },
     "content": "Thao tác khôi phục sẽ ghi đè toàn bộ dữ liệu ứng dụng hiện tại bằng dữ liệu sao lưu. Xin lưu ý rằng quá trình khôi phục có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
+    "messages_paused": "Đang khôi phục bản sao lưu; các tin nhắn mới đã tạm dừng cho đến khi hoàn tất.",
     "progress": {
       "completed": "Khôi phục hoàn tất",
       "copying_files": "Sao chép tệp... {{progress}}%",
@@ -5727,6 +5776,7 @@
         "button": "Bản phát hành",
         "title": "Ghi chú phát hành"
       },
+      "repository": "Kho lưu trữ GitHub",
       "social": {
         "title": "Tài khoản mạng xã hội"
       },
@@ -6586,7 +6636,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Việc tắt tăng tốc phần cứng cần khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+        "content_disable": "Tắt tăng tốc phần cứng cần khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
+        "content_enable": "Bật tăng tốc phần cứng yêu cầu khởi động lại ứng dụng để có hiệu lực. Bạn có muốn khởi động lại ngay bây giờ không?",
         "title": "Yêu cầu khởi động lại"
       },
       "title": "Tắt Tăng tốc Phần cứng"
@@ -6641,9 +6692,6 @@
           "dxtFile": "Tệp gói DXT",
           "dxtHelp": "Chọn một tệp .dxt chứa gói máy chủ MCP",
           "dxtProcessFailed": "Không thể xử lý tệp DXT",
-          "error": {
-            "multipleServers": "Không thể nhập từ nhiều máy chủ"
-          },
           "invalid": "Đầu vào không hợp lệ, vui lòng kiểm tra định dạng JSON",
           "json": "Nhập từ JSON",
           "mcpb": "Nhập gói MCPB",
@@ -6797,6 +6845,15 @@
       "providers": "Nhà cung cấp",
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
+      "registryOptions": {
+        "custom": "Tùy chỉnh",
+        "npmTaobao": "Gương NPM Taobao",
+        "pipAliyun": "Alibaba Cloud",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Thanh Hoa",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Chọn registry để cài đặt gói nhằm khắc phục các vấn đề mạng với registry mặc định.",
       "requiresConfig": "Yêu cầu cấu hình",
       "resources": {
@@ -6972,6 +7029,7 @@
         "display": "Quản lý hiển thị",
         "preferences": "Tùy chọn"
       },
+      "hide_app": "Ẩn {{name}}",
       "open_link_external": {
         "description": "Khi được bật, các liên kết mở cửa sổ mới trong mini app sẽ mở trong trình duyệt mặc định của bạn",
         "title": "Mở liên kết cửa sổ mới trong trình duyệt"
@@ -6984,6 +7042,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
+      "show_app": "Hiển thị {{name}}",
       "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
     },
@@ -7684,6 +7743,13 @@
           "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
           "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
         }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Mở Token Factory",
+          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
+          "title": "10 USD tín dụng API miễn phí mỗi ngày"
+        }
       }
     },
     "proxy": {
@@ -8118,104 +8184,104 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "cacheHitRate": "[to be translated]:Cache hit rate",
-        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
-        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "dailyAverage": "[to be translated]:Daily average",
-        "explicitApiKey": "[to be translated]:Selected key",
-        "lastPeriod": "[to be translated]:vs last period",
-        "matchedApiKey": "[to be translated]:Matched override",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "providerAuth": "[to be translated]:Provider auth",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalRequests": "[to be translated]:Requests",
-        "totalTokens": "[to be translated]:Total tokens",
-        "unattributedApiKey": "[to be translated]:Unattributed request",
-        "unattributedSource": "[to be translated]:Unattributed source"
+        "activeDays": "Ngày hoạt động",
+        "cacheHitRate": "Tỷ lệ truy cập bộ nhớ đệm thành công",
+        "cacheObservedTokens": "Đầu vào có thể quan sát: {{tokens}}",
+        "cacheStartsWithNewRequests": "Bắt đầu với các yêu cầu mới",
+        "dailyAverage": "Trung bình hàng ngày",
+        "explicitApiKey": "Phím được chọn",
+        "lastPeriod": "so với kỳ trước",
+        "matchedApiKey": "Ghi đè phù hợp",
+        "none": "N/A",
+        "peakDay": "Ngày cao điểm",
+        "providerAuth": "Xác thực nhà cung cấp",
+        "streak": "Chuỗi dài nhất: {{days}} ngày",
+        "topModel": "Siêu mẫu hàng đầu",
+        "totalCost": "Tổng chi phí",
+        "totalRequests": "Yêu cầu",
+        "totalTokens": "Tổng số token",
+        "unattributedApiKey": "Yêu cầu không được ghi nhận nguồn",
+        "unattributedSource": "Nguồn không được ghi nhận"
       },
       "chart": {
-        "bar": "[to be translated]:Bar",
-        "line": "[to be translated]:Line",
-        "pie": "[to be translated]:Pie",
-        "stack": "[to be translated]:Stack"
+        "bar": "Bar",
+        "line": "Dòng",
+        "pie": "Bánh pie",
+        "stack": "Ngăn xếp"
       },
-      "currency": "[to be translated]:Currency",
+      "currency": "Tiền tệ",
       "empty": {
-        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Mức sử dụng xuất hiện sau khi các yêu cầu AI được hỗ trợ tạo ra các bản ghi mức sử dụng.",
+        "title": "Chưa có lượt sử dụng nào"
       },
       "explore": {
-        "analysis": "[to be translated]:Analysis",
-        "chart": "[to be translated]:Chart",
-        "clearDate": "[to be translated]:Clear date filter",
-        "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "[to be translated]:Requests",
-        "groupBy": "[to be translated]:Group by",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "metric": "[to be translated]:Metric",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "rollup": "[to be translated]:Rollup",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "shareLabel": "[to be translated]:Share",
-        "title": "[to be translated]:Explore",
-        "top": "[to be translated]:Top",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
-        "totalEntries_other": "[to be translated]:{{count}} entries"
+        "analysis": "Phân tích",
+        "chart": "Biểu đồ",
+        "clearDate": "Xóa bộ lọc ngày",
+        "drilldownTitle": "Phân tích chi tiết {{date}}",
+        "entries": "Yêu cầu",
+        "groupBy": "Nhóm theo",
+        "loadMore": "Tải thêm",
+        "loading": "Đang tải...",
+        "metric": "Métrik",
+        "noBreakdown": "Không có dữ liệu chi tiết",
+        "noBreakdownDescription": "Thử một cửa sổ rộng hơn hoặc nhà cung cấp khác.",
+        "noEntries": "Không có mục nào",
+        "noEntriesDescription": "Thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
+        "rollup": "Cuộn lên / Tổng hợp (tùy ngữ cảnh)",
+        "selectedDate": "Ngày đã chọn: {{date}}",
+        "shareLabel": "Chia sẻ",
+        "title": "Khám phá",
+        "top": "Đầu",
+        "totalEntries_one": "{{count}} mục",
+        "totalEntries_other": "{{count}} mục"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "source": "[to be translated]:Assistant / Agent"
+        "apiKey": "Khóa API",
+        "model": "Mô hình",
+        "provider": "Nhà cung cấp",
+        "source": "Trợ lý / Đại lý"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Sử dụng vào {{date}}",
+        "title": "Hoạt động hàng ngày"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "requests": "[to be translated]:Requests",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Chi phí",
+        "requests": "Yêu cầu",
+        "tokens": "Token"
       },
       "overview": {
-        "title": "[to be translated]:Overview"
+        "title": "Tổng quan"
       },
       "rollup": {
-        "daily": "[to be translated]:Daily",
-        "monthly": "[to be translated]:Monthly",
-        "total": "[to be translated]:Total",
-        "weekly": "[to be translated]:Weekly"
+        "daily": "Hàng ngày",
+        "monthly": "Hàng tháng",
+        "total": "Tổng cộng",
+        "weekly": "Hàng tuần"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "summary": "{{window}} / {{tokens}} token / {{requests}} yêu cầu",
       "table": {
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "model": "[to be translated]:Model",
-        "source": "[to be translated]:Source",
-        "tokens": "[to be translated]:Tokens",
-        "tps": "[to be translated]:TPS",
-        "tpsValue": "[to be translated]:{{value}} tok/s",
-        "ttft": "[to be translated]:TTFT"
+        "cost": "Chi phí",
+        "date": "Ngày",
+        "model": "Mô hình",
+        "source": "Nguồn",
+        "tokens": "Token",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "[to be translated]:Usage Analytics",
+      "title": "Phân tích sử dụng",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
-        "requests_other": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Chi phí {{value}}",
+        "requests_one": "{{count}} yêu cầu",
+        "requests_other": "{{count}} yêu cầu",
+        "tokens": "{{value}} token"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days"
+        "30d": "30 ngày qua",
+        "365d": "Năm ngoái",
+        "90d": "90 ngày qua"
       }
     },
     "use_system_title_bar": {
@@ -8393,6 +8459,7 @@
         "placeholder": "Buscar historial de traducción"
       },
       "source": "Nguồn",
+      "star": "Yêu thích",
       "success": {
         "add": "Đã lưu vào lịch sử",
         "clear": "Lịch sử đã được xóa",

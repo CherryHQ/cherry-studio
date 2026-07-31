@@ -77,6 +77,8 @@ export interface ProviderDisplayMetadata {
   authOptional?: boolean
   /** Registry-owned currency for provider-reported cost amounts. */
   reportedCostCurrency?: Currency
+  /** Registry-owned Fast request transport. */
+  fastMode?: ProtoProviderConfig['fastMode']
   /** Registry default API feature flags — the delta baseline under row overrides. */
   apiFeatures?: ApiFeatures
   /** Registry default chat endpoint, used when the row stores no override. */
@@ -405,6 +407,7 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
     parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
@@ -662,6 +665,7 @@ class ProviderRegistryService {
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
         reportedCostCurrency: provider?.reportedCostCurrency,
+        fastMode: provider?.fastMode,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
