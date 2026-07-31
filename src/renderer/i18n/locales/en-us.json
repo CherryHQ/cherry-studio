@@ -3373,7 +3373,7 @@
             "label": "Small model"
           }
         },
-        "model_config": "Model configuration",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Max turns and environment variables",

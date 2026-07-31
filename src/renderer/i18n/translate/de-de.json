@@ -3354,7 +3354,7 @@
             "label": "Kleines Modell (optional)"
           }
         },
-        "model_config": "Modellkonfiguration",
+        "model_config": "Modell",
         "section": {
           "advanced": {
             "desc": "Ausführungslimits und Laufzeitparameter",

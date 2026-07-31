@@ -3354,7 +3354,7 @@
             "label": "Model mic (opțional)"
           }
         },
-        "model_config": "Configurație model",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Limite de execuție și parametri de rulare",

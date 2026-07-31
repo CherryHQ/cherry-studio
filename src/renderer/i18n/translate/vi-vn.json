@@ -3354,7 +3354,7 @@
             "label": "Mô hình nhỏ (tùy chọn)"
           }
         },
-        "model_config": "Cấu hình mô hình",
+        "model_config": "Mô hình",
         "section": {
           "advanced": {
             "desc": "Giới hạn thực thi và các tham số thời gian chạy",

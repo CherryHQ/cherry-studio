@@ -348,7 +348,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
-          'library.config.agent.model_config': 'Model configuration',
+          'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
           'library.config.basic.custom_params': 'Custom parameters',
@@ -1019,7 +1019,7 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
-    selectTab('Model configuration')
+    selectTab('Model')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Temperature Help' })).toBeVisible())
     expectHelpTrigger('Temperature', 'Controls randomness.')
     expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
@@ -1057,7 +1057,7 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model configuration')
+    selectTab('Model')
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()

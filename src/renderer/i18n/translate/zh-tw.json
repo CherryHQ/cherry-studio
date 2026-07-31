@@ -3354,7 +3354,7 @@
             "label": "小型模型"
           }
         },
-        "model_config": "模型配置",
+        "model_config": "模型",
         "section": {
           "advanced": {
             "desc": "執行限制與執行時期參數",

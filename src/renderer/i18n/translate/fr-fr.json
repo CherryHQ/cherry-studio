@@ -3354,7 +3354,7 @@
             "label": "Petit modèle (optionnel)"
           }
         },
-        "model_config": "Configuration du modèle",
+        "model_config": "Modèle",
         "section": {
           "advanced": {
             "desc": "Limites d'exécution et paramètres d'exécution",

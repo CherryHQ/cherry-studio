@@ -3354,7 +3354,7 @@
             "label": "Modelo pequeño (opcional)"
           }
         },
-        "model_config": "Configuración del modelo",
+        "model_config": "Modelo",
         "section": {
           "advanced": {
             "desc": "Límites de ejecución y parámetros de tiempo de ejecución",
