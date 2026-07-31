@@ -38,7 +38,7 @@ function ProviderSettingSections({ providerId, isLoginBased }: { providerId: str
         {isLoginBased ? (
           <div className="shrink-0">{authenticationSection}</div>
         ) : (
-          <SettingGroup className="mt-0 shrink-0">{authenticationSection}</SettingGroup>
+          <SettingGroup className="mt-0 shrink-0 border-0 p-0">{authenticationSection}</SettingGroup>
         )}
         <div className="flex min-h-0 flex-1 flex-col">
           <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
