@@ -25,7 +25,7 @@ export function HistoryRecordsContent<T>({
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-card-foreground"
       aria-label={t('history.records.shortTitle')}>
       <HistoryTopBar
         mode={descriptor.mode}

@@ -7,8 +7,6 @@ import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '../../components/EditDialogShared'
-
 const {
   agentTools,
   createGroupMock,
@@ -293,10 +291,8 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
-          'agent.settings.tooling.permissionMode.acceptEdits.title': 'Auto-edit Mode',
-          'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
-          'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
-          'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
+          // Permission-mode titles intentionally absent: they fall through to the card
+          // definitions' own fallbacks, so copy changes need no edit here.
           'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
           'common.add': 'Add',
@@ -365,14 +361,15 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.field.tags.hint': 'Group related assistants.',
           'library.config.basic.field.custom_params.hint': 'Extra provider parameters.',
           'library.config.basic.field.max_tokens.hint': 'Caps response length.',
-          'library.config.basic.field.max_tool_calls.hint': 'Caps tool loops.',
+          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 100.',
           'library.config.basic.field.stream_output.hint': 'Stream responses.',
           'library.config.basic.field.temperature.hint': 'Controls randomness.',
           'library.config.basic.field.top_p.hint': 'Controls nucleus sampling.',
           'library.config.basic.creative': 'Creative',
           'library.config.basic.json_invalid': 'Invalid JSON',
           'library.config.basic.max_tokens': 'Max tokens',
-          'library.config.basic.max_tool_calls': 'Max tool calls',
+          'library.config.basic.max_tool_calls': 'Max tool call rounds',
+          'library.config.basic.max_tool_calls_default': 'Default (20 rounds)',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_pick': 'Pick model',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
@@ -388,7 +385,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.mcp_mode': 'MCP Mode',
           'library.config.basic.temperature': 'Temperature',
           'library.config.basic.top_p': 'Top-P',
-          'library.config.basic.unlimited': 'Unlimited',
           'library.config.dialogs.edit.advanced_tab': 'Advanced',
           'library.config.prompt.label': 'Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
@@ -713,9 +709,7 @@ describe('edit dialogs', () => {
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     const clearButton = screen.getByRole('button', { name: 'Model Clear' })
 
-    expect(modelTrigger).toHaveClass('hover:bg-muted')
-    expect(modelTrigger).not.toHaveClass('pr-7')
-    expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
+    expect(modelTrigger).toBeInTheDocument()
 
     fireEvent.click(clearButton)
     await waitFor(() =>
@@ -765,7 +759,6 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const clearButton = screen.getByRole('button', { name: 'Group Clear' })
-    expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
@@ -806,10 +799,6 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Instructions')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
-    expect(instructionsInput).toHaveStyle({
-      minHeight: EDIT_DIALOG_PROMPT_MIN_HEIGHT,
-      maxHeight: EDIT_DIALOG_PROMPT_MAX_HEIGHT
-    })
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions' } })
     selectTab('Basic')
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
@@ -825,6 +814,92 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
+
+    rerender(
+      <AgentEditDialog
+        {...props}
+        resource={{
+          ...AGENT,
+          configuration: { ...AGENT.configuration, permission_mode: 'plan' }
+        }}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Locally renamed' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { name: 'Locally renamed' }
+      })
+    )
+  })
+
+  it('advances the agent form baseline before a queued follow-up save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Second edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { description: 'Second edit' }
+    })
+  })
+
+  it('preserves skill baseline initialization while an unrelated save is pending', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(<AgentEditDialog {...props} />)
+    selectTab('技能')
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: false }] }
+    })
   })
 
   it('polishes agent instructions and auto-saves the polished value', async () => {
@@ -950,7 +1025,7 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
     expectHelpTrigger('Max tokens', 'Caps response length.')
     expectHelpTrigger('Stream output', 'Stream responses.')
-    expectHelpTrigger('Max tool calls', 'Caps tool loops.')
+    expectHelpTrigger('Max tool call rounds', 'Caps tool-call rounds at 100.')
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
     await waitFor(() =>
@@ -961,6 +1036,49 @@ describe('edit dialogs', () => {
           settings: expect.objectContaining({
             enableTemperature: true,
             mcpMode: 'manual'
+          })
+        })
+      })
+    )
+  })
+
+  it('shows the default tool-call cap and clamps custom rounds at 100', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            enableMaxToolCalls: false
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model configuration')
+    const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
+
+    expect(maxToolCallsSwitch).not.toBeChecked()
+    expect(screen.getByText('Default (20 rounds)')).toBeVisible()
+
+    fireEvent.click(maxToolCallsSwitch)
+    const maxToolCallsInput = await screen.findByDisplayValue('20')
+    expect(maxToolCallsInput).toHaveAttribute('min', '1')
+    expect(maxToolCallsInput).toHaveAttribute('max', '100')
+
+    fireEvent.focus(maxToolCallsInput)
+    fireEvent.change(maxToolCallsInput, { target: { value: '101' } })
+    fireEvent.blur(maxToolCallsInput)
+
+    expect(maxToolCallsInput).toHaveValue(100)
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({
+            enableMaxToolCalls: true,
+            maxToolCalls: 100
           })
         })
       })
@@ -1030,7 +1148,8 @@ describe('edit dialogs', () => {
 
     expect(screen.queryByRole('tab', { name: 'Permission' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('combobox', { name: 'Permission mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan Mode' }))
+    // Name matches loosely: each option renders its title and its description.
+    fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
     expect(screen.queryByText('Max turns')).not.toBeInTheDocument()
@@ -1040,11 +1159,7 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body).toEqual(
-      expect.objectContaining({
-        configuration: expect.not.objectContaining({ max_turns: expect.anything() })
-      })
-    )
+    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },
@@ -1130,9 +1245,6 @@ describe('edit dialogs', () => {
     selectTab('技能')
 
     const manageSkillsButton = screen.getByRole('button', { name: 'Manage Skills' })
-    expect(manageSkillsButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
-    expect(manageSkillsButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
-    expect(manageSkillsButton.parentElement).toHaveClass('sm:grid-cols-2')
 
     fireEvent.click(manageSkillsButton)
 

@@ -38,6 +38,7 @@ import {
   getTopP
 } from '../../../utils/modelParameters'
 import {
+  applyFastModeToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
@@ -395,7 +396,6 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  providerOptions = overridden.providerOptions as typeof providerOptions
   const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, reasoning)
   if (maxOutputTokens !== undefined) {
     standardParams = { ...standardParams, maxOutputTokens }
@@ -403,6 +403,12 @@ function buildAgentOptions(
     standardParams = { ...standardParams }
     delete standardParams.maxOutputTokens
   }
+  const effectiveProviderOptions = applyFastModeToProviderOptions(
+    provider,
+    model,
+    overridden.providerOptions,
+    request.fastMode === true
+  )
 
   const { headers, maxRetries } = request.requestOptions ?? {}
   const toolCallLimit = resolveToolCallLimit(assistant)
@@ -415,7 +421,7 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
-    ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+    ...(Object.keys(effectiveProviderOptions).length > 0 && { providerOptions: effectiveProviderOptions }),
     ...(telemetry && { telemetry }),
     ...standardParams,
     context: requestContext,

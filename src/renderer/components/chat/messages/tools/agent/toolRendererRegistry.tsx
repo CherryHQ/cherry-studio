@@ -17,6 +17,7 @@ import { TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool
 import { ToolSearchTool } from './ToolSearchTool'
 import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
+import { WorkflowTool } from './WorkflowTool'
 import { WriteTool } from './WriteTool'
 
 const AGENT_TOOL_VALUES = new Set<string>(Object.values(AgentToolsType))
@@ -51,7 +52,8 @@ export const toolRenderers: ToolRenderersMap = {
   [AgentToolsType.TeamCreate]: createStructuredAgentTool(AgentToolsType.TeamCreate),
   [AgentToolsType.TeamDelete]: createStructuredAgentTool(AgentToolsType.TeamDelete),
   [AgentToolsType.EnterWorktree]: createStructuredAgentTool(AgentToolsType.EnterWorktree),
-  [AgentToolsType.ExitWorktree]: createStructuredAgentTool(AgentToolsType.ExitWorktree)
+  [AgentToolsType.ExitWorktree]: createStructuredAgentTool(AgentToolsType.ExitWorktree),
+  [AgentToolsType.Workflow]: WorkflowTool
 }
 
 export function renderTool<T extends AgentToolsType>(
