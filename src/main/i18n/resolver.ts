@@ -83,11 +83,17 @@ export const t = (key: string, params?: Record<string, string | number>): string
     return typeof result === 'string' ? result : undefined
   }
 
-  // Resolve the current language first, but fall back to en-US when the value is
-  // absent or still carries the untranslated marker.
+  // Resolve the current language first, then en-US, then the key itself — but
+  // never surface a raw marker: if the resolved value still carries the
+  // untranslated marker, keep falling through.
   const currentValue = resolve(getI18n().translation)
+  const fallbackValue = resolve(locales[defaultLanguage].translation)
   const value =
-    currentValue && !isUntranslatedMarker(currentValue) ? currentValue : resolve(locales[defaultLanguage].translation)
+    currentValue && !isUntranslatedMarker(currentValue)
+      ? currentValue
+      : fallbackValue && !isUntranslatedMarker(fallbackValue)
+        ? fallbackValue
+        : undefined
   if (value === undefined) {
     return key
   }

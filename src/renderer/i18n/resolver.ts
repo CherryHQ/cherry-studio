@@ -73,12 +73,15 @@ export const setDayjsLocale = (language: string) => {
 // missing and falls back to the en-US catalog, instead of surfacing the raw marker
 // to users.
 const UNTRANSLATED_MARKER = '[to be translated]:'
-const removeTranslationMarkers = (value: unknown): unknown => {
+export const removeTranslationMarkers = (value: unknown): unknown => {
   if (typeof value === 'string') {
     return value.startsWith(UNTRANSLATED_MARKER) ? undefined : value
   }
   if (Array.isArray(value)) {
-    return value.map(removeTranslationMarkers)
+    // Parity with object leaves: drop marker slots entirely rather than leaving
+    // undefined holes (locale packs have no array leaves today, but this keeps
+    // the contract uniform if they ever do).
+    return value.map(removeTranslationMarkers).filter((v) => v !== undefined)
   }
   if (value && typeof value === 'object') {
     return Object.fromEntries(

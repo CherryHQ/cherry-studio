@@ -68,6 +68,21 @@ describe('main i18n', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
       expect(t('backup.restore.notification.completed')).toBe('Restore complete — the app will restart momentarily.')
     })
+
+    it('returns the key when both the current language and en-US carry the marker', async () => {
+      // Extreme case: en-US itself is somehow marked untranslated. t() must keep
+      // falling through to the key rather than surface a raw marker.
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
+      const { default: enUs } = await import('@main/i18n/locales/en-us.json')
+      const notif = enUs.backup.restore.notification
+      const original = notif.completed
+      notif.completed = '[to be translated]:Restore complete'
+      try {
+        expect(t('backup.restore.notification.completed')).toBe('backup.restore.notification.completed')
+      } finally {
+        notif.completed = original
+      }
+    })
   })
 
   describe('getI18n', () => {

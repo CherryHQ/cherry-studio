@@ -1,4 +1,4 @@
-import i18n, { initI18n } from '@renderer/i18n/resolver'
+import i18n, { initI18n, removeTranslationMarkers } from '@renderer/i18n/resolver'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // The global renderer setup already calls initI18n(); these tests assert the
@@ -54,5 +54,24 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('backup.credentials_warning')).toBe(
       'This backup includes API keys and provider credentials in plaintext. Store the archive securely.'
     )
+  })
+})
+
+describe('removeTranslationMarkers', () => {
+  it('keeps a fully-translated string unchanged', () => {
+    expect(removeTranslationMarkers('hello')).toBe('hello')
+  })
+
+  it('strips a marker-bearing string to undefined', () => {
+    expect(removeTranslationMarkers('[to be translated]:hello')).toBeUndefined()
+  })
+
+  it('removes only marker leaves from a nested object', () => {
+    const pack = { a: 'ok', b: '[to be translated]:bad', nested: { c: 'ok', d: '[to be translated]:bad' } }
+    expect(removeTranslationMarkers(pack)).toEqual({ a: 'ok', nested: { c: 'ok' } })
+  })
+
+  it('drops marker slots from arrays instead of leaving holes', () => {
+    expect(removeTranslationMarkers(['ok', '[to be translated]:bad', 'ok2'])).toEqual(['ok', 'ok2'])
   })
 })
