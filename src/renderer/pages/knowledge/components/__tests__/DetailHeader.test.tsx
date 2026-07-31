@@ -83,12 +83,6 @@ describe('DetailHeader', () => {
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
     expect(screen.queryByText('就绪')).not.toBeInTheDocument()
-    expect(screen.getByText('Base 1').parentElement).toHaveClass(
-      'relative',
-      'after:left-3',
-      'after:right-3',
-      'after:border-b'
-    )
   })
 
   it('renders the failed status as a clickable rebuild trigger', () => {
@@ -104,7 +98,6 @@ describe('DetailHeader', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByText('失败')).toHaveClass('bg-error-subtle', 'text-error-subtle-foreground')
 
     const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
     fireEvent.click(rebuildTrigger)

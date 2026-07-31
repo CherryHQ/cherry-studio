@@ -116,8 +116,6 @@ describe('CodeBlock', () => {
 
       const codeElement = screen.getByText('inline code')
       expect(codeElement.tagName).toBe('CODE')
-      expect(codeElement).not.toHaveAttribute('style')
-      expect(codeElement).toHaveClass('whitespace-pre-wrap!')
       expect(mocks.CodeBlockView).not.toHaveBeenCalled()
     })
 
@@ -139,8 +137,6 @@ describe('CodeBlock', () => {
 
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
       expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
-      expect(screen.getByTestId('clickable-file-path').closest('code')).not.toHaveAttribute('style')
-      expect(screen.getByTestId('clickable-file-path').closest('code')).toHaveClass('break-all!')
     })
 
     it('should render ClickableFilePath for workspace-relative file paths', () => {

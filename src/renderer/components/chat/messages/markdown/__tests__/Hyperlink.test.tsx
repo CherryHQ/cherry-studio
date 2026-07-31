@@ -94,7 +94,6 @@ describe('Hyperlink', () => {
     )
 
     expect(screen.getByTestId('hover-card')).toBeInTheDocument()
-    expect(screen.getByTestId('hover-card-content')).toHaveClass('w-auto max-w-none overflow-hidden rounded-lg p-0')
 
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')

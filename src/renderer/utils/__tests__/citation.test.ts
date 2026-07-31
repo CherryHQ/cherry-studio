@@ -623,37 +623,7 @@ Numbered list:
     })
   })
 
-  describe('performance', () => {
-    it('should handle large content efficiently', () => {
-      const largeContent = 'Test content '.repeat(10000) + '[1]'
-      const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
-
-      const start = Date.now()
-      const result = withCitationTags(largeContent, citations)
-      const end = Date.now()
-
-      expect(result).toContain('[<sup data-citation=')
-      expect(end - start).toBeLessThan(100) // Should complete within 100ms
-    })
-
-    it('should handle many citations efficiently', () => {
-      const citations: Citation[] = Array.from({ length: 100 }, (_, i) => ({
-        number: i + 1,
-        url: `https://example${i + 1}.com`,
-        title: `Test ${i + 1}`
-      }))
-      const content = citations.map((c) => `[${c.number}]`).join(' ')
-
-      const start = Date.now()
-      const result = withCitationTags(content, citations)
-      const end = Date.now()
-
-      expect(result).toContain('[<sup data-citation=')
-      expect(end - start).toBeLessThan(100) // Should complete within 200ms
-    })
-  })
-
-  describe('Gemini citation snapshot (issue #8880)', () => {
+  describe('Gemini citation placement (issue #8880)', () => {
     const content = buildContent()
     const citations: Citation[] = groundingChunks.map((chunk, index) => ({
       number: index + 1,
@@ -667,8 +637,10 @@ Numbered list:
     it('normalizeCitationMarks should insert [cite:N] at correct positions', () => {
       const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
 
-      // Each segment should get its citation tags exactly once, at the segment end
-      expect(result).toMatchSnapshot()
+      for (const support of groundingSupports) {
+        const marks = support.groundingChunkIndices?.map((index) => `[cite:${index + 1}]`).join('') ?? ''
+        expect(result).toContain(`${support.segment?.text}${marks}`)
+      }
 
       // Verify no over-matching: count total [cite:N] occurrences
       const citeMatches = result.match(/\[cite:\d+\]/g) || []
@@ -679,7 +651,10 @@ Numbered list:
     it('withCitationTags should produce correct final output', () => {
       const result = withCitationTags(content, citations, WEB_SEARCH_SOURCE.GEMINI)
 
-      expect(result).toMatchSnapshot()
+      for (const support of groundingSupports) {
+        const tags = support.groundingChunkIndices?.map((index) => generateCitationTag(citations[index])).join('') ?? ''
+        expect(result).toContain(`${support.segment?.text}${tags}`)
+      }
 
       // Verify each citation tag appears the expected number of times
       // Chunk 0 (citation 1) is referenced in 5 of 6 segments

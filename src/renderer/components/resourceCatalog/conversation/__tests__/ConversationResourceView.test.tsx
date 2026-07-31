@@ -23,13 +23,14 @@ describe('ConversationResourceView', () => {
   })
 
   it('embeds the resource catalog for the selected resource kind', () => {
-    render(<ConversationResourceView kind="agent" />)
+    render(<ConversationResourceView kind="agent" className="custom-shell" />)
 
     const view = screen.getByTestId('resource-catalog-view')
     expect(view).toHaveAttribute('data-resource-type', 'agent')
     expect(resourceCatalogViewMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        resourceType: 'agent'
+        resourceType: 'agent',
+        className: expect.stringContaining('custom-shell')
       })
     )
   })
