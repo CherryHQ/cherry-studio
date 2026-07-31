@@ -34,15 +34,12 @@ Per-topic chunks arrive via `onStreamChunk` listeners filtered by
 
 ## Triggers
 
-`IpcChatTransport.sendMessages` distinguishes two triggers:
+`sendMessages` distinguishes two triggers:
 
 | Trigger | What it does |
 |---|---|
 | `submit-message` | Includes `userMessageParts` (the latest message) so Main persists it |
 | `regenerate-message` | Sends `parentAnchorId` only; Main re-runs from the existing parent |
-
-Persisted branch drafts are filled first through guarded DataApi message update,
-then open the standard `regenerate-message` flow against that same user-message id.
 
 Cherry's transport never derives `continue-conversation` from
 message-state introspection. Approval-driven resumption goes through the

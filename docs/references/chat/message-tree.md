@@ -43,21 +43,20 @@ queries (`WHERE role = 'system'`, etc.) exclude it for free — no `parentId IS 
 caveat. `role = 'root'` and `parentId IS NULL` are equivalent; `parentId IS NULL` stays
 the indexed root *lookup* key.
 
-### Persisted branch drafts
+### Persisted awaiting-input branches
 
-Starting a branch below an assistant creates a real empty `role = 'user'` leaf with
-`data.isBranchDraft = true` and makes it the topic's active node. The conversation list
-hides this content-less row in both the live view and image capture, while `getTree`
-projects the marker so the flow canvas can render and select it as an awaiting-input node.
-General message write DTOs do not expose the storage-owned marker; the row is created only
-through `POST /topics/:topicId/branch-drafts` → `MessageService.createBranchDraft`.
+Starting a branch below an assistant uses the ordinary message-create endpoint to persist
+an empty successful `role = 'user'` leaf and make it the topic's active node. Awaiting-input
+state is derived from that structure — no draft marker is stored. The conversation list
+hides empty successful user rows, while `getTree` projects empty user leaves as
+`isAwaitingInput` for the flow canvas.
 
-The next composer submission uses the draft row's id instead of creating another user
-row. `PATCH /messages/:id?awaitingInputOnly=true` validates that the row is still the
-active empty draft with no reply, then `MessageService.fillBranchDraft` replaces its
-data and clears the marker. The renderer subsequently opens the existing
-`regenerate-message` flow against that user row. If stream opening fails, the filled
-message remains visible and resendable.
+The next composer submission uses the empty row's id instead of creating another user row.
+`PATCH /messages/:id?awaitingInputOnly=true` validates in the message service transaction
+that the target is still the active empty successful user leaf with no reply, then updates
+its data in place. The renderer subsequently opens the existing `regenerate-message` flow
+against that user row. If stream opening fails, the filled message remains visible and
+resendable.
 
 ## Invariants
 
@@ -67,8 +66,8 @@ message remains visible and resendable.
 | Every content message has a non-null parent | **DB CHECK** `message_root_parent_check` `((role = 'root') = (parent_id IS NULL))` — a content row (`role != 'root'`) with a null parent is rejected at the storage layer, not by convention. First-turn content messages get `parentId = <virtual root>`. |
 | `role = 'root'` ⇔ `parentId IS NULL` | Same **DB CHECK** `message_root_parent_check`. `createRootMessageTx` (runtime) / `ChatMigrator` (migration) are the sole *writers* of the root row, but the biconditional itself is enforced structurally. |
 | `activeNodeId` is never the virtual root | `NULL` for an empty topic, otherwise a content message; read paths drop the root from the active path. |
-| A branch draft is an active empty user leaf below an assistant/system message | Generic write DTOs reject the marker; `MessageService.createBranchDraft` validates dedicated creation, and `MessageService.fillBranchDraft` revalidates active ownership, empty content, status, and absence of live children before consuming it. |
-| Deleting an awaiting-input node must never delete a message that was filled meanwhile | Canvas requests `DELETE /messages/:id?awaitingInputOnly=true`; `MessageService.delete` revalidates the persisted marker, empty parts, user role, and absence of live children before deleting it. |
+| An awaiting-input branch is an empty successful user leaf | It is created through the ordinary message endpoint. `MessageService.update(..., awaitingInputOnly = true)` additionally requires it to be the active node before filling it. |
+| Deleting an awaiting-input node must never delete a message that was filled meanwhile | Canvas requests `DELETE /messages/:id?awaitingInputOnly=true`; `MessageService.delete` revalidates empty parts, success status, user role, and absence of live children before deleting it. |
 | The virtual root is deletable only via topic deletion | `delete()` hard-rejects it (see below); the topic FK `ON DELETE CASCADE` is the only path that removes it. |
 
 The virtual root is created **eagerly**, in the same transaction that creates the topic —
@@ -123,8 +122,7 @@ they become first-turn nodes.)
   node. Hence `TreeNode.parentId` and `SiblingsGroup.parentId` are non-null `string`.
 - **Flow canvas** skips edges whose parent isn't a rendered node — the virtual root,
   which first turns hang off but which is never a node — so first turns still render as
-  graph roots. Persisted branch drafts remain real selectable tree nodes, projected to
-  the canvas's awaiting-input visual state.
+  graph roots. Persisted awaiting-input branches remain real selectable tree nodes.
 - **Role-based content queries** need no special root handling: the root is `role = 'root'`,
   so it is excluded by construction.
 

@@ -24,7 +24,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -87,12 +86,9 @@ const Chat: FC<Props> = (props) => {
   const showConversation = Boolean(activeTopic && !centerSurface)
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
-  const branchDraftRefreshPaths = React.useMemo<ConcreteApiPaths[]>(
-    () => (activeTopicId ? [`/topics/${activeTopicId}/messages`, `/topics/${activeTopicId}/tree`] : []),
-    [activeTopicId]
-  )
-  const { trigger: createBranchDraft } = useMutation('POST', '/topics/:topicId/branch-drafts', {
-    refresh: branchDraftRefreshPaths
+  const { trigger: createAwaitingInputMessage } = useMutation('POST', '/topics/:topicId/messages', {
+    refresh: ({ args }) =>
+      args ? [`/topics/${args.params.topicId}/messages`, `/topics/${args.params.topicId}/tree`] : []
   })
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
@@ -216,14 +212,19 @@ const Chat: FC<Props> = (props) => {
     async (anchorMessageId: string) => {
       if (!activeTopicId) return
 
-      await createBranchDraft({
+      await createAwaitingInputMessage({
         params: { topicId: activeTopicId },
-        body: { parentId: anchorMessageId }
+        body: {
+          parentId: anchorMessageId,
+          role: 'user',
+          data: { parts: [] },
+          status: 'success'
+        }
       })
 
       void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
     },
-    [activeTopicId, createBranchDraft]
+    [activeTopicId, createAwaitingInputMessage]
   )
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {

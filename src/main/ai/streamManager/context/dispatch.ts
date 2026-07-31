@@ -131,7 +131,7 @@ export async function dispatchStreamRequest(
     req.trigger === 'submit-message'
   ) {
     // A persistent submit that resolved to zero models without taking the steer branch is a
-    // regression: `send` returns a success-shaped ack and answers nothing.
+    // regression: `send` persists nothing new, returns a success-shaped ack, and answers nothing.
     // Surface it loudly. (Agent-session injects legitimately have empty models — absorbed by the
     // runtime's pendingTurns — so they're excluded by the provider check.)
     logger.error(

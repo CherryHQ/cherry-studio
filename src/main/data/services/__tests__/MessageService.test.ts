@@ -17,7 +17,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
@@ -107,6 +107,29 @@ describe('MessageService', () => {
   async function seedTopicWithRoot(topicId: string) {
     await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: null, orderKey: 'a0' })
     return messageService.createRootMessageTx(dbh.db, topicId)
+  }
+
+  async function seedAwaitingInputBranch(topicId: string) {
+    const rootId = await seedTopicWithRoot(topicId)
+    const prompt = messageService.create(topicId, {
+      parentId: rootId,
+      role: 'user',
+      data: mainText('question'),
+      status: 'success'
+    })
+    const anchor = messageService.create(topicId, {
+      parentId: prompt.id,
+      role: 'assistant',
+      data: mainText('answer'),
+      status: 'success'
+    })
+    const awaitingInput = messageService.create(topicId, {
+      parentId: anchor.id,
+      role: 'user',
+      data: { parts: [] },
+      status: 'success'
+    })
+    return { prompt, anchor, awaitingInput }
   }
 
   async function seedFileEntry(id: string) {
@@ -1525,59 +1548,33 @@ describe('MessageService', () => {
   describe('delete — virtual root guard', () => {
     const virtualRootId = 'vroot-topic-1'
 
-    it('deletes a persisted empty branch-input leaf when awaitingInputOnly is required', async () => {
-      const rootId = await seedTopicWithRoot('topic-delete-empty-branch')
-      const user = messageService.create('topic-delete-empty-branch', {
-        parentId: rootId,
-        role: 'user',
-        data: mainText('question'),
-        status: 'success'
-      })
-      const assistant = messageService.create('topic-delete-empty-branch', {
-        parentId: user.id,
-        role: 'assistant',
-        data: mainText('answer'),
-        status: 'success'
-      })
-      const emptyUser = messageService.createBranchDraft('topic-delete-empty-branch', assistant.id)
+    it('deletes an awaiting-input leaf when awaitingInputOnly is required', async () => {
+      const { anchor, awaitingInput } = await seedAwaitingInputBranch('topic-delete-empty-branch')
 
-      const result = messageService.delete(emptyUser.id, false, 'parent', true)
+      const result = messageService.delete(awaitingInput.id, false, 'parent', true)
 
       expect(result).toMatchObject({
-        deletedIds: [emptyUser.id],
-        newActiveNodeId: assistant.id
+        deletedIds: [awaitingInput.id],
+        newActiveNodeId: anchor.id
       })
-      expect(() => messageService.getById(emptyUser.id)).toThrow()
+      expect(() => messageService.getById(awaitingInput.id)).toThrow()
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-delete-empty-branch'))
-      expect(topic.activeNodeId).toBe(assistant.id)
+      expect(topic.activeNodeId).toBe(anchor.id)
     })
 
     it('rejects awaitingInputOnly after the empty message has been filled', async () => {
-      const rootId = await seedTopicWithRoot('topic-delete-filled-branch')
-      const user = messageService.create('topic-delete-filled-branch', {
-        parentId: rootId,
-        role: 'user',
-        data: mainText('question'),
-        status: 'success'
-      })
-      const assistant = messageService.create('topic-delete-filled-branch', {
-        parentId: user.id,
-        role: 'assistant',
-        data: mainText('answer'),
-        status: 'success'
-      })
-      const emptyUser = messageService.createBranchDraft('topic-delete-filled-branch', assistant.id)
-      messageService.fillBranchDraft(emptyUser.id, mainText('filled question'))
+      const { awaitingInput } = await seedAwaitingInputBranch('topic-delete-filled-branch')
+      messageService.update(awaitingInput.id, { data: mainText('filled question') }, true)
 
       let err: unknown
       try {
-        messageService.delete(emptyUser.id, false, 'parent', true)
+        messageService.delete(awaitingInput.id, false, 'parent', true)
       } catch (error) {
         err = error
       }
 
       expect(err).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
-      expect(messageService.getById(emptyUser.id).data.parts).toEqual(mainText('filled question').parts)
+      expect(messageService.getById(awaitingInput.id).data.parts).toEqual(mainText('filled question').parts)
     })
 
     it('rejects deleting the virtual root with cascade=false', async () => {
@@ -2047,57 +2044,29 @@ describe('MessageService', () => {
       })
     })
 
-    describe('persisted branch draft turn', () => {
-      it('fills the existing draft user row in place and leaves it active for resend', async () => {
-        await seedTopic()
-        const prompt = messageService.create('topic-1', {
-          role: 'user',
-          parentId: null,
-          data: mainText('question'),
-          status: 'success'
-        })
-        const anchor = messageService.create('topic-1', {
-          role: 'assistant',
-          parentId: prompt.id,
-          data: mainText('answer'),
-          status: 'success'
-        })
-        const draft = messageService.createBranchDraft('topic-1', anchor.id)
+    describe('persisted awaiting-input turn', () => {
+      it('fills the existing empty user row in place and leaves it active for resend', async () => {
+        const { prompt, awaitingInput } = await seedAwaitingInputBranch('topic-1')
 
         expect(
-          messageService.getTree('topic-1', { depth: -1 }).nodes.find((node) => node.id === draft.id)
-        ).toMatchObject({ isBranchDraft: true })
-        expect(() => messageService.update(draft.id, { data: mainText('bypass dedicated fill') })).toThrow()
+          messageService.getTree('topic-1', { depth: -1 }).nodes.find((node) => node.id === awaitingInput.id)
+        ).toMatchObject({ isAwaitingInput: true })
 
-        const userMessage = messageService.fillBranchDraft(draft.id, mainText('new branch question'))
+        const userMessage = messageService.update(awaitingInput.id, { data: mainText('new branch question') }, true)
 
-        expect(userMessage.id).toBe(draft.id)
+        expect(userMessage.id).toBe(awaitingInput.id)
         expect(userMessage.data).toEqual(mainText('new branch question'))
-        expect(userMessage.data.isBranchDraft).toBeUndefined()
         expect(userMessage.modelId).toBeNull()
-        expect(messageService.getChildrenByParentId(draft.id)).toEqual([])
+        expect(messageService.getChildrenByParentId(awaitingInput.id)).toEqual([])
 
         const userRows = await dbh.db
           .select()
           .from(messageTable)
           .where(and(eq(messageTable.topicId, 'topic-1'), eq(messageTable.role, 'user')))
-        expect(userRows.map((row) => row.id).sort()).toEqual([draft.id, prompt.id].sort())
+        expect(userRows.map((row) => row.id).sort()).toEqual([awaitingInput.id, prompt.id].sort())
 
         const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
-        expect(topic.activeNodeId).toBe(draft.id)
-      })
-
-      it('rejects the storage-owned draft marker through the generic create operation', async () => {
-        await seedTopic()
-
-        expect(() =>
-          messageService.create('topic-1', {
-            role: 'user',
-            parentId: null,
-            data: { parts: [], isBranchDraft: true } as never,
-            status: 'success'
-          })
-        ).toThrow()
+        expect(topic.activeNodeId).toBe(awaitingInput.id)
       })
 
       it('rejects a normal user message without changing its data', async () => {
@@ -2109,14 +2078,9 @@ describe('MessageService', () => {
           status: 'success'
         })
 
-        expect(() => messageService.fillBranchDraft(userMessage.id, mainText('replacement'))).toThrow()
+        expect(() => messageService.update(userMessage.id, { data: mainText('replacement') }, true)).toThrow()
 
-        const contentRows = await dbh.db
-          .select()
-          .from(messageTable)
-          .where(and(eq(messageTable.topicId, 'topic-1'), ne(messageTable.role, 'root')))
-        expect(contentRows.map((row) => row.id)).toEqual([userMessage.id])
-        expect(contentRows[0].data).toEqual(mainText('normal message'))
+        expect(messageService.getById(userMessage.id).data).toEqual(mainText('normal message'))
       })
     })
 

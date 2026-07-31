@@ -16,7 +16,6 @@ import {
   type AssistantTurnOptions,
   type Message as SharedMessage,
   type MessageSnapshot,
-  sharedMessageToUIMessage,
   toContentRole
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -120,12 +119,21 @@ function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
 }
 
 function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
-  const projected = sharedMessageToUIMessage(message)
   return {
-    ...projected,
+    id: message.id,
+    role: toContentRole(message.role),
+    parts: message.data.parts ?? [],
     metadata: {
-      ...projected.metadata,
-      isActiveBranch: true
+      parentId: message.parentId,
+      siblingsGroupId: message.siblingsGroupId || undefined,
+      modelId: message.modelId ?? undefined,
+      messageSnapshot: message.messageSnapshot ?? undefined,
+      status: message.status,
+      turnOptions: message.data.turnOptions,
+      createdAt: message.createdAt,
+      stats: message.stats ?? undefined,
+      isActiveBranch: true,
+      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
     }
   } satisfies CherryUIMessage
 }
@@ -250,7 +258,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         }))
       })
 
-      const shouldAutoNameInitialTurn = req.trigger === 'submit-message' && !req.parentAnchorId
+      const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
       if (shouldAutoNameInitialTurn) {
         topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
       }

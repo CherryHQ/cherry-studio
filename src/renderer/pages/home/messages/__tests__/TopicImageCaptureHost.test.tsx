@@ -131,11 +131,11 @@ describe('TopicImageCaptureHost', () => {
     expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, true, false])
   })
 
-  it('omits persisted branch drafts from the captured conversation', async () => {
+  it('omits persisted empty user messages from the captured conversation', async () => {
     const visibleUser = createMessage('user-visible', 'user', '2026-01-01T00:00:00.000Z')
     const branchDraft = createMessage('user-draft', 'user', '2026-01-01T00:00:01.000Z', {
       parentId: 'assistant-anchor',
-      data: { parts: [], isBranchDraft: true }
+      data: { parts: [] }
     })
 
     dataApiGetMock.mockResolvedValueOnce({

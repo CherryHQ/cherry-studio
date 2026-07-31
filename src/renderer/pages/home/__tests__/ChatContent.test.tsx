@@ -355,37 +355,40 @@ describe('ChatContent', () => {
     expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
   })
 
-  it('fills the active persisted branch draft on the next send and hides its empty bubble', async () => {
-    const fillBranchDraft = vi.fn().mockResolvedValue({
-      id: 'branch-draft-user',
+  it('fills the active empty user message before regenerating and hides its empty bubble', async () => {
+    const patchAwaitingInput = vi.fn().mockResolvedValue({
+      id: 'awaiting-input-user',
       role: 'user',
       data: { parts: [{ type: 'text', text: 'hello' }] }
     })
     mockUseMutation.mockImplementation((method: string, path: string) => ({
       trigger:
         method === 'PATCH' && path === '/messages/:id'
-          ? fillBranchDraft
+          ? patchAwaitingInput
           : vi.fn(async () => ({ deleted: true, deletedIds: [] })),
       isLoading: false,
       error: undefined
     }))
-    const branchDraft = {
-      id: 'branch-draft-user',
+    const awaitingInput = {
+      id: 'awaiting-input-user',
       role: 'user',
       parts: [],
       metadata: {
         parentId: 'assistant-old',
         status: 'success',
-        isBranchDraft: true,
         createdAt: '2026-01-01T00:00:02.000Z'
       }
     } as CherryUIMessage
     mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('assistant-old', 'assistant'), branchDraft],
+      uiMessages: [
+        createUiMessage('history-user', 'user'),
+        createUiMessage('assistant-old', 'assistant'),
+        awaitingInput
+      ],
       siblingsMap: {},
       isLoading: false,
       refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: branchDraft.id,
+      activeNodeId: awaitingInput.id,
       rootId: 'root-1',
       loadOlder: vi.fn(),
       hasOlder: false,
@@ -395,7 +398,7 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} />)
 
     expect(screen.getByTestId('messages')).toHaveTextContent('history-user,assistant-old')
-    expect(screen.getByTestId('messages')).not.toHaveTextContent(branchDraft.id)
+    expect(screen.getByTestId('messages')).not.toHaveTextContent(awaitingInput.id)
 
     await act(async () => {
       await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
@@ -403,19 +406,19 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(fillBranchDraft).toHaveBeenCalledWith({
-        params: { id: branchDraft.id },
+      expect(patchAwaitingInput).toHaveBeenCalledWith({
+        params: { id: awaitingInput.id },
         query: { awaitingInputOnly: true },
         body: { data: { parts: [{ type: 'text', text: 'hello' }] } }
       })
       expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
           trigger: 'regenerate-message',
-          parentAnchorId: branchDraft.id,
+          parentAnchorId: awaitingInput.id,
           topicId: 'topic-1'
         })
       )
-      expect(fillBranchDraft.mock.invocationCallOrder[0]).toBeLessThan(streamOpen.mock.invocationCallOrder[0])
+      expect(patchAwaitingInput.mock.invocationCallOrder[0]).toBeLessThan(streamOpen.mock.invocationCallOrder[0])
     })
   })
 

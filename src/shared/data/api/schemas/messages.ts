@@ -6,10 +6,10 @@
  */
 
 import type { CursorPaginationParams } from '@shared/data/api/types'
-import type { BranchMessagesResponse, Message, MessageDataInput, TreeResponse } from '@shared/data/types/message'
+import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
   ContentMessageRoleSchema,
-  MessageDataInputSchema,
+  MessageDataSchema,
   MessageSnapshotSchema,
   MessageStatusSchema
 } from '@shared/data/types/message'
@@ -43,7 +43,7 @@ export const CreateMessageSchema = z.strictObject({
   /** Message role — content roles only; the virtual root is created internally, not via this DTO */
   role: ContentMessageRoleSchema,
   /** Message content */
-  data: MessageDataInputSchema,
+  data: MessageDataSchema,
   /** Message status */
   status: MessageStatusSchema.optional(),
   /** Siblings group ID (0 = normal, >0 = multi-model group) */
@@ -62,7 +62,7 @@ export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
  */
 export const UpdateMessageSchema = z.strictObject({
   /** Updated message content */
-  data: MessageDataInputSchema.optional(),
+  data: MessageDataSchema.optional(),
   /** Move message to new parent */
   parentId: z.string().nullable().optional(),
   /** Change siblings group */
@@ -72,17 +72,11 @@ export const UpdateMessageSchema = z.strictObject({
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
-/** Conditional guard for updates that are allowed to consume only an awaiting-input branch draft. */
+/** Conditional guard for updates that may consume only an awaiting-input message. */
 export const UpdateMessageQuerySchema = z.strictObject({
   awaitingInputOnly: z.boolean().optional()
 })
 export type UpdateMessageQuery = z.infer<typeof UpdateMessageQuerySchema>
-
-/** Start a persisted empty branch below an assistant/system message. */
-export const CreateBranchDraftSchema = z.strictObject({
-  parentId: z.string().min(1)
-})
-export type CreateBranchDraftDto = z.infer<typeof CreateBranchDraftSchema>
 
 /**
  * Strategy for updating activeNodeId when the active message is deleted
@@ -156,7 +150,7 @@ export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema
 export const DeleteMessageQuerySchema = z.strictObject({
   cascade: z.boolean().optional(),
   activeNodeStrategy: ActiveNodeStrategySchema.optional(),
-  /** Reject deletion unless the target is a persisted empty user leaf awaiting branch input. */
+  /** Reject deletion unless the target is an awaiting-input user leaf. */
   awaitingInputOnly: z.boolean().optional()
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
@@ -221,14 +215,6 @@ export type MessageSchemas = {
     }
   }
 
-  '/topics/:topicId/branch-drafts': {
-    POST: {
-      params: { topicId: string }
-      body: CreateBranchDraftDto
-      response: Message
-    }
-  }
-
   /**
    * Read-only path query passing through a given node.
    *
@@ -262,7 +248,7 @@ export type MessageSchemas = {
     /**
      * Update a message (content, move to new parent, etc.).
      * `awaitingInputOnly=true` accepts only a data-only update to an active,
-     * empty branch draft and consumes its storage-owned draft marker.
+     * empty successful user leaf and consumes its awaiting-input state.
      */
     PATCH: {
       params: { id: string }
@@ -276,7 +262,7 @@ export type MessageSchemas = {
      * - cascade=false: reparents children to grandparent
      * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
-     * - awaitingInputOnly=true: rejects unless the target is an empty branch-input user leaf
+     * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */
     DELETE: {
       params: { id: string }
@@ -301,7 +287,7 @@ export type MessageSchemas = {
   '/messages/:id/siblings': {
     POST: {
       params: { id: string }
-      body: MessageDataInput
+      body: MessageData
       response: Message
     }
   }

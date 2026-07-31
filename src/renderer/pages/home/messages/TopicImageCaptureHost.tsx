@@ -6,11 +6,8 @@ import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageI
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { projectBranchMessagesToUI } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
-import {
-  type BranchMessagesResponse,
-  type CherryUIMessage,
-  isRenderableConversationMessage
-} from '@shared/data/types/message'
+import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
+import type { BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useCallback } from 'react'
 
 import { useHomeMessageListProviderValue } from './homeMessageListAdapter'

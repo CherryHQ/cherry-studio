@@ -160,16 +160,13 @@ const TopicBranchPanel: FC<Props> = ({
   const handleDeleteAwaitingInputMessage = useCallback(
     async (messageId: string) => {
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (selectedNode?.data.role !== 'user' || !selectedNode.data.isAwaitingInput) {
-        return
-      }
+      if (!selectedNode?.data.isAwaitingInput) return
 
       try {
         await deleteAwaitingInputMessage({
           params: { id: messageId },
-          query: { cascade: false, activeNodeStrategy: 'parent', awaitingInputOnly: true }
+          query: { awaitingInputOnly: true }
         })
-        await refetch()
         toast.success(t('common.delete_success'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
@@ -180,7 +177,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.delete_failed'))
       }
     },
-    [deleteAwaitingInputMessage, graph.nodes, refetch, t, topicId]
+    [deleteAwaitingInputMessage, graph.nodes, t, topicId]
   )
 
   const handleNodeContextMenu = useCallback((messageId: string) => {
@@ -194,7 +191,7 @@ const TopicBranchPanel: FC<Props> = ({
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       const canShowStartBranch = !!onStartBranchDraft && selectedNode?.data.role === 'assistant'
-      const canDeleteAwaitingInput = selectedNode?.data.role === 'user' && selectedNode.data.isAwaitingInput === true
+      const canDeleteAwaitingInput = selectedNode?.data.isAwaitingInput === true
 
       const actions: ResolvedAction[] = [
         {

@@ -259,7 +259,7 @@ export type AiStreamOpenResponse =
       executionIds?: UniqueModelId[]
       /**
        * Authoritative DB id of the user message created for this turn, when the
-       * dispatch created one (submit on a persisted topic or agent session).
+       * dispatch created one (submit on a persisted topic; agent session).
        * Absent for regenerate / continue / temporary topics. The renderer joins
        * its optimistic user bubble against this.
        */

@@ -16,7 +16,6 @@ export interface TopicMessageFlowNodeData extends Record<string, unknown> {
   isActive: boolean
   isOnActivePath: boolean
   isInactiveBranch: boolean
-  hasAssistantDescendant?: boolean
   isAwaitingInput?: boolean
   siblingsGroupId?: number
 }

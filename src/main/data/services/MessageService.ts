@@ -32,7 +32,6 @@ import {
   coerceSearchRole,
   type Message,
   type MessageData,
-  type MessageDataInput,
   type MessageRuntimeStatsInput,
   type MessageStats,
   type SiblingsGroup,
@@ -80,8 +79,6 @@ export interface CreateUserMessageWithPlaceholdersInput {
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
 }
-
-type InternalCreateMessageDto = Omit<CreateMessageDto, 'data'> & { data: MessageData }
 
 export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
@@ -265,6 +262,10 @@ function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: Messa
   }
 }
 
+function isEmptySuccessfulUser(message: Pick<Message, 'role' | 'status' | 'data'>): boolean {
+  return message.role === 'user' && message.status === 'success' && (message.data.parts?.length ?? 0) === 0
+}
+
 /**
  * Convert Message to TreeNode
  */
@@ -282,7 +283,7 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     // here — guarded above) and 'system' is surfaced as 'assistant' for display.
     role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
     isContextBoundary: hasClearContextPart(message.data.parts) || undefined,
-    isBranchDraft: message.data.isBranchDraft || undefined,
+    isAwaitingInput: isEmptySuccessfulUser(message) && !hasChildren ? true : undefined,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,
@@ -312,15 +313,6 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
-  private assertBranchDraftMarkerAbsent(data: MessageData, operation: string): asserts data is MessageDataInput {
-    if (Object.prototype.hasOwnProperty.call(data, 'isBranchDraft')) {
-      throw DataApiErrorFactory.invalidOperation(
-        operation,
-        'isBranchDraft is storage-owned and only available through dedicated branch-draft operations'
-      )
-    }
-  }
-
   purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return
@@ -906,9 +898,7 @@ export class MessageService {
    * - First-turn messages hang off the topic's virtual root, so editing / resending
    *   the first user turn creates an ordinary sibling under that root — no special case.
    */
-  createSibling(sourceId: string, data: MessageDataInput): Message {
-    this.assertBranchDraftMarkerAbsent(data, 'create sibling message')
-
+  createSibling(sourceId: string, data: MessageData): Message {
     return application.get('DbService').withWriteTx((tx) => {
       const [source] = tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1).all()
       if (!source) {
@@ -921,12 +911,6 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation(
           'create sibling of the virtual root',
           'the virtual root has no siblings'
-        )
-      }
-      if (source.data.isBranchDraft === true) {
-        throw DataApiErrorFactory.invalidOperation(
-          'create sibling message',
-          'a branch draft can only be filled or deleted through its dedicated operations'
         )
       }
 
@@ -1012,97 +996,6 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   create(topicId: string, dto: CreateMessageDto): Message {
-    this.assertBranchDraftMarkerAbsent(dto.data, 'create message')
-    return this.createMessage(topicId, dto)
-  }
-
-  /** Create the only valid persisted branch-draft shape. */
-  createBranchDraft(topicId: string, parentId: string): Message {
-    return this.createMessage(topicId, {
-      parentId,
-      role: 'user',
-      data: { parts: [], isBranchDraft: true },
-      status: 'success'
-    })
-  }
-
-  /**
-   * Consume an awaiting-input branch node by replacing its empty data in place.
-   *
-   * Reply reservation intentionally remains a separate regenerate operation.
-   * If opening that stream later fails, the filled user row stays resendable,
-   * matching the existing edit-and-resend failure model.
-   */
-  fillBranchDraft(id: string, data: MessageDataInput): Message {
-    this.assertBranchDraftMarkerAbsent(data, 'fill branch draft')
-    if ((data.parts?.length ?? 0) === 0) {
-      throw DataApiErrorFactory.invalidOperation('fill branch draft', 'Branch draft content cannot be empty')
-    }
-
-    return application.get('DbService').withWriteTx((tx) => {
-      const [row] = tx
-        .select()
-        .from(messageTable)
-        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Message', id)
-      }
-
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, row.topicId)).limit(1).all()
-      if (!topic) {
-        throw DataApiErrorFactory.notFound('Topic', row.topicId)
-      }
-
-      if (
-        row.role !== 'user' ||
-        row.data.isBranchDraft !== true ||
-        (row.data.parts?.length ?? 0) > 0 ||
-        row.status !== 'success' ||
-        topic.activeNodeId !== row.id
-      ) {
-        throw DataApiErrorFactory.invalidOperation('fill branch draft', 'Message is not the active empty branch draft')
-      }
-
-      const [child] = tx
-        .select({ id: messageTable.id })
-        .from(messageTable)
-        .where(and(eq(messageTable.parentId, row.id), isNull(messageTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (child) {
-        throw DataApiErrorFactory.invalidOperation('fill branch draft', 'Branch draft already has a reply')
-      }
-
-      const [updatedRow] = tx
-        .update(messageTable)
-        .set({ data, status: 'success' })
-        .where(eq(messageTable.id, row.id))
-        .returning()
-        .all()
-      replaceChatMessageFileRefsTx(tx, updatedRow.id, data)
-
-      logger.info('Filled branch draft', { id: updatedRow.id, topicId: updatedRow.topicId })
-      return rowToMessage(updatedRow)
-    })
-  }
-
-  private createMessage(topicId: string, dto: InternalCreateMessageDto): Message {
-    if (
-      dto.data.isBranchDraft &&
-      (dto.role !== 'user' ||
-        dto.parentId == null ||
-        dto.setAsActive === false ||
-        (dto.data.parts?.length ?? 0) > 0 ||
-        dto.status !== 'success')
-    ) {
-      throw DataApiErrorFactory.invalidOperation(
-        'create branch draft',
-        'A branch draft must be an active empty successful user message with an explicit parent'
-      )
-    }
-
     return application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
@@ -1138,12 +1031,6 @@ export class MessageService {
         }
         if (parent.topicId !== topicId) {
           throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
-        }
-        if (dto.data.isBranchDraft && parent.role !== 'assistant' && parent.role !== 'system') {
-          throw DataApiErrorFactory.invalidOperation(
-            'create branch draft',
-            'A branch draft must be parented by an assistant or system message'
-          )
         }
         resolvedParentId = dto.parentId
       }
@@ -1209,11 +1096,10 @@ export class MessageService {
         throw DataApiErrorFactory.notFound('Topic', input.topicId)
       }
 
-      // 1. Resolve user message — insert new or fetch existing
+      // 1. Resolve user message — insert new, or fetch existing
       let userMessage: Message
       if (input.userMessage.mode === 'create') {
         const dto = input.userMessage.dto
-        this.assertBranchDraftMarkerAbsent(dto.data, 'reserve user message')
         let resolvedParentId: string | null
 
         if (dto.parentId === undefined || dto.parentId === null) {
@@ -1271,7 +1157,6 @@ export class MessageService {
       // 3. Insert placeholders (preserving input order)
       const placeholders: Message[] = []
       for (const p of input.placeholders) {
-        this.assertBranchDraftMarkerAbsent(p.data, 'reserve assistant placeholder')
         const [row] = tx
           .insert(messageTable)
           .values({
@@ -1307,15 +1192,37 @@ export class MessageService {
     })
   }
 
+  private isAwaitingInputLeafTx(tx: DbOrTx, message: Message): boolean {
+    if (!isEmptySuccessfulUser(message)) return false
+
+    const child = tx
+      .select({ id: messageTable.id })
+      .from(messageTable)
+      .where(and(eq(messageTable.parentId, message.id), isNull(messageTable.deletedAt)))
+      .limit(1)
+      .get()
+    return child === undefined
+  }
+
   /**
    * Update a message
    *
    * Uses transaction to ensure atomicity of validation and update.
    * Cycle check is performed outside transaction as a read-only safety check.
    */
-  update(id: string, dto: UpdateMessageDto): Message {
-    if (dto.data !== undefined) {
-      this.assertBranchDraftMarkerAbsent(dto.data, 'update message')
+  update(id: string, dto: UpdateMessageDto, awaitingInputOnly: boolean = false): Message {
+    if (
+      awaitingInputOnly &&
+      (dto.data === undefined ||
+        (dto.data.parts?.length ?? 0) === 0 ||
+        dto.parentId !== undefined ||
+        dto.siblingsGroupId !== undefined ||
+        dto.status !== undefined)
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'fill awaiting-input message',
+        'awaitingInputOnly accepts only a non-empty message data update'
+      )
     }
 
     // Pre-transaction: Check for cycle if moving to new parent
@@ -1337,11 +1244,17 @@ export class MessageService {
       }
 
       const existing = rowToMessage(existingRow)
-      if (existing.data.isBranchDraft === true) {
-        throw DataApiErrorFactory.invalidOperation(
-          'update branch draft',
-          'a branch draft can only be filled or deleted through its dedicated operations'
-        )
+      if (awaitingInputOnly) {
+        const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, existing.topicId)).limit(1).all()
+        if (!topic) {
+          throw DataApiErrorFactory.notFound('Topic', existing.topicId)
+        }
+        if (topic.activeNodeId !== existing.id || !this.isAwaitingInputLeafTx(tx, existing)) {
+          throw DataApiErrorFactory.invalidOperation(
+            'fill awaiting-input message',
+            'the message is no longer the active empty user leaf'
+          )
+        }
       }
 
       // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
@@ -1400,12 +1313,11 @@ export class MessageService {
   finalizeAssistantMessage(
     id: string,
     input: {
-      data: MessageDataInput
+      data: MessageData
       status: Extract<Message['status'], 'success' | 'paused' | 'error'>
       runtimeStats?: MessageRuntimeStatsInput
     }
   ): Message {
-    this.assertBranchDraftMarkerAbsent(input.data, 'finalize assistant message')
     application.get('DbService').withWriteTx((tx) => {
       const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
       if (!row) throw DataApiErrorFactory.notFound('Message', id)
@@ -1508,7 +1420,7 @@ export class MessageService {
    * @param id - Message ID to delete
    * @param cascade - If true, delete descendants; if false, reparent children (default: false)
    * @param activeNodeStrategy - Strategy for updating activeNodeId if affected (default: 'parent')
-   * @param awaitingInputOnly - Reject unless the target is an empty branch-input user leaf
+   * @param awaitingInputOnly - Reject unless the target is an awaiting-input user leaf
    * @returns Deletion result including deletedIds, reparentedIds, and newActiveNodeId
    * @throws NOT_FOUND if message doesn't exist
    * @throws INVALID_OPERATION if the target is the topic's virtual root (removable only
@@ -1543,25 +1455,11 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
       }
 
-      if (awaitingInputOnly) {
-        const [liveChild] = tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
-          .limit(1)
-          .all()
-        const isAwaitingInput =
-          message.role === 'user' &&
-          message.data.isBranchDraft === true &&
-          (message.data.parts?.length ?? 0) === 0 &&
-          liveChild === undefined
-
-        if (!isAwaitingInput) {
-          throw DataApiErrorFactory.invalidOperation(
-            'delete awaiting-input message',
-            'the message is no longer an empty branch-input leaf'
-          )
-        }
+      if (awaitingInputOnly && !this.isAwaitingInputLeafTx(tx, message)) {
+        throw DataApiErrorFactory.invalidOperation(
+          'delete awaiting-input message',
+          'the message is no longer an empty user leaf'
+        )
       }
 
       const descendantIds = cascade ? this.getDescendantIdsTx(tx, id) : []

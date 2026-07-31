@@ -24,12 +24,9 @@ import {
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution } from '@shared/ai/transport'
-import {
-  type CherryMessagePart,
-  type CherryUIMessage,
-  isRenderableConversationMessage
-} from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -205,10 +202,16 @@ export function useChatRuntimeState({
     overlay,
     translationOverlay
   )
-  const activeBranchDraftMessageId = useMemo(
+  const activeAwaitingInputMessageId = useMemo(
     () =>
       activeNodeId
-        ? (messages.find((message) => message.id === activeNodeId && message.metadata?.isBranchDraft)?.id ?? null)
+        ? (messages.find(
+            (message) =>
+              message.id === activeNodeId &&
+              message.role === 'user' &&
+              message.metadata?.status === 'success' &&
+              message.parts.length === 0
+          )?.id ?? null)
         : null,
     [activeNodeId, messages]
   )
@@ -285,17 +288,17 @@ export function useChatRuntimeState({
     ensureConversation: async ({ text, options }) => {
       if (isHistoryLoading) return null
 
-      if (activeBranchDraftMessageId) {
+      if (activeAwaitingInputMessageId) {
         const parts = options?.userMessageParts ?? [{ type: 'text' as const, text }]
         await cache.patchMessageTrigger({
-          params: { id: activeBranchDraftMessageId },
+          params: { id: activeAwaitingInputMessageId },
           query: { awaitingInputOnly: true },
           body: { data: { parts } }
         })
         return {
           mode: 'regenerate',
           topicId: topic.id,
-          parentAnchorId: activeBranchDraftMessageId
+          parentAnchorId: activeAwaitingInputMessageId
         }
       }
 

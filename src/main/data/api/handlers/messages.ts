@@ -8,10 +8,8 @@
  */
 
 import { messageService } from '@data/services/MessageService'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   BranchMessagesQuerySchema,
-  CreateBranchDraftSchema,
   CreateMessageSchema,
   DeleteMessageQuerySchema,
   type MessageSchemas,
@@ -21,7 +19,7 @@ import {
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
-import { MessageDataInputSchema } from '@shared/data/types/message'
+import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/topics/:topicId/tree': {
@@ -56,13 +54,6 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     }
   },
 
-  '/topics/:topicId/branch-drafts': {
-    POST: async ({ params, body }) => {
-      const parsed = CreateBranchDraftSchema.parse(body)
-      return messageService.createBranchDraft(params.topicId, parsed.parentId)
-    }
-  },
-
   '/topics/:topicId/path': {
     GET: async ({ params, query }) => {
       const q = PathThroughQuerySchema.parse(query ?? {})
@@ -78,21 +69,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     PATCH: async ({ params, body, query }) => {
       const parsed = UpdateMessageSchema.parse(body)
       const q = UpdateMessageQuerySchema.parse(query ?? {})
-      if (q.awaitingInputOnly) {
-        if (
-          parsed.data === undefined ||
-          parsed.parentId !== undefined ||
-          parsed.siblingsGroupId !== undefined ||
-          parsed.status !== undefined
-        ) {
-          throw DataApiErrorFactory.invalidOperation(
-            'fill branch draft',
-            'awaitingInputOnly accepts only a message data update'
-          )
-        }
-        return messageService.fillBranchDraft(params.id, parsed.data)
-      }
-      return messageService.update(params.id, parsed)
+      return messageService.update(params.id, parsed, q.awaitingInputOnly ?? false)
     },
 
     DELETE: async ({ params, query }) => {
@@ -105,7 +82,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
 
   '/messages/:id/siblings': {
     POST: async ({ params, body }) => {
-      const parsed = MessageDataInputSchema.parse(body)
+      const parsed = MessageDataSchema.parse(body)
       return messageService.createSibling(params.id, parsed)
     }
   }

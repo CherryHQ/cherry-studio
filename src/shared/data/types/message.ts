@@ -145,21 +145,9 @@ export interface AssistantTurnOptions {
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
-  /**
-   * Persisted empty user node reserved by “start branch”.
-   * Main clears this marker when the next composer submission fills the row.
-   */
-  isBranchDraft?: true
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
 }
-
-/**
- * Message content accepted from general-purpose write APIs.
- * `isBranchDraft` is storage-owned state and can only be created or consumed
- * through MessageService's dedicated branch-draft operations.
- */
-export type MessageDataInput = Omit<MessageData, 'isBranchDraft'>
 
 // ── Cherry-specific UI message types ────────────────────────────────
 
@@ -194,8 +182,6 @@ export interface CherryUIMessageMetadata {
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
-  /** Whether this is the persisted empty user node reserved by “start branch”. */
-  isBranchDraft?: boolean
   /** Main-authoritative request controls frozen with the persisted assistant row. */
   turnOptions?: AssistantTurnOptions
   /**
@@ -222,11 +208,6 @@ export interface CherryUIMessageMetadata {
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
 export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes>
-
-/** Persisted branch drafts are structural tree nodes, not renderable conversation bubbles. */
-export function isRenderableConversationMessage(message: CherryUIMessage): boolean {
-  return message.metadata?.isBranchDraft !== true
-}
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>
@@ -405,14 +386,13 @@ export interface SerializedErrorData {
 /**
  * Runtime schema for `MessageData`. `parts` is optional on the TS interface
  * and the DB column, so the runtime check mirrors that: accept any object,
- * then validate the recognized fields when present. Part entry types stay
- * runtime-opaque for now; tighten with per-entry schemas in a follow-up.
+ * reject only if `parts` is present and the wrong shape. Part entry types
+ * stay runtime-opaque for now; tighten with per-entry schemas in a follow-up.
  */
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
-  if (v.isBranchDraft !== undefined && v.isBranchDraft !== true) return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
     if (
@@ -425,14 +405,6 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   }
   return true
 })
-
-export const MessageDataInputSchema = z.custom<MessageDataInput>(
-  (value) =>
-    MessageDataSchema.safeParse(value).success &&
-    typeof value === 'object' &&
-    value !== null &&
-    !Object.prototype.hasOwnProperty.call(value, 'isBranchDraft')
-)
 
 // ============================================================================
 // Snapshot Types (immutable records captured at message creation time)
@@ -568,27 +540,6 @@ export const MessageSchema = z.strictObject({
 })
 export type Message = z.infer<typeof MessageSchema>
 
-/** Canonical persisted-message projection shared by main and renderer consumers. */
-export function sharedMessageToUIMessage(message: Message): CherryUIMessage {
-  return {
-    id: message.id,
-    role: toContentRole(message.role),
-    parts: (message.data.parts ?? []) as CherryUIMessage['parts'],
-    metadata: {
-      parentId: message.parentId,
-      siblingsGroupId: message.siblingsGroupId || undefined,
-      modelId: message.modelId ?? undefined,
-      messageSnapshot: message.messageSnapshot ?? undefined,
-      status: message.status,
-      isBranchDraft: message.data.isBranchDraft || undefined,
-      turnOptions: message.data.turnOptions,
-      createdAt: message.createdAt,
-      stats: message.stats ?? undefined,
-      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
-    }
-  }
-}
-
 // ============================================================================
 // Tree Structure Types
 // ============================================================================
@@ -606,8 +557,8 @@ export interface TreeNode {
   role: ContentMessageRole
   /** Derived from the message's hidden `data-clear` part. */
   isContextBoundary?: boolean
-  /** Whether this is a persisted empty user node awaiting composer input. */
-  isBranchDraft?: boolean
+  /** Whether this is an empty successful user leaf awaiting composer input. */
+  isAwaitingInput?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

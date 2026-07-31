@@ -82,19 +82,6 @@ vi.mock('@renderer/components/chat/flow', () => ({
     const parentById = new Map(
       tree.nodes.map((node: { id: string; parentId: string | null }) => [node.id, node.parentId])
     )
-    const nodeById = new Map<string, { id: string; role?: string }>(
-      tree.nodes.map((node: { id: string; role?: string }) => [node.id, node] as const)
-    )
-    const childrenById = new Map<string, string[]>()
-    for (const node of tree.nodes as Array<{ id: string; parentId: string | null }>) {
-      if (!node.parentId) continue
-      childrenById.set(node.parentId, [...(childrenById.get(node.parentId) ?? []), node.id])
-    }
-    const hasAssistantDescendant = (messageId: string): boolean =>
-      (childrenById.get(messageId) ?? []).some((childId) => {
-        const child = nodeById.get(childId)
-        return child?.role === 'assistant' || hasAssistantDescendant(childId)
-      })
     const activePath = new Set<string>()
     let currentId = tree.activeNodeId
     while (currentId && parentById.has(currentId)) {
@@ -105,15 +92,14 @@ vi.mock('@renderer/components/chat/flow', () => ({
     return {
       activeNodeId: tree.activeNodeId,
       edges: [],
-      nodes: tree.nodes.map((node: { id: string; preview?: string; role?: string; isBranchDraft?: boolean }) => ({
+      nodes: tree.nodes.map((node: { id: string; preview?: string; role?: string; isAwaitingInput?: boolean }) => ({
         id: node.id,
         data: {
           messageId: node.id,
           preview: node.preview,
           role: node.role,
-          isAwaitingInput: node.isBranchDraft,
-          isOnActivePath: activePath.has(node.id),
-          hasAssistantDescendant: hasAssistantDescendant(node.id)
+          isAwaitingInput: node.isAwaitingInput,
+          isOnActivePath: activePath.has(node.id)
         },
         position: { x: 0, y: 0 }
       })),
@@ -461,10 +447,10 @@ describe('TopicBranchPanel', () => {
             hasChildren: true
           },
           {
-            id: 'branch-draft-user',
+            id: 'awaiting-input-user',
             parentId: 'assistant-old',
             role: 'user',
-            isBranchDraft: true,
+            isAwaitingInput: true,
             preview: '',
             modelId: null,
             status: 'success',
@@ -481,19 +467,19 @@ describe('TopicBranchPanel', () => {
     vi.mocked(dataApiService.get).mockResolvedValueOnce([
       { id: 'user-1' },
       { id: 'assistant-old' },
-      { id: 'branch-draft-user' }
+      { id: 'awaiting-input-user' }
     ])
 
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    const draftNode = screen.getByTestId('topic-message-flow-node-branch-draft-user')
-    expect(draftNode).toHaveAttribute('data-awaiting-input', 'true')
+    const awaitingInputNode = screen.getByTestId('topic-message-flow-node-awaiting-input-user')
+    expect(awaitingInputNode).toHaveAttribute('data-awaiting-input', 'true')
 
-    fireEvent.click(draftNode)
+    fireEvent.click(awaitingInputNode)
 
     await waitFor(() => {
       expect(mocks.setActiveNode).toHaveBeenCalledWith({
-        body: { nodeId: 'branch-draft-user' },
+        body: { nodeId: 'awaiting-input-user' },
         params: { id: 'topic-1' }
       })
     })
@@ -519,7 +505,7 @@ describe('TopicBranchPanel', () => {
             id: 'branch-empty-user',
             parentId: 'assistant-1',
             role: 'user',
-            isBranchDraft: true,
+            isAwaitingInput: true,
             preview: '',
             modelId: null,
             status: 'success',
@@ -542,14 +528,9 @@ describe('TopicBranchPanel', () => {
     await waitFor(() => {
       expect(mocks.deleteAwaitingInputMessage).toHaveBeenCalledWith({
         params: { id: 'branch-empty-user' },
-        query: {
-          activeNodeStrategy: 'parent',
-          awaitingInputOnly: true,
-          cascade: false
-        }
+        query: { awaitingInputOnly: true }
       })
     })
-    expect(mocks.refetchTree).toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('common.delete_success')
   })
 
@@ -582,7 +563,7 @@ describe('TopicBranchPanel', () => {
             id: 'user-2',
             parentId: 'assistant-1',
             role: 'user',
-            preview: 'Draft next question',
+            preview: 'Next question',
             modelId: null,
             status: 'success',
             createdAt: '2026-05-22T00:00:02.000Z',

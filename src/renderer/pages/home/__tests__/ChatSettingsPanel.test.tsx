@@ -10,7 +10,7 @@ const renderCounters = vi.hoisted(() => ({
   chatContent: 0,
   navbar: 0,
   eventEmit: vi.fn(),
-  createBranchDraft: vi.fn().mockResolvedValue(undefined),
+  createAwaitingInputMessage: vi.fn().mockResolvedValue(undefined),
   setBranchLiveState: vi.fn()
 }))
 
@@ -27,7 +27,7 @@ vi.mock('@data/hooks/useDataApi', async () => {
   return {
     ...MockUseDataApi,
     useMutation: () => ({
-      trigger: renderCounters.createBranchDraft,
+      trigger: renderCounters.createAwaitingInputMessage,
       isLoading: false,
       error: undefined
     })
@@ -216,8 +216,8 @@ describe('Chat panels', () => {
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
-    renderCounters.createBranchDraft.mockReset()
-    renderCounters.createBranchDraft.mockResolvedValue(undefined)
+    renderCounters.createAwaitingInputMessage.mockReset()
+    renderCounters.createAwaitingInputMessage.mockResolvedValue(undefined)
     renderCounters.setBranchLiveState.mockReset()
   })
 
@@ -288,9 +288,14 @@ describe('Chat panels', () => {
     fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
 
     await waitFor(() => {
-      expect(renderCounters.createBranchDraft).toHaveBeenCalledWith({
+      expect(renderCounters.createAwaitingInputMessage).toHaveBeenCalledWith({
         params: { topicId: 'topic-1' },
-        body: { parentId: 'assistant-old' }
+        body: {
+          parentId: 'assistant-old',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success'
+        }
       })
     })
     expect(renderCounters.navbar).toBe(initialNavbarRenders)
