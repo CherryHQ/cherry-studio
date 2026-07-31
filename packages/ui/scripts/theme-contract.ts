@@ -96,11 +96,17 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'highlight',
   'highlight-foreground',
   'highlight-accent',
-  'chat-user'
+  'chat-message-well',
+  'chat-message-well-solid',
+  'chat-user',
+  'composer-surface'
 ] as const
 
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'background-subtle',
+  'chat-message-well',
+  'chat-message-well-solid',
+  'composer-surface',
   'border-subtle',
   'border-strong',
   'success',

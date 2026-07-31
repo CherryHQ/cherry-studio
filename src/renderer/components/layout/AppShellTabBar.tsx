@@ -499,9 +499,15 @@ export const AppShellTabBar = ({
             closingClass: 'bg-accent text-accent-foreground'
           }
         : {
-            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
+            // Dark tones are alpha-on-`--sidebar`, not `--sidebar-accent`: the strip
+            // sits on the lighter window chrome, so the row-selection tone the
+            // resource lists use lands only ~7 levels above it and reads washed
+            // out. These lift the active tab to the same perceived step the list
+            // selection gets on the darker pane, and keep hover strictly below it
+            // (it used to be brighter than the active tab).
+            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-white/7 dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/3 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/3 dark:data-[menu-open=true]:text-sidebar-foreground',
             closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
           },
     [isMacTransparentWindow]

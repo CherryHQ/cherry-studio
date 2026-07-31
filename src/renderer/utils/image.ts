@@ -165,9 +165,14 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
 /**
  * 捕获可滚动元素的完整内容图像。
  * @param elRef 可滚动元素的引用
+ * @param backdropVariable 用作画布底色的 CSS 变量名。默认 `--background` 适用于普通页面
+ *   （如笔记导图）；对话导图要传 `--chat-message-well-solid`，否则导出的底色跟屏幕上看到的对不上。
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-export const captureScrollable = async (elRef: React.RefObject<HTMLElement | null>) => {
+export const captureScrollable = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable: string = '--background'
+) => {
   const el = elRef.current
 
   if (el) {
@@ -207,7 +212,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const captureOptions = {
         filter: filterHiddenElements,
-        backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
+        backgroundColor: getComputedStyle(el).getPropertyValue(backdropVariable),
         cacheBust: true,
         imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
         pixelRatio: window.devicePixelRatio,
@@ -248,8 +253,11 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
-  return captureScrollable(elRef).then((canvas) => {
+export const captureScrollableAsDataUrl = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
+) => {
+  return captureScrollable(elRef, backdropVariable).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
     }
@@ -263,8 +271,12 @@ export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElem
  * @param func Blob 回调函数
  * @returns Promise<void> 处理结果
  */
-export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
-  await captureScrollable(elRef).then((canvas) => {
+export const captureScrollableAsBlob = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  func: BlobCallback,
+  backdropVariable?: string
+) => {
+  await captureScrollable(elRef, backdropVariable).then((canvas) => {
     canvas?.toBlob(func, 'image/png')
   })
 }

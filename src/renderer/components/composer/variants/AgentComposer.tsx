@@ -486,7 +486,9 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
             '--context-usage-progress': `${percentage}%`
           } as React.CSSProperties
         }>
-        <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
+        {/* Punches the donut hole out of the ring, so it must repaint the composer
+            surface it sits on — not `--card`, which no longer matches it. */}
+        <span aria-hidden className="absolute inset-[2px] rounded-full bg-composer-surface" />
       </span>
     </Tooltip>
   )

@@ -116,6 +116,13 @@
     { "source": "--cs-highlight", "target": "--highlight", "strategy": "exact" },
     { "source": "--cs-highlight-foreground", "target": "--highlight-foreground", "strategy": "exact" },
     { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
+    { "source": "--cs-chat-message-well", "target": "--chat-message-well", "strategy": "exact" },
+    {
+      "source": "--cs-chat-message-well-solid",
+      "target": "--chat-message-well-solid",
+      "strategy": "exact"
+    },
+    { "source": "--cs-composer-surface", "target": "--composer-surface", "strategy": "exact" },
     { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
     {
       "source": "--cs-user-font-family",

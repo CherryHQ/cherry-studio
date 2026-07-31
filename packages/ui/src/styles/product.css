@@ -44,6 +44,24 @@
   --highlight: var(--cs-amber-50);
   --highlight-accent: var(--cs-amber-100);
 
+  /* Stable product domain: conversation surfaces.
+   * The conversation is a three-level stack: `--chat-message-well` is the recessed
+   * well the messages sit in, the surrounding rails keep `--background`, and
+   * `--composer-surface` / `--chat-user` are the blocks that float above the well.
+   * In light mode the well and the composer are both plain white, so the stack
+   * only becomes visible in dark mode.
+   *
+   * `--composer-surface` covers EVERY `ComposerSurface` instance on purpose —
+   * hence the domain-free name — so the painting prompt bar lifts off its page
+   * the same way the chat and agent composers do.
+   *
+   * `--chat-message-well-solid` is the tone `--chat-message-well` resolves to over the
+   * rails in a normal window. Image exports need a concrete fill and have no
+   * window behind them, so they use this instead of the translucent value. */
+  --chat-message-well: var(--cs-background);
+  --chat-message-well-solid: var(--cs-background);
+  --composer-surface: var(--cs-card);
+
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
 }
@@ -61,6 +79,20 @@
   --highlight: var(--cs-amber-900);
   --highlight-accent: var(--cs-amber-800);
 
-  /* Stable product domain: user-message surface */
-  --chat-user: rgba(255, 255, 255, 0.08);
+  /* Stable product domain: conversation surfaces.
+   * `--chat-message-well` carries the same 0.55 alpha as `--background`, so the
+   * conversation keeps the macOS transparent-window vibrancy the rest of the
+   * window shows instead of punching an opaque slab through it. Sharing the
+   * alpha also fixes the step: both surfaces composite over the same backdrop,
+   * so the well stays `0.55 × (0.209 − 0.1727)` below the rails whatever is
+   * behind the window — the hierarchy cannot invert on a light wallpaper.
+   * Over the rails in a normal window this lands on `--chat-message-well-solid`. */
+  --chat-message-well: oklch(0.1727 0 0 / 0.55);
+  --chat-message-well-solid: oklch(0.191 0 0);
+  --composer-surface: oklch(0.269 0 0);
+
+  /* Stable product domain: user-message surface.
+   * Sits between the well and the composer so a sent message never reads as
+   * the still-editable input. */
+  --chat-user: oklch(0.2393 0 0);
 }

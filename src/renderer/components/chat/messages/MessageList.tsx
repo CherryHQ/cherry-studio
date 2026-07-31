@@ -33,7 +33,7 @@ import {
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { defaultMessageRenderConfig } from './types'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
@@ -362,7 +362,7 @@ const MessageList = () => {
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
       if (action === 'copy') {
-        const canvas = await captureScrollable(captureRef)
+        const canvas = await captureScrollable(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
         const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
@@ -375,7 +375,7 @@ const MessageList = () => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataUrl(captureRef)
+      const imageData = await captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -636,7 +636,7 @@ const MessageList = () => {
           aria-hidden="true"
           data-topic-image-capture
           className={classNames(
-            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
+            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-chat-message-well-solid text-foreground',
             !topicImageCaptureWidth && 'w-full'
           )}
           style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>

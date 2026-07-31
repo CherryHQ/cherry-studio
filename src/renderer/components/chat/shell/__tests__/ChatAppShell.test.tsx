@@ -137,6 +137,18 @@ describe('ChatAppShell', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
+  it('paints the recessed message well on the center column, not the shell root', () => {
+    const { container } = render(
+      <ChatAppShell centerId="chat-main" pane={<div data-testid="pane" />} paneOpen main={<div data-testid="main" />} />
+    )
+
+    // The rails (resource list, right pane) must keep the surrounding
+    // `--background`, so the darker well is scoped to the center column.
+    expect(container.querySelector('#chat-main')).toHaveClass('bg-chat-message-well')
+    expect(container.querySelector('[data-chat-app-shell-root]')).not.toHaveClass('bg-chat-message-well')
+    expect(screen.getByTestId('pane').closest('[data-resource-list-pane]')).not.toHaveClass('bg-chat-message-well')
+  })
+
   it('renders side panel in a root overlay host above center layers', () => {
     const { container } = render(
       <ChatAppShell
@@ -151,7 +163,7 @@ describe('ChatAppShell', () => {
     const navbarWrapper = screen.getByTestId('navbar').parentElement
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
-    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-background')
+    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-chat-message-well')
     expect(navbarWrapper).not.toHaveClass('absolute')
     expect(navbarWrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
