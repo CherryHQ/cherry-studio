@@ -17,12 +17,12 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   Input,
-  SearchInput,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
-import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingDescription, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
@@ -155,19 +155,18 @@ interface SkillAddActionsProps {
   onSearchMarketplace: () => void
   onSearchSystem?: () => void
   onImportLocal: () => void
-  size?: 'sm' | 'default'
 }
 
-function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal, size = 'sm' }: SkillAddActionsProps) {
+function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }: SkillAddActionsProps) {
   const { t } = useTranslation()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="default" size={size} className="shrink-0">
-          <Plus size={size === 'sm' ? 12 : 16} className="lucide-custom" />
+        <Button variant="default" size="sm" className="shrink-0">
+          <Plus size={12} className="lucide-custom" />
           <span>{t('library.skill_add.add')}</span>
-          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground" />
+          <ChevronDown size={12} className="text-primary-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
@@ -221,7 +220,8 @@ export const ResourceGrid: FC<Props> = ({
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const columnCount = useGridColumnCount(scrollRef)
+  const responsiveColumnCount = useGridColumnCount(scrollRef)
+  const columnCount = isSettings ? 1 : responsiveColumnCount
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
@@ -326,7 +326,6 @@ export const ResourceGrid: FC<Props> = ({
         onSearchMarketplace={onOpenSkillMarketplace}
         onSearchSystem={onOpenSystemSkills}
         onImportLocal={() => onCreate('skill')}
-        size={isSettings ? 'default' : 'sm'}
       />
     ) : (
       <Button
@@ -339,16 +338,7 @@ export const ResourceGrid: FC<Props> = ({
       </Button>
     )
 
-  const searchInput = isSettings ? (
-    <SearchInput
-      aria-label={t('library.toolbar.search_placeholder')}
-      placeholder={t('library.toolbar.search_placeholder')}
-      value={search}
-      onChange={(event) => onSearchChange(event.currentTarget.value)}
-      onClear={() => onSearchChange('')}
-      clearLabel={t('common.clear')}
-    />
-  ) : (
+  const searchInput = (
     <ResourceCatalogSearchInput
       value={search}
       onValueChange={onSearchChange}
@@ -361,23 +351,27 @@ export const ResourceGrid: FC<Props> = ({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-subtle border-b')}>
         {isSettings ? (
-          <>
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <SettingTitle>
+          <div className="flex min-w-0 items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <SettingTitle className="shrink-0">
                   <span>{title}</span>
                 </SettingTitle>
-                {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
+                <CollapsibleSearchBar
+                  onSearch={onSearchChange}
+                  placeholder={t('library.toolbar.search_placeholder')}
+                  tooltip={t('common.search')}
+                  maxWidth={220}
+                  collapsedSize={30}
+                  style={{ borderRadius: 8 }}
+                />
               </div>
-              {addActions}
+              {description ? (
+                <SettingDescription className="mt-1 text-sm leading-5">{description}</SettingDescription>
+              ) : null}
             </div>
-            <SettingDivider />
-            <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
-              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
-                {searchInput}
-              </div>
-            </div>
-          </>
+            <div className="shrink-0">{addActions}</div>
+          </div>
         ) : (
           <div className="flex h-12 shrink-0 items-center gap-2 px-5">
             {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
@@ -510,7 +504,7 @@ export const ResourceGrid: FC<Props> = ({
         ref={scrollRef}
         className={cn(
           'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1',
-          isSettings ? 'py-3' : 'px-5 py-4'
+          isSettings ? 'pt-4 pb-3' : 'px-5 py-4'
         )}>
         {isLoading ? (
           <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
@@ -526,6 +520,7 @@ export const ResourceGrid: FC<Props> = ({
             scrollRef={scrollRef}
             columnCount={columnCount}
             resources={resources}
+            variant={variant}
             allGroups={allGroups}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
@@ -570,6 +565,7 @@ interface VirtualizedResourceGridProps {
   scrollRef: RefObject<HTMLDivElement | null>
   columnCount: number
   resources: ResourceItem[]
+  variant: 'library' | 'settings'
   allGroups: Group[]
   onDelete: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
@@ -581,6 +577,7 @@ function VirtualizedResourceGrid({
   scrollRef,
   columnCount,
   resources,
+  variant,
   allGroups,
   onDelete,
   onDuplicate,
@@ -624,6 +621,7 @@ function VirtualizedResourceGrid({
               <ResourceCard
                 key={resource.id}
                 resource={resource}
+                variant={variant}
                 allGroups={allGroups}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
