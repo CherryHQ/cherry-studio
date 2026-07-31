@@ -62,6 +62,11 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
 }))
 
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
+  __esModule: true,
+  default: ({ hostname }: { hostname: string }) => <span data-hostname={hostname} />
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
@@ -882,6 +887,29 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByTestId('mock-markdown').textContent).toContain('data-citation')
       expect(screen.getByTestId('mock-markdown').textContent).toContain('https://ex.com')
+    })
+
+    it('shares citation display numbers across multiple text parts', () => {
+      renderParts([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [
+            { id: 'call-1', title: 'First', url: 'https://first.example', content: 'first' },
+            { id: 'call-2', title: 'Second', url: 'https://second.example', content: 'second' }
+          ]
+        },
+        { type: 'text', text: 'Later source first. [cite:call-2]' },
+        { type: 'text', text: 'Earlier source second. [cite:call-1]' }
+      ] as unknown as CherryMessagePart[])
+
+      const [first, second] = screen.getAllByTestId('mock-markdown').map((node) => node.textContent ?? '')
+      expect(first).toContain("data-citation='1'")
+      expect(first).toContain('https://second.example')
+      expect(second).toContain("data-citation='2'")
+      expect(second).toContain('https://first.example')
     })
 
     it('renders video and error value parts', () => {

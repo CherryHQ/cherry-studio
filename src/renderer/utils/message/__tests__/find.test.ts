@@ -66,6 +66,29 @@ describe('getToolCitationExport', () => {
     })
   })
 
+  it('uses the same message-wide sequence across multiple text parts', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [
+          { id: 'call-1', title: 'First', url: 'https://first.example', content: 'first' },
+          { id: 'call-2', title: 'Second', url: 'https://second.example', content: 'second' }
+        ]
+      },
+      { type: 'text', text: 'Later source first. [cite:call-2]' },
+      { type: 'text', text: 'Earlier source second. [cite:call-1]' }
+    ] as MessageExportView['parts'])
+    const content = getMainTextContent(message)
+
+    expect(getToolCitationExport(message, content)).toEqual({
+      content: 'Later source first. [1]\n\nEarlier source second. [2]',
+      citation: '[1] [Second](https://second.example)\n\n[2] [First](https://first.example)'
+    })
+  })
+
   it('lists a URL-less knowledge citation without a link', () => {
     const message = createExportView([
       {

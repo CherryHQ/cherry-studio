@@ -1,19 +1,44 @@
 /**
  * Citation text-tag pipeline — converts source-specific citation marks in
- * markdown content into a uniform `[<sup data-citation='…'>N</sup>](url)`
+ * markdown content into a uniform `[<sup data-citation='N'>N</sup>](url)`
  * tagged shape that the chat layer's `<a>` renderer can detect.
  *
  * This module lives in the renderer because it encodes business knowledge:
  * the LLM provider enumeration, each provider's wire format for citation
- * markers, and how to project our chat `Citation` shape into the rendered
- * `<sup data-citation>` JSON the tooltip reads. The markdown package
+ * markers, and how to project our chat `Citation` shape into rendered markers.
+ * Tooltip data stays out-of-band in the current message's trusted registry. The markdown package
  * upstream is intentionally provider-agnostic.
  */
 
 import type { GroundingSupport } from '@google/genai'
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
-import { cleanMarkdownContent, encodeHTML } from '@renderer/utils/formats'
+import { cleanMarkdownContent } from '@renderer/utils/formats'
+
+const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
+
+/** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
+export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
+  MARKDOWN_CODE_PATTERN.lastIndex = 0
+  let cursor = 0
+  let result = ''
+  let match: RegExpExecArray | null
+
+  while ((match = MARKDOWN_CODE_PATTERN.exec(content)) !== null) {
+    result += transform(content.slice(cursor, match.index))
+    result += match[0]
+    cursor = match.index + match[0].length
+  }
+
+  return result + transform(content.slice(cursor))
+}
+
+/** Tooltip projection shared by the tag emitter and the trusted renderer registry. */
+export function toTooltipCitation(citation: Citation): Citation {
+  return citation.content
+    ? { ...citation, content: cleanMarkdownContent(citation.content).substring(0, 200) }
+    : citation
+}
 
 /** Pick the first valid source identifier out of a citation-reference list. */
 export function determineCitationSource(
@@ -28,7 +53,7 @@ export function determineCitationSource(
 
 /**
  * Convert any source-specific citation marks in `content` into rendered
- * `[<sup data-citation='JSON'>N</sup>](url)` tags. Pipeline:
+ * `[<sup data-citation='N'>N</sup>](url)` tags. Pipeline:
  *   1. Normalize source-specific marks (e.g. `[<sup>N</sup>](url)` → `[cite:N]`)
  *   2. Map `[cite:N]` → rendered tag via `generateCitationTag`
  *
@@ -37,7 +62,7 @@ export function determineCitationSource(
  */
 export function withCitationTags(content: string, citations: Citation[], sourceType?: WebSearchSource): string {
   if (!content || citations.length === 0) return content
-  const cleaned = citations.map((c) => (c.content ? { ...c, content: cleanMarkdownContent(c.content) } : c))
+  const cleaned = citations.map(toTooltipCitation)
   const citationMap = new Map(cleaned.map((c) => [c.number, c]))
   const normalizedContent = normalizeCitationMarks(content, citationMap, sourceType)
   return mapCitationMarksToTags(normalizedContent, new Map(cleaned.map((c) => [String(c.number), c])))
@@ -52,7 +77,7 @@ export function normalizeCitationMarks(
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource
 ): string {
-  const codeBlockRegex = /```[\s\S]*?```|`[^`\n]*`/gm
+  const codeBlockRegex = MARKDOWN_CODE_PATTERN
   const getSkipRanges = () => {
     const skipRanges: Array<{ start: number; end: number }> = []
 
@@ -177,10 +202,12 @@ export function normalizeCitationMarks(
  * tool-result ids keep their `<prefix>-<n>` form.
  */
 export function mapCitationMarksToTags(content: string, citationMap: Map<string, Citation>): string {
-  return content.replace(/\[cite:([\w-]+)\]/g, (match, id) => {
-    const citation = citationMap.get(id)
-    return citation ? generateCitationTag(citation) : match
-  })
+  return mapMarkdownOutsideCode(content, (text) =>
+    text.replace(/\[cite:([\w-]+)\]/g, (match, id) => {
+      const citation = citationMap.get(id)
+      return citation ? generateCitationTag(citation) : match
+    })
+  )
 }
 
 /**
@@ -194,20 +221,7 @@ export const isLinkableCitationUrl = (url?: string): boolean => !!url && url.sta
 
 /** Build the rendered tag for a single citation. */
 export function generateCitationTag(citation: Citation): string {
-  const supData = {
-    id: citation.number,
-    url: citation.url,
-    title: citation.title || citation.hostname || '',
-    content: citation.content?.substring(0, 200),
-    // Kind discriminator for the tooltip: knowledge citations have no URL and
-    // render a document card instead of a link preview.
-    type: citation.type
-  }
-  // encodeHTML only escapes &, <, >, ", ' — also escape | so GFM tables
-  // don't treat it as a column separator inside table cells
-  const citationJson = encodeHTML(JSON.stringify(supData)).replace(/\|/g, '&#124;')
-
-  const supTag = `<sup data-citation='${citationJson}'>${citation.number}</sup>`
+  const supTag = `<sup data-citation='${citation.number}'>${citation.number}</sup>`
   if (!isLinkableCitationUrl(citation.url)) {
     // Knowledge-base and memory citations have no URL. Wrapping them in `[...]()` yields an empty
     // href, which rehype-harden rewrites into `<span>…<sup/> [blocked]</span>` — that both defaces

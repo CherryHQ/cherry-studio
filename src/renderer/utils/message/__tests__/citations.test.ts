@@ -2,6 +2,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
 import {
+  resolveCitationMarkerParts,
   resolveMessageCitations,
   stripCitationMarkers,
   toExportableCitations,
@@ -63,14 +64,14 @@ const kbGrepOutput = (id: string) => ({
   ]
 })
 
-const dynamicMcpPart = (toolName: string, content: unknown): CherryMessagePart =>
+const dynamicMcpPart = (toolName: string, content: unknown, serverName = 'cherry-tools'): CherryMessagePart =>
   ({
     type: 'dynamic-tool',
     toolName,
     toolCallId: 'c3',
     state: 'output-available',
     input: { query: 'q' },
-    output: { content, metadata: { type: 'mcp', serverName: 'cherry-tools' } }
+    output: { content, metadata: { type: 'mcp', serverName } }
   }) as never
 
 const toolInvokePart = (name: string, output: unknown): CherryMessagePart =>
@@ -103,6 +104,14 @@ describe('resolveMessageCitations', () => {
   it('ignores third-party MCP tools sharing the builtin name', () => {
     const mc = resolveMessageCitations([dynamicMcpPart('mcp__other-server__web_search', webResults('abc'))])
     expect(mc.all).toHaveLength(0)
+  })
+
+  it('requires cherry-tools metadata for raw same-named dynamic tools', () => {
+    const thirdParty = resolveMessageCitations([dynamicMcpPart('web_search', webResults('abc'), 'other-server')])
+    const cherry = resolveMessageCitations([dynamicMcpPart('web_search', webResults('abc'))])
+
+    expect(thirdParty.all).toHaveLength(0)
+    expect(cherry.all).toHaveLength(2)
   })
 
   it('resolves deferred tool_invoke parts by inner tool name', () => {
@@ -327,9 +336,36 @@ describe('withToolCitationTags', () => {
 
   it('cleans markdown in tooltip snippets', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
-    const { content } = withToolCitationTags('Fact. [cite:abc-1]', mc)
-    expect(content).toContain('alpha bold')
-    expect(content).not.toContain('alpha *bold*')
+    const { content, cited } = withToolCitationTags('Fact. [cite:abc-1]', mc)
+    expect(content).not.toContain('alpha')
+    expect(cited[0].content).toBe('alpha bold')
+  })
+
+  it('preserves canonical markers in inline and fenced code', () => {
+    const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
+    const input = 'Use `[cite:abc-1]`.\n```md\n[cite:abc-2]\n```\nOutside [cite:abc-1]'
+    const { content, cited } = withToolCitationTags(input, mc)
+
+    expect(content).toContain('`[cite:abc-1]`')
+    expect(content).toContain('```md\n[cite:abc-2]\n```')
+    expect(content).toContain("data-citation='1'")
+    expect(cited).toHaveLength(1)
+  })
+})
+
+describe('resolveCitationMarkerParts', () => {
+  it('shares display numbering across text parts in reading order', () => {
+    const citations = resolveMessageCitations([webToolPart(webResults('abc'))])
+    const [first, second] = resolveCitationMarkerParts(
+      ['First [cite:abc-2]', 'Second [cite:abc-1] and [cite:abc-2]'],
+      citations
+    )
+
+    expect(first.byMarker.get('abc-2')?.number).toBe(1)
+    expect(second.byMarker.get('abc-1')?.number).toBe(2)
+    expect(second.byMarker.get('abc-2')?.number).toBe(1)
+    expect(first.cited.map((citation) => citation.number)).toEqual([1])
+    expect(second.cited.map((citation) => citation.number)).toEqual([2, 1])
   })
 })
 
@@ -382,6 +418,15 @@ describe('toExportableCitations', () => {
     expect(content).toBe('Plain answer.')
     expect(cited).toEqual([])
   })
+
+  it('preserves canonical markers in code while rewriting prose markers', () => {
+    const parts = [webToolPart(webResults('abc'))]
+    const input = '`[cite:abc-1]`\n```txt\n[cite:abc-2]\n```\nOutside [cite:abc-1]'
+    const { content, cited } = toExportableCitations(input, parts)
+
+    expect(content).toBe('`[cite:abc-1]`\n```txt\n[cite:abc-2]\n```\nOutside [1]')
+    expect(cited).toHaveLength(1)
+  })
 })
 
 describe('stripCitationMarkers', () => {
@@ -401,5 +446,10 @@ describe('stripCitationMarkers', () => {
     expect(stripCitationMarkers('Plain reasoning about [1] and [brackets].')).toBe(
       'Plain reasoning about [1] and [brackets].'
     )
+  })
+
+  it('preserves canonical markers in inline and fenced code', () => {
+    const input = '`[cite:abc-1]`\n```txt\n[cite:def-2]\n```\nOutside [cite:abc-1]'
+    expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2]\n```\nOutside')
   })
 })

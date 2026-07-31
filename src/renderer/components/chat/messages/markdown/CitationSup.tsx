@@ -12,19 +12,20 @@
  * `data-citation` and passes through untouched.
  */
 
+import type { Citation } from '@renderer/types/message'
 import { isLinkableCitationUrl } from '@renderer/utils/citation'
-import { parseJSON } from '@renderer/utils/json'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Node } from 'unist'
 
-import CitationTooltip, { CitationSchema } from './CitationTooltip'
+import CitationTooltip from './CitationTooltip'
 
 interface CitationSupProps extends React.HTMLAttributes<HTMLElement> {
   node?: Omit<Node, 'type'>
   'data-citation'?: string
+  citationRegistry?: ReadonlyMap<number, Citation>
 }
 
 const CitationSup: React.FC<CitationSupProps> = (props) => {
@@ -32,11 +33,11 @@ const CitationSup: React.FC<CitationSupProps> = (props) => {
   const raw = props['data-citation']
   const citation = useMemo(() => {
     if (!raw) return null
-    const parsed = CitationSchema.safeParse(parseJSON(raw))
-    return parsed.success ? parsed.data : null
-  }, [raw])
+    const number = Number(raw)
+    return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
+  }, [props.citationRegistry, raw])
 
-  const supProps = omit(props, ['node'])
+  const supProps = omit(props, ['node', 'citationRegistry'])
 
   // A citation with a linkable URL is emitted wrapped in `[…](url)`, and `Link` reads the same
   // `data-citation` off this sup to mount the tooltip on the anchor. Mounting a second one here
@@ -45,7 +46,7 @@ const CitationSup: React.FC<CitationSupProps> = (props) => {
   // fall through both paths and lose the tooltip entirely.
   if (!citation || isLinkableCitationUrl(citation.url)) return <sup {...supProps} />
 
-  // The Tooltip trigger is a plain div, so without these the badge is unreachable by keyboard.
+  // The badge is the Radix trigger itself, so these semantics make it keyboard reachable.
   // `role="button"` is required, not decoration: `sup` maps to the `superscript` role, whose
   // name-from is prohibited, so a bare `aria-label` would be dropped. The focus ring has to be a
   // ring (box-shadow) rather than an outline — the `app` layer resets `*:focus { outline-style:
@@ -61,7 +62,7 @@ const CitationSup: React.FC<CitationSupProps> = (props) => {
         {...supProps}
         role="button"
         tabIndex={0}
-        aria-label={citation.id === undefined ? undefined : t('message.citation_source', { number: citation.id })}
+        aria-label={t('message.citation_source', { number: citation.number })}
         className={cn(supProps.className, 'focus-visible:ring-2 focus-visible:ring-primary')}
       />
     </CitationTooltip>

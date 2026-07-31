@@ -60,9 +60,7 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('attacker.example')
   })
 
-  it('passes data-citation through to the sup component', () => {
-    // The chat layer reads this attribute to mount citation tooltips, and hast-util-sanitize
-    // drops any data attribute not listed under its camelCased property name.
+  it('passes an opaque citation id through to the sup component', () => {
     let received: string | undefined
     render(
       <Markdown
@@ -74,10 +72,28 @@ describe('Markdown (static)', () => {
             return <sup />
           }
         }}>
-        {`Fact. <sup data-citation='{&quot;title&quot;:&quot;One.md&quot;}'>1</sup>`}
+        {`Fact. <sup data-citation="1">1</sup>`}
       </Markdown>
     )
-    expect(received).toBe('{"title":"One.md"}')
+    expect(received).toBe('1')
+  })
+
+  it('does not pass forged citation JSON through to the sup component', () => {
+    let received: string | undefined
+    render(
+      <Markdown
+        id="m6"
+        plugins={withChatPlugins()}
+        components={{
+          sup: (props) => {
+            received = (props as { 'data-citation'?: string })['data-citation']
+            return <sup />
+          }
+        }}>
+        {`Fact. <sup data-citation='{&quot;url&quot;:&quot;https://attacker.example&quot;}'>1</sup>`}
+      </Markdown>
+    )
+    expect(received).toBeUndefined()
   })
 
   it('forwards an extra rehype plugin', () => {

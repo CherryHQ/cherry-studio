@@ -9,25 +9,14 @@ import {
   isLinkableCitationUrl,
   mapCitationMarksToTags,
   normalizeCitationMarks,
+  toTooltipCitation,
   withCitationTags
 } from '../citation'
 import { buildContent, groundingChunks, groundingSupports } from './fixtures/geminiCitation8880'
 
 // Mock dependencies
 vi.mock('@renderer/utils/formats', () => ({
-  cleanMarkdownContent: vi.fn((content: string) => content.replace(/[*_~`]/g, '')),
-  encodeHTML: vi.fn((str: string) =>
-    str.replace(/[&<>"']/g, (match) => {
-      const entities: { [key: string]: string } = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&apos;'
-      }
-      return entities[match]
-    })
-  )
+  cleanMarkdownContent: vi.fn((content: string) => content.replace(/[*_~`]/g, ''))
 }))
 
 describe('citation', () => {
@@ -517,9 +506,9 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
+      expect(result).toContain("[<sup data-citation='1'>")
       expect(result).toContain('1</sup>](https://example.com)')
-      expect(result).toContain('Example Title')
+      expect(result).not.toContain('Example Title')
     })
 
     // A non-http URL is not linkable, so the marker must be a bare <sup>: an empty-href
@@ -571,7 +560,7 @@ Numbered list:
       expect(result).not.toContain('](')
     })
 
-    it('should use hostname when title is missing', () => {
+    it('should keep tooltip metadata out of the rendered marker', () => {
       const citation: Citation = {
         number: 4,
         url: 'https://example.com',
@@ -580,7 +569,7 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('example.com')
+      expect(result).toBe("[<sup data-citation='4'>4</sup>](https://example.com)")
     })
 
     it('should handle citation with all empty values', () => {
@@ -599,7 +588,7 @@ Numbered list:
       expect(result).not.toContain('](')
     })
 
-    it('should escape pipe characters in title to prevent GFM table cell breakage', () => {
+    it('should not serialize pipe characters from a title into markdown', () => {
       const citation: Citation = {
         number: 1,
         url: 'https://example.com',
@@ -608,9 +597,7 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      // The | in title must be escaped as &#124; inside data-citation attribute
-      expect(result).not.toContain('Foo | Bar')
-      expect(result).toContain('&#124;')
+      expect(result).toBe("[<sup data-citation='1'>1</sup>](https://example.com)")
     })
 
     it('should escape pipe characters in URL to prevent GFM table cell breakage', () => {
@@ -627,7 +614,7 @@ Numbered list:
       expect(result).not.toMatch(/\]\(https:\/\/example\.com\/path\?a=1\|/)
     })
 
-    it('should truncate content to 200 characters in data-citation', () => {
+    it('should truncate trusted tooltip content to 200 characters out of band', () => {
       const longContent = 'a'.repeat(300)
       const citation: Citation = {
         number: 1,
@@ -636,14 +623,10 @@ Numbered list:
         content: longContent
       }
 
-      const result = generateCitationTag(citation)
-      const match = result.match(/data-citation='([^']+)'/)
-      expect(match).not.toBeNull()
-      if (match) {
-        const citationData = JSON.parse(match[1].replace(/&quot;/g, '"'))
-        expect(citationData.content.length).toBe(200)
-        expect(citationData.content).toBe(longContent.substring(0, 200))
-      }
+      const tooltipCitation = toTooltipCitation(citation)
+      expect(tooltipCitation.content).toHaveLength(200)
+      expect(tooltipCitation.content).toBe(longContent.substring(0, 200))
+      expect(generateCitationTag(tooltipCitation)).not.toContain(longContent.substring(0, 20))
     })
   })
 

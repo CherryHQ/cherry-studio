@@ -24,7 +24,7 @@
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
-import { mapCitationMarksToTags, normalizeCitationMarks } from '@renderer/utils/citation'
+import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
   KB_READ_TOOL_NAME,
@@ -38,10 +38,11 @@ import {
 } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
-import { normalizeToolOutputResponse } from './toolOutput'
+import { extractOutputMetadata, normalizeToolOutputResponse, type ToolMetadata } from './toolOutput'
 
 export interface MessageCitations {
   /** Wire id (stringified) → citation with its assigned display number. */
@@ -110,7 +111,15 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (toolPart.state !== 'output-available') return null
 
   const rawName = getToolName(toolPart)
-  if (CITABLE_TOOL_NAMES.has(rawName)) return rawName
+  if (CITABLE_TOOL_NAMES.has(rawName)) {
+    if (part.type !== 'dynamic-tool') return rawName
+
+    const partMetadata = readCherryMeta(part)?.tool
+    const outputMetadata = extractOutputMetadata((toolPart as { output?: unknown }).output).metadata
+    const belongsToCherryTools = (metadata: ToolMetadata | typeof partMetadata | undefined) =>
+      metadata?.serverId === CHERRY_TOOLS_MCP_SERVER || metadata?.serverName === CHERRY_TOOLS_MCP_SERVER
+    return belongsToCherryTools(partMetadata) || belongsToCherryTools(outputMetadata) ? rawName : null
+  }
 
   if (rawName === TOOL_INVOKE_TOOL_NAME) {
     const input = toolPart.input
@@ -317,19 +326,10 @@ export interface ResolvedCitationMarkers {
   cited: Citation[]
 }
 
-/**
- * Resolve `[cite:id]` markers (plus resolvable bare `[N]` / provider-mark forms)
- * in `content` against a message's citations. Unknown ids stay literal.
- *
- * Markers are numbered 1..N by first appearance in `content`, so the badges read
- * in order and match the footer's ordering.
- *
- * Shared by every consumer of the markers — rendering, Markdown/plain-text
- * export and copy — so all three agree on which marker means which source.
- */
-export function resolveCitationMarkers(content: string, citations: MessageCitations): ResolvedCitationMarkers {
-  if (!content || citations.byId.size === 0) return { content, byMarker: new Map(), cited: [] }
-
+function createCitationLookup(citations: MessageCitations): {
+  lookup: Map<string, Citation>
+  markerNumberMap: Map<number, Citation>
+} {
   const cleanCache = new Map<Citation, Citation>()
   const clean = (citation: Citation): Citation => {
     const cached = cleanCache.get(citation)
@@ -344,53 +344,83 @@ export function resolveCitationMarkers(content: string, citations: MessageCitati
 
   const lookup = new Map<string, Citation>()
   for (const [id, citation] of citations.byId) lookup.set(id, clean(citation))
-  // Bare markers normalize to `[cite:<number>]` — alias those keys unless a wire id already owns them.
   for (const [markerNumber, citation] of markerNumberMap) {
     const key = String(markerNumber)
     if (!lookup.has(key)) lookup.set(key, citation)
   }
+  return { lookup, markerNumberMap }
+}
 
-  // AISDK covers both the `[<sup>N</sup>](url)` provider form and plain `[N]`.
-  const normalized =
-    markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
+function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
+  return markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
+}
 
-  // Renumber by first appearance. `resolveMessageCitations` numbers every result it finds, so a
-  // model citing the 41st knowledge chunk would render a bare "41" while the footer lists only the
-  // handful actually cited — and the footer (ordered by appearance) would disagree with those
-  // numbers whenever the model cites out of order. Display numbers are therefore assigned here,
-  // where the text is known; the resolver's numbers stay as internal identity keys.
-  const cited: Citation[] = []
-  const displayed = new Map<Citation, Citation>()
-  const renumbered = new Map<string, Citation>()
-  for (const match of normalized.matchAll(/\[cite:([\w-]+)\]/g)) {
-    const citation = lookup.get(match[1])
-    if (!citation) continue
-    let display = displayed.get(citation)
-    if (!display) {
-      display = { ...citation, number: cited.length + 1 }
-      displayed.set(citation, display)
-      cited.push(display)
-    }
-    renumbered.set(match[1], display)
-  }
-
-  // The model chains one marker per supporting result, but several results can resolve to one
-  // source — two chunks of the same document, or a kb_search hit it then re-read. Those would
-  // render as the same badge twice in a row, so keep only the first of each within a run of
-  // adjacent markers. Unresolved ids stay put, and a lone marker is never touched.
-  const collapsed = normalized.replace(/\[cite:[\w-]+\](?:[ \t]*\[cite:[\w-]+\])+/g, (run) => {
+function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation>): string {
+  return text.replace(/\[cite:[\w-]+\](?:[ \t]*\[cite:[\w-]+\])+/g, (run) => {
     const seen = new Set<Citation>()
     const kept: string[] = []
     for (const match of run.matchAll(/\[cite:([\w-]+)\]/g)) {
-      const citation = renumbered.get(match[1])
+      const citation = byMarker.get(match[1])
       if (citation && seen.has(citation)) continue
       if (citation) seen.add(citation)
       kept.push(match[0])
     }
     return kept.join('')
   })
+}
 
-  return { content: collapsed, byMarker: renumbered, cited }
+/** Resolve several text parts in message order while sharing one display-number sequence. */
+export function resolveCitationMarkerParts(
+  contents: readonly string[],
+  citations: MessageCitations
+): ResolvedCitationMarkers[] {
+  if (citations.byId.size === 0) {
+    return contents.map((content) => ({ content, byMarker: new Map(), cited: [] }))
+  }
+
+  const { lookup, markerNumberMap } = createCitationLookup(citations)
+  const displayed = new Map<Citation, Citation>()
+  let nextDisplayNumber = 1
+
+  return contents.map((content) => {
+    const byMarker = new Map<string, Citation>()
+    const cited: Citation[] = []
+    const seenInPart = new Set<Citation>()
+    const normalized = normalizeMarkerContent(content, markerNumberMap)
+    const collapsed = mapMarkdownOutsideCode(normalized, (text) => {
+      for (const match of text.matchAll(/\[cite:([\w-]+)\]/g)) {
+        const citation = lookup.get(match[1])
+        if (!citation) continue
+        let display = displayed.get(citation)
+        if (!display) {
+          display = { ...citation, number: nextDisplayNumber++ }
+          displayed.set(citation, display)
+        }
+        byMarker.set(match[1], display)
+        if (!seenInPart.has(display)) {
+          seenInPart.add(display)
+          cited.push(display)
+        }
+      }
+      return collapseMarkerRuns(text, byMarker)
+    })
+
+    return { content: collapsed, byMarker, cited }
+  })
+}
+
+/**
+ * Resolve `[cite:id]` markers (plus resolvable bare `[N]` / provider-mark forms)
+ * in `content` against a message's citations. Unknown ids stay literal.
+ *
+ * Markers are numbered 1..N by first appearance in `content`, so the badges read
+ * in order and match the footer's ordering.
+ *
+ * Shared by every consumer of the markers — rendering, Markdown/plain-text
+ * export and copy — so all three agree on which marker means which source.
+ */
+export function resolveCitationMarkers(content: string, citations: MessageCitations): ResolvedCitationMarkers {
+  return resolveCitationMarkerParts([content], citations)[0]
 }
 
 /**
@@ -415,10 +445,12 @@ export function toExportableCitations(
 ): { content: string; cited: Citation[] } {
   const { content: resolved, byMarker, cited } = resolveCitationMarkers(content, resolveMessageCitations(parts))
   return {
-    content: resolved.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
-      const citation = byMarker.get(id)
-      return citation ? `${space}[${citation.number}]` : ''
-    }),
+    content: mapMarkdownOutsideCode(resolved, (text) =>
+      text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
+        const citation = byMarker.get(id)
+        return citation ? `${space}[${citation.number}]` : ''
+      })
+    ),
     cited
   }
 }
@@ -433,7 +465,7 @@ export function toExportableCitations(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return content.replace(CITATION_MARKER_PATTERN, '')
+  return mapMarkdownOutsideCode(content, (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**
@@ -442,8 +474,28 @@ export function stripCitationMarkers(content: string): string {
  */
 export function withToolCitationTags(
   content: string,
-  citations: MessageCitations
+  citations: MessageCitations,
+  displayByMarker?: ReadonlyMap<string, Citation>
 ): { content: string; cited: Citation[] } {
-  const { content: resolved, byMarker, cited } = resolveCitationMarkers(content, citations)
+  let projection: ResolvedCitationMarkers
+  if (displayByMarker) {
+    const { markerNumberMap } = createCitationLookup(citations)
+    const cited: Citation[] = []
+    const seen = new Set<Citation>()
+    const resolved = mapMarkdownOutsideCode(normalizeMarkerContent(content, markerNumberMap), (text) => {
+      for (const match of text.matchAll(/\[cite:([\w-]+)\]/g)) {
+        const citation = displayByMarker.get(match[1])
+        if (citation && !seen.has(citation)) {
+          seen.add(citation)
+          cited.push(citation)
+        }
+      }
+      return collapseMarkerRuns(text, displayByMarker)
+    })
+    projection = { content: resolved, byMarker: new Map(displayByMarker), cited }
+  } else {
+    projection = resolveCitationMarkers(content, citations)
+  }
+  const { content: resolved, byMarker, cited } = projection
   return { content: mapCitationMarksToTags(resolved, byMarker), cited }
 }

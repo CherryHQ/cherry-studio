@@ -84,7 +84,6 @@ export const KnowledgeCitationHoverContent: React.FC<{ citation: KnowledgeCitati
         <div
           className="overflow-hidden text-[13px] text-muted-foreground leading-normal"
           role="article"
-          aria-label="Citation content"
           style={{
             display: '-webkit-box',
             overflow: 'hidden',

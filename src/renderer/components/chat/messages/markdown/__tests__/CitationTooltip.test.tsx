@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CitationTooltip, { CitationSchema } from '../CitationTooltip'
+import CitationTooltip from '../CitationTooltip'
 
 vi.mock('@renderer/utils/fetch', () => ({
   fetchXOEmbed: vi.fn().mockResolvedValue(null),
@@ -17,12 +17,12 @@ vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
 }))
 
 const uiMocks = vi.hoisted(() => ({
-  Tooltip: vi.fn((rawProps: any) => {
-    const { children, title, content, placement, ...props } = rawProps
+  NormalTooltip: vi.fn((rawProps: any) => {
+    const { children, title, content, placement, contentProps, ...props } = rawProps
     delete props.showArrow
 
     return (
-      <div data-testid="tooltip-wrapper" data-placement={placement} {...props}>
+      <div data-testid="tooltip-wrapper" data-placement={placement} className={contentProps?.className} {...props}>
         {children}
         <div data-testid="tooltip-content">{content || title}</div>
       </div>
@@ -32,26 +32,6 @@ const uiMocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', () => uiMocks)
 
-// `url` is deliberately a plain string rather than `z.url()`: both consumers drop the entire
-// citation — and with it the hover card — when the parse fails, and migrated v1 knowledge
-// citations never hold a real URL. Asserted here because `CitationSup` and `Link` both stub
-// `safeParse`, so nothing else would catch a tightening of this field.
-describe('CitationSchema', () => {
-  it.each([
-    ['a bare absolute file path', '/Users/me/docs/notes.md'],
-    ['the literal v1 note marker', 'note'],
-    ['a Windows path', 'C:\\docs\\notes.md'],
-    ['an empty url', '']
-  ])('accepts %s', (_label, url) => {
-    expect(CitationSchema.safeParse({ type: 'knowledge', url, title: 'One' }).success).toBe(true)
-  })
-
-  it('keeps the display number so the badge can name itself after it', () => {
-    const parsed = CitationSchema.safeParse({ type: 'websearch', id: 3, url: 'https://a.com', title: 'A' })
-    expect(parsed.success && parsed.data.id).toBe(3)
-  })
-})
-
 describe('CitationTooltip', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -59,6 +39,7 @@ describe('CitationTooltip', () => {
 
   // Test data factory
   const createCitationData = (overrides = {}) => ({
+    number: 1,
     url: 'https://example.com/article',
     title: 'Example Article',
     content: 'This is the article content for testing purposes.',
@@ -80,7 +61,7 @@ describe('CitationTooltip', () => {
   const getCitationHeaderLink = () => screen.getByRole('link', { name: /open .* in new tab/i })
   const getCitationFooterLink = () => screen.getByRole('link', { name: /visit .*/i })
   const getCitationTitle = () => screen.getByRole('heading', { level: 3 })
-  const getCitationContent = () => screen.queryByRole('article', { name: /citation content/i })
+  const getCitationContent = () => screen.queryByRole('article')
 
   describe('basic rendering', () => {
     it('should render children and basic tooltip structure', () => {
