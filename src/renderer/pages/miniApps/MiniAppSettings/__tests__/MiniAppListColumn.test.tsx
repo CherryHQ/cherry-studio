@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,35 +57,28 @@ afterEach(() => {
 })
 
 describe('MiniAppListColumn', () => {
-  it('includes each app name in hide row accessible names', () => {
+  it.each([
+    ['hide', 'Visible Mini Apps', 'settings.miniApps.hide_app'],
+    ['show', 'Hidden Mini Apps', 'settings.miniApps.show_app']
+  ] as const)('gives the %s rows app-specific names and keyboard actions', (toggleAction, title, labelKey) => {
+    const chatgpt = miniApp('chatgpt', 'ChatGPT')
+    const gemini = miniApp('gemini', 'Gemini')
+    const onToggle = vi.fn()
     render(
       <MiniAppListColumn
-        title="Visible Mini Apps"
+        title={title}
         count={2}
-        apps={[miniApp('chatgpt', 'ChatGPT'), miniApp('gemini', 'Gemini')]}
-        onToggle={vi.fn()}
+        apps={[chatgpt, gemini]}
+        onToggle={onToggle}
         onReorder={vi.fn()}
-        toggleAction="hide"
+        toggleAction={toggleAction}
       />
     )
 
-    expect(screen.getByRole('button', { name: 'settings.miniApps.hide_app ChatGPT' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.miniApps.hide_app Gemini' })).toBeInTheDocument()
-  })
+    expect(screen.getByRole('button', { name: `${labelKey} ChatGPT` })).toBeInTheDocument()
+    const geminiRow = screen.getByRole('button', { name: `${labelKey} Gemini` })
+    fireEvent.keyDown(geminiRow, { key: 'Enter' })
 
-  it('includes each app name in show row accessible names', () => {
-    render(
-      <MiniAppListColumn
-        title="Hidden Mini Apps"
-        count={2}
-        apps={[miniApp('chatgpt', 'ChatGPT'), miniApp('gemini', 'Gemini')]}
-        onToggle={vi.fn()}
-        onReorder={vi.fn()}
-        toggleAction="show"
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'settings.miniApps.show_app ChatGPT' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.miniApps.show_app Gemini' })).toBeInTheDocument()
+    expect(onToggle).toHaveBeenCalledWith(gemini)
   })
 })

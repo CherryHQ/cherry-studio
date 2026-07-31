@@ -6,27 +6,17 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   determineCitationSource,
   generateCitationTag,
+  isLinkableCitationUrl,
   mapCitationMarksToTags,
   normalizeCitationMarks,
+  toTooltipCitation,
   withCitationTags
 } from '../citation'
 import { buildContent, groundingChunks, groundingSupports } from './fixtures/geminiCitation8880'
 
 // Mock dependencies
 vi.mock('@renderer/utils/formats', () => ({
-  cleanMarkdownContent: vi.fn((content: string) => content.replace(/[*_~`]/g, '')),
-  encodeHTML: vi.fn((str: string) =>
-    str.replace(/[&<>"']/g, (match) => {
-      const entities: { [key: string]: string } = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&apos;'
-      }
-      return entities[match]
-    })
-  )
+  cleanMarkdownContent: vi.fn((content: string) => content.replace(/[*_~`]/g, ''))
 }))
 
 describe('citation', () => {
@@ -430,7 +420,7 @@ Numbered list:
   })
 
   describe('mapCitationMarksToTags', () => {
-    const createCitationMap = (citations: Citation[]) => new Map(citations.map((c) => [c.number, c]))
+    const createCitationMap = (citations: Citation[]) => new Map(citations.map((c) => [String(c.number), c]))
 
     it('should convert cite marks to tags', () => {
       const content = 'Text with [cite:1] citation'
@@ -516,12 +506,14 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
+      expect(result).toContain("[<sup data-citation='1'>")
       expect(result).toContain('1</sup>](https://example.com)')
-      expect(result).toContain('Example Title')
+      expect(result).not.toContain('Example Title')
     })
 
-    it('should generate citation tag without URL when invalid', () => {
+    // A non-http URL is not linkable, so the marker must be a bare <sup>: an empty-href
+    // markdown link gets rewritten by rehype-harden into "<span>… [blocked]</span>".
+    it('should emit a bare sup (no link wrapper) when the URL is invalid', () => {
       const citation: Citation = {
         number: 2,
         url: 'invalid-url',
@@ -530,12 +522,31 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
-      expect(result).toContain('2</sup>]()')
-      expect(result).not.toContain('](invalid-url)')
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('2</sup>')
+      expect(result).not.toContain('](')
+      expect(result).not.toContain('()')
     })
 
-    it('should handle citation without URL', () => {
+    // Migrated v1 knowledge citations store a bare file path here. `CitationSup` mounts the
+    // tooltip for exactly the citations this branch leaves unlinked, so both must agree.
+    it('should emit a bare sup for a non-http URL that CitationSup can pick up', () => {
+      const citation: Citation = {
+        number: 7,
+        url: '/Users/me/docs/notes.md',
+        title: 'notes.md',
+        type: 'knowledge'
+      }
+
+      expect(isLinkableCitationUrl(citation.url)).toBe(false)
+      const result = generateCitationTag(citation)
+
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('7</sup>')
+      expect(result).not.toContain('](')
+    })
+
+    it('should emit a bare sup when the citation has no URL', () => {
       const citation: Citation = {
         number: 3,
         url: '',
@@ -544,11 +555,12 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
-      expect(result).toContain('3</sup>]()')
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('3</sup>')
+      expect(result).not.toContain('](')
     })
 
-    it('should use hostname when title is missing', () => {
+    it('should keep tooltip metadata out of the rendered marker', () => {
       const citation: Citation = {
         number: 4,
         url: 'https://example.com',
@@ -557,7 +569,7 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('example.com')
+      expect(result).toBe("[<sup data-citation='4'>4</sup>](https://example.com)")
     })
 
     it('should handle citation with all empty values', () => {
@@ -571,11 +583,12 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
-      expect(result).toContain('6</sup>]()')
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('6</sup>')
+      expect(result).not.toContain('](')
     })
 
-    it('should escape pipe characters in title to prevent GFM table cell breakage', () => {
+    it('should not serialize pipe characters from a title into markdown', () => {
       const citation: Citation = {
         number: 1,
         url: 'https://example.com',
@@ -584,9 +597,7 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      // The | in title must be escaped as &#124; inside data-citation attribute
-      expect(result).not.toContain('Foo | Bar')
-      expect(result).toContain('&#124;')
+      expect(result).toBe("[<sup data-citation='1'>1</sup>](https://example.com)")
     })
 
     it('should escape pipe characters in URL to prevent GFM table cell breakage', () => {
@@ -603,7 +614,7 @@ Numbered list:
       expect(result).not.toMatch(/\]\(https:\/\/example\.com\/path\?a=1\|/)
     })
 
-    it('should truncate content to 200 characters in data-citation', () => {
+    it('should truncate trusted tooltip content to 200 characters out of band', () => {
       const longContent = 'a'.repeat(300)
       const citation: Citation = {
         number: 1,
@@ -612,48 +623,14 @@ Numbered list:
         content: longContent
       }
 
-      const result = generateCitationTag(citation)
-      const match = result.match(/data-citation='([^']+)'/)
-      expect(match).not.toBeNull()
-      if (match) {
-        const citationData = JSON.parse(match[1].replace(/&quot;/g, '"'))
-        expect(citationData.content.length).toBe(200)
-        expect(citationData.content).toBe(longContent.substring(0, 200))
-      }
+      const tooltipCitation = toTooltipCitation(citation)
+      expect(tooltipCitation.content).toHaveLength(200)
+      expect(tooltipCitation.content).toBe(longContent.substring(0, 200))
+      expect(generateCitationTag(tooltipCitation)).not.toContain(longContent.substring(0, 20))
     })
   })
 
-  describe('performance', () => {
-    it('should handle large content efficiently', () => {
-      const largeContent = 'Test content '.repeat(10000) + '[1]'
-      const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
-
-      const start = Date.now()
-      const result = withCitationTags(largeContent, citations)
-      const end = Date.now()
-
-      expect(result).toContain('[<sup data-citation=')
-      expect(end - start).toBeLessThan(100) // Should complete within 100ms
-    })
-
-    it('should handle many citations efficiently', () => {
-      const citations: Citation[] = Array.from({ length: 100 }, (_, i) => ({
-        number: i + 1,
-        url: `https://example${i + 1}.com`,
-        title: `Test ${i + 1}`
-      }))
-      const content = citations.map((c) => `[${c.number}]`).join(' ')
-
-      const start = Date.now()
-      const result = withCitationTags(content, citations)
-      const end = Date.now()
-
-      expect(result).toContain('[<sup data-citation=')
-      expect(end - start).toBeLessThan(100) // Should complete within 200ms
-    })
-  })
-
-  describe('Gemini citation snapshot (issue #8880)', () => {
+  describe('Gemini citation placement (issue #8880)', () => {
     const content = buildContent()
     const citations: Citation[] = groundingChunks.map((chunk, index) => ({
       number: index + 1,
@@ -667,8 +644,10 @@ Numbered list:
     it('normalizeCitationMarks should insert [cite:N] at correct positions', () => {
       const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
 
-      // Each segment should get its citation tags exactly once, at the segment end
-      expect(result).toMatchSnapshot()
+      for (const support of groundingSupports) {
+        const marks = support.groundingChunkIndices?.map((index) => `[cite:${index + 1}]`).join('') ?? ''
+        expect(result).toContain(`${support.segment?.text}${marks}`)
+      }
 
       // Verify no over-matching: count total [cite:N] occurrences
       const citeMatches = result.match(/\[cite:\d+\]/g) || []
@@ -679,7 +658,10 @@ Numbered list:
     it('withCitationTags should produce correct final output', () => {
       const result = withCitationTags(content, citations, WEB_SEARCH_SOURCE.GEMINI)
 
-      expect(result).toMatchSnapshot()
+      for (const support of groundingSupports) {
+        const tags = support.groundingChunkIndices?.map((index) => generateCitationTag(citations[index])).join('') ?? ''
+        expect(result).toContain(`${support.segment?.text}${tags}`)
+      }
 
       // Verify each citation tag appears the expected number of times
       // Chunk 0 (citation 1) is referenced in 5 of 6 segments

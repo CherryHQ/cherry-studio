@@ -1,7 +1,8 @@
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
- * only (no selector fan-out), passes `userMessage` for the inject path.
+ * only (no selector fan-out), passes `userMessage` for the inject path, and
+ * relays empty-session greeting context to the first runtime turn only.
  */
 
 import { application } from '@application'
@@ -9,6 +10,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -102,11 +104,21 @@ export class AgentChatContextProvider implements ChatContextProvider {
       updatedAt: createdAt
     }
 
+    const runtimeService = application.get('AgentSessionRuntimeService')
+    const isSessionBusy = runtimeService.isSessionBusy(sessionId)
+    const greetingContext = validateConversationGreeting(
+      !isSessionBusy &&
+        req.greetingContext?.trim() &&
+        agentSessionMessageService.listSessionMessages(sessionId, { limit: 1 }).items.length === 0
+        ? req.greetingContext
+        : undefined
+    )
+
     // Decide enqueue-vs-begin off the runtime entry's authoritative state, NOT
     // `AiStreamManager.hasLiveStream`: the latter is false during the inter-turn drain window
     // (the settled stream is terminal-in-grace) while the entry is mid-transition, so trusting it
     // would take the begin branch and clobber the in-flight drain's `currentTurn` / `pendingTurns`.
-    if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) {
+    if (isSessionBusy) {
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
@@ -122,7 +134,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
+      runtimeService.enqueueUserMessage(sessionId, userMessage, {
         headless: req.headless === true,
         messageSnapshot,
         reasoningEffort,
@@ -193,7 +205,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentName: agent.name
     })
 
-    const runtime = application.get('AgentSessionRuntimeService').beginTurn({
+    const runtime = runtimeService.beginTurn({
       sessionId,
       topicId: req.topicId,
       agentId,
@@ -203,6 +215,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       fastMode: req.fastMode,
       assistantMessageId,
       userMessage,
+      ...(greetingContext ? { greetingContext } : {}),
       headless: req.headless === true,
       traceId,
       messageSnapshot

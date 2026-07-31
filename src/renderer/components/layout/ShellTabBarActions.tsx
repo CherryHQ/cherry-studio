@@ -42,7 +42,7 @@ export function ShellTabBarActions() {
               size="icon"
               aria-label={t('globalSearch.open')}
               onClick={handleSearchClick}
-              className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
+              className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <Search size={16} strokeWidth={1.8} />
             </Button>
           </CommandTooltip>
@@ -72,7 +72,7 @@ export function SidebarShellActions({
           size="icon"
           aria-label={t('settings.title')}
           onClick={onSettingsClick}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground">
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
           <Settings size={18} strokeWidth={1.6} />
         </Button>
       </CommandTooltip>
@@ -85,7 +85,7 @@ export function SidebarShellActions({
       variant="ghost"
       aria-label={t('settings.title')}
       onClick={onSettingsClick}
-      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60 dark:text-foreground">
+      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
       <Settings size={16} strokeWidth={1.6} />
       <span>{t('settings.title')}</span>
     </Button>

@@ -1,28 +1,24 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodeBlockView } from '../CodeBlockView'
 
 const mocks = vi.hoisted(() => ({
-  useCopyTool: vi.fn(),
-  useDownloadTool: vi.fn(),
-  useViewSourceTool: vi.fn(),
-  useSplitViewTool: vi.fn(),
-  useRunTool: vi.fn(),
-  useExpandTool: vi.fn(),
-  useWrapTool: vi.fn(),
-  useSaveTool: vi.fn(),
-  CodeToolbar: vi.fn(() => <div data-testid="code-toolbar" />),
-  CodeEditor: vi.fn(({ value }) => <div data-testid="code-editor">{value}</div>),
-  CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>)
+  CodeEditor: vi.fn(({ value }: { value: string }) => (
+    <div role="textbox" aria-label="Code editor">
+      {value}
+    </div>
+  )),
+  CodeViewer: vi.fn(({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>),
+  runScript: vi.fn(),
+  t: (key: string) => key
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
-}))
-
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
   CodeEditor: mocks.CodeEditor
 }))
 
@@ -30,22 +26,19 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
 }))
 
-vi.mock('@renderer/components/CodeToolbar', () => ({
-  CodeToolbar: mocks.CodeToolbar,
-  useCopyTool: mocks.useCopyTool,
-  useDownloadTool: mocks.useDownloadTool,
-  useViewSourceTool: mocks.useViewSourceTool,
-  useSplitViewTool: mocks.useSplitViewTool,
-  useRunTool: mocks.useRunTool,
-  useExpandTool: mocks.useExpandTool,
-  useWrapTool: mocks.useWrapTool,
-  useSaveTool: mocks.useSaveTool
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 
 vi.mock('@renderer/services/PyodideService', () => ({
   pyodideService: {
-    runScript: vi.fn()
+    runScript: mocks.runScript
   }
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: mocks.t })
 }))
 
 describe('CodeBlockView', () => {
@@ -70,32 +63,38 @@ describe('CodeBlockView', () => {
     })
   })
 
-  it('renders a read-only viewer when editable is false even if the code editor setting is enabled', () => {
+  it('uses the editor for editable, non-streaming code', () => {
     render(
-      <CodeBlockView language="javascript" editable={false} onSave={vi.fn()}>
+      <CodeBlockView language="javascript" editable onSave={vi.fn()}>
         const value = 1
       </CodeBlockView>
     )
 
-    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = 1')
-    expect(mocks.useSaveTool).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: false
-      })
-    )
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toHaveTextContent('const value = 1')
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 
-  it('caps the height and hides the toolbar in display-only mode', () => {
+  it('uses the viewer for read-only code', () => {
+    render(
+      <CodeBlockView language="javascript" editable={false}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
+    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+  })
+
+  it('caps display-only code and suppresses its toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
         {'<h1>Hello</h1>'}
       </CodeBlockView>
     )
 
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
-    expect(screen.queryByTestId('code-toolbar')).not.toBeInTheDocument()
-    expect(mocks.CodeViewer).toHaveBeenCalledWith(
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('<h1>Hello</h1>')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({
         autoScrollToBottom: true,
         expanded: false,
@@ -105,91 +104,47 @@ describe('CodeBlockView', () => {
     )
   })
 
-  it('renders the editor and save tool when editable and the code editor setting are enabled', () => {
-    render(
-      <CodeBlockView language="javascript" editable onSave={vi.fn()}>
-        const value = 1
-      </CodeBlockView>
-    )
+  it.each([
+    { collapsible: true, expectedAutoScroll: true, expectedExpanded: false, name: 'collapsed' },
+    { collapsible: false, expectedAutoScroll: false, expectedExpanded: true, name: 'expanded' }
+  ])(
+    'disables highlighting and sets auto-scroll correctly for $name streaming code',
+    ({ collapsible, expectedAutoScroll, expectedExpanded }) => {
+      MockUsePreferenceUtils.setPreferenceValue('chat.code.collapsible', collapsible)
 
-    expect(screen.getByTestId('code-editor')).toHaveTextContent('const value = 1')
-    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
-    expect(mocks.useSaveTool).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: true
-      })
-    )
-  })
+      render(
+        <CodeBlockView language="javascript" editable isStreaming>
+          const value = 1
+        </CodeBlockView>
+      )
 
-  it('renders a streaming editable code block with the viewer and highlighting disabled', () => {
+      expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
+      expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+      expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          autoScrollToBottom: expectedAutoScroll,
+          expanded: expectedExpanded,
+          options: {
+            highlight: false
+          }
+        }),
+        undefined
+      )
+    }
+  )
+
+  it('runs Python and displays the execution result', async () => {
+    const user = userEvent.setup()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'chat.code.collapsible': true
+      'chat.code.execution.enabled': true,
+      'chat.code.wrappable': false
     })
+    mocks.runScript.mockResolvedValue({ text: 'completed' })
+    render(<CodeBlockView language="python">print(42)</CodeBlockView>)
 
-    render(
-      <CodeBlockView language="javascript" editable onSave={vi.fn()} isStreaming>
-        const value = 1
-      </CodeBlockView>
-    )
+    await user.click(screen.getByRole('button', { name: 'code_block.run' }))
 
-    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
-    expect(mocks.CodeViewer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        autoScrollToBottom: true,
-        expanded: false,
-        options: {
-          highlight: false
-        }
-      }),
-      undefined
-    )
-    expect(mocks.useSaveTool).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: false
-      })
-    )
-  })
-
-  it('enables viewer auto-scroll while a streaming readonly code block is collapsed', () => {
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'chat.code.collapsible': true
-    })
-
-    render(
-      <CodeBlockView language="javascript" editable={false} onSave={vi.fn()} isStreaming>
-        const value = 1
-      </CodeBlockView>
-    )
-
-    expect(mocks.CodeViewer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        autoScrollToBottom: true,
-        expanded: false,
-        options: {
-          highlight: false
-        }
-      }),
-      undefined
-    )
-  })
-
-  it('leaves internal auto-scroll disabled when the streaming code block is expanded', () => {
-    render(
-      <CodeBlockView language="javascript" editable onSave={vi.fn()} isStreaming>
-        const value = 1
-      </CodeBlockView>
-    )
-
-    expect(mocks.CodeEditor).not.toHaveBeenCalled()
-    expect(mocks.CodeViewer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        autoScrollToBottom: false,
-        expanded: true,
-        options: {
-          highlight: false
-        }
-      }),
-      undefined
-    )
+    expect(mocks.runScript).toHaveBeenCalledWith('print(42)', {}, 60_000)
+    expect(await screen.findByText('completed')).toBeInTheDocument()
   })
 })

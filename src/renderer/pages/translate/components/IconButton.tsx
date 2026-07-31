@@ -22,12 +22,12 @@ const SIZE_CLASS: Record<IconButtonSize, string> = {
 
 const toneClass = (tone: IconButtonTone, active: boolean): string => {
   if (tone === 'destructive') {
-    return 'text-foreground-muted hover:bg-accent hover:text-destructive'
+    return 'text-muted-foreground hover:bg-accent hover:text-destructive'
   }
   if (tone === 'star') {
-    return active ? 'text-amber-500 bg-amber-500/10' : 'text-foreground-muted hover:bg-accent hover:text-amber-500'
+    return active ? 'text-amber-500 bg-amber-500/10' : 'text-muted-foreground hover:bg-accent hover:text-amber-500'
   }
-  return active ? 'bg-accent text-foreground' : 'text-foreground-muted hover:bg-accent hover:text-foreground'
+  return active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
 }
 
 const IconButton = ({

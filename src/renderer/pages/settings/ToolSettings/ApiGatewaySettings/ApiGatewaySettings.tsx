@@ -294,7 +294,7 @@ const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-muted text-xs leading-5', className)} {...props} />
+  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
 )
 
 const StatusCard = ({

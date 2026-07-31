@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "無需逐次批准，安全檢查會攔截風險操作。",
-            "title": "智慧批准"
+            "title": "智慧批准",
+            "warning": "需要模型支援；部分模型可能忽略此模式或仍逐次詢問。"
           },
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
@@ -1267,10 +1268,6 @@
           "tip": "助手會使用大型語言模型的意圖識別能力，判斷是否需要查詢知識庫；此功能仰賴模型能力"
         }
       },
-      "max_tool_calls": {
-        "label": "最大工具呼叫次數",
-        "tip": "單次對話中允許的最大工具呼叫次數。較高的值支援更複雜的多步操作，但可能增加 Token 消耗和回應時間。"
-      },
       "mcp": {
         "description": "預設啟用的 MCP 伺服器",
         "enableFirst": "請先在 MCP 設定中啟用此伺服器",
@@ -1476,9 +1473,8 @@
       "image_preview_failed": "圖片預覽失敗",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
-      "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
+      "knowledge_base_unavailable": "選擇具備工具能力的模型",
       "locate_editing_message": "找出原始訊息",
-      "mcp_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
       "new": {
         "context": "清除上下文"
       },
@@ -1619,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "無法轉換為有效的工具呼叫格式：{{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫",
-        "multiple_tools": "找到多個相符的 MCP 工具，已選擇 {{tool}}",
-        "no_tool": "找不到符合需求的 MCP 工具：{{tool}}",
         "url_context": "Gemini 不支援同時使用網頁內容與函式呼叫"
       }
     },
@@ -7364,6 +7355,10 @@
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "開啟後，Cherry Studio 會聯絡 IPInfo 偵測粗略的國家或地區，並將該結果與您的姓名、應用程式語言、本地日期和時間及時區傳送給內建 CherryAI 模型以產生問候語。此功能預設關閉。",
+        "title": "AI 產生的情境問候語"
+      },
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
     },
@@ -7755,6 +7750,13 @@
           "toggle_client_email_visibility": "切換客戶電子郵件可見性",
           "toggle_private_key_visibility": "切換私鑰可見性",
           "toggle_project_id_visibility": "切換專案 ID 顯示"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "開啟 Token Factory",
+          "description": "每日 10 美元等值 API 額度，按目前費率約可使用 1,000 萬–1.11 億輸入/輸出 Token，實際用量依模型和 Token 類型而異。額度每日重設，目前暫不支援儲值。",
+          "title": "每日 10 美元免費 API 額度"
         }
       }
     },

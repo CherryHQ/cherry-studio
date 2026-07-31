@@ -83,7 +83,6 @@ describe('QueuedFollowupsDock', () => {
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
     expect(container.querySelector('[data-composer-token-kind="link"]')).toHaveTextContent('example.com/docs')
-    expect(screen.getByRole('link', { name: 'https://example.com/docs' }).parentElement).toHaveClass('mt-1')
     for (const steerButton of screen.getAllByLabelText('chat.input.followup_queue.steer')) {
       expect(within(steerButton).getByTestId('arrow-up-icon')).toBeInTheDocument()
     }
@@ -136,7 +135,6 @@ describe('QueuedFollowupsDock', () => {
     const linkToken = screen.getByRole('link', { name: url })
     expect(screen.queryByText(url)).not.toBeInTheDocument()
     expect(linkToken).toHaveTextContent('example.com/docs')
-    expect(linkToken.parentElement).not.toHaveClass('mt-1')
     expect(container.querySelector('[data-composer-token-kind="link"]')).toBe(linkToken)
   })
 
