@@ -15,6 +15,7 @@ import {
   Sparkles,
   SquareTerminal,
   ToolCase,
+  Workflow,
   Wrench
 } from 'lucide-react'
 import React from 'react'
@@ -90,6 +91,7 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.ToolSearch]: FileSearch,
   [AgentToolsType.WebFetch]: Globe,
   [AgentToolsType.WebSearch]: Globe,
+  [AgentToolsType.Workflow]: Workflow,
   [AgentToolsType.Write]: FileText
 }
 const TOOL_GROUP_ICON_CLASS_NAME =

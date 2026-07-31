@@ -17,6 +17,7 @@ import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/us
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
@@ -535,6 +536,14 @@ function FilesPage() {
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
+          if (file.type === 'image') {
+            void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
+              const normalized = error instanceof Error ? error : new Error(String(error))
+              logger.error('Failed to open image preview', normalized)
+              toast.error(t('files.preview.error'))
+            })
+            return
+          }
           setEmbeddedPreview((current) => ({
             fileName: file.name,
             filePath: normalizedPath,
@@ -841,9 +850,7 @@ function FilesPage() {
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div
-        data-testid="files-browser"
-        className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
         <FileSidebar
           filter={filter}
           onFilterChange={(f) => {
@@ -956,7 +963,6 @@ function FilesPage() {
           )}
 
           <Scrollbar
-            data-testid="files-scrollbar"
             ref={contentScrollRef}
             className="relative flex-1"
             onScroll={handleContentScroll}

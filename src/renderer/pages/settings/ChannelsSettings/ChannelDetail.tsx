@@ -194,9 +194,15 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
+  const lastChannelRef = useRef<ChannelData | null>(channel)
   // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const { data: workspaces } = useQuery('/agent-workspaces')
+
+  if (channel) {
+    lastChannelRef.current = channel
+  }
+  const renderedChannel = channel ?? (!open ? lastChannelRef.current : null)
 
   useEffect(() => {
     if (channel) {
@@ -250,20 +256,21 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     [channel, onSave]
   )
 
-  const FormComponent = channel ? getFormForType(channel.type) : null
+  const FormComponent = renderedChannel ? getFormForType(renderedChannel.type) : null
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent closeOnOverlayClick={false} className="max-w-125">
-        {channel && (
+        {renderedChannel && (
           <>
             <DialogHeader>
-              <DialogTitle>{channel.name}</DialogTitle>
+              <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
+                  autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={handleNameBlur}
@@ -303,7 +310,11 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                 </div>
               </div>
               {FormComponent && (
-                <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
+                <FormComponent
+                  channel={renderedChannel}
+                  onConfigChange={handleUpdate}
+                  onRemove={() => channel && onDelete(channel.id)}
+                />
               )}
             </div>
           </>
@@ -368,12 +379,12 @@ const ChannelInstanceRow: FC<{
         </div>
       </div>
       <Tooltip title={t('agent.channels.logs')}>
-        <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('agent.channels.logs')} onClick={onShowLogs}>
           <FileText className="size-4" />
         </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={onEdit}>
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
@@ -382,6 +393,7 @@ const ChannelInstanceRow: FC<{
           variant="ghost"
           size="icon-sm"
           className="hover:text-destructive!"
+          aria-label={t('common.delete')}
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
         </Button>
@@ -433,7 +445,16 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   )
 
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const editingChannel = channelList.find((ch) => ch.id === editingChannelId) ?? null
+
+  const openEditModal = useCallback((channelId: string) => {
+    setEditingChannelId(channelId)
+    setIsEditModalOpen(true)
+  }, [])
+  const closeEditModal = useCallback(() => {
+    setIsEditModalOpen(false)
+  }, [])
 
   // Connection status tracking
   const [statuses, setStatuses] = useState<Map<string, StatusEvent>>(new Map())
@@ -467,6 +488,12 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     })
   })
 
+  useIpcOn('channel.feishu.qr_login', (data) => {
+    if (channelDef.type === 'feishu' && data.status === 'confirmed') {
+      void mutate()
+    }
+  })
+
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0
     const newChannel = await createChannel({
@@ -474,15 +501,14 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
       config: channelDef.defaultConfig,
-      // Created inactive: defaultConfig has empty credentials, and active channels
-      // must pass ActiveAgentChannelConfigSchemasByType validation. The row switch
-      // activates the channel once credentials are filled in.
-      isActive: false
+      // Feishu can register credentials by QR, so binding its active channel to an
+      // agent starts the adapter flow. Credential-gated channels start inactive.
+      isActive: channelDef.type === 'feishu'
     } as never)
     if (newChannel) {
-      setEditingChannelId(newChannel.id)
+      openEditModal(newChannel.id)
     }
-  }, [channels?.length, createChannel, channelDef])
+  }, [channels?.length, createChannel, channelDef, openEditModal])
 
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
@@ -503,10 +529,12 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   const handleDelete = useCallback(
     async (channelId: string) => {
+      if (editingChannelId === channelId) {
+        closeEditModal()
+      }
       await deleteChannel(channelId)
-      setEditingChannelId((prev) => (prev === channelId ? null : prev))
     },
-    [deleteChannel]
+    [closeEditModal, deleteChannel, editingChannelId]
   )
 
   const handleToggle = useCallback(
@@ -563,7 +591,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
                 channel={ch}
                 agents={agents}
                 connectionStatus={statuses.get(ch.id)}
-                onEdit={() => setEditingChannelId(ch.id)}
+                onEdit={() => openEditModal(ch.id)}
                 onDelete={() => handleDelete(ch.id)}
                 onToggle={(active) => handleToggle(ch.id, active)}
                 onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
@@ -574,10 +602,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       </SettingsContentBody>
 
       <ChannelEditModal
-        open={!!editingChannel}
+        open={isEditModalOpen}
         channel={editingChannel}
         agents={agents}
-        onClose={() => setEditingChannelId(null)}
+        onClose={closeEditModal}
         onSave={handleSave}
         onDelete={handleDelete}
       />

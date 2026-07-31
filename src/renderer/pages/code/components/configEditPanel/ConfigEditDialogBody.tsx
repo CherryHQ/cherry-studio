@@ -16,6 +16,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
 import { ExternalLink } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
@@ -73,13 +74,17 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
   onSubmit
 }) => {
   const { t } = useTranslation()
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
       <DialogContent
         size="lg"
         aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          cancelButtonRef.current?.focus({ preventScroll: true })
+        }}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
@@ -151,7 +156,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
         </SettingContainer>
 
         <DialogFooter className="justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
+          <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
           <Button variant="default" size="sm" onClick={onSubmit} disabled={!canSave} loading={submitting}>

@@ -10,6 +10,7 @@ const SUPPORT_EMAIL = 'support@cherry-ai.com'
 const logger = loggerService.withContext('MigrationDiagnosticPanel')
 
 type DiagnosticStatus = 'idle' | 'saving' | 'saved_with_logs' | 'saved_without_logs' | 'failed'
+type DiagnosticLogs = 'included' | 'not_included'
 
 function formatLocalDate(date: Date): string {
   const year = String(date.getFullYear()).padStart(4, '0')
@@ -18,10 +19,26 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-export function MigrationDiagnosticPanel() {
+interface MigrationDiagnosticPanelProps {
+  embedded?: boolean
+  onSaved?: (logs: DiagnosticLogs) => void
+  savedLogs?: DiagnosticLogs
+  showPrivacy?: boolean
+}
+
+export function MigrationDiagnosticPanel({
+  embedded = false,
+  onSaved,
+  savedLogs,
+  showPrivacy = true
+}: MigrationDiagnosticPanelProps) {
   const { t } = useTranslation()
   const { saveDiagnostics, showDiagnosticBundleInFolder } = useMigrationActions()
-  const [diagnosticStatus, setDiagnosticStatus] = useState<DiagnosticStatus>('idle')
+  const [diagnosticStatus, setDiagnosticStatus] = useState<DiagnosticStatus>(() => {
+    if (savedLogs === 'included') return 'saved_with_logs'
+    if (savedLogs === 'not_included') return 'saved_without_logs'
+    return 'idle'
+  })
   const [logDate] = useState(() => formatLocalDate(new Date()))
   const revealButtonRef = useRef<HTMLButtonElement>(null)
   const saved = diagnosticStatus === 'saved_with_logs' || diagnosticStatus === 'saved_without_logs'
@@ -40,7 +57,11 @@ export function MigrationDiagnosticPanel() {
         setDiagnosticStatus('failed')
         showErrorToast(t('migration.diagnostics.save_failed'))
       } else {
-        setDiagnosticStatus(result.logs === 'included' ? 'saved_with_logs' : 'saved_without_logs')
+        if (onSaved) {
+          onSaved(result.logs)
+        } else {
+          setDiagnosticStatus(result.logs === 'included' ? 'saved_with_logs' : 'saved_without_logs')
+        }
       }
     } catch (error) {
       logger.error('Failed to save migration diagnostic bundle', error as Error)
@@ -70,8 +91,11 @@ export function MigrationDiagnosticPanel() {
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
-      <p className="text-muted-foreground text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
+    <section
+      className={embedded ? 'space-y-3 pt-1' : 'space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3'}>
+      {showPrivacy && (
+        <p className="text-muted-foreground text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
+      )}
       <div role="status" aria-live="polite" aria-atomic="true" className="space-y-1 text-xs leading-relaxed">
         {saved && (
           <>

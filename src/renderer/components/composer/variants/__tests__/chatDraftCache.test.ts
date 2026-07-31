@@ -45,6 +45,15 @@ const quoteToken: ComposerSerializedToken = {
   textOffset: 0
 }
 
+const linkToken: ComposerSerializedToken = {
+  id: 'link-token-1',
+  kind: 'link',
+  label: 'example.com/docs',
+  promptText: 'https://example.com/docs',
+  index: 3,
+  textOffset: 0
+}
+
 /** `summarize <knowledge sentence> quoted text` — chips serialize with a trailing separator space. */
 const PREFIX = 'summarize '
 const draftWithKnowledge = {
@@ -121,11 +130,15 @@ describe('chatDraftCache', () => {
   })
 
   it('round-trips a written draft', () => {
-    writeChatDraftCache('hello world', [fileToken, quoteToken], [file])
+    writeChatDraftCache('hello world', [fileToken, quoteToken, linkToken], [file])
 
     const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
     vi.mocked(cacheService.getCasual).mockReturnValue(written)
 
-    expect(readChatDraftCache()).toEqual({ text: 'hello world', tokens: [fileToken, quoteToken], files: [file] })
+    expect(readChatDraftCache()).toEqual({
+      text: 'hello world',
+      tokens: [fileToken, quoteToken, linkToken],
+      files: [file]
+    })
   })
 })

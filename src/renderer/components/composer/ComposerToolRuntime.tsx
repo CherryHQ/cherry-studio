@@ -64,7 +64,6 @@ interface ComposerToolRuntimeBootstrapProps {
   assistant?: Assistant
   model: Model
   session?: ToolContext['session']
-  reasoning?: ToolContext['reasoning']
 }
 
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
@@ -76,13 +75,7 @@ const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; c
   return <Runtime context={context} />
 }
 
-export const ComposerToolRuntimeHost = ({
-  scope,
-  assistant,
-  model,
-  session,
-  reasoning
-}: ComposerToolRuntimeBootstrapProps) => {
+export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
@@ -102,8 +95,8 @@ export const ComposerToolRuntimeHost = ({
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session, reasoning, provider })
-  }, [assistant, model, provider, reasoning, scope, session])
+    return getToolsForScope(scope, { assistant, model, session, provider })
+  }, [assistant, model, provider, scope, session])
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
@@ -150,14 +143,13 @@ export const ComposerToolRuntimeHost = ({
         assistant,
         model,
         session,
-        reasoning,
         state,
         actions: runtimeActions,
         launcher: getLauncherApiForTool(tool.key),
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, getLauncherApiForTool, model, reasoning, scope, session, t, toolActions, toolState]
+    [assistant, getLauncherApiForTool, model, scope, session, t, toolActions, toolState]
   )
 
   const toolRuntimeEntries = useMemo(

@@ -88,7 +88,9 @@ const SystemSettings: FC = () => {
   const handleHardwareAccelerationChange = async (checked: boolean) => {
     const confirmed = await popup.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
-      content: t('settings.hardware_acceleration.confirm.content'),
+      content: checked
+        ? t('settings.hardware_acceleration.confirm.content_disable')
+        : t('settings.hardware_acceleration.confirm.content_enable'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true

@@ -1,18 +1,9 @@
 /**
  * pause() / drainInFlight() write-quiesce contract tests (backup restore, issue #16849).
  *
- * Contract: `pause(reason?): Disposable` refcounts write-quiesce holds. While any hold is
- * live, autonomous turn starts (`startNextTurn` queued follow-ups, `startContinuationTurn`
- * steer-roll continuations) are suppressed at the TOP of their launch body — before they
- * consume `pendingTurns`/`rollSteerInputs` or write the assistant placeholder row — and the
- * suppression is recorded in `suppressedTurnStarts`. There is no resume(): disposing the
- * LAST hold runs `runReleaseCompensation()`, which re-kicks the suppressed starts (a newer
- * hold or shutdown inherits the debt instead). `drainInFlight({ timeoutMs })` awaits the
- * launches registered in `inFlightTurnStarts` (registered SYNCHRONOUSLY by the schedule*
- * wrappers); it never rejects and never aborts stragglers.
- *
- * Mirrors JobManager's pause/drainInFlight contract and its test style
- * (`src/main/core/job/__tests__/JobManager.pause.test.ts`).
+ * Every state-machine launch target enters through the same synchronous registration and pause
+ * gate. Suppressed work stays represented by `runtimeState.launch`, and the final hold release
+ * resumes that exact target once.
  */
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -26,18 +17,18 @@ const mocks = vi.hoisted(() => ({
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
+  suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
-  getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
+  agentSessionService: { ensureTraceId: mocks.ensureTraceId }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -64,6 +55,19 @@ vi.mock('@application', () => ({
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 
 type Service = InstanceType<typeof AgentSessionRuntimeService>
+type LaunchTarget = 'queued-turn' | 'steer-continuation' | 'receive-only' | 'deferred-turn'
+
+type ServiceInternals = {
+  entries: Map<string, any>
+  pauseHolds: Set<symbol>
+  inFlightTurnStarts: Map<string, Promise<void>>
+  requestRuntimeLaunch: (entry: any, target: LaunchTarget) => void
+  startNextTurn: (entry: any) => Promise<void>
+  startContinuationTurn: (entry: any) => Promise<void>
+  startReceiveOnlyTurn: (entry: any) => Promise<void>
+  startDeferredTurn: (entry: any, turn: any) => void
+  runReleaseCompensation: () => void
+}
 
 const baseTurnInput = {
   sessionId: 'session-1',
@@ -88,26 +92,13 @@ function userMessage(id: string) {
   } as any
 }
 
-/** White-box surface for the quiesce plumbing. */
-type ServiceInternals = {
-  entries: Map<string, any>
-  pauseHolds: Set<symbol>
-  suppressedTurnStarts: Map<string, 'next' | 'continuation'>
-  inFlightTurnStarts: Map<string, Promise<void>>
-  scheduleNextTurn: (entry: any) => void
-  startNextTurn: (entry: any) => Promise<void>
-  startContinuationTurn: (entry: any) => Promise<void>
-  runReleaseCompensation: () => void
-}
-
 function internals(service: Service): ServiceInternals {
   return service as unknown as ServiceInternals
 }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-
-/** Flush the queueMicrotask launch body plus its finally (same idiom as the main suite). */
-const flushLaunch = () => sleep(0)
+function entryOf(service: Service) {
+  return internals(service).entries.get('session-1')
+}
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -117,22 +108,36 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
-/** Live turn + one queued follow-up (`user-2`) sitting in `pendingTurns`. */
+const flushLaunch = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 function seedQueuedFollowUp(service: Service) {
   service.beginTurn(baseTurnInput)
   service.enqueueUserMessage('session-1', userMessage('user-2'))
-  return internals(service).entries.get('session-1')
+  return entryOf(service)
 }
 
-/** Steer roll mid-flight: `rolling` true with `rollSteerInputs` captured, A1a closed. */
-function seedRoll(service: Service) {
-  service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-  const entry = internals(service).entries.get('session-1')
-  ;(service as any).handleRuntimeEvent(entry, {
-    type: 'steer-boundary',
-    inputs: [{ message: userMessage('user-2'), systemReminder: true }]
-  })
-  return entry
+function stubLaunch(service: Service, target: LaunchTarget, implementation: () => Promise<void> | void) {
+  const runtime = internals(service)
+  switch (target) {
+    case 'queued-turn':
+      runtime.startNextTurn = vi.fn(async () => {
+        await implementation()
+      })
+      return runtime.startNextTurn
+    case 'steer-continuation':
+      runtime.startContinuationTurn = vi.fn(async () => {
+        await implementation()
+      })
+      return runtime.startContinuationTurn
+    case 'receive-only':
+      runtime.startReceiveOnlyTurn = vi.fn(async () => {
+        await implementation()
+      })
+      return runtime.startReceiveOnlyTurn
+    case 'deferred-turn':
+      runtime.startDeferredTurn = vi.fn(implementation)
+      return runtime.startDeferredTurn
+  }
 }
 
 describe('AgentSessionRuntimeService pause / drainInFlight', () => {
@@ -143,310 +148,169 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       ...message,
       id: message.id ?? 'generated-message-id'
     }))
-    // startNextTurn re-reads the live agent before draining — it needs a non-null model.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
-      if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
+      if (name === 'CacheService') {
+        return { setShared: mocks.cacheSetShared, getShared: () => undefined, deleteShared: mocks.cacheDeleteShared }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
 
-  // -------------------------------------------------------------------------
-  // Blocked surface while paused
-  // -------------------------------------------------------------------------
+  it('suppresses a queued launch before consuming the queue or writing a placeholder', async () => {
+    const service = new AgentSessionRuntimeService()
+    const entry = seedQueuedFollowUp(service)
+    service.pause('restore')
 
-  describe('blocked surface while paused', () => {
-    it('suppresses a queued next-turn start: pendingTurns intact, no placeholder write, session stays busy', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedQueuedFollowUp(service)
-      service.pause('restore')
+    service.markTurnTerminal('session-1', 'success')
+    await flushLaunch()
 
-      service.markTurnTerminal('session-1', 'success') // schedules the drain into the gate
-      await flushLaunch()
-
-      // The gate ran BEFORE `pendingTurns.shift()`: the follow-up is still queued and no
-      // autonomous DB write (assistant placeholder) landed.
-      expect(entry.pendingTurns).toHaveLength(1)
-      expect(entry.pendingTurns[0].message.id).toBe('user-2')
-      expect(mocks.saveMessage).not.toHaveBeenCalled()
-      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-      // The intact queue keeps the session busy, so a concurrent dispatch still enqueues.
-      expect(service.isSessionBusy('session-1')).toBe(true)
-    })
-
-    it('suppresses a steer-roll continuation start: rolling stays true, rollSteerInputs unconsumed', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedRoll(service)
-      service.pause('restore')
-
-      service.markTurnTerminal('session-1', 'success') // rolling → scheduleContinuationTurn
-      await flushLaunch()
-
-      // The gate ran BEFORE consuming the roll state: the continuation stays fully re-kickable.
-      expect(entry.rolling).toBe(true)
-      expect(entry.rollSteerInputs).toBeDefined()
-      expect(mocks.saveMessage).not.toHaveBeenCalled()
-      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('continuation')
-      expect(service.isSessionBusy('session-1')).toBe(true)
-    })
-
-    it('clears startingNextTurn once the suppressed launch settles (compensation precondition)', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedQueuedFollowUp(service)
-      service.pause('restore')
-
-      service.markTurnTerminal('session-1', 'success')
-      expect(entry.startingNextTurn).toBe(true) // flag spans the whole drain
-      await flushLaunch()
-
-      // The launch's finally ran: `!entry.startingNextTurn` holds, so release
-      // compensation is not skipped for this session, and the in-flight map is clean.
-      expect(entry.startingNextTurn).toBe(false)
-      expect(internals(service).inFlightTurnStarts.size).toBe(0)
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-    })
+    expect(entry.runtimeState.queue).toHaveLength(1)
+    expect(entry.runtimeState.queue[0].message.id).toBe('user-2')
+    expect(entry.runtimeState.launch).toEqual({ kind: 'suppressed', target: 'queued-turn' })
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(service.isSessionBusy('session-1')).toBe(true)
   })
 
-  // -------------------------------------------------------------------------
-  // drainInFlight
-  // -------------------------------------------------------------------------
-
-  describe('drainInFlight', () => {
-    it('returns a clean verdict when nothing is in flight', async () => {
+  it.each<LaunchTarget>(['steer-continuation', 'receive-only', 'deferred-turn'])(
+    'suppresses %s before its launch body can write',
+    async (target) => {
       const service = new AgentSessionRuntimeService()
-      const hold = service.pause('restore')
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = entryOf(service)
+      const launchBody = stubLaunch(service, target, vi.fn())
+      service.pause('restore')
 
-      await expect(service.drainInFlight({ timeoutMs: 200 })).resolves.toEqual({ stragglerIds: [] })
+      internals(service).requestRuntimeLaunch(entry, target)
+      await flushLaunch()
 
-      hold.dispose()
-    })
+      expect(entry.runtimeState.launch).toEqual({ kind: 'suppressed', target })
+      expect(launchBody).not.toHaveBeenCalled()
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    }
+  )
 
-    it('waits for a launch admitted before the pause; clean verdict once it settles', async () => {
+  it.each<LaunchTarget>(['queued-turn', 'steer-continuation', 'receive-only', 'deferred-turn'])(
+    'resumes one suppressed %s launch exactly once after the final hold',
+    async (target) => {
       const service = new AgentSessionRuntimeService()
-      seedQueuedFollowUp(service)
-      // The launch body is fully synchronous (better-sqlite3 saveMessage and the mocked
-      // startRuntimeTurn are called without await), so there is no awaited seam INSIDE it
-      // to park on — park the launch body itself on a gate to model a start admitted
-      // before the pause that is still writing when the drain begins.
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = entryOf(service)
+      const launchBody = stubLaunch(service, target, vi.fn())
+      const first = service.pause('first')
+      const last = service.pause('last')
+
+      internals(service).requestRuntimeLaunch(entry, target)
+      await flushLaunch()
+      expect(entry.runtimeState.launch).toEqual({ kind: 'suppressed', target })
+
+      first.dispose()
+      first.dispose()
+      await flushLaunch()
+      expect(launchBody).not.toHaveBeenCalled()
+
+      last.dispose()
+      await flushLaunch()
+      await flushLaunch()
+      expect(launchBody).toHaveBeenCalledTimes(1)
+      expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+    }
+  )
+
+  it.each<LaunchTarget>(['queued-turn', 'steer-continuation', 'receive-only', 'deferred-turn'])(
+    'drainInFlight observes a running %s launch',
+    async (target) => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = entryOf(service)
       const gate = createDeferred<void>()
-      internals(service).startNextTurn = vi.fn(() => gate.promise)
+      stubLaunch(service, target, () => gate.promise)
 
-      service.markTurnTerminal('session-1', 'success') // admitted (registered) pre-pause
+      internals(service).requestRuntimeLaunch(entry, target)
+      await Promise.resolve()
       const hold = service.pause('restore')
 
       let settled = false
-      const drainP = service.drainInFlight({ timeoutMs: 5_000 }).then((verdict) => {
+      const drain = service.drainInFlight({ timeoutMs: 5_000 }).then((result) => {
         settled = true
-        return verdict
+        return result
       })
-      await sleep(30)
-      expect(settled).toBe(false) // drain is waiting on the parked launch
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(settled).toBe(false)
 
       gate.resolve()
-      await expect(drainP).resolves.toEqual({ stragglerIds: [] })
+      await expect(drain).resolves.toEqual({ stragglerIds: [] })
       expect(internals(service).inFlightTurnStarts.size).toBe(0)
-
       hold.dispose()
+    }
+  )
+
+  it('registers a launch synchronously and reports a non-aborted straggler on timeout', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = entryOf(service)
+    const gate = createDeferred<void>()
+    stubLaunch(service, 'deferred-turn', () => gate.promise)
+
+    internals(service).requestRuntimeLaunch(entry, 'deferred-turn')
+    expect(internals(service).inFlightTurnStarts.has('session-1')).toBe(true)
+    await Promise.resolve()
+    const hold = service.pause('restore')
+
+    await expect(service.drainInFlight({ timeoutMs: 25 })).resolves.toEqual({
+      stragglerIds: ['session-1']
     })
+    expect(internals(service).inFlightTurnStarts.has('session-1')).toBe(true)
 
-    it('returns straggler ids on timeout without rejecting — and does NOT abort the launch', async () => {
-      const service = new AgentSessionRuntimeService()
-      seedQueuedFollowUp(service)
-      const gate = createDeferred<void>()
-      const parked = vi.fn(() => gate.promise)
-      internals(service).startNextTurn = parked
-
-      service.markTurnTerminal('session-1', 'success')
-      const hold = service.pause('restore')
-
-      const verdict = await service.drainInFlight({ timeoutMs: 50 })
-      expect(verdict.stragglerIds).toEqual(['session-1'])
-
-      // The straggler was not aborted: the launch is still registered and only settles
-      // when we release it ourselves.
-      expect(parked).toHaveBeenCalledTimes(1)
-      expect(internals(service).inFlightTurnStarts.has('session-1')).toBe(true)
-      gate.resolve()
-      await flushLaunch()
-      expect(internals(service).inFlightTurnStarts.size).toBe(0)
-
-      hold.dispose()
-    })
-
-    it('registers the launch promise synchronously, before the microtask body runs', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedQueuedFollowUp(service)
-
-      internals(service).scheduleNextTurn(entry)
-      // No await/flush between the schedule call and these assertions: a drain that just
-      // awaited the settling stream must see this launch on its next collect.
-      expect(internals(service).inFlightTurnStarts.has('session-1')).toBe(true)
-      expect(entry.startingNextTurn).toBe(true)
-
-      await flushLaunch() // not paused → the launch runs and cleans up after itself
-      expect(internals(service).inFlightTurnStarts.has('session-1')).toBe(false)
-    })
+    gate.resolve()
+    await flushLaunch()
+    expect(internals(service).inFlightTurnStarts.size).toBe(0)
+    hold.dispose()
   })
 
-  // -------------------------------------------------------------------------
-  // Holds & release compensation
-  // -------------------------------------------------------------------------
+  it('drops suppressed work for a session closed while paused', async () => {
+    const service = new AgentSessionRuntimeService()
+    const entry = seedQueuedFollowUp(service)
+    const hold = service.pause('restore')
+    service.markTurnTerminal('session-1', 'success')
+    await flushLaunch()
+    expect(entry.runtimeState.launch.kind).toBe('suppressed')
 
-  describe('holds and release compensation', () => {
-    it('refcounts holds; dispose is idempotent; only the last release compensates', async () => {
-      const service = new AgentSessionRuntimeService()
-      seedQueuedFollowUp(service)
-      const h1 = service.pause('holder-1')
-      const h2 = service.pause('holder-2')
+    service.closeSession('session-1')
+    hold.dispose()
+    await flushLaunch()
 
-      service.markTurnTerminal('session-1', 'success')
-      await flushLaunch()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-
-      h1.dispose()
-      h1.dispose() // idempotent — must not release h2's hold
-      expect(service.isWriteQuiesced).toBe(true)
-      await flushLaunch()
-      expect(mocks.saveMessage).not.toHaveBeenCalled()
-
-      h2.dispose()
-      expect(service.isWriteQuiesced).toBe(false)
-      await flushLaunch()
-      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
-    })
-
-    it('release re-kicks a suppressed next turn exactly once', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedQueuedFollowUp(service)
-      const hold = service.pause('restore')
-      service.markTurnTerminal('session-1', 'success')
-      await flushLaunch()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-
-      hold.dispose()
-      await flushLaunch()
-      await flushLaunch()
-
-      // The turn actually started: exactly one placeholder write and one runtime handoff.
-      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
-      expect(mocks.saveMessage.mock.calls[0][0].message.role).toBe('assistant')
-      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
-      expect(entry.pendingTurns).toHaveLength(0)
-      expect(entry.currentTurn.userMessage.id).toBe('user-2')
-      expect(internals(service).suppressedTurnStarts.size).toBe(0)
-    })
-
-    it('release re-kicks a suppressed continuation turn', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedRoll(service)
-      const hold = service.pause('restore')
-      service.markTurnTerminal('session-1', 'success')
-      await flushLaunch()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('continuation')
-
-      hold.dispose()
-      await flushLaunch()
-      await flushLaunch()
-
-      // The continuation (A2) opened: placeholder saved, runtime turn started, roll
-      // inputs consumed, and the pre-admitted continuation turn is current.
-      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
-      expect(mocks.saveMessage.mock.calls[0][0].message.role).toBe('assistant')
-      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
-      expect(entry.rollSteerInputs).toBeUndefined()
-      expect(entry.currentTurn.userMessage.id).toBe('user-2')
-      expect(entry.currentTurn.admitted).toBe(true)
-
-      service.closeSession('session-1')
-    })
-
-    it('a newer hold inherits the suppressed debt; only its release kicks', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedQueuedFollowUp(service)
-      const holdA = service.pause('restore-a')
-      service.markTurnTerminal('session-1', 'success')
-      await flushLaunch()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-
-      const holdB = service.pause('restore-b')
-      holdA.dispose()
-      await flushLaunch()
-      expect(mocks.saveMessage).not.toHaveBeenCalled()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-
-      // Even a direct compensation call while quiesced must skip WITHOUT draining the
-      // map — the debt belongs to the newest hold.
-      internals(service).runReleaseCompensation()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-
-      holdB.dispose()
-      await flushLaunch()
-      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
-      expect(entry.pendingTurns).toHaveLength(0)
-    })
-
-    it('drops the debt for a session closed during the pause window', async () => {
-      const service = new AgentSessionRuntimeService()
-      const hold = service.pause('restore')
-      seedQueuedFollowUp(service)
-      service.markTurnTerminal('session-1', 'success')
-      await flushLaunch()
-      expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')
-
-      // Simulate closeEntry having removed the session mid-window.
-      internals(service).entries.delete('session-1')
-
-      expect(() => hold.dispose()).not.toThrow()
-      await flushLaunch()
-      expect(mocks.saveMessage).not.toHaveBeenCalled()
-      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-      expect(internals(service).suppressedTurnStarts.size).toBe(0)
-    })
-
-    it('fails closed: a never-disposed hold keeps the service quiesced and the work suppressed', async () => {
-      const service = new AgentSessionRuntimeService()
-      const entry = seedQueuedFollowUp(service)
-      service.pause('restore — never released')
-
-      service.markTurnTerminal('session-1', 'success')
-      await flushLaunch()
-      await sleep(20)
-
-      expect(service.isWriteQuiesced).toBe(true)
-      expect(internals(service).pauseHolds.size).toBe(1)
-      expect(mocks.saveMessage).not.toHaveBeenCalled()
-      expect(entry.pendingTurns).toHaveLength(1)
-    })
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
   })
 
-  // -------------------------------------------------------------------------
-  // listActiveWork
-  // -------------------------------------------------------------------------
-
-  describe('listActiveWork', () => {
-    it('lists busy sessions with a pending summary and excludes idle sessions', () => {
-      const service = new AgentSessionRuntimeService()
-      seedQueuedFollowUp(service) // session-1: live turn + one queued follow-up
-
-      // session-2 settles with nothing queued → idle, excluded.
-      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
-      service.markTurnTerminal('session-2', 'success')
-
-      const work = service.listActiveWork()
-      expect(work).toHaveLength(1)
-      expect(work[0].id).toBe('session-1')
-      expect(work[0].summary).toContain('turn=live')
-      expect(work[0].summary).toContain('pending=1')
+  it('lists state-machine work without treating an idle session as active', () => {
+    const service = new AgentSessionRuntimeService()
+    seedQueuedFollowUp(service)
+    service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-2',
+      topicId: 'agent-session:session-2'
     })
+    service.markTurnTerminal('session-2', 'success')
+
+    expect(service.listActiveWork()).toEqual([
+      expect.objectContaining({
+        id: 'session-1',
+        summary: expect.stringContaining('execution=turn')
+      })
+    ])
   })
 })

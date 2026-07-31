@@ -101,11 +101,13 @@ export const MessageGenerateImageToolTitle = ({
       <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>
       {isSingle ? (
         <ImageBlock images={urls} isPending={urls.length === 0} isSingle />
+      ) : urls.length > 0 ? (
+        <ImageBlock images={urls} isSingle={false} />
       ) : (
         <div className="flex flex-wrap gap-2.5">
-          {urls.length === 0
-            ? items.map((item) => <ImageBlock key={item.id} images={[]} isPending isSingle={false} />)
-            : urls.map((src, index) => <ImageBlock key={index} images={[src]} isSingle={false} />)}
+          {items.map((item) => (
+            <ImageBlock key={item.id} images={[]} isPending isSingle={false} />
+          ))}
         </div>
       )}
     </div>

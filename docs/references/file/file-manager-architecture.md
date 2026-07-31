@@ -384,7 +384,17 @@ whose contract is intentionally path-only call their path helper directly:
 // src/main/ipc/handlers/file.ts
 export const fileHandlers = {
   'file.read': async ({ handle, options }) =>
-    dispatchHandle(handle, id => fileManager.read(id, options), path => readByPath(path, options)),
+    options.mode === 'range'
+      ? dispatchHandle(
+          handle,
+          id => fileManager.readChunk(id, options.offset, options.length),
+          path => readChunkByPath(path, options.offset, options.length)
+        )
+      : dispatchHandle(
+          handle,
+          id => fileManager.read(id, { encoding: options.encoding }),
+          path => readByPath(path, { encoding: options.encoding })
+        ),
   'file.write_if_unchanged': async ({ path, data, expectedVersion }) =>
     writeIfUnchangedByPath(path, data, expectedVersion)
 }

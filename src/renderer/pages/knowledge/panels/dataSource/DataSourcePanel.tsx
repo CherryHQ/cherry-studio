@@ -27,8 +27,10 @@ export interface DataSourcePanelProps {
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
-  /** View a non-directory item's chunks in-app (note left-click + the row's context menu). */
+  /** View an item's indexed chunks in-app (the row's context menu). */
   onItemClick?: (itemId: string) => void
+  /** View a note's original stored content in-app (note left-click). */
+  onViewNoteContent?: (itemId: string) => void
   /** Drill into a directory item to list its children. */
   onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
   /** The directory currently drilled into, or null/undefined at the base root. */
@@ -85,6 +87,7 @@ const DataSourcePanel = ({
   onAdd,
   onPreviewFile,
   onItemClick,
+  onViewNoteContent,
   onDrillIntoDirectory,
   currentDirectory,
   onNavigateUp,
@@ -114,7 +117,8 @@ const DataSourcePanel = ({
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
   // A directory drills in; files and captured URLs preview inline; uncaptured valid HTTP URLs open
-  // in the system browser; notes show chunks. `previewSource` owns warnings and error toasts.
+  // in the system browser; notes show their original stored content. `previewSource` owns warnings
+  // and error toasts. Chunks are a separate advanced action reached from the row's context menu.
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {
@@ -126,9 +130,9 @@ const DataSourcePanel = ({
         void previewSource(item)
         return
       }
-      onItemClick?.(item.id)
+      onViewNoteContent?.(item.id)
     },
-    [invalidatePreviewRequests, onDrillIntoDirectory, onItemClick, previewSource]
+    [invalidatePreviewRequests, onDrillIntoDirectory, onViewNoteContent, previewSource]
   )
 
   const handleNavigateUp = useCallback(() => {

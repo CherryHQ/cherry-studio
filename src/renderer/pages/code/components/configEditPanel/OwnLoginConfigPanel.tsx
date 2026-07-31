@@ -43,6 +43,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
   const initialConfig = useMemo(
     () => sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {}),
     [cliTool, providerConfig]
@@ -134,7 +135,10 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       <DialogContent
         size="lg"
         aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          cancelButtonRef.current?.focus({ preventScroll: true })
+        }}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
@@ -158,7 +162,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         </SettingContainer>
 
         <DialogFooter className="justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
+          <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
           <Button variant="default" size="sm" onClick={handleSubmit} disabled={!canSave} loading={submitting}>

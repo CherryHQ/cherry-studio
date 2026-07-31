@@ -1,3 +1,4 @@
+import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import { applyUserOverlay, type UserModelOverlay } from '@data/services/ModelService'
 import {
   applyCapabilityOverride,
@@ -113,6 +114,16 @@ describe('mergePresetModel', () => {
     const override = { providerId: 'openai', modelId: 'gpt-4o', disabled: true } as any
     const model = mergePresetModel(presetModel, override, 'openai')
     expect(model.isEnabled).toBe(false)
+  })
+
+  it('projects Fast support from the provider-model override', () => {
+    const override = {
+      providerId: 'openai-codex',
+      modelId: 'gpt-4o',
+      supportsFastMode: true
+    } satisfies ProtoProviderModelOverride
+    expect(mergePresetModel(presetModel, override, 'openai-codex').supportsFastMode).toBe(true)
+    expect(mergePresetModel(presetModel, null, 'openai-codex').supportsFastMode).toBeUndefined()
   })
 })
 

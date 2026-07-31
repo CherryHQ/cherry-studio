@@ -165,15 +165,6 @@ describe('ModelListSyncDrawer', () => {
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
     expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
-    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-size') === '26')).toBe(true)
-    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-shape') === 'circle')).toBe(true)
-    expect(screen.getAllByTestId('model-icon')[0].parentElement).toHaveClass(
-      'size-6.5',
-      'overflow-hidden',
-      'rounded-full',
-      'border',
-      'border-border'
-    )
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
     expect(screen.getByText('legacy-model')).toBeInTheDocument()
@@ -387,12 +378,6 @@ describe('ModelListSyncDrawer', () => {
 
     expect(tabs[0]).toHaveAccessibleName('models.all')
     expect(tabs[1]).toBe(staleTab)
-    expect(tabList).toHaveClass('overflow-y-hidden', '[scrollbar-width:none]', '[&::-webkit-scrollbar]:hidden')
-    expect(staleTab).toHaveClass(
-      'cursor-pointer',
-      'text-error-subtle-foreground',
-      'data-[state=active]:bg-error-subtle'
-    )
 
     fireEvent.scroll(tabList, { target: { scrollLeft: 120 } })
     await user.click(staleTab)

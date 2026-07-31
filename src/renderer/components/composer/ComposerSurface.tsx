@@ -16,6 +16,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -25,7 +26,6 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
-import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { JSONContent } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
@@ -35,7 +35,7 @@ import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMem
 import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
-import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
+import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -352,13 +352,22 @@ function getComposerUnifiedPanelSearchText(
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
-const getManagedTokenSignature = (
-  tokens: readonly ComposerSerializedToken[],
-  managedTokenKindSet: ReadonlySet<ComposerDraftToken['kind']>
-) =>
+const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
   tokens
-    .filter((token) => managedTokenKindSet.has(token.kind))
-    .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
+    .filter((token) => isComposerInputTokenKind(token.kind))
+    .map((token) =>
+      JSON.stringify([
+        token.kind,
+        token.id,
+        token.label,
+        token.icon,
+        token.description,
+        token.index,
+        token.textOffset,
+        token.promptText,
+        token.payload
+      ])
+    )
     .join('\n')
 
 function shouldDelegateLongTextPasteToFileHandler(text: string) {
@@ -474,37 +483,6 @@ function mergeComposerClipboardFiles(prev: ComposerAttachment[], files: readonly
   return changed ? next : prev
 }
 
-function isRestorableDraftToken(
-  token: ComposerSerializedToken
-): token is ComposerSerializedToken & ComposerMessageToken {
-  return token.kind !== 'promptVariable'
-}
-
-function getRestorableDraftTokens(draftTokens: readonly ComposerSerializedToken[] | undefined): ComposerMessageToken[] {
-  return (draftTokens ?? [])
-    .filter(isRestorableDraftToken)
-    .map(({ id, kind, label, icon, description, index, textOffset, promptText, payload }) => ({
-      id,
-      kind,
-      label,
-      ...(icon && { icon }),
-      ...(description && { description }),
-      index,
-      textOffset,
-      ...(promptText && { promptText }),
-      ...(payload !== undefined && { payload })
-    }))
-}
-
-function createComposerEditorContent(text: string, draftTokens: readonly ComposerSerializedToken[] | undefined) {
-  const restorableTokens = getRestorableDraftTokens(draftTokens)
-  if (restorableTokens.length) {
-    return createComposerDocumentContent(text, { version: 1, tokens: restorableTokens })
-  }
-
-  return createPromptVariableContent(text)
-}
-
 function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown', isInputHistoryActive: boolean) {
   const { doc, selection } = view.state
   // ProseMirror positions are token-based: `doc.content.size` is one past the
@@ -605,7 +583,7 @@ export default function ComposerSurface({
   const pendingLocalTextEchoRef = useRef<string | null>(null)
   const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
   const isSyncingTokensRef = useRef(false)
-  const managedTokenSignatureRef = useRef('')
+  const trackedTokenSignatureRef = useRef('')
   const tokenByIdRef = useRef(new Map<string, ComposerDraftToken>())
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
@@ -916,18 +894,15 @@ export default function ComposerSurface({
     return serializeComposerDocument(editor)
   }, [])
 
-  const replaceDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
-      const editor = editorRef.current
-      if (!editor || editor.isDestroyed) return
+  const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
 
-      textRef.current = draft.text
-      pendingLocalTextEchoRef.current = null
-      editor.commands.setContent(createComposerEditorContent(draft.text, draft.tokens), { emitUpdate: false })
-      managedTokenSignatureRef.current = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
-    },
-    [managedTokenKindSet]
-  )
+    textRef.current = draft.text
+    pendingLocalTextEchoRef.current = null
+    editor.commands.setContent(createComposerDraftContent(draft), { emitUpdate: false })
+    trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
+  }, [])
 
   useEffect(() => {
     onActionsChange?.({
@@ -1764,7 +1739,7 @@ export default function ComposerSurface({
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
-    content: createComposerEditorContent(text, draftTokens),
+    content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
     editable,
     immediatelyRender: false,
     enableSpellCheck,
@@ -1784,14 +1759,14 @@ export default function ComposerSurface({
         listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
       )
 
-      const nextManagedTokenSignature = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+      const nextTrackedTokenSignature = getTrackedTokenSignature(draft.tokens)
       if (!isSyncingTokensRef.current) {
-        if (nextManagedTokenSignature !== managedTokenSignatureRef.current) {
-          managedTokenSignatureRef.current = nextManagedTokenSignature
+        if (nextTrackedTokenSignature !== trackedTokenSignatureRef.current) {
+          trackedTokenSignatureRef.current = nextTrackedTokenSignature
           onTokensChange(draft.tokens)
         }
       } else {
-        managedTokenSignatureRef.current = nextManagedTokenSignature
+        trackedTokenSignatureRef.current = nextTrackedTokenSignature
       }
     },
     onCreate: ({ editor: createdEditor }) => {
@@ -1826,7 +1801,7 @@ export default function ComposerSurface({
       return
     }
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createComposerEditorContent(text, draftTokens), { emitUpdate: false })
+    editor.commands.setContent(createComposerDraftContent({ text, tokens: draftTokens ?? [] }), { emitUpdate: false })
   }, [draftTokens, editor, text])
 
   useEffect(() => {
@@ -1850,10 +1825,7 @@ export default function ComposerSurface({
       isSyncingTokensRef.current = false
     }
 
-    managedTokenSignatureRef.current = getManagedTokenSignature(
-      serializeComposerDocument(editor).tokens,
-      managedTokenKindSet
-    )
+    trackedTokenSignatureRef.current = getTrackedTokenSignature(serializeComposerDocument(editor).tokens)
   }, [editor, managedTokenKindSet, tokens])
 
   const inputAdapter = useMemo<QuickPanelInputAdapter | undefined>(() => {
@@ -2271,7 +2243,10 @@ export default function ComposerSurface({
   )
 
   return (
-    <NarrowLayout narrowMode={narrowMode} withSidePadding style={{ width: '100%' }}>
+    // pointer-events-auto: the composer dock stack above is click-through so the
+    // pane behind the flanks stays interactive; this width-capped box is where
+    // pointer events come back on.
+    <NarrowLayout narrowMode={narrowMode} withSidePadding className="pointer-events-auto" style={{ width: '100%' }}>
       <div className="w-full">
         <div
           className="inputbar relative z-2 flex flex-col pt-0"

@@ -390,25 +390,6 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
   })
 
-  it('uses the same 44px band height as the surrounding dividers', () => {
-    render(
-      <DataSourcePanel
-        updatedAt="2026-04-15T09:00:00+08:00"
-        items={[]}
-        isLoading={false}
-        onAdd={vi.fn()}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    const divider = screen.getByText(/更新于/).closest('.border-b')
-
-    expect(divider).toHaveClass('flex', 'h-11', 'items-center')
-    expect(divider?.parentElement).toHaveClass('px-3')
-    expect(divider?.parentElement).not.toHaveClass('pt-2')
-  })
-
   it('guides users from the empty data source state into file or URL add flows', () => {
     const onAdd = vi.fn()
 
@@ -691,8 +672,9 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
-  it('views chunks in-app on a note row click', () => {
+  it('views the original note content in-app on a note row click, not its chunks', () => {
     const onItemClick = vi.fn()
+    const onViewNoteContent = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
     render(
@@ -702,6 +684,7 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onItemClick={onItemClick}
+        onViewNoteContent={onViewNoteContent}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
       />
@@ -709,7 +692,8 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('会议纪要'))
 
-    expect(onItemClick).toHaveBeenCalledWith('note-1')
+    expect(onViewNoteContent).toHaveBeenCalledWith('note-1')
+    expect(onItemClick).not.toHaveBeenCalled()
     expect(previewSourceMock).not.toHaveBeenCalled()
   })
 

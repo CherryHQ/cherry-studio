@@ -521,7 +521,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
                 alt=""
                 data-testid="artboard-image-transform"
                 className={`max-h-full min-h-0 max-w-full select-none rounded-md object-contain ${
-                  isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
+                  isDraggingImage
+                    ? 'cursor-grabbing transition-none will-change-transform'
+                    : 'cursor-grab transition-transform duration-150'
                 }`}
                 draggable={false}
                 onLoad={onDisplayedImageLoad}

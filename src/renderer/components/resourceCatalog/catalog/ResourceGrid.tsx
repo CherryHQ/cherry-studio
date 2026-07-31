@@ -21,6 +21,7 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
@@ -221,10 +222,8 @@ export const ResourceGrid: FC<Props> = ({
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)
-  const [showAddGroup, setShowAddGroup] = useState(false)
   const [showAllGroups, setShowAllGroups] = useState(false)
-  const [newGroupName, setNewGroupName] = useState('')
-  const [addingGroup, setAddingGroup] = useState(false)
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
@@ -248,24 +247,19 @@ export const ResourceGrid: FC<Props> = ({
     }))
   }, [allGroups, groups, showAllGroups])
 
-  const handleAddGroup = async () => {
-    const trimmed = newGroupName.trim()
-    if (!trimmed || addingGroup) return
-    setAddingGroup(true)
-    try {
-      await onAddGroup(trimmed)
-      setNewGroupName('')
-      setShowAddGroup(false)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
-      toast.error(message)
-      logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
-        name: trimmed
-      })
-    } finally {
-      setAddingGroup(false)
-    }
-  }
+  const handleAddGroup = useCallback(
+    async (name: string) => {
+      try {
+        await onAddGroup(name)
+      } catch (error) {
+        logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
+          name
+        })
+        throw error
+      }
+    },
+    [onAddGroup]
+  )
 
   const handleOpenRenameGroup = useCallback((group: GroupItem) => {
     setRenamingGroup(group)
@@ -446,47 +440,20 @@ export const ResourceGrid: FC<Props> = ({
                 </Button>
               )}
 
-              {showAddGroup ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <Input
-                    autoFocus
-                    maxLength={64}
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleAddGroup()
-                      if (e.key === 'Escape') {
-                        setShowAddGroup(false)
-                        setNewGroupName('')
-                      }
-                    }}
-                    onBlur={() => {
-                      if (!newGroupName.trim() && !addingGroup) setShowAddGroup(false)
-                    }}
-                    disabled={addingGroup}
-                    placeholder={t('library.toolbar.add_group_placeholder')}
-                    className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-muted-foreground"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => void handleAddGroup()}
-                    disabled={addingGroup || !newGroupName.trim()}
-                    className="size-6 text-muted-foreground hover:text-foreground">
-                    <Plus size={12} />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowAddGroup(true)}
-                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
-                  <Plus size={11} /> {t('library.toolbar.group_button')}
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                onClick={() => setCreateGroupDialogOpen(true)}
+                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
+                <Plus size={11} /> {t('library.toolbar.group_button')}
+              </Button>
             </div>
           </div>
         )}
+        <CreateGroupDialog
+          open={createGroupDialogOpen}
+          onCreate={handleAddGroup}
+          onOpenChange={setCreateGroupDialogOpen}
+        />
         <Dialog
           open={Boolean(renamingGroup)}
           onOpenChange={(open) => {
