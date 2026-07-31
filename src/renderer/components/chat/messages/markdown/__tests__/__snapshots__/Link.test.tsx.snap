@@ -7,7 +7,7 @@ exports[`Link > should match snapshot 1`] = `
     data-testid="hyperlink"
   >
     <a
-      class="text-primary hover:underline"
+      class="text-link hover:underline"
       href="https://example.com"
       rel="noreferrer"
       target="_blank"

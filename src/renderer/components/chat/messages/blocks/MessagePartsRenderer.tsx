@@ -823,7 +823,7 @@ function renderGroupedEntry(
 
   const wrapperClassName =
     entry.part.type === 'text'
-      ? 'text-black dark:text-foreground'
+      ? 'text-foreground'
       : isReasoningMessagePart(entry.part)
         ? 'message-thought-wrapper'
         : undefined

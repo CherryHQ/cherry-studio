@@ -1981,7 +1981,7 @@ describe('Topics', () => {
     // hover so the pin + delete actions take its resting spot.
     expect(indicatorRoot).toHaveAccessibleName('Running')
     expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
-    expect(indicator).toHaveClass('text-foreground-muted')
+    expect(indicator).toHaveClass('text-foreground-tertiary')
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
@@ -2054,7 +2054,12 @@ describe('Topics', () => {
     const badge = within(topicRow).getByTestId('topic-awaiting-approval-badge')
 
     expect(badge).toHaveTextContent('Pending')
-    expect(badge).toHaveClass('text-warning', 'group-hover:opacity-0')
+    expect(badge).toHaveClass(
+      'border-warning-border',
+      'bg-warning-subtle',
+      'text-warning-subtle-foreground',
+      'group-hover:opacity-0'
+    )
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
@@ -2081,7 +2086,7 @@ describe('Topics', () => {
 
     expect(indicator).toBeInTheDocument()
     expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-foreground-muted')
+    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-foreground-tertiary')
     expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
   })
 

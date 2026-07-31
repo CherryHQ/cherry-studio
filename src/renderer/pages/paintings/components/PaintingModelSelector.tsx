@@ -89,10 +89,10 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             className={cn(
-              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle bg-secondary px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:bg-secondary-hover hover:text-foreground',
+              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:text-foreground',
               className
             )}>
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -105,20 +105,18 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
                   </Avatar>
                 )
               ) : null}
-              <span className="min-w-0 truncate text-foreground/90">
+              <span className="min-w-0 truncate text-foreground">
                 {selectedName ? (
                   <>
                     {selectedName}
-                    {selectedProviderName && (
-                      <span className="text-muted-foreground/80"> | {selectedProviderName}</span>
-                    )}
+                    {selectedProviderName && <span className="text-muted-foreground"> | {selectedProviderName}</span>}
                   </>
                 ) : (
                   t('paintings.select_model')
                 )}
               </span>
             </div>
-            <ChevronDown className="size-3 shrink-0 text-muted-foreground/60" />
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
           </Button>
         }
       />
