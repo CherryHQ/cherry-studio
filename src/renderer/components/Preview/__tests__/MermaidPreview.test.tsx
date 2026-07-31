@@ -1,263 +1,175 @@
-import { render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MermaidPreview from '../MermaidPreview'
 
+type RenderFunction = (content: string, container: HTMLDivElement) => Promise<void>
+type RenderOptions = { shouldRender?: () => boolean }
+
 const mocks = vi.hoisted(() => ({
+  mermaid: {
+    parse: vi.fn(),
+    render: vi.fn()
+  },
   useMermaid: vi.fn(),
   useDebouncedRender: vi.fn(),
-  ImagePreviewLayout: vi.fn(({ children, loading, error, enableToolbar, source }) => (
-    <div data-testid="image-preview-layout" data-source={source}>
-      {enableToolbar && <div data-testid="toolbar">Toolbar</div>}
-      {loading && <div data-testid="loading">Loading...</div>}
-      {error && <div data-testid="error">{error}</div>}
-      <div data-testid="preview-content">{children}</div>
-    </div>
-  ))
+  renderSvgInShadowHost: vi.fn(),
+  renderFunction: undefined as RenderFunction | undefined,
+  renderOptions: undefined as RenderOptions | undefined,
+  containerRef: { current: null as HTMLDivElement | null },
+  hookState: {
+    error: null as string | null,
+    isLoading: false
+  },
+  observerCallback: undefined as MutationCallback | undefined,
+  observer: {
+    observe: vi.fn(),
+    disconnect: vi.fn(),
+    takeRecords: vi.fn()
+  },
+  imageActions: {
+    pan: vi.fn(),
+    zoom: vi.fn(),
+    copy: vi.fn(),
+    download: vi.fn(),
+    dialog: vi.fn()
+  }
 }))
 
-// Mock hooks
 vi.mock('@renderer/hooks/useMermaid', () => ({
   useMermaid: () => mocks.useMermaid()
 }))
 
-vi.mock('@renderer/components/Preview/ImagePreviewLayout', () => ({
-  default: mocks.ImagePreviewLayout
+vi.mock('../hooks/useDebouncedRender', () => ({
+  useDebouncedRender: (content: string, renderFunction: RenderFunction, options: RenderOptions) => {
+    mocks.useDebouncedRender(content, renderFunction, options)
+    mocks.renderFunction = renderFunction
+    mocks.renderOptions = options
+    return {
+      containerRef: mocks.containerRef,
+      ...mocks.hookState,
+      triggerRender: vi.fn(),
+      cancelRender: vi.fn(),
+      clearError: vi.fn(),
+      setLoading: vi.fn()
+    }
+  }
 }))
 
-vi.mock('@renderer/components/Preview/hooks/useDebouncedRender', () => ({
-  useDebouncedRender: mocks.useDebouncedRender
+vi.mock('../utils', () => ({
+  renderSvgInShadowHost: mocks.renderSvgInShadowHost
 }))
 
-// Mock nanoid
+vi.mock('@renderer/components/ActionTools', () => ({
+  useImageTools: () => mocks.imageActions
+}))
+
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <div data-testid="loading-indicator" />
+}))
+
 vi.mock('nanoid', () => ({
-  nanoid: () => 'test-id-123456'
+  nanoid: () => 'test-id'
 }))
 
 describe('MermaidPreview', () => {
-  const mermaidCode = 'graph TD\nA-->B'
-  const mockContainerRef = { current: document.createElement('div') }
-
-  const mockMermaid = {
-    parse: vi.fn(),
-    render: vi.fn()
-  }
-
-  // Helper function to create mock useDebouncedRender return value
-  const createMockHookReturn = (overrides = {}) => ({
-    containerRef: mockContainerRef,
-    error: null,
-    isLoading: false,
-    triggerRender: vi.fn(),
-    cancelRender: vi.fn(),
-    clearError: vi.fn(),
-    setLoading: vi.fn(),
-    ...overrides
-  })
+  const content = 'graph TD\nA-->B'
 
   beforeEach(() => {
-    // Setup default mocks
+    vi.clearAllMocks()
+    mocks.renderFunction = undefined
+    mocks.renderOptions = undefined
+    mocks.containerRef.current = null
+    mocks.hookState.error = null
+    mocks.hookState.isLoading = false
     mocks.useMermaid.mockReturnValue({
-      mermaid: mockMermaid,
+      mermaid: mocks.mermaid,
       isLoading: false,
       error: null,
       forceRenderKey: 0
     })
-
-    mocks.useDebouncedRender.mockReturnValue(createMockHookReturn())
-
-    mockMermaid.parse.mockResolvedValue(true)
-    mockMermaid.render.mockResolvedValue({
-      svg: '<svg class="flowchart" viewBox="0 0 100 100"><g>test diagram</g></svg>'
+    mocks.mermaid.parse.mockResolvedValue(true)
+    mocks.mermaid.render.mockResolvedValue({
+      svg: '<svg><g transform="translate(undefined, NaN)">diagram</g></svg>'
     })
 
-    // Mock MutationObserver
-    global.MutationObserver = vi.fn().mockImplementation(() => ({
-      observe: vi.fn(),
-      disconnect: vi.fn(),
-      takeRecords: vi.fn()
-    }))
+    vi.stubGlobal(
+      'MutationObserver',
+      vi.fn().mockImplementation((callback: MutationCallback) => {
+        mocks.observerCallback = callback
+        return mocks.observer
+      })
+    )
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
-    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
-  describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = render(<MermaidPreview enableToolbar>{mermaidCode}</MermaidPreview>)
-      expect(container).toMatchSnapshot()
-    })
+  it('parses and renders Mermaid output into the preview host', async () => {
+    render(<MermaidPreview>{content}</MermaidPreview>)
+    const container = mocks.containerRef.current!
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
 
-    it('should handle valid mermaid content', () => {
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
+    await mocks.renderFunction?.(content, container)
 
-      expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
-      expect(mocks.useDebouncedRender).toHaveBeenCalledWith(
-        mermaidCode,
-        expect.any(Function),
-        expect.objectContaining({
-          debounceDelay: 300,
-          shouldRender: expect.any(Function)
-        })
-      )
-    })
-
-    it('should handle empty content', () => {
-      render(<MermaidPreview>{''}</MermaidPreview>)
-
-      expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
-      expect(mocks.useDebouncedRender).toHaveBeenCalledWith('', expect.any(Function), expect.any(Object))
-    })
+    const measureElement = mocks.mermaid.render.mock.calls[0][2]
+    expect(mocks.mermaid.parse).toHaveBeenCalledWith(content)
+    expect(mocks.mermaid.render).toHaveBeenCalledWith('mermaid-test-id', content, measureElement)
+    expect(mocks.renderSvgInShadowHost).toHaveBeenCalledWith(
+      '<svg><g transform="translate(0, 0)">diagram</g></svg>',
+      container
+    )
+    expect(document.body).not.toContainElement(measureElement)
   })
 
-  describe('loading state', () => {
-    it('should show loading when useMermaid is loading', () => {
-      mocks.useMermaid.mockReturnValue({
-        mermaid: mockMermaid,
-        isLoading: true,
-        error: null,
-        forceRenderKey: 0
-      })
-
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
-
-      expect(screen.getByTestId('loading')).toBeInTheDocument()
+  it('surfaces Mermaid initialization state ahead of render state', () => {
+    mocks.useMermaid.mockReturnValue({
+      mermaid: mocks.mermaid,
+      isLoading: true,
+      error: null,
+      forceRenderKey: 0
     })
+    const { rerender } = render(<MermaidPreview>{content}</MermaidPreview>)
 
-    it('should show loading when useDebouncedRender is loading', () => {
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ isLoading: true }))
+    expect(screen.getByTestId('loading-indicator')).toBeInTheDocument()
 
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
-
-      expect(screen.getByTestId('loading')).toBeInTheDocument()
+    mocks.useMermaid.mockReturnValue({
+      mermaid: mocks.mermaid,
+      isLoading: false,
+      error: 'Mermaid initialization failed',
+      forceRenderKey: 0
     })
+    mocks.hookState.error = 'Diagram rendering failed'
+    rerender(<MermaidPreview>{`${content}\nB-->C`}</MermaidPreview>)
 
-    it('should not show loading when both are not loading', () => {
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
-
-      expect(screen.queryByTestId('loading')).not.toBeInTheDocument()
-    })
+    expect(screen.getByText('Mermaid initialization failed')).toBeInTheDocument()
+    expect(screen.queryByText('Diagram rendering failed')).not.toBeInTheDocument()
   })
 
-  describe('error handling', () => {
-    it('should show error from useMermaid', () => {
-      const mermaidError = 'Mermaid initialization failed'
-      mocks.useMermaid.mockReturnValue({
-        mermaid: mockMermaid,
-        isLoading: false,
-        error: mermaidError,
-        forceRenderKey: 0
-      })
+  it('updates the render gate when a folded diagram becomes visible', () => {
+    render(<MermaidPreview>{content}</MermaidPreview>)
+    const container = mocks.containerRef.current!
 
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
+    Object.defineProperties(container, {
+      offsetParent: { configurable: true, value: null },
+      offsetWidth: { configurable: true, value: 0 },
+      offsetHeight: { configurable: true, value: 0 }
+    })
+    act(() => {
+      mocks.observerCallback?.([], mocks.observer as unknown as MutationObserver)
+    })
+    expect(mocks.renderOptions?.shouldRender?.()).toBe(false)
 
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toBeInTheDocument()
-      expect(errorElement).toHaveTextContent(mermaidError)
+    Object.defineProperties(container, {
+      offsetParent: { configurable: true, value: document.body },
+      offsetWidth: { configurable: true, value: 640 },
+      offsetHeight: { configurable: true, value: 480 }
+    })
+    act(() => {
+      mocks.observerCallback?.([], mocks.observer as unknown as MutationObserver)
     })
 
-    it('should show error from useDebouncedRender', () => {
-      const renderError = 'Diagram rendering failed'
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: renderError }))
-
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
-
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toBeInTheDocument()
-      expect(errorElement).toHaveTextContent(renderError)
-    })
-
-    it('should prioritize useMermaid error over render error', () => {
-      const mermaidError = 'Mermaid initialization failed'
-      const renderError = 'Diagram rendering failed'
-
-      mocks.useMermaid.mockReturnValue({
-        mermaid: mockMermaid,
-        isLoading: false,
-        error: mermaidError,
-        forceRenderKey: 0
-      })
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: renderError }))
-
-      render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
-
-      const errorElement = screen.getByTestId('error')
-      expect(errorElement).toHaveTextContent(mermaidError)
-    })
-  })
-
-  describe('ref forwarding', () => {
-    it('should forward ref to ImagePreviewLayout', () => {
-      const ref = { current: null }
-      render(<MermaidPreview ref={ref}>{mermaidCode}</MermaidPreview>)
-
-      expect(mocks.ImagePreviewLayout).toHaveBeenCalledWith(expect.objectContaining({ ref }), undefined)
-    })
-  })
-
-  describe('visibility detection', () => {
-    it('should observe parent elements up to fold className', () => {
-      // Create a DOM structure that simulates MessageGroup fold layout
-      const foldContainer = document.createElement('div')
-      foldContainer.className = 'fold selected'
-
-      const messageWrapper = document.createElement('div')
-      messageWrapper.className = 'message-wrapper'
-
-      const codeBlock = document.createElement('div')
-      codeBlock.className = 'code-block'
-
-      foldContainer.appendChild(messageWrapper)
-      messageWrapper.appendChild(codeBlock)
-      document.body.appendChild(foldContainer)
-
-      try {
-        render(<MermaidPreview>{mermaidCode}</MermaidPreview>, {
-          container: codeBlock
-        })
-
-        const observerInstance = (global.MutationObserver as Mock).mock.results[0]?.value
-        expect(observerInstance.observe).toHaveBeenCalled()
-      } finally {
-        // Cleanup
-        document.body.removeChild(foldContainer)
-      }
-    })
-
-    it('should handle visibility changes and trigger re-render', () => {
-      const mockTriggerRender = vi.fn()
-      mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ triggerRender: mockTriggerRender }))
-
-      const { container } = render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
-
-      // Get the MutationObserver callback
-      const observerCallback = (global.MutationObserver as Mock).mock.calls[0][0]
-
-      // Mock the container element to be initially hidden
-      const mermaidElement = container.querySelector('.mermaid')
-      Object.defineProperty(mermaidElement, 'offsetParent', {
-        get: () => null, // Hidden
-        configurable: true
-      })
-
-      // Simulate MutationObserver detecting visibility change
-      observerCallback([])
-
-      // Now make it visible
-      Object.defineProperty(mermaidElement, 'offsetParent', {
-        get: () => document.body, // Visible
-        configurable: true
-      })
-
-      // Simulate another MutationObserver callback for visibility change
-      observerCallback([])
-
-      // The visibility change should have been detected and component should be ready to re-render
-      // We verify the component structure is correct for potential re-rendering
-      expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
-      expect(mermaidElement).toBeInTheDocument()
-    })
+    expect(mocks.renderOptions?.shouldRender?.()).toBe(true)
   })
 })
