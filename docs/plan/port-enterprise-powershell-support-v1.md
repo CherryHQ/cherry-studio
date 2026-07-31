@@ -2,6 +2,7 @@
 
 **负责人**: Codex
 **日期**: 2026-07-31
+**计划版本**: v2（2026-07-31T20:16:38+08:00 因 v1 full review 第 3 轮未收敛而修订）
 
 ---
 
@@ -63,7 +64,7 @@
 1. 非 Windows 平台的 shell 环境、对外暴露的 builtin tool catalog、内部 `autoAllowTools`、传给 SDK 的 `options.allowedTools` 和 AgentModal 行为不变；`PowerShell` 可作为内部权限元数据或 opaque 持久化 ID 存在，但不得出现在 macOS/Linux 的 Agent/Session 工具列表或任一运行时授权集合。
 2. Windows 上有效 Git Bash 的优先级高于 PowerShell fallback。
 3. PowerShell fallback 时不得向 SDK 暴露不可执行的 `Bash` / `builtin_Bash`。
-4. 用户自定义环境变量不得覆盖 shell 选择、认证和 Cherry 内部代理引导键；现有标准 proxy 白名单中的 HTTP(S)/ALL/NO/SOCKS 大小写变体及 `grpc_proxy` 明确允许按 Agent 覆盖应用进程值。Windows 上合并环境键时按大小写不敏感语义去重，确保用户值确定性胜出。
+4. 登录环境和用户自定义环境变量不得覆盖 shell/进程启动选择、认证/后端、remote/bridge/agent-proxy/session-ingress、Cherry 管理的主模型/默认模型/辅助模型/子代理模型和内部代理引导键；这些 native runtime 输入必须按 D10 的显式集合清理或拒绝。现有标准 proxy 白名单中的 HTTP(S)/ALL/NO/SOCKS 大小写变体及 `grpc_proxy` 明确允许按 Agent 覆盖应用进程值。所有受管键按大小写不敏感语义匹配；Windows 上合并普通环境键时同样按大小写不敏感语义去重，确保允许的用户值确定性胜出。
 5. 打包结果只保留目标平台/架构所需的 Claude native package 和 ripgrep 资源；Windows ARM64 使用原生 ARM64 Claude/ripgrep，不额外保留 x64 fallback。
 6. 所有用户可见字符串进入 i18n；不得新增 `console.log` 到应用运行时代码。
 
@@ -179,6 +180,20 @@
 
 - **所有平台都暴露和自动授权 PowerShell**：最贴近企业版提交。拒绝原因：改变 macOS/Linux 工具设置和 runtime 观察面，且这些平台没有对应 shell。
 - **非 Windows 删除持久化 `allowed_tools` ID**：平台边界最严格。拒绝原因：跨平台打开同一数据库会造成有损配置迁移；保留 opaque ID、过滤 catalog/runtime 更安全。
+
+### D10 — Native runtime 的模型与 shell 输入由应用统一托管
+
+**选定方案**：在 `runtimeEnv.ts` 中把 native Claude `2.1.185` 已确认 active 的模型选择键集中为显式 managed set：`ANTHROPIC_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_SMALL_FAST_MODEL`、`CLAUDE_CODE_SUBAGENT_MODEL`、`ANTHROPIC_DEFAULT_FABLE_MODEL`。前四项由 `ClaudeCodeService` 写入规范大写值并清除大小写 alias；后三项不由社区版配置，必须从继承环境清理并拒绝 Agent `env_vars` 注入。另将跨平台 active 的 `CLAUDE_CODE_SHELL`、`CLAUDE_CODE_SHELL_PREFIX` 从继承环境清理并拒绝 Agent 注入，防止替换应用 shell 或包装 Bash、hook 和 stdio MCP 进程。
+
+`CLAUDE_CONTEXT_COLLAPSE_MODEL`、`CLAUDE_CODE_AUTO_MODE_MODEL`、`CLAUDE_CODE_BG_CLASSIFIER_MODEL` 在当前 binary 中只有 schema/类型声明、没有确认消费者，不作为 active 键虚构行为，也不纳入本次最小集合；未来 SDK 升级时重新核对。不得用 `ANTHROPIC_*`、`CLAUDE_CODE_*` 等宽泛通配替代显式集合，以免删除标准 runtime 配置或未来合法能力。
+
+**理由**：计划 v1 只冻结了主模型、认证、代理和 Git Bash/PowerShell 键，最终 review 第 3 轮证明 native CLI 还会优先读取辅助/子代理模型和 shell wrapper 输入。登录环境或 Agent 配置可由此绕过 Cherry 选定模型、产生错误路由/计费，或改变 shell、hook 与 MCP 启动命令。把确认 active 的输入收敛到可审计的显式集合，既闭合当前安全/行为边界，也保留标准 proxy 与普通环境变量兼容性。
+
+**备选方案**：
+
+- **阻断全部 `ANTHROPIC_*` / `CLAUDE_CODE_*`**：覆盖面最广。拒绝原因：会误删应用和 SDK 的合法配置，且无法说明每个键的所有权。
+- **只阻断用户 `env_vars`，保留登录环境**：改动更小。拒绝原因：登录 shell 是同一可利用输入通道，native SDK 会原样接收最终 `Options.env`。
+- **只在 Windows 阻断 shell override**：贴近 PowerShell 主题。拒绝原因：两个键在当前 native 实现中跨平台生效，`CLAUDE_CODE_SHELL_PREFIX` 即使在 PowerShell fallback 下仍可影响 stdio MCP 启动。
 
 ---
 
@@ -446,6 +461,72 @@ git status --short
 
 **阶段验证 review**：由 clean-context Validation Reviewer 对照 D1、D6、D8、D9、全部非目标、invariant 1/3/6、diff、validation ledger 和三个 Writer 的并行分派证据做有界验证。
 
+### 阶段 3 — Native 模型与 shell 托管边界补全 〔状态：待执行〕
+
+**阶段依赖**：依赖阶段 0–2、计划符合性 PASS，以及计划 v1 三轮 full review 已提交并复核的认证、remote/bridge、provider fallback 与 opaque ID 修复。D10 已冻结当前 native `2.1.185` 的 active 键集合，本阶段不再引入新产品决策。
+
+**并行性说明**：实现与测试分别独占 `runtimeEnv.ts` 和 `runtimeEnv.test.ts`，共同使用 D10 的精确键集合与既有 helper contract，不互相等待；两个 subtask 必须在同一时间窗并行启动。主执行者只负责 diff 集成、验证账本与提交。
+
+**分派建议**：并行启动 2 个 Fixer。P3.1 独占 production helper；P3.2 独占直接测试。两者不得修改对方文件，也不得扩展到 SDK、Agent 数据模型或设置 UI。
+
+**范围**：闭合计划 v1 full review 第 3 轮发现的模型选择和 shell/进程启动覆盖路径；不处理 review 中仅列为 `EDGE_OR_OPTIONAL` 的异常 `builtin_PowerShell` ID，也不把未确认 active 的 schema-only 键纳入 runtime policy。
+
+#### 子任务 P3.1 — 补全 managed model/shell 集合
+
+**目标**：让继承环境和 Agent `env_vars` 都无法覆盖 D10 冻结的辅助/子代理模型与 shell wrapper 输入，同时保留应用规范值、标准 proxy、普通变量和输入对象不变。
+
+**文件**：
+
+- `src/main/services/agents/services/claudecode/runtimeEnv.ts` — 修改（独占）
+
+**步骤**：
+
+1. 抽取可读的 managed model-selector set，统一表达 4 个应用提供键和 3 个必须 scrub 的 active 键。
+2. 把 `ANTHROPIC_SMALL_FAST_MODEL`、`CLAUDE_CODE_SUBAGENT_MODEL`、`ANTHROPIC_DEFAULT_FABLE_MODEL` 加入 inherited scrub 与 Agent block。
+3. 把 `CLAUDE_CODE_SHELL`、`CLAUDE_CODE_SHELL_PREFIX` 加入跨平台 inherited scrub 与 Agent block；不改变 D2 的 Git Bash/PowerShell 输出键。
+4. 复用现有大小写不敏感匹配，不引入前缀通配或新的公开 API。
+
+#### 子任务 P3.2 — 锁定模型与 shell failure path
+
+**目标**：用参数化测试证明 D10 的 inherited、Agent 注入、大小写、应用值和兼容边界。
+
+**文件**：
+
+- `src/main/services/agents/services/claudecode/__tests__/runtimeEnv.test.ts` — 修改（独占）
+
+**步骤**：
+
+1. 对 3 个新增 active 模型选择器分别覆盖继承环境清理和 Agent 注入拒绝。
+2. 对两个 shell 键覆盖 Windows/非 Windows、大小写变体、继承环境和 Agent 注入；证明 Git Bash/PowerShell 输出仍由 D2 helper 决定。
+3. 断言 4 个应用提供模型键保留规范大写值、大小写 alias 被删除，标准 proxy 与普通变量保留，输入对象不变。
+4. 明确不把 3 个 schema-only model 名称断言为 active policy，避免测试固化未经证实行为。
+
+**阶段验收标准**：
+
+```bash
+pnpm exec vitest run --project main \
+  src/main/services/agents/services/claudecode/__tests__/runtimeEnv.test.ts \
+  src/main/services/agents/services/claudecode/__tests__/nativeRuntime.test.ts \
+  src/main/utils/__tests__/process.test.ts
+pnpm format
+pnpm build:check
+git diff --check
+git status --short
+```
+
+期望：所有确认 active 的模型与 shell 输入在 inherited/Agent 两条通道被阻断；应用模型、Git Bash/PowerShell、标准 proxy 和普通变量行为不回归；全量 lint/OpenAPI/tests 通过。
+
+**阶段验证 review**：由 clean-context Validation Reviewer 对照 D2、D5、D8、D10、非目标 1/2/5、invariant 2–4、diff、validation ledger 和两个 Fixer 的并行分派证据做有界验证。
+
+---
+
+## 执行中计划修订记录
+
+| 版本 | 时间戳 | 触发原因 | 修订内容 | 后续门禁 |
+|---|---|---|---|---|
+| v1 | 2026-07-31T18:19:54+08:00 | 用户批准初始计划 | D1–D9、阶段 0–2 | 阶段执行、Plan Conformance、full review |
+| v2 | 2026-07-31T20:16:38+08:00 | v1 full review 第 3 轮仍有 `MUST_FIX` | 扩充 invariant 4，新增 D10 与阶段 3，冻结 7 个 active 模型选择键和 2 个跨平台 shell 输入 | 阶段 3 Validation；Plan Conformance；以 v2 从 full review 第 1 轮重新开始 |
+
 ---
 
 ## 决策完备性 Review 记录
@@ -490,9 +571,10 @@ git status --short
 | i18n 键排序或语言文件漏同步 | 中 | 使用 `pnpm i18n:sync`/`pnpm format` 所属仓库流程，并由 `pnpm lint` 的 i18n check 验证 |
 | macOS 无法证明 Windows 真实 PowerShell 进程端到端 | 高 | 平台参数化单测 + 企业版已合并实现作为行为参考；在交付说明中保留 Windows CI/实机验证建议，不伪装为已验证 |
 | 并行 Writer 修改相邻工具类型文件产生语义冲突 | 低 | 按文件 ownership 拆分；工具 ID/环境 API 在 D2/D6 固定；主执行者只做窄集成 |
+| Native SDK 新增未纳入托管边界的模型/shell 环境变量 | 中 | D10 使用当前版本确认 active 的显式集合；阶段 3 分离 production/test ownership；未来 SDK 升级重新核对 schema-only 与新增消费者，不使用危险通配 |
 
 ---
 
 ## 待决问题
 
-无 — 截至 2026-07-31，目标行为、依赖策略、兼容边界和验收方式均已从企业版最终提交与当前 v1 代码中收敛。
+无 — 计划 v2 已把 v1 full review 第 3 轮暴露的 native 模型选择与 shell wrapper 边界收敛为 D10 和阶段 3，不需要额外产品判断。
