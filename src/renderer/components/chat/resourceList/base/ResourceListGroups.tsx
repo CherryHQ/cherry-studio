@@ -158,6 +158,10 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const resolveHeaderContextMenuItems = useCallback(() => headerContextMenuItems ?? [], [headerContextMenuItems])
 
   if (!group.label) return null
+  const groupHeaderLabelClassName = cn(
+    'min-w-0 truncate text-left text-[13px] text-inherit leading-5',
+    clickBehavior === 'select-first-then-toggle' ? 'font-normal' : 'font-medium'
+  )
   const headerContent = (
     <div
       className={cn(
@@ -190,9 +194,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
               {groupHeaderIcon}
             </ResourceListLeadingSlot>
           )}
-          <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-            {group.label}
-          </span>
+          <span className={groupHeaderLabelClassName}>{group.label}</span>
           <ChevronRight
             aria-hidden="true"
             size={11}
@@ -207,9 +209,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
               {groupHeaderIcon}
             </ResourceListLeadingSlot>
           )}
-          <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-            {group.label}
-          </span>
+          <span className={groupHeaderLabelClassName}>{group.label}</span>
         </div>
       )}
       {groupHeaderAction && (
