@@ -80,9 +80,13 @@ const FileResourceSchema = z.strictObject({
 export type FileResource = z.infer<typeof FileResourceSchema>
 
 // All journal paths (db.*, fileResources[].*) are stored userData-relative;
-// readers join them onto the currently resolved userData. Schema only checks
-// non-empty strings — preboot consumption (restorePromotion) independently
-// asserts containment inside userData before any fs op (absolute / `../` reject).
+// readers join them onto the currently resolved userData. The restoreId schema
+// stays deliberately loose (non-empty string only): the real data-layer guard
+// against traversal ids lives in restorePromotion (removeStagingTree path
+// containment + revertPostCommit basename sanitize), which also covers
+// hand-edited/corrupt journals that bypass this writer. Tightening the schema
+// here would duplicate that guard and make it untestable — readRestoreJournal
+// would reject any traversal fixture before it reaches the FS guard.
 const commonFields = {
   version: z.literal(1),
   restoreId: z.string().min(1),

@@ -639,7 +639,11 @@ function rollbackPreCommit(ctx: PromotionContext, reason?: string): void {
  */
 function revertPostCommit(ctx: PromotionContext, reason?: string): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
-    const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
+    // Sanitize restoreId before splicing into a filename — a traversal id could
+    // otherwise park the forensic DB outside userData. (restoreId is normally
+    // rst-<uuid>; this is belt-and-suspenders with the loose journal schema.)
+    const safeRestoreId = ctx.journal.restoreId.replace(/[^a-zA-Z0-9_-]/g, '') || 'unknown'
+    const parked = path.join(ctx.userData, `work-failed-${safeRestoreId}.sqlite`)
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
     logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })
@@ -737,6 +741,11 @@ function removeStagingTree(restoreId: string): boolean {
     logger.error('Refusing to delete staging outside the staging root', { restoreId })
     return false
   }
+  // Don't report a noisy "cleared" when the staging tree is already absent —
+  // rmSync { force } silently no-ops, so guard the success return with exists.
+  if (!fs.existsSync(target)) {
+    return false
+  }
   fs.rmSync(target, { recursive: true, force: true })
   return true
 }
@@ -751,7 +760,10 @@ function quarantineCorruptJournal(error: string): void {
     logger.error('Failed to quarantine corrupt journal', renameError as Error)
     fs.rmSync(journalPath, { force: true })
   }
-  // No trustworthy restoreId — clear the whole staging root.
+  // No trustworthy restoreId (the journal itself is corrupt) — clear the whole
+  // staging root intentionally: a corrupt journal may have staged under an
+  // arbitrary id, so per-id cleanup is impossible. This is the fail-safe path,
+  // distinct from the containment-guarded removeStagingTree used elsewhere.
   fs.rmSync(application.getPath('feature.backup.restore.staging'), { recursive: true, force: true })
 }
 
