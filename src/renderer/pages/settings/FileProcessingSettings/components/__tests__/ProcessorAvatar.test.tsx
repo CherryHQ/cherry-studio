@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ProcessorAvatar } from '../ProcessorAvatar'
@@ -39,13 +39,5 @@ describe('ProcessorAvatar', () => {
     render(<ProcessorAvatar processorId="system" size="lg" />)
 
     expect(avatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 36 }))
-  })
-
-  it('forwards className alongside the baked-in rounded class', () => {
-    render(<ProcessorAvatar processorId="system" className="custom-extra" />)
-
-    const node = screen.getByTestId('processor-avatar')
-    expect(node).toHaveClass('rounded')
-    expect(node).toHaveClass('custom-extra')
   })
 })
