@@ -54,6 +54,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   grok: { 'web-search': factories('xai-responses') },
   openrouter: { 'web-search': factories('openrouter') },
   perplexity: { 'web-search': { kind: 'implicit' } },
+  // Responses-endpoint models only; the openai extension's factory emits the bare tool shape.
+  doubao: { 'web-search': factories('openai') },
   dashscope: { 'web-search': { kind: 'provider-options' } },
   poe: { 'web-search': { kind: 'provider-options' } },
   gateway: { 'web-search': { kind: 'gateway-mapped' } },

@@ -1211,7 +1211,14 @@
           "official": "https://console.volcengine.com/ark/"
         }
       },
-      "name": "doubao"
+      "name": "doubao",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["doubao"]
+        }
+      ]
     },
     {
       "apiFeatures": {
@@ -2034,5 +2041,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "629a230480a948fa"
+  "version": "70718a2aacbb64a0"
 }

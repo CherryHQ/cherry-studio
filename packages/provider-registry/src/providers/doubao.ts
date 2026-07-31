@@ -131,6 +131,10 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
+  // Ark serves built-in web search on the Responses endpoint only (docs/82379/1756990;
+  // chat has no web-search parameter). `vendors` keeps Ark-hosted glm/deepseek models
+  // out — their eligibility comes from other hosts' declarations.
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['doubao'] }],
   metadata: {
     website: {
       apiKey: 'https://www.volcengine.com/experience/ark',

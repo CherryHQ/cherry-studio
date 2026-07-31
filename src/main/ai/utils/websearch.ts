@@ -86,9 +86,10 @@ export function buildProviderBuiltinWebSearchConfig(
     case 'openai': {
       // Doubao (Ark) and DashScope (Bailian) responses-endpoint models ride the openai Responses
       // adapter, but their built-in web_search tool only accepts the bare `{type:'web_search'}` shape —
-      // openai-only knobs like search_context_size are not documented and must not be sent. (DashScope
-      // chat-endpoint models resolve to `openai-compatible` here → default `{}` → no tool; their web
-      // search comes from getWebSearchParams instead.)
+      // openai-only knobs like search_context_size are not documented and must not be sent. Ark serves
+      // web search on Responses only (chat has no parameter), so this is doubao's whole delivery.
+      // (DashScope chat-endpoint models resolve to `openai-compatible` here → default `{}` → no tool;
+      // their web search comes from getWebSearchParams instead.)
       if (model?.providerId === 'doubao') {
         return { openai: {} }
       }
