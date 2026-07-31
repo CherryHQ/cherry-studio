@@ -1068,6 +1068,60 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
     })
+
+    it.each(['enqueue', 'enqueueTx'] as const)(
+      'rejects an empty idempotency key through %s before persistence',
+      async (method) => {
+        const { scheduler, jobManager } = await bootstrapManager({
+          handlers: [['empty.key', makeSlowHandler('abandon') as JobHandler]]
+        })
+        const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+        let thrown: unknown
+        try {
+          if (method === 'enqueue') {
+            jobManager.enqueue('empty.key' as never, {} as never, { idempotencyKey: '' })
+          } else {
+            jobManager.enqueueTx(db, 'empty.key' as never, {} as never, { idempotencyKey: '' })
+          }
+        } catch (error) {
+          thrown = error
+        }
+
+        expect(thrown).toMatchObject({ code: 'JOB_INVALID_IDEMPOTENCY_KEY' })
+        expect(jobService.count({ type: 'empty.key' })).toBe(0)
+        expect((jobManager as unknown as { queues: Map<string, unknown> }).queues.size).toBe(0)
+        expect((jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers.size).toBe(0)
+
+        await teardownManager(scheduler, jobManager)
+      }
+    )
+
+    it('aggregates an empty idempotency key through enqueueBatchTx before persistence', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.tx-validation', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      let thrown: unknown
+      try {
+        jobManager.enqueueBatchTx(
+          db,
+          'batch.tx-validation' as never,
+          [{ input: { message: 'empty-key' }, options: { idempotencyKey: '' } }] as never
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(EnqueueBatchValidationError)
+      expect((thrown as EnqueueBatchValidationError).failures).toMatchObject([
+        { index: 0, code: 'JOB_INVALID_IDEMPOTENCY_KEY' }
+      ])
+      expect(jobService.count({ type: 'batch.tx-validation' })).toBe(0)
+
+      await teardownManager(scheduler, jobManager)
+    })
   })
 
   describe('enqueueBatch', () => {
@@ -1098,7 +1152,7 @@ describe('JobManager integration', () => {
           'batch.validation' as never,
           [
             { input: { message: 'bad-attempts' }, options: { maxAttempts: 0 } },
-            { input: { message: 'valid' } },
+            { input: { message: 'empty-key' }, options: { idempotencyKey: '' } },
             { input: { message: 'bad-timeout' }, options: { timeoutMs: 0 } }
           ] as never
         )
@@ -1109,6 +1163,7 @@ describe('JobManager integration', () => {
       expect(thrown).toBeInstanceOf(EnqueueBatchValidationError)
       expect((thrown as EnqueueBatchValidationError).failures.map(({ index, code }) => ({ index, code }))).toEqual([
         { index: 0, code: 'JOB_INVALID_MAX_ATTEMPTS' },
+        { index: 1, code: 'JOB_INVALID_IDEMPOTENCY_KEY' },
         { index: 2, code: 'JOB_INVALID_TIMEOUT_MS' }
       ])
       expect(jobService.count({ type: 'batch.validation' })).toBe(0)
@@ -1127,8 +1182,10 @@ describe('JobManager integration', () => {
       const dispatch = vi.spyOn(jobManager, 'dispatch')
       const cache = MockMainCacheServiceExport.cacheService
       const dbService = MockMainDbServiceExport.dbService
+      const db = dbService.getDb() as DbType
       cache.setSharedMany.mockClear()
       dbService.withWriteTx.mockClear()
+      dbService.withWriteTx.mockImplementationOnce((fn) => db.transaction(fn as never, { behavior: 'immediate' }))
 
       const entries = Array.from({ length: 2_500 }, (_, index) => ({
         input: { message: `job-${index}` },
@@ -1146,6 +1203,104 @@ describe('JobManager integration', () => {
       expect(cache.setSharedMany).toHaveBeenCalledTimes(1)
       expect(cache.setSharedMany.mock.calls[0][0]).toHaveLength(entries.length)
       expect(dispatch.mock.calls.map(([queue]) => queue).sort()).toEqual(['batch.q-a', 'batch.q-b'])
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rolls back earlier insert chunks when public enqueueBatch fails in a later chunk', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.public-rollback', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const dbService = MockMainDbServiceExport.dbService
+      const db = dbService.getDb() as DbType
+      const cache = MockMainCacheServiceExport.cacheService
+      const dispatch = vi.spyOn(jobManager, 'dispatch')
+      dbService.withWriteTx.mockClear()
+      cache.setSharedMany.mockClear()
+      dbService.withWriteTx.mockImplementationOnce((fn) => db.transaction(fn as never, { behavior: 'immediate' }))
+
+      const entries = Array.from({ length: 125 }, (_, index) => ({
+        input: { message: `job-${index}` },
+        options: index === 75 ? { parentId: '00000000-0000-0000-0000-000000000000' } : undefined
+      }))
+
+      expect(() => jobManager.enqueueBatch('batch.public-rollback' as never, entries as never)).toThrow()
+
+      expect(dbService.withWriteTx).toHaveBeenCalledTimes(1)
+      expect(jobService.count({ type: 'batch.public-rollback' })).toBe(0)
+      expect(cache.setSharedMany).not.toHaveBeenCalled()
+      expect((jobManager as unknown as { queues: Map<string, unknown> }).queues.size).toBe(0)
+      expect((jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers.size).toBe(0)
+      expect(dispatch).not.toHaveBeenCalled()
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('continues dispatching when batch state publication fails', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.cache-failure', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const cache = MockMainCacheServiceExport.cacheService
+      cache.setSharedMany.mockImplementationOnce(() => {
+        throw new Error('cache unavailable')
+      })
+
+      const handles = jobManager.enqueueBatch(
+        'batch.cache-failure' as never,
+        [{ input: { message: 'one', sleepMs: 5 } }, { input: { message: 'two', sleepMs: 5 } }] as never
+      )
+      const settled = await Promise.all(handles.map((handle) => handle.finished))
+
+      expect(settled.map((snapshot) => snapshot.status)).toEqual(['completed', 'completed'])
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('isolates delayed timer failures and still kicks every pending queue', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.timer-failure', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const registerSchedule = vi.spyOn(scheduler, 'registerSchedule')
+      registerSchedule.mockImplementationOnce(() => {
+        throw new Error('timer registration failed')
+      })
+      const scheduledAt = Date.now() + 50
+
+      const handles = jobManager.enqueueBatch(
+        'batch.timer-failure' as never,
+        [
+          { input: { message: 'delayed-one', sleepMs: 5 }, options: { scheduledAt } },
+          { input: { message: 'delayed-two', sleepMs: 5 }, options: { scheduledAt } },
+          { input: { message: 'pending', sleepMs: 5 } }
+        ] as never
+      )
+      const settled = await Promise.all(handles.map((handle) => handle.finished))
+
+      expect(registerSchedule).toHaveBeenCalledTimes(2)
+      expect(settled.map((snapshot) => snapshot.status)).toEqual(['completed', 'completed', 'completed'])
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('skips full snapshot publication when the aggregate IPC budget is exceeded', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.large-payload', makeSlowHandler('abandon') as JobHandler]]
+      })
+      jobManager.pause('hold oversized publication at rest')
+      const cache = MockMainCacheServiceExport.cacheService
+      cache.setSharedMany.mockClear()
+
+      const entries = Array.from({ length: 100 }, (_, index) => ({
+        input: { message: `${index}:${'x'.repeat(50_000)}` }
+      }))
+      const handles = jobManager.enqueueBatch('batch.large-payload' as never, entries as never)
+      await Promise.resolve()
+
+      expect(handles).toHaveLength(entries.length)
+      expect(jobService.count({ type: 'batch.large-payload' })).toBe(entries.length)
+      expect(cache.setSharedMany).not.toHaveBeenCalled()
 
       await teardownManager(scheduler, jobManager)
     })

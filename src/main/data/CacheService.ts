@@ -851,7 +851,14 @@ export class CacheService extends BaseService {
     const windows = BrowserWindow.getAllWindows()
     for (const window of windows) {
       if (!window.isDestroyed() && window.id !== senderWindowId) {
-        window.webContents.send(channel, message)
+        try {
+          window.webContents.send(channel, message)
+        } catch (error) {
+          logger.error('Failed to synchronize cache with renderer window', error as Error, {
+            channel,
+            windowId: window.id
+          })
+        }
       }
     }
   }

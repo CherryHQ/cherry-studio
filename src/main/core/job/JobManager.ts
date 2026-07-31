@@ -1,3 +1,5 @@
+import { serialize } from 'node:v8'
+
 import { application } from '@application'
 import type { InsertJobRow, JobRow } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
@@ -48,6 +50,8 @@ const DEFAULT_RETRY_POLICY: RetryPolicy = {
 
 const MAX_INPUT_BYTES = 1_048_576 // 1MB
 const MAX_CANCEL_REASON_CHARS = 500
+const MAX_BATCH_STATE_SYNC_BYTES = 4 * 1024 * 1024
+const JOB_STATE_CACHE_TTL_MS = 60_000
 
 const DEFAULT_GLOBAL_MAX_CONCURRENCY = 50
 const DEFAULT_CANCEL_TIMEOUT_MS = 30_000
@@ -857,6 +861,10 @@ export class JobManager extends BaseService {
       })
     }
 
+    if (opts.idempotencyKey === '') {
+      throw this.makeError('JOB_INVALID_IDEMPOTENCY_KEY', 'idempotencyKey must not be empty', { type })
+    }
+
     // Drizzle serializes JSON columns automatically, but we still need the
     // stringified length for the size guard — the 1MB cap is on the on-disk
     // bytes, not on the live object shape.
@@ -1160,13 +1168,11 @@ export class JobManager extends BaseService {
           return
         }
 
-        application.get('CacheService').setSharedMany(
-          persisted.map((snapshot) => ({
-            key: `${JOB_STATE_KEY_PREFIX}${snapshot.id}` as const,
-            value: snapshot,
-            ttl: 60_000
-          }))
-        )
+        try {
+          this.publishBatchState(persisted)
+        } catch (err) {
+          logger.error('enqueueBatch: state publication failed', { type, count: persisted.length, err })
+        }
 
         logger.info('Job batch enqueued', {
           type,
@@ -1177,10 +1183,23 @@ export class JobManager extends BaseService {
         if (this._isShuttingDown) return
 
         const pendingQueues = new Set<string>()
+        const delayedSnapshots: JobSnapshot[] = []
         for (const snapshot of persisted) {
           this.ensureQueue(snapshot.queue, concurrency)
           if (snapshot.status === 'pending') pendingQueues.add(snapshot.queue)
-          else if (snapshot.status === 'delayed') this.armDelayedJob(snapshot)
+          else if (snapshot.status === 'delayed') delayedSnapshots.push(snapshot)
+        }
+        for (const snapshot of delayedSnapshots) {
+          try {
+            this.armDelayedJob(snapshot)
+          } catch (err) {
+            logger.error('enqueueBatch: delayed job arming failed', {
+              type,
+              id: snapshot.id,
+              queue: snapshot.queue,
+              err
+            })
+          }
         }
         for (const queue of pendingQueues) void this.dispatch(queue)
       } catch (err) {
@@ -2475,7 +2494,34 @@ export class JobManager extends BaseService {
 
   /** Push a job snapshot to the cross-window shared cache (renderer hooks read this). */
   private publishState(snapshot: JobSnapshot): void {
-    application.get('CacheService').setShared(`${JOB_STATE_KEY_PREFIX}${snapshot.id}`, snapshot, 60_000)
+    application.get('CacheService').setShared(`${JOB_STATE_KEY_PREFIX}${snapshot.id}`, snapshot, JOB_STATE_CACHE_TTL_MS)
+  }
+
+  private publishBatchState(snapshots: readonly JobSnapshot[]): void {
+    const entries = snapshots.map((snapshot) => ({
+      key: `${JOB_STATE_KEY_PREFIX}${snapshot.id}` as const,
+      value: snapshot,
+      ttl: JOB_STATE_CACHE_TTL_MS
+    }))
+
+    // Per-entry V8 serialization headers make this sum conservative relative
+    // to one structured-clone message, while letting us stop before allocating
+    // an oversized aggregate buffer. Cache misses already fall back to DataApi.
+    let estimatedBytes = serialize({ type: 'shared', entries: [] }).byteLength
+    const expireAt = Date.now() + JOB_STATE_CACHE_TTL_MS
+    for (const { key, value } of entries) {
+      estimatedBytes += serialize({ key, value, expireAt }).byteLength
+      if (estimatedBytes > MAX_BATCH_STATE_SYNC_BYTES) {
+        logger.warn('Job batch state publication skipped: IPC budget exceeded', {
+          count: snapshots.length,
+          estimatedBytesAtLeast: estimatedBytes,
+          budgetBytes: MAX_BATCH_STATE_SYNC_BYTES
+        })
+        return
+      }
+    }
+
+    application.get('CacheService').setSharedMany(entries)
   }
 
   private makeError(code: string, message: string, params?: Record<string, unknown>): Error {

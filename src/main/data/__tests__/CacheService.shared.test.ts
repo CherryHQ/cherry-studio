@@ -206,6 +206,29 @@ describe('CacheService shared-tier TTL sync', () => {
       expect(secondSend.mock.calls[0][0]).toBe(IpcChannel.Cache_SyncBatch)
     })
 
+    it('continues broadcasting when one renderer window throws', async () => {
+      const { BrowserWindow } = (await import('electron')) as any
+      const failedSend = vi.fn(() => {
+        throw new Error('window closed during send')
+      })
+      const survivingSend = vi.fn()
+      BrowserWindow.getAllWindows.mockReturnValue([
+        { isDestroyed: () => false, id: 1, webContents: { send: failedSend } },
+        { isDestroyed: () => false, id: 2, webContents: { send: survivingSend } }
+      ])
+
+      expect(() =>
+        service.setSharedMany([
+          { key: STATE_KEY, value: { id: 'job-1', status: 'pending' }, ttl: TTL },
+          { key: PROGRESS_KEY, value: { progress: 10 }, ttl: TTL }
+        ])
+      ).not.toThrow()
+
+      expect(failedSend).toHaveBeenCalledTimes(1)
+      expect(survivingSend).toHaveBeenCalledTimes(1)
+      expect(survivingSend.mock.calls[0][0]).toBe(IpcChannel.Cache_SyncBatch)
+    })
+
     it('updates every entry, notifies changed keys, and broadcasts one batch', () => {
       const order: string[] = []
       send.mockImplementation(() => order.push('broadcast'))

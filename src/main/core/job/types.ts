@@ -140,6 +140,7 @@ export interface JobCancelResult {
 export interface EnqueueOptions {
   queue?: string
   priority?: number
+  /** Must be non-empty when provided. */
   idempotencyKey?: string
   /** ms epoch — when to first attempt (default: now). */
   scheduledAt?: number

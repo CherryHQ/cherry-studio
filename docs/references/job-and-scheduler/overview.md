@@ -166,7 +166,7 @@ const handles = jobManager.enqueueBatch('my.index-leaf', leaves.map((leaf) => ({
 })))
 ```
 
-After commit, initial snapshots are published in one shared-cache batch, delayed rows are armed individually, and pending rows trigger at most one dispatch kick per affected queue. `enqueueBatchTx` composes with an existing synchronous `withWriteTx` callback and defers the same effects by one microtask; callers must not swallow its database errors inside the transaction callback. Batch enqueue optimizes durable admission only — it does not add outstanding-capacity limits or change per-queue/global running concurrency.
+After commit, initial snapshots are published in one shared-cache batch when its estimated structured-clone payload stays within 4 MiB. Larger admissions skip that cache publication entirely; renderer observers use the existing DataApi cold-start fallback instead of receiving an unbounded IPC message. Delayed rows are armed individually, and pending rows trigger at most one dispatch kick per affected queue. Cache publication and each delayed timer are best-effort post-commit effects: one failure is logged without blocking queue creation, later timers, or pending dispatch. `enqueueBatchTx` composes with an existing synchronous `withWriteTx` callback and defers the same effects by one microtask; callers must not swallow its database errors inside the transaction callback. Batch enqueue optimizes durable admission only — it does not add outstanding-capacity limits or change per-queue/global running concurrency.
 
 ## Transactional schedule mutation (`registerJobScheduleTx` / `updateJobScheduleTx` + `syncJobScheduleTimerById`)
 
