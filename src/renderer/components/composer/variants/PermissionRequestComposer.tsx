@@ -181,7 +181,7 @@ function PermissionOption({
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+          'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
         )}>
         {index}
       </span>
@@ -269,7 +269,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
             ) : null}
           </div>
-          <div className="rounded-full bg-warning/10 px-2 py-1 font-medium text-[11px] text-warning">
+          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 font-medium text-[11px] text-warning-subtle-foreground">
             {t('agent.toolPermission.pending')}
           </div>
         </div>

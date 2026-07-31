@@ -225,7 +225,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
             }}
             className="mr-2 rounded-lg data-[state=open]:bg-accent">
             {t('chat.input.tools.open_with')}
-            <ChevronDown className="text-foreground-muted" size={14} />
+            <ChevronDown className="text-muted-foreground" size={14} />
           </Button>
         </CommandPopupMenu>
       )}

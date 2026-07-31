@@ -10,6 +10,7 @@ import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -779,6 +780,104 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.contextWindow).toBeNull()
       expect(modelRow.maxOutputTokens).toBeNull()
       expect(modelRow.supportsStreaming).toBeNull()
+    })
+
+    it('matches global model metadata for a fully custom provider without using provider overrides', async () => {
+      const providerId = 'custom-provider'
+      registryFixtures.providers = [{ id: providerId, name: 'Catalog collision', endpointConfigs: {} }]
+      registryFixtures.models.set('known-model', {
+        id: 'known-model',
+        name: 'Registry Model',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 8_000
+      })
+      registryFixtures.models.set('override-model', {
+        id: 'override-model',
+        name: 'Wrong Override Model',
+        capabilities: [MODEL_CAPABILITY.RERANK],
+        contextWindow: 1_024
+      })
+      registryFixtures.overrides.set(`${providerId}::known-model`, {
+        providerId,
+        modelId: 'override-model',
+        apiModelId: 'known-model'
+      })
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: providerId,
+              name: 'My Custom Provider',
+              type: 'openai',
+              enabled: true,
+              apiHost: 'https://custom.example/v1',
+              models: [
+                {
+                  id: 'known-model',
+                  name: 'My Known Model',
+                  group: 'My Models',
+                  supported_endpoint_types: ['openai-response'],
+                  supported_text_delta: false,
+                  pricing: {
+                    input_per_million_tokens: 1,
+                    output_per_million_tokens: 2
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+      expect(providerRow.presetProviderId).toBeNull()
+
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, `${providerId}::known-model`))
+      expect(modelRow).toMatchObject({
+        presetModelId: 'known-model',
+        name: 'My Known Model',
+        group: 'My Models',
+        capabilities: null,
+        inputModalities: null,
+        outputModalities: null,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        supportsStreaming: false,
+        pricing: {
+          input: { perMillionTokens: 1 },
+          output: { perMillionTokens: 2 }
+        }
+      })
+
+      const runtimeModel = modelService.getByKey(providerId, 'known-model')
+      expect(runtimeModel).toMatchObject({
+        name: 'My Known Model',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 8_000,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        supportsStreaming: false
+      })
     })
 
     it('resolves a custom provider id through presetProviderId before projecting its models', async () => {

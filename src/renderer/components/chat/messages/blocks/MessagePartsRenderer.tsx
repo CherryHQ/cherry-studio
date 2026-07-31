@@ -20,6 +20,12 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import {
+  type MessageCitations,
+  resolveCitationMarkerParts,
+  type ResolvedCitationMarkers,
+  resolveMessageCitations
+} from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
@@ -181,6 +187,8 @@ interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
+  messageCitations?: MessageCitations
+  citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
@@ -189,6 +197,8 @@ interface RenderGroupedEntryOptions {
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
 }
+
+const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -469,7 +479,6 @@ function renderPart(
   options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
-  if ((partType as string) === 'data-citation') return null
   const inlineHtmlPreviewMode =
     message.role === 'assistant'
       ? (options?.inlineHtmlPreviewMode ?? (message.status === 'success' ? 'ready' : undefined))
@@ -541,6 +550,8 @@ function renderPart(
           citations={citations}
           citationReferences={citationReferences}
           inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+          messageCitations={message.role === 'assistant' ? options?.messageCitations : undefined}
+          toolCitationProjection={options?.citationProjectionByPart?.get(part)}
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
@@ -823,7 +834,7 @@ function renderGroupedEntry(
 
   const wrapperClassName =
     entry.part.type === 'text'
-      ? 'text-black dark:text-foreground'
+      ? 'text-foreground'
       : isReasoningMessagePart(entry.part)
         ? 'message-thought-wrapper'
         : undefined
@@ -1381,14 +1392,37 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
+  const messageCitations = useMemo(() => resolveMessageCitations(messageParts), [messageParts])
+  const citationProjectionByPart = useMemo(() => {
+    if (message.role !== 'assistant' || messageCitations.all.length === 0) return EMPTY_CITATION_PROJECTIONS
+    const textParts = messageParts.filter((part) => {
+      if (part.type !== 'text') return false
+      const references = getCherryMeta(part)?.references as ContentReference[] | undefined
+      return !references?.length || convertReferencesToCitations(references).length === 0
+    })
+    const projections = resolveCitationMarkerParts(
+      textParts.map((part) => (part.type === 'text' ? part.text || '' : '')),
+      messageCitations
+    )
+    return new Map(textParts.map((part, index) => [part, projections[index]]))
+  }, [message.role, messageCitations, messageParts])
   const renderOptions = useMemo(
     () => ({
+      citationProjectionByPart,
       expandedTextPartIds,
+      messageCitations,
       readOnlyFilePreviews,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
-    [expandedTextPartIds, handleTextPartExpandedChange, handleTextPlayoutSettledChange, readOnlyFilePreviews]
+    [
+      expandedTextPartIds,
+      citationProjectionByPart,
+      handleTextPartExpandedChange,
+      handleTextPlayoutSettledChange,
+      messageCitations,
+      readOnlyFilePreviews
+    ]
   )
   const canRenderReportArtifacts =
     !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0

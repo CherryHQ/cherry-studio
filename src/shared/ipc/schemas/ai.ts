@@ -1,4 +1,5 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -79,6 +80,8 @@ export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
 
+const ConversationGreetingContextSchema = z.string().transform(validateConversationGreeting).pipe(z.string().min(1))
+
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
 const agentTaskRefSchema = z.strictObject({
   agentId: z.string().min(1),
@@ -135,11 +138,16 @@ export const aiRequestSchemas = {
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
+      requestId: z.string().min(1).optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
+  }),
+  'ai.text.abort': defineRoute({
+    input: z.strictObject({ requestId: z.string().min(1) }),
+    output: z.void()
   }),
   'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiBaseRequestShape, values: z.array(z.string()) }),
@@ -180,7 +188,8 @@ export const aiRequestSchemas = {
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
   'ai.stream.open': defineRoute({
     // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
-    // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
+    // pass-through (main persists it), so its items use `z.custom`; `greetingContext` is submit-only
+    // ephemeral context.
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
@@ -191,12 +200,14 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          greetingContext: ConversationGreetingContextSchema.optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1),
+          greetingContext: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         })

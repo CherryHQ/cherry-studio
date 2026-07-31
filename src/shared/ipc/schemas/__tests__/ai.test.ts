@@ -24,6 +24,11 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genText.safeParse({ prompt: 'hi' }).success).toBe(true)
   })
 
+  it('accepts a cancellable text request id and rejects an empty one', () => {
+    expect(genText.safeParse({ requestId: 'greeting-1', prompt: 'hi' }).success).toBe(true)
+    expect(genText.safeParse({ requestId: '', prompt: 'hi' }).success).toBe(false)
+  })
+
   it('validates the nested payload uniqueModelId for ai.image.generate', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',
@@ -59,5 +64,28 @@ describe('ai.agent.create IPC schema', () => {
       skillIds: ['skill-a', 'skill-b'],
       knowledgeBaseIds: ['kb-a', 'kb-b']
     })
+  })
+})
+
+describe('ai.stream.open greeting context validation', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+  const base = {
+    topicId: 'topic-1',
+    trigger: 'submit-message' as const,
+    userMessageParts: [{ type: 'text', text: 'yes' }]
+  }
+
+  it('accepts and trims a bounded plain-text greeting', () => {
+    expect(openStream.parse({ ...base, greetingContext: '  Want to play a game?  ' })).toMatchObject({
+      greetingContext: 'Want to play a game?'
+    })
+  })
+
+  it.each([
+    ['overlong text', 'x'.repeat(121)],
+    ['markup', '**Want to play?**'],
+    ['bidirectional override', 'Safe link \u202Emoc.elpmaxe']
+  ])('rejects unsafe greeting context at the IPC boundary: %s', (_caseName, greetingContext) => {
+    expect(openStream.safeParse({ ...base, greetingContext }).success).toBe(false)
   })
 })

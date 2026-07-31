@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
+const translateMock = vi.hoisted(() => (key: string) => key)
 const partsByMessageIdMock = vi.hoisted(() => ({
   value: {} as Record<string, unknown[]>
 }))
@@ -230,7 +231,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: translateMock })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({

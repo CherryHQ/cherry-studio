@@ -51,7 +51,8 @@ function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()): Pre
     item,
     onCreatedItem,
     runMutation: async (task) => await task(),
-    signal
+    signal,
+    onDirectoryCopyProgress: vi.fn()
   }
 }
 
@@ -166,7 +167,13 @@ describe('prepareKnowledgeItem', () => {
     const options = createPrepareOptions(root)
     await expect(prepareKnowledgeItem(options)).resolves.toEqual([childFile])
 
-    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, baseId, expect.any(Set), options.signal)
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(
+      root,
+      baseId,
+      expect.any(Set),
+      options.signal,
+      options.onDirectoryCopyProgress
+    )
     expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
     expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(1, baseId, {
       groupId: root.id,

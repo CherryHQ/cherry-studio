@@ -198,6 +198,11 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
+      "local_greetings": {
+        "plan": "告诉我你想达成的结果，我来帮你制定计划。",
+        "progress": "今天有什么任务需要我帮你推进？",
+        "research": "需要我帮你调研、规划，还是起草内容？"
+      },
       "welcome_title": "今天想做点什么？"
     },
     "icon": {
@@ -633,7 +638,8 @@
           },
           "auto": {
             "description": "无需逐次批准，安全检查会拦截风险操作。",
-            "title": "智能批准"
+            "title": "智能批准",
+            "warning": "需要模型支持；部分模型可能忽略此模式或仍逐次询问。"
           },
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
@@ -1267,10 +1273,6 @@
           "tip": "助手将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
         }
       },
-      "max_tool_calls": {
-        "label": "最大工具调用次数",
-        "tip": "单次对话中允许的最大工具调用次数。较高的值支持更复杂的多步操作，但可能增加 Token 消耗和响应时间。"
-      },
       "mcp": {
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
@@ -1440,6 +1442,11 @@
       "view_full_content": "查看完整内容"
     },
     "home": {
+      "local_greetings": {
+        "casual": "今天有什么想聊聊的吗？",
+        "explore": "今天想一起探索点什么？",
+        "play": "想来个轻松的话题，还是玩个小游戏？"
+      },
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
@@ -1476,9 +1483,8 @@
       "image_preview_failed": "图片预览失败",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
-      "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
+      "knowledge_base_unavailable": "请选择支持工具调用的模型",
       "locate_editing_message": "定位原消息",
-      "mcp_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
       "new": {
         "context": "清除上下文"
       },
@@ -1619,13 +1625,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "无法转换为有效的工具调用格式：{{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
-        "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
-        "no_tool": "未匹配到所需的MCP工具 {{tool}}",
         "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
       }
     },
@@ -2646,9 +2647,9 @@
     "pdf": {
       "too_large": {
         "action": "用默认应用打开",
-        "description": "无法预览大于 {{limit}} MiB 的 PDF 文件。",
+        "description": "该 PDF 部分内容过大，无法安全地在应用内预览。",
         "open_error": "无法打开此文件",
-        "title": "文件过大"
+        "title": "无法预览此 PDF"
       }
     },
     "text": {
@@ -3074,6 +3075,7 @@
       "reindex_failed": "数据源重新索引失败",
       "status": {
         "chunking": "分块中",
+        "copying": "复制中 {{percent}}%",
         "embedding": "嵌入中",
         "error": "错误",
         "pending": "等待中",
@@ -3864,6 +3866,7 @@
       }
     },
     "citation": "{{count}} 个引用内容",
+    "citation_source": "引用来源 {{number}}",
     "citations": "引用内容",
     "conversation_reset": "找不到原会话的历史记录，已开启新会话继续",
     "copied": "已复制",
@@ -5232,6 +5235,7 @@
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "硅基流动",
     "sophnet": "SophNet",
     "stepfun": "阶跃星辰",
@@ -7368,6 +7372,10 @@
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Chat 和 Agent 的本地动态问候语会在您的设备上生成，关闭此选项时仍可使用。当前显示的问候语会作为不可信上下文随第一条消息发送，让您选择的模型能理解“好”等简短回复；开发者模式的追踪记录可能会保存该内容。开启后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区；若不可用，则明确标注并使用从应用语言推导的地区作为后备信息。国家或地区提示、您的姓名、应用语言、本地日期和时间、时区、Chat 或 Agent 模式、基础后备问候语及上一条问候语会发送给固定的内置 CherryAI Qwen 模型进行情境增强。此选项默认关闭。",
+        "title": "AI 增强的情境问候语"
+      },
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
     },
@@ -7715,6 +7723,13 @@
         "topup": "充值",
         "usage_title": "用量",
         "usage_unit": "Token"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "打开 Token Factory",
+          "description": "每日 10 美元等值 API 额度，按当前费率约可使用 1000 万–1.11 亿输入/输出 Token，实际用量因模型和 Token 类型而异。额度每日重置，暂不支持充值。",
+          "title": "每日 10 美元免费 API 额度"
+        }
       },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
