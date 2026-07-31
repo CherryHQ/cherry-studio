@@ -25,6 +25,12 @@ const SCRUBBED_SHELL_KEYS = ['CLAUDE_CODE_SHELL', 'CLAUDE_CODE_SHELL_PREFIX'] as
 
 const EXTRA_BODY_KEY_VARIANTS = ['CLAUDE_CODE_EXTRA_BODY', 'claude_code_extra_body', 'Claude_Code_Extra_Body'] as const
 
+const FIRST_PARTY_BASE_URL_KEY_VARIANTS = [
+  '_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL',
+  '_claude_code_assume_first_party_base_url',
+  '_Claude_Code_Assume_First_Party_Base_Url'
+] as const
+
 describe('withPreferredWindowsShellEnvironment', () => {
   const staleShellEnv = {
     KeepMe: 'kept',
@@ -120,6 +126,65 @@ describe('mergeUserEnvironmentVariables', () => {
     ['Claude_Code_Use_Ccr_V2', 'CLAUDE_CODE_USE_CCR_V2'],
     ['claude_code_websocket_auth_file_descriptor', 'CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR']
   ] as const
+
+  it.each(FIRST_PARTY_BASE_URL_KEY_VARIANTS)(
+    'removes inherited first-party base URL assumption %s without mutating environment inputs',
+    (inheritedKey) => {
+      const env = {
+        [inheritedKey]: '1',
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      }
+
+      const result = mergeUserEnvironmentVariables(env, undefined, false)
+
+      expect(result).toEqual({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://application.example.com',
+          HTTPS_PROXY: 'http://proxy.example.com',
+          LOGIN_SHELL_VAR: 'kept'
+        },
+        blockedKeys: []
+      })
+      expect(env).toEqual({
+        [inheritedKey]: '1',
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        LOGIN_SHELL_VAR: 'kept'
+      })
+    }
+  )
+
+  it.each(FIRST_PARTY_BASE_URL_KEY_VARIANTS)(
+    'blocks Agent-provided first-party base URL assumption %s without mutating environment inputs',
+    (userKey) => {
+      const env = {
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        BASE_VAR: 'kept'
+      }
+      const userEnv = { [userKey]: '1', AGENT_VAR: 'kept' }
+
+      const result = mergeUserEnvironmentVariables(env, userEnv, false)
+
+      expect(result).toEqual({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://application.example.com',
+          HTTPS_PROXY: 'http://proxy.example.com',
+          BASE_VAR: 'kept',
+          AGENT_VAR: 'kept'
+        },
+        blockedKeys: [userKey]
+      })
+      expect(env).toEqual({
+        ANTHROPIC_BASE_URL: 'https://application.example.com',
+        HTTPS_PROXY: 'http://proxy.example.com',
+        BASE_VAR: 'kept'
+      })
+      expect(userEnv).toEqual({ [userKey]: '1', AGENT_VAR: 'kept' })
+    }
+  )
 
   it.each(EXTRA_BODY_KEY_VARIANTS)(
     'removes inherited request override %s while preserving application and ordinary environment values',

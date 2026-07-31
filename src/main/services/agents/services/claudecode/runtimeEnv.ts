@@ -40,6 +40,7 @@ const APPLICATION_PROVIDED_CLAUDE_ENV_KEYS = new Set([
 // Authentication and backend-selection inputs supported by the installed Claude native runtime.
 // Cherry Studio never delegates these choices to the login shell or Agent configuration.
 const SCRUBBED_CLAUDE_AUTH_AND_BACKEND_ENV_KEYS = new Set([
+  '_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL',
   'ANTHROPIC_AWS_API_KEY',
   'ANTHROPIC_AWS_AUTH',
   'ANTHROPIC_AWS_BASE_URL',

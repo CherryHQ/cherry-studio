@@ -29,6 +29,34 @@ describe('stripLocalCommandTags', () => {
 })
 
 describe('Claude → AiSDK transform', () => {
+  it('marks the first streamed provider tool chunk as provider-executed', () => {
+    const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
+    const message = {
+      ...baseStreamMetadata,
+      type: 'stream_event',
+      uuid: uuid(32),
+      event: {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'tool-future-provider',
+          name: 'builtin_FutureProviderTool',
+          input: {}
+        }
+      }
+    } as unknown as SDKMessage
+
+    expect(transformSDKMessageToStreamParts(message, state)).toEqual([
+      expect.objectContaining({
+        type: 'tool-input-start',
+        id: 'session-123:tool-future-provider',
+        toolName: 'builtin_FutureProviderTool',
+        providerExecuted: true
+      })
+    ])
+  })
+
   it('preserves PowerShell call metadata, command arguments, and result output', () => {
     const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
     const messages: SDKMessage[] = [
