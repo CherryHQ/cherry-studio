@@ -902,7 +902,7 @@ describe('edit dialogs', () => {
   })
 
   it('auto-saves the Agent runtime context toggle', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Configure runtime context prompt' }))
@@ -1119,7 +1119,7 @@ describe('edit dialogs', () => {
   })
 
   it('auto-saves the Assistant runtime context toggle', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Configure runtime context prompt' }))

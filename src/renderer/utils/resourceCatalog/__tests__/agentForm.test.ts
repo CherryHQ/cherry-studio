@@ -87,6 +87,12 @@ describe('buildInitialAgentFormState', () => {
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(30)
   })
+
+  it('keeps runtime context disabled when a legacy Agent omits the configuration key', () => {
+    const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
+
+    expect(state.runtimeContextEnabled).toBe(false)
+  })
 })
 
 describe('applyAgentFormPatch', () => {
@@ -269,12 +275,12 @@ describe('diffAgentUpdate', () => {
       runtimeContextPrompt: 'Custom runtime context'
     }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
 
     expect(result?.dto.configuration).toEqual({
-      plugin_state: 'keep-me',
       runtime_context_enabled: true,
-      runtime_context_prompt: 'Custom runtime context'
+      runtime_context_prompt: 'Custom runtime context',
+      max_turns: undefined
     })
   })
 })
