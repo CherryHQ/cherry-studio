@@ -44,4 +44,15 @@ describe('renderer i18n lazy init', () => {
   it('is idempotent — repeat callers share one memoized promise', () => {
     expect(initI18n()).toBe(initI18n())
   })
+
+  it('falls back to en-US when the locale pack carries an untranslated marker', async () => {
+    // The ja-JP translate pack has "[to be translated]:..." on keys not yet
+    // human-translated. resolver strips marker-bearing leaves so i18next treats the
+    // key as missing and falls back to en-US, instead of surfacing the raw marker.
+    await i18n.changeLanguage('ja-JP')
+
+    expect(i18n.t('backup.credentials_warning')).toBe(
+      'This backup includes API keys and provider credentials in plaintext. Store the archive securely.'
+    )
+  })
 })

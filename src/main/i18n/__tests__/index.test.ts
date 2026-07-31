@@ -60,6 +60,16 @@ describe('main i18n', () => {
       // Missing everywhere: resolves neither the current language nor the en-US fallback.
       expect(t('does.not.exist')).toBe('does.not.exist')
     })
+
+    it('falls back to en-US when the current language value is an untranslated marker', () => {
+      // ja-JP carries "[to be translated]:Restore complete…" for this key; the marker is
+      // a real string, so a naive ?? would not fall back — t() must treat it as missing
+      // and surface the en-US text instead.
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
+      expect(t('backup.restore.notification.completed')).toBe(
+        'Restore complete — the app will restart momentarily.'
+      )
+    })
   })
 
   describe('getI18n', () => {

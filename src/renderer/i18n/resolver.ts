@@ -68,6 +68,28 @@ export const setDayjsLocale = (language: string) => {
   dayjs.locale(dayjsLocale)
 }
 
+// Machine-translated locale packs (translate/) prefix untranslated keys with this
+// marker. Strip marker-bearing leaves from a loaded pack so i18next treats them as
+// missing and falls back to the en-US catalog, instead of surfacing the raw marker
+// to users.
+const UNTRANSLATED_MARKER = '[to be translated]:'
+const removeTranslationMarkers = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    return value.startsWith(UNTRANSLATED_MARKER) ? undefined : value
+  }
+  if (Array.isArray(value)) {
+    return value.map(removeTranslationMarkers)
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([k, v]) => [k, removeTranslationMarkers(v)] as const)
+        .filter(([, v]) => v !== undefined)
+    )
+  }
+  return value
+}
+
 let initPromise: Promise<void> | null = null
 
 const doInit = async (): Promise<void> => {
@@ -79,7 +101,9 @@ const doInit = async (): Promise<void> => {
     .use(
       resourcesToBackend((language: string) => {
         const loader = localeLoaders[language as LanguageVarious]
-        return loader ? loader() : Promise.reject(new Error(`No locale pack for "${language}"`))
+        return loader
+          ? loader().then((pack) => removeTranslationMarkers(pack) as Record<string, unknown>)
+          : Promise.reject(new Error(`No locale pack for "${language}"`))
       })
     )
     .use(initReactI18next)

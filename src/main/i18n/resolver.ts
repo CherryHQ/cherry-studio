@@ -64,6 +64,14 @@ export const getI18n = (): Record<string, any> => {
  * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
  * Placeholders without a matching param are left intact.
  */
+// Machine-translated locale packs (translate/) prefix untranslated keys with this
+// marker. Treat such values as missing so the en-US catalog is used instead of
+// surfacing the raw marker — the marker is a real string, so a plain ?? on the
+// current language would never fall back.
+const UNTRANSLATED_MARKER = '[to be translated]:'
+const isUntranslatedMarker = (value: string | undefined): boolean =>
+  !!value && value.startsWith(UNTRANSLATED_MARKER)
+
 export const t = (key: string, params?: Record<string, string | number>): string => {
   const resolve = (translation: any): string | undefined => {
     let result: any = translation
@@ -76,7 +84,13 @@ export const t = (key: string, params?: Record<string, string | number>): string
     return typeof result === 'string' ? result : undefined
   }
 
-  const value = resolve(getI18n().translation) ?? resolve(locales[defaultLanguage].translation)
+  // Resolve the current language first, but fall back to en-US when the value is
+  // absent or still carries the untranslated marker.
+  const currentValue = resolve(getI18n().translation)
+  const value =
+    currentValue && !isUntranslatedMarker(currentValue)
+      ? currentValue
+      : resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }
