@@ -392,6 +392,23 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   return baseModelName
 }
 
+/**
+ * Derive the model-list group from an API model ID.
+ *
+ * Provider-prefixed IDs use the provider segment (`openai/gpt-4o` → `openai`);
+ * flat IDs use their family prefix (`deepseek-v4-pro` → `deepseek`).
+ */
+export function deriveModelGroupName(modelId: string): string | undefined {
+  const normalizedId = modelId.trim()
+  const pathParts = normalizedId.split('/')
+  if (pathParts.length > 1) {
+    return pathParts[0]?.trim() || undefined
+  }
+
+  const familyName = normalizedId.split('-')[0]?.trim()
+  return familyName && familyName !== normalizedId ? familyName : undefined
+}
+
 export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model, 'group'>>>(
   models: T[]
 ): Record<string, T[]> => {

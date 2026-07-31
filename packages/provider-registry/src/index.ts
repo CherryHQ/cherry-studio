@@ -62,7 +62,7 @@ export type {
   ReasoningFormatType,
   RegistryEndpointConfig
 } from './schemas/provider'
-export { REASONING_FORMAT_TYPES } from './schemas/provider'
+export { FastModeTransportSchema, REASONING_FORMAT_TYPES } from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,

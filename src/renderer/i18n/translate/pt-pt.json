@@ -139,11 +139,16 @@
         "description": "Receba e responda a mensagens via WeChat usando a API iLink Bot.",
         "disconnected": "Desconectado",
         "loginHint": "O primeiro login exige a leitura de um código QR. Verifique os logs da aplicação para obter o URL de login.",
+        "qrExpired": "Código QR expirado. Por favor, tente novamente alternando o canal.",
         "qrHint": "Abra o WeChat no seu celular, escaneie o código QR para fazer login.",
         "qrTitle": "Login por QR Code do WeChat",
         "title": "WeChat",
         "whoamiTip": "Dica: Envie /whoami no WeChat para obter o ID de um usuário."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
@@ -230,6 +235,7 @@
           "discard_and_continue": "Descartar e continuar",
           "title": "Descartar alterações não salvas?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Não foi possível recarregar o conteúdo mais recente do arquivo.",
         "save_failed": "Não foi possível salvar este arquivo. O salvamento automático está pausado até que você tente novamente ou descarte as alterações.",
         "unsaved": "Não salvo",
@@ -320,16 +326,25 @@
         "more": "+{{count}} mais",
         "no_artifacts": "Nenhum entregável declarado",
         "no_subagents": "Sem subagentes",
-        "subagents": "Subagentes"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Subagentes",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Atividade",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Ferramenta selecionada",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Ativo",
         "tools_done": "Feito",
         "tools_failed": "Falhou",
@@ -434,12 +449,19 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
+        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução.",
         "yesterday": "Ontem"
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
       "list": {
         "title": "Tarefas"
+      },
+      "model_switch_confirm": {
+        "confirm": "Mudar modelo",
+        "description": "Diferentes modelos podem entender e processar o contexto de formas diferentes. Mudar de modelo pode afetar a continuidade ou a qualidade das respostas subsequentes. Deseja continuar?",
+        "skip_for_app_run": "Não pergunte novamente até eu sair do aplicativo",
+        "title": "Mudar para \"{{model}}\"?"
       },
       "new": "Nova tarefa",
       "pin": {
@@ -607,12 +629,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
-            "title": "Aceitar automaticamente edições de arquivos"
+            "description": "Edita ficheiros livremente. Pergunta antes dos comandos.",
+            "title": "Aceitar edições automaticamente"
+          },
+          "auto": {
+            "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "title": "Aprovar por mim",
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
           },
           "bypassPermissions": {
-            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
-            "title": "Ignorar verificações de permissão",
+            "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
+            "title": "Acesso total",
             "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
           },
           "confirmChange": {
@@ -620,14 +647,14 @@
             "title": "Alterar modo de permissão?"
           },
           "default": {
-            "description": "Verificações normais de permissão aplicam-se.",
-            "title": "Padrão (perguntar antes de continuar)"
+            "description": "Pergunta antes de editar ficheiros ou executar comandos.",
+            "title": "Perguntar antes de agir"
           },
           "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
           "placeholder": "Selecionar modo de permissões",
           "plan": {
-            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
-            "title": "Modo de planejamento (em breve)"
+            "description": "Planeia sem editar ficheiros. Só são executados comandos de leitura ou verificados.",
+            "title": "Apenas planear"
           },
           "title": "Modo de permissões"
         },
@@ -663,6 +690,14 @@
       }
     },
     "sidebar_title": "Agentes",
+    "speed": {
+      "effort": "Esforço",
+      "fast": "Rápido",
+      "faster": "Mais rápido",
+      "label": "Velocidade",
+      "smarter": "Mais inteligente",
+      "title": "Configurações de resposta"
+    },
     "tasks": {
       "add": "Adicionar tarefa",
       "cancel": "Cancelar",
@@ -1234,10 +1269,6 @@
           "tip": "O agente usará a capacidade de reconhecimento de intenção do grande modelo para decidir se deve chamar a base de conhecimento para responder. Esta função depende da capacidade do modelo"
         }
       },
-      "max_tool_calls": {
-        "label": "Máximo de Chamadas de Ferramentas",
-        "tip": "Número máximo de chamadas de ferramentas permitidas em uma única conversa. Valores mais altos permitem operações mais complexas de múltiplas etapas, mas podem aumentar o uso de tokens e o tempo de resposta."
-      },
       "mcp": {
         "description": "Servidor MCP ativado por padrão",
         "enableFirst": "Por favor, ative este servidor nas configurações do MCP primeiro",
@@ -1443,9 +1474,8 @@
       "image_preview_failed": "Falha na visualização da imagem",
       "knowledge_base": "Base de conhecimento",
       "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
-      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
+      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas",
       "locate_editing_message": "Localizar mensagem original",
-      "mcp_unavailable": "Selecione um modelo compatível com ferramentas ou ative o uso de ferramentas no prompt",
       "new": {
         "context": "Limpar contexto {{Command}}"
       },
@@ -1551,6 +1581,7 @@
         },
         "open_file": "Abrir Arquivo",
         "open_file_error": "Falha ao abrir o arquivo: {{path}}",
+        "open_with": "Abrir com",
         "reveal_in_finder": "Revelar no Finder"
       },
       "topics": "Tópicos",
@@ -1585,13 +1616,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
-        "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
-        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}",
         "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
       }
     },
@@ -1633,17 +1659,17 @@
       "token_details": {
         "cache_read": "Leitura de cache",
         "cache_write": "Escrita em cache",
-        "cost": "[to be translated]:Cost",
-        "cost_billed": "[to be translated]:Billed by provider",
-        "cost_estimated": "[to be translated]:Estimated",
-        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
+        "cost": "Custo",
+        "cost_billed": "Faturado pelo provedor",
+        "cost_estimated": "Estimado",
+        "end_to_end_throughput": "Vazão de ponta a ponta",
         "input": "Entrada",
         "input_breakdown": "Quebra de entrada",
-        "lane_approval": "[to be translated]:Approval",
-        "lane_model": "[to be translated]:Model",
-        "lane_other": "[to be translated]:Other",
-        "lane_tool": "[to be translated]:Tool",
-        "model_throughput": "[to be translated]:Model generation TPS",
+        "lane_approval": "Aprovação",
+        "lane_model": "Modelo",
+        "lane_other": "Outro",
+        "lane_tool": "Ferramenta",
+        "model_throughput": "Geração de modelo TPS",
         "output": "Saída",
         "reasoning": "Raciocínio",
         "reasoning_time": "Raciocínio",
@@ -1652,7 +1678,7 @@
         "text_output": "Saída de texto",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
-        "total_duration": "[to be translated]:End-to-end duration",
+        "total_duration": "Duração de ponta a ponta",
         "uncached": "Não em cache",
         "usage": "Uso de tokens",
         "waiting_first_token": "Aguardando"
@@ -1926,6 +1952,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
+        "unknown_assistant_tip": "Este é um grupo de conversa histórico sem um assistente, não um assistente real. Mova a conversa para um assistente existente para continuar.",
         "yesterday": "Ontem"
       },
       "list": "Lista de tópicos",
@@ -2293,6 +2320,12 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "group": {
+      "create": "Novo Grupo",
+      "create_failed": "Falha ao criar grupo",
+      "name_placeholder": "Digite o nome do grupo...",
+      "name_required": "O nome do grupo é obrigatório"
+    },
     "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
@@ -2320,7 +2353,7 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
-    "other": "[to be translated]:Other",
+    "other": "Outro",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -2879,6 +2912,10 @@
     "code": "Código",
     "empty_preview": "Sem conteúdo para exibir",
     "generating": "Gerando",
+    "interactive_preview": {
+      "action": "Ver página web",
+      "description": "Esta página web contém scripts ou recursos externos. Ao abri-la, poderá executar código e ligar-se à Internet."
+    },
     "preview": "Visualizar",
     "split": "Dividir",
     "view_mode": "Modo de visualização"
@@ -3422,6 +3459,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Máximo de chamadas de ferramentas",
+        "max_tool_calls_default": "Predefinição ({{count}} rondas)",
         "mcp_mode": "Modo MCP",
         "model": "Modelo padrão",
         "model_clear": "Claro",
@@ -3437,8 +3475,7 @@
         "tags": "Etiquetas",
         "temperature": "Temperatura",
         "title": "Configurações básicas",
-        "top_p": "Top-P",
-        "unlimited": "Ilimitado"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Biblioteca",
       "dialogs": {
@@ -3812,6 +3849,7 @@
     },
     "citation": "{{count}} conteúdo(s) citado(s)",
     "citations": "Citações",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiado",
     "copy": {
       "failed": "Cópia falhou",
@@ -4093,6 +4131,7 @@
         "write": "Salvar",
         "writing": "Salvando"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -4124,6 +4163,7 @@
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
         "webSearch": "Pesquisa na Web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Escreva"
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
@@ -4181,6 +4221,15 @@
         "plan_other": "{{count}} planos",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -4323,7 +4372,7 @@
     },
     "pinned": "Fixado",
     "price": {
-      "cache_read": "[to be translated]:Cache Read Price",
+      "cache_read": "Preço de Leitura de Cache",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
@@ -4445,7 +4494,8 @@
     "save_blocked_load_failed": "Salvamento bloqueado porque a nota falhou ao carregar",
     "save_failed": "Falha ao salvar nota",
     "save_failure": {
-      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado."
+      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nome + Conteúdo",
@@ -5220,6 +5270,7 @@
       "label": "Tem certeza de que deseja restaurar os dados?"
     },
     "content": "A operação de restauração usará os dados de backup para substituir todos os dados atuais do aplicativo. Por favor, note que o processo de restauração pode levar algum tempo. Agradecemos sua paciência.",
+    "messages_paused": "Uma restauração de backup está em andamento; novas mensagens estão pausadas até que seja concluída.",
     "progress": {
       "completed": "Restauração concluída",
       "copying_files": "Copiando arquivos... {{progress}}%",
@@ -5727,6 +5778,7 @@
         "button": "Ver",
         "title": "Registro de alterações"
       },
+      "repository": "Repositório do GitHub",
       "social": {
         "title": "Contas sociais"
       },
@@ -6586,7 +6638,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "A desativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
+        "content_disable": "Desativar a aceleração de hardware requer reiniciar o aplicativo para entrar em vigor. Deseja reiniciar agora?",
+        "content_enable": "A ativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
         "title": "Reinicialização do Aplicativo Necessária"
       },
       "title": "Desativar aceleração de hardware"
@@ -6641,9 +6694,6 @@
           "dxtFile": "Arquivo do pacote DXT",
           "dxtHelp": "Selecione um arquivo .dxt que contenha o servidor MCP",
           "dxtProcessFailed": "Falha ao processar o arquivo DXT",
-          "error": {
-            "multipleServers": "Não é possível importar de vários servidores"
-          },
           "invalid": "Entrada inválida, verifique o formato JSON",
           "json": "Importar do JSON",
           "mcpb": "Importar Pacote MCPB",
@@ -6797,6 +6847,15 @@
       "providers": "Fornecedores",
       "registry": "Fonte de Gerenciamento de Pacotes",
       "registryDefault": "Padrão",
+      "registryOptions": {
+        "custom": "Personalizado",
+        "npmTaobao": "Espelho NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Selecione uma fonte alternativa para instalar pacotes, caso tenha problemas de rede com a fonte padrão.",
       "requiresConfig": "Requer configuração",
       "resources": {
@@ -6972,6 +7031,7 @@
         "display": "Gestão de exibição",
         "preferences": "Preferências"
       },
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "description": "Quando ativado, links que abrem uma nova janela dentro de um miniaplicativo abrem no seu navegador padrão",
         "title": "Abrir link em nova janela do navegador"
@@ -6984,6 +7044,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
+      "show_app": "Mostrar {{name}}",
       "title": "Configurações dos Mini Apps",
       "visible": "Mini Aplicativos Visíveis"
     },
@@ -7292,6 +7353,10 @@
       "prevent_sleep_when_busy": "Mantenha o sistema ativo enquanto as tarefas estão sendo executadas"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "Quando ativado, o Cherry Studio contacta o IPInfo para detetar aproximadamente o país ou a região e envia esse resultado, juntamente com o seu nome, o idioma da aplicação, a data e hora locais e o fuso horário, para o modelo CherryAI integrado gerar saudações. Desativado por predefinição.",
+        "title": "Saudações contextuais geradas por IA"
+      },
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
       "title": "Configurações de Privacidade"
     },
@@ -7683,6 +7748,13 @@
           "toggle_client_email_visibility": "Alternar visibilidade do e-mail do cliente",
           "toggle_private_key_visibility": "Alternar visibilidade da chave privada",
           "toggle_project_id_visibility": "Alternar visibilidade do ID do projeto"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Abrir o Token Factory",
+          "description": "Equivale a 10 USD diários em créditos de API: cerca de 10M–111M tokens de entrada/saída às tarifas atuais, consoante o modelo e o tipo de token. Os créditos são repostos diariamente; atualmente, os carregamentos não são suportados.",
+          "title": "10 USD diários em créditos de API gratuitos"
         }
       }
     },
@@ -8118,104 +8190,104 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "cacheHitRate": "[to be translated]:Cache hit rate",
-        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
-        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "dailyAverage": "[to be translated]:Daily average",
-        "explicitApiKey": "[to be translated]:Selected key",
-        "lastPeriod": "[to be translated]:vs last period",
-        "matchedApiKey": "[to be translated]:Matched override",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "providerAuth": "[to be translated]:Provider auth",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalRequests": "[to be translated]:Requests",
-        "totalTokens": "[to be translated]:Total tokens",
-        "unattributedApiKey": "[to be translated]:Unattributed request",
-        "unattributedSource": "[to be translated]:Unattributed source"
+        "activeDays": "Dias ativos",
+        "cacheHitRate": "Taxa de acerto do cache",
+        "cacheObservedTokens": "Entrada observável: {{tokens}}",
+        "cacheStartsWithNewRequests": "Começa com novos pedidos",
+        "dailyAverage": "Média diária",
+        "explicitApiKey": "Chave selecionada",
+        "lastPeriod": "vs último período",
+        "matchedApiKey": "Sobreposição correspondente",
+        "none": "N/A",
+        "peakDay": "Dia de pico",
+        "providerAuth": "Autenticação do provedor",
+        "streak": "Maior sequência: {{days}} dias",
+        "topModel": "Top model",
+        "totalCost": "Custo total",
+        "totalRequests": "Pedidos",
+        "totalTokens": "Tokens totais",
+        "unattributedApiKey": "Pedido não atribuído",
+        "unattributedSource": "Fonte não atribuída"
       },
       "chart": {
-        "bar": "[to be translated]:Bar",
-        "line": "[to be translated]:Line",
-        "pie": "[to be translated]:Pie",
-        "stack": "[to be translated]:Stack"
+        "bar": "Bar",
+        "line": "Linha",
+        "pie": "Torta",
+        "stack": "Pilha"
       },
-      "currency": "[to be translated]:Currency",
+      "currency": "Moeda",
       "empty": {
-        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
-        "title": "[to be translated]:No usage yet"
+        "description": "O uso aparece após as solicitações de IA suportadas criarem registros de uso.",
+        "title": "Sem uso ainda"
       },
       "explore": {
-        "analysis": "[to be translated]:Analysis",
-        "chart": "[to be translated]:Chart",
-        "clearDate": "[to be translated]:Clear date filter",
-        "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "[to be translated]:Requests",
-        "groupBy": "[to be translated]:Group by",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "metric": "[to be translated]:Metric",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "rollup": "[to be translated]:Rollup",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "shareLabel": "[to be translated]:Share",
-        "title": "[to be translated]:Explore",
-        "top": "[to be translated]:Top",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
-        "totalEntries_other": "[to be translated]:{{count}} entries"
+        "analysis": "Análise",
+        "chart": "Gráfico",
+        "clearDate": "Limpar filtro de data",
+        "drilldownTitle": "Detalhamento de {{date}}",
+        "entries": "Pedidos",
+        "groupBy": "Agrupar por",
+        "loadMore": "Carregar mais",
+        "loading": "Carregando...",
+        "metric": "Métrica",
+        "noBreakdown": "Dados não detalhados",
+        "noBreakdownDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "noEntries": "Sem entradas",
+        "noEntriesDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "rollup": "Rollup",
+        "selectedDate": "Data selecionada: {{date}}",
+        "shareLabel": "Compartilhar",
+        "title": "Explorar",
+        "top": "Topo",
+        "totalEntries_one": "{{count}} entrada",
+        "totalEntries_other": "{{count}} entradas"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "source": "[to be translated]:Assistant / Agent"
+        "apiKey": "Chave de API",
+        "model": "Modelo",
+        "provider": "Fornecedor",
+        "source": "Assistente / Agente"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Uso em {{date}}",
+        "title": "Atividade diária"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "requests": "[to be translated]:Requests",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Custo",
+        "requests": "Pedidos",
+        "tokens": "Tokens"
       },
       "overview": {
-        "title": "[to be translated]:Overview"
+        "title": "Visão Geral"
       },
       "rollup": {
-        "daily": "[to be translated]:Daily",
-        "monthly": "[to be translated]:Monthly",
-        "total": "[to be translated]:Total",
-        "weekly": "[to be translated]:Weekly"
+        "daily": "Diário",
+        "monthly": "Mensal",
+        "total": "Total",
+        "weekly": "Semanal"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "summary": "{{janela}} / {{tokens}} tokens / {{solicitações}} requests",
       "table": {
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "model": "[to be translated]:Model",
-        "source": "[to be translated]:Source",
-        "tokens": "[to be translated]:Tokens",
-        "tps": "[to be translated]:TPS",
-        "tpsValue": "[to be translated]:{{value}} tok/s",
-        "ttft": "[to be translated]:TTFT"
+        "cost": "Custo",
+        "date": "Data",
+        "model": "Modelo",
+        "source": "Fonte",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "[to be translated]:Usage Analytics",
+      "title": "Análise de Uso",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
-        "requests_other": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Custo {{value}}",
+        "requests_one": "{{count}} solicitação",
+        "requests_other": "{{count}} solicitações",
+        "tokens": "{{value}} tokens"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days"
+        "30d": "Últimos 30 dias",
+        "365d": "Ano passado",
+        "90d": "Últimos 90 dias"
       }
     },
     "use_system_title_bar": {
@@ -8393,6 +8465,7 @@
         "placeholder": "Pesquisar histórico de traduções"
       },
       "source": "Fonte",
+      "star": "Favorito",
       "success": {
         "add": "Salvo no histórico",
         "clear": "Histórico limpo",

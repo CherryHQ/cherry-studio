@@ -20,16 +20,16 @@ const TopicMessageFlowLegend = ({ className }: TopicMessageFlowLegendProps) => {
   return (
     <div
       className={cn(
-        'pointer-events-none absolute top-4 right-5 z-10 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-foreground-muted text-sm',
+        'pointer-events-none absolute top-4 right-5 z-10 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-foreground-tertiary text-sm',
         className
       )}
       data-testid="topic-message-flow-legend">
       <span className="inline-flex items-center gap-1.5">
-        <LegendMarker className="border-success/40 bg-success/20" />
+        <LegendMarker className="border-success-border bg-success-subtle" />
         {t('export.user')}
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <LegendMarker className="border-info/40 bg-info/20" />
+        <LegendMarker className="border-info-border bg-info-subtle" />
         {t('export.assistant')}
       </span>
       <span className="inline-flex items-center gap-1.5">
@@ -37,7 +37,7 @@ const TopicMessageFlowLegend = ({ className }: TopicMessageFlowLegendProps) => {
         {t('common.current')}
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <LegendLine className="border-foreground-muted" />
+        <LegendLine className="border-border-strong" />
         {t('common.disabled')}
       </span>
     </div>

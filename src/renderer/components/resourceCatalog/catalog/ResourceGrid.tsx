@@ -21,6 +21,7 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
@@ -166,7 +167,7 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal, s
         <Button variant="default" size={size} className="shrink-0">
           <Plus size={size === 'sm' ? 12 : 16} className="lucide-custom" />
           <span>{t('library.skill_add.add')}</span>
-          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground/70" />
+          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
@@ -221,10 +222,8 @@ export const ResourceGrid: FC<Props> = ({
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)
-  const [showAddGroup, setShowAddGroup] = useState(false)
   const [showAllGroups, setShowAllGroups] = useState(false)
-  const [newGroupName, setNewGroupName] = useState('')
-  const [addingGroup, setAddingGroup] = useState(false)
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
@@ -248,24 +247,19 @@ export const ResourceGrid: FC<Props> = ({
     }))
   }, [allGroups, groups, showAllGroups])
 
-  const handleAddGroup = async () => {
-    const trimmed = newGroupName.trim()
-    if (!trimmed || addingGroup) return
-    setAddingGroup(true)
-    try {
-      await onAddGroup(trimmed)
-      setNewGroupName('')
-      setShowAddGroup(false)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.group_sync_failed')
-      toast.error(message)
-      logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
-        name: trimmed
-      })
-    } finally {
-      setAddingGroup(false)
-    }
-  }
+  const handleAddGroup = useCallback(
+    async (name: string) => {
+      try {
+        await onAddGroup(name)
+      } catch (error) {
+        logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
+          name
+        })
+        throw error
+      }
+    },
+    [onAddGroup]
+  )
 
   const handleOpenRenameGroup = useCallback((group: GroupItem) => {
     setRenamingGroup(group)
@@ -365,7 +359,7 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-muted border-b')}>
+      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-subtle border-b')}>
         {isSettings ? (
           <>
             <div className="flex items-center justify-between gap-4">
@@ -403,22 +397,22 @@ export const ResourceGrid: FC<Props> = ({
                   ? 'flex size-[30px] shrink-0 items-center justify-center'
                   : 'flex size-3 shrink-0 items-center'
               }>
-              <Tag size={14} className="text-foreground-muted" />
+              <Tag size={14} className="text-foreground-tertiary" />
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-1.5">
               {visibleGroups.map((group) => (
                 <ContextMenu key={group.id}>
                   <ContextMenuTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant={activeGroupId === group.id ? 'secondary' : 'ghost'}
                       onClick={() => onGroupFilter(activeGroupId === group.id ? null : group.id)}
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
                         activeGroupId === group.id
-                          ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
-                          : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
+                          ? 'border-border-selected bg-secondary text-secondary-foreground hover:text-secondary-foreground'
+                          : 'border-border-subtle text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
-                      <span className="text-foreground-muted text-xs tabular-nums">{group.count}</span>
+                      <span className="text-foreground-tertiary text-xs tabular-nums">{group.count}</span>
                     </Button>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="min-w-32">
@@ -441,52 +435,25 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_groups')}
                   title={t('library.toolbar.all_groups')}
                   onClick={() => setShowAllGroups((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
+                  className="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
                   {showAllGroups ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
 
-              {showAddGroup ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <Input
-                    autoFocus
-                    maxLength={64}
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleAddGroup()
-                      if (e.key === 'Escape') {
-                        setShowAddGroup(false)
-                        setNewGroupName('')
-                      }
-                    }}
-                    onBlur={() => {
-                      if (!newGroupName.trim() && !addingGroup) setShowAddGroup(false)
-                    }}
-                    disabled={addingGroup}
-                    placeholder={t('library.toolbar.add_group_placeholder')}
-                    className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => void handleAddGroup()}
-                    disabled={addingGroup || !newGroupName.trim()}
-                    className="size-6 text-foreground-muted hover:text-foreground">
-                    <Plus size={12} />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowAddGroup(true)}
-                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
-                  <Plus size={11} /> {t('library.toolbar.group_button')}
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                onClick={() => setCreateGroupDialogOpen(true)}
+                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
+                <Plus size={11} /> {t('library.toolbar.group_button')}
+              </Button>
             </div>
           </div>
         )}
+        <CreateGroupDialog
+          open={createGroupDialogOpen}
+          onCreate={handleAddGroup}
+          onOpenChange={setCreateGroupDialogOpen}
+        />
         <Dialog
           open={Boolean(renamingGroup)}
           onOpenChange={(open) => {
@@ -542,7 +509,7 @@ export const ResourceGrid: FC<Props> = ({
       <div
         ref={scrollRef}
         className={cn(
-          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1',
+          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1',
           isSettings ? 'py-3' : 'px-5 py-4'
         )}>
         {isLoading ? (

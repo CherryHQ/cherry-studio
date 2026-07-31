@@ -57,6 +57,8 @@ export interface AiBaseRequest {
   apiKeyOverride?: string
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
+  /** Whether the turn requests the provider-model pair's Fast transport. */
+  fastMode?: boolean
   /**
    * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseScope`: when
    * the assistant has its own bound bases they are a ceiling — these ids may narrow that binding but
@@ -67,6 +69,11 @@ export interface AiBaseRequest {
   requestOptions?: AiTransportOptions
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
+  /**
+   * In-process only. Prevents developer telemetry from recording request inputs that contain
+   * synthetic sensitive context while retaining timing, usage, and output spans.
+   */
+  omitTelemetryInputs?: boolean
 }
 
 /**

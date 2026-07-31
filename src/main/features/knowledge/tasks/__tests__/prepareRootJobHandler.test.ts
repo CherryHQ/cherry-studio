@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   createCtx,
@@ -32,6 +33,63 @@ describe('prepare-root job handler', () => {
     expect(prepareKnowledgeItemMock).toHaveBeenCalledWith(expect.objectContaining({ baseId: 'kb-1' }))
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')
+  })
+
+  it('publishes directory copy progress by item id', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
+      onDirectoryCopyProgress(50)
+      return []
+    })
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+
+    await handler.execute(ctx)
+
+    expect(MockMainCacheServiceExport.cacheService.setShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1',
+      50
+    )
+    expect(ctx.reportProgress).toHaveBeenCalledWith(25, { stage: 'copying' })
+  })
+
+  it('clears stale directory copy progress before retry cleanup starts', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    MockMainCacheServiceExport.cacheService.setShared('knowledge.item.directory_copy_progress.dir-1', 100)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(() => {
+      expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
+        undefined
+      )
+      return []
+    })
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(MockMainCacheServiceExport.cacheService.deleteShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1'
+    )
+    expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
+      undefined
+    )
+  })
+
+  it('reports copy progress only when the integer percentage changes', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
+      onDirectoryCopyProgress(1)
+      onDirectoryCopyProgress(1)
+      onDirectoryCopyProgress(4)
+      return []
+    })
+    const reportProgress = vi.fn()
+    const ctx = { ...createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'), reportProgress }
+
+    await handler.execute(ctx)
+
+    expect(reportProgress).toHaveBeenCalledWith(2, { stage: 'copying' })
+    expect(reportProgress.mock.calls.filter(([, detail]) => detail?.stage === 'copying')).toHaveLength(2)
   })
 
   it('clears stale expansion vectors before deleting rows', async () => {

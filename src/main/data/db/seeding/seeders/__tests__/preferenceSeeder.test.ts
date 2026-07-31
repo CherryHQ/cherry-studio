@@ -74,6 +74,6 @@ describe('PreferenceSeeder', () => {
       .select()
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, toolbarKey)))
-    expect(toolbar.value).toEqual(['composer:new-conversation', 'thinking', 'web-search'])
+    expect(toolbar.value).toEqual(['composer:new-conversation', 'web-search'])
   })
 })

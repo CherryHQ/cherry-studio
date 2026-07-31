@@ -11,7 +11,7 @@ import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiChildTurnSpan } from '../../../observability'
+import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -124,6 +124,61 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'assistant', text: PARTIAL },
       { role: 'user', text: 'actually, change direction' }
     ])
+  })
+
+  it('adds greeting context as untrusted user data without persisting it as a message or trace input', async () => {
+    const emptyTopic = topicService.create({ name: 'Empty topic' })
+    const greetingContext = '晚上好，想聊点什么？'
+    const first = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: emptyTopic.id,
+        greetingContext,
+        userMessageParts: [{ type: 'text', text: '好' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    const firstRequest = first.models[0].request
+    expect(firstRequest.messages).toHaveLength(1)
+    expect(firstRequest.messages?.[0]).toMatchObject({ role: 'user' })
+    expect(firstRequest.messages?.[0].parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('<untrusted-ui-context kind="conversation-greeting">')
+    })
+    expect(firstRequest.messages?.[0].parts[0]).toMatchObject({
+      text: expect.stringContaining(JSON.stringify(greetingContext))
+    })
+    expect(firstRequest.messages?.[0].parts.at(-1)).toEqual({ type: 'text', text: '好' })
+    expect(firstRequest.omitTelemetryInputs).toBe(true)
+    expect(first.reservedMessages?.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(messageService.getById(first.userMessageId!).data.parts).toEqual([{ type: 'text', text: '好' }])
+    expect(vi.mocked(applyTurnInputAttributes)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        messages: [expect.objectContaining({ role: 'user', parts: [{ type: 'text', text: '好' }] })]
+      })
+    )
+
+    const later = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: emptyTopic.id,
+        greetingContext,
+        userMessageParts: [{ type: 'text', text: '继续' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(later.models[0].request.messages?.[0]?.role).toBe('user')
+    expect(later.models[0].request.omitTelemetryInputs).toBeUndefined()
+    expect(
+      later.models[0].request.messages?.some((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text.includes('<untrusted-ui-context'))
+      )
+    ).toBe(false)
   })
 
   it('sends only messages after the latest clear marker on the selected branch', async () => {
@@ -293,7 +348,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     vi.mocked(resolveAssistantModelId).mockClear()
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
-      { trigger: 'steer-continuation', topicId: 'topic-1', userMessageId: 'u2' } as MainSteerContinuationRequest,
+      {
+        trigger: 'steer-continuation',
+        topicId: 'topic-1',
+        userMessageId: 'u2',
+        fastMode: false
+      } satisfies MainSteerContinuationRequest,
       { hasLiveStream: false }
     )
 
@@ -540,6 +600,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           topicId: 'topic-1',
           role: 'assistant',
           data: {
+            turnOptions: { reasoningEffort: 'high', fastMode: true },
             parts: [
               { type: 'text', text: 'let me call a tool' },
               {
@@ -623,6 +684,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       | undefined
     expect(toolPart?.state).toBe('approval-responded')
     expect(toolPart?.approval).toEqual({ id: APPROVAL_ID, approved: true })
+    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
   })
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
@@ -658,6 +720,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       completedAt: 2_000,
       spans: []
     })
+    expect(prepared.models[0].request.reasoningEffort).toBe('high')
+    expect(prepared.models[0].request.fastMode).toBe(true)
 
     // No placeholder row was created — the path to the anchor is unchanged.
     const afterCount = messageService.getPathToNode('a1').length

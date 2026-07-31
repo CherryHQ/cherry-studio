@@ -37,11 +37,6 @@ describe('EmojiIcon', () => {
     expect(emojiContainer).toHaveClass(customClass)
   })
 
-  it('should match snapshot', () => {
-    const { container } = render(<EmojiIcon emoji="🎉" />)
-    expect(container.firstChild).toMatchSnapshot()
-  })
-
   it('should handle special emojis correctly', () => {
     const specialEmojis = ['👨‍💻', '🏃‍♀️', '👨‍👩‍👧‍👦', '🇨🇳']
 
