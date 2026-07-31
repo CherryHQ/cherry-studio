@@ -8,6 +8,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -25,19 +26,21 @@ const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
-  assistants: 'linear-gradient(135deg, #4F46E5, #818CF8)',
+  assistants: 'linear-gradient(135deg, #1F2937, #374151)',
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
   paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
   translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
   mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
   knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
   files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-  code_tools: 'linear-gradient(135deg, #1F2937, #374151)',
+  code_tools: 'linear-gradient(135deg, #3F3F46, #52525B)',
   notes: 'linear-gradient(135deg, #F97316, #FB923C)'
 }
+const CODE_TOOLS_DARK_BACKGROUND = 'linear-gradient(135deg, #27272A, #3F3F46)'
 
 export default function LaunchpadPage() {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
@@ -144,12 +147,15 @@ export default function LaunchpadPage() {
             id: favorite,
             icon: <Icon size={32} />,
             text: t(getSidebarIconLabelKey(favorite)),
-            bgColor: APP_ICON_BACKGROUNDS[favorite],
+            bgColor:
+              favorite === 'code_tools' && theme === 'dark'
+                ? CODE_TOOLS_DARK_BACKGROUND
+                : APP_ICON_BACKGROUNDS[favorite],
             menuItems: getAppContextMenuItems(favorite)
           }
         ]
       }),
-    [defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
+    [defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t, theme]
   )
 
   // Mini app tiles are ordered by their global `orderKey` (shared with the mini
