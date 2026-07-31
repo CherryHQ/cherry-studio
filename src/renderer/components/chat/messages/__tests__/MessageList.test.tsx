@@ -383,18 +383,25 @@ describe('MessageList', () => {
     expect(messageGroupRenderCounts.get('assistant-live')).toBe(2)
   })
 
-  it('does not remount the latest history group while a new live id is waiting to join the list', () => {
+  it('does not rerender or remount history while a new live id is waiting to join the list', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
     const historyUser = createMessage('user-history', 'user')
     const historyAssistant = createMessage('assistant-history', 'assistant')
     const historyParts = {
       'user-history': [{ type: 'text', text: 'question' }],
       'assistant-history': [{ type: 'text', text: 'answer with code' }]
     } as MessageListProviderValue['state']['partsByMessageId']
+    const actions: Partial<MessageListActions> = {}
     const buildValue = (liveMessageIds: string[]) =>
-      createValue([historyUser, historyAssistant], {
-        streamingLayers: { historyPartsByMessageId: historyParts, liveMessageIds },
-        partsByMessageId: historyParts
-      })
+      createValue(
+        [historyUser, historyAssistant],
+        {
+          topic,
+          streamingLayers: { historyPartsByMessageId: historyParts, liveMessageIds },
+          partsByMessageId: historyParts
+        },
+        actions
+      )
 
     const view = render(
       <MessageListProvider value={buildValue([])}>
@@ -407,6 +414,8 @@ describe('MessageList', () => {
       </MessageListProvider>
     )
 
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
     expect(messageGroupMountCounts.get('assistant-history')).toBe(1)
     expect(messageGroupMountCounts.get('user-history')).toBe(1)
   })

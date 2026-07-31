@@ -193,13 +193,9 @@ const MessageList = () => {
     const liveIndex = groupedMessages.findIndex(([, groupMessages]) =>
       groupMessages.some((message) => liveMessageIdSet.has(message.id))
     )
-    if (liveIndex >= 0) return liveIndex
-
-    const latestAssistantIndex = latestAssistantGroupKey
-      ? groupedMessages.findIndex(([key]) => key === latestAssistantGroupKey)
-      : -1
-    return latestAssistantIndex >= 0 ? latestAssistantIndex : groupedMessages.length
-  }, [groupedMessages, latestAssistantGroupKey, liveMessageIdSet, liveMessageIds.length, streamingLayers])
+    // Stream status can arrive before its placeholder joins the visible list.
+    return liveIndex >= 0 ? liveIndex : groupedMessages.length
+  }, [groupedMessages, liveMessageIdSet, liveMessageIds.length, streamingLayers])
   const { bindRuntime, copyImage, loadOlder, saveImage } = actions
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
