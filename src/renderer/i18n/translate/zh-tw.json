@@ -633,7 +633,8 @@
           },
           "auto": {
             "description": "無需逐次批准，安全檢查會攔截風險操作。",
-            "title": "智慧批准"
+            "title": "智慧批准",
+            "warning": "需要模型支援；部分模型可能忽略此模式或仍逐次詢問。"
           },
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",

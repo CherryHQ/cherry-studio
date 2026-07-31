@@ -233,9 +233,12 @@ async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<strin
   for (const creator of CREATORS) {
     for (const id of creatorFetched.get(creator.id) ?? []) claim(id, creator.id)
     for (const lm of creator.models ?? []) claim(canonOf(lm.id), creator.id)
-    if (creator.idPrefixes)
-      for (const canonId of index.keys())
-        if (creator.idPrefixes.some((p) => prefixHit(canonId, p))) claim(canonId, creator.id)
+  }
+  for (const canonId of index.keys()) {
+    const mostSpecific = CREATORS.flatMap((creator) =>
+      (creator.idPrefixes ?? []).filter((prefix) => prefixHit(canonId, prefix)).map((prefix) => ({ creator, prefix }))
+    ).sort((a, b) => b.prefix.length - a.prefix.length)[0]
+    if (mostSpecific) claim(canonId, mostSpecific.creator.id)
   }
   // pass 2 — FAMILY (base architecture, weaker than an explicit id).
   for (const creator of CREATORS) {

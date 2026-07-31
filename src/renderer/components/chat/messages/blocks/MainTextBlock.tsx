@@ -4,8 +4,13 @@ import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
-import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { determineCitationSource, toTooltipCitation, withCitationTags } from '@renderer/utils/citation'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import {
+  type MessageCitations,
+  type ResolvedCitationMarkers,
+  withToolCitationTags
+} from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
@@ -29,6 +34,9 @@ interface Props {
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
+  /** Tool/source-derived citations resolved from the message's own parts (assistant messages without legacy reference metadata). */
+  messageCitations?: MessageCitations
+  toolCitationProjection?: ResolvedCitationMarkers
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
@@ -250,6 +258,8 @@ const MainTextBlock: React.FC<Props> = ({
   isStreaming,
   citations = [],
   citationReferences,
+  messageCitations,
+  toolCitationProjection,
   role,
   mentions = [],
   composer,
@@ -314,14 +324,31 @@ const MainTextBlock: React.FC<Props> = ({
   const resolvedInlineHtmlPreviewMode =
     inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
+  // Legacy reference metadata (migrated v1 messages) wins; otherwise resolve
+  // [cite:id] markers against the message's own tool/source parts.
+  const toolCitations = useMemo(
+    () =>
+      citations.length === 0 && messageCitations?.all.length && toolCitationProjection
+        ? { citations: messageCitations, projection: toolCitationProjection }
+        : undefined,
+    [citations.length, messageCitations, toolCitationProjection]
+  )
   const processContent = useCallback(
     (rawText: string) => {
-      if (!citationReferences?.length || citations.length === 0) return rawText
-      const sourceType = determineCitationSource(citationReferences)
-      return withCitationTags(rawText, citations, sourceType)
+      if (citationReferences?.length && citations.length > 0) {
+        const sourceType = determineCitationSource(citationReferences)
+        return withCitationTags(rawText, citations, sourceType)
+      }
+      if (toolCitations) {
+        return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
+      }
+      return rawText
     },
-    [citationReferences, citations]
+    [citationReferences, citations, toolCitations]
   )
+  const toolCitedCitations = toolCitations?.projection.cited ?? []
+  const footerCitations = citations.length > 0 ? citations : toolCitedCitations
+  const trustedCitations = useMemo(() => footerCitations.map(toTooltipCitation), [footerCitations])
   const composerMarkdownContent = useMemo(() => {
     if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
     return buildComposerMessageMarkdownContent(userDisplayContent, composer, id)
@@ -365,6 +392,7 @@ const MainTextBlock: React.FC<Props> = ({
               block={{ ...block, content: composerMarkdownContent.markdown }}
               components={composerMarkdownComponents}
               postProcess={processContent}
+              trustedCitations={trustedCitations}
             />
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
@@ -373,7 +401,7 @@ const MainTextBlock: React.FC<Props> = ({
                 : userDisplayContent}
             </p>
           ) : (
-            <ChatMarkdown block={block} postProcess={processContent} />
+            <ChatMarkdown block={block} postProcess={processContent} trustedCitations={trustedCitations} />
           )}
         </CollapsibleUserMessageContent>
       ) : (
@@ -381,10 +409,11 @@ const MainTextBlock: React.FC<Props> = ({
           block={block}
           inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
           postProcess={processContent}
+          trustedCitations={trustedCitations}
         />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
-      {citations.length > 0 && <CitationsList citations={citations} />}
+      {footerCitations.length > 0 && <CitationsList citations={footerCitations} />}
     </>
   )
 }
