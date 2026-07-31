@@ -7,6 +7,6 @@ export const meta: IconMeta = {
   colorScheme: 'color',
   webp: {
     light: lightWebp,
-    size: 64
+    size: 256
   }
 }

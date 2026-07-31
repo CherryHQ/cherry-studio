@@ -17,12 +17,12 @@ describe('getIconWebpUrl', () => {
       meta: {
         id: 'openai',
         colorPrimary: '#000000',
-        webp: { light: '/openai-light.webp', dark: '/openai-dark.webp', size: 64 }
+        webp: { light: '/openai-light.webp', dark: '/openai-dark.webp', size: 256 }
       }
     } as IconRef
     const lightOnly = {
       ...withDark,
-      meta: { ...withDark.meta, webp: { light: '/openai-light.webp', size: 64 } }
+      meta: { ...withDark.meta, webp: { light: '/openai-light.webp', size: 256 } }
     } as IconRef
 
     expect(getIconWebpUrl(withDark, 'light')).toBe('/openai-light.webp')

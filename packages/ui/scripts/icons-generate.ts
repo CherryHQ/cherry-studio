@@ -40,7 +40,7 @@ const MANUAL_LOGO_DIRS: Record<LogoType, readonly string[]> = {
   models: []
 }
 
-export const STATIC_ICON_SIZE = 64
+export const STATIC_ICON_SIZE = 256
 const STATIC_ICON_DENSITY = 192
 const STATIC_ICON_PIPELINE_VERSION = 1
 

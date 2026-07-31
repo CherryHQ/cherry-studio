@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-07-30T11:39:10.445Z
+ * Generated at: 2026-07-31T11:05:56.550Z
  * Total icons: 168
  */
 export { AceIcon as Ace } from './ace'

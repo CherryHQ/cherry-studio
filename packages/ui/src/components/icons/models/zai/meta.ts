@@ -9,6 +9,6 @@ export const meta: IconMeta = {
   webp: {
     light: lightWebp,
     dark: darkWebp,
-    size: 64
+    size: 256
   }
 }

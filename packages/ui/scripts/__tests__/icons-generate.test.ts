@@ -24,6 +24,10 @@ describe('resolveActiveLogoDirs', () => {
 })
 
 describe('generateIconWebpAssets', () => {
+  it('exports unified 256px assets', () => {
+    expect(STATIC_ICON_SIZE).toBe(256)
+  })
+
   it('exports fixed-size light and dark WebPs for a theme-aware source', async () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'cherry-ui-webp-'))
     const source =
