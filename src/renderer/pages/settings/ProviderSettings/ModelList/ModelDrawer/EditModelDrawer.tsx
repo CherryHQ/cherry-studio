@@ -523,7 +523,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-foreground-secondary leading-5">
+                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>

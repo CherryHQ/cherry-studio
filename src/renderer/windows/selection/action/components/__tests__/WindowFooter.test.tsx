@@ -33,7 +33,7 @@ describe('WindowFooter', () => {
     render(<WindowFooter content="result" loading onPause={vi.fn()} />)
 
     const stopButton = screen.getByRole('button', { name: 'selection.action.window.esc_stop' })
-    expect(stopButton).toHaveClass('hover:text-error-base', 'hover:[&_.btn-icon]:text-error-base')
+    expect(stopButton).toHaveClass('hover:text-error', 'hover:[&_.btn-icon]:text-error')
     expect(stopButton).not.toHaveClass('hover:text-primary', 'hover:[&_.btn-icon]:text-primary')
   })
 })

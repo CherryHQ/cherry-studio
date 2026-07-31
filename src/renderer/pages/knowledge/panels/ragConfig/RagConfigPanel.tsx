@@ -266,7 +266,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
           variant="ghost"
           size="sm"
           disabled={!isDirty || isLoading}
-          className="mr-auto text-foreground-muted hover:text-foreground"
+          className="mr-auto text-muted-foreground hover:text-foreground"
           onClick={() => setValues(initialValues)}>
           <RotateCcw />
           {t('knowledge.rag.reset_action')}

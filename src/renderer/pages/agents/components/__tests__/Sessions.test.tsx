@@ -2471,8 +2471,8 @@ describe('Sessions', () => {
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
     expect(badges[0]).toHaveTextContent('Pending')
-    // Warning tint matches the composer's approval pill.
-    expect(badges[0]).toHaveClass('text-warning')
+    // Semantic warning surface matches the composer's approval pill.
+    expect(badges[0]).toHaveClass('border-warning-border', 'bg-warning-subtle', 'text-warning-subtle-foreground')
     // The pill collapses while hover actions are visible (hover / focus-within /
     // forced-active), like the stream dot swap.
     expect(badges[0]).toHaveClass('group-hover:opacity-0')

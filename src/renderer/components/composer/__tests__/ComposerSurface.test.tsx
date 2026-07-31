@@ -1143,13 +1143,13 @@ describe('ComposerSurface', () => {
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
     expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(locateButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
+    expect(locateButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent', 'hover:text-foreground!')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
+    expect(cancelButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent', 'hover:text-foreground!')
     expect(cancelButton).not.toHaveClass('text-info')
 
     fireEvent.click(cancelButton)
@@ -3002,7 +3002,7 @@ describe('ComposerSurface', () => {
     )
 
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
-    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
+    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-link')
     expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()

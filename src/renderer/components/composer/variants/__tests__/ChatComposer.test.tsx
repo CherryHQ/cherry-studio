@@ -1006,7 +1006,7 @@ describe('ChatComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
-    expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(webSearchButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(webSearchButton)
