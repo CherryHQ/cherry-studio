@@ -16,15 +16,16 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { toast } from '@renderer/services/toast'
 import { matchKeywordsInString } from '@renderer/utils/match'
-import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import { type CreateMcpServerDto, CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddMcpServerModal from './AddMcpServerModal'
+import McpProtocolInstallDialog from './McpProtocolInstallDialog'
 import McpServerCard from './McpServerCard'
 import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
@@ -41,20 +42,40 @@ const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: strin
   { value: 'builtin', labelKey: 'settings.mcp.builtinServers' }
 ]
 
+const protocolInstallServersSchema = CreateMcpServerSchema.array().min(1)
+
 const McpServersList: FC = () => {
   const { mcpServers, addMcpServer, reorderMcpServers } = useMcpServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const search = useSearch({ strict: false }) as { protocolInstall?: CreateMcpServerDto[] }
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
   const [filter, setFilter] = useState<McpServerFilter>('all')
+  const [protocolInstallServers, setProtocolInstallServers] = useState<CreateMcpServerDto[] | null>(null)
+  const consumedProtocolInstallRef = useRef<string | null>(null)
+  const protocolInstallKey = search.protocolInstall ? JSON.stringify(search.protocolInstall) : null
 
   const [searchText, setSearchText] = useState('')
   // Keep typing responsive: the list re-filters on the deferred value.
   const deferredSearchText = useDeferredValue(searchText)
+
+  useEffect(() => {
+    const protocolInstall = search.protocolInstall
+    if (!protocolInstall || !protocolInstallKey || consumedProtocolInstallRef.current === protocolInstallKey) return
+
+    consumedProtocolInstallRef.current = protocolInstallKey
+    void navigate({ to: '/settings/mcp/servers', search: {}, replace: true })
+
+    try {
+      setProtocolInstallServers(protocolInstallServersSchema.parse(protocolInstall))
+    } catch {
+      toast.error(t('settings.mcp.addServer.importFrom.invalid'))
+    }
+  }, [navigate, protocolInstallKey, search.protocolInstall, t])
 
   const filteredMcpServers = useMemo(() => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -124,6 +145,45 @@ const McpServersList: FC = () => {
     },
     [addMcpServer, t]
   )
+
+  const handleProtocolInstall = useCallback(async () => {
+    if (!protocolInstallServers) return
+
+    const seenNames = new Set(mcpServers.map((server) => server.name))
+    const duplicateServer = protocolInstallServers.find((server) => {
+      if (seenNames.has(server.name)) return true
+      seenNames.add(server.name)
+      return false
+    })
+    if (duplicateServer) {
+      toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: duplicateServer.name }))
+      return
+    }
+
+    const createdServers: McpServer[] = []
+    try {
+      for (const server of protocolInstallServers) {
+        createdServers.push(await addMcpServer(server))
+      }
+    } catch (error) {
+      if (createdServers.length > 0) {
+        setProtocolInstallServers(null)
+      }
+      toast.error(error instanceof Error ? error.message : t('settings.mcp.addError'))
+      return
+    }
+
+    const lastCreatedServer = createdServers.at(-1)
+    if (!lastCreatedServer) return
+
+    setProtocolInstallServers(null)
+    toast.success(t('settings.mcp.addSuccess'))
+    void navigate({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: lastCreatedServer.id },
+      search: { autoEnable: 'true' }
+    })
+  }, [addMcpServer, mcpServers, navigate, protocolInstallServers, t])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
@@ -259,6 +319,13 @@ const McpServersList: FC = () => {
         onSuccess={handleAddServerSuccess}
         existingServers={mcpServers} // 傳遞現有的伺服器列表
         initialImportMethod={modalType}
+      />
+
+      <McpProtocolInstallDialog
+        open={protocolInstallServers !== null}
+        servers={protocolInstallServers ?? []}
+        onOpenChange={(open) => !open && setProtocolInstallServers(null)}
+        onInstall={handleProtocolInstall}
       />
     </div>
   )
