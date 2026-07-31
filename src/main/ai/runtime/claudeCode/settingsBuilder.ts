@@ -1089,7 +1089,7 @@ async function buildToolPermissions(
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!approvalRequiredTools.includes(toolName)) return {}
-    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',

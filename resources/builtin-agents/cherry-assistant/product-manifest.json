@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.0-beta.3",
+    "version": "2.0.0-rc.4",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -218,6 +218,18 @@
       }
     },
     {
+      "id": "chat.context.toggle_new",
+      "titleKey": "settings.shortcuts.toggle_new_context",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "K"
+        ]
+      }
+    },
+    {
       "id": "chat.message.copy_last",
       "titleKey": "settings.shortcuts.copy_last_message",
       "categoryKey": "settings.shortcuts.chat",
@@ -355,12 +367,16 @@
     }
   ],
   "providers": {
-    "version": "cc183eedfe6e6c80",
-    "count": 61,
+    "version": "645f9b9b0f0ff508",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
+      },
+      {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -607,63 +623,63 @@
   "locales": [
     {
       "value": "zh-CN",
-      "label": "中文",
-      "flag": "🇨🇳"
+      "flag": "🇨🇳",
+      "label": "中文"
     },
     {
       "value": "zh-TW",
-      "label": "中文（繁体）",
-      "flag": "🇭🇰"
+      "flag": "🇭🇰",
+      "label": "中文（繁体）"
     },
     {
       "value": "en-US",
-      "label": "English",
-      "flag": "🇺🇸"
+      "flag": "🇺🇸",
+      "label": "English"
     },
     {
       "value": "de-DE",
-      "label": "Deutsch",
-      "flag": "🇩🇪"
+      "flag": "🇩🇪",
+      "label": "Deutsch"
     },
     {
       "value": "ja-JP",
-      "label": "日本語",
-      "flag": "🇯🇵"
+      "flag": "🇯🇵",
+      "label": "日本語"
     },
     {
       "value": "ru-RU",
-      "label": "Русский",
-      "flag": "🇷🇺"
+      "flag": "🇷🇺",
+      "label": "Русский"
     },
     {
       "value": "el-GR",
-      "label": "Ελληνικά",
-      "flag": "🇬🇷"
+      "flag": "🇬🇷",
+      "label": "Ελληνικά"
     },
     {
       "value": "es-ES",
-      "label": "Español",
-      "flag": "🇪🇸"
+      "flag": "🇪🇸",
+      "label": "Español"
     },
     {
       "value": "fr-FR",
-      "label": "Français",
-      "flag": "🇫🇷"
+      "flag": "🇫🇷",
+      "label": "Français"
     },
     {
       "value": "pt-PT",
-      "label": "Português",
-      "flag": "🇵🇹"
+      "flag": "🇵🇹",
+      "label": "Português"
     },
     {
       "value": "ro-RO",
-      "label": "Română",
-      "flag": "🇷🇴"
+      "flag": "🇷🇴",
+      "label": "Română"
     },
     {
       "value": "vi-VN",
-      "label": "Tiếng Việt",
-      "flag": "🇻🇳"
+      "flag": "🇻🇳",
+      "label": "Tiếng Việt"
     }
   ],
   "agents": {
