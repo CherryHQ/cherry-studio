@@ -60,6 +60,8 @@ interface UseChatRuntimeStateParams {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
+  /** Returns the greeting currently visible on an empty conversation, if any. */
+  getGreetingContext?: () => string | undefined
 }
 
 function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
@@ -110,7 +112,8 @@ export function useChatRuntimeState({
   assistant,
   onBranchLiveStateChange,
   clearBranchDraft,
-  getBranchDraftAnchorId
+  getBranchDraftAnchorId,
+  getGreetingContext
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -276,15 +279,19 @@ export function useChatRuntimeState({
       const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
       return { topicId: topic.id, parentAnchorId }
     },
-    buildStreamRequest: ({ text, options }, conversation) => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      parentAnchorId: conversation.parentAnchorId ?? undefined,
-      userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-      mentionedModelIds: options?.mentionedModels,
-      reasoningEffort: options?.reasoningEffort,
-      ...(options?.fastMode ? { fastMode: true } : {})
-    }),
+    buildStreamRequest: ({ text, options }, conversation) => {
+      const greetingContext = !isHistoryLoading && messages.length === 0 ? getGreetingContext?.() : undefined
+      return {
+        trigger: 'submit-message',
+        topicId: conversation.topicId,
+        parentAnchorId: conversation.parentAnchorId ?? undefined,
+        userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
+        mentionedModelIds: options?.mentionedModels,
+        ...(greetingContext ? { greetingContext } : {}),
+        reasoningEffort: options?.reasoningEffort,
+        ...(options?.fastMode ? { fastMode: true } : {})
+      }
+    },
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 

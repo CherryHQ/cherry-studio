@@ -7351,6 +7351,10 @@
       "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
     },
     "privacy": {
+      "contextual_greetings": {
+        "description": "有効にすると、Cherry Studio は IPInfo に接続しておおよその国または地域を検出し、その結果を名前、アプリの言語、現地の日付と時刻、タイムゾーンとともに内蔵の CherryAI モデルへ送信してあいさつを生成します。初期設定では無効です。",
+        "title": "AI によるコンテキストに応じたあいさつ"
+      },
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
     },
