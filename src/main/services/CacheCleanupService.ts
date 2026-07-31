@@ -16,6 +16,7 @@ import type {
   CacheCleanupSizeAccuracy,
   CacheCleanupSizeSnapshot
 } from '@shared/types/cacheCleanup'
+import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { Mutex } from 'async-mutex'
 import Database from 'better-sqlite3'
 import { type Session, session } from 'electron'
@@ -267,8 +268,14 @@ async function inspectNormalCache(): Promise<CacheCleanupSizeSnapshot> {
     { item: 'default_session', root: paths.defaultSession, value: session.defaultSession },
     { item: 'webview_session', root: paths.webviewSession, value: session.fromPartition('persist:webview') }
   ]
+  const previewSession = {
+    item: 'html_artifact_preview_session',
+    value: session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+  }
 
-  const electronMeasurements = await Promise.all(sessions.map(({ item, value }) => measureSessionCache(value, item)))
+  const electronMeasurements = await Promise.all(
+    [...sessions, previewSession].map(({ item, value }) => measureSessionCache(value, item))
+  )
   const diskTargets = sessions.flatMap(({ item, root }) =>
     NORMAL_CACHE_RELATIVE_PATHS.map((relativePath) => ({
       item,
@@ -756,16 +763,19 @@ function resultFromSteps(group: CacheCleanupGroup, steps: CleanupStepResult[]): 
 
 async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
   const paths = getCleanupPaths()
-  const [defaultSessionSteps, webviewSessionSteps, tempStep, traceStep, legacyTraceStep] = await Promise.all([
-    clearSessionNormalCache(session.defaultSession, 'default_session'),
-    clearSessionNormalCache(session.fromPartition('persist:webview'), 'webview_session'),
-    captureStep('app_temp', () => resetTempDirectory(paths.appTemp)),
-    captureStep('trace', () => application.get('TraceStorageService').cleanLocalData()),
-    removeCleanupTarget({ item: 'legacy_trace', path: paths.legacyTrace, kind: 'directory' })
-  ])
+  const [defaultSessionSteps, webviewSessionSteps, previewSessionSteps, tempStep, traceStep, legacyTraceStep] =
+    await Promise.all([
+      clearSessionNormalCache(session.defaultSession, 'default_session'),
+      clearSessionNormalCache(session.fromPartition('persist:webview'), 'webview_session'),
+      clearSessionNormalCache(session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION), 'html_artifact_preview_session'),
+      captureStep('app_temp', () => resetTempDirectory(paths.appTemp)),
+      captureStep('trace', () => application.get('TraceStorageService').cleanLocalData()),
+      removeCleanupTarget({ item: 'legacy_trace', path: paths.legacyTrace, kind: 'directory' })
+    ])
   return resultFromSteps('normal_cache', [
     ...defaultSessionSteps,
     ...webviewSessionSteps,
+    ...previewSessionSteps,
     tempStep,
     traceStep,
     legacyTraceStep
@@ -777,6 +787,11 @@ async function clearSiteData(): Promise<CacheCleanupGroupResult> {
     captureStep('default_session_cookies', () => session.defaultSession.clearData({ dataTypes: ['cookies'] })),
     captureStep('webview_site_data', () =>
       session.fromPartition('persist:webview').clearData({
+        dataTypes: ['cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
+      })
+    ),
+    captureStep('html_artifact_preview_site_data', () =>
+      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION).clearData({
         dataTypes: ['cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
       })
     )

@@ -82,6 +82,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     )
   }, [])
 
+  const handleNoteSelectionChange = useCallback((notes: NoteItem[]) => {
+    setSubmitErrorMessage('')
+    setSelectedNotes(notes)
+  }, [])
+
   const canSubmit = useMemo(() => {
     if (!selectedBaseId) {
       return false
@@ -314,6 +319,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
                 selectedNotes={selectedNotes}
                 urlValue={urlValue}
                 onNoteToggle={handleNoteToggle}
+                onNoteSelectionChange={handleNoteSelectionChange}
                 onUrlValueChange={(value) => {
                   setSubmitErrorMessage('')
                   setUrlValue(value)

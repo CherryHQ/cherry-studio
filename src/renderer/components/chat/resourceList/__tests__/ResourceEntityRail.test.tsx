@@ -491,6 +491,22 @@ describe('ResourceEntityRail', () => {
     ).toBeNull()
   })
 
+  it('uses the shared tooltip component for an entity explanation', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        items={[{ id: 'assistant-a', name: 'Assistant A', tooltip: 'Placeholder explanation' }]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Assistant A').closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
+    expect(screen.getByText('Assistant A')).not.toHaveAttribute('title')
+  })
+
   it('keeps the sortable listbox mounted while reorder is temporarily disabled', () => {
     const onReorder = vi.fn()
     const props = {

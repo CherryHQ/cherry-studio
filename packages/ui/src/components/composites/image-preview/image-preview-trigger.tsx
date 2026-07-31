@@ -1,5 +1,6 @@
 import * as React from 'react'
 
+import { cn } from '../../../lib/utils'
 import { ImagePreviewDialog, type ImagePreviewDialogProps } from './image-preview-dialog'
 import type { ImagePreviewItem } from './types'
 
@@ -12,6 +13,7 @@ export interface ImagePreviewTriggerProps extends Omit<React.ImgHTMLAttributes<H
 
 export function ImagePreviewTrigger({
   alt,
+  className,
   dialogProps,
   item,
   items,
@@ -35,6 +37,7 @@ export function ImagePreviewTrigger({
     <>
       <img
         alt={alt ?? item.alt ?? item.title ?? ''}
+        className={cn(preview && 'cursor-zoom-in', className)}
         onClick={(event) => {
           onClick?.(event)
           if (!event.defaultPrevented && preview) {

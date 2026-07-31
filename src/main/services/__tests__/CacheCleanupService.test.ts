@@ -9,14 +9,18 @@ import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
-const { defaultSession, webviewSession } = vi.hoisted(() => {
+const { defaultSession, webviewSession, htmlArtifactPreviewSession } = vi.hoisted(() => {
   const createSession = () => ({
     clearCodeCaches: vi.fn(),
     clearData: vi.fn(),
     clearStorageData: vi.fn(),
     getCacheSize: vi.fn()
   })
-  return { defaultSession: createSession(), webviewSession: createSession() }
+  return {
+    defaultSession: createSession(),
+    webviewSession: createSession(),
+    htmlArtifactPreviewSession: createSession()
+  }
 })
 
 vi.mock('@data/bootConfig', () => ({
@@ -32,7 +36,9 @@ vi.mock('electron', () => ({
   },
   session: {
     defaultSession,
-    fromPartition: vi.fn(() => webviewSession)
+    fromPartition: vi.fn((partition: string) =>
+      partition === 'persist:webview' ? webviewSession : htmlArtifactPreviewSession
+    )
   }
 }))
 
@@ -97,7 +103,7 @@ describe('CacheCleanupService', () => {
       return filename ? path.join(base, filename) : base
     })
 
-    for (const mockedSession of [defaultSession, webviewSession]) {
+    for (const mockedSession of [defaultSession, webviewSession, htmlArtifactPreviewSession]) {
       mockedSession.getCacheSize.mockResolvedValue(0)
       mockedSession.clearData.mockResolvedValue(undefined)
       mockedSession.clearCodeCaches.mockResolvedValue(undefined)
@@ -111,9 +117,10 @@ describe('CacheCleanupService', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  it('sums both Electron sessions, disk caches, temp data, and traces', async () => {
+  it('sums all Electron sessions, disk caches, temp data, and traces', async () => {
     defaultSession.getCacheSize.mockResolvedValue(100)
     webviewSession.getCacheSize.mockResolvedValue(200)
+    htmlArtifactPreviewSession.getCacheSize.mockResolvedValue(300)
 
     const files = [
       [rootPath('Session', 'Code Cache', 'default.bin'), 5],
@@ -131,12 +138,13 @@ describe('CacheCleanupService', () => {
     expect(result.results[0]).toMatchObject({
       group: 'normal_cache',
       size: {
-        bytes: 353,
+        bytes: 653,
         accuracy: 'estimated',
         completeness: 'complete'
       }
     })
     expect(session.fromPartition).toHaveBeenCalledWith('persist:webview')
+    expect(session.fromPartition).toHaveBeenCalledWith('html-artifact-preview')
   })
 
   it('clears both the active and legacy trace directories', async () => {

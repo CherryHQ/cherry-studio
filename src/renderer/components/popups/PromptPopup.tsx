@@ -105,6 +105,7 @@ const PromptPopupContainer: React.FC<Props> = ({
         <Box className="mb-2">{message}</Box>
         <div className="relative">
           <Textarea.Input
+            autoFocus
             {...textareaProps}
             ref={textAreaRef}
             placeholder={inputPlaceholder}

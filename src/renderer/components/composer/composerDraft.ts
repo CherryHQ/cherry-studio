@@ -1,3 +1,4 @@
+import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type {
   CherryProviderMetadata,
@@ -9,7 +10,8 @@ import { FileTypeSchema } from '@shared/types/file'
 import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
+import { createPromptVariableContent } from './promptVariables'
+import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
@@ -18,22 +20,8 @@ const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 export const COMPOSER_INPUT_MAX_LENGTH = 40000
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
-const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
-  'skill',
-  'file',
-  'folder',
-  'command',
-  'knowledge',
-  'reference',
-  'quote'
-])
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
-  kind: Exclude<ComposerSerializedToken['kind'], 'promptVariable'>
-}
-type RestoredComposerToken = Omit<ComposerMessageToken, 'index' | 'textOffset'> & {
-  payload?: ComposerMessageTokenPayload & {
-    restoredTextSuffix?: string
-  }
+  kind: ComposerMessageToken['kind']
 }
 
 function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
@@ -95,10 +83,13 @@ function getRestorableQuoteTextSuffix(text: string, start: number): string {
   return next === ' ' || next === '\n' || next === '\r' ? next : ''
 }
 
-function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix = ''): JSONContent {
+function createComposerTokenNode(
+  token: ComposerSerializedToken | ComposerMessageToken,
+  restoredTextSuffix = ''
+): JSONContent {
   const basePayload = readPayloadObject(token.payload)
   const payload = restoredTextSuffix ? { ...basePayload, restoredTextSuffix } : basePayload
-  const attrs: RestoredComposerToken = {
+  const attrs: ComposerDraftToken = {
     id: token.id,
     kind: token.kind,
     label: token.label,
@@ -114,13 +105,17 @@ function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix
   }
 }
 
-export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
+function createComposerContent(
+  text: string,
+  sourceTokens: readonly (ComposerSerializedToken | ComposerMessageToken)[],
+  isRestorableKind: (kind: ComposerSerializedToken['kind']) => boolean
+): JSONContent {
   const nodes: JSONContent[] = []
-  const tokens = composer?.tokens
-    .filter((token) => RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
+  const tokens = sourceTokens
+    .filter((token) => isRestorableKind(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
 
-  if (!tokens?.length) {
+  if (!tokens.length) {
     appendTextContent(nodes, text)
     return {
       type: 'doc',
@@ -158,6 +153,20 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
     type: 'doc',
     content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
   }
+}
+
+export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
+  return createComposerContent(text, composer?.tokens ?? [], isComposerMessageTokenKind)
+}
+
+export function createComposerDraftContent(draft: {
+  text: string
+  tokens: readonly ComposerSerializedToken[]
+}): JSONContent {
+  const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
+  if (!inputTokens.length) return createPromptVariableContent(draft.text)
+
+  return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
 }
 
 export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {
@@ -328,8 +337,8 @@ export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDra
 }
 
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
-  const visibleTokens = draft.tokens.filter(
-    (token): token is PersistedComposerSerializedToken => token.kind !== 'promptVariable'
+  const visibleTokens = draft.tokens.filter((token): token is PersistedComposerSerializedToken =>
+    isComposerMessageTokenKind(token.kind)
   )
   if (visibleTokens.length === 0) return undefined
 

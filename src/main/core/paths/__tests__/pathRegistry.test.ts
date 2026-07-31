@@ -1,11 +1,14 @@
+import os from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
-    getPath: vi.fn((key: string) => `/mock/${key}`),
+    getPath: getPathMock,
     isPackaged: false
   }
 }))
@@ -20,6 +23,10 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 //
 // We do NOT mock buildPathRegistry. The shouldAutoEnsure rule is pure; the
 // local Electron mock also lets the path-layout test exercise the real registry.
+
+beforeEach(() => {
+  getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
+})
 
 describe('buildPathRegistry', () => {
   it('keeps the database and restore journal together under userData Data', () => {
@@ -62,6 +69,21 @@ describe('buildPathRegistry', () => {
     expect(registry['v1.cli.install']).toBe(path.join(registry['cherry.home'], 'install'))
     expect(shouldAutoEnsure('v1.cli.install')).toBe(false)
     expect('feature.cli.install_global' in registry).toBe(false)
+  })
+
+  it('falls back when Electron cannot resolve an optional user system path', () => {
+    getPathMock.mockImplementation((key: string) => {
+      if (key === 'documents') {
+        throw new Error("Failed to get 'documents' path")
+      }
+      return `/mock/${key}`
+    })
+
+    const registry = buildPathRegistry()
+
+    expect(registry['sys.documents']).toBe(path.join(os.homedir(), 'Documents'))
+    expect(registry['sys.downloads']).toBe('/mock/downloads')
+    expect(registry['sys.desktop']).toBe('/mock/desktop')
   })
 })
 

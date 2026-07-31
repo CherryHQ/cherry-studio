@@ -1619,6 +1619,7 @@ const Sessions = ({
   const getGroupHeaderTooltip = useCallback(
     (group: ResourceListGroup) => {
       if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return t('agent.session.group.unknown_agent_tip')
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       if (!agentId || !agentById.has(agentId)) return undefined
@@ -1880,7 +1881,6 @@ const Sessions = ({
         onOpenChange={(open) => {
           if (!open) setEditDialogTarget(null)
         }}
-        onSaved={refetchAgents}
       />
       {imageCaptureTargets.map(({ requestId, target: session }) => {
         const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined

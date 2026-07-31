@@ -106,7 +106,7 @@ vi.mock('node:util', async (importOriginal) => {
 const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryManager')
 const { application } = await import('@application')
 const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
-const { refreshShellEnv } = await import('@main/utils/shellEnv')
+const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -159,6 +159,7 @@ describe('BinaryManager', () => {
     mockFsp.access.mockReset().mockResolvedValue(undefined)
     mockFsp.realpath.mockReset().mockImplementation(async (candidate: string) => candidate)
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
+    vi.mocked(getRawShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
     mockInstallPreferences()
@@ -179,6 +180,15 @@ describe('BinaryManager', () => {
     it('is registered as Background phase', () => {
       expect(getPhase(BinaryManager)).toBe(Phase.Background)
     })
+  })
+
+  it('starts the process-wide shell environment capture without awaiting it', async () => {
+    vi.mocked(getRawShellEnv).mockReturnValue(new Promise<never>(() => {}))
+    const service = new BinaryManager()
+
+    await expect((service as any).onInit()).resolves.toBeUndefined()
+
+    expect(getRawShellEnv).toHaveBeenCalledOnce()
   })
 
   describe('install preference subscriptions', () => {

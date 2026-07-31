@@ -1,4 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
+import { mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -74,6 +75,7 @@ const useTestMiniAppPopup = () => {
 describe('useMiniAppPopup', () => {
   beforeEach(async () => {
     MockUseCacheUtils.resetMocks()
+    MockCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
@@ -429,6 +431,50 @@ describe('useMiniAppPopup', () => {
       expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/top-nav-app', {
         title: 'Top Nav App',
         icon: 'icon'
+      })
+    })
+
+    // A transient app has no database row, so the shared registry is the only thing that
+    // lets another window — or this one after the keep-alive LRU evicted the entry —
+    // resolve `/app/mini-app/<id>`.
+    it('publishes the descriptor to the cross-window registry', async () => {
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790#token=secret',
+          logo: 'openclaw'
+        })
+      })
+
+      expect(mockCacheService.getShared('mini_app.transient_descriptor.openclaw-dashboard')).toEqual({
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790#token=secret',
+        logo: 'openclaw'
+      })
+    })
+
+    it('refreshes the published descriptor when a cached app is reopened on a new URL', async () => {
+      // The OpenClaw dashboard mints a fresh gateway token per launch, so a stale
+      // descriptor would hand a detached window a URL that no longer authenticates.
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [createMiniApp('openclaw-dashboard')])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790#token=fresh',
+          logo: 'openclaw'
+        })
+      })
+
+      expect(mockCacheService.getShared('mini_app.transient_descriptor.openclaw-dashboard')).toMatchObject({
+        url: 'http://127.0.0.1:18790#token=fresh'
       })
     })
 

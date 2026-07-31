@@ -154,76 +154,92 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-rc.1 - Backup & Restore, Painting Improvements & v2 Stabilization
+    Cherry Studio 2.0.0-rc.3 - Agent Sessions, Migration Recovery & Accessibility
 
     ✨ New Features
-    - [Paintings] Added a localized prompt-template gallery to the empty painting canvas, with editable concrete prompt tokens and an accessible prompt preview and copy action. The gallery disappears once image generation begins so completed results retain the standard image-only viewer.
+    - [Agent] Agent sessions now render Workflow calls with a dedicated card, show live subagent and background-task progress with per-task stop, surface background agents' questions as persisted messages, keep context usage visible across idle disconnects, and recover automatically when a stored conversation can no longer be resumed.
+    - [Agent] Agents can now use the Claude Agent SDK's “Approve for Me” permission mode, where a model classifier approves routine tool calls and only asks you about risky ones. New agents use it by default instead of running every action unattended, and the permission modes have clearer names and descriptions.
+    - [Agent] Agent reasoning effort is now remembered and reused across chat, scheduled, and channel runs, with automatic adjustment when switching models.
+    - [Composer] Add model-aware reasoning controls and Fast mode for supported OpenAI Codex and Claude Code models.
+    - [Composer] Standalone pasted web links now appear as interactive tokens with a privacy-safe generic icon before send, site favicons in sent messages, open-on-click behavior, and hover-to-remove controls. Composer tokens now stay consistent across drafts, messages, queued follow-ups, and rich clipboard copy/paste.
+    - [Image Preview] Improved full-screen image previews with cursor-centered zoom, bounded panning, consistent transform controls, and grouped-image navigation.
+    - [API Gateway] The OpenAPI docs page now shows its descriptions in all 12 app languages, with a language switcher in the docs toolbar; endpoints are grouped by compatible API, and Scalar's third-party “Ask AI” is disabled.
+    - [Migration] Migration recovery now keeps errors visible for screenshots and groups “Save troubleshooting information”, “Use V2 without importing V1 data”, and “Continue using V1” under More options. Using V2 clears partial migration data before starting with defaults while preserving the original V1 data, and migration completion notices can be reviewed and copied from a dedicated dialog.
+    - [Agent] Assistant HTML artifacts now render inline at their original position in the conversation. A whole HTML page with scripts or external resources stays unloaded behind a compact artifact card until you select View webpage, then runs in an isolated immersive preview; HTML fragments embedded in prose render directly in a preview frame that cannot run scripts.
+    - [Resources] Adds a shared group creation dialog with quick creation and automatic selection in assistant editing.
 
     🐛 Bug Fixes
-    - [Backup & Restore] action required: Create a fresh version 7 backup after upgrading from v1; local, WebDAV, Nutstore, and S3 backup and restore are available again, and partial backup is no longer offered.
-    - [Data] action required: The v2 database now lives at `Data/cherrystudio.sqlite`, Claude config is migrated to `Data/Agents/.claude`, and existing pre-alpha database files at the former root location are not imported automatically.
-    - [Agent] action required: New users who skip provider setup must configure a model before using the built-in Cherry Assistant. Choosing a model during onboarding configures it automatically.
-    - [Data Directory] action required: Removed special protection for the OS Music, Pictures, and Videos directories when choosing a data-directory relocation target; avoid selecting these shared media roots unless you intentionally want Cherry Studio to use them as its data directory.
-    - [Migration] Fixed v2 migration failure when an existing Claude config directory is present.
-    - [Migration] Fixed Windows Agent data migration failures when copied workspaces contain directory links.
-    - [Migration] Fixed v1-to-v2 migration so custom mini-apps are preserved, and aligned custom and Ant Ling launchpad icon sizing.
-    - [Search] Fixed global search losing keyboard focus after clearing the query.
-    - [Composer] Follow-up queue auto-send now stays paused for each conversation until the user explicitly resumes it.
-    - [File Preview] Fixed generated HTML and other Unicode text files being incorrectly reported as binary when previewed.
-    - [Agent] Skills created or installed by agents now appear reliably in the Skills library, and skill cards show the declared version when available.
-    - [Chat] Fixed blank space after regenerating long conversations and removed the message image-export menu flash.
-    - [Paintings] Fixed the Paintings preview so generation prompts remain fixed above the image and long prompts stay contained while the image is dragged, zoomed, or rotated.
-    - [Paintings] Fixed duplicate custom-size options and labels for image models that already declare custom dimensions.
-    - [Quick Assistant] Quick Assistant now keeps typed input separate from clipboard previews and renders sent user messages as compact right-aligned bubbles.
-    - [Chat] Fixed active responses losing streamed content when switching away from and back to a tab, and collapsed/expanded message sections resetting while a response streams.
-    - [Chat] Fixed empty assistant messages shown when a response is interrupted before the first content chunk.
-    - [Providers] Fixed AWS Bedrock authentication settings so users can switch between IAM credentials and Bedrock API keys in either direction.
-    - [macOS] Fixed toggling the Selection Assistant on no longer sending the whole app behind other apps or removing the Dock icon.
-    - [Providers] Fixed provider model lists to preserve distinct registry and OpenAI-compatible display names.
-    - [Build] Fixed a startup crash on Intel Macs caused by a missing native binary.
-    - [Chat] Fixed image copy and export for assistant topics and agent sessions, including captures with local avatars.
-    - [Windows] Fixed Windows portable builds omitting the sqlite-vec extension, which prevented users from creating knowledge bases.
-    - [Onboarding] Fixed onboarding model selection to exclude embedding, reranking, image, audio, and video-only models.
-    - [Notes] Fixed note imports so clicking the sidebar import hint opens the Markdown file picker.
+    - [Channels] Restored Feishu QR registration after binding an agent, prevent channel dialogs from flashing while closing, and show QR login errors for Feishu and WeChat.
+    - [Windows] Fixed Cherry Studio failing to open when Windows cannot resolve a user system folder.
+    - [OpenClaw] The OpenClaw gateway launched by Cherry Studio no longer self-updates in the background and no longer shows its own “Update available” banner; opening the OpenClaw dashboard (or the S3 help and release-notes pages) in its own window no longer shows “app not found”.
+    - [Agent] Corrected the assistant tool-call limit UI to show the default 20-round cap and enforce the supported 1–100 range.
+    - [Accessibility] Added accessible names to the About page icon buttons (GitHub repository, logo, releases).
+    - [Accessibility] Added localized accessible names to the channel row's logs, edit, and delete icon buttons.
+    - [MCP] Fixed MCP package-registry option names not following the UI language (they stayed Chinese under an English interface).
+    - [Settings] Fixed the hardware acceleration restart confirmation showing “disable” wording when re-enabling hardware acceleration; the prompt now matches the toggle direction.
+    - [Agent] Improved agent artifact delivery: cards now appear after message playout, provide an explicit Open with menu, and correctly preview valid UTF-8 Markdown when a sampled multibyte character crosses the detection boundary.
+    - [Mini Apps] Added the missing Mini Apps show/hide translations.
+    - [Dialog] Fixed edit and search dialogs opening with an incorrect initial focus or selecting existing text unexpectedly.
+    - [Migration] Prevent Agents migration from running out of memory when importing large session histories.
+    - [Usage] Usage details now identify unattributed requests by their AI modality (language, embedding, image, or rerank).
+    - [macOS] Fixed crashes when System OCR processes some list-heavy images on macOS.
+    - [Knowledge] Knowledge base: clicking a plain note now opens its full original content in-app; viewing indexed chunks moved to the row's right-click menu, and the broken “preview original” action no longer shows for notes.
+    - [Knowledge] Used regional Jina reader for URL imports.
+    - [Knowledge] Used readable names for saved messages.
+    - [Knowledge] Hide injected knowledge prompts in the composer.
+    - [Paintings] Fixed horizontal rendering artifacts that could appear while dragging generated images in Paintings.
+    - [Selection Assistant] Fixed the opacity slider so dragging right increases opacity and left decreases it (previously reversed).
+    - [Notes] Fixed the note character count not updating after toolbar undo and redo actions.
+    - [Tools] Dropped the uri format that strict providers reject.
+    - [API Gateway] Fixed the OpenAPI docs page showing the Health check curl example as a bare relative path (`curl /health`); it now shows the full server address so the example can be copied and run directly.
+    - [Obsidian] Fixed Obsidian export incorrectly reporting success when the note title is empty; the export dialog now stays open on failure and the export button is disabled until a title is provided.
+    - [Accessibility] The Reset / Zoom Out / Zoom In buttons in Settings → Appearance → Page Zoom now expose accessible names (aria-label) and tooltips.
 
-    💄 Improvements
-    - [Paintings] Improved painting generation feedback with a subtle color-sampled grid that gradually reveals the finished image.
-    - [UI] Refined the new conversation icon with thinner, consistently scaled strokes.
+    ⚡ Performance
+    - [Agent] Improved Agent session startup performance, especially for configurations with many MCP servers and skills.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-rc.1 - 备份恢复、绘图改进与 v2 稳定化
+    Cherry Studio 2.0.0-rc.3 - 智能体会话、迁移恢复与无障碍优化
 
     ✨ 新功能
-    - [绘图] 在空白的绘图画布上新增本地化提示词模板画廊，模板带可编辑的具体示例 Token，并提供无障碍的提示词预览与复制；开始生成后画廊自动消失，已完成结果仍使用原有纯图查看器。
+    - [智能体] 智能体会话现以专属卡片渲染 Workflow 调用，实时展示子智能体与后台任务进度并支持逐任务停止，将后台智能体的提问作为持久化消息呈现，在空闲断连时仍保留上下文用量，并在已存储对话无法恢复时自动重置。
+    - [智能体] 智能体现可使用 Claude Agent SDK 的”为我审批”权限模式：由模型分类器自动批准常规工具调用，仅就有风险的操作征求你的确认。新建智能体默认使用该模式，且各权限模式有了更清晰的名称与说明。
+    - [智能体] 智能体的推理强度现可在聊天、定时与频道运行间记忆复用，切换模型时自动调整。
+    - [输入框] 为支持的 OpenAI Codex 与 Claude Code 模型新增模型感知的推理控件与快速模式。
+    - [输入框] 粘贴的独立网页链接现以交互式令牌呈现：发送前显示隐私安全的通用图标，发送后展示站点 favicon，点击即可打开，悬停可移除。输入框令牌在草稿、消息、排队后续问题以及富文本剪贴板复制/粘贴间保持一致。
+    - [图片预览] 改进全屏图片预览：支持以光标为中心的缩放、受限平移、统一的变换控件，以及分组图片导航。
+    - [API 网关] OpenAPI 文档页现以全部 12 种应用语言显示描述，文档工具栏新增语言切换器；端点按兼容的 API 分组，并禁用 Scalar 第三方”Ask AI”。
+    - [迁移] 迁移恢复现保留错误信息便于截图，并在”更多选项”下归类”保存故障排查信息”、”使用 V2 但不导入 V1 数据”、”继续使用 V1”。选择使用 V2 将以默认值启动前清除部分迁移数据，但保留原始 V1 数据；迁移完成通知可在专属对话框中查看与复制。
+    - [智能体] 助手 HTML 工件现以内联方式渲染在对话原始位置。包含脚本或外部资源的完整 HTML 页面在点击”查看网页”前以紧凑工件卡片加载，随后在隔离的沉浸式预览中运行；嵌入正文中的 HTML 片段在不可执行脚本的预览框架中直接渲染。
+    - [资源] 新增共享分组创建对话框，可快速创建并在助手编辑中自动选中。
 
     🐛 问题修复
-    - [备份与恢复] action required: 从 v1 升级后请重新创建 version 7 备份；本地、WebDAV、坚果云、S3 的备份与恢复已重新可用，不再提供部分备份。
-    - [数据] action required: v2 数据库现已位于 `Data/cherrystudio.sqlite`，Claude 配置迁移至 `Data/Agents/.claude`，原根目录下的预发布版数据库文件不会被自动导入。
-    - [智能体] action required: 跳过服务商配置的新用户需在使用内置 Cherry Assistant 前先配置一个模型；在引导流程中选择模型会自动完成配置。
-    - [数据目录] action required: 选择数据目录迁移目标时不再对系统“音乐”“图片”“视频”目录做特殊保护；除非确实希望将它们作为 Cherry Studio 的数据目录，请避免选择这些共享媒体根目录。
-    - [迁移] 修复了已存在 Claude 配置目录时 v2 迁移失败的问题。
-    - [迁移] 修复了 Windows 智能体数据迁移在复用的工作区包含目录链接时失败的问题。
-    - [迁移] 修复了 v1 到 v2 迁移时自定义小程序丢失的问题，并统一了自定义与 Ant Ling 启动台图标尺寸。
-    - [搜索] 修复了清空查询后全局搜索失去键盘焦点的问题。
-    - [输入框] 跟进队列的自动发送现在在每段对话中保持暂停，直至用户显式恢复。
-    - [文件预览] 修复了生成的 HTML 等 Unicode 文本文件被错误识别为二进制的问题。
-    - [智能体] 智能体创建或安装的技能现可可靠出现在技能库中，技能卡片在可用时显示声明的版本号。
-    - [聊天] 修复了重新生成长对话后出现的空白区域，并消除消息图片导出菜单的闪烁。
-    - [绘图] 修复了绘图预览：生成提示词固定在图像上方，拖动、缩放或旋转图像时长提示词不再溢出。
-    - [绘图] 修复了已声明自定义尺寸的图像模型出现重复自定义尺寸选项与标签的问题。
-    - [快捷助手] 快捷助手现在将键入内容与剪贴板预览分开显示，并将已发送的用户消息渲染为紧凑的右对齐气泡。
-    - [聊天] 修复了切换标签页再返回时当前回复丢失流式内容、以及流式输出时展开/折叠的消息段落被重置的问题。
-    - [聊天] 修复了回复在首个内容片段前被中断时显示空白助手消息的问题。
-    - [服务商] 修复了 AWS Bedrock 鉴权设置，用户可在 IAM 凭证与 Bedrock API Key 之间双向切换。
-    - [macOS] 修复了在 macOS 上开启选中助手时不再将整个应用置于其他应用之后或移除 Dock 图标的问题。
-    - [服务商] 修复了服务商模型列表，保留注册表与 OpenAI 兼容显示名的差异。
-    - [构建] 修复了 Intel Mac 上因缺少原生二进制导致的启动崩溃。
-    - [聊天] 修复了助手话题与智能体会话的图片复制与导出，包括带本地头像的截图。
-    - [Windows] 修复了 Windows 便携版构建遗漏 sqlite-vec 扩展导致用户无法创建知识库的问题。
-    - [引导] 修复了引导流程中模型选择，排除嵌入、重排、图像、音频与仅视频模型。
-    - [笔记] 修复了笔记导入：点击侧边栏导入提示会打开 Markdown 文件选择器。
+    - [频道] 恢复了绑定智能体后的飞书二维码注册流程，防止频道对话框关闭时闪烁，并显示飞书与微信的二维码登录错误。
+    - [Windows] 修复了当 Windows 无法解析用户系统文件夹时 Cherry Studio 无法启动的问题。
+    - [OpenClaw] 由 Cherry Studio 启动的 OpenClaw 网关不再在后台自更新，也不再显示自身的”有更新可用”横幅；将 OpenClaw 仪表板（或 S3 帮助与发布说明页面）拖出为独立窗口不再提示”app not found”。
+    - [智能体] 修正了助手工具调用次数限制的界面，显示默认 20 轮上限，并强制限制在 1–100 范围内。
+    - [无障碍] 为”关于”页面的图标按钮（GitHub 仓库、Logo、发布版本）添加无障碍名称。
+    - [无障碍] 为频道行的日志、编辑、删除图标按钮添加本地化的无障碍名称。
+    - [MCP] 修复了 MCP 注册表选项名称不跟随界面语言（英文界面下仍显示中文）的问题。
+    - [设置] 修复了重新开启硬件加速时重启确认提示仍显示”关闭”措辞的问题；提示现与开关方向一致。
+    - [智能体] 改进智能体工件交付：卡片现于消息播放后出现，提供显式的”打开方式”菜单，并在多字节字符跨越检测边界时正确预览有效的 UTF-8 Markdown。
+    - [小程序] 补齐了小程序显示/隐藏的缺失翻译。
+    - [对话框] 修复了编辑与搜索对话框打开时初始焦点不正确或意外选中文本的问题。
+    - [迁移] 防止 Agents 迁移在导入大量会话历史时内存溢出。
+    - [用量] 用量详情现按 AI 模态（语言、嵌入、图像或重排）标识未归属请求。
+    - [macOS] 修复了系统 OCR 在 macOS 上处理部分列表密集图片时崩溃的问题。
+    - [知识库] 知识库：单击普通笔记现可在应用内查看其完整原始内容；查看已索引片段移至行右键菜单，且笔记不再显示失效的”预览原文”操作。
+    - [知识库] URL 导入改用区域化的 Jina reader。
+    - [知识库] 为保存的消息使用可读名称。
+    - [知识库] 在输入框中隐藏注入的知识库提示。
+    - [绘画面板] 修复了在 Paintings 中拖动生成图片时可能出现横向渲染瑕疵的问题。
+    - [选择助手] 修正了不透明度滑块方向：向右拖动增加不透明度，向左减少（此前反向）。
+    - [笔记] 修复了工具栏撤销/重做后笔记字符数不更新的问题。
+    - [工具] 移除了严格服务商拒绝的 uri 格式。
+    - [API 网关] 修复了 OpenAPI 文档页将健康检查 curl 示例显示为相对路径（`curl /health`）的问题；现显示完整服务器地址，可直接复制运行。
+    - [Obsidian] 修复了笔记标题为空时 Obsidian 导出仍误报成功的问题；导出对话框现于失败时保持打开，且在提供标题前禁用导出按钮。
+    - [无障碍] 设置 → 外观 → 页面缩放中的”重置/缩小/放大”按钮现提供无障碍名称（aria-label）与工具提示。
 
-    💄 改进
-    - [绘图] 改进了绘图生成反馈：细腻的色样网格会逐渐揭示最终图像。
-    - [界面] 优化了新建对话图标，使用更细且均匀可缩放的描边。
+    ⚡ 性能优化
+    - [智能体] 提升智能体会话启动性能，尤其是配置了较多 MCP 服务器与技能时。
     <!--LANG:END-->
