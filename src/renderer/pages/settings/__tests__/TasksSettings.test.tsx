@@ -1444,6 +1444,7 @@ describe('TasksSettings detail behavior', () => {
 
     const statusSwitch = await screen.findByRole('switch', { name: 'agent.tasks.status.active' })
     expect(statusSwitch).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByText('agent.tasks.status.active')).not.toBeInTheDocument()
     fireEvent.click(statusSwitch)
 
     await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledWith('agent-1', 'task-1', false))
@@ -1457,7 +1458,7 @@ describe('TasksSettings detail behavior', () => {
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 
-  it('uses a neutral Badge and hides run/status controls for completed tasks', async () => {
+  it('hides status, edit, and run controls for completed tasks', async () => {
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
       enabled: false,
@@ -1466,8 +1467,8 @@ describe('TasksSettings detail behavior', () => {
 
     render(<TasksSettings />)
 
-    const completedBadge = await screen.findByText('agent.tasks.status.completed')
-    expect(completedBadge).toHaveAttribute('data-variant', 'secondary')
+    await screen.findByText('Daily task')
+    expect(screen.queryByText('agent.tasks.status.completed')).not.toBeInTheDocument()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.tasks.run' })).not.toBeInTheDocument()

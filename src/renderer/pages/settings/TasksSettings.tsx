@@ -834,6 +834,16 @@ const TaskDetail: FC<{
               <ArrowLeft size={16} />
             </Button>
             <span className="min-w-0 break-words">{task.name}</span>
+            {!isCompleted && (
+              <Switch
+                className="ml-1 shrink-0"
+                size="sm"
+                checked={task.status === 'active'}
+                onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
+                aria-label={t('agent.tasks.status.active')}
+                title={task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
+              />
+            )}
           </div>
           <RowFlex className="flex-wrap items-center gap-2">
             {!isCompleted && (
@@ -865,23 +875,11 @@ const TaskDetail: FC<{
             </DropdownMenu>
           </RowFlex>
         </SettingTitle>
-        <RowFlex className="mt-3 flex-wrap items-center gap-2">
-          {!isCompleted && (
-            <Switch
-              size="sm"
-              checked={task.status === 'active'}
-              onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
-              aria-label={t('agent.tasks.status.active')}
-              title={task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
-            />
-          )}
-          <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-          {task.nextRun && (
-            <SettingDescription className="mt-0">
-              {t('agent.tasks.nextRun')}: {formatDateTime(task.nextRun)}
-            </SettingDescription>
-          )}
-        </RowFlex>
+        {task.nextRun && (
+          <SettingDescription>
+            {t('agent.tasks.nextRun')}: {formatDateTime(task.nextRun)}
+          </SettingDescription>
+        )}
       </div>
 
       <SettingGroup theme={theme}>
@@ -1434,49 +1432,9 @@ const TasksSettings: FC = () => {
             style={{ borderRadius: 8 }}
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" size="sm" className="shrink-0">
-              <Plus size={12} className="lucide-custom" />
-              {t('settings.scheduledTasks.newTask')}
-              <ChevronDown size={12} className="text-primary-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-40">
-            <DropdownMenuGroup>
-              <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
-                <PencilLine />
-                {t('settings.scheduledTasks.manualCreate')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
-                <Bot />
-                {t('settings.scheduledTasks.agentCreate')}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
-        {tasks.length === 0 ? (
-          <EmptyState
-            preset={agents.length === 0 ? 'no-agent' : 'no-result'}
-            icon={agents.length === 0 ? undefined : CalendarClock}
-            title={
-              agents.length === 0
-                ? t('settings.scheduledTasks.noAgentsTitle')
-                : t('settings.scheduledTasks.noTasksTitle')
-            }
-            description={
-              agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
-            }
-            actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
-            className="py-20"
-            onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
-          />
-        ) : (
-          <>
-            <RowFlex className="mb-3 flex-wrap items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {tasks.length > 0 && (
+            <>
               <Select value={agentFilter} onValueChange={setAgentFilter}>
                 <SelectTrigger
                   className="h-8 min-w-32 bg-transparent"
@@ -1509,8 +1467,51 @@ const TasksSettings: FC = () => {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-            </RowFlex>
+            </>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" className="shrink-0">
+                <Plus size={12} className="lucide-custom" />
+                {t('settings.scheduledTasks.newTask')}
+                <ChevronDown size={12} className="text-primary-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
+              <DropdownMenuGroup>
+                <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
+                  <PencilLine />
+                  {t('settings.scheduledTasks.manualCreate')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                  <Bot />
+                  {t('settings.scheduledTasks.agentCreate')}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
+      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
+        {tasks.length === 0 ? (
+          <EmptyState
+            preset={agents.length === 0 ? 'no-agent' : 'no-result'}
+            icon={agents.length === 0 ? undefined : CalendarClock}
+            title={
+              agents.length === 0
+                ? t('settings.scheduledTasks.noAgentsTitle')
+                : t('settings.scheduledTasks.noTasksTitle')
+            }
+            description={
+              agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+            }
+            actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
+            className="py-20"
+            onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
+          />
+        ) : (
+          <>
             {filteredTasks.length === 0 && hasActiveFilters ? (
               <EmptyState
                 preset="no-result"
