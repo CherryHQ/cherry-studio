@@ -104,7 +104,9 @@ class FileStorage {
     const ext = path.extname(filePath)
     const fileType = getFileTypeByExt(ext)
 
-    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
+    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath).catch(() => false))
+      ? FILE_TYPE.TEXT
+      : fileType
   }
 
   public selectFile = async (
@@ -988,18 +990,26 @@ class FileStorage {
     return path.join(this.storageDir, file.id + file.ext)
   }
 
+  /**
+   * Rejects when the file cannot be opened or read, so callers can tell
+   * "binary file" apart from "sniff failed" (e.g. file deleted or unreadable).
+   */
   public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    return this._isTextFile(filePath)
+    try {
+      return await this._isTextFile(filePath)
+    } catch (error) {
+      logger.error('Failed to check if file is text:', error as Error)
+      throw error
+    }
   }
 
   private _isTextFile = async (filePath: string): Promise<boolean> => {
+    const length = 8 * KB
+    const maxCharacterBytes = 4
+    const fileHandle = await fs.promises.open(filePath, 'r')
     try {
-      const length = 8 * KB
-      const maxCharacterBytes = 4
-      const fileHandle = await fs.promises.open(filePath, 'r')
       const buffer = Buffer.alloc(length + maxCharacterBytes)
       const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
-      await fileHandle.close()
 
       const firstEnd = Math.min(bytesRead, length)
       const lastEnd = Math.min(bytesRead, length + maxCharacterBytes)
@@ -1011,9 +1021,8 @@ class FileStorage {
         if (decodeTextBufferIfText(buffer.subarray(0, end)) !== null) return true
       }
       return false
-    } catch (error) {
-      logger.error('Failed to check if file is text:', error as Error)
-      return false
+    } finally {
+      await fileHandle.close()
     }
   }
 

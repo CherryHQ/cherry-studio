@@ -509,9 +509,7 @@ describe('AgentToolRenderer', () => {
 
       // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle(
-        'color: color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-      )
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
       expect(
         screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
       ).toBe(false)
@@ -889,7 +887,7 @@ describe('AgentToolRenderer', () => {
 
       const title = screen.getByText('tool_search · ns=mcp:tavily')
       expect(title).toHaveClass('font-normal')
-      expect(title).toHaveClass('text-foreground-secondary')
+      expect(title).toHaveClass('text-muted-foreground')
 
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
@@ -1016,7 +1014,7 @@ describe('AgentToolRenderer', () => {
       const bashLabel = screen.getByText('Installing')
       expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
       expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
-      expect(bashLabel.parentElement).toHaveClass('font-normal text-foreground-secondary')
+      expect(bashLabel.parentElement).toHaveClass('font-normal text-muted-foreground')
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')

@@ -89,6 +89,7 @@ export {
   type PathVersion,
   probeReadable,
   read,
+  readChunk,
   realpath,
   remove,
   removeDir,

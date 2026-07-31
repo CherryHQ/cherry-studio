@@ -642,7 +642,7 @@ export default function ProviderEditorDrawer({
       )}
 
       {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-        <p className="text-muted-foreground/80 text-xs leading-[1.4]">
+        <p className="text-muted-foreground text-xs leading-[1.4]">
           {t('settings.provider.duplicate.fill_after_create')}
         </p>
       )}
@@ -770,7 +770,7 @@ function CustomProviderEndpointFields({
     const isPreferredEndpoint = preferredChatEndpoint === endpointType
     const labelAccessory =
       isTextEndpoint && isPreferredEndpoint && (isConfiguredTextEndpoint || showPreferredEndpointAsDefault) ? (
-        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-muted text-xs">
+        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-tertiary text-xs">
           {t('settings.provider.create_custom.endpoint_fields.default_chat')}
         </Badge>
       ) : isConfiguredTextEndpoint && onPreferredChatEndpointChange ? (
@@ -805,7 +805,7 @@ function CustomProviderEndpointFields({
             <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <span>{t('settings.provider.create_custom.endpoint_fields.more')}</span>
               {additionalConfiguredCount > 0 && (
-                <span className="truncate text-foreground-muted">
+                <span className="truncate text-foreground-tertiary">
                   {t('settings.provider.create_custom.endpoint_fields.more_configured', {
                     count: additionalConfiguredCount
                   })}
@@ -817,7 +817,7 @@ function CustomProviderEndpointFields({
             {additionalEndpoints.map(renderEndpointControl)}
             {additionalContent && (
               <>
-                <Separator className="bg-border-muted" />
+                <Separator className="bg-border-subtle" />
                 {additionalContent}
               </>
             )}
@@ -861,7 +861,7 @@ function PresetInstancePicker({
         <span className="text-[13px] text-foreground">
           {t('settings.provider.create_custom.preset_instance.title')}
         </span>
-        <span className="text-foreground-muted text-xs">
+        <span className="text-foreground-tertiary text-xs">
           {t('settings.provider.create_custom.preset_instance.description')}
         </span>
       </div>
@@ -895,9 +895,9 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const presetId = source.presetProviderId
   const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border-muted bg-muted/40 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
-      <span className="truncate text-foreground/85 text-sm">{label}</span>
+      <span className="truncate text-foreground text-sm">{label}</span>
     </div>
   )
 }
@@ -935,7 +935,7 @@ function AvatarSection({
   return (
     <div className="flex flex-col items-center gap-3">
       <div
-        className="flex h-19 w-19 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
+        className="flex h-19 w-19 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50"
         style={
           avatarBackgroundColor && avatarForegroundColor
             ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor }
@@ -993,7 +993,7 @@ function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnte
   const errorId = `${uid}-name-error`
   return (
     <Field className="gap-2">
-      <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground/85">
+      <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground">
         {t('settings.provider.add.name.label')}
       </FieldLabel>
       <Input
@@ -1115,7 +1115,7 @@ function BaseUrlField({
         onBlur={onBlur}
       />
       {description && (
-        <p id={descriptionId} aria-live="polite" className="break-all text-foreground-muted text-xs">
+        <p id={descriptionId} aria-live="polite" className="break-all text-muted-foreground text-xs">
           {description}
         </p>
       )}
@@ -1163,7 +1163,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           size="icon-lg"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-0 text-muted-foreground/70 hover:text-foreground">
+          className="-translate-y-1/2 absolute top-1/2 right-0 text-muted-foreground hover:text-foreground">
           {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
         </Button>
       </div>

@@ -100,8 +100,8 @@ describe('ProviderCard', () => {
     const { moveToTopButton, configureButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
 
     expect(moveToTopButton.querySelector('.lucide-arrow-up-to-line')).toBeInTheDocument()
-    expect(moveToTopButton).toHaveClass('border-border/50')
-    expect(configureButton).toHaveClass('border-border/50')
+    expect(moveToTopButton).toHaveClass('border-border-subtle')
+    expect(configureButton).toHaveClass('border-border-subtle')
     expect(moveToTopButton.compareDocumentPosition(configureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(moveToTopButton)
@@ -138,12 +138,10 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
   })
 
-  it('renders the disable action as a soft destructive button', () => {
+  it('uses the shared destructive variant for the disable action', () => {
     const { enableButton } = renderCard({ isCurrent: true })
 
-    expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
-    expect(enableButton).toHaveClass('bg-destructive/10')
-    expect(enableButton).toHaveClass('text-destructive')
+    expect(enableButton).toHaveAttribute('variant', 'destructive')
   })
 
   it('uses a subtle primary tint as the selection background', () => {

@@ -15,14 +15,14 @@ const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shado
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
 const historyHeaderClassName =
-  'sticky top-0 z-10 border-border-muted border-b bg-card text-foreground-secondary text-sm leading-5'
+  'sticky top-0 z-10 border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
 const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
 // The row itself paints no hover/selection fill: each cell paints its own `muted` layer instead. This keeps
 // the fixed action column's fill from stacking on top of a row-level fill (which, with alpha `muted`, read
 // darker), and lets every cell — action column included — animate the same transitionable `background-color`
 // in lockstep. The `group` marker drives the per-cell `group-hover` / `group-data-[state=selected]` variants.
 export const historyBodyRowClassName =
-  'group border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5'
+  'group border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
 export const historyBodyCellClassName =
   'flex min-w-0 items-center px-3 py-1.5 transition-colors group-hover:bg-muted group-data-[state=selected]:bg-muted'
 // Opaque `bg-card` base keeps horizontally-scrolled cells from bleeding through the pinned column; the shared
@@ -199,7 +199,7 @@ export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) =
   <span
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -376,7 +376,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground-secondary hover:bg-accent hover:text-foreground"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground"
       data-testid="history-delete-button"
       disabled={disabled}
       size="icon-sm"
@@ -405,7 +405,7 @@ const PinActionButton = ({ isPinned, pinLabel, unpinLabel, onClick }: PinActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground-secondary hover:bg-accent hover:text-foreground"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground"
       data-testid="history-pin-button"
       size="icon-sm"
       title={label}
@@ -488,7 +488,7 @@ export const HistoryRecordRow = ({
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
-      <div className="text-foreground-secondary text-xs tabular-nums">{timeLabel}</div>
+      <div className="text-muted-foreground text-xs tabular-nums">{timeLabel}</div>
     </div>
     <div
       className={cn(

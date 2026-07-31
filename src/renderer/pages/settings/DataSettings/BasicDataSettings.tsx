@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import BackupV2Settings from './BackupV2Settings'
 
-const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -290,7 +290,7 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-tertiary text-xs leading-4', className)}
     {...props}
   />
 )
@@ -325,7 +325,7 @@ const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithout
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground text-sm',
       className
     )}
     {...props}

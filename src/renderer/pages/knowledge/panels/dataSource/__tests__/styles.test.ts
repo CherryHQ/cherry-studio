@@ -17,4 +17,11 @@ describe('knowledgeDataSourceCheckboxClassName', () => {
     expect(knowledgeDataSourceCheckboxClassName).toContain('items-center')
     expect(knowledgeDataSourceCheckboxClassName).toContain('justify-center')
   })
+
+  it('uses the selected border only for the checked state', () => {
+    const classes = knowledgeDataSourceCheckboxClassName.split(' ')
+
+    expect(classes).not.toContain('border-border-selected')
+    expect(classes).toContain('data-[state=checked]:border-border-selected')
+  })
 })

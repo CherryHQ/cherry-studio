@@ -44,8 +44,7 @@
   }
 
   .lucide:not(.lucide-custom) {
-    /* 90% foreground × 2/3 preserves the previous 60% secondary ink. */
-    color: color-mix(in srgb, var(--foreground) 66.6667%, transparent);
+    color: var(--muted-foreground);
   }
 }
 

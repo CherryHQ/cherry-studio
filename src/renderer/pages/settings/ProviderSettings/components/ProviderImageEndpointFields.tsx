@@ -34,7 +34,7 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
           aria-describedby={invalidField === 'imageGenerationBaseUrl' ? generationErrorId : generationHelpId}
           onChange={(event) => onChange({ ...value, imageGenerationBaseUrl: event.target.value })}
         />
-        <p id={generationHelpId} className="text-foreground-muted text-xs leading-tight">
+        <p id={generationHelpId} className="text-muted-foreground text-xs leading-tight">
           {t('settings.provider.image_endpoints.image_generation_base_url.help')}
         </p>
         <FieldError
@@ -60,7 +60,7 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
           aria-describedby={invalidField === 'imageEditBaseUrl' ? editErrorId : editHelpId}
           onChange={(event) => onChange({ ...value, imageEditBaseUrl: event.target.value })}
         />
-        <p id={editHelpId} className="text-foreground-muted text-xs leading-tight">
+        <p id={editHelpId} className="text-muted-foreground text-xs leading-tight">
           {t('settings.provider.image_endpoints.image_edit_base_url.help')}
         </p>
         <FieldError

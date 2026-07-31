@@ -46,7 +46,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).toHaveClass('right-1.5')
+    expect(container.querySelector('span[aria-hidden].bg-success')).toHaveClass('right-1.5')
   })
 
   it('reserves a trailing slot when enabled-state dot is shown', () => {
@@ -127,7 +127,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).not.toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-success')).not.toBeInTheDocument()
   })
 
   it('does not reserve a trailing slot when there is no dot or row action', () => {

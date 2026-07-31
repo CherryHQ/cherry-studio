@@ -4,12 +4,23 @@ import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
+
+beforeEach(() => {
+  window.api.file.getMetadata = vi.fn().mockResolvedValue({
+    kind: 'file',
+    type: 'image',
+    size: 128,
+    createdAt: 1,
+    modifiedAt: 1,
+    mime: 'image/png'
+  })
+})
 
 afterEach(() => {
   cleanup()
@@ -18,13 +29,21 @@ afterEach(() => {
 })
 
 describe('image file preview plugin', () => {
-  it('renders a local image through a safe file URL', async () => {
+  it('renders a local image through a file URL', async () => {
     render(<FilePreview filePath={'/tmp/photos/drafts/../summer holiday.png' as AbsoluteFilePath} />)
 
     const image = await screen.findByAltText('summer holiday.png')
 
     expect(image).toHaveAttribute('src', 'file:///tmp/photos/summer%20holiday.png')
     expect(screen.getByTestId('image-preview-viewport').parentElement).toHaveClass('p-4')
+  })
+
+  it('renders SVG through a direct file URL instead of the danger-ext directory wrap', async () => {
+    render(<FilePreview filePath={'/tmp/art/logo.svg' as AbsoluteFilePath} />)
+
+    const image = await screen.findByAltText('logo.svg')
+
+    expect(image).toHaveAttribute('src', 'file:///tmp/art/logo.svg')
   })
 
   it('shows loading feedback until the image loads', async () => {

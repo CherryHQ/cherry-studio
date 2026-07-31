@@ -578,7 +578,7 @@ describe('MessagePartsRenderer', () => {
 
       const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
 
-      expect(wrapper).toHaveClass('text-black', 'dark:text-foreground')
+      expect(wrapper).toHaveClass('text-foreground')
     })
 
     it('does not apply the ordinary text color to data-code blocks', () => {
@@ -588,7 +588,7 @@ describe('MessagePartsRenderer', () => {
 
       const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
 
-      expect(wrapper).not.toHaveClass('text-black', 'dark:text-foreground')
+      expect(wrapper).not.toHaveClass('text-foreground')
     })
 
     it('renders single and grouped images while skipping image parts without a URL', () => {
