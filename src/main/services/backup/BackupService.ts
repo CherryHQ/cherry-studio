@@ -473,7 +473,10 @@ export class BackupService extends BaseService {
               try {
                 application.relaunch()
               } catch (relaunchErr) {
-                logger.error('a1 unrecoverable relaunch failed', relaunchErr as Error)
+                // Windows are already partially destroyed (a1 failed mid-acquire)
+                // and relaunch failed — same stranded state as a post-seal double
+                // failure, so reuse the dialog + watchdog escape.
+                this.escapeStrandedProcess(relaunchErr)
               }
             }, 0)
             throw new IpcError(
@@ -672,43 +675,50 @@ export class BackupService extends BaseService {
           application.relaunch()
         } catch (relaunchErr) {
           // Both relaunch paths failed: the process is stranded (windows destroyed,
-          // writers held, staged journal blocking further restores). Escape via a
-          // native error dialog + bounded watchdog → forceExit, so the user is never
-          // left with no main window and no way forward except killing the process.
-          // Hold/journal/staging are deliberately untouched — forceExit drops process
-          // state and the staged journal is retried by the next preboot gate.
-          this.handlePostSealRelaunchFailure(relaunchErr)
+          // writers held, staged journal blocking further restores). Escape via
+          // native dialog + watchdog → forceExit. Hold/journal/staging are
+          // deliberately untouched (forceExit drops process state; the staged
+          // journal is retried by the next preboot gate).
+          this.escapeStrandedProcess(relaunchErr)
         }
       }
     })
   }
 
   /**
-   * Escape hatch when both the staged relaunch and the plain app relaunch fail at
-   * post-seal. Shows a native error dialog (best-effort) and force-exits via a
-   * bounded watchdog, so the process can never hang with no UI and held writers.
+   * Escape hatch when the process is stranded — both relaunch attempts failed,
+   * windows are destroyed (a1 mid-acquire or post-seal), and writers are held, so
+   * the user would otherwise have no main window and no way forward except
+   * killing the process. Shows a native error dialog (best-effort) and force-exits
+   * via a bounded watchdog. Shared by the post-seal relaunch path and the a1
+   * unrecoverable-hold path.
+   *
    * Does not release holds or clear the journal/staging — forceExit drops process
    * state and the staged journal is retried by the next preboot gate.
    */
-  private handlePostSealRelaunchFailure(error: unknown): void {
+  private escapeStrandedProcess(error: unknown): void {
     // Worst-case wait before force-exiting when the native dialog cannot complete
     // (e.g. the OS blocks it). Not unref'd so the timer keeps the event loop alive.
-    const POST_SEAL_RELAUNCH_WATCHDOG_MS = 15_000
+    const RESTART_ESCAPE_WATCHDOG_MS = 15_000
     let finished = false
 
     const escape = (reason: string): void => {
       if (finished) return
       finished = true
-      logger.error(`post-seal relaunch escape: ${reason}`, error as Error)
+      logger.error(`stranded relaunch escape: ${reason}`, error as Error)
+      // forceExit(1), not (0): relaunch itself failed, so a non-zero code keeps it
+      // distinguishable from a clean exit. The dialog copy directs a manual restart.
       application.forceExit(1)
     }
 
     // forceExit terminates the process on any escape path, so the watchdog needs no
     // explicit clear — a late fire is a no-op via the finished flag.
-    setTimeout(() => escape('watchdog timeout'), POST_SEAL_RELAUNCH_WATCHDOG_MS)
+    setTimeout(() => escape('watchdog timeout'), RESTART_ESCAPE_WATCHDOG_MS)
 
     // showMessageBox (not Sync) — Sync would block the event loop and prevent the
-    // watchdog from ever firing. Fire-and-exit on user acknowledge.
+    // watchdog from ever firing. Fire-and-exit on user acknowledge. No parent
+    // window is passed: after a1/post-seal there is no live BrowserWindow, and
+    // Electron still shows a foreground modal in that case (best-effort focus).
     void dialog
       .showMessageBox({
         type: 'error',
@@ -720,7 +730,7 @@ export class BackupService extends BaseService {
       })
       .then(() => escape('user acknowledged native dialog'))
       .catch((dialogErr: unknown) => {
-        logger.error('post-seal relaunch failure dialog failed', dialogErr as Error)
+        logger.error('stranded relaunch failure dialog failed', dialogErr as Error)
         escape('native dialog failure')
       })
   }

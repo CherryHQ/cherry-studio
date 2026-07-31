@@ -590,13 +590,18 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       try {
         await service.startRestore({ archivePath: '/x.cherrybackup' })
         await vi.advanceTimersByTimeAsync(3000)
-        // Two relaunch attempts, then handlePostSealRelaunchFailure fires.
+        // Two relaunch attempts, then escapeStrandedProcess fires.
         expect(relaunchMock).toHaveBeenCalledTimes(2)
         expect(dialogShowMessageBoxMock).toHaveBeenCalledTimes(1)
         // Dialog resolves (user acknowledges) → forceExit(1) exactly once.
         expect(forceExitMock).toHaveBeenCalledTimes(1)
         expect(forceExitMock).toHaveBeenCalledWith(1)
-        // The watchdog is cleared once the dialog escapes — no second forceExit.
+        // Escape must not release the quiesce hold or clear the staged journal —
+        // the preboot gate retries the staged journal on the next launch.
+        expect(isBackupInProgress()).toBe(true)
+        expect(clearRestoreJournalMock).not.toHaveBeenCalled()
+        // A late watchdog fire is a no-op via the finished flag — no second
+        // forceExit (the watchdog is not clearTimeout'd; it relies on finished).
         await vi.advanceTimersByTimeAsync(15_000)
         expect(forceExitMock).toHaveBeenCalledTimes(1)
       } finally {
@@ -647,6 +652,32 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       try {
         await service.startRestore({ archivePath: '/x.cherrybackup' })
         await vi.advanceTimersByTimeAsync(3000)
+        expect(forceExitMock).toHaveBeenCalledTimes(1)
+        expect(forceExitMock).toHaveBeenCalledWith(1)
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('escapes when the a1 unrecoverable-hold relaunch also fails (#10 a1 symmetry)', async () => {
+      const service = new BackupService()
+      // a1 hold acquisition throws mid-acquire (partial window destroy).
+      windowManagerAcquireHold.mockImplementation(() => {
+        throw new Error('renderer refused destroy')
+      })
+      relaunchMock.mockImplementation(() => {
+        throw new Error('relaunch unavailable')
+      })
+      vi.useFakeTimers()
+      try {
+        await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toSatisfy(
+          (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_HOLD_FAILED'
+        )
+        // a1 catch scheduled relaunch on setTimeout(0); firing it throws → escape.
+        await vi.advanceTimersByTimeAsync(0)
+        expect(relaunchMock).toHaveBeenCalledTimes(1)
+        expect(dialogShowMessageBoxMock).toHaveBeenCalledTimes(1)
         expect(forceExitMock).toHaveBeenCalledTimes(1)
         expect(forceExitMock).toHaveBeenCalledWith(1)
       } finally {
