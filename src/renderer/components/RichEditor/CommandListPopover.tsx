@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { Command } from './command'
 
-const COMMAND_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const COMMAND_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const COMMAND_EMPTY_COLOR = '#999'
 
 export interface CommandListPopoverProps extends SuggestionProps<Command> {
   ref?: React.RefObject<CommandListPopoverRef | null>
@@ -129,8 +130,8 @@ const CommandListPopover = ({
     const isDark = theme === 'dark'
     return {
       background: 'var(--popover)',
-      border: isDark ? 'var(--border, #ffffff19)' : '#e1e5e9',
-      selectedBackground: isDark ? 'var(--accent, rgba(40, 40, 40, 1))' : '#f0f0f0',
+      border: 'var(--border)',
+      selectedBackground: 'var(--accent)',
       boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)'
     }
   }, [theme])
@@ -211,7 +212,7 @@ const CommandListPopover = ({
   return (
     <div ref={listRef} style={style} className="command-list-popover">
       {items.length === 0 ? (
-        <div style={{ padding: '12px', color: '#999', textAlign: 'center', fontSize: '14px' }}>
+        <div style={{ padding: '12px', color: COMMAND_EMPTY_COLOR, textAlign: 'center', fontSize: '14px' }}>
           {t('richEditor.commands.noCommandsFound')}
         </div>
       ) : (

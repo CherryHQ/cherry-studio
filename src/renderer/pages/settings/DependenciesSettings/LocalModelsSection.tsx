@@ -127,7 +127,7 @@ const ModelCard: FC<ModelCardProps> = ({
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start gap-3">
         <div

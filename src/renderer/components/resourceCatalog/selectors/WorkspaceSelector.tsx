@@ -145,7 +145,7 @@ export function WorkspaceSelector({
         <ModelSelectorRow
           selected={selected}
           showSelectedIndicator={selected}
-          leading={<Folder className="size-4 text-muted-foreground/70" />}
+          leading={<Folder className="size-4 text-muted-foreground" />}
           onSelect={() => void handleSelectWorkspace(workspace.id)}
           rootProps={{ 'data-option-row': workspace.id }}
           optionProps={{

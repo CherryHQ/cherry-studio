@@ -305,7 +305,7 @@ describe('OpenClawService gateway status state machine', () => {
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           detached: false,
-          env: { Path: 'C:\\Windows\\System32' },
+          env: { Path: 'C:\\Windows\\System32', OPENCLAW_NO_AUTO_UPDATE: '1' },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true
         })
@@ -886,6 +886,22 @@ describe('OpenClawService gateway status state machine', () => {
       const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
       expect(written.models.providers['cherry-openai']).toMatchObject({ apiKey: 'sk-test' })
       expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
+    })
+
+    it('disables the OpenClaw update hint so its banner cannot swap the managed binary', async () => {
+      await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.update.checkOnStart).toBe(false)
+    })
+
+    it('keeps an explicit checkOnStart choice instead of forcing the update hint off', async () => {
+      fs.writeFileSync(path.join(configDir, 'openclaw.json'), JSON.stringify({ update: { checkOnStart: true } }))
+
+      await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.update.checkOnStart).toBe(true)
     })
 
     it('writes provider headers and model metadata while keeping hand-edited values authoritative', async () => {

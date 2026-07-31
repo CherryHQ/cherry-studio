@@ -1,11 +1,10 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { net } from 'electron'
 import PQueue from 'p-queue'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
 const logger = loggerService.withContext('KnowledgeWebSearch')
 const DEFAULT_FETCH_TIMEOUT_MS = 30000
-const JINA_READER_BASE_URL = 'https://r.jina.ai/'
 const KNOWLEDGE_WEB_FETCH_CONCURRENCY = 3
 const KNOWLEDGE_WEB_FETCH_INTERVAL_CAP = 10
 const KNOWLEDGE_WEB_FETCH_INTERVAL_MS = 60_000
@@ -15,6 +14,11 @@ const knowledgeWebFetchQueue = new PQueue({
   intervalCap: KNOWLEDGE_WEB_FETCH_INTERVAL_CAP,
   interval: KNOWLEDGE_WEB_FETCH_INTERVAL_MS
 })
+
+export interface KnowledgeWebPage {
+  title: string
+  markdown: string
+}
 
 export function sanitizeKnowledgeUrl(rawUrl: string): string {
   try {
@@ -31,7 +35,7 @@ export function sanitizeKnowledgeUrl(rawUrl: string): string {
   }
 }
 
-export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<KnowledgeWebPage> {
   try {
     const safeUrl = sanitizeKnowledgeUrl(url)
 
@@ -40,13 +44,9 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
         const timeoutSignal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS)
         const fetchSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
 
-        return await net.fetch(`${JINA_READER_BASE_URL}${safeUrl}`, {
-          signal: fetchSignal,
-          headers: {
-            'X-Retain-Images': 'none',
-            'X-Return-Format': 'markdown'
-          }
-        })
+        return await application
+          .get('WebSearchService')
+          .fetchUrlsUnprocessed({ providerId: 'jina', urls: [safeUrl] }, { signal: fetchSignal })
       },
       signal ? { signal } : undefined
     )
@@ -54,13 +54,15 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
       throw new Error(`Knowledge web fetch queue returned no response for ${safeUrl}`)
     }
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch knowledge web page ${safeUrl}: HTTP ${response.status}`)
+    const result = response.results[0]
+    if (!result) {
+      throw new Error(`Knowledge web fetch returned no result for ${safeUrl}`)
     }
 
-    const markdown = (await response.text()).trim()
-
-    return markdown
+    return {
+      title: result.title.trim(),
+      markdown: result.content.trim()
+    }
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     logger.error(`Failed to load knowledge web page: ${url}`, normalizedError)

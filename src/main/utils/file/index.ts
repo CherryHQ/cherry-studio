@@ -70,6 +70,7 @@ export {
   probeReadable,
   read,
   type ReadableFileSnapshot,
+  readChunk,
   realpath,
   remove,
   removeDir,

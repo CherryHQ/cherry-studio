@@ -486,7 +486,14 @@ vi.mock('@cherrystudio/ui', () => {
                       index: activeIndex,
                       items,
                       resetTransform: vi.fn(),
-                      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
+                      transform: {
+                        flipX: false,
+                        flipY: false,
+                        offsetX: 0,
+                        offsetY: 0,
+                        rotation: 0,
+                        zoom: 1
+                      }
                     }),
                   type: 'button'
                 },
@@ -503,25 +510,38 @@ vi.mock('@cherrystudio/ui', () => {
         : null,
     ImagePreviewImage: ({ item, ...props }) =>
       React.createElement('img', { ...props, alt: item?.alt, src: item?.src, 'data-testid': 'image-preview-image' }),
-    ImagePreviewToolbar: ({ actions = [], context, item, labels = {}, onClose }) =>
+    ImagePreviewToolbar: ({ labels = {}, transformControls }) =>
       React.createElement(
         'div',
         { 'data-testid': 'image-preview-toolbar' },
-        actions.map((action) =>
+        [
+          ['zoomOut', labels.zoomOut],
+          ['zoomIn', labels.zoomIn],
+          ['rotateLeft', labels.rotateLeft],
+          ['rotateRight', labels.rotateRight],
+          ['flipHorizontal', labels.flipHorizontal],
+          ['flipVertical', labels.flipVertical],
+          ['reset', labels.reset]
+        ].map(([control, label]) =>
           React.createElement(
             'button',
             {
-              disabled: action.disabled,
-              key: action.id,
-              onClick: () => action.onSelect?.(item, context),
+              key: control,
+              onClick: () => transformControls?.[control]?.(),
               type: 'button'
             },
-            action.icon,
-            action.label
+            label
           )
-        ),
-        React.createElement('button', { 'aria-label': labels.close, onClick: onClose, type: 'button' }, labels.close)
+        )
       ),
+    ImagePreviewViewport: ({ item, onError, onLoad }) =>
+      React.createElement('img', {
+        alt: item?.alt,
+        onError,
+        onLoad,
+        src: item?.src,
+        'data-testid': 'image-preview-viewport'
+      }),
     ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>

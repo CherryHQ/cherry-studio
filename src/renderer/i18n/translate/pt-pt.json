@@ -139,11 +139,16 @@
         "description": "Receba e responda a mensagens via WeChat usando a API iLink Bot.",
         "disconnected": "Desconectado",
         "loginHint": "O primeiro login exige a leitura de um código QR. Verifique os logs da aplicação para obter o URL de login.",
+        "qrExpired": "Código QR expirado. Por favor, tente novamente alternando o canal.",
         "qrHint": "Abra o WeChat no seu celular, escaneie o código QR para fazer login.",
         "qrTitle": "Login por QR Code do WeChat",
         "title": "WeChat",
         "whoamiTip": "Dica: Envie /whoami no WeChat para obter o ID de um usuário."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
@@ -320,16 +325,25 @@
         "more": "+{{count}} mais",
         "no_artifacts": "Nenhum entregável declarado",
         "no_subagents": "Sem subagentes",
-        "subagents": "Subagentes"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "Subagentes",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "Atividade",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Ferramenta selecionada",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "Ativo",
         "tools_done": "Feito",
         "tools_failed": "Falhou",
@@ -434,6 +448,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
+        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução.",
         "yesterday": "Ontem"
       },
       "label_one": "Sessão",
@@ -613,12 +628,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
-            "title": "Aceitar automaticamente edições de arquivos"
+            "description": "Edita ficheiros livremente. Pergunta antes dos comandos.",
+            "title": "Aceitar edições automaticamente"
+          },
+          "auto": {
+            "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "title": "Aprovar por mim",
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
           },
           "bypassPermissions": {
-            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
-            "title": "Ignorar verificações de permissão",
+            "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
+            "title": "Acesso total",
             "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
           },
           "confirmChange": {
@@ -626,14 +646,14 @@
             "title": "Alterar modo de permissão?"
           },
           "default": {
-            "description": "Verificações normais de permissão aplicam-se.",
-            "title": "Padrão (perguntar antes de continuar)"
+            "description": "Pergunta antes de editar ficheiros ou executar comandos.",
+            "title": "Perguntar antes de agir"
           },
           "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
           "placeholder": "Selecionar modo de permissões",
           "plan": {
-            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
-            "title": "Modo de planejamento (em breve)"
+            "description": "Planeia sem editar ficheiros. Só são executados comandos de leitura ou verificados.",
+            "title": "Apenas planear"
           },
           "title": "Modo de permissões"
         },
@@ -669,6 +689,14 @@
       }
     },
     "sidebar_title": "Agentes",
+    "speed": {
+      "effort": "Esforço",
+      "fast": "Rápido",
+      "faster": "Mais rápido",
+      "label": "Velocidade",
+      "smarter": "Mais inteligente",
+      "title": "Configurações de resposta"
+    },
     "tasks": {
       "add": "Adicionar tarefa",
       "cancel": "Cancelar",
@@ -1240,10 +1268,6 @@
           "tip": "O agente usará a capacidade de reconhecimento de intenção do grande modelo para decidir se deve chamar a base de conhecimento para responder. Esta função depende da capacidade do modelo"
         }
       },
-      "max_tool_calls": {
-        "label": "Máximo de Chamadas de Ferramentas",
-        "tip": "Número máximo de chamadas de ferramentas permitidas em uma única conversa. Valores mais altos permitem operações mais complexas de múltiplas etapas, mas podem aumentar o uso de tokens e o tempo de resposta."
-      },
       "mcp": {
         "description": "Servidor MCP ativado por padrão",
         "enableFirst": "Por favor, ative este servidor nas configurações do MCP primeiro",
@@ -1449,9 +1473,8 @@
       "image_preview_failed": "Falha na visualização da imagem",
       "knowledge_base": "Base de conhecimento",
       "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
-      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
+      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas",
       "locate_editing_message": "Localizar mensagem original",
-      "mcp_unavailable": "Selecione um modelo compatível com ferramentas ou ative o uso de ferramentas no prompt",
       "new": {
         "context": "Limpar contexto {{Command}}"
       },
@@ -1557,6 +1580,7 @@
         },
         "open_file": "Abrir Arquivo",
         "open_file_error": "Falha ao abrir o arquivo: {{path}}",
+        "open_with": "Abrir com",
         "reveal_in_finder": "Revelar no Finder"
       },
       "topics": "Tópicos",
@@ -1591,13 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
-        "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
-        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}",
         "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
       }
     },
@@ -1932,6 +1951,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
+        "unknown_assistant_tip": "Este é um grupo de conversa histórico sem um assistente, não um assistente real. Mova a conversa para um assistente existente para continuar.",
         "yesterday": "Ontem"
       },
       "list": "Lista de tópicos",
@@ -2299,6 +2319,12 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "group": {
+      "create": "Novo Grupo",
+      "create_failed": "Falha ao criar grupo",
+      "name_placeholder": "Digite o nome do grupo...",
+      "name_required": "O nome do grupo é obrigatório"
+    },
     "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
@@ -2885,6 +2911,10 @@
     "code": "Código",
     "empty_preview": "Sem conteúdo para exibir",
     "generating": "Gerando",
+    "interactive_preview": {
+      "action": "Ver página web",
+      "description": "Esta página web contém scripts ou recursos externos. Ao abri-la, poderá executar código e ligar-se à Internet."
+    },
     "preview": "Visualizar",
     "split": "Dividir",
     "view_mode": "Modo de visualização"
@@ -3428,6 +3458,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Máximo de chamadas de ferramentas",
+        "max_tool_calls_default": "Predefinição ({{count}} rondas)",
         "mcp_mode": "Modo MCP",
         "model": "Modelo padrão",
         "model_clear": "Claro",
@@ -3443,8 +3474,7 @@
         "tags": "Etiquetas",
         "temperature": "Temperatura",
         "title": "Configurações básicas",
-        "top_p": "Top-P",
-        "unlimited": "Ilimitado"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Biblioteca",
       "dialogs": {
@@ -3818,6 +3848,7 @@
     },
     "citation": "{{count}} conteúdo(s) citado(s)",
     "citations": "Citações",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiado",
     "copy": {
       "failed": "Cópia falhou",
@@ -4099,6 +4130,7 @@
         "write": "Salvar",
         "writing": "Salvando"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -4130,6 +4162,7 @@
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
         "webSearch": "Pesquisa na Web",
+        "workflow": "[to be translated]:Workflow",
         "write": "Escreva"
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
@@ -4187,6 +4220,15 @@
         "plan_other": "{{count}} planos",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -5799,6 +5841,7 @@
         "button": "Ver",
         "title": "Registro de alterações"
       },
+      "repository": "Repositório do GitHub",
       "social": {
         "title": "Contas sociais"
       },
@@ -6658,7 +6701,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "A desativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
+        "content_disable": "Desativar a aceleração de hardware requer reiniciar o aplicativo para entrar em vigor. Deseja reiniciar agora?",
+        "content_enable": "A ativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
         "title": "Reinicialização do Aplicativo Necessária"
       },
       "title": "Desativar aceleração de hardware"
@@ -6713,9 +6757,6 @@
           "dxtFile": "Arquivo do pacote DXT",
           "dxtHelp": "Selecione um arquivo .dxt que contenha o servidor MCP",
           "dxtProcessFailed": "Falha ao processar o arquivo DXT",
-          "error": {
-            "multipleServers": "Não é possível importar de vários servidores"
-          },
           "invalid": "Entrada inválida, verifique o formato JSON",
           "json": "Importar do JSON",
           "mcpb": "Importar Pacote MCPB",
@@ -6869,6 +6910,15 @@
       "providers": "Fornecedores",
       "registry": "Fonte de Gerenciamento de Pacotes",
       "registryDefault": "Padrão",
+      "registryOptions": {
+        "custom": "Personalizado",
+        "npmTaobao": "Espelho NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Selecione uma fonte alternativa para instalar pacotes, caso tenha problemas de rede com a fonte padrão.",
       "requiresConfig": "Requer configuração",
       "resources": {
@@ -7044,6 +7094,7 @@
         "display": "Gestão de exibição",
         "preferences": "Preferências"
       },
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "description": "Quando ativado, links que abrem uma nova janela dentro de um miniaplicativo abrem no seu navegador padrão",
         "title": "Abrir link em nova janela do navegador"
@@ -7056,6 +7107,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
+      "show_app": "Mostrar {{name}}",
       "title": "Configurações dos Mini Apps",
       "visible": "Mini Aplicativos Visíveis"
     },
@@ -7755,6 +7807,13 @@
           "toggle_client_email_visibility": "Alternar visibilidade do e-mail do cliente",
           "toggle_private_key_visibility": "Alternar visibilidade da chave privada",
           "toggle_project_id_visibility": "Alternar visibilidade do ID do projeto"
+        }
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Abrir o Token Factory",
+          "description": "Equivale a 10 USD diários em créditos de API: cerca de 10M–111M tokens de entrada/saída às tarifas atuais, consoante o modelo e o tipo de token. Os créditos são repostos diariamente; atualmente, os carregamentos não são suportados.",
+          "title": "10 USD diários em créditos de API gratuitos"
         }
       }
     },

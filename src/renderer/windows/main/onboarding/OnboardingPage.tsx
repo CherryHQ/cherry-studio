@@ -277,7 +277,7 @@ export default function OnboardingPage() {
               <SelectTrigger
                 aria-label={t('common.language')}
                 size="sm"
-                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-foreground-secondary text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <Languages className="size-3.5" />
                 <SelectValue>{displayLanguageLabel}</SelectValue>
               </SelectTrigger>
@@ -295,7 +295,7 @@ export default function OnboardingPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag text-foreground-secondary hover:text-foreground"
+            className="nodrag text-muted-foreground hover:text-foreground"
             onClick={() => void complete('skipped')}
             disabled={isCompleting || isUpdatingPrivacy}>
             {t('onboarding.skip')}
@@ -313,7 +313,7 @@ export default function OnboardingPage() {
                   <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
                   <div className="mt-5 flex flex-col gap-2 text-center">
                     <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
-                    <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
+                    <p className="m-0 text-muted-foreground text-sm">{t('onboarding.welcome.subtitle')}</p>
                   </div>
                   <div className="mt-8 flex w-full flex-col gap-3">
                     <Button
@@ -337,7 +337,7 @@ export default function OnboardingPage() {
                       {t('onboarding.welcome.other_provider')}
                     </Button>
                   </div>
-                  <p className="mt-4 mb-0 text-center text-foreground-muted text-xs">
+                  <p className="mt-4 mb-0 text-center text-muted-foreground text-xs">
                     {t('onboarding.welcome.setup_hint')}
                   </p>
                 </div>
@@ -409,7 +409,7 @@ export default function OnboardingPage() {
                           <Check size={16} />
                           {t('onboarding.select_model.start')}
                         </Button>
-                        <p className="m-0 text-center text-foreground-muted text-xs">
+                        <p className="m-0 text-center text-muted-foreground text-xs">
                           {t('onboarding.select_model.change_later')}
                         </p>
                       </div>
@@ -422,7 +422,7 @@ export default function OnboardingPage() {
 
           {step === 'welcome' && (
             <div className="nodrag flex shrink-0 justify-center px-6 py-3">
-              <div className="flex max-w-full items-center gap-2 text-center text-foreground-muted text-xs leading-relaxed">
+              <div className="flex max-w-full items-center gap-2 text-center text-muted-foreground text-xs leading-relaxed">
                 <Checkbox
                   id="onboarding-privacy-policy"
                   size="sm"
@@ -435,7 +435,7 @@ export default function OnboardingPage() {
                   <span>{t('onboarding.privacy.notice')}</span>
                   <button
                     type="button"
-                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-primary text-xs hover:underline"
+                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-link text-xs hover:underline"
                     onClick={() => setShowPrivacyPolicy(true)}>
                     {t('onboarding.privacy.policy')}
                   </button>

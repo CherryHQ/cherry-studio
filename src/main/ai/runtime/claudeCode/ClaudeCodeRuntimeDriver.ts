@@ -5,19 +5,13 @@ import {
   type Query,
   query as createClaudeQuery,
   type SDKAssistantMessage,
-  type SDKCompactBoundaryMessage,
-  type SDKMessage,
   type SDKPartialAssistantMessage,
   type SDKResultMessage,
-  type SDKStatusMessage,
-  type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 type BetaUsage = SDKResultMessage['usage']
-type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
-type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
@@ -31,7 +25,6 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -49,6 +42,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
+  AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
@@ -62,12 +56,52 @@ import {
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
-  prepareClaudeCodeWorkspaceDirectory
+  prepareClaudeCodeWorkspaceDirectory,
+  registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
+import { ClaudeCodeResultError, ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+
+function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
+  return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
+}
+
+function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
+  const text = (input.message.data.parts ?? [])
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+    .trimStart()
+
+  return /^\/fast(?:\s|$)/i.test(text)
+}
+
+/**
+ * The CLI reported that the resume target does not exist — deleted by its transcript cleanup, a
+ * different CLAUDE_CONFIG_DIR, or a copied database. The SDK carries no typed reason for this, so
+ * the discriminator is the CLI's error string, matched against the result's raw `errors` entries.
+ */
+function isConversationNotFoundFailure(error: unknown): boolean {
+  return (
+    error instanceof ClaudeCodeResultError &&
+    error.subtype === 'error_during_execution' &&
+    error.errors.some((entry) => /no conversation found with session id/i.test(entry))
+  )
+}
+
+function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
+  const baselineFacts = baseline.rebuildFactFingerprints
+  const freshFacts = fresh.rebuildFactFingerprints
+  if (!baselineFacts || !freshFacts) return ['unknown']
+
+  const changedFacts = [...new Set([...Object.keys(baselineFacts), ...Object.keys(freshFacts)])]
+    .filter((name) => baselineFacts[name] !== freshFacts[name])
+    .sort()
+  return changedFacts.length > 0 ? changedFacts : ['unknown']
+}
 
 type InvocationUsageBuckets = {
   outputTokens?: number
@@ -307,14 +341,18 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
 
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private readonly sdkInputQueue = new SdkInputQueue()
+  private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
+  private spawnOptions?: Options
+  private lastSdkUserMessage?: SDKUserMessage
+  private staleResumeRetried = false
+  /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
-  private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
@@ -348,6 +386,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.resumeToken,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
+      this.input.fastMode === true,
       this.input.knowledgeBaseIds
     )
     if (!request) {
@@ -368,33 +407,44 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         : {}),
       abortController: this.abortController
     }
-    const consumedWarmQuery = traceEnv
-      ? undefined
-      : await application.get('ClaudeCodeWarmQueryManager').consume({
-          key: request.key,
-          options,
-          initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint,
-          usageCapture: request.usageCapture,
-          knowledgeBaseIds: request.knowledgeBaseIds
-        })
+    // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
+    // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
+    // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
+    const consumedWarmQuery = await application.get('ClaudeCodeWarmQueryManager').consume({
+      key: request.key,
+      options,
+      initializeTimeoutMs: request.initializeTimeoutMs,
+      credentialsFingerprint: request.credentialsFingerprint,
+      usageCapture: request.usageCapture,
+      knowledgeBaseIds: request.knowledgeBaseIds
+    })
 
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
+    this.spawnOptions = options
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
+    this.mcpToolMetadata = request.settings.mcpToolMetadata
+    // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
+    // before any turn opens — is dispatched by the adapter rather than parked by the driver.
+    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
     this.approvalEmitter = request.settings.approvalEmitter
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
-    this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
+    registerMcpSessionCatalogSync(
+      this.input.sessionId,
+      this.input.agentId,
+      request.connectionConfig?.live.toolPolicy.mcps ?? [],
+      this.mcpToolMetadata
+    )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
@@ -415,19 +465,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
-    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+  refreshTraceContext(context: AgentRuntimeTraceContext): void {
+    application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
+  }
 
-    if (this.pendingInitMessage) {
-      this.adapter.handleMessage(this.pendingInitMessage)
-      this.pendingInitMessage = undefined
+  async send(input: AgentRuntimeUserInput): Promise<void> {
+    if (isFastSlashCommand(input)) {
+      throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    this.sdkInputQueue.push(
-      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-        supportsImages: resolveModelImageSupport(this.input.modelId)
-      })
-    )
+    this.adapter?.beginTurn()
+
+    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsImages: resolveModelImageSupport(this.input.modelId)
+    })
+    this.lastSdkUserMessage = sdkMessage
+    this.sdkInputQueue.push(sdkMessage)
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -440,7 +493,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const isInjectableSteerPart = (part: { type: string }) =>
       part.type === 'text' || part.type === 'data-knowledge-scope'
     const canInject = input.message.data?.parts?.every(isInjectableSteerPart) ?? true
-    if (!this.adapter || !this.steerHolder || !canInject) return false
+    // A steer is only injectable into a running turn. The adapter lives for the whole connection,
+    // so its turn flag — not its existence — reports whether one is open.
+    if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
@@ -451,6 +506,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -467,12 +523,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
+      input.fastMode === true,
       input.knowledgeBaseIds
     )
     if (!derived.ok) return 'invalid'
@@ -503,7 +561,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       patched = true
     }
 
-    if (baseline.rebuildSignature !== fresh.rebuildSignature) return 'rebuild'
+    if (baseline.rebuildSignature !== fresh.rebuildSignature) {
+      logger.info('Connection configuration requires rebuild', {
+        sessionId: this.input.sessionId,
+        changedFacts: getChangedRebuildFacts(baseline, fresh),
+        baselineSignature: baseline.rebuildSignature.slice(0, 12),
+        freshSignature: fresh.rebuildSignature.slice(0, 12)
+      })
+      return 'rebuild'
+    }
     return patched ? 'patched' : 'current'
   }
 
@@ -520,10 +586,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
-      return await this.query.supportedCommands()
+      return (await this.query.supportedCommands()).filter((command) => !isHostManagedSlashCommand(command))
     } catch (error) {
       logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
       return null
+    }
+  }
+
+  async stopTask(taskId: string): Promise<boolean> {
+    if (!this.query) return false
+    try {
+      await this.query.stopTask(taskId)
+      return true
+    } catch (error) {
+      logger.warn('stopTask failed', { sessionId: this.input.sessionId, taskId, error })
+      return false
     }
   }
 
@@ -540,80 +617,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
-        if (message.type === 'system' && message.subtype === 'init') {
-          this.updateResumeToken(message.session_id)
-          if (!this.adapter) {
-            this.pendingInitMessage = message
-            continue
-          }
-        }
-
-        if (
-          message.type === 'system' &&
-          isCompactionSystemMessage(message) &&
-          this.handleSystemControlMessage(message)
-        ) {
-          continue
-        }
-
-        // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
-        // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
-        if (message.type === 'system' && message.subtype === 'commands_changed') {
-          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
-          continue
-        }
-
-        if (!this.adapter) {
-          if (message.type === 'stream_event') {
-            this.captureStreamInvocation(message, 'stateless')
-          } else if (message.type === 'assistant') {
-            this.captureAssistantInvocation(message, 'stateless')
-          } else if (message.type === 'result') {
-            this.updateResumeToken(message.session_id)
-            if (message.subtype === 'success') {
-              this.commitPendingInvocations()
-            } else {
-              this.settlePendingInvocations()
-            }
-            logger.warn('Received a result message with no active turn; dropping turn-complete', {
-              sessionId: this.input.sessionId
-            })
-          } else {
-            // Background agents and tasks can keep emitting after their turn's result (e.g.
-            // `task_notification`). No turn stream is open to carry their content/control events, so
-            // those are dropped. Assistant usage is captured above as a stateless invocation.
-            logger.debug('Dropping message received with no active turn', {
-              sessionId: this.input.sessionId,
-              type: message.type,
-              subtype: 'subtype' in message ? message.subtype : undefined
-            })
-          }
-          continue
-        }
-
-        // A failed API request is backing off before a retry. Surface it as ephemeral session status
-        // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
-        // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
-        //
-        // Deliberately gated on an active turn (below the no-adapter drop): retry status is turn-scoped
-        // (it renders in the active turn's message stream), and only a turn guarantees a clear boundary —
-        // the turn ends with a chunk / turn-complete / error, all of which clear it. A prewarm/turn-less
-        // connection's retry would have no message to attach to and no such boundary (init recovery only
-        // emits a resume-token), so it must not enter the retry state at all.
-        if (message.type === 'system' && message.subtype === 'api_retry') {
-          this.eventQueue.push({
-            type: 'api-retry',
-            retry: {
-              attempt: message.attempt,
-              maxRetries: message.max_retries,
-              retryDelayMs: message.retry_delay_ms,
-              errorStatus: message.error_status,
-              errorCategory: message.error
-            }
-          })
-          continue
-        }
-
         // A steer was injected this turn → the first TOP-LEVEL assistant message after it (the model's
         // post-steer response; subagent/nested messages carry a parent_tool_use_id and are skipped) is
         // where the host rolls A1a + A2. Emit the boundary BEFORE the adapter handles this message so it
@@ -629,12 +632,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.steerBoundaryPending = undefined
         }
 
-        if (message.type === 'stream_event') this.captureStreamInvocation(message, 'current-turn')
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, 'current-turn')
+        const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
+        if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
+        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
-          result = this.adapter.handleMessage(message)
+          // `start()` builds the session-scoped adapter before the loop, so it is always present here.
+          result = this.adapter!.handleMessage(message)
         } catch (error) {
           this.settlePendingInvocations()
           throw error
@@ -650,8 +655,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // we project the SDK BetaUsage onto a UIMessageChunk here — keeping
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
-          void this.emitContextUsage()
-          this.adapter = undefined
           // NOTE: do NOT dispose the approval emitter here. It is session-scoped — it lives across
           // turns on the warm connection and is torn down only on close/error (below). Disposing it
           // per turn evicted the session emitter, so the next turn's `canUseTool` resolved no emitter
@@ -664,6 +667,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     } catch (error) {
       this.settlePendingInvocations()
+      if (this.tryRecoverFromStaleResume(error)) {
+        // `await` is load-bearing: without it the finally below closes the event queue while the
+        // recovered loop is still streaming.
+        return await this.runQueryLoop()
+      }
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -676,7 +684,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           error
         })
       }
-      this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
@@ -689,12 +696,63 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /**
+   * A stale persisted resume token kills the CLI before it does any work ("No conversation found").
+   * Degrade instead of failing the turn: re-spawn once WITHOUT the resume token on a fresh input
+   * queue (the dead query's iterator still holds the old one), and replay the pending user message
+   * so the turn continues on a new conversation. The recovered init reports a new session id, which
+   * the host persists on the next assistant row — the stale token heals itself after one good turn.
+   * Context from the lost conversation is gone; that is the accepted cost of the degradation.
+   */
+  private tryRecoverFromStaleResume(error: unknown): boolean {
+    if (this.staleResumeRetried || !this.resumeToken || !this.spawnOptions) return false
+    if (!isConversationNotFoundFailure(error) || this.abortController.signal.aborted) return false
+    this.staleResumeRetried = true
+
+    logger.warn('Persisted resume token no longer resolves to a CLI conversation; retrying without it', {
+      sessionId: this.input.sessionId,
+      staleResumeToken: this.resumeToken
+    })
+    this.resumeToken = undefined
+    // Tell the user, in the transcript itself, that the prior conversation could not be found and
+    // the reply below starts fresh. Persisted with the recovered turn like any other data part.
+    this.eventQueue.push({
+      type: 'chunk',
+      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
+    })
+    this.sdkInputQueue.close()
+    this.sdkInputQueue = new SdkInputQueue()
+    if (this.lastSdkUserMessage) {
+      this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: '' })
+    }
+    this.query = createClaudeQuery({
+      prompt: this.sdkInputQueue,
+      options: { ...this.spawnOptions, resume: undefined }
+    })
+    return true
+  }
+
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
     return new ClaudeCodeStreamAdapter({
       modelId,
+      sessionId: this.input.sessionId,
       streamOptions: {} as never,
       sink: {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+      },
+      statusSink: {
+        emit: (event) => {
+          // Mirror `getSupportedCommands`: host-managed commands never reach the catalog, whether it
+          // arrives at init or as a mid-session `commands_changed` push.
+          if (event.type === 'supported-commands') {
+            this.eventQueue.push({
+              ...event,
+              commands: event.commands.filter((command) => !isHostManagedSlashCommand(command))
+            })
+            return
+          }
+          this.eventQueue.push(event)
+        }
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata
@@ -708,7 +766,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
-    this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+    this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
   }
 
   /**
@@ -950,58 +1008,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private invocationLane(parentToolUseId: string | null | undefined): string {
     return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
   }
-
-  private async emitContextUsage(): Promise<void> {
-    if (!this.query) return
-    try {
-      const usage = await this.query.getContextUsage()
-      this.eventQueue.push({ type: 'context-usage', usage })
-    } catch (error) {
-      logger.warn('getContextUsage failed after result', { sessionId: this.input.sessionId, error })
-    }
-  }
-
-  private handleSystemControlMessage(message: SDKCompactionSystemMessage): boolean {
-    if (message.subtype === 'status') {
-      if (message.status === 'compacting') {
-        this.eventQueue.push({ type: 'compaction-start' })
-        return true
-      }
-      if (message.compact_result === 'failed' || message.compact_error) {
-        this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
-        return true
-      }
-      if (message.compact_result === 'success') {
-        // A successful compaction may report `success` here WITHOUT a following `compact_boundary`
-        // (the SDK does not guarantee a boundary). Settle the compacting state idempotently with a
-        // no-anchor `compaction-complete` so the session doesn't stay stuck `compacting` until the
-        // idle TTL. A real `compact_boundary` (below) still wins by delivering the anchor.
-        this.eventQueue.push({ type: 'compaction-complete' })
-        return true
-      }
-      return true
-    }
-
-    if (message.subtype === 'compact_boundary') {
-      const metadata = message.compact_metadata
-      const anchor: AgentSessionCompactionAnchorData = {
-        trigger: metadata.trigger,
-        completedAt: new Date().toISOString()
-      }
-      anchor.preTokens = metadata.pre_tokens
-      if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
-      if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
-
-      this.eventQueue.push({ type: 'compaction-complete', anchor })
-      return true
-    }
-
-    return false
-  }
-}
-
-function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is SDKCompactionSystemMessage {
-  return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
 /**
@@ -1228,8 +1234,8 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
-    // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
-    // queries and returns), so no driver-side trace guard is needed here.
+    // `prewarmAgentSession` bakes the session's trace env when trace mode is on, so the park it
+    // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
   }
 }
