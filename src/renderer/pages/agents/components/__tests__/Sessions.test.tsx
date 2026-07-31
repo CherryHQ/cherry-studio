@@ -1225,6 +1225,114 @@ describe('Sessions', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
+  it('collapses a newly added agent group when every existing agent group is collapsed', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: ['session:agent:agent-a']
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    const view = render(<SessionsForTest />)
+    // The first fully loaded snapshot only seeds the observed history — nothing is collapsed yet.
+    expect(getSessionGroupExpansionCache().agent).toEqual(['session:agent:agent-a'])
+
+    // A new agent group appears while the only pre-existing group stays collapsed.
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+    view.rerender(<SessionsForTest />)
+
+    expect(getSessionGroupExpansionCache().agent).toEqual(['session:agent:agent-a', 'session:agent:agent-b'])
+  })
+
+  it('does not collapse an existing agent group surfaced by a later cold-start page', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    // agent-a is collapsed; agent-b is expanded (absent from the collapsed set).
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: ['session:agent:agent-a']
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    // First page is still loading and only carries agent-a.
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })],
+      isFullyLoaded: false,
+      isLoadingAll: true
+    })
+
+    const view = render(<SessionsForTest />)
+
+    // A later page surfaces the pre-existing (expanded) agent-b once the load completes.
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ],
+      isFullyLoaded: true,
+      isLoadingAll: false
+    })
+    view.rerender(<SessionsForTest />)
+
+    // agent-b was expanded before; a paging artefact must not persist it as collapsed.
+    expect(getSessionGroupExpansionCache().agent).toEqual(['session:agent:agent-a'])
+  })
+
+  it('does not re-collapse an agent group that reappears after its last session is pinned then unpinned', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    // agent-a is collapsed; agent-b is expanded.
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: ['session:agent:agent-a']
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    const sessions = [
+      createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+      createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+    ]
+    setupSessions({ sessions })
+
+    const view = render(<SessionsForTest />)
+    expect(getSessionGroupExpansionCache().agent).toEqual(['session:agent:agent-a'])
+
+    // Pin agent-b's only session — its agent group leaves the unpinned snapshot.
+    setupSessions({ sessions, pinIdBySessionId: new Map([['session-b', 'pin-b']]) })
+    view.rerender(<SessionsForTest />)
+
+    // Unpin it again — the group reappears but was only temporarily absent, not newly created.
+    setupSessions({ sessions, pinIdBySessionId: new Map() })
+    view.rerender(<SessionsForTest />)
+
+    expect(getSessionGroupExpansionCache().agent).toEqual(['session:agent:agent-a'])
+  })
+
   it('uses the configured model icon for agent session groups', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     preferenceMocks.values.set('agent.icon_type', 'model')

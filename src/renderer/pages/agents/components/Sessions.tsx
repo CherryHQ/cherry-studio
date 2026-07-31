@@ -5,6 +5,7 @@ import {
   type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
+  resolveCollapsedIdsForNewGroups,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
@@ -703,6 +704,58 @@ const Sessions = ({
     },
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
+  // When a new agent group appears while every existing agent group is collapsed ("collapse all"
+  // state), collapse the new group too instead of letting it pop open. Scoped to agent mode: its
+  // collapsed-set ids match `sessionGroupBy` output directly (workdir mode remaps ids, so it is left
+  // to the default behaviour). null = user has never interacted → default-all-collapsed logic covers it.
+  // The ref accumulates every observed group id (never forgetting one that is temporarily absent, e.g.
+  // its last session pinned away) and is seeded only from a fully loaded snapshot so progressive
+  // cold-start pages are not mistaken for new groups.
+  const observedAgentGroupIdsRef = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (isRightPanel || displayMode !== 'agent' || sessionExpansionAgent === null) {
+      observedAgentGroupIdsRef.current = null
+      return
+    }
+    // Only reason about "new" groups once the list is fully loaded; while the load-all source is
+    // still paging, a later page can surface a pre-existing group that must not be treated as new.
+    if (isLoadingAll || !isFullyLoaded) return
+
+    const currentGroupIds = Array.from(
+      new Set(
+        filteredGroupedSessions
+          .filter((session) => !session.pinned)
+          .map((session) => sessionGroupBy(session)?.id)
+          .filter((id): id is string => typeof id === 'string')
+      )
+    )
+
+    const observed = observedAgentGroupIdsRef.current
+    if (observed === null) {
+      // Seed the observed history from the first fully loaded snapshot; never collapse on it.
+      observedAgentGroupIdsRef.current = new Set(currentGroupIds)
+      return
+    }
+
+    const previousGroupIds = Array.from(observed)
+    for (const id of currentGroupIds) observed.add(id)
+
+    const nextCollapsedIds = resolveCollapsedIdsForNewGroups({
+      collapsedIds: sessionExpansionAgent,
+      currentGroupIds,
+      previousGroupIds
+    })
+    if (nextCollapsedIds) setSessionExpansionAgent([...nextCollapsedIds])
+  }, [
+    displayMode,
+    filteredGroupedSessions,
+    isFullyLoaded,
+    isLoadingAll,
+    isRightPanel,
+    sessionExpansionAgent,
+    sessionGroupBy,
+    setSessionExpansionAgent
+  ])
   const handleDeleteSession = useCallback(
     async (id: string) => {
       // Capture the deleted session before removal so selection can be scoped to its agent even

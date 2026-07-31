@@ -13,6 +13,7 @@ import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@rende
 import {
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
+  resolveCollapsedIdsForNewGroups,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
@@ -1103,6 +1104,60 @@ export function Topics({
     },
     [isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, setTopicExpansionTime]
   )
+  // When a new assistant group appears while every existing assistant group is collapsed
+  // ("collapse all" state), collapse the new group too instead of letting it pop open. Only acts on
+  // the explicit collapsed-set (null = user has never interacted, the default-all-collapsed logic in
+  // `resolveDefaultCollapsedGroupIds` already covers that case). The ref accumulates every observed
+  // group id (never forgetting one that is temporarily absent, e.g. pinned away) and is seeded only
+  // from a fully loaded snapshot so progressive cold-start pages are not mistaken for new groups.
+  const observedAssistantGroupIdsRef = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (!isAssistantDisplayMode || isRightPanel || topicExpansionAssistant === null) {
+      observedAssistantGroupIdsRef.current = null
+      return
+    }
+    // Only reason about "new" groups once the list is fully loaded; while the load-all source is
+    // still paging, a later page can surface a pre-existing group that must not be treated as new.
+    if (isLoadingAll || !isFullyLoaded) return
+
+    // Track the ids actually rendered by `topicGroupBy` — an orphan topic (assistant deleted) renders
+    // under `topic:assistant:unknown`, which differs from the per-assistant id, so derive from the
+    // resolver rather than reconstructing it.
+    const currentGroupIds = Array.from(
+      new Set(
+        filteredTopics
+          .filter((topic) => !topic.pinned)
+          .map((topic) => topicGroupBy(topic)?.id)
+          .filter((id): id is string => typeof id === 'string')
+      )
+    )
+
+    const observed = observedAssistantGroupIdsRef.current
+    if (observed === null) {
+      // Seed the observed history from the first fully loaded snapshot; never collapse on it.
+      observedAssistantGroupIdsRef.current = new Set(currentGroupIds)
+      return
+    }
+
+    const previousGroupIds = Array.from(observed)
+    for (const id of currentGroupIds) observed.add(id)
+
+    const nextCollapsedIds = resolveCollapsedIdsForNewGroups({
+      collapsedIds: topicExpansionAssistant,
+      currentGroupIds,
+      previousGroupIds
+    })
+    if (nextCollapsedIds) setTopicExpansionAssistant([...nextCollapsedIds])
+  }, [
+    filteredTopics,
+    isAssistantDisplayMode,
+    isFullyLoaded,
+    isLoadingAll,
+    isRightPanel,
+    setTopicExpansionAssistant,
+    topicExpansionAssistant,
+    topicGroupBy
+  ])
   const handleTopicDisplayModeChange = useCallback(
     (nextMode: TopicDisplayMode) => {
       if (nextMode === 'assistant') {
