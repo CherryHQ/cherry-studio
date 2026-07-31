@@ -452,6 +452,10 @@ describe('runRestorePromotion', () => {
     ['mid traversal', 'foo/../../out']
   ] as Array<[string, string]>)('refuses terminal cleanup for traversal restoreId (%s)', async (_label, restoreId) => {
     makeDb(livePath(), 'old')
+    const stagingRoot = join(userData, 'restore-staging')
+    mkdirSync(stagingRoot, { recursive: true })
+    const stagingMarker = join(stagingRoot, 'sentinel-inside.txt')
+    writeFileSync(stagingMarker, 'keep')
     const sentinel = join(userData, 'outside-sentinel.txt')
     writeFileSync(sentinel, 'keep')
     const journal = await buildJournal({
@@ -463,11 +467,12 @@ describe('runRestorePromotion', () => {
 
     cleanupTerminalRestoreArtifacts()
 
-    // Sentinel outside the staging root survives every traversal shape;
-    // the terminal journal is retained for retry on the next launch.
+    // Both the outside sentinel AND the staging root's marker must survive —
+    // '.' resolves to the staging root, so a missing guard would wipe it all.
     // (Empty-string id is rejected earlier by the z.string().min(1) schema,
     // so it never reaches this FS guard.)
     expect(existsSync(sentinel)).toBe(true)
+    expect(existsSync(stagingMarker)).toBe(true)
     expect(journalState()).toBe('completed')
   })
 

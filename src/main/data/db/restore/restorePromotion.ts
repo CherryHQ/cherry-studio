@@ -642,8 +642,10 @@ function revertPostCommit(ctx: PromotionContext, reason?: string): void {
     // Sanitize restoreId before splicing into a filename — a traversal id could
     // otherwise park the forensic DB outside userData. (restoreId is normally
     // rst-<uuid>; this is belt-and-suspenders with the loose journal schema.)
+    // Append a timestamp so two distinct ids that sanitize to the same value
+    // (e.g. two non-basename ids → "unknown") don't clobber each other's park.
     const safeRestoreId = ctx.journal.restoreId.replace(/[^a-zA-Z0-9_-]/g, '') || 'unknown'
-    const parked = path.join(ctx.userData, `work-failed-${safeRestoreId}.sqlite`)
+    const parked = path.join(ctx.userData, `work-failed-${safeRestoreId}-${Date.now()}.sqlite`)
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
     logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })

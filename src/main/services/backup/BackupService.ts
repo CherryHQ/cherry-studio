@@ -686,15 +686,16 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Escape hatch when the process is stranded — both relaunch attempts failed,
-   * windows are destroyed (a1 mid-acquire or post-seal), and writers are held, so
-   * the user would otherwise have no main window and no way forward except
-   * killing the process. Shows a native error dialog (best-effort) and force-exits
-   * via a bounded watchdog. Shared by the post-seal relaunch path and the a1
-   * unrecoverable-hold path.
-   *
-   * Does not release holds or clear the journal/staging — forceExit drops process
-   * state and the staged journal is retried by the next preboot gate.
+   * Escape hatch when the process is stranded — relaunch failed after windows
+   * were destroyed, so the user would otherwise have no main window and no way
+   * forward except killing the process. Shows a native error dialog (best-effort)
+   * and force-exits via a bounded watchdog. Shared by two paths:
+   *  - post-seal: both the staged relaunch and the fallback app relaunch failed;
+   *    writers are held and a staged journal blocks further restores, so forceExit
+   *    drops process state and the preboot gate retries the staged journal.
+   *  - a1 unrecoverable hold: the WindowManager hold failed mid-acquire, before
+   *    writers paused or any journal exists; escape only avoids a window-less
+   *    hang — there is no journal to retry.
    */
   private escapeStrandedProcess(error: unknown): void {
     // Worst-case wait before force-exiting when the native dialog cannot complete
