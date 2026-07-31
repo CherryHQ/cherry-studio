@@ -8083,7 +8083,7 @@
           "save_failed": "Speichern fehlgeschlagen",
           "zhipu_sync_failed": "Synchronisierung des Zhipu-API-Schlüssels mit der Websuche fehlgeschlagen. Bitte speichern Sie den Schlüssel erneut oder überprüfen Sie die Einstellungen der Websuche."
         },
-        "fetch_urls_provider": "Standard-URL-Abrufanbieter",
+        "fetch_urls_provider": "URL-Abrufanbieter",
         "free": "Kostenlos",
         "is_default": "Standard",
         "local_provider": {

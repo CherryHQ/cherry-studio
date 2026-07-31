@@ -8083,7 +8083,7 @@
           "save_failed": "Falha ao salvar",
           "zhipu_sync_failed": "Falha ao sincronizar a chave de API Zhipu com a Pesquisa na Web. Por favor, salve novamente a chave ou verifique as configurações da Pesquisa na Web."
         },
-        "fetch_urls_provider": "Provedor padrão de busca de URL",
+        "fetch_urls_provider": "Provedor de busca de URL",
         "free": "Grátis",
         "is_default": "Padrão",
         "local_provider": {

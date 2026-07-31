@@ -8083,7 +8083,7 @@
           "save_failed": "Salvarea a eșuat",
           "zhipu_sync_failed": "Nu s-a reușit sincronizarea cheii API Zhipu cu Căutarea Web. Te rugăm să salvezi din nou cheia sau să verifici setările Căutării Web."
         },
-        "fetch_urls_provider": "Furnizor implicit de preluare URL",
+        "fetch_urls_provider": "Furnizor de preluare URL",
         "free": "Gratuit",
         "is_default": "Implicit",
         "local_provider": {

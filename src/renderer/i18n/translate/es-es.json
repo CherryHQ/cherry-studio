@@ -8083,7 +8083,7 @@
           "save_failed": "Error al guardar",
           "zhipu_sync_failed": "Error al sincronizar la clave API de Zhipu con Web Search. Vuelve a guardar la clave o verifica la configuración de Web Search."
         },
-        "fetch_urls_provider": "Proveedor predeterminado de obtención de URL",
+        "fetch_urls_provider": "Proveedor de obtención de URL",
         "free": "Gratis",
         "is_default": "Por defecto",
         "local_provider": {

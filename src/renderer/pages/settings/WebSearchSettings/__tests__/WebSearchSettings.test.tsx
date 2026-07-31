@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,75 +38,90 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  ...(await importOriginal<typeof CherryStudioUi>()),
-  Alert: ({ children, message, ...props }: React.HTMLAttributes<HTMLDivElement> & { message?: React.ReactNode }) => (
-    <div role="alert" {...props}>
-      {message}
-      {children}
-    </div>
-  ),
-  Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
-  ButtonGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div role="group" {...props}>
-      {children}
-    </div>
-  ),
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Flex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  InfoTooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
-  MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div role="separator" {...props} />,
-  MenuItem: ({
-    label,
-    icon,
-    suffix,
-    active,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    label: string
-    icon?: React.ReactNode
-    suffix?: React.ReactNode
-    active?: boolean
-  }) => (
-    <button type="button" data-active={active || undefined} {...props}>
-      {icon}
-      {label}
-      {suffix}
-    </button>
-  ),
-  MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  Select: ({
-    children,
-    onValueChange
-  }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => (
-    <div data-testid="select" data-on-value-change={Boolean(onValueChange)}>
-      {children}
-    </div>
-  ),
-  SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  SelectItem: ({ children, value, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) => (
-    <button type="button" value={value} {...props}>
-      {children}
-    </button>
-  ),
-  SelectTrigger: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  Textarea: {
-    Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
-  },
-  Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  const React = await import('react')
+  const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
+
+  return {
+    ...actual,
+    Alert: ({ children, message, ...props }: React.HTMLAttributes<HTMLDivElement> & { message?: React.ReactNode }) => (
+      <div role="alert" {...props}>
+        {message}
+        {children}
+      </div>
+    ),
+    Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
+    ButtonGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div role="group" {...props}>
+        {children}
+      </div>
+    ),
+    Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Flex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    InfoTooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+      <label {...props}>{children}</label>
+    ),
+    MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div role="separator" {...props} />,
+    MenuItem: ({
+      label,
+      icon,
+      suffix,
+      active,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      label: string
+      icon?: React.ReactNode
+      suffix?: React.ReactNode
+      active?: boolean
+    }) => (
+      <button type="button" data-active={active || undefined} {...props}>
+        {icon}
+        {label}
+        {suffix}
+      </button>
+    ),
+    MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    Select: ({
+      children,
+      onValueChange,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => (
+      <SelectContext value={{ onValueChange }}>
+        <div data-testid="select" data-value={value}>
+          {children}
+        </div>
+      </SelectContext>
+    ),
+    SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    SelectItem: ({ children, value, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) => {
+      const { onValueChange } = React.use(SelectContext)
+
+      return (
+        <button type="button" value={value} onClick={() => onValueChange?.(value)} {...props}>
+          {children}
+        </button>
+      )
+    },
+    SelectTrigger: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+    Textarea: {
+      Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
+    },
+    Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
+  }
+})
 
 vi.mock('../components/WebSearchProviderLogo', () => ({
   default: ({ providerName }: { providerName: string }) => <span aria-label={`${providerName} logo`} />
@@ -140,16 +155,35 @@ describe('WebSearchSettings', () => {
     })
   })
 
-  it('renders general settings by default', () => {
+  const getKeywordProviderSection = () =>
+    screen.getByRole('region', { name: 'settings.tool.websearch.search_provider' })
+  const getFetchProviderSection = () =>
+    screen.getByRole('region', { name: 'settings.tool.websearch.fetch_urls_provider' })
+
+  it('renders both provider sections before general settings', () => {
     render(<WebSearchSettings />)
 
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.search_provider' })).toHaveAttribute(
-      'data-active',
-      'true'
-    )
-    expect(screen.getAllByText('settings.tool.websearch.default_provider').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('settings.tool.websearch.fetch_urls_provider').length).toBeGreaterThan(0)
+    const generalSettings = screen.getByText('settings.general.label')
+    const keywordProviderSection = getKeywordProviderSection()
+    const fetchProviderSection = getFetchProviderSection()
+
+    expect(generalSettings).toBeInTheDocument()
     expect(screen.getByText('settings.tool.websearch.search_max_result.label')).toBeInTheDocument()
+    expect(keywordProviderSection).toBeInTheDocument()
+    expect(fetchProviderSection).toBeInTheDocument()
+    expect(
+      fetchProviderSection.compareDocumentPosition(generalSettings) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      within(keywordProviderSection).getByRole('button', {
+        name: 'settings.tool.websearch.search_provider'
+      })
+    ).toBeInTheDocument()
+    expect(
+      within(fetchProviderSection).getByRole('button', {
+        name: 'settings.tool.websearch.fetch_urls_provider'
+      })
+    ).toBeInTheDocument()
   })
 
   it('syncs clean max-result drafts from external preference changes', () => {
@@ -335,36 +369,45 @@ describe('WebSearchSettings', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(5000)
   })
 
-  it('switches provider panels using local page state', () => {
-    render(<WebSearchSettings />)
+  it('uses the selected keyword provider as the default', async () => {
+    const { rerender } = render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
+    const section = getKeywordProviderSection()
+    fireEvent.click(within(section).getByRole('button', { name: /^Exa logo Exa$/ }))
 
-    expect(screen.getByText('settings.tool.websearch.provider_description.tavily')).toBeInTheDocument()
-    expect(screen.getAllByText('Tavily').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('settings.provider.api_key.label').length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeDisabled()
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.default_search_keywords_provider')).toBe('exa')
+    })
+    rerender(<WebSearchSettings />)
+
+    const updatedSection = getKeywordProviderSection()
+    expect(within(updatedSection).getByText('settings.tool.websearch.provider_description.exa')).toBeInTheDocument()
+    expect(within(updatedSection).getAllByText('Exa').length).toBeGreaterThan(0)
+    expect(within(updatedSection).getByText('settings.provider.api_key.label')).toBeInTheDocument()
+    expect(within(updatedSection).getByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeDisabled()
+    expect(within(updatedSection).queryByText('common.default')).not.toBeInTheDocument()
+    expect(within(updatedSection).queryByText('settings.tool.websearch.set_as_default')).not.toBeInTheDocument()
   })
 
   it('does not show API host settings for the built-in URL fetch provider', () => {
     render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /fetch/ })[0])
+    const section = getFetchProviderSection()
 
-    expect(screen.getAllByText('fetch').length).toBeGreaterThan(0)
-    expect(screen.getByText('settings.tool.websearch.provider_description.fetch')).toBeInTheDocument()
-    expect(screen.queryByText('settings.provider.api_host')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
+    expect(within(section).getAllByText('fetch').length).toBeGreaterThan(0)
+    expect(within(section).getByText('settings.tool.websearch.provider_description.fetch')).toBeInTheDocument()
+    expect(within(section).queryByText('settings.provider.api_host')).not.toBeInTheDocument()
+    expect(within(section).queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
   })
 
   it('saves API key drafts before checking keyword providers', async () => {
     render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+    const section = getKeywordProviderSection()
+    fireEvent.change(within(section).getByPlaceholderText('settings.provider.api_key.label'), {
       target: { value: 'tavily-key' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+    fireEvent.click(within(section).getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
       expect(ipcRequestMock).toHaveBeenCalledWith('web_search.search_keywords', {
@@ -381,8 +424,8 @@ describe('WebSearchSettings', () => {
   it('keeps local API key drafts when provider overrides change externally', () => {
     const { rerender } = render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+    const section = getKeywordProviderSection()
+    fireEvent.change(within(section).getByPlaceholderText('settings.provider.api_key.label'), {
       target: { value: 'draft-tavily-key' }
     })
 
@@ -391,14 +434,22 @@ describe('WebSearchSettings', () => {
     })
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByPlaceholderText('settings.provider.api_key.label')).toHaveValue('draft-tavily-key')
+    expect(within(getKeywordProviderSection()).getByPlaceholderText('settings.provider.api_key.label')).toHaveValue(
+      'draft-tavily-key'
+    )
   })
 
   it('checks the active fetchUrls capability with the fixed URL probe', async () => {
-    render(<WebSearchSettings />)
+    const { rerender } = render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Jina/ })[1])
-    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+    const section = getFetchProviderSection()
+    fireEvent.click(within(section).getByRole('button', { name: /Jina/ }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.default_fetch_urls_provider')).toBe('jina')
+    })
+    rerender(<WebSearchSettings />)
+    fireEvent.click(within(getFetchProviderSection()).getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
       expect(ipcRequestMock).toHaveBeenCalledWith('web_search.fetch_urls', {
@@ -414,8 +465,7 @@ describe('WebSearchSettings', () => {
 
     render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+    fireEvent.click(within(getKeywordProviderSection()).getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.check_failed: check failed')
@@ -427,11 +477,11 @@ describe('WebSearchSettings', () => {
 
     render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+    const section = getKeywordProviderSection()
+    fireEvent.change(within(section).getByPlaceholderText('settings.provider.api_key.label'), {
       target: { value: 'tavily-key' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+    fireEvent.click(within(section).getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')

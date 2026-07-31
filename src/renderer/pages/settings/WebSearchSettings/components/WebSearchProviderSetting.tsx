@@ -1,11 +1,21 @@
-import { Badge, Button, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  InfoTooltip,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import {
   SettingDivider,
   SettingGroup,
   SettingHelpLink,
   SettingHelpText,
   SettingRowTitle,
-  SettingsContentColumn,
   SettingSubtitle,
   SettingTitle,
   SettingTitleExternalLink
@@ -36,8 +46,10 @@ import { useTranslation } from 'react-i18next'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
+import { WebSearchProviderOption } from './WebSearchProviderOption'
 
 const providerFormClassName = 'flex w-full flex-col gap-3 border-border-subtle border-t pt-4'
+const providerSelectClassName = 'h-8 w-56 text-sm'
 
 type SetCapabilityApiHost = (
   providerId: WebSearchProviderId,
@@ -47,8 +59,10 @@ type SetCapabilityApiHost = (
 
 interface Props {
   entry: WebSearchProviderMenuEntry
-  defaultProvider?: WebSearchProvider
+  entries: WebSearchProviderMenuEntry[]
   providerOverrides: WebSearchProviderOverrides
+  sectionTitle: string
+  sectionTitleId: string
   onSetApiKeys: (providerId: WebSearchProviderId, apiKeys: string[]) => Promise<void>
   onSetBasicAuth: (providerId: WebSearchProviderId, patch: WebSearchBasicAuthPatch) => Promise<void>
   onSetCapabilityApiHost: SetCapabilityApiHost
@@ -73,14 +87,16 @@ function normalizeApiHostInput(value: string): string {
 }
 
 export const WebSearchProviderSetting: FC<Props> = ({
-  defaultProvider,
   entry,
+  entries,
   onSetApiKeys,
   onSetBasicAuth,
   onSetCapabilityApiHost,
   onSetDefaultProvider,
   onUpdateProvider,
-  providerOverrides
+  providerOverrides,
+  sectionTitle,
+  sectionTitleId
 }) => {
   const { capability, provider } = entry
   const { theme } = useTheme()
@@ -154,7 +170,6 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const showApiKeyCheckButton = showInlineApiKeySettings && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
   const showApiHostSetting = entry.providerCapability.apiHost !== undefined
-  const isDefault = defaultProvider?.id === provider.id
 
   const commitApiKeysDraft = useCallback(async () => {
     if (!apiKeysDirty) {
@@ -287,190 +302,192 @@ export const WebSearchProviderSetting: FC<Props> = ({
     }
   }
 
+  const selectProvider = (providerId: string) => {
+    const selectedProvider = entries.find((item) => item.provider.id === providerId)?.provider
+
+    if (!selectedProvider || selectedProvider.id === provider.id) {
+      return
+    }
+
+    void persist(() => onSetDefaultProvider(selectedProvider), 'Failed to set default web search provider')
+  }
+
   return (
-    <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme} className="flex w-full flex-col gap-2">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <SettingTitle className="justify-start">
-              <Flex className="min-w-0 items-center gap-1.5">
-                <span className="truncate">{provider.name}</span>
-                {officialWebsite && (
-                  <SettingTitleExternalLink href={officialWebsite}>
-                    <ExternalLink size={13} />
-                  </SettingTitleExternalLink>
-                )}
-              </Flex>
-            </SettingTitle>
-            <SettingHelpText className="mt-1">{t(descriptionKey)}</SettingHelpText>
+    <SettingGroup theme={theme} className="flex w-full flex-col gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <SettingTitle id={sectionTitleId} className="justify-start">
+            {sectionTitle}
+          </SettingTitle>
+          <div className="mt-1 flex min-w-0 items-center gap-1.5">
+            <SettingHelpText className="min-w-0">{t(descriptionKey)}</SettingHelpText>
+            {officialWebsite && (
+              <SettingTitleExternalLink href={officialWebsite}>
+                <ExternalLink size={13} />
+              </SettingTitleExternalLink>
+            )}
           </div>
-          {isDefault ? (
-            <Badge className="shrink-0 rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
-              {t('common.default')}
-            </Badge>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() =>
-                void persist(async () => {
-                  await onSetDefaultProvider(provider)
-                }, 'Failed to set default web search provider')
-              }>
-              {t('settings.tool.websearch.set_as_default')}
-            </Button>
-          )}
         </div>
+        <Select value={provider.id} onValueChange={selectProvider}>
+          <SelectTrigger size="sm" className={providerSelectClassName} aria-label={sectionTitle}>
+            <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
+          </SelectTrigger>
+          <SelectContent>
+            {entries.map((item) => (
+              <SelectItem key={item.key} value={item.provider.id}>
+                <WebSearchProviderOption provider={item.provider} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        <div className={providerFormClassName}>
-          {usesLlmProviderApiKey && (
-            <div className="flex flex-col gap-2">
+      <div className={providerFormClassName}>
+        {usesLlmProviderApiKey && (
+          <div className="flex flex-col gap-2">
+            <SettingRowTitle className="font-medium">{t('settings.provider.api_key.label')}</SettingRowTitle>
+            <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
+              <ArrowRight size={13} />
+              {t('navigate.provider_settings')}
+            </Button>
+          </div>
+        )}
+
+        {showInlineApiKeySettings && (
+          <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 items-baseline gap-2">
               <SettingRowTitle className="font-medium">{t('settings.provider.api_key.label')}</SettingRowTitle>
-              <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
-                <ArrowRight size={13} />
-                {t('navigate.provider_settings')}
-              </Button>
+              {apiKeyWebsite && (
+                <SettingHelpLink className="text-xs leading-5" target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
+              )}
             </div>
-          )}
-
-          {showInlineApiKeySettings && (
-            <div className="flex flex-col gap-2">
-              <div className="flex min-w-0 items-baseline gap-2">
-                <SettingRowTitle className="font-medium">{t('settings.provider.api_key.label')}</SettingRowTitle>
-                {apiKeyWebsite && (
-                  <SettingHelpLink className="text-xs leading-5" target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                )}
-              </div>
-              <div className="flex min-w-0 items-center gap-2">
-                <Input
-                  type="password"
-                  value={apiKeysInput}
-                  placeholder={t('settings.provider.api_key.label')}
-                  onChange={(e) => setApiKeysInput(e.target.value)}
-                  onBlur={() => void persist(commitApiKeysDraft, 'Failed to save web search API keys')}
-                  spellCheck={false}
-                  autoFocus={provider.apiKeys.length === 0}
-                  className="min-w-0 flex-1"
-                />
-                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                type="password"
+                value={apiKeysInput}
+                placeholder={t('settings.provider.api_key.label')}
+                onChange={(e) => setApiKeysInput(e.target.value)}
+                onBlur={() => void persist(commitApiKeysDraft, 'Failed to save web search API keys')}
+                spellCheck={false}
+                className="min-w-0 flex-1"
+              />
+              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                  aria-label={t('settings.provider.api.key.list.open')}
+                  onClick={openApiKeyList}>
+                  <List size={14} />
+                </Button>
+              </Tooltip>
+              {showApiKeyCheckButton && (
+                <Tooltip content={t('settings.tool.websearch.check')} delay={500}>
                   <Button
                     type="button"
                     variant="outline"
                     size="icon-sm"
                     className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
-                    aria-label={t('settings.provider.api.key.list.open')}
-                    onClick={openApiKeyList}>
-                    <List size={14} />
+                    disabled={providerCheck.checking}
+                    aria-label={t('settings.tool.websearch.check')}
+                    onClick={() => void checkProvider()}>
+                    {providerCheck.checking ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
                   </Button>
                 </Tooltip>
-                {showApiKeyCheckButton && (
-                  <Tooltip content={t('settings.tool.websearch.check')} delay={500}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
-                      disabled={providerCheck.checking}
-                      aria-label={t('settings.tool.websearch.check')}
-                      onClick={() => void checkProvider()}>
-                      {providerCheck.checking ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
-                    </Button>
-                  </Tooltip>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          {showApiHostSetting && (
-            <div
-              className={`flex flex-col gap-2 ${
-                usesLlmProviderApiKey || showInlineApiKeySettings ? 'border-border-subtle border-t pt-3' : ''
-              }`}>
-              <SettingRowTitle className="font-medium">{t('settings.provider.api_host')}</SettingRowTitle>
-              <div className="flex min-w-0 items-center gap-2">
+        {showApiHostSetting && (
+          <div
+            className={`flex flex-col gap-2 ${
+              usesLlmProviderApiKey || showInlineApiKeySettings ? 'border-border-subtle border-t pt-3' : ''
+            }`}>
+            <SettingRowTitle className="font-medium">{t('settings.provider.api_host')}</SettingRowTitle>
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                value={apiHostInput}
+                placeholder={t('settings.provider.api_host')}
+                onChange={(e) => setApiHostInput(e.target.value)}
+                onBlur={() => void persist(commitApiHostDraft, 'Failed to save web search API host')}
+                className="min-w-0 flex-1"
+              />
+              {showApiHostCheckButton && (
+                <Tooltip content={t('settings.tool.websearch.check')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                    disabled={providerCheck.checking}
+                    aria-label={t('settings.tool.websearch.check')}
+                    onClick={() => void checkProvider()}>
+                    {providerCheck.checking ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+        )}
+
+        {supportsBasicAuth && (
+          <>
+            <SettingDivider style={{ marginTop: 0, marginBottom: 0 }} />
+            <SettingSubtitle
+              style={{
+                marginTop: 5,
+                marginBottom: 10,
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center'
+              }}>
+              {t('settings.provider.basic_auth.label')}
+              <InfoTooltip
+                placement="right"
+                content={t('settings.provider.basic_auth.tip')}
+                iconProps={{
+                  size: 16,
+                  color: 'var(--muted-foreground)',
+                  className: 'ml-1 cursor-pointer'
+                }}
+              />
+            </SettingSubtitle>
+            <div className="flex w-full flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="websearch-basic-auth-username">
+                  {t('settings.provider.basic_auth.user_name.label')}
+                </Label>
                 <Input
-                  value={apiHostInput}
-                  placeholder={t('settings.provider.api_host')}
-                  onChange={(e) => setApiHostInput(e.target.value)}
-                  onBlur={() => void persist(commitApiHostDraft, 'Failed to save web search API host')}
-                  className="min-w-0 flex-1"
+                  id="websearch-basic-auth-username"
+                  value={basicAuthUsernameInput}
+                  placeholder={t('settings.provider.basic_auth.user_name.tip')}
+                  onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
+                  onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')}
                 />
-                {showApiHostCheckButton && (
-                  <Tooltip content={t('settings.tool.websearch.check')} delay={500}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
-                      disabled={providerCheck.checking}
-                      aria-label={t('settings.tool.websearch.check')}
-                      onClick={() => void checkProvider()}>
-                      {providerCheck.checking ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
-                    </Button>
-                  </Tooltip>
-                )}
               </div>
-            </div>
-          )}
-
-          {supportsBasicAuth && (
-            <>
-              <SettingDivider style={{ marginTop: 0, marginBottom: 0 }} />
-              <SettingSubtitle
-                style={{
-                  marginTop: 5,
-                  marginBottom: 10,
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center'
-                }}>
-                {t('settings.provider.basic_auth.label')}
-                <InfoTooltip
-                  placement="right"
-                  content={t('settings.provider.basic_auth.tip')}
-                  iconProps={{
-                    size: 16,
-                    color: 'var(--muted-foreground)',
-                    className: 'ml-1 cursor-pointer'
-                  }}
-                />
-              </SettingSubtitle>
-              <div className="flex w-full flex-col gap-4">
+              {basicAuthUsernameInput && (
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="websearch-basic-auth-username">
-                    {t('settings.provider.basic_auth.user_name.label')}
+                  <Label htmlFor="websearch-basic-auth-password">
+                    {t('settings.provider.basic_auth.password.label')}
                   </Label>
                   <Input
-                    id="websearch-basic-auth-username"
-                    value={basicAuthUsernameInput}
-                    placeholder={t('settings.provider.basic_auth.user_name.tip')}
-                    onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
-                    onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')}
+                    id="websearch-basic-auth-password"
+                    type="password"
+                    value={basicAuthPasswordInput}
+                    placeholder={t('settings.provider.basic_auth.password.tip')}
+                    onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
+                    onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')}
                   />
                 </div>
-                {basicAuthUsernameInput && (
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="websearch-basic-auth-password">
-                      {t('settings.provider.basic_auth.password.label')}
-                    </Label>
-                    <Input
-                      id="websearch-basic-auth-password"
-                      type="password"
-                      value={basicAuthPasswordInput}
-                      placeholder={t('settings.provider.basic_auth.password.tip')}
-                      onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
-                      onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')}
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </SettingGroup>
-    </SettingsContentColumn>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </SettingGroup>
   )
 }

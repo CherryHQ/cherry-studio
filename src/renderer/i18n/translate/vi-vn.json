@@ -8083,7 +8083,7 @@
           "save_failed": "Lưu thất bại",
           "zhipu_sync_failed": "Không thể đồng bộ khóa API Zhipu với Tìm kiếm Web. Vui lòng lưu lại khóa hoặc kiểm tra cài đặt Tìm kiếm Web."
         },
-        "fetch_urls_provider": "Nhà cung cấp tìm nạp URL mặc định",
+        "fetch_urls_provider": "Nhà cung cấp tìm nạp URL",
         "free": "Miễn phí",
         "is_default": "Mặc định",
         "local_provider": {

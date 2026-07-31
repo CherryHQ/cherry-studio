@@ -8083,7 +8083,7 @@
           "save_failed": "Échec de l'enregistrement",
           "zhipu_sync_failed": "Échec de la synchronisation de la clé API Zhipu avec la Recherche Web. Veuillez ré-enregistrer la clé ou vérifier les paramètres de la Recherche Web."
         },
-        "fetch_urls_provider": "Fournisseur de récupération d'URL par défaut",
+        "fetch_urls_provider": "Fournisseur de récupération d'URL",
         "free": "Gratuit",
         "is_default": "Défaut",
         "local_provider": {

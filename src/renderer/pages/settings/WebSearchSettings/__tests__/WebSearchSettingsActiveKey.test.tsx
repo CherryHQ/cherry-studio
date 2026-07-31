@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,35 +17,8 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
-vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  ...(await importOriginal<typeof CherryStudioUi>()),
-  Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
-  MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div role="separator" {...props} />,
-  MenuItem: ({
-    label,
-    active,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    label: string
-    active?: boolean
-  }) => (
-    <button type="button" data-active={active || undefined} {...props}>
-      {label}
-    </button>
-  ),
-  MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('../components/WebSearchGeneralSettings', () => ({
   WebSearchGeneralSettings: () => <div>general-settings</div>
-}))
-
-vi.mock('../components/WebSearchProviderLogo', () => ({
-  default: ({ providerName }: { providerName: string }) => <span aria-label={`${providerName} logo`} />
 }))
 
 vi.mock('../components/WebSearchProviderSetting', () => ({
@@ -75,10 +47,24 @@ const tavilyEntry = {
   providerCapability: { feature: 'searchKeywords' as const, apiHost: 'https://api.tavily.com' }
 }
 
-function mockProviderLists(featureSections = [{ capability: 'searchKeywords' as const, entries: [tavilyEntry] }]) {
+const exaEntry = {
+  key: 'searchKeywords:exa',
+  capability: 'searchKeywords' as const,
+  provider: {
+    ...tavilyEntry.provider,
+    id: 'exa',
+    name: 'Exa'
+  },
+  providerCapability: { feature: 'searchKeywords' as const, apiHost: 'https://api.exa.ai' }
+}
+
+function mockProviderLists(
+  featureSections = [{ capability: 'searchKeywords' as const, entries: [tavilyEntry, exaEntry] }],
+  defaultSearchKeywordsProvider = tavilyEntry.provider
+) {
   useWebSearchProviderListsMock.mockReturnValue({
     defaultFetchUrlsProvider: undefined,
-    defaultSearchKeywordsProvider: undefined,
+    defaultSearchKeywordsProvider,
     featureSections,
     providerOverrides: {},
     setApiKeys: vi.fn(),
@@ -90,27 +76,22 @@ function mockProviderLists(featureSections = [{ capability: 'searchKeywords' as 
   })
 }
 
-describe('WebSearchSettings active provider state', () => {
+describe('WebSearchSettings default provider selection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockProviderLists()
   })
 
-  it('resets to general settings when the active provider entry disappears', async () => {
+  it('falls back to the first provider when the default entry disappears', () => {
+    mockProviderLists(undefined, exaEntry.provider)
     const { rerender } = render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tavily' }))
-    expect(screen.getByText('Tavily provider-settings')).toBeInTheDocument()
+    expect(screen.getByText('Exa provider-settings')).toBeInTheDocument()
 
-    mockProviderLists([])
+    mockProviderLists([{ capability: 'searchKeywords', entries: [tavilyEntry] }], exaEntry.provider)
     rerender(<WebSearchSettings />)
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'settings.tool.websearch.search_provider' })).toHaveAttribute(
-        'data-active',
-        'true'
-      )
-    })
+    expect(screen.getByText('Tavily provider-settings')).toBeInTheDocument()
     expect(screen.getByText('general-settings')).toBeInTheDocument()
   })
 })
