@@ -1,4 +1,5 @@
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +17,7 @@ describe('useConversationGreeting', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'app.language': 'zh-cn',
+      'app.privacy.policy_version': LATEST_PRIVACY_POLICY_VERSION,
       'app.user.name': 'Siin',
       'feature.conversation_greeting.enabled': true
     })
@@ -55,6 +57,17 @@ describe('useConversationGreeting', () => {
       expect(agentRender.result.current).not.toBe('今天想做点什么？')
     })
     expect(agentRender.result.current).not.toBe(chatRender.result.current)
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('keeps the greeting local until the current privacy policy is acknowledged', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '20260531')
+
+    const { result } = renderHook(() =>
+      useConversationGreeting('chat', '今天想聊点什么？', 'unacknowledged-policy-conversation')
+    )
+
+    await waitFor(() => expect(result.current).not.toBe('今天想聊点什么？'))
     expect(mocks.request).not.toHaveBeenCalled()
   })
 

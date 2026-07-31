@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -145,10 +146,12 @@ export function useConversationGreeting(
   conversationId: string
 ): string {
   const [language] = usePreference('app.language')
+  const [policyVersion] = usePreference('app.privacy.policy_version')
   const [userName] = usePreference('app.user.name')
   const [contextualGreetingsEnabled] = usePreference('feature.conversation_greeting.enabled')
   const { t } = useTranslation()
   const resolvedLanguage = language || navigator.language
+  const remoteGreetingEnabled = contextualGreetingsEnabled && policyVersion === LATEST_PRIVACY_POLICY_VERSION
   const localGreetingCandidates = useMemo(
     () =>
       mode === 'chat'
@@ -165,7 +168,7 @@ export function useConversationGreeting(
     [mode, t]
   )
   const requestKey = JSON.stringify([
-    contextualGreetingsEnabled,
+    remoteGreetingEnabled,
     mode,
     conversationId,
     fallbackGreeting,
@@ -187,7 +190,7 @@ export function useConversationGreeting(
     }
     setGeneratedGreeting({ requestKey, text: localGreeting })
 
-    if (!contextualGreetingsEnabled) return
+    if (!remoteGreetingEnabled) return
 
     let cancelled = false
     let activeRequestId: string | null = null
@@ -265,10 +268,10 @@ export function useConversationGreeting(
       abortActiveRequest()
     }
   }, [
-    contextualGreetingsEnabled,
     fallbackGreeting,
     localGreetingCandidates,
     mode,
+    remoteGreetingEnabled,
     requestKey,
     resolvedLanguage,
     storageKey,
