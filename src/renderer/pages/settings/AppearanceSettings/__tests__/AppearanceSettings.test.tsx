@@ -330,7 +330,13 @@ describe('AppearanceSettings selectors', () => {
     const lightThemeLabel = lightThemePreview?.nextElementSibling
 
     expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
-    expect(lightThemePreview).toHaveClass('border-primary', 'ring-2')
+    expect(lightThemePreview).toHaveClass(
+      'border-primary',
+      'ring-2',
+      'group-focus-visible:border-ring',
+      'group-focus-visible:bg-accent'
+    )
+    expect(lightThemePreview).not.toHaveClass('group-focus-visible:ring-3', 'group-focus-visible:ring-ring/50')
     expect(lightThemeLabel).toHaveTextContent('settings.theme.light')
     expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')

@@ -642,7 +642,7 @@ const ThemePreviewSelector = ({
           <div
             className={cn(
               'rounded-lg border bg-background-subtle p-1.5 transition-colors',
-              'group-focus-visible:border-ring group-focus-visible:ring-3 group-focus-visible:ring-ring/50',
+              'group-focus-visible:border-ring group-focus-visible:bg-accent',
               value === option.value
                 ? 'border-primary ring-2 ring-primary/20'
                 : 'border-border group-hover:border-border-strong group-hover:bg-accent'

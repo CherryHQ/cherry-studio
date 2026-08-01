@@ -72,10 +72,8 @@ export const KnowledgeModelSelect = ({
               // allow shrinking at all, `min-w-0` to shrink past the label — otherwise
               // a long model name pushes the clear button outside the container.
               'h-8 w-full min-w-0 shrink justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
-              'aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
               hasValue ? 'text-foreground' : 'text-muted-foreground',
-              invalid &&
-                'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
+              invalid && 'border-destructive'
             )}>
             <span className="min-w-0 truncate text-left">{triggerLabel}</span>
             <ChevronDown className="size-4 shrink-0 opacity-50" />
