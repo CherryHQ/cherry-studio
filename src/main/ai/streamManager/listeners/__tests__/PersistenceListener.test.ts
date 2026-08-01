@@ -167,40 +167,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendAssistantMessageMock.mock.calls[0][2]).toEqual({ runtimeTiming })
   })
 
-  it('normalizes markdown citations before persisting successful assistant messages', async () => {
-    const listener = makeListener()
-    const finalMessage = {
-      id: 'msg-citations',
-      role: 'assistant',
-      parts: [
-        {
-          type: 'text',
-          text: [
-            '推荐选择：pandas + openpyxl [1][2]，EPPlus [9]。',
-            '',
-            '## 参考文献',
-            '',
-            '[1] Gazoni, E., & Clark, C. (2010). *openpyxl: A Python library*. https://openpyxl.readthedocs.io/',
-            '',
-            '[2] McKinney, W. (2010). *Data Structures for Statistical Computing in Python*.',
-            '',
-            '[9] EPPlus Software. (2009). *EPPlus: Create advanced Excel spreadsheets using .NET*. https://github.com/EPPlusSoftware/EPPlus'
-          ].join('\n')
-        }
-      ]
-    } as unknown as CherryUIMessage
-
-    await listener.onDone({ finalMessage, status: 'success' })
-
-    const payload = appendAssistantMessageMock.mock.calls[0][1]
-    const textPart = payload.data.parts[0]
-    expect(textPart.providerMetadata.cherry.references[0].content.results).toMatchObject([
-      { number: 1, url: 'https://openpyxl.readthedocs.io/' },
-      { number: 2, url: '' },
-      { number: 9, url: 'https://github.com/EPPlusSoftware/EPPlus' }
-    ])
-  })
-
   it('multi-model filter: skips events from a different execution', async () => {
     const listener = makeListener('openai::gpt-4o')
 
@@ -367,6 +333,28 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
     // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
     expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
+  })
+
+  it('retains frozen turn options when finalizing the assistant placeholder', async () => {
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({
+        assistantMessageId: 'assistant-1',
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
+      })
+    })
+
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
+      data: {
+        parts: makeFinalMessage().parts,
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
+      },
+      status: 'success',
+      runtimeStats: undefined
+    })
+    expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
   it('swallows a failure of the terminal-error recovery write itself', async () => {

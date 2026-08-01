@@ -10,6 +10,7 @@ import type { ToolSet } from 'ai'
 
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
+import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
 import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
 import { PERSISTED_OUTPUT_SYSTEM_PROMPT } from '../prompts/persistedOutput'
 
@@ -20,10 +21,12 @@ export interface AssembleSystemPromptInput {
   tools?: ToolSet
   /** Entries hidden behind `tool_search`. Used to build the namespace inventory. */
   deferredEntries?: readonly ToolEntry[]
+  /** True only when a selected first-party lookup tool with the citation-id contract remains available. */
+  hasCitableTools?: boolean
 }
 
 export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Promise<string | undefined> {
-  const { assistant, model, tools, deferredEntries } = input
+  const { assistant, model, tools, deferredEntries, hasCitableTools = false } = input
 
   const sections: string[] = []
 
@@ -39,6 +42,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   if (tools && FS_READ_TOOL_NAME in tools) {
     sections.push(PERSISTED_OUTPUT_SYSTEM_PROMPT)
+  }
+
+  if (hasCitableTools) {
+    sections.push(CITATIONS_SYSTEM_PROMPT)
   }
 
   if (sections.length === 0) return undefined

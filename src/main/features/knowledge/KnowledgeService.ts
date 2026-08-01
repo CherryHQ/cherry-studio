@@ -268,7 +268,7 @@ function scanConceptMatches(
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService'])
+@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
   private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)

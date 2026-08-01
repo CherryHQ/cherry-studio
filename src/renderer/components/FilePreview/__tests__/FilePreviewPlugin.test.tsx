@@ -10,7 +10,12 @@ import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 import { FilePreviewToolbar } from '../FilePreviewToolbar'
 
 const mocks = vi.hoisted(() => ({
+  ipcApiRequest: vi.fn(),
   load: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcApiRequest }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -45,16 +50,28 @@ import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  mocks.ipcApiRequest.mockResolvedValue({
+    kind: 'file',
+    type: 'text',
+    size: 128,
+    createdAt: 1,
+    modifiedAt: 1,
+    mime: 'text/markdown'
+  })
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
     default: ({
       filePath,
       fileName,
-      refreshKey
+      metadata,
+      refreshKey,
+      type
     }: {
       filePath: AbsoluteFilePath
       fileName: string
+      metadata: { size: number }
       refreshKey: number
+      type?: string
     }) => (
       <FilePreviewLayout.Frame>
         <FilePreviewToolbar aria-label="Preview tools">
@@ -65,7 +82,9 @@ beforeEach(() => {
             data-testid="plugin-preview"
             data-file-path={filePath}
             data-file-name={fileName}
+            data-file-size={metadata.size}
             data-refresh-key={refreshKey}
+            data-preview-type={type}
           />
         </FilePreviewLayout.Content>
       </FilePreviewLayout.Frame>
@@ -89,11 +108,15 @@ describe('FilePreview plugin loading', () => {
   })
 
   it('lazy loads a matching plugin with the canonical file descriptor', async () => {
-    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as AbsoluteFilePath} refreshKey={4} />)
+    render(
+      <FilePreview filePath={'/tmp/workspace/notes/../README.md' as AbsoluteFilePath} refreshKey={4} type="artifact" />
+    )
 
     expect(await screen.findByTestId('plugin-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-name', 'README.md')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-size', '128')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-refresh-key', '4')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-preview-type', 'artifact')
     expect(mocks.load).toHaveBeenCalledTimes(1)
   })
 

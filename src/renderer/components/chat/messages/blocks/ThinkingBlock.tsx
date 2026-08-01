@@ -7,8 +7,9 @@ import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
 
+// This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
 const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-const THINKING_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
 
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */
@@ -94,7 +95,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         tabIndex={0}
         aria-expanded={isExpanded}
         aria-controls={contentId}
-        className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:bg-accent/50 focus-visible:outline-none"
         onClick={() => withScrollAnchor(() => setIsExpanded((expanded) => !expanded))}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return

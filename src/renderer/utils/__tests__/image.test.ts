@@ -206,6 +206,23 @@ describe('utils/image', () => {
       expect(result).toBe(finalCanvas)
     })
 
+    it('should exclude HTML artifacts from image capture', async () => {
+      const div = document.createElement('div')
+      const content = document.createElement('div')
+      const htmlArtifact = document.createElement('div')
+      htmlArtifact.setAttribute('data-html-artifact', '')
+      div.append(content, htmlArtifact)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions?.filter?.(htmlArtifact)).toBe(false)
+      expect(captureOptions?.filter?.(content)).toBe(true)
+    })
+
     it('inlines file image sources while capturing and restores them afterward', async () => {
       ipcMocks.request.mockResolvedValue({
         content: new Uint8Array([1, 2, 3]),
@@ -234,7 +251,7 @@ describe('utils/image', () => {
       expect(ipcMocks.request).toHaveBeenCalledTimes(1)
       expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
         handle: { kind: 'path', path: '/tmp/avatar.webp' },
-        options: { encoding: 'binary' }
+        options: { mode: 'full', encoding: 'binary' }
       })
       expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
       expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
@@ -521,7 +538,7 @@ describe('utils/image', () => {
 
       expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
         handle: { kind: 'path', path: '/tmp/example.png' },
-        options: { encoding: 'binary' }
+        options: { mode: 'full', encoding: 'binary' }
       })
       expect(blob.type).toBe('image/png')
     })

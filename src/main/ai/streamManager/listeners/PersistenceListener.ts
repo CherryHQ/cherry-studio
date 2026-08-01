@@ -15,7 +15,6 @@ import type {
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
@@ -94,17 +93,15 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    const normalizedMessage =
-      status === 'success' && finalMessage ? normalizeAssistantMessageCitations(finalMessage) : finalMessage
     // Strip empty text/reasoning parts so invisible (zero-height) message blocks
-    // are never written to storage. Applied for all statuses. The `normalizedMessage`
+    // are never written to storage. Applied for all statuses. The `finalMessage`
     // guard is for the typed-undefined error path (no finalMessage).
-    const finalMessageForPersistence = normalizedMessage
+    const finalMessageForPersistence = finalMessage
       ? {
-          ...normalizedMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+          ...finalMessage,
+          parts: finalizeInterruptedParts(dropEmptyContentParts(finalMessage.parts as CherryMessagePart[]), status)
         }
-      : normalizedMessage
+      : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),

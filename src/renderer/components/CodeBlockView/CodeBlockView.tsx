@@ -40,6 +40,8 @@ interface Props {
   onSave?: (newContent: string) => void
   editable?: boolean
   isStreaming?: boolean
+  showToolbar?: boolean
+  maxHeight?: string | number
 }
 
 /**
@@ -59,7 +61,7 @@ interface Props {
  * - core 工具
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
-  const { children, language, onSave, editable = true, isStreaming = false } = props
+  const { children, language, onSave, editable = true, isStreaming = false, showToolbar = true, maxHeight } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -137,8 +139,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setWrapOverride(codeWrappable)
   }, [codeWrappable])
 
-  const shouldExpand = useMemo(() => !codeCollapsible || expandOverride, [codeCollapsible, expandOverride])
+  const shouldExpand = useMemo(
+    () => maxHeight === undefined && (!codeCollapsible || expandOverride),
+    [codeCollapsible, expandOverride, maxHeight]
+  )
   const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
+  const sourceMaxHeight =
+    typeof maxHeight === 'number' ? `${maxHeight}px` : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)
 
   const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
   const expandable = useMemo(() => {
@@ -251,7 +258,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   // 源代码视图的展开/折叠按钮
   useExpandTool({
-    enabled: !isInSpecialView,
+    enabled: !isInSpecialView && maxHeight === undefined,
     expanded: shouldExpand,
     expandable,
     toggle: useCallback(() => setExpandOverride((prev) => !prev), []),
@@ -287,7 +294,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
-          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
+          maxHeight={sourceMaxHeight}
           options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
           expanded={shouldExpand}
           wrapped={shouldWrap}
@@ -301,8 +308,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           onHeightChange={handleHeightChange}
           expanded={shouldExpand}
           wrapped={shouldWrap}
-          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
-          onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
+          maxHeight={sourceMaxHeight}
+          onRequestExpand={maxHeight === undefined && codeCollapsible ? () => setExpandOverride(true) : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
           options={{
             highlight: !isStreaming
@@ -320,9 +327,11 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       handleHeightChange,
       isStreaming,
       language,
+      maxHeight,
       onSave,
       shouldExpand,
-      shouldWrap
+      shouldWrap,
+      sourceMaxHeight
     ]
   )
 
@@ -389,7 +398,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
       )}>
       {renderHeader}
-      <CodeToolbar tools={tools} />
+      {showToolbar ? <CodeToolbar tools={tools} /> : null}
       {renderContent}
       {isExecutable && executionResult && (
         <StatusBar>

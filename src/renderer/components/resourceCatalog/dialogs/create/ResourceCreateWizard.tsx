@@ -73,7 +73,7 @@ function WizardFooter({
   const canProceed = stepIndex !== 0 || basicValid
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-muted border-t px-6 py-3">
+    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
       {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
@@ -262,7 +262,7 @@ export function ResourceCreateWizard({
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
+        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base">{title}</DialogTitle>
           </div>
@@ -272,7 +272,7 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1">
               {/* Step rail */}
-              <ol className="w-44 shrink-0 space-y-1 border-border-muted border-r p-3">
+              <ol className="w-44 shrink-0 space-y-1 border-border-subtle border-r p-3">
                 {steps.map((step, index) => {
                   const done = index < stepIndex
                   const active = index === stepIndex

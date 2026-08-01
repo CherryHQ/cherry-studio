@@ -12,8 +12,29 @@
     {
       "idx": 1,
       "version": "6",
-      "when": 1785306124363,
-      "tag": "0001_marvelous_maximus",
+      "when": 1785308910164,
+      "tag": "0001_tan_cerise",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785476603915,
+      "tag": "0002_strange_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785514531244,
+      "tag": "0003_slow_proudstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785611004220,
+      "tag": "0004_volatile_susan_delgado",
       "breakpoints": true
     }
   ]

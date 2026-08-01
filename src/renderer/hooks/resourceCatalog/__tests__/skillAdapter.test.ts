@@ -53,6 +53,17 @@ describe('skillAdapter mutations', () => {
     expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
+
+  it('rejects an unsuccessful IPC envelope without invalidating the cache', async () => {
+    skillMocks.request.mockResolvedValueOnce({ success: false, error: 'permission denied' })
+    const { result } = renderHook(() => useSkillMutationsById('skill-1'))
+
+    await act(async () => {
+      await expect(result.current.uninstallSkill()).rejects.toThrow('permission denied')
+    })
+
+    expect(invalidateMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('skillAdapter reconcile-on-open', () => {
