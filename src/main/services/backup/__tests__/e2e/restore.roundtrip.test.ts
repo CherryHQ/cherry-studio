@@ -20,6 +20,7 @@
  * would block the live→aside / work→live renames on Windows. Verification reopens live
  * under a fresh Database.
  */
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -258,6 +259,9 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
     const fileContent = 'hello-roundtrip-blob'
     const kbId = 'kb-roundtrip'
     const skillFolder = 'skill-roundtrip'
+    // contentHash admission (458d9cd92e) re-hashes SKILL.md post-cp, so the seeded
+    // content_hash must equal sha256 of the written 'skill-doc' SKILL.md content.
+    const skillHash = createHash('sha256').update('skill-doc').digest('hex')
     const skillId = 'skill-id-roundtrip'
     const now = Date.now()
 
@@ -283,9 +287,9 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
     liveConn
       .prepare(
         `INSERT INTO agent_global_skill (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
-         VALUES (?, ?, ?, 'local', '[]', 'h-skill', 1, ?, ?)`
+         VALUES (?, ?, ?, 'local', '[]', ?, 1, ?, ?)`
       )
-      .run(skillId, skillFolder, skillFolder, now, now)
+      .run(skillId, skillFolder, skillFolder, skillHash, now, now)
 
     writeFileSync(application.getPath('feature.files.data', `${fileId}.${fileExt}`), fileContent)
     mkdirSync(join(knowledgeRoot, kbId), { recursive: true })
@@ -312,7 +316,7 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
     })
     expect(manifest.files.ids).toEqual([fileId])
     expect(manifest.knowledge.bases).toEqual([kbId])
-    expect(manifest.skills.folders).toEqual([{ folderName: skillFolder, contentHash: 'h-skill' }])
+    expect(manifest.skills.folders).toEqual([{ folderName: skillFolder, contentHash: skillHash }])
 
     // 2. Wipe rows + on-disk resources → fresh-install state (no local row, no target on
     //    disk), so planning stages every resource (no CONFLICT / target_exists skip).
