@@ -479,4 +479,99 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
       live.close()
     }
   })
+
+  it('expires (fail-closed) when an additive target already exists at promotion', async () => {
+    // File id doubles as a staging path segment — admission's FileEntryIdSchema gates
+    // it to UUID shape.
+    const fileId = '4efe0020-0000-4000-8000-000000000020'
+    const fileExt = 'txt'
+    const fileContent = 'original-blob'
+
+    // Seed file_entry + blob → export → wipe rows + disk → restore. The staged
+    // journal carries a blob-add resource whose livePath is Data/Files/{id}.{ext}.
+    seedRow(liveConn, 'file_entry', {
+      id: fileId,
+      origin: 'internal',
+      name: 'conflict',
+      ext: fileExt,
+      size: fileContent.length
+    })
+    writeFileSync(application.getPath('feature.files.data', `${fileId}.${fileExt}`), fileContent)
+    const exportOrch = new ExportOrchestrator({
+      dbService: { createSnapshot: (dest: string) => void snapshotTo(liveConn, dest) },
+      registry,
+      tempDir: exportTmpDir,
+      knowledgeRoot,
+      skillsRoot,
+      notesRoot: () => undefined,
+      stripper: new SqliteBackupStripper()
+    })
+    await exportOrch.exportBackup({
+      preset: 'full',
+      outputPath: archivePath,
+      restoreId: 'rst-conflict',
+      producerAppVersion: '1.0.0-test',
+      schemaMigrationId: '0001_x.sql',
+      overwrite: true
+    })
+    liveConn.prepare('DELETE FROM file_entry WHERE id = ?').run(fileId)
+    rmSync(application.getPath('feature.files.data', `${fileId}.${fileExt}`), { force: true })
+    const importOrch = new ImportOrchestrator({
+      dbService: {
+        checkpointTruncate: () => checkpointTruncateAssert(liveConn),
+        createSnapshot: (workPath: string) => snapshotTo(liveConn, workPath)
+      } as unknown as DbService,
+      migrationsFolder: MIGRATIONS_FOLDER,
+      liveDbPath,
+      restoreStagingRoot: stagingRoot,
+      userData: tmpDir,
+      journalPath,
+      admitArchive,
+      quiesceWriters: async () => {
+        setBackupInProgress(true)
+      },
+      mergeBackupIntoWork: (workSqlite, workDb, ctx) =>
+        new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx),
+      planResources,
+      planRoots
+    })
+    await importOrch.importBackup({ archivePath, restoreId: 'rst-conflict' })
+
+    // Simulate the add-target conflict assertNoAddConflicts detects at promotion: the
+    // target blob appears on disk between staging and promotion (a concurrent writer,
+    // or a file the wiped-state planning couldn't see). Promotion must refuse rather
+    // than clobber the pre-existing target.
+    writeFileSync(application.getPath('feature.files.data', `${fileId}.${fileExt}`), 'pre-existing-target')
+    checkpointTruncateAssert(liveConn)
+    liveConn.close()
+
+    await runRestorePromotion()
+
+    // Fail-closed at admission: assertNoAddConflicts throws → promoteStaged catch →
+    // expire('admission gate failed'). Old DB intact (file_entry row NOT promoted),
+    // the pre-existing target is preserved (NOT overwritten), staging removed.
+    const read = readRestoreJournal()
+    expect(read.kind).toBe('ok')
+    if (read.kind === 'ok') {
+      expect(read.journal.state).toBe('expired')
+      // Lock the trigger: an add-target conflict, not a fingerprint/chain mismatch.
+      if (read.journal.state === 'expired') {
+        expect(read.journal.reason).toContain('add target already exists')
+      }
+    }
+    expect(existsSync(join(stagingRoot, 'rst-conflict'))).toBe(false)
+    // The pre-existing target survives untouched (promotion refused, no overwrite).
+    expect(readFileSync(application.getPath('feature.files.data', `${fileId}.${fileExt}`), 'utf8')).toBe(
+      'pre-existing-target'
+    )
+
+    const live = new Database(liveDbPath)
+    try {
+      const fileCount = live.prepare('SELECT count(*) AS c FROM file_entry WHERE id = ?').get(fileId) as { c: number }
+      expect(fileCount.c).toBe(0)
+      expect(live.pragma('integrity_check', { simple: true })).toBe('ok')
+    } finally {
+      live.close()
+    }
+  })
 })
