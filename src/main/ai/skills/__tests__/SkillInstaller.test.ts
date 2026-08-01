@@ -145,6 +145,25 @@ describe('SkillInstaller', () => {
     })
   })
 
+  describe('computeContentHash', () => {
+    it('delegates to computeSkillContentHash and returns its hash', async () => {
+      mockComputeSkillContentHash.mockResolvedValue('sha-abc')
+
+      const result = await installer.computeContentHash('/global-skills/my-skill')
+
+      expect(mockComputeSkillContentHash).toHaveBeenCalledWith('/global-skills/my-skill')
+      expect(result).toBe('sha-abc')
+    })
+
+    it('throws the original SKILL.md-not-found error when the helper returns null', async () => {
+      mockComputeSkillContentHash.mockResolvedValue(null)
+
+      await expect(installer.computeContentHash('/global-skills/missing')).rejects.toThrow(
+        'SKILL.md not found in /global-skills/missing'
+      )
+    })
+  })
+
   it('hashes scripts and assets in addition to SKILL.md', async () => {
     mockFsReaddir.mockImplementation(async (directory: string) => {
       if (directory.endsWith('/scripts')) {
