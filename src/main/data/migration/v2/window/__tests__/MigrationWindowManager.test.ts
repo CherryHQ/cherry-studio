@@ -44,12 +44,14 @@ function makeFakeWindow() {
 describe('MigrationWindowManager', () => {
   let manager: MigrationWindowManager
   let fakeWindow: FakeWindow
-  let quitMock: ReturnType<typeof vi.fn>
+  let quitMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
     vi.clearAllMocks()
     fakeWindow = makeFakeWindow()
-    vi.mocked(BrowserWindow).mockImplementation(() => fakeWindow as unknown as BrowserWindow)
+    vi.mocked(BrowserWindow).mockImplementation(function BrowserWindowMock() {
+      return fakeWindow as unknown as BrowserWindow
+    })
     // The global electron mock's `app` has no `quit`; provide one to observe quit attempts.
     quitMock = vi.fn()
     ;(app as unknown as { quit: typeof quitMock }).quit = quitMock

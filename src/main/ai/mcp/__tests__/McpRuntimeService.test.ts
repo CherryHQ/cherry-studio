@@ -73,9 +73,9 @@ const mcpSdkMock = vi.hoisted(() => {
   }
   const clients: Array<{
     connectCalls: Array<{ kind: string }>
-    close: ReturnType<typeof vi.fn>
-    listPrompts: ReturnType<typeof vi.fn>
-    listResources: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listPrompts: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listResources: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }> = []
   class Client {
     setNotificationHandler = vi.fn()

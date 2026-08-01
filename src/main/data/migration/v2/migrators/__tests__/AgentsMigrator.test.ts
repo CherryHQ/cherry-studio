@@ -83,7 +83,7 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
   } as never
 }
 
-function getExecutedSql(run: ReturnType<typeof vi.fn>) {
+function getExecutedSql(run: ReturnType<typeof vi.fn<(...args: any[]) => any>>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
 }
 

@@ -379,8 +379,8 @@ function waitForRejectedSocket(port: number, origin: string): Promise<number> {
 
 function createMockClientRequest() {
   const request = new EventEmitter() as EventEmitter & {
-    write: ReturnType<typeof vi.fn>
-    end: ReturnType<typeof vi.fn>
+    write: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    end: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
   request.write = vi.fn(() => true)
   request.end = vi.fn(() => request)

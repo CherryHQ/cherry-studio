@@ -283,6 +283,7 @@ describe('ActionGeneral', () => {
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+      await vi.dynamicImportSettled()
     })
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
 
@@ -309,6 +310,7 @@ describe('ActionGeneral', () => {
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
     act(() => {
       vi.advanceTimersByTime(3000)
@@ -329,6 +331,7 @@ describe('ActionGeneral', () => {
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
 
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()

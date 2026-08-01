@@ -1,6 +1,6 @@
 import type { Active } from '@dnd-kit/core'
 import type { ReactNode } from 'react'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { Sortable } from '@cherrystudio/ui'
 
@@ -34,24 +34,43 @@ export function SidebarSortableList<T>({
   onReorder,
   children
 }: SidebarSortableListProps<T>) {
-  const suppressClickUntilRef = useRef(0)
+  const suppressClickRef = useRef(false)
+  const suppressClickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draggedItemIdRef = useRef<string | null>(null)
 
+  const clearClickSuppression = useCallback(() => {
+    if (suppressClickTimeoutRef.current) {
+      clearTimeout(suppressClickTimeoutRef.current)
+      suppressClickTimeoutRef.current = null
+    }
+    suppressClickRef.current = false
+    draggedItemIdRef.current = null
+  }, [])
+
   const markDragStarted = useCallback((event: { active: Active }) => {
+    if (suppressClickTimeoutRef.current) {
+      clearTimeout(suppressClickTimeoutRef.current)
+      suppressClickTimeoutRef.current = null
+    }
     draggedItemIdRef.current = String(event.active.id)
-    suppressClickUntilRef.current = Date.now() + DRAG_CLICK_SUPPRESS_MS
+    suppressClickRef.current = true
   }, [])
 
   const markDragSettled = useCallback(() => {
-    suppressClickUntilRef.current = Date.now() + DRAG_CLICK_SUPPRESS_MS
-  }, [])
+    suppressClickTimeoutRef.current = setTimeout(clearClickSuppression, DRAG_CLICK_SUPPRESS_MS)
+  }, [clearClickSuppression])
+
+  useEffect(() => clearClickSuppression, [clearClickSuppression])
 
   const guardClick = useCallback<SidebarClickGuard>(
     (item, handler) => (event) => {
-      if (String(item) === draggedItemIdRef.current && Date.now() < suppressClickUntilRef.current) return
+      if (String(item) === draggedItemIdRef.current && suppressClickRef.current) {
+        clearClickSuppression()
+        return
+      }
       handler?.(event)
     },
-    []
+    [clearClickSuppression]
   )
 
   if (!onReorder) {

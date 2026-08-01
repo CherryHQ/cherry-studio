@@ -71,6 +71,15 @@ const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
 const SKILL_ID_2 = '22222222-2222-4222-8222-222222222222'
 const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
 
+type SkillServicePrivate = {
+  installSkillDir: (
+    skillDir: string,
+    source: string,
+    sourceUrl: string | null,
+    provenance?: { namespace?: string | null }
+  ) => Promise<unknown>
+}
+
 describe('SkillService', () => {
   const dbh = setupTestDatabase()
   const tempDirs: string[] = []
@@ -823,9 +832,9 @@ describe('SkillService', () => {
       })
 
       const installSkillDir = skillService['installSkillDir'].bind(skillService)
-      const installSpy = vi.spyOn(skillService as never, 'installSkillDir')
+      const installSpy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
       if (options.realInstall) {
-        installSpy.mockImplementation(installSkillDir as never)
+        installSpy.mockImplementation(installSkillDir)
       } else {
         installSpy.mockResolvedValue({} as never)
       }
@@ -1157,7 +1166,7 @@ describe('SkillService', () => {
         return ''
       })
 
-      vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockResolvedValue({} as never)
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, gitCalls }
     }
@@ -1280,7 +1289,7 @@ describe('SkillService', () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'Code', slug: 'code' } as never)
       const installSkillDirSpy = vi
-        .spyOn(skillService as never, 'installSkillDir')
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
         .mockResolvedValue(installedSkill as never)
 
       try {
@@ -1330,7 +1339,9 @@ describe('SkillService', () => {
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir as never)
       const extractZipSpy = vi.mocked(skillArchive.extractZip).mockResolvedValue(undefined as never)
       vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(locatedSkillDir as never)
-      const installSkillDirSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({} as never)
 
       await skillService.installFromZip({ zipFilePath: linkedZipPath })
 

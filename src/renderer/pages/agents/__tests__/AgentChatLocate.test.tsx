@@ -235,7 +235,7 @@ const activeSessionMocks = vi.hoisted(() => ({
     activeSessionId: string | null
     session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
     isLoading: boolean
-    setActiveSessionId: ReturnType<typeof vi.fn>
+    setActiveSessionId: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }))
 

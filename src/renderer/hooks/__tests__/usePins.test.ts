@@ -62,8 +62,8 @@ function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: bo
 }
 
 function wireMutations(overrides?: {
-  postTrigger?: ReturnType<typeof vi.fn>
-  deleteTrigger?: ReturnType<typeof vi.fn>
+  postTrigger?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  deleteTrigger?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   postError?: Error
   deleteError?: Error
   isCreating?: boolean

@@ -24,7 +24,8 @@ function tick(ms = 16, frames = 1): void {
   }
 }
 
-const lastText = (fn: ReturnType<typeof vi.fn>): string => (fn.mock.calls.at(-1)?.[0] as string) ?? ''
+const lastText = (fn: ReturnType<typeof vi.fn<(...args: any[]) => any>>): string =>
+  (fn.mock.calls.at(-1)?.[0] as string) ?? ''
 
 /** Mirrors the hook's internal MAX_BACKLOG (not exported). */
 const MAX_BACKLOG = 400

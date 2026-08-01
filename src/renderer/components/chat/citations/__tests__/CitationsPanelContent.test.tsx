@@ -14,9 +14,9 @@ const mocks = vi.hoisted(() => ({
   notifyError: vi.fn(),
   messageListActions: undefined as
     | {
-        openCitationsPanel?: ReturnType<typeof vi.fn>
-        copyText?: ReturnType<typeof vi.fn>
-        notifyError?: ReturnType<typeof vi.fn>
+        openCitationsPanel?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        copyText?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        notifyError?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
       }
     | undefined
 }))

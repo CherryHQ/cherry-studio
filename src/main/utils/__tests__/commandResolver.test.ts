@@ -858,7 +858,7 @@ function createMockChildProcess() {
   const mockChild = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter
     stderr: EventEmitter
-    kill: ReturnType<typeof vi.fn>
+    kill: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
   mockChild.stdout = new EventEmitter()
   mockChild.stderr = new EventEmitter()

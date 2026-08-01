@@ -34,7 +34,9 @@ vi.mock('grammy', () => {
     ) {}
   }
   return {
-    Bot: vi.fn().mockImplementation(() => mockBot),
+    Bot: vi.fn().mockImplementation(function BotMock() {
+      return mockBot
+    }),
     InputFile: MockInputFile
   }
 })

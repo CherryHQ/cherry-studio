@@ -140,7 +140,7 @@ describe('PromptEditorField', () => {
     parent.remove()
   })
 
-  it('keeps Markdown markers visually secondary', () => {
+  it('keeps Markdown markers visually secondary', async () => {
     function Harness() {
       const [value, setValue] = useState('')
       return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
@@ -169,6 +169,13 @@ describe('PromptEditorField', () => {
       }
       return getComputedStyle(tokens[occurrence])
     }
+
+    await waitFor(() => {
+      const renderedTokens = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-content span')).map(
+        (token) => token.textContent
+      )
+      expect(renderedTokens).toContain('**')
+    })
 
     expect(tokenStyle('#').color).toBe('var(--muted-foreground)')
     expect(tokenStyle(' Heading').color).toBe('var(--foreground)')

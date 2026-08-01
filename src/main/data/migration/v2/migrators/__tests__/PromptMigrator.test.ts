@@ -122,9 +122,11 @@ function captureInsertedRows(ctx: MigrationContext): Array<Array<Record<string, 
     })
   }))
 
-  ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
-    fn({ insert: insertFn })
-  })
+  ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
+    (fn: (tx: unknown) => void) => {
+      fn({ insert: insertFn })
+    }
+  )
 
   return batches
 }
@@ -288,7 +290,9 @@ describe('PromptMigrator', () => {
 
     it('should surface prepare failures via the error field (not warnings)', async () => {
       const ctx = createMockContext()
-      ;(ctx.sources.dexieExport.tableExists as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('read error'))
+      ;(ctx.sources.dexieExport.tableExists as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockRejectedValue(
+        new Error('read error')
+      )
       const migrator = new PromptMigrator()
 
       const result = await migrator.prepare(ctx)
@@ -346,9 +350,11 @@ describe('PromptMigrator', () => {
         })
       }))
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
-        fn({ insert: mockInsert })
-      })
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
+        (fn: (tx: unknown) => void) => {
+          fn({ insert: mockInsert })
+        }
+      )
 
       await migrator.execute(ctx)
 
@@ -374,9 +380,11 @@ describe('PromptMigrator', () => {
         })
       }))
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
-        fn({ insert: mockInsert })
-      })
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
+        (fn: (tx: unknown) => void) => {
+          fn({ insert: mockInsert })
+        }
+      )
 
       await migrator.execute(ctx)
 
@@ -665,7 +673,7 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(() => {
         throw new Error('db error')
       })
 
@@ -696,9 +704,11 @@ describe('PromptMigrator', () => {
         }))
       }))
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
-        fn({ insert: insertFn })
-      })
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
+        (fn: (tx: unknown) => void) => {
+          fn({ insert: insertFn })
+        }
+      )
 
       const result = await migrator.execute(ctx)
 
@@ -722,9 +732,11 @@ describe('PromptMigrator', () => {
           return { run: vi.fn() }
         })
       }))
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
-        fn({ insert: insertFn })
-      })
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
+        (fn: (tx: unknown) => void) => {
+          fn({ insert: insertFn })
+        }
+      )
 
       await migrator.execute(ctx)
 
@@ -746,7 +758,7 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(() => {
         throw new Error('forced rollback')
       })
       const executeResult = await migrator.execute(ctx)
@@ -826,9 +838,11 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      ;(ctx.db as unknown as { select: ReturnType<typeof vi.fn> }).select.mockImplementation(() => {
-        throw new Error('query failed')
-      })
+      ;(ctx.db as unknown as { select: ReturnType<typeof vi.fn<(...args: any[]) => any>> }).select.mockImplementation(
+        () => {
+          throw new Error('query failed')
+        }
+      )
 
       const result = await migrator.validate(ctx)
 

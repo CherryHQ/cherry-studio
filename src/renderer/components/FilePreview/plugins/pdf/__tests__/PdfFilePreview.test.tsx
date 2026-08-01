@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
   rangeTransportInstances: [] as Array<{
-    abort: ReturnType<typeof vi.fn>
+    abort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     fail: (error: unknown) => void
     handle: unknown
     length: number

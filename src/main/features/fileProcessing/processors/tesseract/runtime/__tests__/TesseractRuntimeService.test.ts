@@ -32,7 +32,7 @@ vi.mock('@main/features/fileProcessing/utils/ocr', () => ({
 import { TesseractRuntimeService } from '../TesseractRuntimeService'
 
 type RuntimeWorkerStub = {
-  terminate: ReturnType<typeof vi.fn>
+  terminate: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 type RuntimeStateProbe = {
@@ -220,7 +220,10 @@ describe('TesseractRuntimeService', () => {
   })
 
   it('terminates a worker created after stop starts while createWorker is still pending', async () => {
-    let resolveWorker!: (worker: { recognize: ReturnType<typeof vi.fn>; terminate: ReturnType<typeof vi.fn> }) => void
+    let resolveWorker!: (worker: {
+      recognize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      terminate: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }) => void
     const recognizeMock = vi.fn().mockResolvedValue({
       data: {
         text: 'hello'

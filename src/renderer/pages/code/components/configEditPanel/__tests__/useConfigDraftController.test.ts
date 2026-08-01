@@ -63,8 +63,8 @@ const foreignConnection: CliConfigConnection = {
 function renderController(
   apiKeys: ApiKeyEntry[] | undefined,
   handlers: {
-    onSubmit?: ReturnType<typeof vi.fn>
-    onClose?: ReturnType<typeof vi.fn>
+    onSubmit?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    onClose?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     isCurrentProvider?: boolean
   } = {}
 ) {
@@ -176,7 +176,10 @@ describe('useConfigDraftController (cherry gateway)', () => {
 
   function renderGatewayController(
     providerConfig: { modelId: UniqueModelId | null } = { modelId: 'deepseek::deepseek-chat' },
-    handlers: { onSubmit?: ReturnType<typeof vi.fn>; onClose?: ReturnType<typeof vi.fn> } = {}
+    handlers: {
+      onSubmit?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      onClose?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    } = {}
   ) {
     return renderHook(() =>
       useConfigDraftController({
@@ -458,7 +461,10 @@ describe('useConfigDraftController (submit failure)', () => {
     mocks.extractConnectionFromCliConfigDraft.mockReturnValue(null)
   })
 
-  async function renderDirtyController(onSubmit: ReturnType<typeof vi.fn>, onClose: ReturnType<typeof vi.fn>) {
+  async function renderDirtyController(
+    onSubmit: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
+    onClose: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  ) {
     // Not the applied provider: clearing the model is only a scaffold to get a dirty draft, and the
     // applied case legitimately refuses to arm Save without a model (it would strand the CLI files).
     const rendered = renderController([{ id: 'k1', key: 'sk-real', isEnabled: true }], {

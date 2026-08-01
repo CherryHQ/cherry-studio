@@ -82,11 +82,13 @@ vi.mock('electron', () => ({
     removeListener: vi.fn(),
     removeAllListeners: vi.fn()
   },
-  BrowserWindow: vi.fn(() => ({
-    destroy: windowDestroy,
-    isDestroyed: windowIsDestroyed,
-    getNativeWindowHandle
-  })),
+  BrowserWindow: vi.fn(function BrowserWindowMock() {
+    return {
+      destroy: windowDestroy,
+      isDestroyed: windowIsDestroyed,
+      getNativeWindowHandle
+    }
+  }),
   powerMonitor: {
     on: powerMonitorOn,
     removeListener: powerMonitorRemoveListener,

@@ -49,6 +49,12 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
   }
 })
 
+vi.mock('i18next', () => ({
+  default: {
+    t: vi.fn((key: string) => key)
+  }
+}))
+
 // Import the functions to test AFTER setting up mocks
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
@@ -157,13 +163,6 @@ beforeEach(() => {
   // Reset mocks and modules before each test suite (describe block)
   vi.resetModules()
   vi.clearAllMocks()
-
-  // Mock i18next translation function
-  vi.mock('i18next', () => ({
-    default: {
-      t: vi.fn((key) => key)
-    }
-  }))
 })
 
 // --- Test Suites ---

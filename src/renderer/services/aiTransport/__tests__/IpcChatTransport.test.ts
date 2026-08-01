@@ -26,13 +26,13 @@ vi.mock('@renderer/ipc', () => ({
 // ── Mock the AI stream IPC ──────────────────────────────────────────
 
 interface MockAiApi {
-  streamOpen: ReturnType<typeof vi.fn>
-  streamAttach: ReturnType<typeof vi.fn>
-  streamAbort: ReturnType<typeof vi.fn>
-  streamDetach: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
-  onStreamDone: ReturnType<typeof vi.fn>
-  onStreamError: ReturnType<typeof vi.fn>
+  streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAttach: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAbort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamDetach: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamChunk: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamDone: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamError: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 function createMockAiApi() {

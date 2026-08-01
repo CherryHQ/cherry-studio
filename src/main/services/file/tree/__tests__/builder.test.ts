@@ -197,7 +197,8 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       const subscription = builder.onMutation((event) => events.push(event))
       const addedPromise = waitForEvent(
         builder,
-        (event) => event.type === 'added' && event.path.endsWith('/artifact.md')
+        (event) => event.type === 'added' && event.path.endsWith('/artifact.md'),
+        10_000
       )
       await mkdir(root)
       await mkdir(path.join(root, '.claude'))

@@ -16,16 +16,18 @@ const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } 
     getSignedUrlMock,
     deleteMock,
     ocrProcessMock,
-    MistralMock: vi.fn(() => ({
-      files: {
-        upload: uploadMock,
-        getSignedUrl: getSignedUrlMock,
-        delete: deleteMock
-      },
-      ocr: {
-        process: ocrProcessMock
+    MistralMock: vi.fn(function MistralMock() {
+      return {
+        files: {
+          upload: uploadMock,
+          getSignedUrl: getSignedUrlMock,
+          delete: deleteMock
+        },
+        ocr: {
+          process: ocrProcessMock
+        }
       }
-    }))
+    })
   }
 })
 

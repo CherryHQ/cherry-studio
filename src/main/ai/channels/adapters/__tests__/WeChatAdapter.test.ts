@@ -43,7 +43,9 @@ const mockBot = {
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
-  WeixinBot: vi.fn().mockImplementation(() => mockBot)
+  WeixinBot: vi.fn().mockImplementation(function WeixinBotMock() {
+    return mockBot
+  })
 }))
 
 // Import the module to trigger self-registration side effect

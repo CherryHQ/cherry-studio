@@ -20,12 +20,14 @@ const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy
       mockTrackTokenUsage: trackTokenUsage,
       mockTrackAppUpdate: trackAppUpdate,
       mockDestroy: destroy,
-      MockAnalyticsClient: vi.fn(() => ({
-        trackAppLaunch,
-        trackTokenUsage,
-        trackAppUpdate,
-        destroy
-      })),
+      MockAnalyticsClient: vi.fn(function AnalyticsClientMock() {
+        return {
+          trackAppLaunch,
+          trackTokenUsage,
+          trackAppUpdate,
+          destroy
+        }
+      }),
       captured: {
         prefHandlers: {} as Record<string, (value: never) => void>,
         preferenceValues: {} as Record<string, boolean | string>
