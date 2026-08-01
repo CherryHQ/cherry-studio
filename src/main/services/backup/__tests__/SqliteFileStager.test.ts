@@ -1,6 +1,7 @@
 // Unit tests for SqliteFileStager — blob staging from snapshot DB + filesystem roots.
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import type * as NodeFsPromises from 'node:fs/promises'
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -12,6 +13,27 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SqliteFileStager } from '../SqliteFileStager'
+
+// node:fs/promises is a pure-ESM module whose namespace exports are non-configurable,
+// so vi.spyOn cannot redefine `rm`. Instead, mock the module: spread the real exports
+// (every other fs op stays live) and wrap only `rm`, forcing it to reject (EBUSY) for a
+// single staging dest set via rmState.rejectPath. Default null → rm delegates to the real
+// impl, so the rest of the suite is unaffected.
+const rmState = vi.hoisted(() => ({ rejectPath: null as string | null }))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof NodeFsPromises
+  return {
+    ...actual,
+    rm: ((...args: Parameters<typeof rm>) => {
+      const [path, opts] = args
+      if (typeof path === 'string' && rmState.rejectPath !== null && path === rmState.rejectPath) {
+        throw Object.assign(new Error('rm locked'), { code: 'EBUSY' })
+      }
+      return actual.rm(path, opts)
+    }) as typeof rm
+  }
+})
 
 let internalFilesRoot: string
 
@@ -417,5 +439,53 @@ describe('SqliteFileStager', () => {
   it('stageFiles returns empty result for an empty id set', async () => {
     const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
     expect(await stager.stageFiles(new Set(), '/whatever')).toEqual({ total: 0, totalBytes: 0, missing: [] })
+  })
+
+  // Cleanup-rm failure must abort the export (fail closed). assembleArchive packages the
+  // WHOLE staging dir, so a (partial) dest that survives a failed cleanup rm would ship
+  // while the manifest omits it → a false-positive export of a corrupt archive. The rm
+  // reject must propagate to ExportOrchestrator instead of being swallowed into `missing`.
+  it('stageFiles aborts when the cleanup rm fails so a bad dest cannot leak into the archive', async () => {
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-rmfail-'))
+    const stagingDest = join(dest, 'f1')
+    rmState.rejectPath = stagingDest
+    try {
+      await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 1 }])
+      // Source absent + a pre-existing partial dest → copyFile throws ENOENT, then the
+      // cleanup rm must reject and abort the export instead of recording the id missing.
+      await writeFile(stagingDest, 'partial')
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
+      await expect(stager.stageFiles(new Set(['f1']), dest)).rejects.toThrow()
+    } finally {
+      rmState.rejectPath = null
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageSkillDirs aborts when the cleanup rm fails after a hash mismatch so a bad dest cannot leak', async () => {
+    const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-rmfail-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    const skillDest = join(dest, 'skill-tampered')
+    rmState.rejectPath = skillDest
+    try {
+      await mkdir(join(skillsRoot, 'skill-tampered'), { recursive: true })
+      await writeFile(join(skillsRoot, 'skill-tampered', 'SKILL.md'), 'actual-content')
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', skillsRoot)
+      // cp succeeds, then the staged hash mismatches the expected hash → cleanup rm.
+      // The rm reject is re-routed through the verify catch (which re-throws) → export
+      // aborts instead of recording the skill as a missing degradation.
+      await expect(
+        stager.stageSkillDirs(
+          [{ folderName: 'skill-tampered', contentHash: hashSkillContent('expected-content') }],
+          dest
+        )
+      ).rejects.toThrow()
+    } finally {
+      rmState.rejectPath = null
+      await rm(skillsRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
   })
 })

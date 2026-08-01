@@ -228,8 +228,14 @@ export class SqliteFileStager implements FileStager {
         // ENOENT/ENOTDIR = source gone → missing. EACCES/EPERM is ambiguous —
         // unreadable source OR dest write-permission — so re-stat the source:
         // source gone → missing; source still present → dest write error, MUST abort.
+        //
+        // Cleanup rm is fail-closed: assembleArchive packages the WHOLE staging dir
+        // (archive.directory, no manifest whitelist), so a (partial) dest we fail to
+        // remove would ship while manifest.files omits its id → a false-positive export
+        // of a corrupt archive. Let rm reject propagate (no outer catch in stageFiles)
+        // and abort the export instead of recording the id missing.
         if (isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'ENOTDIR')) {
-          await rm(dest, { force: true }).catch(() => {})
+          await rm(dest, { force: true })
           missing.push(row.id)
           continue
         }
@@ -238,7 +244,7 @@ export class SqliteFileStager implements FileStager {
             await stat(physicalPath)
           } catch (metaErr) {
             if (isMissingPath(metaErr) || isErrnoCode(metaErr, 'ENOENT') || isErrnoCode(metaErr, 'ENOTDIR')) {
-              await rm(dest, { force: true }).catch(() => {})
+              await rm(dest, { force: true })
               missing.push(row.id)
               continue
             }
@@ -329,14 +335,17 @@ export class SqliteFileStager implements FileStager {
         // ENOENT = source gone mid-copy → missing. EACCES/EPERM is ambiguous
         // (unreadable source vs dest permission) — re-stat to disambiguate. On a
         // confirmed missing source, remove any partial dest so the archive never
-        // holds a half-copied base that manifest.knowledge says was absent
-        // (best-effort; an rm failure is swallowed — the base is already recorded
-        // missing). A still-present source means a dest write error → abort.
+        // holds a half-copied base that manifest.knowledge says was absent. This
+        // cleanup is fail-closed: assembleArchive packages the WHOLE staging dir, so
+        // a dest we fail to remove would ship while manifest.knowledge omits the base
+        // → a false-positive export of a corrupt archive. Let rm reject propagate (no
+        // outer catch in stageKnowledge) and abort. A still-present source means a
+        // dest write error → abort.
         const sourceMissing =
           isErrnoCode(e, 'ENOENT') ||
           ((isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) && (await isSourceGone(src)))
         if (sourceMissing) {
-          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          await rm(dest, { recursive: true, force: true })
           missing.push(baseId)
           continue
         }
@@ -427,12 +436,16 @@ export class SqliteFileStager implements FileStager {
         await cp(src, dest, { recursive: true })
       } catch (e) {
         // Source gone mid-copy (ENOENT, or EACCES/EPERM + confirmed gone) → report
-        // missing + best-effort remove partial dest. Other errors abort.
+        // missing and remove the partial dest. Cleanup is fail-closed: a leftover dest
+        // would ship via assembleArchive's whole-dir packaging while manifest.skills
+        // omits the folder → a false-positive export of a corrupt archive. Let rm
+        // reject propagate (no outer catch intercepts this cp branch) and abort. Other
+        // errors abort.
         const sourceMissing =
           isErrnoCode(e, 'ENOENT') ||
           ((isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) && (await isSourceGone(src)))
         if (sourceMissing) {
-          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          await rm(dest, { recursive: true, force: true })
           missing.push({ folderName, contentHash })
           continue
         }
@@ -441,10 +454,14 @@ export class SqliteFileStager implements FileStager {
 
       // Verify the copied descriptor before admitting the skill to the archive. This
       // catches a copy race or source change that would otherwise create a bad archive.
+      // Cleanup rm on a failed verify is fail-closed for the same reason as the cp
+      // branch: a leftover dest would ship via whole-dir packaging while manifest.skills
+      // omits the folder → a false-positive export. An rm reject here is caught by the
+      // outer catch below, which re-throws → export aborts.
       try {
         const stagedContentHash = await computeSkillContentHash(dest)
         if (!stagedContentHash) {
-          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          await rm(dest, { recursive: true, force: true })
           missing.push({ folderName, contentHash })
           logger.warn('stageSkillDirs: staged skill is missing SKILL.md', {
             folderName,
@@ -453,7 +470,7 @@ export class SqliteFileStager implements FileStager {
           continue
         }
         if (stagedContentHash !== contentHash) {
-          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          await rm(dest, { recursive: true, force: true })
           missing.push({ folderName, contentHash })
           logger.warn('stageSkillDirs: staged skill content hash mismatch', {
             folderName,
@@ -463,6 +480,11 @@ export class SqliteFileStager implements FileStager {
           continue
         }
       } catch (error) {
+        // A computeSkillContentHash read failure, or a cleanup-rm reject from the
+        // branches above — remove the partial dest then re-throw so the export aborts.
+        // The cleanup rm here is best-effort on purpose: this path always re-throws, so
+        // a dest that survives rm can never reach an assembled archive (no
+        // false-positive risk) — unlike the cp/hash branches above, which return missing.
         await rm(dest, { recursive: true, force: true }).catch(() => {})
         throw error
       }
