@@ -30,7 +30,7 @@ const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageMod
   }) as ImageModelV3CallOptions
 
 /** Minimal LanguageModelV3 whose doGenerate returns a single image file part. */
-const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn>): LanguageModelV3 =>
+const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) => any>>): LanguageModelV3 =>
   ({ doGenerate }) as unknown as LanguageModelV3
 
 describe('isGatewayGeminiImageModel', () => {

@@ -119,7 +119,7 @@ describe('AgentJobsService', () => {
     // ROLLBACK — atomicity tests need the real thing.
     dbSvc.withWriteTx.mockImplementation(<T>(fn: (tx: unknown) => T): T => dbh.db.transaction((tx) => fn(tx)))
     const cacheSvc = MockMainCacheServiceExport.cacheService
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       switch (name) {
         case 'DbService':
           return dbSvc

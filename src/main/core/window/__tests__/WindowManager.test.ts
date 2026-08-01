@@ -34,42 +34,42 @@ vi.mock('@main/core/platform', () => ({
 interface MockBrowserWindow {
   id: number
   constructorOptions?: Record<string, unknown>
-  show: ReturnType<typeof vi.fn>
-  hide: ReturnType<typeof vi.fn>
-  focus: ReturnType<typeof vi.fn>
-  close: ReturnType<typeof vi.fn>
-  destroy: ReturnType<typeof vi.fn>
-  minimize: ReturnType<typeof vi.fn>
-  maximize: ReturnType<typeof vi.fn>
-  unmaximize: ReturnType<typeof vi.fn>
-  restore: ReturnType<typeof vi.fn>
-  isDestroyed: ReturnType<typeof vi.fn>
-  isMaximized: ReturnType<typeof vi.fn>
-  isMinimized: ReturnType<typeof vi.fn>
-  isFullScreen: ReturnType<typeof vi.fn>
-  isVisible: ReturnType<typeof vi.fn>
-  isFocused: ReturnType<typeof vi.fn>
-  getNormalBounds: ReturnType<typeof vi.fn>
-  getBounds: ReturnType<typeof vi.fn>
-  setFullScreen: ReturnType<typeof vi.fn>
-  setBounds: ReturnType<typeof vi.fn>
-  setContentBounds: ReturnType<typeof vi.fn>
-  setPosition: ReturnType<typeof vi.fn>
-  center: ReturnType<typeof vi.fn>
-  getTitle: ReturnType<typeof vi.fn>
-  setTitleBarOverlay: ReturnType<typeof vi.fn>
-  loadURL: ReturnType<typeof vi.fn>
-  loadFile: ReturnType<typeof vi.fn>
-  once: ReturnType<typeof vi.fn>
-  on: ReturnType<typeof vi.fn>
-  emit: ReturnType<typeof vi.fn>
-  removeAllListeners: ReturnType<typeof vi.fn>
+  show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  hide: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  focus: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  minimize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  maximize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unmaximize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  restore: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isMaximized: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isMinimized: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isFullScreen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isVisible: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isFocused: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getNormalBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setFullScreen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setPosition: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  center: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getTitle: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setTitleBarOverlay: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  loadURL: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  loadFile: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  once: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  on: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  emit: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  removeAllListeners: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
-    send: ReturnType<typeof vi.fn>
-    isCrashed: ReturnType<typeof vi.fn>
-    setWindowOpenHandler: ReturnType<typeof vi.fn>
-    on: ReturnType<typeof vi.fn>
-    getURL: ReturnType<typeof vi.fn>
+    send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    isCrashed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    setWindowOpenHandler: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    on: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    getURL: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }
 

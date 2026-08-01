@@ -690,7 +690,7 @@ export const MockUseDataApiUtils = {
   mockMutationWithTrigger: <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
     method: TMethod,
     path: TPath,
-    trigger: ReturnType<typeof vi.fn>,
+    trigger: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
     options?: { isLoading?: boolean; error?: Error }
   ) => {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {

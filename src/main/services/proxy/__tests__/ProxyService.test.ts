@@ -14,12 +14,17 @@ const {
 
   return {
     nodeProxyConfigureMock,
-    nodeProxyControllerConstructorMock: vi.fn(() => ({ configure: nodeProxyConfigureMock })),
+    nodeProxyControllerConstructorMock: vi.fn(function NodeProxyControllerMock() {
+      return { configure: nodeProxyConfigureMock }
+    }),
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
     getSystemProxyMock: vi.fn(),
-    intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
+    intervalRegistrations: [] as Array<{
+      handler: () => void
+      dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }>
   }
 })
 

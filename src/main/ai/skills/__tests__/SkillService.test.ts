@@ -33,6 +33,17 @@ const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
 const SKILL_ID_2 = '22222222-2222-4222-8222-222222222222'
 const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
 
+type SkillServicePrivate = Record<
+  | 'createTempDir'
+  | 'extractZip'
+  | 'installFromClaudePlugins'
+  | 'installFromClawhub'
+  | 'installFromSkillsSh'
+  | 'installSkillDir'
+  | 'locateSkillDir',
+  (...args: never[]) => Promise<unknown>
+>
+
 describe('SkillService', () => {
   const dbh = setupTestDatabase()
   const tempDirs: string[] = []
@@ -506,14 +517,16 @@ describe('SkillService', () => {
 
     it('delegates to installFromClaudePlugins for claude-plugins source', async () => {
       const skillService = new SkillService()
-      const spy = vi.spyOn(skillService as never, 'installFromClaudePlugins').mockResolvedValue({} as never)
+      const spy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installFromClaudePlugins')
+        .mockResolvedValue({})
       await skillService.install({ installSource: 'claude-plugins:owner/repo/skill' })
       expect(spy).toHaveBeenCalledWith('owner/repo/skill')
     })
 
     it('rejects ambiguous claude-plugins identifiers without a directory path', async () => {
       const skillService = new SkillService()
-      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir')
+      const createTempDirSpy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'createTempDir')
 
       await expect(skillService.install({ installSource: 'claude-plugins:owner/repo/' })).rejects.toThrow(
         'Invalid claude-plugins identifier: owner/repo/'
@@ -523,7 +536,7 @@ describe('SkillService', () => {
 
     it('rejects claude-plugins identifiers with path traversal before cloning', async () => {
       const skillService = new SkillService()
-      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir')
+      const createTempDirSpy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'createTempDir')
 
       await expect(
         skillService.install({ installSource: 'claude-plugins:owner/repo/skills/../outside' })
@@ -533,14 +546,14 @@ describe('SkillService', () => {
 
     it('delegates to installFromSkillsSh for skills.sh source', async () => {
       const skillService = new SkillService()
-      const spy = vi.spyOn(skillService as never, 'installFromSkillsSh').mockResolvedValue({} as never)
+      const spy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'installFromSkillsSh').mockResolvedValue({})
       await skillService.install({ installSource: 'skills.sh:owner/repo/skill' })
       expect(spy).toHaveBeenCalledWith('owner/repo/skill')
     })
 
     it('delegates to installFromClawhub for clawhub source', async () => {
       const skillService = new SkillService()
-      const spy = vi.spyOn(skillService as never, 'installFromClawhub').mockResolvedValue({} as never)
+      const spy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'installFromClawhub').mockResolvedValue({})
       await skillService.install({ installSource: 'clawhub:owner/my-skill' })
       expect(spy).toHaveBeenCalledWith('owner/my-skill')
     })
@@ -616,17 +629,21 @@ describe('SkillService', () => {
           )
         )
         .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
-      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(tempDir as never)
-      const extractZipSpy = vi.spyOn(skillService as never, 'extractZip').mockImplementation(async () => {
-        await fs.promises.writeFile(path.join(extractDir, 'SKILL.md'), '---\nname: code\n---\n')
-        await fs.promises.mkdir(path.join(extractDir, 'nested'), { recursive: true })
-        await fs.promises.writeFile(path.join(extractDir, 'nested', 'SKILL.md'), '---\nname: nested\n---\n')
-      })
+      const createTempDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'createTempDir')
+        .mockResolvedValue(tempDir)
+      const extractZipSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'extractZip')
+        .mockImplementation(async () => {
+          await fs.promises.writeFile(path.join(extractDir, 'SKILL.md'), '---\nname: code\n---\n')
+          await fs.promises.mkdir(path.join(extractDir, 'nested'), { recursive: true })
+          await fs.promises.writeFile(path.join(extractDir, 'nested', 'SKILL.md'), '---\nname: nested\n---\n')
+        })
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'Code', slug: 'code' } as never)
       const installSkillDirSpy = vi
-        .spyOn(skillService as never, 'installSkillDir')
-        .mockResolvedValue(installedSkill as never)
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue(installedSkill)
 
       try {
         const result = await skillService.install({ installSource: 'clawhub:ivangdavila/code' })
@@ -672,10 +689,14 @@ describe('SkillService', () => {
       await fs.promises.mkdir(extractDir, { recursive: true })
       const canonicalZipPath = await fs.promises.realpath(realZipPath)
 
-      vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(extractDir as never)
-      const extractZipSpy = vi.spyOn(skillService as never, 'extractZip').mockResolvedValue(undefined as never)
-      vi.spyOn(skillService as never, 'locateSkillDir').mockResolvedValue(locatedSkillDir as never)
-      const installSkillDirSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.spyOn(skillService as unknown as SkillServicePrivate, 'createTempDir').mockResolvedValue(extractDir)
+      const extractZipSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'extractZip')
+        .mockResolvedValue(undefined)
+      vi.spyOn(skillService as unknown as SkillServicePrivate, 'locateSkillDir').mockResolvedValue(locatedSkillDir)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({})
 
       await skillService.installFromZip({ zipFilePath: linkedZipPath })
 

@@ -85,10 +85,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildSystemPrompt: mockBuildPrompt,
-    buildMemoriesSection: mockBuildMemoriesSection
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildSystemPrompt: mockBuildPrompt,
+      buildMemoriesSection: mockBuildMemoriesSection
+    }
+  })
 }))
 
 const { buildSystemPrompt } = await import('../settingsBuilder')

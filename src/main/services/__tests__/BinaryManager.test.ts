@@ -215,7 +215,7 @@ describe('BinaryManager', () => {
     // first registration only happens once onAllReady fires (all phases ready).
     it('does not touch PreferenceService during the initial-bootstrap onInit', async () => {
       const service = new BinaryManager()
-      ;(application.get as unknown as ReturnType<typeof vi.fn>).mockClear()
+      ;(application.get as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockClear()
 
       await (service as any).onInit()
 
@@ -2989,11 +2989,11 @@ describe('BinaryManager', () => {
   })
 
   describe('extractBundledBinaries', () => {
-    let mockFsp: Record<string, ReturnType<typeof vi.fn>>
+    let mockFsp: Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
 
     beforeEach(async () => {
       const fspModule = await import('node:fs/promises')
-      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn>>
+      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
     })
 
     it('skips extraction when bundled version matches installed version', async () => {

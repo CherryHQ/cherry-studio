@@ -403,7 +403,9 @@ describe('BackupManager direct v2 data compatibility', () => {
       finalize: vi.fn(() => finishOutput?.())
     }
     mockCreateAtomicWriteStream.mockReturnValue(output)
-    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.mocked(ZipArchive).mockImplementation(function () {
+      return archive as never
+    })
     return { archive, output }
   }
 

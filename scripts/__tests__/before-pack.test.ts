@@ -5,12 +5,14 @@
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { Arch } from 'electron-builder'
+import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages } from '../before-pack'
+import { assertPrebuiltPackages, rebuildNativeModulesForElectron } from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -42,5 +44,35 @@ describe('assertPrebuiltPackages', () => {
       expect(packageManifest.optionalDependencies[packageName]).toBe(legacyMacOcrVersion)
       expect(workspaceConfig.overrides[packageName]).toBe(legacyMacOcrVersion)
     }
+  })
+})
+
+describe('rebuildNativeModulesForElectron', () => {
+  it.each([
+    ['mac', Arch.arm64, 'darwin', 'arm64'],
+    ['windows', Arch.x64, 'win32', 'x64']
+  ])('forces better-sqlite3 for the %s target', async (platformName, arch, platform, archName) => {
+    const rebuild = vi.fn(async () => {})
+
+    await rebuildNativeModulesForElectron(
+      {
+        arch,
+        packager: {
+          platform: { name: platformName },
+          config: { electronVersion: '41.8.0' }
+        }
+      },
+      rebuild
+    )
+
+    expect(rebuild).toHaveBeenCalledWith({
+      buildPath: path.resolve(import.meta.dirname, '../..'),
+      electronVersion: '41.8.0',
+      platform,
+      arch: archName,
+      onlyModules: ['better-sqlite3'],
+      force: true,
+      buildFromSource: true
+    })
   })
 })

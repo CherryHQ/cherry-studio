@@ -239,7 +239,7 @@ describe('useLaunchDialogController', () => {
     const gatewayModelsById = new Map<UniqueModelId, Model>([[managedModel.id, managedModel]])
 
     function renderGatewayLaunch(
-      ensureReady: ReturnType<typeof vi.fn>,
+      ensureReady: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById
     ) {
       return renderHook(() =>

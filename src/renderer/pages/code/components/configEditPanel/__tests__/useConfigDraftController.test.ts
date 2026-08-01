@@ -61,7 +61,10 @@ const foreignConnection: CliConfigConnection = {
 
 function renderController(
   apiKeys: ApiKeyEntry[] | undefined,
-  handlers: { onSubmit?: ReturnType<typeof vi.fn>; onClose?: ReturnType<typeof vi.fn> } = {}
+  handlers: {
+    onSubmit?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    onClose?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  } = {}
 ) {
   return renderHook(
     (props: { apiKeys: ApiKeyEntry[] | undefined }) =>
@@ -269,7 +272,10 @@ describe('useConfigDraftController (submit failure)', () => {
     mocks.extractConnectionFromCliConfigDraft.mockReturnValue(null)
   })
 
-  async function renderDirtyController(onSubmit: ReturnType<typeof vi.fn>, onClose: ReturnType<typeof vi.fn>) {
+  async function renderDirtyController(
+    onSubmit: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
+    onClose: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  ) {
     const rendered = renderController([{ id: 'k1', key: 'sk-real', isEnabled: true }], { onSubmit, onClose })
     await act(async () => {
       await Promise.resolve()
