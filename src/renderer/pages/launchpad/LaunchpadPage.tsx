@@ -32,7 +32,7 @@ const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
   knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
   files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-  code_tools: 'linear-gradient(135deg, #4338CA, #6366F1)',
+  code_tools: 'linear-gradient(135deg, #4B5563, #6B7280)',
   notes: 'linear-gradient(135deg, #F97316, #FB923C)'
 }
 
