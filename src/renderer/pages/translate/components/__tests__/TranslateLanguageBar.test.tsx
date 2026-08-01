@@ -50,7 +50,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     const toggle = () => onOpenChange(!open)
     if (asChild && isValidElement(children)) {
       const child = children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>
-      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+      // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild slot behavior
       return cloneElement(child, {
         onClick: (e: React.MouseEvent) => {
           child.props.onClick?.(e)

@@ -40,7 +40,7 @@ import type * as CacheValueTypes from './cacheValueTypes'
  * - Schema: `'entity.cache.${type}_${id}': CacheData`
  * - Usage: `useCache('entity.cache.user_456')` -> infers `CacheData` type
  *
- * This convention is enforced by ESLint rule: data-schema-key/valid-key
+ * This convention is enforced by Oxlint rule: cherry/valid-schema-key
  */
 
 // ============================================================================

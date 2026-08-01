@@ -67,7 +67,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           data-side-offset={sideOffset}
           data-testid="composer-message-token-tooltip">
           {React.isValidElement(children)
-            ? // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger props
+            ? // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild trigger props
               React.cloneElement(children, {
                 ...triggerProps,
                 'data-tooltip-trigger': 'true'
@@ -102,7 +102,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         }
       }
 
-      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger props
+      // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild trigger props
       return React.cloneElement(children, {
         'data-popover-trigger': 'true',
         ref: setTriggerRef

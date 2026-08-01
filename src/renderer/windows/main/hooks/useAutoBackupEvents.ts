@@ -67,6 +67,7 @@ export function useAutoBackupEvents(): void {
     }
   })
 
+  // oxlint-disable-next-line react/rules-of-hooks -- handleEvent (useEffectEvent) is invoked from useIpcOn's effect-scoped listener; Oxlint's rules-of-hooks over-flags this vs the previous ESLint plugin
   useIpcOn('backup.auto_sync_state_changed', (event) => handleEvent(event, true))
 
   useEffect(() => {

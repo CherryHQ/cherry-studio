@@ -32,9 +32,9 @@ export type IpcEventName = keyof IpcEventSchemas
 
 Any depth ≥ 2 segments is allowed. Add a subdomain once a namespace's routes fall into distinct groups — put the **resource path first and the verb last** (`ai.agent.task.create`, not `ai.create_agent_task`), and never fake a level with an underscore (`ai.stream.open`, not `ai.stream_open`). Group by **domain, not by owning service**: `ai.tool.get_result` and `ai.tool.respond_approval` share a subtree while delegating to different services. Existing subdomain trees: `ai.*`, `mcp.{server,tool,package}`, `window.{main,sub}`, `system.{mac,shell}`, `app.{updater,data_reset,user_data_relocation}`, `channel.{feishu,wechat}`, `export.{obsidian,word}`.
 
-The dot structure is a naming convention, not type syntax — `IpcRoute` is the strong-typed union `keyof IpcRequestSchemas`; an undeclared route is a compile error. Reuse Preference's `data-schema-key`/`valid-key` ESLint rule for the snake-case keys.
+The dot structure is a naming convention, not type syntax — `IpcRoute` is the strong-typed union `keyof IpcRequestSchemas`; an undeclared route is a compile error. Reuse Preference's `cherry/valid-schema-key` Oxlint rule for the snake-case keys.
 
-> **ESLint enforcement:** the `data-schema-key`/`valid-key` rule's `files` glob includes `src/shared/ipc/schemas/**/*.ts`, so every route/event key in this directory is lint-enforced and any new domain file is covered automatically. zod *data-field* names are exempt — keys inside a `z.*(...)` object literal (e.g. `z.object({ 'content-type': ... })`) are skipped, so only the route/event strings are constrained. This relies on zod being imported as `z` (the repo convention).
+> **Oxlint enforcement:** the `cherry/valid-schema-key` rule's `files` glob includes `src/shared/ipc/schemas/**/*.ts`, so every route/event key in this directory is lint-enforced and any new domain file is covered automatically. zod *data-field* names are exempt — keys inside a `z.*(...)` object literal (e.g. `z.object({ 'content-type': ... })`) are skipped, so only the route/event strings are constrained. This relies on zod being imported as `z` (the repo convention).
 
 ## Types Derived From Schemas
 
@@ -53,7 +53,7 @@ The dot structure is a naming convention, not type syntax — `IpcRoute` is the 
 zod schemas are runtime values.
 
 - **Main** (`IpcRouter`) imports `ipcRequestSchemas` as a **value** to `parse`.
-- **Renderer** must `import type` from the `@shared/ipc/schemas/*` modules and `@shared/ipc/types` only. A value import would pull the entire zod schema set into the renderer bundle. This is enforced by an ESLint rule (`@typescript-eslint/no-restricted-imports` with `allowTypeImports`, scoped to `src/renderer/**` in `eslint.config.mjs`) that flags any value import under `@shared/ipc/schemas`. `IpcError` is the one exception — it is a value import, but plain TS with no zod dependency, so it is bundle-safe.
+- **Renderer** must `import type` from the `@shared/ipc/schemas/*` modules and `@shared/ipc/types` only. A value import would pull the entire zod schema set into the renderer bundle. This is enforced by Oxlint's native `no-restricted-imports` rule with `allowTypeImports`, scoped to `src/renderer/**` in `oxlint.config.ts`, which flags any value import under `@shared/ipc/schemas`. `IpcError` is the one exception — it is a value import, but plain TS with no zod dependency, so it is bundle-safe.
 
 Validation is always on: the router `parse`s every request route. There is no skip-validation knob (add a field later only if profiling proves a hot route needs it).
 

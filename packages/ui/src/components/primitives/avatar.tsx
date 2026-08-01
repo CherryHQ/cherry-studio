@@ -17,6 +17,7 @@ function Avatar({
   // `loaded`, which suppresses the Fallback and paints a blank avatar. Derive a stable key
   // from the direct <AvatarImage>'s `src` so React remounts the Root whenever the image
   // source changes (or disappears). Consumers don't need to remember a manual `key={src}`.
+  // oxlint-disable-next-line react/no-react-children -- Radix's compound children are intentionally inspected.
   const imageKey = React.Children.toArray(children).reduce<string | undefined>((found, child) => {
     if (found !== undefined) return found
     if (React.isValidElement(child) && child.type === AvatarImage) {

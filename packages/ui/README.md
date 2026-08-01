@@ -209,7 +209,7 @@ pnpm test
 
 ### Icon Generation
 
-Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
+Use the package command for all icon generation so Oxlint fixes and the repository formatter run after the generated files are updated.
 
 In this command, `--type=icons` means general UI icons that are not Provider or Model logos.
 
@@ -251,7 +251,7 @@ pnpm icons:generate --type=providers --force
 - `--only=<name[,name]>` limits Provider or Model component and Avatar generation to the listed names.
 - `--force` bypasses the SVG hash cache.
 
-Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
+Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with Oxlint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
 
 ## Package Surface
 

@@ -177,7 +177,7 @@ application.relaunch({ args: ['--safe-mode'] })
 
 ## App Quit
 
-Always use `application.quit()` or `application.forceExit()` instead of calling `app.quit()` / `app.exit()` directly. An ESLint rule (`no-restricted-properties`) will warn if `app.quit()` or `app.exit()` is used in `src/main/` outside of `Application.ts`.
+Always use `application.quit()` or `application.forceExit()` instead of calling `app.quit()` / `app.exit()` directly. The Oxlint rule `cherry/no-direct-quit` warns if quit APIs or signals are used in `src/main/` outside of `Application.ts`.
 
 ```typescript
 import { application } from '@application'

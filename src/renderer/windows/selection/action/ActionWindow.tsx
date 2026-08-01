@@ -67,7 +67,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
       window.removeEventListener('blur', handleWindowBlur)
     }
     // don't need any dependencies
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [])
 
   // Per-session reset: must fire on EVERY reuse, even when the next action
@@ -86,7 +86,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
     lastScrollHeight.current = contentElementRef.current?.scrollHeight ?? 0
     // Only re-run on action change; `isAutoPin` / `actionWindowOpacity` are
     // handled separately by their own effects when the preference itself moves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [action])
 
   useEffect(() => {

@@ -10,7 +10,7 @@ const logger = loggerService.withContext('ExternalContentGuard')
  */
 const INVISIBLE_CHARS_RE =
   // oxlint-disable-next-line no-misleading-character-class -- intentional invisible char detection
-  // eslint-disable-next-line no-misleading-character-class
+  // oxlint-disable-next-line no-misleading-character-class
   /[\u200B\u200C\u200D\u200E\u200F\uFEFF\u00AD\u2060\u2061\u2062\u2063\u2064\u2066\u2067\u2068\u2069\u206A-\u206F]/g
 
 /**

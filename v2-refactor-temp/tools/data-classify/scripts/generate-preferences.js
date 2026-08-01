@@ -300,18 +300,13 @@ class PreferencesGenerator {
  * - 'userAvatar' (invalid - missing dot separator)
  * - 'App.user' (invalid - uppercase not allowed)
  *
- * This convention is enforced by ESLint rule: data-schema-key/valid-key
+ * This convention is enforced by Oxlint rule: cherry/valid-schema-key
  *
  * === AUTO-GENERATED CONTENT START ===
  */
 
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
-
-/* eslint @typescript-eslint/member-ordering: ["error", {
-  "interfaces": { "order": "alphabetically" },
-  "typeLiterals": { "order": "alphabetically" }
-}] */`
+import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'`
     // 生成接口定义
     const interfaceCode = this.generateInterface(structure)
 
@@ -377,8 +372,7 @@ import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
   }
 
   generateDefaults(structure) {
-    const header = `/* eslint sort-keys: ["error", "asc", {"caseSensitive": true, "natural": false}] */
-export const DefaultPreferences: PreferenceSchemas = {`
+    const header = `export const DefaultPreferences: PreferenceSchemas = {`
 
     let code = header + '\n'
 

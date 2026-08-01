@@ -78,7 +78,7 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverTrigger: ({ children }: PropsWithChildren<{ asChild?: boolean }>) => {
       const { setOpen } = ReactActual.use(PopoverContext)
       return ReactActual.isValidElement(children) ? (
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+        // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild slot behavior
         ReactActual.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
           onClick: () => setOpen(true)
         })

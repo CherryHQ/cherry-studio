@@ -122,7 +122,7 @@ const WebviewContainer = memo(
         webview.removeEventListener('did-navigate-in-page', handleNavigate)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // oxlint-disable-next-line react/exhaustive-deps
     }, [appid, url])
 
     // Setup keyboard shortcuts handler for print and save

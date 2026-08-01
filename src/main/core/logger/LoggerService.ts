@@ -6,7 +6,7 @@ import { app, ipcMain } from 'electron'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 
-/* eslint-disable no-restricted-syntax */
+/* oxlint-disable no-console */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'

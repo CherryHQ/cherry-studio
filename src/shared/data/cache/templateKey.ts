@@ -20,8 +20,8 @@ export function isTemplateKey(key: string): boolean {
  * Each `${variable}` placeholder expands to `([\w\-]+)` — matches the same
  * character set permitted by the cache key naming convention (ASCII word
  * chars plus hyphens). Non-ASCII characters, dots, and colons are rejected
- * by design: this keeps the subscription layer aligned with the `data-schema-key/valid-key`
- * ESLint rule. The placeholder variable name itself is ignored at runtime.
+ * by design: this keeps the subscription layer aligned with the `cherry/valid-schema-key`
+ * Oxlint rule. The placeholder variable name itself is ignored at runtime.
  *
  * @example
  * ```ts

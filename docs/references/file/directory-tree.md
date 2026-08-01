@@ -97,7 +97,7 @@ If a future caller needs `listDirectory` outside the tree primitive (and outside
 
 ### 2.2 No `@main/data` Imports
 
-`src/main/services/file/tree/**` does not import from `@main/data/**` and never will. The tree is a runtime concern; persistence is orthogonal (`noteTable` is a sparse state overlay on top of FS paths, not a tree mirror). Enforcement is the import-graph regex test in `builder.test.ts` ("the tree primitive does not import @main/data") — that test is the contract. (An `eslint no-restricted-imports` rule could be added later for a faster signal, but the test is what actually fails CI today.)
+`src/main/services/file/tree/**` does not import from `@main/data/**` and never will. The tree is a runtime concern; persistence is orthogonal (`noteTable` is a sparse state overlay on top of FS paths, not a tree mirror). Enforcement is the import-graph regex test in `builder.test.ts` ("the tree primitive does not import @main/data") — that test is the contract. (An Oxlint `no-restricted-imports` rule could be added later for a faster signal, but the test is what actually fails CI today.)
 
 ---
 
