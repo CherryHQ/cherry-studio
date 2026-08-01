@@ -55,6 +55,19 @@ describe('accessiblePath', () => {
   it('returns the input unchanged when no base matches', () => {
     expect(getAccessiblePathRelativePath(p('/other/notes.md'), ps('/workspace'))).toBe('/other/notes.md')
   })
+
+  // A POSIX file named `a\b.txt` must not be mistaken for `b.txt` inside `a/`:
+  // that would classify an attachment as accessible and send a `file://`
+  // reference pointing at a different file.
+  it('does not treat a backslash in a POSIX filename as a directory separator', () => {
+    expect(isPathWithinAccessiblePath(p('/workspace/a\\b.txt'), ps('/workspace/a'))).toBe(false)
+    expect(getAccessiblePathRelativePath(p('/workspace/a\\b.txt'), ps('/workspace/a'))).toBe('/workspace/a\\b.txt')
+  })
+
+  it('still resolves such a file against a base that genuinely contains it', () => {
+    expect(isPathWithinAccessiblePath(p('/workspace/a\\b.txt'), ps('/workspace'))).toBe(true)
+    expect(getAccessiblePathRelativePath(p('/workspace/a\\b.txt'), ps('/workspace'))).toBe('a\\b.txt')
+  })
 })
 
 describe('accessiblePath with un-canonicalizable input (UNC)', () => {
