@@ -431,9 +431,12 @@ export class BackupService extends BaseService {
           // SelectionAction) and blocks subsequent opens of those types. That
           // physically removes the source of renderer-originated IPC, so the
           // BACKUP_IN_PROGRESS gate (step 2) is a defense-in-depth layer rather
-          // than the only barrier. Without a1, the IPC gate still misses legacy
-          // File_/Cache_/Backup_* routes and any in-flight renderer turn already
-          // past the gate's await boundary.
+          // than the only barrier. The IPC gate now also covers legacy
+          // File_/Cache_/Backup_* routes (rejectDuringRestore + Cache_Sync
+          // silent-drop), but it only rejects NEW writes — in-flight renderer
+          // turns already past the gate's await boundary, and DataApi/Preference/
+          // IpcApi dispatcher in-flight writes, are NOT drained (pending
+          // @DeJeune).
           //
           // If a1 acquire throws midway (partial destroy), it rolls back its own
           // flag but cannot revive the renderer processes that already received

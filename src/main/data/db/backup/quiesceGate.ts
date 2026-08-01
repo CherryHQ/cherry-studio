@@ -2,10 +2,12 @@
 //
 // WHY: restore promotes a detached work.sqlite over the live DB via the preboot
 // gate (#16884 atomic rename). Any write that lands on the live DB during the
-// snapshot→promote window is lost (promotion overwrites the file). Full quiesce
-// (a1 WindowManager `acquireMutationCapableWindowHold` + #17014 AI/channel pause)
-// is deferred; PARTIAL quiesce (this PR) = this flag (IPC mutation reject) +
-// `JobManager.pause` (#16925, refcounted hold) + best-effort in-flight drain.
+// snapshot→promote window is lost (promotion overwrites the file). Quiesce =
+// a1 WindowManager `acquireMutationCapableWindowHold` (destroys mutation-capable
+// renderer windows) + #17014 AI/channel/Agent/Job pause+drain + this flag (IPC
+// mutation reject: legacy File_/Cache_/Backup_* + DataApi/Preference/IpcApi) +
+// `JobManager.pause` (#16925, refcounted hold). RESIDUAL: in-flight dispatcher
+// drain (DataApi/Preference/IpcApi, @DeJeune) — see RESIDUAL note below.
 //
 // The flag is a module-level singleton. One restore at a time is enforced by
 // `BackupService.activeOperation` UP TO seal; post-seal the operation slot is
@@ -20,12 +22,14 @@
 // — snapshot reads are safe and merge runs on a detached work.sqlite.
 //
 // RESIDUAL WRITE PATHS not covered by partial quiesce (documented in
-// backup-architecture.md §9): legacy File_/Cache_ write IPC, legacy Backup_*
-// restore (S3/local/WebDAV via LegacyBackupManager — a same-purpose sibling that
-// can race a v2 restore if a user clicks legacy v1 restore mid-window), main-process
-// `DbService` direct writes outside IPC, and un-drained AI/channel turns. The
-// promotion gate remains the correctness backstop — partial quiesce narrows the
-// race window, it does not remove it.
+// backup-architecture.md §9): legacy File_/Cache_/Backup_* mutation IPC are now
+// GATED (rejectDuringRestore in ipc.ts + CacheService Cache_Sync silent-drop +
+// Backup_*Restore* wrap — they reject NEW writes during the window), but
+// in-flight writers already past the gate are NOT drained — DataApi/Preference/
+// IpcApi dispatcher in-flight accounting is pending (@DeJeune), main-process
+// `DbService` direct writes outside IPC are un-drained, and AI/channel turns
+// un-drained. The promotion gate remains the correctness backstop — partial
+// quiesce narrows the race window, it does not remove it.
 
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
