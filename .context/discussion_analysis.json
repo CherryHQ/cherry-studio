@@ -1,53 +1,57 @@
 {
-  "generated_at": "2026-07-07",
+  "generated_at": "2026-08-01",
   "repo": "CherryHQ/cherry-studio",
-  "data_source_note": "GitHub Discussions GraphQL endpoint not available in this run. This analysis is inferred from Issues with label 'discussion' and high-engagement unlabeled issues.",
+  "data_source_note": "GitHub Discussions GraphQL endpoint not available in this run. Analysis inferred from Issues with 'discussion' label and high-engagement open issues.",
 
   "issue_discussions": {
     "issues_with_discussion_label": {
-      "count_sampled": 16,
-      "sample_basis": "first 200 open issues (sorted by updated_at desc)",
-      "extrapolated_total": "~76 open issues carry 'discussion' label"
+      "count_sampled": 3,
+      "sample_basis": "first 100 open issues (sorted by updated_at desc)",
+      "open_discussion_issues": [
+        {"number": 17649, "title": "[Discussion]: Should JobManager support cooperative safe points for long-running backup quiescence?", "author": "DeJeune"},
+        {"number": 17432, "title": "[Discussion]: clarify and strengthen regression coverage for AI SDK Agent stream trajectories"},
+        {"number": 16612, "title": "[Discussion]: Unreasonable Settings for Web Search"}
+      ]
     }
   },
 
   "high_engagement_open_issues": {
-    "note": "Issues with 4+ comments from bug label search (50-issue sample)",
+    "note": "Issues with 5+ comments visible in first-page data",
     "top_issues": [
       {
-        "number": 12268,
-        "title": "[Bug]: Agent Error",
-        "comments": 10,
-        "labels": ["BUG"],
-        "topic": "Agent mode general errors"
+        "number": 6505,
+        "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
+        "comments": 366,
+        "labels": ["Assistant"],
+        "topic": "Selection Assistant FAQ — highest engagement issue in repo"
       },
       {
-        "number": 12890,
-        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model",
-        "comments": 7,
-        "labels": ["BUG"],
-        "topic": "PDF/OCR pipeline"
-      },
-      {
-        "number": 11765,
-        "title": "[Bug]: Provider Support — overwrite User-Agent in Headers",
+        "number": 17485,
+        "title": "[Bug]: A JavaScript error occurred in the main process",
         "comments": 6,
-        "labels": ["BUG"],
-        "topic": "Provider HTTP header customization"
+        "labels": [],
+        "topic": "Main process crash"
       },
       {
-        "number": 13082,
-        "title": "[Bug]: Frequent lag during normal operations",
-        "comments": 5,
-        "labels": ["BUG"],
-        "topic": "Performance / UI responsiveness"
+        "number": 16623,
+        "title": "[Bug]: Thinking/Reasoning settings are insufficient",
+        "comments": 3,
+        "labels": ["UI/UX", "Models", "inactive"],
+        "topic": "Reasoning/thinking control across providers"
       },
       {
-        "number": 10241,
-        "title": "[Bug]: Tool calling results are dropped in subsequent conversation",
-        "comments": 5,
-        "labels": ["BUG"],
-        "topic": "Tool calling / MCP context persistence"
+        "number": 16013,
+        "title": "[Discussion]: How to load skills in assistant?",
+        "comments": 12,
+        "labels": ["needs-more-info", "help wanted", "discussion", "Assistant"],
+        "topic": "Developer onboarding — skills system"
+      },
+      {
+        "number": 15768,
+        "title": "[Feature]: Add Optional Timestamps for Q&A Context",
+        "comments": 7,
+        "labels": [],
+        "topic": "Chat UX metadata feature"
       }
     ]
   },
@@ -55,28 +59,18 @@
   "high_engagement_closed_issues_30d": {
     "top_issues": [
       {
-        "number": 9943,
-        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-        "comments": 16,
-        "labels": ["BUG", "MCP", "inactive"],
-        "closed_at": "2026-07-01",
-        "topic": "MCP .dxt file import"
+        "number": 17591,
+        "title": "[Discussion]: Agent Issues",
+        "closed_at": "2026-07-29",
+        "labels": ["needs-more-info", "help wanted", "discussion", "Assistant"],
+        "topic": "Agent mode catch-all discussion"
       },
       {
-        "number": 15586,
-        "title": "[Bug]: Error invoking remote method 'knowledge-base:search'",
-        "comments": 7,
-        "labels": ["needs-more-info", "RAG", "closed:no-response", "inactive"],
-        "closed_at": "2026-07-06",
-        "topic": "RAG / Knowledge base search"
-      },
-      {
-        "number": 16201,
-        "title": "[Bug]: minimax-m3 thinking.type hardcoded value cannot be changed",
-        "comments": 7,
-        "labels": ["Assistant", "Models"],
-        "closed_at": "2026-07-05",
-        "topic": "Model thinking parameter control"
+        "number": 16997,
+        "title": "[Discussion]: CherryIN 429 Rate Limiting Rules Are Not Transparent",
+        "closed_at": "2026-07-14",
+        "labels": ["Docs", "help wanted", "discussion"],
+        "topic": "CherryIN rate limit transparency"
       }
     ]
   },
@@ -101,37 +95,44 @@
 
   "topic_clusters": {
     "MCP_tool_calling": {
-      "open_issues_estimate": 66,
-      "label": "MCP",
-      "hot_areas": ["MCP image results", "Agent tool not found", "HTTP MCP errors", "tool call context persistence"]
+      "open_issues_from_label": "~66 (estimated, from label search)",
+      "hot_areas": ["MCP OAuth flows", "stdio process leaks (#17689)", "mcp-auto-install 404 (#17688)", "MCP image results", "alphaXiv OAuth (#17605)"]
     },
     "AI_model_providers": {
-      "open_issues_estimate": 208,
-      "label": "Models",
-      "hot_areas": ["Azure OpenAI Responses API routing", "reasoning/thinking cross-provider", "OpenRouter configs", "Vertex AI auth"]
+      "open_issues_from_label": "~11 in first 100 (Models label)",
+      "hot_areas": ["Chain of thought length control (#17642)", "Xunfei Xingchen reasoning mode (#17426)", "Azure OpenAI P1 bug (#13193)", "Thinking settings (#16623)"]
     },
     "ui_ux": {
-      "open_issues_estimate": 279,
-      "label": "UI/UX",
-      "hot_areas": ["v2 re-skin in progress", "notification center", "generative UI inline rendering"]
+      "open_issues_from_label": "~17 in first 100 (UI/UX label)",
+      "hot_areas": ["v2 RC missing context window control (#17571)", "agent disappears after clear (#17560)", "chat nav back-to-top broken (#17668)", "model list label overflow (#17730)"]
     },
     "agent_mode": {
-      "open_issues_estimate": 156,
-      "label": "Assistant",
-      "hot_areas": ["Agent provider restriction", "MCP in agent mode", "skill system"]
+      "open_issues_from_label": "~9 in first 100 (Assistant label)",
+      "hot_areas": ["Zero-output results persisted as successful (#17587)", "401 auth error in agent mode (#17486)", "Long-term memory system (#17513)", "Split stream lanes (#17545)"]
+    },
+    "data_migration": {
+      "open_issues_from_label": "~5 in first 100 (Data label)",
+      "hot_areas": ["RC users' file entries stuck manual (#17709)", "Agent migration workspace root wrong (#17695)", "AgentWorkspacePath canonical type (#17431)"]
+    },
+    "performance": {
+      "open_issues_from_label": "~9 in first 100 (Performance label)",
+      "hot_areas": ["HTML artifact runtime deferred (#17669)", "Virtualize global search previews (#17412)", "Limit painting template loading (#17618)", "Markdown reparse per-frame (#17504)"]
     }
   },
 
   "sentiment_signals": {
     "positive": [
-      "High PR merge velocity (79 merged in last 7 days)",
-      "Active bulk-close sweep clearing 81 stale issues last week",
-      "v2 refactor tracking issues show comprehensive planning"
+      "393 issues closed in last 30 days — active housekeeping",
+      "High-severity bug #17636 (Agent session hang) closed within 2 weeks of filing",
+      "Critical migration bug #17568 ([P0] SQLite child row deletion) closed quickly",
+      "v2 RC shipped and getting real-world feedback"
     ],
     "negative": [
-      "P1 bugs #13193 and #13608 unresolved for 100+ days",
-      "151 zombie issues indicate backlog management gap",
-      "20 issues closed with zero community engagement"
+      "P1 bugs #13193 and #13608 unresolved for 136-150 days",
+      "287 zombie issues (33.8% of backlog) — highest on record, up from 151 (4 weeks ago)",
+      "v2 RC1 missing context window control (#17571) — regression vs v1",
+      "MCP stdio process leak (#17689) accumulates duplicate python processes",
+      "Clipboard image paste broken in v2.0 (#17716)"
     ]
   }
 }

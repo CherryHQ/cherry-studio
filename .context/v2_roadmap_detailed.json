@@ -1,131 +1,141 @@
 {
-  "generated_at": "2026-07-07",
+  "generated_at": "2026-08-01",
   "repo": "CherryHQ/cherry-studio",
-  "v2_status": "active — v2 branch merged into main; main is now the active development branch",
+  "v2_status": "active — v2 branch merged into main; main is the sole active development branch as of 2026-07",
 
   "summary": {
-    "merged_prs_30d_total": 344,
-    "merged_prs_this_week": 79,
-    "open_prs_total": 280,
-    "open_prs_drafts": 11,
+    "open_prs_total": 364,
+    "open_prs_drafts": 16,
+    "open_prs_targeting_main": 86,
+    "v2_branch_open_prs": 0,
     "v1_maintenance_prs_open": 4,
-    "velocity": "very high"
+    "velocity": "high",
+    "velocity_note": "PR count grew from 280 (2026-07-07) to 364 (+84) in ~25 days"
   },
 
   "milestone_tracking": {
+    "note": "Milestone-level data carried forward from 2026-07-07 run; exact counts not re-fetched.",
     "v2.1.0": {
-      "open_issues": 28,
-      "closed_issues": 5,
-      "sample_items": [
-        "AI-Suggested Next Prompt as Ghost Text in Composer (#15674)"
-      ]
+      "open_issues_last_sampled": 28,
+      "sample_date": "2026-07-07"
     },
     "v2.2.0": {
-      "open_issues": 40,
-      "closed_issues": 7,
-      "sample_items": [
-        "Inline-Rendered Generative UI Components (#15671)",
-        "One-Click Error Reporting (#15668)"
-      ]
+      "open_issues_last_sampled": 40,
+      "sample_date": "2026-07-07"
     },
     "v2.4.0": {
-      "open_issues": 37,
-      "closed_issues": 5,
-      "sample_items": [
-        "Unified Notification Center [P1] (#14899)",
-        "Skill Suite — Bundle Related Skills (#15672)"
-      ]
+      "open_issues_last_sampled": 37,
+      "sample_date": "2026-07-07"
     }
   },
 
-  "recent_significant_merges": [
+  "recent_significant_closes_this_run": [
     {
-      "number": 16401,
-      "title": "feat(provider-registry): generate catalog from src/creators + src/providers, add TokenHub",
-      "author": "DeJeune",
-      "merged_at": "2026-07-03",
-      "comments": 9,
-      "significance": "core v2 provider architecture"
+      "number": 17706,
+      "title": "[Bug]: Unable to save your privacy agreement",
+      "closed_at": "2026-07-31"
     },
     {
-      "number": 16489,
-      "title": "refactor(settings): remove standalone settings window",
-      "author": "kangfenmao",
-      "merged_at": "2026-07-06",
-      "comments": 7,
-      "significance": "v2 UI simplification"
+      "number": 17703,
+      "title": "[Bug]: Flaky test — JobManager cancel-timeout smoke test",
+      "closed_at": "2026-07-31"
     },
     {
-      "number": 16283,
-      "title": "feat(provider): add login-based providers — Claude Code, OpenAI Codex & Grok CLI",
-      "author": "vaayne",
-      "merged_at": "2026-07-03",
-      "comments": 6,
-      "significance": "OAuth provider integration"
+      "number": 17681,
+      "title": "[Bug]: After switching the client language, all conversation records disappeared",
+      "closed_at": "2026-07-31"
     },
     {
-      "number": 16609,
-      "title": "refactor(chat-resources): fold resource library into chat pages",
-      "author": "zhangjiadi225",
-      "merged_at": "2026-07-03",
-      "comments": 6,
-      "significance": "v2 UI layout refactor"
+      "number": 17636,
+      "title": "[Bug]: Agent session turn can hang forever (P1 + ClaudeCode)",
+      "closed_at": "2026-07-30"
     },
     {
-      "number": 16681,
-      "title": "feat(notes): add WindowManager-backed print and PDF export",
-      "author": "AtomsH4",
-      "merged_at": "2026-07-07",
-      "comments": 5,
-      "significance": "new notes capability"
+      "number": 17650,
+      "title": "[Feature]: Add job queue backpressure for large knowledge directory imports",
+      "closed_at": "2026-07-30"
     },
     {
-      "number": 16603,
-      "title": "fix(ai-sdk-cache): enable Anthropic prompt caching",
-      "author": "vaayne",
-      "merged_at": "2026-07-03",
-      "comments": 5,
-      "significance": "cost/performance optimization"
+      "number": 17602,
+      "title": "[Feature]: Make Backup v2 restore arm-to-relaunch transactional and fail-closed",
+      "closed_at": "2026-07-29"
+    },
+    {
+      "number": 17568,
+      "title": "[Bug]: [P0] Table-recreate migrations silently delete child rows",
+      "closed_at": "2026-07-29"
+    },
+    {
+      "number": 17275,
+      "title": "[Bug]: Large v1 data migration fails with Invalid string length",
+      "closed_at": "2026-07-22"
+    },
+    {
+      "number": 17131,
+      "title": "[Feature]: Redesign Settings 'Data Reset' as v2 Factory Reset via preboot wipe gate",
+      "closed_at": "2026-07-25"
     }
   ],
 
-  "active_open_prs_notable": [
+  "active_open_issues_notable": [
     {
-      "number": 16407,
-      "title": "feat(knowledge): add local embedding and PaddleOCR with on-demand model download",
-      "author": "unknown",
-      "reviewers": 3,
-      "significance": "RAG/knowledge base improvement"
+      "number": 17709,
+      "title": "[Bug]: RC users' migrated file entries remain permanently manual after cleanup policy rollout",
+      "labels": ["Data"],
+      "created_at": "2026-07-31",
+      "significance": "v2 migration data quality"
     },
     {
-      "number": 16513,
-      "title": "refactor(ui): launchpad, pages re-skin & css-var governance [E/5]",
-      "author": "unknown",
-      "reviewers": 3,
-      "significance": "v2 design system — part 5 of series"
+      "number": 17695,
+      "title": "[Bug]: Agent migration keeps old workspace root after cross-machine v1 restore",
+      "labels": [],
+      "created_at": "2026-07-31",
+      "significance": "v2 migration correctness"
     },
     {
-      "number": 16601,
-      "title": "feat(devtools): add main network monitor",
-      "author": "unknown",
-      "reviewers": 4,
-      "significance": "developer tooling"
+      "number": 17689,
+      "title": "MCP stdio server process leak — duplicate python instances accumulate per tool call",
+      "labels": ["MCP", "Performance"],
+      "created_at": "2026-07-31",
+      "significance": "MCP reliability"
     },
     {
-      "number": 15239,
-      "title": "Feature/expand branch chat v2",
-      "author": "unknown",
-      "reviewers": 4,
-      "significance": "chat branching feature"
+      "number": 17571,
+      "title": "[Bug]: v2 RC1 chat mode missing context window adjustment (v1 Context Count slider removed)",
+      "labels": ["UI/UX"],
+      "created_at": "2026-07-29",
+      "significance": "v2 RC regression — user-facing feature missing"
+    },
+    {
+      "number": 17545,
+      "title": "[Feature]: Support split stream lanes for background subagents",
+      "labels": ["Assistant"],
+      "created_at": "2026-07-28",
+      "significance": "Agent architecture"
+    },
+    {
+      "number": 17501,
+      "title": "[Feature]: Add ownership-derived garbage collection for Data/Agents",
+      "labels": ["Data"],
+      "created_at": "2026-07-27",
+      "significance": "v2 data lifecycle"
+    },
+    {
+      "number": 17470,
+      "title": "[Bug]: v2 migration aborts on legacy agents.db schema drift",
+      "labels": [],
+      "created_at": "2026-07-27",
+      "significance": "v2 migration reliability"
     }
   ],
 
   "v2_provider_refactor": {
     "tracking_issue": 14021,
-    "title": "v2 aiCore Provider layer — 226 issues, 29 categories",
+    "title": "[Feature]: v2 aiCore Provider layer — 226 issues, 29 categories, 5 solution pillars",
     "author": "DeJeune",
     "status": "in-progress",
     "total_tracked_issues": 226,
+    "note": "Provider refactor data carried from 2026-07-07 run",
     "categories": [
       {"id": "A", "name": "Thinking/Reasoning cross-provider", "open": 23, "priority": "P0/P1"},
       {"id": "B", "name": "OpenAI/Azure API routing", "open": 10, "priority": "P0/P1"},
@@ -145,46 +155,18 @@
       {"id": "P", "name": "Other providers", "open": 11, "priority": "P0/P1"},
       {"id": "X", "name": "Web Search / built-in search", "open": 6, "priority": "P0/P1"},
       {"id": "Z", "name": "Stream response / content loss", "open": 3, "priority": "P0/P1"}
-    ],
-    "solution_pillars": {
-      "1_providerOptions_passthrough": "~25 issues covered",
-      "2_model_template_capabilities": "~20 issues covered",
-      "3_explicit_url_template": "~10 issues covered",
-      "4_unified_reasoning_abstraction": "~30 issues covered",
-      "5_agent_provider_decoupling": "~15 issues covered"
-    }
+    ]
   },
-
-  "top_contributors_merged_7d": [
-    {"login": "zhangjiadi225", "prs_merged": 20, "focus": "UI/chat"},
-    {"login": "eeee0717", "prs_merged": 18, "focus": "various"},
-    {"login": "AtomsH4", "prs_merged": 14, "focus": "files/agent"},
-    {"login": "ousugo", "prs_merged": 13, "focus": "UI/v1"},
-    {"login": "kangfenmao", "prs_merged": 11, "focus": "core/settings"},
-    {"login": "Pleasurecruise", "prs_merged": 8, "focus": "various"},
-    {"login": "vaayne", "prs_merged": 6, "focus": "providers/agent"}
-  ],
 
   "v1_branch_status": {
     "open_prs_targeting_v1": 4,
-    "merged_v1_prs_this_week": 2,
-    "recent_v1_merges": [
-      {"number": 16789, "title": "feat(models): support LongCat 2.0 thinking", "merged_at": "2026-07-07"},
-      {"number": 16787, "title": "chore(gitignore): ignore local agents override file", "merged_at": "2026-07-07"}
-    ]
+    "note": "v1 maintenance branch still active for hotfixes"
   },
 
   "areas_being_actively_removed": [
     "Dexie (IndexedDB legacy)",
     "ElectronStore (legacy settings)",
-    "Standalone settings window (removed via #16489)",
-    "Standalone chat-resources page (removed via #16609)"
-  ],
-
-  "draft_prs_watch": [
-    {"number": 16462, "title": "docs(unified-runtime): AI SDK v7 migration plan", "significance": "major SDK migration planning"},
-    {"number": 16443, "title": "test(e2e): Playwright suite for knowledge/websearch", "significance": "E2E test coverage"},
-    {"number": 16444, "title": "feat(paintings): infinite canvas paint mode with React Flow", "significance": "new creative feature"},
-    {"number": 16402, "title": "feat(bundled-git): ship MinGit on Windows", "significance": "Windows dependency management"}
+    "Standalone settings window (removed)",
+    "Standalone chat-resources page (removed)"
   ]
 }
