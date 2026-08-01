@@ -83,7 +83,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [summary, setSummary] = useState<RestoreResultSummary | null>(null)
   const [summaryUnavailable, setSummaryUnavailable] = useState(false)
   const [outcome, setOutcome] = useState<RestoreOutcome | null>(null)
-  const [relaunchError, setRelaunchError] = useState(false)
 
   const busy = phase === 'selecting-archive' || phase === 'confirming' || phase === 'relaunching'
   const canClose = phase !== 'relaunching'
@@ -103,7 +102,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setSummary(null)
     setSummaryUnavailable(false)
     setOutcome(null)
-    setRelaunchError(false)
     void (async () => {
       try {
         const status = await ipcApi.request('backup.restore_status')
@@ -223,19 +221,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setPhase('idle')
   }
 
-  const onRestart = async () => {
-    setRelaunchError(false)
-    try {
-      await ipcApi.request('backup.restore_relaunch')
-    } catch (error) {
-      // backup.restore_relaunch should not throw in normal operation; if it does, surface the
-      // failure so the user is not stuck in `relaunching` (canClose=false) with no
-      // recourse — the Restart button stays available for retry.
-      logger.error('backup.restore_relaunch failed', error as Error)
-      setRelaunchError(true)
-    }
-  }
-
   const showPickError = (phase === 'idle' || phase === 'selecting-archive') && Boolean(errorMessage)
 
   return (
@@ -333,9 +318,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                 {t('settings.data.backup.v2.restore.summary.unavailable')}
               </div>
             )}
-            {relaunchError && (
-              <div className="text-destructive">{t('settings.data.backup.v2.restore.summary.relaunch_failed')}</div>
-            )}
           </div>
         )}
 
@@ -374,11 +356,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           {(phase === 'ready' || phase === 'ready-with-error' || phase === 'confirming') && (
             <Button disabled={busy || !archivePath} onClick={() => void onConfirmRestore()}>
               {t('common.confirm')}
-            </Button>
-          )}
-          {phase === 'relaunching' && hasRelaunchDisclosure && (
-            <Button data-testid="v2-restore-restart-button" onClick={() => void onRestart()}>
-              {t('settings.data.backup.v2.restore.summary.restart_button')}
             </Button>
           )}
           {phase === 'outcome' && (

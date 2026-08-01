@@ -150,7 +150,7 @@ describe('RestoreV2Popup', () => {
     })
   })
 
-  it('renders the disclosure summary and restart button when backup.restore_summary arrives', async () => {
+  it('renders the disclosure summary when backup.restore_summary arrives', async () => {
     selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
     // Spine keeps the request pending (relaunch-gated) — the summary event drives the UI.
@@ -186,35 +186,6 @@ describe('RestoreV2Popup', () => {
     // Degradations are what the restore already gave up — disclosed alongside the plan.
     expect(screen.getByText('settings.data.backup.v2.restore.summary.degraded')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup.v2.restore.summary.degraded_kind.row_pruned')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-    expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
-  })
-
-  it('surfaces a relaunch failure and keeps Restart retryable when backup.restore_relaunch throws', async () => {
-    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
-    confirmMock.mockResolvedValueOnce(true)
-    startRestoreMock.mockResolvedValueOnce({ restoreId: 'rst-1' })
-    // backup.restore_relaunch rejects — the user must not be stuck in `relaunching` (canClose=false)
-    // with no recourse. The failure is surfaced and the Restart button stays for retry.
-    requestMock.mockImplementation(async (route: string) => {
-      if (route === 'backup.restore_relaunch') throw new Error('relaunch IPC failed')
-      return undefined
-    })
-
-    await RestoreV2Popup.show()
-    fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
-    await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
-
-    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
-    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-
-    await waitFor(() =>
-      expect(screen.getByText('settings.data.backup.v2.restore.summary.relaunch_failed')).toBeInTheDocument()
-    )
-    // Restart button still present for retry (not silently stuck).
-    expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument()
   })
 
   it('pulls the persisted summary when the broadcast is missed', async () => {
@@ -236,13 +207,10 @@ describe('RestoreV2Popup', () => {
     await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
-    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('v2-restore-summary')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup.v2.restore.summary.kind.file')).toBeInTheDocument()
     expect(screen.getByText('kb-local')).toBeInTheDocument()
     expect(screen.queryByText('settings.data.backup.v2.restore.summary.none')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-    expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
   })
 
   it('shows the none copy and hides the skip section for an empty summary', async () => {
@@ -282,7 +250,7 @@ describe('RestoreV2Popup', () => {
 
     await RestoreV2Popup.show()
 
-    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('v2-restore-summary')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup.v2.restore.summary.pending_hint')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup.v2.restore.summary.kind.knowledge')).toBeInTheDocument()
     expect(screen.getByText(/settings\.data\.backup\.v2\.restore\.summary\.kind\.skill/)).toBeInTheDocument()
@@ -290,20 +258,18 @@ describe('RestoreV2Popup', () => {
       screen.getByText('settings.data.backup.v2.restore.summary.skip_reason.local_record_exists')
     ).toBeInTheDocument()
     expect(screen.queryByText('settings.data.backup.v2.restore.summary.none')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-    expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
   })
 
-  it('keeps a legacy pending restore restartable without inventing an empty summary', async () => {
+  it('shows unavailable summary for a legacy pending restore', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.restore_status' ? { state: 'pending' } : undefined
     )
 
     await RestoreV2Popup.show()
 
-    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
-    expect(screen.getByText('settings.data.backup.v2.restore.summary.unavailable')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup.v2.restore.summary.unavailable')).toBeInTheDocument()
+    )
     expect(screen.queryByText('settings.data.backup.v2.restore.summary.none')).not.toBeInTheDocument()
   })
 
