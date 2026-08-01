@@ -85,10 +85,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildPromptParts: mockBuildPrompt,
-    buildMemoriesSection: mockBuildMemoriesSection
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildPromptParts: mockBuildPrompt,
+      buildMemoriesSection: mockBuildMemoriesSection
+    }
+  })
 }))
 
 vi.mock('@main/utils/prompt', () => ({

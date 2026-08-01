@@ -86,7 +86,7 @@ const TTL = 60_000
 
 describe('CacheService shared-tier TTL sync', () => {
   let service: any
-  let send: ReturnType<typeof vi.fn>
+  let send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   let now: number
 
   const lastMessage = (): CacheSyncMessage => send.mock.calls.at(-1)![1] as CacheSyncMessage

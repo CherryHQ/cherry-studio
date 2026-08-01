@@ -419,9 +419,9 @@ describe('useLaunchDialogController', () => {
     const gatewayModelsById = new Map<UniqueModelId, Model>([[managedModel.id, managedModel]])
 
     function renderGatewayLaunch(
-      getApiKey: ReturnType<typeof vi.fn>,
+      getApiKey: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById,
-      ensureRunning: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+      ensureRunning: ReturnType<typeof vi.fn<(...args: any[]) => any>> = vi.fn().mockResolvedValue(undefined),
       selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE
     ) {
       const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)

@@ -842,7 +842,7 @@ describe('useUpdateSession', () => {
     const updateMutationCall = mockUseMutation.mock.calls.find(
       ([method, path]) => method === 'PATCH' && path === '/agent-sessions/:sessionId'
     )
-    const refresh = updateMutationCall?.[2]?.refresh as (context: {
+    const refresh = updateMutationCall?.[2]?.refresh as unknown as (context: {
       args: { params: { sessionId: string }; body?: Record<string, unknown> }
       result: AgentSessionEntity
     }) => string[]
@@ -874,7 +874,7 @@ describe('useUpdateSession', () => {
     const workspaceMutationCall = mockUseMutation.mock.calls.find(
       ([method, path]) => method === 'PUT' && path === '/agent-sessions/:sessionId/workspace'
     )
-    const refresh = workspaceMutationCall?.[2]?.refresh as (context: {
+    const refresh = workspaceMutationCall?.[2]?.refresh as unknown as (context: {
       args: { params: { sessionId: string } }
     }) => string[]
     expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([

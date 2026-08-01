@@ -6,7 +6,7 @@ import HorizontalScrollContainer from '../HorizontalScrollContainer'
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   target?: Element
-  disconnect: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -31,7 +31,7 @@ function triggerResizeObserver() {
 describe('HorizontalScrollContainer', () => {
   beforeEach(() => {
     resizeObserverInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         disconnect: vi.fn(),

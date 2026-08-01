@@ -38,7 +38,7 @@ const resolveLocalInferenceProfile = vi.hoisted(() =>
 const DIRECT_ROUTING: ProxyRoutingSnapshot = { version: 1, mode: 'direct' }
 
 vi.mock('node:worker_threads', () => ({
-  Worker: vi.fn(() => {
+  Worker: vi.fn(function WorkerMock() {
     const worker = new FakeWorker()
     fakeWorkers.push(worker)
     return worker

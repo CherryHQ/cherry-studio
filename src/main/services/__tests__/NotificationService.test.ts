@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   electronNotifications: [] as Array<{
     options: { title: string; body: string }
     click?: () => void
-    show: ReturnType<typeof vi.fn>
+    show: ReturnType<typeof vi.fn<() => void>>
   }>,
   focusOrOpen: vi.fn(() => Promise.resolve()),
   getWindowInfosByType: vi.fn(),

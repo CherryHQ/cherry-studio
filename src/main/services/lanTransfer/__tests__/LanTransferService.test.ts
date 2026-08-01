@@ -55,7 +55,9 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('bonjour-service', () => ({
-  default: vi.fn(() => mocks.bonjour)
+  default: vi.fn(function BonjourMock() {
+    return mocks.bonjour
+  })
 }))
 
 vi.mock('node:net', async (importOriginal) => {

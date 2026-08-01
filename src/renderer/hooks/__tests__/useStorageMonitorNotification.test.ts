@@ -20,9 +20,9 @@ const health = (level: Level, freeBytes = 0): StorageHealth => ({
 })
 
 let healthCallback: ((h: StorageHealth) => void) | null
-let unsubscribeMock: ReturnType<typeof vi.fn>
-let getHealthMock: ReturnType<typeof vi.fn>
-let onHealthChangeMock: ReturnType<typeof vi.fn>
+let unsubscribeMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+let getHealthMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+let onHealthChangeMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
 function setupWindowApi(initial: StorageHealth) {
   healthCallback = null

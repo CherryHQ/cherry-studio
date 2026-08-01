@@ -325,7 +325,10 @@ describe('useChatVirtualizerRuntime', () => {
 
   it('does not recreate resize observers on unrelated parent rerenders', () => {
     const originalResizeObserver = globalThis.ResizeObserver
-    const observers: Array<{ disconnect: ReturnType<typeof vi.fn>; observe: ReturnType<typeof vi.fn> }> = []
+    const observers: Array<{
+      disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }> = []
 
     class ResizeObserverMock {
       disconnect = vi.fn()

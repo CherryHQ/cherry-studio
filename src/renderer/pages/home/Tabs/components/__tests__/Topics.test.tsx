@@ -1819,7 +1819,10 @@ describe('Topics', () => {
 
     const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await Promise.resolve()
+    })
 
     expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
@@ -1860,10 +1863,11 @@ describe('Topics', () => {
 
     await act(async () => {
       pendingUpdate.reject(new Error('Automatic rename failed'))
+      await Promise.resolve()
     })
 
-    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
-    expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a')
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Automatic rename failed'))
+    await vi.waitFor(() => expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a'))
     expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 

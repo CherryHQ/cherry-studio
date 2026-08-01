@@ -4,6 +4,10 @@ import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
 
+// The repository intentionally remains CommonJS while Vite bundles its TypeScript
+// config files. Native config loading cannot parse that combination yet.
+process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true'
+
 // Pin the test timezone to UTC so date-dependent tests are deterministic on every
 // machine. CI runners default to UTC; without this, tests that bucket UTC timestamps
 // by local day (e.g. Topics "Today/Yesterday") pass in CI but fail on dev machines in
@@ -206,10 +210,8 @@ export default defineConfig({
     },
     testTimeout: 20000,
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false
-      }
-    }
+    // Vitest 4 uses all available parallelism by default. Cap workers so the
+    // full suite does not starve subprocess, worker-thread, and timing tests.
+    maxWorkers: '50%'
   }
 })

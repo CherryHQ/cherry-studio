@@ -48,8 +48,8 @@ const createQueryResult = (
     isRefreshing: boolean
     error: Error | undefined
     hasNext: boolean
-    loadNext: ReturnType<typeof vi.fn>
-    refresh: ReturnType<typeof vi.fn>
+    loadNext: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    refresh: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }> = {}
 ) => ({
   pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
