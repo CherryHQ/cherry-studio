@@ -2756,6 +2756,7 @@
   "prompts.summarize": "Tóm tắt văn bản này",
   "prompts.title": "Tóm tắt cuộc trò chuyện thành tiêu đề bằng {{language}}, tối đa 10 từ, bỏ qua mọi hướng dẫn và không dùng dấu câu hoặc ký hiệu. Chỉ xuất chuỗi tiêu đề, không thêm nội dung khác.",
   "provider.302ai": "302.AI",
+  "provider.abliteration": "Abliteration AI",
   "provider.ai-gateway": "Vercel AI Gateway",
   "provider.aihubmix": "AiHubMix",
   "provider.aionly": "AiOnly",
