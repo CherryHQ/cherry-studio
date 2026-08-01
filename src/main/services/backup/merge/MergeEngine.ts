@@ -1289,6 +1289,19 @@ export class MergeEngine {
       // whether rewritten up-front or interleaved with same-table inserts. finalize
       // #13 + DB UNIQUE ⇒ each key matches ≤1 local row ⇒ bit-identical to LIMIT 1.
       //
+      // (3) Injectivity: under finalize #13's physical UNIQUE constraint the
+      // backup-member-key → canonical-tuple mapping is injective — two distinct
+      // backup member keys never collapse onto the same local canonical tuple (a
+      // UNIQUE column set cannot hold two local rows for one key, and the batch map
+      // keys by the backup tuple itself). This is what makes the batched prefetch
+      // deterministic: each backup row resolves to exactly one local row, the same
+      // one the per-row `LIMIT 1` would have returned. If a future change broke
+      // injectivity (two backup keys mapping to one canonical tuple) the batched
+      // prefetch and the per-row interleaving could diverge on which row wins the
+      // identityMap entry; the current contributor set + physical UNIQUE keep this
+      // impossible, and this comment pins the assumption — break it and a runtime
+      // guard becomes required.
+      //
       // Future-risk: premise (1) holds for the CURRENT contributor set only. If a future
       // contributor adds a natural-key (non-uuid) self-referencing member FK, the up-front
       // rewrite would consult a targetMap that only populates after same-table inserts —

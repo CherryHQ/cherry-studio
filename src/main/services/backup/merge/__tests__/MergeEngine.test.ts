@@ -1634,10 +1634,13 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   })
 
   it('B17: stays bit-identical across chunk boundaries (multi-chunk bulk + tail)', async () => {
-    // 1100 messages = 3 member chunks (500+500+100) for the PK-existence bulk, plus
-    // 3 backup-anchor chunks. Extends the per-row equivalence (pinned by the rest of
-    // this suite at small N) past the chunk boundary: no row dropped/duplicated at a
-    // seam, merge stays FK-clean, no spurious degradation.
+    // 1100 messages = 3 work-side PK-existence chunks (500+500+100) via
+    // bulkPkExistsSet on message.id — that is the only multi-chunk bulk here. The
+    // backup-side member SELECT anchors on the parent's PK, and for TOPICS the
+    // message member's parent is the single topic root, so anchorList is just
+    // ['tpc-scale'] → 1 anchor chunk (NOT 3). Extends the per-row equivalence
+    // (pinned by the rest of this suite at small N) past the chunk boundary: no row
+    // dropped/duplicated at a seam, merge stays FK-clean, no spurious degradation.
     const N = 1100
     seedBackup((db) => {
       insertTopic(db, 'tpc-scale')
@@ -1650,6 +1653,265 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM message WHERE topic_id='tpc-scale'`).get() as { c: number }).c
     ).toBe(N + 1)
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  // ─── B17: bit-identical coverage for the batched identity paths ───────────────
+  //
+  // The batched lookups (bulkSelectLocalPkMap / bulkPkExistsSet /
+  // prefetchSecondaryUniqueMaps) must produce the SAME per-row identity decision the
+  // old `WHERE col = ? LIMIT 1` path did. Each test below asserts the row-level
+  // outcome (which rows SKIP / INSERT / merge, exact FK rewrite values, clean FK
+  // graph) — not just row counts — so a regression that drops/duplicates/cross-matches
+  // a tuple at a chunk seam or under a composite key fails loudly.
+
+  it('B17: composite row-value IN — preference (scope,key) PK-composite identity bulk', async () => {
+    // preference's identityKey IS its composite PK (scope,key) → naturalKey path runs
+    // bulkSelectLocalPkMap as SQLite row-value `(scope,key) IN ((?,?),(?,?))`. Two
+    // backup rows share `scope` but differ in `key`: a colliding one (SKIP, local
+    // survives) and a fresh one (INSERT). A scalar IN or a flat key join would
+    // cross-match (default,theme.mode)↔(default,feature.flags); the row-value bulk
+    // keeps the two tuples distinct — bit-identical to per-row `scope=? AND key=?`.
+    const now = Date.now()
+    const insertPref = (db: Database.Database, scope: string, key: string, value: string): void => {
+      db.prepare(`INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`).run(
+        scope,
+        key,
+        JSON.stringify(value),
+        now,
+        now
+      )
+    }
+    insertPref(dbh.sqlite, 'default', 'theme.mode', 'dark') // collision target
+    seedBackup((db) => {
+      insertPref(db, 'default', 'theme.mode', 'light') // composite key collides → SKIP
+      insertPref(db, 'default', 'feature.flags', 'on') // fresh composite key → INSERT
+    })
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    // Colliding composite key: local value survives (SKIP, not overwritten by backup).
+    expect(
+      (
+        dbh.sqlite.prepare(`SELECT value FROM preference WHERE scope='default' AND key='theme.mode'`).get() as {
+          value: string
+        }
+      ).value
+    ).toBe(JSON.stringify('dark'))
+    // Fresh composite key landed — the second tuple resolved on its OWN (scope,key),
+    // not cross-matched against the colliding tuple in the same bulk query.
+    expect(
+      dbh.sqlite.prepare(`SELECT 1 FROM preference WHERE scope='default' AND key='feature.flags'`).get()
+    ).toBeDefined()
+    expect(countRows('preference')).toBe(2)
+  })
+
+  it('B17: composite row-value IN — user_model member (providerId,modelId) rule bulk', async () => {
+    // user_model is a PROVIDERS include member with uniqueMergeRules=[providerId,modelId];
+    // member rule resolution runs bulkSelectLocalPkMap with keyColumns of length 2 →
+    // row-value `(provider_id,model_id) IN ((?,?),(?,?))`. Backup carries a colliding
+    // model (same provider+modelId → FIELD_MERGE) and a fresh one (INSERT); the
+    // composite bulk must not cross-match (openai,gpt-4o)↔(openai,gpt-4o-mini).
+    insertProvider(dbh.sqlite, 'openai')
+    insertModel(dbh.sqlite, 'openai', 'gpt-4o')
+    seedBackup((db) => {
+      insertProvider(db, 'openai')
+      insertModel(db, 'openai', 'gpt-4o') // composite rule collides → member FIELD_MERGE
+      insertModel(db, 'openai', 'gpt-4o-mini') // fresh composite key → INSERT
+    })
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    // Colliding model resolved via the composite rule map (no duplicate id).
+    expect(dbh.sqlite.prepare(`SELECT 1 FROM user_model WHERE id='openai::gpt-4o'`).get()).toBeDefined()
+    // Fresh model landed on its OWN composite key.
+    expect(dbh.sqlite.prepare(`SELECT 1 FROM user_model WHERE id='openai::gpt-4o-mini'`).get()).toBeDefined()
+    // Exactly two models — no spurious third from a cross-matched rule tuple.
+    expect(
+      (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM user_model WHERE provider_id='openai'`).get() as { c: number }).c
+    ).toBe(2)
+  })
+
+  it('B17: secondary unique map hits when PK misses, and PK is consulted before secondary', async () => {
+    // chat_message_file_ref is a TOPICS nested member with NO uniqueMergeRules, so
+    // member identity goes: bulkPkExistsSet first, then prefetchSecondaryUniqueMaps
+    // over DB_UNIQUE_KEYS=(fileEntryId,sourceId,role). Work holds TWO refs under the
+    // same message (fr-w=fe-A, fr-other=fe-B). Two backup refs exercise BOTH arms
+    // without colliding on the backup's own (fileEntryId,sourceId,role) UNIQUE:
+    //  • fr-pk (id fr-w, fe-B) — PK fr-w already exists in work → PK arm resolves it.
+    //    Its secondary (fe-B) would match fr-other; PK-first keeps it on fr-w and the
+    //    existing row is NOT field-merged/overwritten (file_entry_id stays fe-A).
+    //  • fr-sec (id fr-back, fe-A) — PK absent → PK miss → secondary (fe-A) → fr-w.
+    // (NULL-skip / PK-equiv-skip / ftsRowid-skip are pinned by the direct test below —
+    // production schema keeps every UNIQUE column NOT NULL, unreachable via seedBackup.)
+    insertFileEntry(dbh.sqlite, 'fe-A', '/tmp/a')
+    insertFileEntry(dbh.sqlite, 'fe-B', '/tmp/b')
+    insertTopic(dbh.sqlite, 'tpc-shared')
+    insertMessage(dbh.sqlite, 'msg-shared', 'tpc-shared', 'root', null)
+    insertChatMessageFileRef(dbh.sqlite, 'fr-w', 'msg-shared', 'fe-A')
+    insertChatMessageFileRef(dbh.sqlite, 'fr-other', 'msg-shared', 'fe-B')
+    seedBackup(
+      (db) => {
+        insertTopic(db, 'tpc-shared') // SKIP (uuid PK exists in work)
+        insertMessage(db, 'msg-shared', 'tpc-shared', 'root', null) // SKIP (uuid PK exists)
+        // PK=fr-w exists in work → PK arm wins (its secondary fe-B would hit fr-other).
+        insertChatMessageFileRef(db, 'fr-w', 'msg-shared', 'fe-B')
+        // PK=fr-back absent → PK miss → secondary (fe-A,msg-shared,attachment) → fr-w.
+        insertChatMessageFileRef(db, 'fr-back', 'msg-shared', 'fe-A')
+      },
+      { foreignKeys: false } // refs point at work-side file_entries (cross-DB)
+    )
+
+    const result = await runMerge(topCtx())
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    // Neither backup ref was inserted (no fr-back id); both deduped onto local refs.
+    const ids = (dbh.sqlite.prepare(`SELECT id FROM chat_message_file_ref ORDER BY id`).all() as { id: string }[]).map(
+      (r) => r.id
+    )
+    expect(ids).toEqual(['fr-other', 'fr-w'])
+    // PK-first proof: fr-w kept its OWN file_entry_id (fe-A) — NOT overwritten by the
+    // backup fr-pk row's fe-B (member PK-hit skips insert without field-merging).
+    expect(
+      (
+        dbh.sqlite.prepare(`SELECT file_entry_id FROM chat_message_file_ref WHERE id='fr-w'`).get() as {
+          file_entry_id: string
+        }
+      ).file_entry_id
+    ).toBe('fe-A')
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('B17: prefetchSecondaryUniqueMaps skips NULL / PK-equiv / ftsRowid-only keys (= ? parity)', () => {
+    // Direct call — production schema keeps every UNIQUE column NOT NULL (finalize #13
+    // unique-backing), so a NULL-bearing tuple CANNOT be seeded through seedBackup and
+    // is unreachable end-to-end. This is the reachable way to pin the skip rules
+    // prefetchSecondaryUniqueMaps reproduces from findLocalBySecondaryUnique: a NULL
+    // tuple is never queried nor matched (`= ?` parity); a UNIQUE that IS the PK or is
+    // ftsRowid-only is skipped entirely; the first declared key wins on multi-hit.
+    insertFileEntry(dbh.sqlite, 'fe-w', '/tmp/sec')
+    insertTopic(dbh.sqlite, 'tpc-sec')
+    insertMessage(dbh.sqlite, 'msg-sec', 'tpc-sec', 'root', null)
+    insertChatMessageFileRef(dbh.sqlite, 'fr-w', 'msg-sec', 'fe-w')
+
+    const engine = new MergeEngine(registry) as unknown as {
+      prefetchSecondaryUniqueMaps: (
+        db: Database.Database,
+        table: string,
+        pkColumns: readonly string[],
+        backupRows: Record<string, unknown>[]
+      ) => (row: Record<string, unknown>) => readonly (string | number)[] | undefined
+    }
+    // Physical column keys (physicalColumn() snake-cases camelCase). Row A has a
+    // concrete (fileEntryId,sourceId,role) that hits the local ref; Row NULL has a NULL
+    // fileEntryId and must be skipped outright — never matched, never even queried.
+    const backupRows = [
+      { id: 'fr-a', file_entry_id: 'fe-w', source_id: 'msg-sec', role: 'attachment' },
+      { id: 'fr-null', file_entry_id: null, source_id: 'msg-sec', role: 'attachment' }
+    ]
+    const lookup = engine.prefetchSecondaryUniqueMaps(dbh.sqlite, 'chat_message_file_ref', ['id'], backupRows)
+
+    expect(lookup(backupRows[0])).toEqual(['fr-w']) // concrete tuple resolves to the local PK
+    expect(lookup(backupRows[1])).toBeUndefined() // NULL component ⇒ never matches (= ? parity)
+  })
+
+  it('B17: member FK rewrite stays bit-identical across a multi-row batch', async () => {
+    // rewriteMemberFks runs over the WHOLE member batch up-front (B17) before identity
+    // resolution. Two file_entries dedupe to two DIFFERENT local canonical ids; each
+    // file_ref's fileEntryId must rewrite to its OWN canonical id, not the other's —
+    // proving the batched rewrite is per-row equivalent (no cross-row bleed).
+    insertFileEntry(dbh.sqlite, 'fe-local-a', '/tmp/a')
+    insertFileEntry(dbh.sqlite, 'fe-local-b', '/tmp/b')
+    seedBackup(
+      (db) => {
+        insertFileEntry(db, 'fe-back-a', '/tmp/A') // lower() collides → fe-local-a
+        insertFileEntry(db, 'fe-back-b', '/tmp/B') // lower() collides → fe-local-b
+        insertTopic(db, 'tpc-rw')
+        insertMessage(db, 'msg-a', 'tpc-rw', 'root', null)
+        insertMessage(db, 'msg-b', 'tpc-rw', 'user', 'msg-a')
+        insertChatMessageFileRef(db, 'fr-a', 'msg-a', 'fe-back-a') // → fe-local-a
+        insertChatMessageFileRef(db, 'fr-b', 'msg-b', 'fe-back-b') // → fe-local-b
+      },
+      { foreignKeys: false }
+    )
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['FILE_STORAGE', 'TOPICS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    const frA = dbh.sqlite.prepare(`SELECT file_entry_id FROM chat_message_file_ref WHERE id='fr-a'`).get() as {
+      file_entry_id: string
+    }
+    const frB = dbh.sqlite.prepare(`SELECT file_entry_id FROM chat_message_file_ref WHERE id='fr-b'`).get() as {
+      file_entry_id: string
+    }
+    expect(frA.file_entry_id).toBe('fe-local-a') // not fe-local-b
+    expect(frB.file_entry_id).toBe('fe-local-b') // not fe-local-a
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('B17: composite key containing U+001F does not collide end-to-end (preference)', async () => {
+    // tupleKey length-prefixes each value so a composite key containing the separator
+    // cannot blur tuple boundaries. End-to-end via the production bulkSelectLocalPkMap
+    // path: two preference rows whose (scope,key) would collide under a bare
+    // join('\x1f') — ('a\x1fb','c') vs ('a','b\x1fc') — must both import as DISTINCT
+    // rows, each keeping its own value (no map overwrite, no row lost).
+    const now = Date.now()
+    const SEP = '\x1f'
+    const insertPref = (db: Database.Database, scope: string, key: string, value: string): void => {
+      db.prepare(`INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`).run(
+        scope,
+        key,
+        JSON.stringify(value),
+        now,
+        now
+      )
+    }
+    seedBackup((db) => {
+      insertPref(db, `a${SEP}b`, 'c', 'v-left') // tupleKey-distinct from the row below
+      insertPref(db, 'a', `b${SEP}c`, 'v-right') // bare join would collide → overwrite
+    })
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    // Both rows survive with their OWN value — length-prefixed tupleKey kept the two
+    // composite keys distinct through the batch identity map.
+    expect(
+      (
+        dbh.sqlite.prepare(`SELECT value FROM preference WHERE scope = ? AND key = ?`).get(`a${SEP}b`, 'c') as {
+          value: string
+        }
+      ).value
+    ).toBe(JSON.stringify('v-left'))
+    expect(
+      (
+        dbh.sqlite.prepare(`SELECT value FROM preference WHERE scope = ? AND key = ?`).get('a', `b${SEP}c`) as {
+          value: string
+        }
+      ).value
+    ).toBe(JSON.stringify('v-right'))
+    expect(countRows('preference')).toBe(2)
   })
 
   it('tupleKey is collision-free for composite values containing the separator', () => {
