@@ -1308,12 +1308,18 @@ export class MergeEngine {
       // such a member must fall back to per-row interleaving or add a runtime guard. The
       // finalize #13 codegen constraint enforces uniqueness, not this self-ref shape.
       const rewrittenRows = memberRows.map((r) => this.rewriteMemberFks(member.table, r, identityMap))
-      const memberPkExistsSet = this.bulkPkExistsSet(
-        workSqlite,
-        member.table,
-        memberPkCols,
-        rewrittenRows.map((r) => memberPkCols.map((c) => r[physicalColumn(c)] as string | number))
-      )
+      // B17 perf: memberPkExistsSet is consumed only in the no-rule branch below (rule
+      // members resolve via memberRuleMap). Skip the PK-existence bulk when the member has
+      // a uniqueMergeRule (e.g. user_model) — saves one O(chunks) query; the `?.` at the
+      // consumer is safe because that branch only runs when rule is absent.
+      const memberPkExistsSet = rule
+        ? undefined
+        : this.bulkPkExistsSet(
+            workSqlite,
+            member.table,
+            memberPkCols,
+            rewrittenRows.map((r) => memberPkCols.map((c) => r[physicalColumn(c)] as string | number))
+          )
       const memberRuleMap = rule
         ? this.bulkSelectLocalPkMap(
             workSqlite,
@@ -1356,7 +1362,7 @@ export class MergeEngine {
           localPk = missing ? undefined : memberRuleMap!.get(tupleKey(values))
         } else {
           const backupMemberPk = memberPkCols.map((c) => memberRow[physicalColumn(c)] as string | number)
-          if (memberPkExistsSet.has(tupleKey(backupMemberPk))) {
+          if (memberPkExistsSet?.has(tupleKey(backupMemberPk))) {
             localPk = backupMemberPk
           } else {
             localPk = memberSecondaryLookup!(memberRow)
