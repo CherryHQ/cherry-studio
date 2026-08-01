@@ -104,6 +104,16 @@ let stagingResidueGcDone = false
 let exportTempGcDone = false
 
 /**
+ * B14: fixed drain timeout for restore quiesce writers (Channel / AiStream /
+ * AgentSessionRuntime / JobManager). The architecture (§9) requires drain to be bounded;
+ * this constant is the bound. Each writer's drain elapsed + straggler count is logged for
+ * cancel-latency observability, but NO SLA is committed on the value itself — the fixed
+ * timeout stays fail-closed (an unclean verdict aborts restore). The exact cancel-latency
+ * contract is owner-TBD (@0xfullex / @DeJeune dispatcher drain).
+ */
+const DRAIN_TIMEOUT_MS = 5000
+
+/**
  * Live-DB byte budget for export preflight: main file + optional `-wal`.
  * VACUUM INTO / createSnapshot materializes WAL-committed pages into the
  * snapshot; charging only the main file under-budgets when WAL is large and
@@ -150,6 +160,13 @@ interface ActiveOperation {
   readonly kind: 'export' | 'restore'
   readonly id: string
   readonly abortController: AbortController
+  /**
+   * B6: the generation this operation belongs to. A monotonic counter incremented on
+   * every beginActiveOperation; an op is current iff its generation equals the latest.
+   * Lets a stale async finally (prior generation) detect it is no longer current and skip
+   * destructive cleanup that would clobber a newer operation's holds.
+   */
+  readonly generation: number
 }
 
 @Injectable('BackupService')
@@ -163,6 +180,16 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /**
+   * B6: monotonic generation counter fencing stale callbacks. Each operation tags itself
+   * with the generation at start (beginActiveOperation); an async finally that fires after
+   * a newer operation began (stop→start restart) checks isCurrentGeneration before touching
+   * shared quiesce holds, so a stale op cannot release a newer op's BACKUP_IN_PROGRESS flag
+   * or pause holds. The exact stop→start semantics (whether stop should await the prior
+   * op's drain, and lease-failure behaviour) are owner-TBD (@0xfullex / lifecycle restart
+   * boundary — §9 covers crash recovery but NOT same-process restart).
+   */
+  private generation = 0
   /**
    * Writer pause holds for the active restore's quiesce window — one Disposable per
    * mutation writer paused in startRestore's quiesceWriters (ChannelManager,
@@ -293,8 +320,7 @@ export class BackupService extends BaseService {
     // and leaving the first uncancellable). Cleared in finally on any outcome.
     const backupId = randomUUID()
     const abortController = new AbortController()
-    const active: ActiveOperation = { kind: 'export', id: backupId, abortController }
-    this.beginActiveOperation(active)
+    const active = this.beginActiveOperation('export', backupId, abortController)
     try {
       // Resolve the Notes root ONCE per export — preflight sizing and the orchestrator's
       // notesRoot callback both read pendingNotesRoot, so a mid-export change to
@@ -366,8 +392,7 @@ export class BackupService extends BaseService {
     }
     const restoreId = `rst-${randomUUID()}`
     const abortController = new AbortController()
-    const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
-    this.activeOperation = active
+    const active = this.beginActiveOperation('restore', restoreId, abortController)
     // Flips once the journal is sealed — from then on quiesce must survive this method
     // (the write window stays closed until the user-confirmed relaunch exits the process).
     let sealed = false
@@ -507,19 +532,38 @@ export class BackupService extends BaseService {
               )
             }
           }
+          // B14: time each writer's drain + log elapsed/straggler for cancel-latency
+          // observability. No SLA is committed — the fixed DRAIN_TIMEOUT_MS stays
+          // fail-closed (abortUnclean throws on an unclean verdict). The cancel-to-abort
+          // lag surfaces as elapsedMs ≈ DRAIN_TIMEOUT_MS with stragglerIds > 0; the exact
+          // latency contract is owner-TBD (@0xfullex / @DeJeune dispatcher drain).
+          const drainAndObserve = async (
+            writer: string,
+            drain: () => Promise<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>
+          ): Promise<void> => {
+            const start = Date.now()
+            const verdict = await drain()
+            const elapsedMs = Date.now() - start
+            logger.info(
+              `restore quiesce drain: writer=${writer} elapsedMs=${elapsedMs} timeoutMs=${DRAIN_TIMEOUT_MS} stragglerIds=${verdict.stragglerIds.length} startupRecoveryPending=${verdict.startupRecoveryPending ?? false}`
+            )
+            abortUnclean(writer, verdict)
+          }
 
           // Channel first: pause admission + drain flushed batches before AI writers pause.
           this.restoreQuiesceHolds.push(channelManager.pause('restore-quiesce'))
-          abortUnclean('ChannelManager', await channelManager.drainInFlight({ timeoutMs: 5000 }))
+          await drainAndObserve('ChannelManager', () => channelManager.drainInFlight({ timeoutMs: DRAIN_TIMEOUT_MS }))
 
           // AI writers + JobManager: pause admission (gates new turns), then drain the
           // in-flight turns that were admitted before the pause.
           this.restoreQuiesceHolds.push(aiStream.pause('restore-quiesce'))
           this.restoreQuiesceHolds.push(agentRuntime.pause('restore-quiesce'))
           this.restoreQuiesceHolds.push(jobManager.pause('restore-quiesce'))
-          abortUnclean('AiStreamManager', await aiStream.drainInFlight({ timeoutMs: 5000 }))
-          abortUnclean('AgentSessionRuntimeService', await agentRuntime.drainInFlight({ timeoutMs: 5000 }))
-          abortUnclean('JobManager', await jobManager.drainInFlight({ timeoutMs: 5000 }))
+          await drainAndObserve('AiStreamManager', () => aiStream.drainInFlight({ timeoutMs: DRAIN_TIMEOUT_MS }))
+          await drainAndObserve('AgentSessionRuntimeService', () =>
+            agentRuntime.drainInFlight({ timeoutMs: DRAIN_TIMEOUT_MS })
+          )
+          await drainAndObserve('JobManager', () => jobManager.drainInFlight({ timeoutMs: DRAIN_TIMEOUT_MS }))
         },
         mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
           // Defensive belt: registry must be finalized in onInit. Unreachable in normal
@@ -583,7 +627,12 @@ export class BackupService extends BaseService {
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
-      if (!sealed && acquiredQuiesce) this.releaseRestoreQuiesce()
+      // B6: only release quiesce when THIS generation is still current. A stale finally
+      // from a prior generation (stop→start restart) must not release a newer operation's
+      // holds / clear its BACKUP_IN_PROGRESS flag. Whether stop should await the prior op's
+      // drain and the lease-failure semantics are owner-TBD (@0xfullex). In normal flow
+      // (no newer op began) isCurrentGeneration is true and release proceeds as before.
+      if (!sealed && acquiredQuiesce && this.isCurrentGeneration(active)) this.releaseRestoreQuiesce()
       if (this.activeOperation === active) this.activeOperation = null
     }
   }
@@ -1316,8 +1365,27 @@ export class BackupService extends BaseService {
     return e // unknown throws pass through; IpcApiService folds them to INTERNAL
   }
 
-  private beginActiveOperation(active: ActiveOperation): void {
+  private beginActiveOperation(
+    kind: 'export' | 'restore',
+    id: string,
+    abortController: AbortController
+  ): ActiveOperation {
+    // B6: bump the monotonic generation so any in-flight prior op becomes stale.
+    this.generation++
+    const active: ActiveOperation = { kind, id, abortController, generation: this.generation }
     this.activeOperation = active
+    return active
+  }
+
+  /**
+   * B6: returns true when `active` belongs to the current generation — i.e. no newer
+   * operation has started since `active` began. A stale finally (prior generation) must
+   * NOT release a newer operation's quiesce holds or clear activeOperation. The global
+   * counter is the source of truth (not activeOperation identity) so a newer op that has
+   * not yet claimed the slot is still detected.
+   */
+  private isCurrentGeneration(active: ActiveOperation): boolean {
+    return this.generation === active.generation
   }
 
   private endActiveOperation(active: ActiveOperation): void {
@@ -1335,6 +1403,10 @@ export class BackupService extends BaseService {
     // A sealed restore deliberately outlives activeOperation until relaunch. Lifecycle
     // restart stays in-process, though, so release that process-local writer gate here.
     // An active operation owns its hold until its async finally finishes abort cleanup.
+    // B6: the in-flight op's finally is generation-guarded — if a newer op began after a
+    // stop→start restart, the stale finally skips release so it cannot clobber the new op.
+    // Whether stop should instead AWAIT the in-flight drain (vs. just signalling abort) is
+    // owner-TBD (@0xfullex / lifecycle restart boundary).
     if (!activeOperation) this.releaseRestoreQuiesce()
   }
 

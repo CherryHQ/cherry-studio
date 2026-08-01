@@ -38,6 +38,7 @@ import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
 import type { MergeContext, MergeResult } from './merge/types'
+import { scanMissingMcpPackageDirs } from './missingLocalResourceScan'
 import { presetIncludesFiles } from './presets'
 import type { PlanCtx, PlanRoots, ResourcePlan } from './resourcePlanning'
 
@@ -144,6 +145,71 @@ function isSafeBasename(id: string): boolean {
   return /^[a-zA-Z0-9_-]{1,128}$/.test(id) && !id.includes('..') && id !== '.' && id !== '..'
 }
 
+/**
+ * D6: describes one discovered aside slot for retention tracking. An aside is the live-DB
+ * rename target at promotion (`<liveDbPath>.aside-<restoreId>`); multiple restores across
+ * boots can leave multiple asides. This slot structure makes the aside lifecycle observable
+ * so a retention sweeper can be wired once the owner decides the numbers.
+ */
+export interface AsideRetentionSlot {
+  readonly restoreId: string
+  readonly asidePath: string
+  /** mtime of the aside file (creation/proxied via the filesystem). */
+  readonly createdAtMs: number
+}
+
+/**
+ * D6: aside retention policy. The values (maxSlots / maxAgeMs / consecutive) AND the
+ * sweeper semantics are owner-TBD (@0xfullex — §9 :411 "retention/GC numbers TBD"). This
+ * skeleton declares the structure so the aside lifecycle is tracked; it does NOT invent
+ * retention numbers and the sweeper does NOT delete anything until the owner decides.
+ */
+export interface AsideRetentionConfig {
+  /** Max aside slots retained before the oldest is swept. null = undecided (owner-TBD). */
+  readonly maxSlots: number | null
+  /** Max age (ms) before an aside is swept. null = undecided (owner-TBD). */
+  readonly maxAgeMs: number | null
+}
+
+/**
+ * D6: placeholder retention config — every field is null (owner-TBD @0xfullex). The
+ * discover+log skeleton uses this so the structure is real and exercised, but no aside is
+ * ever deleted until the owner supplies concrete retention numbers.
+ */
+export const ASIDE_RETENTION_TBD: AsideRetentionConfig = { maxSlots: null, maxAgeMs: null }
+
+/**
+ * D6: discover existing aside slots in the live DB's directory. An aside is named
+ * `<liveDbPath>.aside-<restoreId>`. Returns slots oldest-first by mtime. Best-effort — a
+ * missing/unreadable directory yields an empty list (the sweeper is a no-op then).
+ *
+ * The sweeper that would retain/expire these slots is owner-TBD (retention numbers +
+ * consecutive-restore semantics @0xfullex); today this only enumerates for observability.
+ */
+export function discoverAsideSlots(liveDbPath: string): AsideRetentionSlot[] {
+  const dir = path.dirname(liveDbPath)
+  const prefix = `${path.basename(liveDbPath)}.aside-`
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(dir)
+  } catch {
+    return []
+  }
+  const slots: AsideRetentionSlot[] = []
+  for (const name of entries) {
+    if (!name.startsWith(prefix)) continue
+    const restoreId = name.slice(prefix.length)
+    if (!restoreId) continue
+    try {
+      const st = fs.statSync(path.join(dir, name))
+      slots.push({ restoreId, asidePath: path.join(dir, name), createdAtMs: st.mtimeMs })
+    } catch {
+      // vanished between readdir and stat — skip
+    }
+  }
+  return slots.sort((a, b) => a.createdAtMs - b.createdAtMs)
+}
+
 export class ImportOrchestrator {
   constructor(private readonly deps: ImportOrchestratorDeps) {}
 
@@ -163,6 +229,16 @@ export class ImportOrchestrator {
     const workPath = path.join(workDir, 'work.sqlite')
     // aside sits next to the live DB (same dir → atomic rename at promotion).
     const asideAbs = `${this.deps.liveDbPath}.aside-${options.restoreId}`
+    // D6: discover existing aside slots for retention observability. The sweeper (retain/
+    // expire by maxSlots/maxAgeMs) is owner-TBD (@0xfullex) — today this only logs the
+    // discovered slots so stale asides are visible; nothing is deleted here.
+    const existingAsides = discoverAsideSlots(this.deps.liveDbPath)
+    if (existingAsides.length > 0) {
+      logger.info(`aside retention: discovered ${existingAsides.length} existing aside slot(s)`, {
+        slots: existingAsides.map((s) => ({ restoreId: s.restoreId, createdAtMs: s.createdAtMs })),
+        config: ASIDE_RETENTION_TBD
+      })
+    }
 
     // Track the open work connection so the finally block can close it on a mid-pipeline failure.
     let workSqlite: Database.Database | undefined
@@ -269,6 +345,25 @@ export class ImportOrchestrator {
         })
       }
       this.assertNotCancelled(options)
+
+      // D8 统计告知版 (disposition matrix D8/B10, node 2.1): scan MCP_SERVERS rows in the
+      // post-merge work DB for `dxtPath` package dirs missing on the LOCAL filesystem. A
+      // schema-only restore re-creates the row but not the DXT package dir → the server cannot
+      // start on a new machine. NON-BLOCKING: this only logs a summary stat (count + server
+      // names); it does NOT gate admission/merge and does NOT touch RestoreDegradation / journal
+      // summary / result-page UI. User-visible disclosure is a contract decision owner TBD
+      // (@DeJeune file-resource hooks — full staging provider lands later). Scoped to restores
+      // that include the MCP_SERVERS domain so an unrelated restore stays silent.
+      if (archiveContext.domains.includes('MCP_SERVERS')) {
+        const missingMcp = scanMissingMcpPackageDirs(workSqlite)
+        if (missingMcp.count > 0) {
+          logger.warn('restore: MCP server package dirs missing on local filesystem (non-blocking)', {
+            count: missingMcp.count,
+            scopes: missingMcp.servers.map((s) => s.name),
+            paths: missingMcp.servers.map((s) => s.dxtPath)
+          })
+        }
+      }
 
       // (d) Migrate work forward to the bundled latest, then read its COMPLETE applied chain.
       // applyMigrations is a no-op when work (a copy of live) is already current.

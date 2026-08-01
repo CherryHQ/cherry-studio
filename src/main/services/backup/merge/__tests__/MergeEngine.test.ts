@@ -996,6 +996,122 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
   })
 
+  // ─── B18: skip redundant final FTS rebuild when no FTS-source table changed ────
+  //
+  // countFtsRebuilds wraps work.sqlite.prepare with a Proxy that counts the FTS5
+  // special `INSERT INTO <fts> (<fts>) VALUES ('rebuild')` statements — the exact
+  // SQL rebuildFts emits. assertFtsIntegrity uses a DIFFERENT special command
+  // ('integrity-check') so it is excluded from the count, isolating the rebuild
+  // decision (B18) from the always-on integrity gate.
+  const countFtsRebuilds = (db: Database.Database): { count: () => number } => {
+    let n = 0
+    const origPrepare = db.prepare.bind(db)
+    db.prepare = ((sql: string) => {
+      const stmt = origPrepare(sql)
+      if (/VALUES\s*\(\s*'rebuild'\s*\)/i.test(sql)) {
+        return new Proxy(stmt, {
+          get(target, prop) {
+            const v = target[prop]
+            if (typeof v === 'function' && prop === 'run') {
+              return (...args: unknown[]) => {
+                n++
+                return (v as (...a: unknown[]) => unknown).apply(target, args)
+              }
+            }
+            return v
+          }
+        })
+      }
+      return stmt
+    }) as Database.Database['prepare']
+    return { count: () => n }
+  }
+
+  it('B18: rebuilds FTS when a message row is imported (FTS source table changed)', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-b18-in')
+      insertMessage(db, 'msg-b18-in', 'tpc-b18-in', 'root', null)
+    })
+
+    const counter = countFtsRebuilds(dbh.sqlite)
+    await runMerge(topCtx())
+
+    // message insert flipped ftsSourceChanged → rebuild ran (2 FTS tables: message_fts
+    // + agent_session_message_fts). assertFtsIntegrity still passes post-commit.
+    expect(counter.count()).toBe(2)
+    expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
+  })
+
+  it('B18: skips FTS rebuild when no FTS-source table was touched, integrity still passes', async () => {
+    // PROVIDERS holds no FTS source table (message / agent_session_message). A backfill-
+    // only restore of providers + models must NOT trigger the whole-index rebuild —
+    // the FTS index is unchanged, so rebuildFts would be a no-op anyway. assertFtsIntegrity
+    // still runs (correctness gate) and must pass.
+    seedBackup((db) => {
+      insertProvider(db, 'openai-b18')
+      insertModel(db, 'openai-b18', 'gpt-4o')
+    })
+
+    const counter = countFtsRebuilds(dbh.sqlite)
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    expect(counter.count()).toBe(0) // no FTS-source change → rebuild skipped
+    // Correctness gate is never relaxed: integrity still passes without the rebuild.
+    expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
+  })
+
+  // ─── B12: FIELD_MERGE aggregate telemetry (counts + strategies, no values) ─────
+  it('B12: records FIELD_MERGE telemetry (table/column-count/strategy, no cell values)', async () => {
+    // A FIELD_MERGE conflict on user_provider: local name kept (non-null), backup api_keys
+    // fill a seeded empty [] local. The engine must record table + column count + strategy
+    // names ONLY — never the key material or authConfig values themselves.
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      )
+      .run('openai', 'OpenAI', '[]', 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      ).run('openai', 'OpenAI', JSON.stringify([{ id: 'k1', key: 'SECRET-VALUE' }]), 'o-backup', now, now)
+    })
+
+    // Use an explicit engine instance so the per-merge telemetry map is inspectable.
+    const engine = new MergeEngine(registry)
+    await engine.mergeBackupIntoWork(dbh.sqlite, dbh.db, {
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const stats = (
+      engine as unknown as {
+        fieldMergeStats: Map<string, { columns: number; strategies: Set<string> }>
+      }
+    ).fieldMergeStats
+    // Telemetry recorded a user_provider entry with ≥1 changed column.
+    const providerStat = stats.get('user_provider')
+    expect(providerStat).toBeDefined()
+    expect(providerStat!.columns).toBeGreaterThanOrEqual(1)
+    // remote-fills-local-empty is the api_keys column policy (empty [] local fills from backup).
+    expect([...providerStat!.strategies]).toContain('remote-fills-local-empty')
+    // No values are captured: the stat shape is {columns:number, strategies:Set<string>} only —
+    // verify the serialized telemetry carries no key material by stringifying the whole map.
+    const serialized = JSON.stringify([...stats.entries()])
+    expect(serialized).not.toContain('SECRET-VALUE')
+    expect(serialized).not.toContain('k1')
+  })
+
   it('skips pin rows whose polymorphic entityType maps outside selected domains', async () => {
     const now = Date.now()
     seedBackup((db) => {

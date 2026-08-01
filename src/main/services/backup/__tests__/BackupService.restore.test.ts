@@ -56,6 +56,13 @@ const {
   dialogShowMessageBoxMock: vi.fn(() => Promise.resolve({ response: 0 }))
 }))
 
+// B14: capture BackupService logger.info calls so drain-observability logging is assertable.
+const { loggerInfo } = vi.hoisted(() => ({ loggerInfo: vi.fn() }))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ info: loggerInfo, warn: vi.fn(), error: vi.fn() }) }
+}))
+
 vi.mock('../ImportOrchestrator', () => ({
   ImportOrchestrator: vi.fn().mockImplementation(() => ({ importBackup }))
 }))
@@ -169,6 +176,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     getRegistry.mockReturnValue({ domains: [] })
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
     drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+    channelDrain.mockResolvedValue({ stragglerIds: [] })
     relaunchMock.mockImplementation(() => {})
     forceExitMock.mockImplementation(() => {})
     dialogShowMessageBoxMock.mockResolvedValue({ response: 0 })
@@ -489,6 +497,81 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(isBackupInProgress()).toBe(false)
       expect(holdDispose).toHaveBeenCalledTimes(1)
+    })
+
+    it('B14: logs each writer drain elapsed/straggler and uses DRAIN_TIMEOUT_MS (5000)', async () => {
+      // Clean drains — quiesce proceeds. The drain bound is the named DRAIN_TIMEOUT_MS
+      // constant (5000), and each writer's elapsed + straggler count is logged (B14).
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      channelDrain.mockResolvedValue({ stragglerIds: [] })
+      importBackup.mockImplementationOnce(async () => {
+        await runQuiesceViaImportBackupMock()
+        return { summary: { toRestore: [], toSkip: [], degradations: [] } }
+      })
+      const service = new BackupService()
+      vi.useFakeTimers()
+      try {
+        await service.startRestore({ archivePath: '/x.cherrybackup' })
+        // DRAIN_TIMEOUT_MS (5000) is the drain bound passed to every writer.
+        expect(channelDrain).toHaveBeenCalledWith({ timeoutMs: 5000 })
+        expect(drainInFlight).toHaveBeenCalledWith({ timeoutMs: 5000 })
+        // B14: one drain-observation log per writer (Channel / Ai / Agent / Job = 4).
+        const drainLogs = loggerInfo.mock.calls.filter(
+          (c) => typeof c[0] === 'string' && c[0].includes('restore quiesce drain')
+        )
+        expect(drainLogs).toHaveLength(4)
+        // Each line carries the writer name + elapsedMs + stragglerIds observability fields.
+        expect(drainLogs[0][0]).toContain('writer=ChannelManager')
+        expect(drainLogs[0][0]).toContain('elapsedMs=')
+        expect(drainLogs[0][0]).toContain('stragglerIds=0')
+      } finally {
+        vi.useRealTimers()
+        setBackupInProgress(false)
+      }
+    })
+
+    it('B6: a stale finally from a prior generation does not release the current generation quiesce', async () => {
+      // op1 acquires quiesce and then hangs. A newer generation begins (stop→start restart
+      // simulation) before op1's finally fires. op1's stale finally must NOT release
+      // quiesce — that would clear the new generation's BACKUP_IN_PROGRESS flag + dispose
+      // its holds. The generation fence (isCurrentGeneration) skips the release.
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      channelDrain.mockResolvedValue({ stragglerIds: [] })
+      let rejectOp1!: (e: unknown) => void
+      let signalQuiesce!: () => void
+      const quiesceAcquired = new Promise<void>((r) => {
+        signalQuiesce = r
+      })
+      importBackup.mockImplementationOnce(async () => {
+        await runQuiesceViaImportBackupMock()
+        signalQuiesce()
+        return new Promise<never>((_resolve, reject) => {
+          rejectOp1 = reject
+        })
+      })
+
+      const service = new BackupService()
+      const restoreP = service.startRestore({ archivePath: '/x.cherrybackup' })
+      // Wait until op1 has acquired quiesce (set BACKUP_IN_PROGRESS + pushed holds) and is
+      // now hanging inside the in-flight importBackup promise.
+      await quiesceAcquired
+      expect(isBackupInProgress()).toBe(true)
+
+      // Simulate a newer generation beginning while op1 is still in-flight (what a
+      // stop→start restart + new beginActiveOperation would do to the counter).
+      const internal = service as unknown as { generation: number }
+      internal.generation += 1
+
+      // op1 now fails — its finally runs as a STALE callback (generation mismatch).
+      rejectOp1(new Error('op1 aborted'))
+      await expect(restoreP).rejects.toThrow()
+
+      // The stale finally must NOT have released quiesce: BACKUP_IN_PROGRESS stays set
+      // (the new generation owns it). Without the fence, releaseRestoreQuiesce would have
+      // cleared it here, clobbering the newer operation.
+      expect(isBackupInProgress()).toBe(true)
+
+      setBackupInProgress(false)
     })
 
     it('shows separate native notifications for snapshot, merge, seal, and completion', async () => {

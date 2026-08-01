@@ -5,9 +5,9 @@
 // (quiesce / merge / file-resource staging). Production wires those deps to throw,
 // keeping restore fail-closed; here they are no-ops so the crash-safety orchestration
 // is testable in isolation.
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
@@ -18,6 +18,7 @@ import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { snapshotTo } from '@main/data/db/restore/snapshot'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +29,12 @@ import {
   RestoreMergeNotImplementedError,
   RestoreQuiesceNotImplementedError
 } from '../errors'
-import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
+import {
+  ASIDE_RETENTION_TBD,
+  discoverAsideSlots,
+  ImportOrchestrator,
+  type ImportOrchestratorDeps
+} from '../ImportOrchestrator'
 import type { BackupManifest } from '../manifest'
 import { planResources, type PlanRoots, type ResourcePlan } from '../resourcePlanning'
 
@@ -325,5 +331,124 @@ describe('ImportOrchestrator spine', () => {
       })
     ).rejects.toThrow(BackupCancelledError)
     expect(readRestoreJournal().kind).toBe('none')
+  })
+
+  it('D8 统计告知版: logs (does not block) MCP dxtPath package dirs missing locally', async () => {
+    // A schema-only restore re-creates mcp_server rows but NOT the DXT package dir its dxtPath
+    // points at. The post-merge scan must surface that gap as a NON-BLOCKING warn and must NOT
+    // touch summary.degradations (user-visible disclosure is owner TBD) or fail the restore.
+    const missingPath = join(tmpdir(), 'cs-mcp-package-absent-' + Date.now())
+    const presentDir = mkdtempSync(join(tmpdir(), 'cs-mcp-package-present-'))
+    // mergeBackupIntoWork receives workSqlite (the post-snapshot detached DB) — simulate a real
+    // merge importing three MCP servers: one missing package, one present, one non-DXT (no path).
+    // created_at/updated_at/is_active are NOT NULL in the production schema.
+    const mergeBackupIntoWork = vi.fn(async (workSqlite: Database.Database) => {
+      const insert = workSqlite.prepare(
+        'INSERT INTO mcp_server (id, name, dxt_path, is_active, created_at, updated_at) VALUES (?, ?, ?, 0, 0, 0)'
+      )
+      insert.run('srv-1', 'missing-dxt', missingPath)
+      insert.run('srv-2', 'present-dxt', presentDir)
+      insert.run('srv-3', 'plain-stdio', null)
+      return { degradedToSkips: [] }
+    })
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        admitArchive: async (): Promise<ArchiveContext> => ({
+          backupDbPath: join(stagingRoot, 'dummy-backup.sqlite'),
+          manifest: { degraded: { resources: [] } } as unknown as BackupManifest,
+          domains: ['MCP_SERVERS'],
+          includeFiles: false,
+          resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
+        }),
+        mergeBackupIntoWork
+      })
+    )
+    mockMainLoggerService.warn.mockClear()
+
+    const result = await orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-d8' })
+
+    // Restore completed — merge was NOT blocked by the missing package dir.
+    expect(result.restoreId).toBe('rst-d8')
+    expect(readRestoreJournal().kind).toBe('ok')
+    // The summary stays untouched: no new degradation kind, no MCP entry.
+    expect(result.summary.degradations).toEqual([])
+
+    // The gap is observable via exactly one warn carrying the count + server-name scope.
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'restore: MCP server package dirs missing on local filesystem (non-blocking)',
+      expect.objectContaining({ count: 1, scopes: ['missing-dxt'] })
+    )
+  })
+
+  it('D8 统计告知版: stays silent when MCP_SERVERS is not in the restore domains', async () => {
+    // An unrelated restore (no MCP_SERVERS domain) must not log the MCP scan — the scan is
+    // scoped to restores that actually touch MCP servers.
+    const missingPath = join(tmpdir(), 'cs-mcp-absent-nodomain-' + Date.now())
+    const mergeBackupIntoWork = vi.fn(async (workSqlite: Database.Database) => {
+      workSqlite
+        .prepare(
+          'INSERT INTO mcp_server (id, name, dxt_path, is_active, created_at, updated_at) VALUES (?, ?, ?, 0, 0, 0)'
+        )
+        .run('srv-x', 'ghost', missingPath)
+      return { degradedToSkips: [] }
+    })
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        admitArchive: async (): Promise<ArchiveContext> => ({
+          backupDbPath: join(stagingRoot, 'dummy-backup.sqlite'),
+          manifest: { degraded: { resources: [] } } as unknown as BackupManifest,
+          domains: ['PREFERENCES'],
+          includeFiles: false,
+          resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
+        }),
+        mergeBackupIntoWork
+      })
+    )
+    mockMainLoggerService.warn.mockClear()
+
+    await orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-d8-silent' })
+
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+      'restore: MCP server package dirs missing on local filesystem (non-blocking)',
+      expect.anything()
+    )
+  })
+
+  it('D6: discoverAsideSlots enumerates aside slots + retention config is owner-TBD (null)', () => {
+    // Plant two aside files next to the live DB (as the promotion gate would create on rename).
+    // The naming convention is `<liveDbPath>.aside-<restoreId>`.
+    writeFileSync(`${liveDbPath}.aside-rst-old`, 'old')
+    writeFileSync(`${liveDbPath}.aside-rst-newer`, 'newer')
+
+    const slots = discoverAsideSlots(liveDbPath)
+    expect(slots).toHaveLength(2)
+    // Each slot carries the restoreId parsed from the suffix + an absolute path + mtime.
+    expect(slots.map((s) => s.restoreId).sort()).toEqual(['rst-newer', 'rst-old'])
+    expect(slots.every((s) => s.asidePath.startsWith(dirname(liveDbPath)))).toBe(true)
+    expect(slots.every((s) => Number.isFinite(s.createdAtMs))).toBe(true)
+
+    // The retention config is owner-TBD: both bounds are null (no invented numbers).
+    expect(ASIDE_RETENTION_TBD.maxSlots).toBeNull()
+    expect(ASIDE_RETENTION_TBD.maxAgeMs).toBeNull()
+  })
+
+  it('D6: discoverAsideSlots ignores unrelated files and tolerates a missing directory', () => {
+    // Clean any aside files left by the prior D6 test in this shared live-DB directory.
+    for (const name of readdirSync(dirname(liveDbPath))) {
+      if (name.startsWith(`${basename(liveDbPath)}.aside-`)) {
+        rmSync(join(dirname(liveDbPath), name), { force: true })
+      }
+    }
+    // Only `.aside-` prefixed files count; siblings like the live DB or -wal are ignored.
+    writeFileSync(`${liveDbPath}.aside-rst-keep`, 'keep')
+    writeFileSync(`${liveDbPath}-wal`, 'not-an-aside')
+    writeFileSync(join(dirname(liveDbPath), 'random-file'), 'noise')
+
+    const slots = discoverAsideSlots(liveDbPath)
+    expect(slots).toHaveLength(1)
+    expect(slots[0].restoreId).toBe('rst-keep')
+
+    // A path whose directory does not exist yields an empty list (sweeper stays a no-op).
+    expect(discoverAsideSlots(join(tmpDir, 'no-such-dir', 'missing.sqlite'))).toEqual([])
   })
 })

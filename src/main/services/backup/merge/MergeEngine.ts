@@ -19,6 +19,7 @@
 //
 // See `docs/references/backup/backup-architecture.md` §3/§9.
 
+import { loggerService } from '@logger'
 import type {
   AggregateBoundary,
   EntityReference,
@@ -41,6 +42,8 @@ import {
   POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE
 } from './polymorphicAssociationDeriver'
 import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
+
+const logger = loggerService.withContext('MergeEngine')
 
 /**
  * Convert a Drizzle logical (camelCase) column name to its physical (snake_case)
@@ -475,6 +478,22 @@ export class MergeEngine {
   private workColumnsByTable = new Map<string, Set<string>>()
   /** Per-merge memo: cacheKey → prepared statement (bound to the active workSqlite). */
   private stmtCache = new Map<string, Database.Statement>()
+  /**
+   * Per-merge flag: whether any FTS source table (message / agent_session_message)
+   * received an INSERT / UPDATE / repair DELETE this merge. When false the final
+   * whole-index rebuildFts is a no-op (the FTS index content is unchanged), so it is
+   * skipped (B18). assertFtsIntegrity in runConsistencyCheck still ALWAYS runs, so a
+   * stale index never promotes — only the redundant rebuild is elided.
+   */
+  private ftsSourceChanged = false
+  /**
+   * B12: per-merge FIELD_MERGE telemetry. Aggregates table → {columns changed, strategies}
+   * so a single internal log line summarizes merge activity. Records ONLY counts and
+   * strategy names — NEVER cell values, credentials, or authConfig content. User-visible
+   * disclosure (which loss/conflict to surface, whether to name merged columns) is a
+   * separate contract owned upstream (owner TBD @0xfullex); this is internal observability only.
+   */
+  private fieldMergeStats = new Map<string, { columns: number; strategies: Set<string> }>()
 
   /**
    * Merge backup rows into work.sqlite. The transaction fn is synchronous
@@ -490,6 +509,8 @@ export class MergeEngine {
       this.assertBaseFkClean(workSqlite)
       this.workColumnsByTable.clear()
       this.stmtCache.clear()
+      this.ftsSourceChanged = false
+      this.fieldMergeStats.clear()
       const ordered = this.registry.topoSort(ctx.domains)
       const degradedToSkips: DegradedSkip[] = []
       // scanAggregates stays pure read-only (no identityMap side effects) so existing
@@ -535,12 +556,18 @@ export class MergeEngine {
         // over the messages this restore imported (DB-only restore → empty staged set →
         // every imported attachment disclosed).
         this.discloseFileIdSoftRefs(workSqlite, ctx, identityMap, degradedToSkips)
-        // FTS rebuild backstop — whole-index resync after the bulk import (single-row triggers
-        // can't backstop it; skipped rows / fts_rowid collisions leave stale indexes otherwise).
-        rebuildFts(workSqlite)
+        // FTS rebuild backstop — whole-index resync only when this merge touched an FTS
+        // source table (message / agent_session_message). When no FTS-source row was
+        // inserted/updated/repaired the index content is unchanged, so the rebuild is a
+        // no-op and is skipped (B18). assertFtsIntegrity in runConsistencyCheck still
+        // always runs, so a stale index never promotes — only the redundant rebuild is elided.
+        if (this.ftsSourceChanged) rebuildFts(workSqlite)
         this.runConsistencyCheck(workSqlite, appStateSnapshot)
       })
       run()
+      // B12: emit aggregated FIELD_MERGE telemetry after a successful commit (never for a
+      // rolled-back merge). Counts + strategy names only.
+      this.logFieldMergeStats()
 
       return { degradedToSkips }
     } finally {
@@ -1466,6 +1493,17 @@ export class MergeEngine {
         if (isEmptyForRemoteFill(localVal) && !isEmptyForRemoteFill(backupVal)) nextVal = backupVal
       }
       if (nextVal === undefined) continue
+      // B12: record FIELD_MERGE telemetry — column count + strategy name ONLY (no values,
+      // credentials, or authConfig content). The strategy defaults to remote-fills-local-null
+      // when no explicit policy applies.
+      const strategy = policy?.strategy ?? 'remote-fills-local-null'
+      let statEntry = this.fieldMergeStats.get(table)
+      if (!statEntry) {
+        statEntry = { columns: 0, strategies: new Set<string>() }
+        this.fieldMergeStats.set(table, statEntry)
+      }
+      statEntry.columns++
+      statEntry.strategies.add(strategy)
       sets.push(`${quoteIdent(phys)} = ?`)
       values.push(nextVal)
     }
@@ -1476,6 +1514,8 @@ export class MergeEngine {
       `upd:${table}:${sets.join(',')}:${where}`,
       `UPDATE ${quoteIdent(table)} SET ${sets.join(', ')} WHERE ${where}`
     ).run(...values)
+    // B18: an FTS source table update changes the index content → the final rebuild must run.
+    if (FTS_SOURCE_TABLES.has(table)) this.ftsSourceChanged = true
   }
 
   /**
@@ -1845,6 +1885,8 @@ export class MergeEngine {
     // Stmt keyed by table+col list — hoist per distinct shape out of the row loop (N1).
     const sql = `INSERT INTO ${quoteIdent(table)} (${quotedCols.join(', ')}) VALUES (${placeholders})`
     this.prepareCached(workSqlite, `ins:${table}:${cols.join(',')}`, sql).run(...cols.map((c) => row[c]))
+    // B18: an FTS source table insert changes the index content → the final rebuild must run.
+    if (isFtsSource) this.ftsSourceChanged = true
   }
 
   /**
@@ -2122,10 +2164,14 @@ export class MergeEngine {
               `UPDATE ${quoteIdent(v.table)} SET ${setCols.map((c) => `${quoteIdent(c)} = NULL`).join(', ')} WHERE rowid = ?`
             )
             .run(v.rowid)
+          // B18: a repair on an FTS source table changes index content → rebuild must run.
+          if (FTS_SOURCE_TABLES.has(v.table)) this.ftsSourceChanged = true
           const key = `${v.table}${DEGRADE_KEY_SEP}ref_cleared${DEGRADE_KEY_SEP}ref to missing ${v.parent} cleared (SET NULL)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         } else {
           workSqlite.prepare(`DELETE FROM ${quoteIdent(v.table)} WHERE rowid = ?`).run(v.rowid)
+          // B18: a repair on an FTS source table changes index content → rebuild must run.
+          if (FTS_SOURCE_TABLES.has(v.table)) this.ftsSourceChanged = true
           const key = `${v.table}${DEGRADE_KEY_SEP}row_pruned${DEGRADE_KEY_SEP}row pruned (required ${v.parent} target missing)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         }
@@ -2147,6 +2193,22 @@ export class MergeEngine {
     if (!exists) return undefined
     const rows = work.prepare('SELECT key FROM app_state').all() as { key: string }[]
     return new Set(rows.map((r) => r.key))
+  }
+
+  /**
+   * B12: emit the aggregated FIELD_MERGE telemetry as one internal log line after a
+   * successful merge commit. Records ONLY table name, column count, and strategy names —
+   * never cell values, credentials, or authConfig content. This is internal observability
+   * for merge activity; the user-visible disclosure contract (which loss/conflict to
+   * surface in the restore summary, and whether to name merged columns) is a separate
+   * decision owned upstream (owner TBD @0xfullex).
+   */
+  private logFieldMergeStats(): void {
+    if (this.fieldMergeStats.size === 0) return
+    const tables = [...this.fieldMergeStats.entries()].map(
+      ([table, { columns, strategies }]) => `${table}: ${columns} column(s) [${[...strategies].join(',')}]`
+    )
+    logger.info('FIELD_MERGE telemetry', { tables })
   }
 
   /**
