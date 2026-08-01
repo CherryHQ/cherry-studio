@@ -12,6 +12,7 @@
 import { copyFile, cp, mkdir, realpath, rm, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
@@ -141,6 +142,16 @@ export class SqliteFileStager implements FileStager {
     if (fileIds.size === 0) return { total: 0, totalBytes: 0, missing: [] }
     await mkdir(destDir, { recursive: true })
 
+    const filesRoot = application.getPath('feature.files.data')
+    // Canonical file root for realpath containment — the atomic staging rename remains
+    // the final backstop, but source validation must not follow links out of this root.
+    let realRoot: string
+    try {
+      realRoot = await realpath(filesRoot)
+    } catch {
+      realRoot = resolve(filesRoot)
+    }
+
     const ids = [...fileIds]
     // Chunk the lookup — a single IN(...) over a large file library can exceed
     // SQLite's bound-variable limit (SQLITE_MAX_VARIABLE_NUMBER, default 999) and
@@ -174,12 +185,36 @@ export class SqliteFileStager implements FileStager {
     for (const id of ids) if (!foundIds.has(id)) missing.push(id)
 
     for (const row of rows) {
-      const dest = join(destDir, row.id)
+      // Reject traversal even when the database row contains an unexpected id; the
+      // schema validation is defense-in-depth, not a substitute for this boundary.
+      const escapes = row.id.split(/[/\\]/).includes('..') || !isPathInside(resolve(filesRoot, row.id), filesRoot)
+      if (escapes) {
+        logger.warn('stageFiles: path outside files root skipped', { id: row.id, filesRoot })
+        missing.push(row.id)
+        continue
+      }
       const physicalPath = resolvePhysicalPath({
         id: row.id,
         origin: 'internal',
         ext: row.ext
       })
+      // realpath follows junctions/symlinks; refuse blobs that land outside the
+      // managed files root before copyFile can follow the link.
+      try {
+        const realSrc = await realpath(physicalPath)
+        if (!isPathInside(realSrc, realRoot)) {
+          logger.warn('stageFiles: source realpath outside files root skipped', {
+            id: row.id,
+            realSrc,
+            filesRoot
+          })
+          missing.push(row.id)
+          continue
+        }
+      } catch {
+        // Missing / unreadable — copyFile below classifies ENOENT vs hard errors.
+      }
+      const dest = join(destDir, row.id)
       try {
         await copyFile(physicalPath, dest)
         const destStat = await stat(dest)
@@ -220,10 +255,46 @@ export class SqliteFileStager implements FileStager {
     if (baseIds.size === 0) return { bases: [], missing: [] }
     await mkdir(destDir, { recursive: true })
 
+    // Canonical knowledge root for realpath containment — the atomic staging rename
+    // remains the final backstop, but cp must not follow a source link out of this root.
+    let realRoot: string
+    try {
+      realRoot = await realpath(this.knowledgeRoot)
+    } catch {
+      realRoot = resolve(this.knowledgeRoot)
+    }
+
     const bases: string[] = []
     const missing: string[] = []
     for (const baseId of baseIds) {
+      // Reject traversal even when an unexpected base id bypasses schema validation.
+      const escapes =
+        baseId.split(/[/\\]/).includes('..') || !isPathInside(resolve(this.knowledgeRoot, baseId), this.knowledgeRoot)
+      if (escapes) {
+        logger.warn('stageKnowledge: path outside knowledge root skipped', {
+          baseId,
+          knowledgeRoot: this.knowledgeRoot
+        })
+        missing.push(baseId)
+        continue
+      }
       const src = join(this.knowledgeRoot, baseId)
+      // realpath follows junctions/symlinks; refuse sources that land outside the
+      // knowledge root before cp can copy the linked directory.
+      try {
+        const realSrc = await realpath(src)
+        if (!isPathInside(realSrc, realRoot)) {
+          logger.warn('stageKnowledge: source realpath outside knowledge root skipped', {
+            baseId,
+            realSrc,
+            knowledgeRoot: this.knowledgeRoot
+          })
+          missing.push(baseId)
+          continue
+        }
+      } catch {
+        // Missing / unreadable — stat below classifies absent vs hard errors.
+      }
       let dirStat
       try {
         dirStat = await stat(src)
@@ -293,10 +364,46 @@ export class SqliteFileStager implements FileStager {
     if (skills.length === 0) return { skills: [], missing: [] }
     await mkdir(destDir, { recursive: true })
 
+    // Canonical skills root for realpath containment — the atomic staging rename
+    // remains the final backstop, but cp must not follow a source link out of this root.
+    let realRoot: string
+    try {
+      realRoot = await realpath(this.skillsRoot)
+    } catch {
+      realRoot = resolve(this.skillsRoot)
+    }
+
     const staged: { folderName: string; contentHash: string }[] = []
     const missing: { folderName: string; contentHash: string }[] = []
     for (const { folderName, contentHash } of skills) {
+      // Reject traversal even when an unexpected folder name bypasses schema validation.
+      const escapes =
+        folderName.split(/[/\\]/).includes('..') || !isPathInside(resolve(this.skillsRoot, folderName), this.skillsRoot)
+      if (escapes) {
+        logger.warn('stageSkillDirs: path outside skills root skipped', {
+          folderName,
+          skillsRoot: this.skillsRoot
+        })
+        missing.push({ folderName, contentHash })
+        continue
+      }
       const src = join(this.skillsRoot, folderName)
+      // realpath follows junctions/symlinks; refuse sources that land outside the
+      // skills root before cp can copy the linked directory.
+      try {
+        const realSrc = await realpath(src)
+        if (!isPathInside(realSrc, realRoot)) {
+          logger.warn('stageSkillDirs: source realpath outside skills root skipped', {
+            folderName,
+            realSrc,
+            skillsRoot: this.skillsRoot
+          })
+          missing.push({ folderName, contentHash })
+          continue
+        }
+      } catch {
+        // Missing / unreadable — stat below classifies absent vs hard errors.
+      }
       let dirStat
       try {
         dirStat = await stat(src)

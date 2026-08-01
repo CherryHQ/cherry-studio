@@ -184,6 +184,119 @@ describe('SqliteFileStager', () => {
     }
   })
 
+  it('stageKnowledge reports a symlinked base outside knowledgeRoot as missing', async () => {
+    const kbRoot = await mkdtemp(join(tmpdir(), 'cs-stager-kb-root-'))
+    const outside = await mkdtemp(join(tmpdir(), 'cs-stager-kb-outside-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      await writeFile(join(outside, 'secret.md'), 'secret')
+      await symlink(outside, join(kbRoot, 'kb-escape'))
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), kbRoot, '/unused')
+      const r = await stager.stageKnowledge(new Set(['kb-escape']), dest)
+
+      expect(r.bases).toEqual([])
+      expect(r.missing).toEqual(['kb-escape'])
+      expect(existsSync(join(dest, 'kb-escape'))).toBe(false)
+    } finally {
+      await rm(kbRoot, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageKnowledge rejects a baseId containing parent traversal as missing', async () => {
+    const kbRoot = await mkdtemp(join(tmpdir(), 'cs-stager-kb-traversal-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), kbRoot, '/unused')
+      const r = await stager.stageKnowledge(new Set(['../outside']), dest)
+
+      expect(r.bases).toEqual([])
+      expect(r.missing).toEqual(['../outside'])
+    } finally {
+      await rm(kbRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageSkillDirs reports a symlinked skill outside skillsRoot as missing degradation', async () => {
+    const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-root-'))
+    const outside = await mkdtemp(join(tmpdir(), 'cs-stager-skills-outside-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      await writeFile(join(outside, 'SKILL.md'), 'secret')
+      await symlink(outside, join(skillsRoot, 'skill-escape'))
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', skillsRoot)
+      const r = await stager.stageSkillDirs([{ folderName: 'skill-escape', contentHash: 'h1' }], dest)
+
+      expect(r.skills).toEqual([])
+      expect(r.missing).toEqual([{ folderName: 'skill-escape', contentHash: 'h1' }])
+      expect(existsSync(join(dest, 'skill-escape'))).toBe(false)
+    } finally {
+      await rm(skillsRoot, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageSkillDirs rejects a folderName containing parent traversal as missing degradation', async () => {
+    const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-traversal-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', skillsRoot)
+      const r = await stager.stageSkillDirs([{ folderName: '../outside', contentHash: 'h1' }], dest)
+
+      expect(r.skills).toEqual([])
+      expect(r.missing).toEqual([{ folderName: '../outside', contentHash: 'h1' }])
+    } finally {
+      await rm(skillsRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageFiles reports a symlinked blob outside internal storage as missing', async () => {
+    const outside = await mkdtemp(join(tmpdir(), 'cs-stager-files-outside-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      await dbh.db
+        .insert(fileEntryTable)
+        .values([{ id: 'f-escape', origin: 'internal', name: 'a', ext: 'txt', size: 6 }])
+      await writeFile(join(outside, 'secret.txt'), 'secret')
+      await symlink(join(outside, 'secret.txt'), application.getPath('feature.files.data', 'f-escape.txt'))
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
+      const r = await stager.stageFiles(new Set(['f-escape']), dest)
+
+      expect(r.total).toBe(0)
+      expect(r.totalBytes).toBe(0)
+      expect(r.missing).toEqual(['f-escape'])
+      expect(existsSync(join(dest, 'f-escape'))).toBe(false)
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageFiles rejects an id containing parent traversal as missing', async () => {
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      await dbh.db
+        .insert(fileEntryTable)
+        .values([{ id: '../outside', origin: 'internal', name: 'a', ext: 'txt', size: 1 }])
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
+      const r = await stager.stageFiles(new Set(['../outside']), dest)
+
+      expect(r.total).toBe(0)
+      expect(r.totalBytes).toBe(0)
+      expect(r.missing).toEqual(['../outside'])
+    } finally {
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
   it('stageNotes copies relative markdown paths under notesRoot', async () => {
     const notesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-notes-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
