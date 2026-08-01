@@ -20,6 +20,14 @@
  * inferred `InputFor` / `OutputFor`) as consumers migrate to IpcApi. Do not add
  * new File IPC surface here except temporary legacy-preload compatibility notes.
  *
+ * **Contracts here may be stale.** Because this file is slated for deletion once
+ * the migration completes, individual method signatures below are NOT kept in
+ * lockstep with the routes as they move to IpcApi — a method may already resolve
+ * through `file.get_metadata` & friends with a different (e.g. nullable) shape
+ * than what its JSDoc/type here still declares. For any migrated route, the
+ * schema in `src/shared/ipc/schemas/file.ts` and its handler are authoritative;
+ * treat the declarations here as historical intent, not the live contract.
+ *
  * ## Unified access via FileHandle
  *
  * Most operations accept `FileHandle` (tagged union) so consumers don't have
@@ -33,7 +41,14 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import type {
+  CleanupPolicy,
+  ContentHash,
+  DanglingState,
+  FileEntry,
+  FileEntryId,
+  FileHandle
+} from '@shared/data/types/file'
 
 import type {
   AbsoluteFilePath,
@@ -81,17 +96,32 @@ export interface ReadResult<T> {
  * UX names, where the caller has a legitimate choice).
  *
  * See `file-arch-problems-response.md` for the full rationale (extension of A-7).
+ *
+ * TODO(file-ipc types): this union hand-mirrors `createInternalEntryInputSchema`
+ * (`src/shared/ipc/schemas/file.ts`) and so re-declares the shared `cleanupPolicy`
+ * per branch. What used to block collapsing it into
+ * `z.infer<typeof createInternalEntryInputSchema>` is gone: `path` was already
+ * fine, and `url` / `data` no longer widen to plain `string` now that
+ * `UrlStringSchema` / `Base64StringSchema` carry `UrlString` / `Base64String`.
+ * What is left is to confirm the remaining fields (`name`, `ext`) infer to the
+ * same types this union declares, then delete it and let `cleanupPolicy` live in
+ * one place. Deferred to the File IPC → IpcApi migration (see the matching TODO
+ * in `schemas/file.ts`). Until then, keep the two in sync by hand.
  */
 export type CreateInternalEntryIpcParams =
   | {
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
       path: AbsoluteFilePath
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
@@ -99,6 +129,8 @@ export type CreateInternalEntryIpcParams =
       data: Base64String
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Write raw bytes into Cherry storage. No derivation possible — caller is the sole authority for `name` and `ext`. */
@@ -108,6 +140,8 @@ export type CreateInternalEntryIpcParams =
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
       ext: string | null
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
 
 /**
@@ -143,6 +177,8 @@ export type CreateInternalEntryIpcParams =
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: AbsoluteFilePath
+  /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+  cleanupPolicy: CleanupPolicy
 }
 
 /** Params for resolving the absolute filesystem path of a single FileEntry. */
@@ -214,7 +250,7 @@ export interface BatchCreateResult {
  *
  * | IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
+ * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder`, `getMetadata` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -341,9 +377,10 @@ export interface FileIpcApi {
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
    *
-   * @phase 2 — path-handle branch wired (`IpcChannel.File_GetMetadata` →
-   * `FileManager.registerIpcHandlers`, direct `fs.stat`); the entry-id branch
-   * is still `@phase 2` (not yet wired).
+   * @phase 2 — wired as IpcApi route `file.get_metadata` (handler in
+   * `src/main/ipc/handlers/file.ts`). Both branches resolve — path handles via
+   * `getMetadataByPath`, entry handles via `FileManager.getMetadata` — sharing
+   * `buildPhysicalFileMetadata`, so `type` is content-derived for either.
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
@@ -619,17 +656,23 @@ export interface FileIpcApi {
 
   // ─── K. Orphan Sweep ───
   //
-  // User-triggered cleanup pass. There is no startup auto-run; the cleanup UI
-  // is the only consumer.
+  // On-demand "report everything" pass. Reclamation itself is unattended —
+  // the entry cleanup and the FS orphan sweep both run from FileManager's idle
+  // tick; this channel exists for a cleanup UI that has no caller yet.
 
   /**
-   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * temp-session ref prune / entry report (§7 Layer 3) concurrently. Returns
-   * once both settle, with the umbrella discriminated outcome surfaced through
-   * the report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
+   * Run the scan-based entry cleanup pass, then both the FS-level orphan
+   * sweep (architecture §10) and the DB-level zero-ref entry
+   * report (§7 Layer 3) concurrently. Returns once all three settle, with the
+   * umbrella discriminated outcome surfaced through the report's `outcome`
+   * field (`'completed'` / `'partial'` / `'aborted'` / `'failed'`); the cleanup pass's own
+   * outcome rides in `entryCleanup` without affecting it.
    *
    * DB failures dominate as `failed`; FS-side partial/aborted/failed outcomes
    * degrade the umbrella report to `partial` via `fsSweepIssue`.
+   *
+   * Caller-initiated maintenance; no user-facing UI triggers it (the entry
+   * cleanup it wraps is silent — see file-entry-cleanup.md's Decision note).
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_RunSweep` →
    * `FileManager.registerIpcHandlers`)

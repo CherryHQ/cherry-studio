@@ -406,7 +406,17 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           source: 'bytes',
           data: buffer,
           name: 'Pasted Image',
-          ext: extension.replace(/^\./, '')
+          ext: extension.replace(/^\./, ''),
+          // `manual`, unlike the chat/painting paste paths that use
+          // `delete_when_unreferenced`. The reference here is a `file://` URL
+          // written into the note's markdown — user-owned text in a user-chosen
+          // folder (`feature.notes.path`), which Cherry is not the only writer of.
+          // A ref row could therefore never be released soundly: removing the
+          // image from the note never reaches us, and copying the markdown into
+          // a second note creates a reference we never saw. So the entry is
+          // pinned instead, and reclaiming note images stays a question for a
+          // content scan over the notes tree, not a ref table.
+          cleanupPolicy: 'manual'
         })
         const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 

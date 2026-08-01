@@ -244,6 +244,36 @@ describe('fileHandlers', () => {
     expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
   })
 
+  it('get_metadata returns file metadata for a regular file path', async () => {
+    getMetadataByPathMock.mockResolvedValueOnce({ ...metadata, size: 42 })
+
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/a.txt' as AbsoluteFilePath }, ctx)
+    ).resolves.toEqual({
+      ...metadata,
+      size: 42
+    })
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
+  })
+
+  it('get_metadata returns directory metadata for a directory path', async () => {
+    const directoryMetadata = { kind: 'directory' as const, size: 0, createdAt: 1, modifiedAt: 2 }
+    getMetadataByPathMock.mockResolvedValueOnce(directoryMetadata)
+
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/dir' as AbsoluteFilePath }, ctx)
+    ).resolves.toEqual(directoryMetadata)
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/dir')
+  })
+
+  it('get_metadata resolves null for a missing path instead of throwing', async () => {
+    getMetadataByPathMock.mockRejectedValueOnce(new Error('ENOENT'))
+
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/missing.txt' as AbsoluteFilePath }, ctx)
+    ).resolves.toBeNull()
+  })
+
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {
     fileManager.getPhysicalPath.mockReturnValueOnce('/tmp/a.png').mockImplementationOnce(() => {
       throw new Error('ENOENT')
@@ -331,8 +361,8 @@ describe('fileHandlers', () => {
   it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
-      { source: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath },
-      { source: 'path' as const, path: '/tmp/b.txt' as AbsoluteFilePath }
+      { source: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath, cleanupPolicy: 'manual' as const },
+      { source: 'path' as const, path: '/tmp/b.txt' as AbsoluteFilePath, cleanupPolicy: 'manual' as const }
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 

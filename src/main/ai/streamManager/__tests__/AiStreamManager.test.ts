@@ -152,6 +152,32 @@ function createManager(config?: Partial<AiStreamManagerConfig>): ManagerInstance
   return new Ctor(config)
 }
 
+/**
+ * Fake *only* the timers the idle watchdog uses.
+ *
+ * `IdleTimeoutController` is a bare `setTimeout`, so this hands the watchdog to
+ * `vi.advanceTimersByTimeAsync` while leaving microtasks / `setImmediate` real —
+ * which is what `readUIMessageStream`'s accumulator needs (a blanket
+ * `useFakeTimers()` starves it). Lets the idle-timeout tests assert ordering
+ * instead of betting on wall-clock margins (#17703).
+ */
+function useWatchdogTimers(): void {
+  vi.useRealTimers()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+}
+
+/**
+ * Spin the real microtask/macrotask queue until `predicate` holds, without
+ * touching the (faked) clock. Throws rather than hanging if it never does.
+ */
+async function flushUntil(predicate: () => boolean, maxTicks = 1000): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if (predicate()) return
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  throw new Error(`flushUntil: predicate never became true within ${maxTicks} ticks`)
+}
+
 function chunk(text: string): UIMessageChunk {
   return { type: 'text-delta', delta: text, id: 'p1' } as unknown as UIMessageChunk
 }
@@ -1484,10 +1510,7 @@ describe('AiStreamManager', () => {
 
   describe('idle timeout', () => {
     it('settles a timed-out execution as paused, not done', async () => {
-      // readUIMessageStream's accumulator needs real microtask/timer
-      // scheduling; fake timers starve it. The idle timer is a short real
-      // `setTimeout`, so a brief real wait lets it fire.
-      vi.useRealTimers()
+      useWatchdogTimers()
 
       const listener = new FakeListener('l:a')
       startSingle(mgr, {
@@ -1500,8 +1523,10 @@ describe('AiStreamManager', () => {
       })
       expect(mgr.inspect('a')!.status).toBe('pending')
 
-      // Let the idle timer fire and the abort propagate through the loop.
-      await new Promise((resolve) => setTimeout(resolve, 60))
+      // Drive the idle timer off the fake clock, then let the abort propagate
+      // through the loop on real microtasks.
+      await vi.advanceTimersByTimeAsync(10)
+      await flushUntil(() => listener.pausedResults.length > 0)
 
       // Terminal is paused (truncated reply persisted as paused), never a
       // success done.
@@ -1512,7 +1537,12 @@ describe('AiStreamManager', () => {
     })
 
     it('pauses the idle timer while a tool is awaiting approval — a long deliberation is not killed', async () => {
-      vi.useRealTimers()
+      // `IdleTimeoutController` is nothing but a `setTimeout`, so faking only
+      // setTimeout/clearTimeout puts the watchdog entirely under test control
+      // while `readUIMessageStream`'s accumulator keeps its real microtask /
+      // setImmediate scheduling. Without this the test was a race: the re-arm
+      // had to beat a 30ms wall clock (#17703).
+      useWatchdogTimers()
 
       const controlled = controlledStream()
       mockStreamText.mockImplementationOnce(async () => controlled.stream)
@@ -1531,15 +1561,21 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'start' } as UIMessageChunk)
       controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
 
-      // Wait well past the 30ms idle timeout — the approval re-arm uses the 2 h bound, so no abort.
-      await new Promise((resolve) => setTimeout(resolve, 90))
+      // Wait for the listener to have actually seen the approval chunk: that is
+      // the re-arm, and it is a state rather than an interval. The fake clock is
+      // frozen meanwhile, so the 30ms watchdog cannot fire behind our back.
+      await flushUntil(() => listener.chunks.length >= 2)
+
+      // Only now let the clock jump — 10s is 300x the idle timeout, and still
+      // far short of the 2h approval bound, so a live re-arm means no abort.
+      await vi.advanceTimersByTimeAsync(10_000)
 
       expect(listener.pausedResults).toHaveLength(0)
       expect(mgr.inspect('a')!.status).not.toBe('aborted')
     })
 
     it('still bounds an approval wait — an unresponsive renderer is aborted after the approval timeout', async () => {
-      vi.useRealTimers()
+      useWatchdogTimers()
       // Tight approval bound so the test doesn't wait 2 h; the normal idle timeout stays longer so it
       // can't be what fires.
       const boundedMgr = createManager({ approvalIdleTimeoutMs: 40 })
@@ -1558,8 +1594,13 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'start' } as UIMessageChunk)
       controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
 
+      // Wait for the approval chunk to land (the re-arm) before moving the clock —
+      // otherwise this only ever proves *some* timer fired, not the approval bound.
+      await flushUntil(() => listener.chunks.length >= 2)
+
       // No approval response ever arrives (window closed/crashed) → the approval bound fires.
-      await new Promise((resolve) => setTimeout(resolve, 120))
+      await vi.advanceTimersByTimeAsync(40)
+      await flushUntil(() => boundedMgr.inspect('a')!.status === 'aborted')
 
       expect(boundedMgr.inspect('a')!.status).toBe('aborted')
     })
@@ -1595,11 +1636,11 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'finish' } as UIMessageChunk)
       controlled.close()
 
-      // Let the tee → accumulator → terminal chain drain on real timers.
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Let the tee → accumulator → terminal chain drain. Poll for the terminal
+      // rather than betting a fixed 50ms is enough on a loaded runner (#17703).
+      await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))
 
       const snap = mgr.inspect('a')!
-      expect(snap.status).toBe('done')
 
       // The terminal event received the same finalMessage that inspect()
       // now reports — proof that the accumulator wrote before the terminal
@@ -1671,9 +1712,8 @@ describe('AiStreamManager', () => {
           listeners: [listener]
         })
 
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-        expect(listener.errorResults).toHaveLength(1)
         expect(listener.errorResults[0].error).toMatchObject({ statusCode, isRetryable, message })
       }
     )
@@ -1724,10 +1764,9 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
       controlled.close()
 
-      // Let the tee → broadcast → terminal chain drain on real timers.
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Let the tee → broadcast → terminal chain drain.
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults).toHaveLength(1)
       // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
       expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
       expect(listener.errorResults[0].status).toBe('error')
@@ -1788,10 +1827,9 @@ describe('AiStreamManager', () => {
       controlled.enqueue({ type: 'finish' } as UIMessageChunk)
       controlled.close()
 
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))
 
       const snap = mgr.inspect('a')!
-      expect(snap.status).toBe('done')
       // The accumulator did not halt — finalMessage landed with the appended
       // text AND the resolved tool output.
       const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{

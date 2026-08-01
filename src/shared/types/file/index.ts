@@ -30,4 +30,4 @@ export {
   type PermanentDeleteIpcParams,
   type ReadResult
 } from './ipc'
-export { type OrphanReport, type OrphanReportCounts } from './sweep'
+export { type EntryCleanupSummary, type OrphanReport, type OrphanReportCounts } from './sweep'

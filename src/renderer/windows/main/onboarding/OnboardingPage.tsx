@@ -59,7 +59,7 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage() {
   const { t } = useTranslation()
   const [language, setLanguage] = usePreference('app.language')
-  const [, updateOnboardingPreferences] = useMultiplePreferences(
+  const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
@@ -131,6 +131,10 @@ export default function OnboardingPage() {
   const persistPrivacyChoice = useCallback(async (): Promise<boolean> => {
     setIsUpdatingPrivacy(true)
     try {
+      if (privacyAccepted && policyVersion === LATEST_PRIVACY_POLICY_VERSION) {
+        return true
+      }
+
       await updateOnboardingPreferences(
         privacyAccepted
           ? { policyVersion: LATEST_PRIVACY_POLICY_VERSION }
@@ -143,7 +147,7 @@ export default function OnboardingPage() {
     } finally {
       setIsUpdatingPrivacy(false)
     }
-  }, [privacyAccepted, t, updateOnboardingPreferences])
+  }, [policyVersion, privacyAccepted, t, updateOnboardingPreferences])
 
   const updatePrivacyAcceptance = useCallback(
     async (accepted: boolean): Promise<boolean> => {

@@ -19,7 +19,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -125,7 +125,12 @@ const aiImagePayloadSchema = z.strictObject({
   paramValues: imageParamsSchema,
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional()
+  mask: z.string().optional(),
+  // Required: the calling business feature decides the cleanup intent for the
+  // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
+  // It does not reach the job path's input / mask copies: those are transport
+  // scratch owned by the job, pinned to `delete_when_unreferenced`.
+  cleanupPolicy: CleanupPolicySchema
 })
 
 export const aiRequestSchemas = {
