@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} фоновая задача выполняется",
+      "background_running_other": "{{count}} фоновых задач выполняется"
     },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
@@ -198,6 +198,11 @@
       "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
     },
     "home": {
+      "local_greetings": {
+        "plan": "Скажите, какой результат вы хотите получить, и я помогу составить план.",
+        "progress": "С какой задачей могу помочь вам сегодня?",
+        "research": "Нужна помощь в исследовании, планировании или составлении чего-либо?"
+      },
       "welcome_title": "О чём мы поговорим сегодня?"
     },
     "icon": {
@@ -235,7 +240,7 @@
           "discard_and_continue": "Отменить и продолжить",
           "title": "Отменить несохранённые изменения?"
         },
-        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
+        "metadata_pending": "Файл был сохранён, но его метаданные всё ещё восстанавливаются. Не повторяйте эту попытку сохранения.",
         "refresh_failed": "Не удалось перезагрузить последнее содержимое файла.",
         "save_failed": "Не удалось сохранить этот файл. Автоматическое сохранение приостановлено до тех пор, пока вы не повторите попытку или не отмените изменения.",
         "unsaved": "Несохранённый",
@@ -326,25 +331,25 @@
         "more": "+{{count}} ещё",
         "no_artifacts": "Нет заявленных результатов",
         "no_subagents": "Без субагентов",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Фоновые команды",
         "subagents": "Субагенты",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Рабочие процессы"
       },
       "status": {
         "activity": "Деятельность",
         "agent": "Агент",
         "context": "Контекст",
         "no_tasks": "Нет активных задач",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} в прямом эфире",
+        "run_task_live_other": "{{count}} в прямом эфире",
+        "run_tasks": "Подзадачи",
         "selected_tool": "Выбранный инструмент",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Остановить задачу",
+        "stop_run_task_failed": "Не удалось остановить задачу",
         "task_count": "{{completed}} / {{total}} завершено",
         "tasks": "Задачи",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} вызов инструмента",
+        "tool_uses_other": "{{count}} вызовов инструментов",
         "tools_active": "Активный",
         "tools_done": "Готово",
         "tools_failed": "Не удалось",
@@ -1438,6 +1443,11 @@
       "view_full_content": "Показать полное содержимое"
     },
     "home": {
+      "local_greetings": {
+        "casual": "Что у тебя на уме сегодня?",
+        "explore": "Что бы вы хотели исследовать вместе?",
+        "play": "Готовы к короткому разговору, любопытному вопросу или игре?"
+      },
       "welcome_title": "О чём поговорим сегодня?"
     },
     "input": {
@@ -2586,6 +2596,10 @@
     "user": "Пользователь"
   },
   "file_preview": {
+    "directory": {
+      "description": "Выберите файл в этой папке для предварительного просмотра.",
+      "title": "Это папка"
+    },
     "html": {
       "empty": {
         "description": "Этот HTML-файл не содержит контента.",
@@ -2651,6 +2665,10 @@
         "description": "Файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
         "title": "Файл слишком большой"
       }
+    },
+    "unavailable": {
+      "description": "Файл мог быть перемещён, удалён или к нему нет доступа.",
+      "title": "Файл недоступен"
     },
     "unsupported": {
       "action": "Открыть с помощью приложения по умолчанию",
@@ -3058,6 +3076,7 @@
       "reindex_failed": "Не удалось переиндексировать источник данных",
       "status": {
         "chunking": "Сегментация",
+        "copying": "Копирование {{percent}}%",
         "embedding": "Встраивание",
         "error": "Ошибка",
         "pending": "Ожидание",
@@ -3848,8 +3867,9 @@
       }
     },
     "citation": "{{count}} цитат",
+    "citation_source": "Источник цитирования {{number}}",
     "citations": "Содержание цитат",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "История предыдущего разговора не найдена — продолжение в новом разговоре",
     "copied": "Скопировано!",
     "copy": {
       "failed": "Не удалось скопировать",
@@ -4131,7 +4151,7 @@
         "write": "Сохранить",
         "writing": "Сохранение"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Запуск в фоновом режиме",
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
@@ -4163,7 +4183,7 @@
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
         "webSearch": "Поиск в интернете",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Рабочий процесс",
         "write": "Написать"
       },
       "noData": "Нет доступных данных для этого инструмента",
@@ -4223,13 +4243,13 @@
         "result_other": "{{count}} результатов"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Оркестрация рабочих процессов",
+        "run_id": "Идентификатор запуска",
+        "script": "Сценарий рабочего процесса",
+        "script_path": "Путь к скрипту",
+        "started": "Запущен рабочий процесс",
+        "summary": "Резюме",
+        "workflow": "рабочий процесс"
       }
     },
     "topic": {
@@ -4495,7 +4515,7 @@
     "save_failed": "Не удалось сохранить заметку",
     "save_failure": {
       "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено.",
-      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
+      "metadata_pending": "Заметка была сохранена, но метаданные её файла всё ещё восстанавливаются. Не повторяйте эту попытку сохранения."
     },
     "search": {
       "both": "Название+содержание",
@@ -5217,6 +5237,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7705,6 +7726,13 @@
         "usage_title": "Использование",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Открыть Token Factory",
+          "description": "Эквивалент 10 USD в API-кредитах ежедневно: по текущим тарифам это около 10–111 млн входных/выходных токенов в зависимости от модели и типа токенов. Кредиты сбрасываются ежедневно; пополнение пока не поддерживается.",
+          "title": "10 USD бесплатных API-кредитов ежедневно"
+        }
+      },
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
       "reorder_failed": "Не удалось изменить порядок поставщиков",
@@ -7748,13 +7776,6 @@
           "toggle_client_email_visibility": "Переключить видимость электронной почты клиента",
           "toggle_private_key_visibility": "Переключить видимость приватного ключа",
           "toggle_project_id_visibility": "Переключить видимость идентификатора проекта"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Открыть Token Factory",
-          "description": "Эквивалент 10 USD в API-кредитах ежедневно: по текущим тарифам это около 10–111 млн входных/выходных токенов в зависимости от модели и типа токенов. Кредиты сбрасываются ежедневно; пополнение пока не поддерживается.",
-          "title": "10 USD бесплатных API-кредитов ежедневно"
         }
       }
     },
