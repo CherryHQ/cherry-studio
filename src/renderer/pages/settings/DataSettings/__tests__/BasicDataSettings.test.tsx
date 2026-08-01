@@ -2,7 +2,6 @@ import '@testing-library/jest-dom/vitest'
 
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,8 +44,6 @@ async function renderSettings() {
 
 describe('BasicDataSettings', () => {
   beforeEach(() => {
-    MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('feature.conversation_greeting.enabled', false)
     getCacheSizeMock.mockResolvedValue('0')
     requestMock.mockResolvedValue(undefined)
     vi.stubGlobal('api', { getCacheSize: getCacheSizeMock })
@@ -62,28 +59,6 @@ describe('BasicDataSettings', () => {
       expect(action).toBeEnabled()
       expect(action.closest('[inert]')).toBeNull()
     }
-  })
-
-  it('discloses contextual greeting data sharing and requires an explicit opt-in', async () => {
-    await renderSettings()
-
-    const helpButton = screen.getByRole('button', {
-      name: 'settings.privacy.contextual_greetings.title common.help'
-    })
-    expect(helpButton).toBeInTheDocument()
-    expect(helpButton.closest('[data-testid="tooltip"]')).toHaveAttribute(
-      'data-title',
-      'settings.privacy.contextual_greetings.description'
-    )
-
-    const toggle = screen.getByRole('switch', { name: 'settings.privacy.contextual_greetings.title' })
-    expect(toggle).not.toBeChecked()
-
-    fireEvent.click(toggle)
-
-    await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('feature.conversation_greeting.enabled')).toBe(true)
-    })
   })
 
   it('does not send IPC when the renderer confirmation is cancelled', async () => {

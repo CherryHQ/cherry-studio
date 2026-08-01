@@ -15,7 +15,7 @@ import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { CircleHelp, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,9 +32,6 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
-  const [contextualGreetingsEnabled, setContextualGreetingsEnabled] = usePreference(
-    'feature.conversation_greeting.enabled'
-  )
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
@@ -310,33 +307,6 @@ const BasicDataSettings: React.FC = () => {
             checked={enableDataCollection}
             onCheckedChange={(v) => {
               void setEnableDataCollection(v)
-            }}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle className="min-w-0 flex-1 gap-1.25">
-            {t('settings.privacy.contextual_greetings.title')}
-            <Tooltip
-              content={t('settings.privacy.contextual_greetings.description')}
-              placement="top-start"
-              sideOffset={6}
-              classNames={{ content: 'max-w-md' }}>
-              <Button
-                type="button"
-                aria-label={`${t('settings.privacy.contextual_greetings.title')} ${t('common.help')}`}
-                variant="ghost"
-                size="icon-sm"
-                className="size-5 shrink-0 rounded-full text-foreground-tertiary hover:bg-muted hover:text-foreground">
-                <CircleHelp className="size-3.5" />
-              </Button>
-            </Tooltip>
-          </SettingRowTitle>
-          <Switch
-            aria-label={t('settings.privacy.contextual_greetings.title')}
-            checked={contextualGreetingsEnabled}
-            onCheckedChange={(value) => {
-              void setContextualGreetingsEnabled(value)
             }}
           />
         </SettingRow>
