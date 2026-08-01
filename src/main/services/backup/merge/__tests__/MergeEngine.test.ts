@@ -1066,6 +1066,44 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
   })
 
+  it('B18: rebuilds FTS when an agent_session_message row is imported (second FTS source table)', async () => {
+    // agent_session_message is the OTHER FTS source table (FTS_SOURCE_TABLES = {message,
+    // agent_session_message}). insertRow sets ftsSourceChanged for every member, so this pins
+    // that the second source is covered — not just `message`. Requires the
+    // agent_workspace → agent → agent_session → agent_session_message FK chain.
+    const now = Date.now()
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('ws-b18-asm', 'ws', '/tmp/ws-b18-asm', 'user', 'a0', ?, ?)`
+      ).run(now, now)
+      db.prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agt-b18-asm', 'custom', 'agent', 'do things', 'a0', ?, ?)`
+      ).run(now, now)
+      db.prepare(
+        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
+         VALUES ('ses-b18-asm', 'agt-b18-asm', 'session', 'ws-b18-asm', 'a0', ?, ?)`
+      ).run(now, now)
+      db.prepare(
+        `INSERT INTO agent_session_message (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES ('asm-b18-asm', 'ses-b18-asm', 'user', '{}', 'hello world', 'success', ?, ?)`
+      ).run(now, now)
+    })
+
+    const counter = countFtsRebuilds(dbh.sqlite)
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    // agent_session_message insert flipped ftsSourceChanged → rebuildFts ran (both FTS tables).
+    expect(counter.count()).toBe(2)
+    expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
+  })
+
   // ─── B12: FIELD_MERGE aggregate telemetry (counts + strategies, no values) ─────
   it('B12: records FIELD_MERGE telemetry (table/column-count/strategy, no cell values)', async () => {
     // A FIELD_MERGE conflict on user_provider: local name kept (non-null), backup api_keys

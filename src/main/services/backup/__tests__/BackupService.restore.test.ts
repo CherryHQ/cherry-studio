@@ -559,6 +559,15 @@ describe('BackupService restore journal lifecycle (A7)', () => {
 
       // Simulate a newer generation beginning while op1 is still in-flight (what a
       // stop→start restart + new beginActiveOperation would do to the counter).
+      //
+      // Why a direct bump, not a real stop→start: startBackup/startRestore refuse while
+      // activeOperation is set (busy gate), so a real restart CANNOT begin a second op while
+      // op1 is in-flight — the busy gate rejects first. This isolates the generation fence
+      // (isCurrentGeneration) itself by bumping the counter directly. Note B6 is the
+      // stale-finally fence (a stale op1 finally must NOT release the newer generation's
+      // quiesce), NOT a full restart-lease contract. The exact stop→start lifecycle semantics
+      // — whether onStop should clear activeOperation to allow a restart — is owner-TBD
+      // (@0xfullex, B5/B6 lifecycle stop semantics).
       const internal = service as unknown as { generation: number }
       internal.generation += 1
 
