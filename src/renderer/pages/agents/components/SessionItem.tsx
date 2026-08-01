@@ -293,6 +293,7 @@ const SessionItem = ({
         <ResourceList.ItemTitle
           title={sessionName}
           className={cn(
+            'text-foreground',
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
             RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
