@@ -498,7 +498,7 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
     })
     writeFileSync(application.getPath('feature.files.data', `${fileId}.${fileExt}`), fileContent)
     const exportOrch = new ExportOrchestrator({
-      dbService: { createSnapshot: (dest: string) => void snapshotTo(liveConn, dest) },
+      dbService: { createSnapshot: (dest: string) => snapshotTo(liveConn, dest) },
       registry,
       tempDir: exportTmpDir,
       knowledgeRoot,
@@ -569,6 +569,87 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
     try {
       const fileCount = live.prepare('SELECT count(*) AS c FROM file_entry WHERE id = ?').get(fileId) as { c: number }
       expect(fileCount.c).toBe(0)
+      expect(live.pragma('integrity_check', { simple: true })).toBe('ok')
+    } finally {
+      live.close()
+    }
+  })
+
+  it('expires (fail-closed) when the journal chain diverged from the bundled migrations', async () => {
+    // Seed + export + wipe + restore → staged journal (chain == bundled at staging).
+    seedTopic('tpc-exported', 'from-backup')
+    const exportOrch = new ExportOrchestrator({
+      dbService: { createSnapshot: (dest: string) => snapshotTo(liveConn, dest) },
+      registry,
+      tempDir: exportTmpDir,
+      knowledgeRoot,
+      skillsRoot,
+      notesRoot: () => undefined,
+      stripper: new SqliteBackupStripper()
+    })
+    await exportOrch.exportBackup({
+      preset: 'full',
+      outputPath: archivePath,
+      restoreId: 'rst-chain',
+      producerAppVersion: '1.0.0-test',
+      schemaMigrationId: '0001_x.sql',
+      overwrite: true
+    })
+    liveConn.prepare('DELETE FROM topic').run()
+    const importOrch = new ImportOrchestrator({
+      dbService: {
+        checkpointTruncate: () => checkpointTruncateAssert(liveConn),
+        createSnapshot: (workPath: string) => snapshotTo(liveConn, workPath)
+      } as unknown as DbService,
+      migrationsFolder: MIGRATIONS_FOLDER,
+      liveDbPath,
+      restoreStagingRoot: stagingRoot,
+      userData: tmpDir,
+      journalPath,
+      admitArchive,
+      quiesceWriters: async () => {
+        setBackupInProgress(true)
+      },
+      mergeBackupIntoWork: (workSqlite, workDb, ctx) =>
+        new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx),
+      planResources,
+      planRoots
+    })
+    await importOrch.importBackup({ archivePath, restoreId: 'rst-chain' })
+
+    // Forge the journal's recorded chain (tamper chain[0].hash) so it no longer
+    // matches the bundled chain → chainIsBundledPrefix rejects. This exercises the
+    // same gate logic as a real bundled-side fork (an app update re-hashing a
+    // migration): the gate compares journal.chain against the bundled chain
+    // item-by-item regardless of which side diverged. Schema stays valid (hash is a
+    // free-form string) so readRestoreJournal still returns kind:'ok' and promotion
+    // reaches the chain check.
+    const raw = JSON.parse(readFileSync(journalPath, 'utf8')) as { db: { chain: { hash: string }[] } }
+    raw.db.chain[0].hash = 'forged-hash-not-in-bundled'
+    writeFileSync(journalPath, JSON.stringify(raw))
+
+    checkpointTruncateAssert(liveConn)
+    liveConn.close()
+
+    await runRestorePromotion()
+
+    // Fail-closed at admission: chain is not a prefix of bundled → expire (old DB
+    // stays live, backup NOT promoted). fingerprint matched (live unchanged) so the
+    // chain check is what refused — locked by the reason.
+    const read = readRestoreJournal()
+    expect(read.kind).toBe('ok')
+    if (read.kind === 'ok') {
+      expect(read.journal.state).toBe('expired')
+      if (read.journal.state === 'expired') {
+        expect(read.journal.reason).toContain('journal chain is not a prefix')
+      }
+    }
+    expect(existsSync(join(stagingRoot, 'rst-chain'))).toBe(false)
+
+    const live = new Database(liveDbPath)
+    try {
+      // Old DB intact: wiped state preserved, backup row NOT promoted.
+      expect(live.prepare('SELECT id FROM topic WHERE id = ?').get('tpc-exported')).toBeUndefined()
       expect(live.pragma('integrity_check', { simple: true })).toBe('ok')
     } finally {
       live.close()
