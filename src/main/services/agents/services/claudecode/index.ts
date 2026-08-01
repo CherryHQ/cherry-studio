@@ -439,10 +439,13 @@ class ClaudeCodeService implements AgentServiceInterface {
     const isChannelSession = !!linkedChannel
     const channelSecurityBlock = isChannelSession ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
 
-    // Built-in agent mode: check builtin_role in configuration
-    const builtinRole = (session.configuration as Record<string, unknown> | undefined)?.builtin_role as
-      | string
-      | undefined
+    // Built-in agent mode: prefer the session's builtin_role, but fall back to the
+    // agent's. Built-in agents created before role-based injection existed never
+    // stamped builtin_role onto their sessions (issue #17726); the fallback keeps
+    // their diagnose/navigate tools working even before the config backfill reaches
+    // the session row.
+    const builtinRole = ((session.configuration as Record<string, unknown> | undefined)?.builtin_role ??
+      (agentConfig as Record<string, unknown> | undefined)?.builtin_role) as string | undefined
     const isAssistant = builtinRole === 'assistant'
 
     // For non-Soul, non-Assistant agents we still want the model to know how

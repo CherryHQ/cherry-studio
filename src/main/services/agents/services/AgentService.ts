@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
 import type {
+  AgentConfiguration,
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -132,6 +133,18 @@ export class AgentService extends BaseService {
     return result[0]
   }
 
+  /** Parse a raw agent `configuration` column (JSON string) into a config object. */
+  private parseConfiguration(configuration: string | null): AgentConfiguration {
+    if (!configuration) return {} as AgentConfiguration
+    try {
+      const parsed = JSON.parse(configuration)
+      return parsed && typeof parsed === 'object' ? (parsed as AgentConfiguration) : ({} as AgentConfiguration)
+    } catch (error) {
+      logger.warn('Failed to parse agent configuration JSON', error as Error)
+      return {} as AgentConfiguration
+    }
+  }
+
   async getAgent(id: string): Promise<GetAgentResponse | null> {
     const row = await this.findAgentRow(id)
     if (!row) {
@@ -223,10 +236,18 @@ export class AgentService extends BaseService {
         const resolvedPaths = this.resolveAccessiblePaths([], id)
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
-        if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-          const updateData: UpdateAgentRequest = {}
-          if (agentConfig.description) updateData.description = agentConfig.description
-          if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
+        const updateData: UpdateAgentRequest = {}
+        if (agentConfig?.description) updateData.description = agentConfig.description
+        if (agentConfig?.instructions) updateData.instructions = agentConfig.instructions
+        // Backfill builtin_role for built-in agents created before role-based tool
+        // injection existed (issue #17726). Without it the runtime never injects the
+        // assistant's diagnose/navigate MCP tools. Routing through updateAgent()
+        // propagates the field to already-created sessions via syncSettingsToSessions().
+        const existingConfig = this.parseConfiguration(existing.configuration)
+        if (existingConfig.builtin_role !== builtinRole) {
+          updateData.configuration = { ...existingConfig, builtin_role: builtinRole }
+        }
+        if (Object.keys(updateData).length > 0) {
           await this.updateAgent(id, updateData)
         }
         return { agentId: id }
@@ -251,7 +272,11 @@ export class AgentService extends BaseService {
         permission_mode: 'default',
         max_turns: 100,
         env_vars: {},
-        ...agentConfig?.configuration
+        ...agentConfig?.configuration,
+        // Stamp the role so the runtime can inject role-specific tools (e.g. the
+        // assistant's diagnose/navigate MCP servers). Forced last so it stays
+        // authoritative even if a template's agent.json omits it (issue #17726).
+        builtin_role: builtinRole
       }
 
       const req: CreateAgentRequest = {
