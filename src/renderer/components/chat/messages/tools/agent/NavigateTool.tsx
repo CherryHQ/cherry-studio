@@ -131,7 +131,7 @@ export function NavigateToolInline({
       <span>
         {routeInfo.icon} {routeInfo.labelKey ? t(routeInfo.labelKey) : routeInfo.label}
       </span>
-      {isSuccess && <span className="text-green-500">✓</span>}
+      {isSuccess && <span className="text-success">✓</span>}
     </button>
   )
 }

@@ -30,7 +30,13 @@ describe('PaintingTemplateShowcase', () => {
 
     expect(onSelect).toHaveBeenCalledWith('Prompt 2')
     expect(templateButton).toHaveAttribute('aria-pressed', 'true')
-    expect(templateButton).toHaveClass('focus-visible:outline-muted-foreground', 'shadow-md')
+    expect(templateButton).toHaveClass(
+      'focus-visible:ring-2',
+      'focus-visible:ring-inset',
+      'focus-visible:ring-muted-foreground',
+      'shadow-md'
+    )
+    expect(templateButton.className).not.toMatch(/focus-visible:outline-offset-[1-9]/)
     expect(templateButton).toHaveStyle({
       transform: 'translate(-50%, calc(-50% - 2px)) rotate(0deg) scale(1.12)'
     })

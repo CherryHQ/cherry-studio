@@ -18,8 +18,21 @@ import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 const items = [
   {
     id: '1',
-    draft: { text: 'first', tokens: [{ id: 'sk1', kind: 'skill', label: 'mySkill', index: 0, textOffset: 0 }] },
-    payload: { text: 'first', userMessageParts: [] }
+    draft: {
+      text: 'first https://example.com/docs',
+      tokens: [
+        { id: 'sk1', kind: 'skill', label: 'mySkill', index: 0, textOffset: 0 },
+        {
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: 'https://example.com/docs',
+          index: 1,
+          textOffset: 6
+        }
+      ]
+    },
+    payload: { text: 'first https://example.com/docs', userMessageParts: [] }
   },
   { id: '2', draft: { text: 'second', tokens: [] }, payload: { text: 'second', userMessageParts: [] } }
 ] as any
@@ -66,8 +79,10 @@ describe('QueuedFollowupsDock', () => {
 
     expect(screen.getByText('first')).toBeInTheDocument()
     expect(screen.getByText('second')).toBeInTheDocument()
+    expect(screen.queryByText('first https://example.com/docs')).not.toBeInTheDocument()
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
+    expect(container.querySelector('[data-composer-token-kind="link"]')).toHaveTextContent('example.com/docs')
     for (const steerButton of screen.getAllByLabelText('chat.input.followup_queue.steer')) {
       expect(within(steerButton).getByTestId('arrow-up-icon')).toBeInTheDocument()
     }
@@ -83,6 +98,80 @@ describe('QueuedFollowupsDock', () => {
 
     fireEvent.click(screen.getByLabelText('chat.input.followup_queue.pause'))
     expect(onTogglePause).toHaveBeenCalled()
+  })
+
+  it('renders a token-only draft without repeating its prompt text or reserving text spacing', () => {
+    const url = 'https://example.com/docs'
+    const { container } = render(
+      <QueuedFollowupsDock
+        items={[
+          {
+            id: 'link-only',
+            draft: {
+              text: url,
+              tokens: [
+                {
+                  id: 'link-token',
+                  kind: 'link',
+                  label: 'example.com/docs',
+                  promptText: url,
+                  index: 0,
+                  textOffset: 0
+                }
+              ]
+            },
+            payload: { text: url, userMessageParts: [] }
+          }
+        ]}
+        paused={false}
+        onTogglePause={vi.fn()}
+        onSteer={vi.fn()}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    const linkToken = screen.getByRole('link', { name: url })
+    expect(screen.queryByText(url)).not.toBeInTheDocument()
+    expect(linkToken).toHaveTextContent('example.com/docs')
+    expect(container.querySelector('[data-composer-token-kind="link"]')).toBe(linkToken)
+  })
+
+  it('keeps draft prose when a token prompt no longer matches its recorded offset', () => {
+    const text = 'user edited this queued message'
+    render(
+      <QueuedFollowupsDock
+        items={[
+          {
+            id: 'stale-token',
+            draft: {
+              text,
+              tokens: [
+                {
+                  id: 'link-token',
+                  kind: 'link',
+                  label: 'example.com/docs',
+                  promptText: 'https://example.com/docs',
+                  index: 0,
+                  textOffset: 0
+                }
+              ]
+            },
+            payload: { text, userMessageParts: [] }
+          }
+        ]}
+        paused={false}
+        onTogglePause={vi.fn()}
+        onSteer={vi.fn()}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(text)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeInTheDocument()
   })
 
   it('renders nothing when the queue is empty', () => {

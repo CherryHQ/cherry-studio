@@ -29,11 +29,11 @@ function getStatusBadge(t: TFunction, state: McpRuntimeStatus['state']) {
 function getStatusBadgeClassName(state: McpRuntimeStatus['state']) {
   switch (state) {
     case 'connected':
-      return 'bg-success/10 text-success'
+      return 'border-success-border bg-success-subtle text-success-subtle-foreground'
     case 'connecting':
-      return 'bg-warning/10 text-warning'
+      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
     case 'error':
-      return 'bg-destructive/10 text-destructive'
+      return 'border-error-border bg-error-subtle text-error-subtle-foreground'
     default:
       return undefined
   }
@@ -98,7 +98,7 @@ export function McpServerCatalogGrid({
               aria-label={settingsLabel}
               title={settingsLabel}
               onClick={handleOpenMcpSettings}
-              className="flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40">
+              className="flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground">
               <Settings size={12} strokeWidth={1.7} />
             </Button>
           </Tooltip>

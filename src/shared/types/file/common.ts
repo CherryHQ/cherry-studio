@@ -89,6 +89,14 @@ export type AbsoluteFilePath = z.infer<typeof AbsoluteFilePathSchema>
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`
 
+export const Base64StringSchema: z.ZodType<Base64String> = z
+  .string()
+  .regex(/^data:[^;,]+;base64,.+$/) as z.ZodType<Base64String>
+
+export const UrlStringSchema: z.ZodType<UrlString> = z
+  .url()
+  .refine((value) => value.startsWith('http://') || value.startsWith('https://')) as z.ZodType<UrlString>
+
 // ─── File Extension ───
 
 /**

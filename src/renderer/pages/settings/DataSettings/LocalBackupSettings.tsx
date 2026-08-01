@@ -23,7 +23,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LocalBackupSettings')
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const LocalBackupSettings: React.FC = () => {
   const [, setLocalBackupAutoSync] = usePreference('data.backup.local.auto_sync')
@@ -160,7 +160,7 @@ const LocalBackupSettings: React.FC = () => {
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {localBackupSync.lastSyncTime && (

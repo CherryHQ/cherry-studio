@@ -197,7 +197,7 @@ const HelpIconButton = ({
       size="icon-sm"
       aria-label={ariaLabel}
       className={cn(
-        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-full border border-border/20 p-0 text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
+        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-full border border-border-subtle p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
         className
       )}>
       <HelpCircle className="size-[11px]" />
@@ -341,21 +341,21 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             />
           </div>
           {linkedItems.length === 0 ? (
-            <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
-              <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
-              <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_title')}</p>
-              <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
+            <div className="mt-2 flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
+              <Database size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
+              <p className="mb-1 text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_title')}</p>
+              <p className="text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_desc')}</p>
             </div>
           ) : (
             <div className="mt-2 space-y-1.5">
               {linkedItems.map((kb) => (
                 <div
                   key={kb.id}
-                  className="group flex items-center gap-3 rounded-md border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
+                  className="group flex items-center gap-3 rounded-md border border-border-subtle bg-accent/15 px-3 py-2.5 transition-colors hover:border-border-subtle hover:bg-accent/20">
                   <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-foreground text-sm">{kb.name}</div>
-                    <div className="text-muted-foreground/80 text-xs">
+                    <div className="text-muted-foreground text-xs">
                       {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
                     </div>
                   </div>
@@ -366,7 +366,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                     disabled={disabled}
                     onClick={() => remove(kb.id)}
                     aria-label={t('library.config.knowledge.remove_aria')}
-                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
+                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-0 group-hover:opacity-100">
                     <Trash2 size={10} />
                   </Button>
                 </div>
@@ -462,7 +462,7 @@ export function EditDialogShell<TValues extends FieldValues>({
             onSubmit={(event) => event.preventDefault()}
             className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             {/* Header — title, matching the create wizard's top bar. */}
-            <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
+            <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
               <div className="min-w-0">
                 <DialogTitle className="truncate text-base">{title}</DialogTitle>
               </div>
@@ -743,7 +743,7 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/40 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
                   <X size={12} />
                 </Button>
               ) : null}
@@ -786,20 +786,20 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
         <div className="space-y-3">
           <div className="space-y-1">
             <div className="font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
-            <div className="text-foreground-secondary text-xs leading-relaxed">
+            <div className="text-muted-foreground text-xs leading-relaxed">
               {t('library.config.prompt.variables_description')}
             </div>
           </div>
-          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-foreground-secondary text-xs">
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-muted-foreground text-xs">
             {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
           </div>
           <div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-foreground-secondary text-xs">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-muted-foreground text-xs">
               {PROMPT_VARIABLES.map((variable) => (
                 <div key={variable.name} className="contents">
                   <button
                     type="button"
-                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                     aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
                     onClick={() => copyVariable(variable.name)}>
                     {variable.name}

@@ -87,7 +87,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           <ChevronRight
             aria-hidden="true"
             size={11}
-            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
@@ -196,7 +196,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <ChevronRight
             aria-hidden="true"
             size={11}
-            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
@@ -282,7 +282,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground leading-4 transition-colors duration-150 hover:text-inherit focus-visible:bg-sidebar-accent focus-visible:text-inherit focus-visible:outline-none"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)

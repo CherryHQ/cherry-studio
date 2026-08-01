@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import React, { memo } from 'react'
 
-interface ActionIconButtonProps extends Omit<React.ComponentProps<'button'>, 'ref'> {
+interface ActionIconButtonProps extends Omit<React.ComponentProps<typeof Button>, 'ref' | 'size' | 'variant'> {
   icon: React.ReactNode
   active?: boolean
   loading?: boolean

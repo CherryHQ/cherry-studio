@@ -42,16 +42,24 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
   return ` ${progress}%`
 }
 
+const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
+  const { t } = useTranslation()
+  const progress = useSharedCacheValue(`knowledge.item.directory_copy_progress.${itemId}` as const)
+  if (progress == null) {
+    return t('knowledge.data_source.status.pending')
+  }
+  return t('knowledge.data_source.status.copying', { percent: progress })
+}
+
 const KnowledgeItemStatusBadge = ({
   failureReason,
   status,
-  embeddingProgress
+  statusText
 }: {
   failureReason: string | null
   status: DataSourceStatusViewModel
-  embeddingProgress: ReactNode
+  statusText: ReactNode
 }) => {
-  const { t } = useTranslation()
   const icon =
     status.icon === 'loader' ? (
       <LoaderCircle className={cn('size-3 animate-spin', status.textClassName)} />
@@ -71,10 +79,7 @@ const KnowledgeItemStatusBadge = ({
       tabIndex={failureReason ? 0 : undefined}
       aria-label={failureReason ?? undefined}>
       {icon}
-      <span>
-        {t(status.labelKey)}
-        {embeddingProgress}
-      </span>
+      <span>{statusText}</span>
     </span>
   )
 
@@ -210,8 +215,7 @@ const KnowledgeItemRow = ({
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
           'group/row rounded-md px-2.5 py-1.5 transition-colors',
-          canActivate &&
-            'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.
           selected ? 'bg-muted' : 'hover:bg-muted'
@@ -237,17 +241,26 @@ const KnowledgeItemRow = ({
             {title}
           </span>
         </div>
-        <div role="gridcell" className="truncate text-foreground-secondary text-xs">
+        <div role="gridcell" className="truncate text-muted-foreground text-xs">
           {typeLabel}
         </div>
         <div role="gridcell">
           <KnowledgeItemStatusBadge
             status={status}
             failureReason={failureReason}
-            embeddingProgress={item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+            statusText={
+              item.type === 'directory' && item.status === 'preparing' ? (
+                <KnowledgeDirectoryCopyStatus itemId={item.id} />
+              ) : (
+                <>
+                  {t(status.labelKey)}
+                  {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+                </>
+              )
+            }
           />
         </div>
-        <div role="gridcell" className="truncate text-foreground-muted text-xs">
+        <div role="gridcell" className="truncate text-foreground-tertiary text-xs">
           {updatedAt}
         </div>
         <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>

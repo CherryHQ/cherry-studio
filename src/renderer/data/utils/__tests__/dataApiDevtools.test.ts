@@ -22,6 +22,9 @@ describe('DataApiDevtools', () => {
       '<truncated 5 items>'
     ])
 
+    const longString = 'a'.repeat(1005)
+    expect(dataApiDevtoolsTesting.sanitizeValue(longString)).toBe(`${'a'.repeat(1000)}...<truncated 5 chars>`)
+
     const wideObject = Object.fromEntries(Array.from({ length: 105 }, (_, index) => [`key${index}`, index]))
     const sanitizedObject = dataApiDevtoolsTesting.sanitizeValue(wideObject) as Record<string, unknown>
     expect(sanitizedObject.key0).toBe(0)
@@ -30,7 +33,7 @@ describe('DataApiDevtools', () => {
     expect(sanitizedObject.__truncatedKeys).toBe(5)
   })
 
-  it('strips request and response payloads when capture is disabled', async () => {
+  it('strips request, response, and error payloads when capture is disabled', async () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
 
     DataApiDevtools.recordStart({
@@ -61,9 +64,15 @@ describe('DataApiDevtools', () => {
         metadata: { timestamp: Date.now() }
       }
     })
+    DataApiDevtools.recordError({
+      requestId: 'req_2',
+      method: 'POST',
+      path: '/providers',
+      error: new Error('secret error details')
+    })
 
     const events = window.__CHERRY_DATA_API_DEVTOOLS__?.snapshot() ?? []
-    expect(events).toHaveLength(1)
+    expect(events).toHaveLength(2)
     expect(events[0]).toMatchObject({
       state: 'success',
       method: 'POST',
@@ -73,6 +82,11 @@ describe('DataApiDevtools', () => {
     expect(events[0].query).toBeUndefined()
     expect(events[0].body).toBeUndefined()
     expect(events[0].response).toBeUndefined()
+    expect(events[1]).toMatchObject({
+      state: 'error',
+      error: { message: '<payload capture disabled>' }
+    })
+    expect(JSON.stringify(events)).not.toContain('secret error details')
   })
 
   it('does not throw when payload accessors throw', async () => {

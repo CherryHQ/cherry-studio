@@ -17,6 +17,7 @@ import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/us
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
@@ -133,7 +134,12 @@ async function requestBatchedInternalEntryCreates(
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({
+          source: 'path' as const,
+          path,
+          // Files-page upload = add-to-library: 'manual' keeps zero-ref uploads out of GC (spec §4.1)
+          cleanupPolicy: 'manual' as const
+        }))
       })
     )
   )
@@ -274,7 +280,7 @@ const FileToolbar = memo(function FileToolbar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="!text-muted-foreground/70 hover:!text-foreground size-6 hover:bg-transparent"
+            className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
             aria-label={t('files.actions')}>
             <MoreHorizontal size={14} />
           </Button>
@@ -535,6 +541,14 @@ function FilesPage() {
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
+          if (file.type === 'image') {
+            void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
+              const normalized = error instanceof Error ? error : new Error(String(error))
+              logger.error('Failed to open image preview', normalized)
+              toast.error(t('files.preview.error'))
+            })
+            return
+          }
           setEmbeddedPreview((current) => ({
             fileName: file.name,
             filePath: normalizedPath,
@@ -841,9 +855,7 @@ function FilesPage() {
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div
-        data-testid="files-browser"
-        className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
         <FileSidebar
           filter={filter}
           onFilterChange={(f) => {
@@ -956,7 +968,6 @@ function FilesPage() {
           )}
 
           <Scrollbar
-            data-testid="files-scrollbar"
             ref={contentScrollRef}
             className="relative flex-1"
             onScroll={handleContentScroll}
@@ -1036,7 +1047,7 @@ function FilesPage() {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('common.back')}
-                  className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                  className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                   onClick={() => setEmbeddedPreview(null)}>
                   <ArrowLeft className="size-3.5" />
                 </Button>

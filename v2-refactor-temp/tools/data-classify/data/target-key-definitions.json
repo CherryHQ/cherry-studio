@@ -27,6 +27,13 @@
       "description": "Latest privacy policy version acknowledged by the user"
     },
     {
+      "targetKey": "feature.conversation_greeting.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow contextual greetings to contact IPInfo and the built-in CherryAI model after explicit opt-in"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
@@ -99,14 +106,14 @@
     {
       "targetKey": "chat.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["composer:new-conversation", "thinking", "web-search"],
+      "defaultValue": ["composer:new-conversation", "web-search"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["composer:new-session", "thinking", "skills"],
+      "defaultValue": ["composer:new-session", "skills"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },

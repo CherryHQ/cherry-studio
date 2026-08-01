@@ -225,6 +225,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     isSaving: mocks.sessionIsSaving,
     conflict: false,
     saveError: mocks.sessionSaveError,
+    metadataRecoveryPending: false,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,
@@ -322,6 +323,13 @@ vi.mock('../NotesSidebar', () => ({
 
 import NotesPage from '../NotesPage'
 
+async function renderReadyNotesPage() {
+  const view = render(<NotesPage />)
+  await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+  await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+  return view
+}
+
 describe('NotesPage print payloads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -370,10 +378,7 @@ describe('NotesPage print payloads', () => {
     ['notes.exportToPDF', 'print.export_pdf'],
     ['notes.print', 'print.print']
   ])('uses current source editor content for %s', async (label, route) => {
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    await renderReadyNotesPage()
 
     fireEvent.click(screen.getByTestId('popover-trigger'))
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }))
@@ -403,10 +408,7 @@ describe('NotesPage print payloads', () => {
       mocks.mountedEditor = 'rich'
       const editedRichContent = 'edited rich content after switching view'
 
-      render(<NotesPage />)
-
-      await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-      await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+      await renderReadyNotesPage()
 
       mocks.richEditorContent = editedRichContent
       fireEvent.click(screen.getByTestId('popover-trigger'))
@@ -433,10 +435,7 @@ describe('NotesPage print payloads', () => {
     mocks.mountedEditor = 'rich'
     mocks.richEditorContent = mocks.currentContent
 
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    await renderReadyNotesPage()
 
     mocks.richEditorContent = ''
     fireEvent.click(screen.getByTestId('popover-trigger'))
@@ -449,10 +448,7 @@ describe('NotesPage print payloads', () => {
   })
 
   it('routes the app.print command through the current source editor content', async () => {
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    await renderReadyNotesPage()
 
     let command: { handler: () => void | Promise<void>; enabled: boolean } | undefined
     await waitFor(() => {
@@ -525,9 +521,7 @@ describe('NotesPage print payloads', () => {
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
 
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    await renderReadyNotesPage()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'unsaved draft')
     fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
@@ -549,9 +543,7 @@ describe('NotesPage print payloads', () => {
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
 
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    await renderReadyNotesPage()
     fireEvent.click(screen.getByRole('button', { name: 'select current note' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -565,9 +557,8 @@ describe('NotesPage print payloads', () => {
     mocks.sessionIsSaving = true
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
-    const { rerender } = render(<NotesPage />)
+    const { rerender } = await renderReadyNotesPage()
 
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
 
     expect(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' })).toBeDisabled()
@@ -586,9 +577,7 @@ describe('NotesPage print payloads', () => {
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
 
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    await renderReadyNotesPage()
     fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
     fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
 
@@ -603,11 +592,9 @@ describe('NotesPage print payloads', () => {
   it('keeps a dirty draft accessible when the active file is removed and leaving is cancelled', async () => {
     mocks.sessionIsDirty = true
     mocks.sessionDraft = 'recoverable draft'
-    const { rerender } = render(<NotesPage />)
+    const { rerender } = await renderReadyNotesPage()
 
-    await waitFor(() =>
-      expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
-    )
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
 
     mocks.projectedNodes = []
     mocks.treeVersion += 1

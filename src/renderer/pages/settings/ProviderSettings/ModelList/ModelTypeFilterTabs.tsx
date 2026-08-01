@@ -110,7 +110,9 @@ export function ModelTypeFilterTabs({
               tab.destructive && modelSyncClasses.manageTabsTriggerDestructive
             )}>
             <span className="truncate">{tab.label}</span>
-            <span className={cn(modelSyncClasses.manageTabCount, tab.destructive && 'text-error-text')} aria-hidden>
+            <span
+              className={cn(modelSyncClasses.manageTabCount, tab.destructive && 'text-error-subtle-foreground')}
+              aria-hidden>
               {tab.count}
             </span>
           </TabsTrigger>

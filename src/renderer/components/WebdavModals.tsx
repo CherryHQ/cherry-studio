@@ -76,6 +76,7 @@ export function WebdavBackupModal({
           <DialogTitle>{customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={customLabels?.filenamePlaceholder || t('settings.data.webdav.backup.modal.filename.placeholder')}
