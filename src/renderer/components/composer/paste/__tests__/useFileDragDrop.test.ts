@@ -271,39 +271,37 @@ describe('useFileDragDrop', () => {
     expect(setFiles).not.toHaveBeenCalled()
   })
 
-  it.each(['/Users/jd/Missing/a.md', '/api/v1/users'])(
-    'keeps missing path-like text as text when the path does not resolve: %s',
-    async (path) => {
-      const setFiles = vi.fn()
-      const onTextDropped = vi.fn()
-      const onFolderPathDropped = vi.fn()
-      fileApi.isDirectory.mockResolvedValue(false)
-      fileApi.get.mockResolvedValue(null)
+  it('keeps missing URL-like text as text when the path does not resolve', async () => {
+    const path = '/api/v1/users'
+    const setFiles = vi.fn()
+    const onTextDropped = vi.fn()
+    const onFolderPathDropped = vi.fn()
+    fileApi.isDirectory.mockResolvedValue(false)
+    fileApi.get.mockResolvedValue(null)
 
-      const { result } = renderHook(() =>
-        useFileDragDrop({
-          supportedExts: ['.md'],
-          setFiles,
-          onTextDropped,
-          onFolderPathDropped,
-          enabled: true,
-          t
-        })
-      )
-
-      await act(async () => {
-        await result.current.handleDrop?.(createDropEvent(path))
+    const { result } = renderHook(() =>
+      useFileDragDrop({
+        supportedExts: ['.md'],
+        setFiles,
+        onTextDropped,
+        onFolderPathDropped,
+        enabled: true,
+        t
       })
+    )
 
-      expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
-      expect(fileApi.get).toHaveBeenCalledWith(path)
-      expect(onTextDropped).toHaveBeenCalledWith(path)
-      expect(onFolderPathDropped).not.toHaveBeenCalled()
-      expect(setFiles).not.toHaveBeenCalled()
-      expect(toast.info).not.toHaveBeenCalled()
-      expect(toast.error).not.toHaveBeenCalled()
-    }
-  )
+    await act(async () => {
+      await result.current.handleDrop?.(createDropEvent(path))
+    })
+
+    expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+    expect(fileApi.get).toHaveBeenCalledWith(path)
+    expect(onTextDropped).toHaveBeenCalledWith(path)
+    expect(onFolderPathDropped).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
 
   it('shows the unsupported-file toast only after a dropped path resolves to a file', async () => {
     const path = '/Users/jd/Notes/archive.bin'

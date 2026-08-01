@@ -41,12 +41,15 @@ describe('ChatNavbar', () => {
     preferenceMock.setShowSidebar.mockClear()
   })
 
-  it('marks the sidebar toggle collapsed when the sidebar is hidden', () => {
-    render(<ChatNavbar />)
+  it('reflects sidebar visibility through the toggle state', () => {
+    const { rerender } = render(<ChatNavbar />)
 
-    const [toggle] = screen.getAllByRole('button')
+    expect(screen.getByRole('button', { name: 'navbar.show_sidebar' })).toHaveAttribute('aria-pressed', 'false')
 
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    preferenceMock.showSidebar = true
+    rerender(<ChatNavbar />)
+
+    expect(screen.getByRole('button', { name: 'navbar.hide_sidebar' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it.each([false, true])('does not render a new-topic button when sidebar visibility is %j', (showSidebar) => {
@@ -63,15 +66,5 @@ describe('ChatNavbar', () => {
     const controls = container.querySelector('[data-conversation-topbar-controls]')
 
     expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('marks the sidebar toggle expanded when the sidebar is visible', () => {
-    preferenceMock.showSidebar = true
-
-    render(<ChatNavbar />)
-
-    const [toggle] = screen.getAllByRole('button')
-
-    expect(toggle).toHaveAttribute('aria-pressed', 'true')
   })
 })

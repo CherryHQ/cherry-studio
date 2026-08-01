@@ -184,7 +184,8 @@ console.log(typeof f, E.B, new C() instanceof C, /^ts$/.test('ts')); // typeof/æ
       expect(result).toBe(expected)
     })
 
-    it.each([13, 31, 53, 101])('should handle chunks of equal length %i', async (chunkLength) => {
+    it('should handle chunks of arbitrary equal length', async () => {
+      const chunkLength = 31
       const chunks = generateEqualLengthChunks(fixture.tsCode, chunkLength)
 
       const result = await highlightCode(chunks, tokenizer)

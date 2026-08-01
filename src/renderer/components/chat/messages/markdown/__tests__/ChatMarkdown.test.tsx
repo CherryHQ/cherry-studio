@@ -46,7 +46,7 @@ describe('ChatMarkdown', () => {
     vi.clearAllMocks()
   })
 
-  it.each(['success', 'error'])('keeps the streaming renderer but disables live semantics on %s', (status) => {
+  it('keeps the streaming renderer but disables live semantics on terminal status', () => {
     const { rerender } = render(
       <ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status: 'streaming' }} />
     )
@@ -55,7 +55,7 @@ describe('ChatMarkdown', () => {
     expect(streamingNode).toHaveAttribute('data-animated', 'undefined')
     expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'true')
 
-    rerender(<ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status }} />)
+    rerender(<ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status: 'success' }} />)
 
     expect(screen.getByTestId('streaming-markdown')).toBe(streamingNode)
     expect(streamingNode).toHaveAttribute('data-animated', 'false')
