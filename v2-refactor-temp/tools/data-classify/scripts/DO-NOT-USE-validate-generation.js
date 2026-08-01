@@ -71,9 +71,9 @@ class GenerationValidator {
         this.results.preferences.errors.push('Missing PreferenceSchemas interface definition')
       }
 
-      // Check for ESLint configuration
-      if (!content.includes('/* eslint')) {
-        this.results.preferences.warnings.push('Missing ESLint configuration comment')
+      // Check for Oxlint configuration
+      if (!content.includes('/* oxlint')) {
+        this.results.preferences.warnings.push('Missing Oxlint configuration comment')
       }
 
       // Check for imports

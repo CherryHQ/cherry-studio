@@ -218,7 +218,7 @@ vi.mock('@renderer/components/command', async () => {
     CommandPopupMenu: ({ children, extraItems = [] }: { children: ReactNode; extraItems?: StubExtraItem[] }) => {
       const [open, setOpen] = React.useState(false)
       const trigger = React.isValidElement(children)
-        ? // eslint-disable-next-line @eslint-react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
+        ? // oxlint-disable-next-line react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
           React.cloneElement(children as React.ReactElement<{ onClick?: (event: unknown) => void }>, {
             onClick: (event: unknown) => {
               ;(children.props as { onClick?: (event: unknown) => void }).onClick?.(event)

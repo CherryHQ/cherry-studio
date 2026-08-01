@@ -530,7 +530,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     },
     // Narrow deps to the actual reads — `props` as a whole is a fresh
     // object reference every render, which would cancel memoisation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional narrow
+    // oxlint-disable-next-line react/exhaustive-deps -- intentional narrow
     [props.multiple, props.selectionType, props.onSelect, selectableModelsById]
   )
 

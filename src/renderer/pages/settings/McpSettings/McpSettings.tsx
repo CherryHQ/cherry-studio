@@ -196,7 +196,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
 
     void fetchServerVersion()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [server?.id, server?.isActive])
 
   useEffect(() => {
@@ -208,7 +208,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (activeTab === 'tools') void fetchTools()
     if (activeTab === 'prompts') void fetchPrompts()
     if (activeTab === 'resources') void fetchResources()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [activeTab, server?.id, server?.isActive])
 
   // Save the form data
@@ -378,7 +378,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     })
 
     autoEnableProtocolServer()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
+    // oxlint-disable-next-line react/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
   }, [navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off

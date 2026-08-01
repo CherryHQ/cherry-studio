@@ -5,7 +5,7 @@
  * Default to `feature.*` for active data; `v1.*` is cleanup-only.
  *
  * **File constraint**: No object literals besides the registry itself — the
- * ESLint rule `data-schema-key/valid-key` validates every string-keyed property.
+ * Oxlint rule `cherry/valid-schema-key` validates every string-keyed property.
  * Helper constants must be primitives; put helper objects in a separate file.
  */
 
@@ -266,7 +266,7 @@ export function buildPathRegistry() {
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),
-    // Nested ternary (not object literal) to satisfy file-level ESLint constraint
+    // Nested ternary (not object literal) to satisfy the file-level Oxlint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
       : isMac

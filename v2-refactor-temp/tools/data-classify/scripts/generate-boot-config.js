@@ -266,7 +266,7 @@ class BootConfigGenerator {
  * === AUTO-GENERATED CONTENT START ===
  */`
 
-    // Namespace form required by eslint's import-zod/prefer-zod-namespace —
+    // Namespace form required by Oxlint's cherry/prefer-zod-namespace rule —
     // emitting `import { z }` would make every regeneration lint-dirty.
     const importCode = "import * as z from 'zod'"
 

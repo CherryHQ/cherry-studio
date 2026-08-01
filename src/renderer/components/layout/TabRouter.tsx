@@ -31,7 +31,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
       history,
       defaultErrorComponent: RouteErrorFallback
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [tab.id])
 
   // External retargets update tab.url before an async route can replace the outgoing page.

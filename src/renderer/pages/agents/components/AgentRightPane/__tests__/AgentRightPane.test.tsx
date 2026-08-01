@@ -143,7 +143,7 @@ vi.mock('@cherrystudio/ui', () => ({
   HoverCardTrigger: (props: ComponentProps<typeof RealHoverCardTrigger>) => {
     if (uiMockState.useRealHoverCard) return <RealHoverCardTrigger {...props} />
     return isValidElement(props.children) ? (
-      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+      // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild slot behavior
       cloneElement(props.children as ReactElement<Record<string, unknown>>, { 'data-hover-card-trigger': 'true' })
     ) : (
       <>{props.children}</>

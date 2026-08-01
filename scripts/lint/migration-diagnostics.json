@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "name": "React.Children.map",
+      "before": {
+        "rules": ["@eslint-react/no-children-map"],
+        "severity": "warning",
+        "count": 4
+      },
+      "after": {
+        "rules": ["cherry(dynamic-react-children-map)"],
+        "severity": "warning",
+        "count": 4
+      }
+    },
+    {
+      "name": "React.cloneElement",
+      "before": {
+        "rules": ["@eslint-react/no-clone-element"],
+        "severity": "warning",
+        "count": 6
+      },
+      "after": {
+        "rules": ["react(no-clone-element)", "cherry(dynamic-react-clone-element)"],
+        "severity": "warning",
+        "count": 6
+      }
+    },
+    {
+      "name": "i18n template literals",
+      "before": {
+        "rules": ["i18n/no-template-in-t"],
+        "severity": "warning",
+        "count": 20
+      },
+      "after": {
+        "rules": ["cherry(no-template-in-t)"],
+        "severity": "warning",
+        "count": 20
+      }
+    },
+    {
+      "name": "renderer page boundaries",
+      "before": {
+        "rules": ["import-x/no-restricted-paths"],
+        "severity": "warning",
+        "count": 2
+      },
+      "after": {
+        "rules": ["cherry(page-boundaries)"],
+        "severity": "warning",
+        "count": 2
+      }
+    },
+    {
+      "name": "React Hooks dependencies",
+      "before": {
+        "rules": ["react-hooks/exhaustive-deps"],
+        "severity": "warning",
+        "count": 10
+      },
+      "after": {
+        "rules": ["react-hooks(exhaustive-deps)"],
+        "severity": "warning",
+        "count": 10
+      },
+      "note": "Existing dependency suppressions were migrated to Oxlint so the advisory diagnostic count remains unchanged."
+    }
+  ]
+}
