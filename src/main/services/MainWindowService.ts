@@ -504,7 +504,28 @@ export class MainWindowService extends BaseService {
     } else {
       // Singleton: WM creates a fresh window when none exists; openMainWindow re-injects
       // the dynamic options (windowState bounds, theme, zoom) since the registry only carries statics.
-      this.openMainWindow(initData)
+      try {
+        this.openMainWindow(initData)
+      } catch (error) {
+        // a1 restore hold active: Main was destroyed by the hold and reopen is blocked.
+        // Gracefully ignore show/focus requests (tray/activate/second-instance/toggle).
+        // Navigation initData cannot be replayed across the post-restore relaunch (it
+        // starts a fresh process), so payload-bearing requests are dropped — logged
+        // explicitly so the loss is visible, not silent. On successful seal a post-seal
+        // relaunch brings Main back; on a pre-seal failure the hold is released and a
+        // later showMainWindow reopens normally.
+        if (error instanceof Error && error.name === 'WindowBlockedDuringRestoreError') {
+          if (initData) {
+            logger.warn('showMainWindow dropped navigation initData — restore in progress (a1 hold active)', {
+              initData
+            })
+          } else {
+            logger.warn('showMainWindow ignored — restore in progress (a1 hold active)')
+          }
+          return
+        }
+        throw error
+      }
     }
   }
 

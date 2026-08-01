@@ -232,6 +232,48 @@ describe('MainWindowService', () => {
     expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
+  describe('showMainWindow during a1 restore hold', () => {
+    it('gracefully ignores open when WindowManager blocks (restore in progress)', () => {
+      // Fresh svc has mainWindow = null → showMainWindow falls through to
+      // openMainWindow → WindowManager.open, which throws when a1 hold is active.
+      const blocked = new Error('blocked while a restore hold is active')
+      blocked.name = 'WindowBlockedDuringRestoreError'
+      windowManagerMock.open.mockImplementationOnce(() => {
+        throw blocked
+      })
+
+      expect(() => svc.showMainWindow()).not.toThrow()
+
+      expect(windowManagerMock.open).toHaveBeenCalledTimes(1)
+      expect(loggerMock.warn).toHaveBeenCalledWith(expect.stringContaining('restore in progress'))
+    })
+
+    it('logs navigation initData as dropped (cannot replay across relaunch)', () => {
+      const blocked = new Error('blocked while a restore hold is active')
+      blocked.name = 'WindowBlockedDuringRestoreError'
+      windowManagerMock.open.mockImplementationOnce(() => {
+        throw blocked
+      })
+      const initData = { kind: 'navigation', path: '/settings/provider' }
+
+      expect(() => svc.showMainWindow(initData as never)).not.toThrow()
+
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        expect.stringContaining('dropped navigation initData'),
+        expect.objectContaining({ initData })
+      )
+    })
+
+    it('rethrows non-a1 open errors unchanged', () => {
+      const other = new Error('some other open failure')
+      windowManagerMock.open.mockImplementationOnce(() => {
+        throw other
+      })
+
+      expect(() => svc.showMainWindow()).toThrow('some other open failure')
+    })
+  })
+
   describe('close handler', () => {
     it('does nothing when application.isQuitting is true (lets native close proceed)', () => {
       applicationMock.isQuitting = true

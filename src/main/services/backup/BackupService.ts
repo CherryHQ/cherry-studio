@@ -22,7 +22,7 @@
 // backup.restore_relaunch). quiesce pauses every mutation writer
 // (ChannelManager / AiStreamManager / AgentSessionRuntimeService / JobManager: pause +
 // drainInFlight, #17014) plus the BACKUP_IN_PROGRESS IPC gate; the a1 WindowManager hold
-// (destroying mutation-capable renderers) is the remaining follow-up. MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
+// (destroying mutation-capable renderers) is acquired first. MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
 // dangling-ref repair + FTS) is wired; planResources feeds journal.fileResources + merge
 // skip sets. performRestoreRecovery at startup GCs staging residue from a crashed prior
 // restore; gcExportTempResidue GCs unredacted export-temp DB copies from a crashed prior export.
@@ -417,7 +417,7 @@ export class BackupService extends BaseService {
         // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — FIELD_MERGE/
         // SKIP + junction + FTS + fileId disclosure) are wired. quiesce pauses every
         // mutation writer (Channel → drain → AI/Agent/Job → drain, #17014) plus the
-        // BACKUP_IN_PROGRESS IPC gate; the a1 WindowManager hold is follow-up. Unclean
+        // BACKUP_IN_PROGRESS IPC gate; the a1 WindowManager hold is acquired first. Unclean
         // drain aborts restore (vaayne A7) — do not proceed into createSnapshot. Full +
         // lite both admit; assertFullManifestInvariants runs inside admitArchive for full
         // presets.
