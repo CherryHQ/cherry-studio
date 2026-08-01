@@ -1884,7 +1884,7 @@ describe('Topics', () => {
   it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
 
-    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground')
+    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
     expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
