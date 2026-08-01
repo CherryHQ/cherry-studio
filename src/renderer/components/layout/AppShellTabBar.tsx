@@ -1,10 +1,10 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Badge, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { Plus, X } from 'lucide-react'
+import { GitBranch, Plus, X } from 'lucide-react'
 import {
   cloneElement,
   isValidElement,
@@ -486,6 +486,7 @@ export const AppShellTabBar = ({
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   const { rightPaddingClass } = useShellTabBarLayout()
+  const devInstanceLabel = import.meta.env.DEV ? import.meta.env.RENDERER_VITE_DEV_INSTANCE_LABEL?.trim() : undefined
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -948,6 +949,17 @@ export const AppShellTabBar = ({
             </button>
           </Tooltip>
         </div>
+
+        {devInstanceLabel ? (
+          <Badge
+            data-testid="dev-instance-label"
+            variant="secondary"
+            title={devInstanceLabel}
+            className="mr-1 h-6 max-w-56 rounded-md px-2 text-[11px] text-foreground-secondary">
+            <GitBranch className="shrink-0" />
+            <span className="truncate">{devInstanceLabel}</span>
+          </Badge>
+        ) : null}
 
         <ShellTabBarActions />
       </header>
