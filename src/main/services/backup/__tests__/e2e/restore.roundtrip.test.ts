@@ -20,7 +20,7 @@
  * would block the live→aside / work→live renames on Windows. Verification reopens live
  * under a fresh Database.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -389,6 +389,91 @@ describe('e2e restore roundtrip (export → restore → promotion)', () => {
       expect(fileCount.c).toBe(1)
       expect(kbCount.c).toBe(1)
       expect(skillCount.c).toBe(1)
+      expect(live.pragma('integrity_check', { simple: true })).toBe('ok')
+    } finally {
+      live.close()
+    }
+  })
+
+  it('expires (fail-closed) when the live DB changed after staging (fingerprint mismatch)', async () => {
+    // Seed + export + wipe + restore → staged journal. The journal's fingerprint
+    // captures the wiped (fresh-install) live state at restore time.
+    seedTopic('tpc-exported', 'from-backup')
+    const exportOrch = new ExportOrchestrator({
+      dbService: { createSnapshot: (dest: string) => snapshotTo(liveConn, dest) },
+      registry,
+      tempDir: exportTmpDir,
+      knowledgeRoot,
+      skillsRoot,
+      notesRoot: () => undefined,
+      stripper: new SqliteBackupStripper()
+    })
+    await exportOrch.exportBackup({
+      preset: 'full',
+      outputPath: archivePath,
+      restoreId: 'rst-expire',
+      producerAppVersion: '1.0.0-test',
+      schemaMigrationId: '0001_x.sql',
+      overwrite: true
+    })
+    liveConn.prepare('DELETE FROM topic').run()
+    const importOrch = new ImportOrchestrator({
+      dbService: {
+        checkpointTruncate: () => checkpointTruncateAssert(liveConn),
+        createSnapshot: (workPath: string) => snapshotTo(liveConn, workPath)
+      } as unknown as DbService,
+      migrationsFolder: MIGRATIONS_FOLDER,
+      liveDbPath,
+      restoreStagingRoot: stagingRoot,
+      userData: tmpDir,
+      journalPath,
+      admitArchive,
+      quiesceWriters: async () => {
+        setBackupInProgress(true)
+      },
+      mergeBackupIntoWork: (workSqlite, workDb, ctx) =>
+        new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx),
+      planResources,
+      planRoots
+    })
+    await importOrch.importBackup({ archivePath, restoreId: 'rst-expire' })
+
+    // Simulate the exact leak the preboot fingerprint re-check exists to detect: a
+    // write to live AFTER staging but BEFORE promotion (a write-gate leak or an
+    // external writer between relaunches). checkpointTruncate folds it into the main
+    // file so hashDbFile diverges from the journal's captured fingerprint.
+    seedTopic('tpc-stranger', 'written-after-stage')
+    checkpointTruncateAssert(liveConn)
+    liveConn.close()
+
+    await runRestorePromotion()
+
+    // Fail-closed at the admission gate: staged restore refused, old DB stays live
+    // (the post-staging write is preserved, NOT overwritten by the backup), journal
+    // reaches 'expired', staging tree removed.
+    const read = readRestoreJournal()
+    expect(read.kind).toBe('ok')
+    if (read.kind === 'ok') {
+      expect(read.journal.state).toBe('expired')
+      // Lock the fail-closed trigger: only a fingerprint mismatch reaches 'expired'
+      // with this reason — a chain fork or add-conflict would carry a different one.
+      if (read.journal.state === 'expired') {
+        expect(read.journal.reason).toContain('live fingerprint mismatch')
+      }
+    }
+    // finalize() removes the staging tree on expire; assert it explicitly so a
+    // future staging leak isn't masked by afterEach's rmSync(tmpDir).
+    expect(existsSync(join(stagingRoot, 'rst-expire'))).toBe(false)
+
+    const live = new Database(liveDbPath)
+    try {
+      // The post-staging write survives (old DB intact)…
+      const stranger = live.prepare('SELECT name FROM topic WHERE id = ?').get('tpc-stranger') as
+        | { name: string }
+        | undefined
+      expect(stranger?.name).toBe('written-after-stage')
+      // …and the backup row was NOT promoted into live.
+      expect(live.prepare('SELECT id FROM topic WHERE id = ?').get('tpc-exported')).toBeUndefined()
       expect(live.pragma('integrity_check', { simple: true })).toBe('ok')
     } finally {
       live.close()
