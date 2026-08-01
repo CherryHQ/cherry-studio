@@ -235,6 +235,7 @@
           "discard_and_continue": "Descartar y continuar",
           "title": "¿Descartar cambios no guardados?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "No se puede volver a cargar el contenido más reciente del archivo.",
         "save_failed": "No se puede guardar este archivo. El guardado automático está pausado hasta que reintente o descarte los cambios.",
         "unsaved": "No guardado",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "Guardado bloqueado porque no se pudo cargar la nota",
     "save_failed": "Error al guardar la nota",
     "save_failure": {
-      "description": "Esta nota no se pudo guardar. Tus ediciones permanecen en el editor y el guardado automático está pausado."
+      "description": "Esta nota no se pudo guardar. Tus ediciones permanecen en el editor y el guardado automático está pausado.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nombre + Contenido",
@@ -7351,10 +7353,6 @@
       "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Cuando se activa, Cherry Studio contacta con IPInfo para detectar de forma aproximada el país o la región y envía ese resultado, junto con tu nombre, el idioma de la aplicación, la fecha y hora locales y la zona horaria, al modelo CherryAI integrado para generar saludos. Desactivado de forma predeterminada.",
-        "title": "Saludos contextuales generados por IA"
-      },
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
       "title": "Configuración de privacidad"
     },

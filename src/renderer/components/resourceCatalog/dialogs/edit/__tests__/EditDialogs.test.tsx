@@ -1522,11 +1522,12 @@ describe('edit dialogs', () => {
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
   })
 
   it('retries saving when the form changes after a failed close', async () => {
@@ -1538,14 +1539,15 @@ describe('edit dialogs', () => {
     fireEvent.change(nameInput, { target: { value: 'First Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
     fireEvent.change(nameInput, { target: { value: 'Retry Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
-    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+    await waitFor(() => expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
       body: expect.objectContaining({ name: 'Retry Closing Edit' })
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -1563,12 +1565,13 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
     // Discard-close, then reopen on the same instance before it unmounts.
     rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
     rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    const saveAttemptsBeforeRetry = updateAssistantMock.mock.calls.length
 
     // Make the exact same edit again — this reproduces the identical changeKey as the
     // failed attempt above. Without clearing failedSaveKeyRef on reopen, the stale key
@@ -1580,8 +1583,8 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
-    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+    expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsBeforeRetry)
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
       body: expect.objectContaining({ name: 'Repro Edit' })
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))

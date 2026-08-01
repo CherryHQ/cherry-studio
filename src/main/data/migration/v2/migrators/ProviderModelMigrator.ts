@@ -547,7 +547,14 @@ export class ProviderModelMigrator extends BaseMigrator {
         // for built-in providers, initials for custom ones).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
-          ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+          ? await prepareBase64ImageFileEntry(
+              ctx.paths.filesDataDir,
+              providerLogoSlot(provider.id),
+              logo,
+              // Ref-backed slot (`provider_logo`), same as the live `bindLogoImage`
+              // path: reclaim when the provider is deleted or its logo replaced.
+              'delete_when_unreferenced'
+            )
           : null
         if (logoFile) {
           providerLogoFiles.push(logoFile)

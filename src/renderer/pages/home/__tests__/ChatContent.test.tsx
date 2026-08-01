@@ -553,51 +553,6 @@ describe('ChatContent', () => {
     expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
   })
 
-  it('sends the displayed greeting only with the first user turn', async () => {
-    const emptyTopicMessages = {
-      uiMessages: [],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: null,
-      rootId: 'topic-root',
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }
-    mockUseTopicMessages.mockReturnValue(emptyTopicMessages)
-
-    const view = render(<ChatContent topic={topic} />)
-    const displayedGreeting = screen.getByTestId('conversation-greeting').querySelector('h2')?.textContent
-    expect(displayedGreeting).toBeTruthy()
-    await waitFor(() => expect(capturedOnSend).toBeDefined())
-
-    const firstUserParts = [{ type: 'text', text: '好' } as CherryMessagePart]
-    await act(async () => {
-      await capturedOnSend?.('好', { userMessageParts: firstUserParts })
-    })
-
-    expect(streamOpen.mock.calls[0]?.[0]).toMatchObject({
-      trigger: 'submit-message',
-      greetingContext: displayedGreeting,
-      userMessageParts: firstUserParts
-    })
-
-    mockUseTopicMessages.mockReturnValue({
-      ...emptyTopicMessages,
-      uiMessages: [createUiMessage('user-1', 'user')],
-      activeNodeId: 'user-1'
-    })
-    view.rerender(<ChatContent topic={topic} />)
-    await waitFor(() => expect(screen.queryByTestId('conversation-greeting')).toBeNull())
-
-    await act(async () => {
-      await capturedOnSend?.('继续', { userMessageParts: [{ type: 'text', text: '继续' } as CherryMessagePart] })
-    })
-
-    expect(streamOpen.mock.calls[1]?.[0]).not.toHaveProperty('greetingContext')
-  })
-
   it('keeps the empty-conversation greeting hidden while topic history is loading', () => {
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [],

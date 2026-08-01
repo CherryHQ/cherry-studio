@@ -222,7 +222,6 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
         <div
           className={cn(
             'group/topic-message-flow-node relative w-55 rounded-md border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow,opacity]',
-            'focus-within:ring-2 focus-within:ring-ring/35',
             roleClassNames[data.role],
             data.isContextBoundary && 'border-border bg-muted/45',
             data.isAwaitingInput && 'border-warning-border bg-warning-subtle',
@@ -230,7 +229,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
               (data.isAwaitingInput
                 ? 'shadow-sm ring-2 ring-warning/25'
                 : 'border-primary shadow-sm ring-2 ring-primary/20'),
-            selected && !data.isActive && (data.isAwaitingInput ? 'ring-2 ring-warning/25' : 'ring-2 ring-ring/25'),
+            selected && !data.isActive && (data.isAwaitingInput ? 'ring-2 ring-warning/25' : 'ring-2 ring-primary/25'),
             data.isInactiveBranch && 'opacity-55'
           )}
           data-active={data.isActive ? 'true' : 'false'}

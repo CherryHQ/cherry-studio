@@ -235,6 +235,7 @@
           "discard_and_continue": "放棄並繼續",
           "title": "捨棄未儲存的變更？"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "無法重新載入最新檔案內容。",
         "save_failed": "無法儲存此檔案。",
         "unsaved": "未儲存",
@@ -4493,7 +4494,8 @@
     "save_blocked_load_failed": "筆記載入失敗，已阻止儲存",
     "save_failed": "儲存筆記失敗",
     "save_failure": {
-      "description": "此筆記無法儲存。您的編輯內容仍保留在編輯器中，自動儲存功能已暫停。"
+      "description": "此筆記無法儲存。您的編輯內容仍保留在編輯器中，自動儲存功能已暫停。",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "名稱 + 內容",
@@ -7351,10 +7353,6 @@
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "開啟後，Cherry Studio 會聯絡 IPInfo 偵測粗略的國家或地區，並將該結果與您的姓名、應用程式語言、本地日期和時間及時區傳送給內建 CherryAI 模型以產生問候語。此功能預設關閉。",
-        "title": "AI 產生的情境問候語"
-      },
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
     },

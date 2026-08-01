@@ -154,6 +154,13 @@ describe('TopicMessageFlowNode', () => {
     expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
   })
 
+  it('does not add a container border when a nested control receives focus', () => {
+    renderNode()
+
+    expect(getNodeElement()).not.toHaveClass('has-[:focus-visible]:border-primary')
+    expect(getNodeElement()).not.toHaveClass('focus-within:border-primary')
+  })
+
   it('renders a clear marker as a neutral non-preview node', async () => {
     renderNode({ isContextBoundary: true, role: 'user', preview: '' })
 

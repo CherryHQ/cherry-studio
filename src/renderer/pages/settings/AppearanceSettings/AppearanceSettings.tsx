@@ -635,7 +635,7 @@ const ThemePreviewSelector = ({
           className={cn(
             'min-w-0 cursor-pointer rounded-lg border border-border bg-background-subtle p-1.5 text-foreground outline-none transition-colors',
             'hover:border-border-strong hover:bg-accent',
-            'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+            'focus-visible:border-ring focus-visible:bg-accent',
             'aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/20'
           )}>
           <ThemePreview mode={option.value} />

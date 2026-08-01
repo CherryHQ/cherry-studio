@@ -235,7 +235,7 @@ function CollapsibleUserMessageContent({
           type="button"
           aria-expanded={isExpanded}
           aria-controls={contentId}
-          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle)}>
           <span className="shrink-0 font-normal leading-5">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}

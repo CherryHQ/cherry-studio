@@ -242,7 +242,14 @@ export class PreferencesMigrator extends BaseMigrator {
           typeof item.value === 'string' &&
           item.value.startsWith('data:')
         ) {
-          const avatarFile = await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, AVATAR_REF, item.value)
+          const avatarFile = await prepareBase64ImageFileEntry(
+            ctx.paths.filesDataDir,
+            AVATAR_REF,
+            item.value,
+            // No ref table backs the avatar — the `app.user.avatar` preference is
+            // its only holder, so the anti-join would reclaim it on sight.
+            'manual'
+          )
           item.value = avatarFile ? tagStoredFileRef(avatarFile.id) : ''
           if (avatarFile) avatarFiles.push(avatarFile)
         }
