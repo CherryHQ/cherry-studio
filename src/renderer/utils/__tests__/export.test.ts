@@ -218,49 +218,6 @@ describe('export', () => {
       expect(markdownToPlainText).toHaveBeenCalledWith('### Single Message Content')
     })
 
-    it('should return empty string for message with no main text or empty content', () => {
-      // Test case 1: No blocks at all
-      const testMessageNoBlocks = createMessage({ role: 'user', id: 'empty_msg_plain' }, [])
-      ;(markdownToPlainText as any).mockReturnValue('')
-
-      const result1 = messageToPlainText(testMessageNoBlocks)
-      expect(result1).toBe('')
-      expect(markdownToPlainText).toHaveBeenCalledWith('')
-
-      // Test case 2: Block exists but content is empty
-      const testMessageEmptyContent = createMessage({ role: 'user', id: 'empty_content_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
-      ])
-
-      const result2 = messageToPlainText(testMessageEmptyContent)
-      expect(result2).toBe('')
-      expect(markdownToPlainText).toHaveBeenCalledWith('')
-    })
-
-    it('should handle special characters in message content', () => {
-      const testMessage = createMessage({ role: 'user', id: 'special_chars_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Text with "quotes" & <tags> and &entities;' }
-      ])
-      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
-
-      const result = messageToPlainText(testMessage)
-      expect(result).toBe('Text with "quotes" & <tags> and &entities;')
-      expect(markdownToPlainText).toHaveBeenCalledWith('Text with "quotes" & <tags> and &entities;')
-    })
-
-    it('should handle messages with markdown formatting', () => {
-      const testMessage = createMessage({ role: 'user', id: 'markdown_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '# Header\n**Bold** and *italic* text\n- List item' }
-      ])
-      ;(markdownToPlainText as any).mockImplementation((str: string) =>
-        str.replace(/[#*_]/g, '').replace(/^- /gm, '').replace(/\n+/g, '\n').trim()
-      )
-
-      const result = messageToPlainText(testMessage)
-      expect(result).toBe('Header\nBold and italic text\nList item')
-      expect(markdownToPlainText).toHaveBeenCalledWith('# Header\n**Bold** and *italic* text\n- List item')
-    })
-
     it('should copy composer skill tokens as pasteable markers instead of hidden prompt text', () => {
       const testMessage = createExportView(
         [

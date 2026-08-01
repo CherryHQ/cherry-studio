@@ -81,7 +81,8 @@ describe('CitationTooltip', () => {
         { url: 'https://www.example.com/path/to/page?query=1', expected: 'www.example.com' },
         { url: 'http://test.com', expected: 'test.com' },
         { url: 'https://api.v2.example.com/endpoint', expected: 'api.v2.example.com' },
-        { url: 'ftp://files.domain.net', expected: 'files.domain.net' }
+        { url: 'ftp://files.domain.net', expected: 'files.domain.net' },
+        { url: 'https://localhost:3000/api/data', expected: 'localhost' }
       ]
 
       testCases.forEach(({ url, expected }) => {
@@ -91,14 +92,6 @@ describe('CitationTooltip', () => {
       })
     })
 
-    it('should handle URLs with ports correctly', () => {
-      const citation = createCitationData({ url: 'https://localhost:3000/api/data' })
-      renderCitationTooltip(citation)
-
-      // URL.hostname strips the port
-      expect(screen.getByText('localhost')).toBeInTheDocument()
-    })
-
     it('should fallback to original URL when parsing fails', () => {
       const testCases = ['not-a-valid-url', 'http://']
 
@@ -106,6 +99,7 @@ describe('CitationTooltip', () => {
         const { unmount } = renderCitationTooltip(createCitationData({ url: invalidUrl }))
         const favicon = screen.getByTestId('mock-favicon')
         expect(favicon).toHaveAttribute('hostname', invalidUrl)
+        expect(getCitationFooterLink()).toHaveAttribute('href', invalidUrl)
         unmount()
       })
     })
@@ -196,14 +190,7 @@ describe('CitationTooltip', () => {
       renderCitationTooltip(citation)
 
       const content = screen.getByText('Non-clickable content')
-      expect(content).not.toHaveAttribute('href')
-    })
-
-    it('should handle invalid URLs gracefully', () => {
-      const citation = createCitationData({ url: 'invalid-url' })
-      renderCitationTooltip(citation)
-
-      expect(getCitationFooterLink()).toHaveAttribute('href', 'invalid-url')
+      expect(content.closest('a')).toBeNull()
     })
   })
 

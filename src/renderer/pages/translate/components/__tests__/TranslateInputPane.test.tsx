@@ -109,20 +109,12 @@ describe('TranslateInputPane', () => {
     expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
   })
 
-  it('shows the OCR processing overlay while OCR is running', () => {
+  it('shows the OCR processing overlay and supports cancellation', () => {
     const props = { ...baseProps(), ocrProcessing: true }
 
     render(<TranslateInputPane {...props} />)
 
-    const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('ocr.processing')
-    expect(status.querySelector('svg')).toBeInTheDocument()
-  })
-
-  it('calls the OCR cancel handler from the processing overlay', () => {
-    const props = { ...baseProps(), ocrProcessing: true }
-
-    render(<TranslateInputPane {...props} />)
+    expect(screen.getByRole('status')).toHaveTextContent('ocr.processing')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 

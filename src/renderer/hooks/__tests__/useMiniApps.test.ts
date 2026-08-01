@@ -216,29 +216,19 @@ describe('useMiniApps', () => {
   // === UI State Cache ===
 
   describe('UI state cache', () => {
-    it('should expose openedKeepAliveMiniApps from cache', () => {
+    it('should expose miniapp UI state from cache', () => {
       const keepAliveApps = [createMiniApp('app1'), createMiniApp('app2')]
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', keepAliveApps)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.openedKeepAliveMiniApps).toEqual(keepAliveApps)
-    })
-
-    it('should expose currentMiniAppId from cache', () => {
-      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'my-app')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.currentMiniAppId).toBe('my-app')
-    })
-
-    it('should expose miniAppShow from cache', () => {
-      MockUseCacheUtils.setCacheValue('mini_app.show', true)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniAppShow).toBe(true)
-    })
-
-    it('should expose openedOneOffMiniApp from cache', () => {
       const oneOffApp = createMiniApp('one-off')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', keepAliveApps)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'my-app')
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', oneOffApp)
+
       const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.openedKeepAliveMiniApps).toEqual(keepAliveApps)
+      expect(result.current.currentMiniAppId).toBe('my-app')
+      expect(result.current.miniAppShow).toBe(true)
       expect(result.current.openedOneOffMiniApp).toEqual(oneOffApp)
     })
 
