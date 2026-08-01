@@ -547,6 +547,7 @@ describe('processing settings pages', () => {
   })
 
   it('opens the file processing API key list popup from the API key field', async () => {
+    const user = userEvent.setup()
     render(
       <>
         <OcrSettings />
@@ -554,13 +555,14 @@ describe('processing settings pages', () => {
       </>
     )
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
-      target: { value: ' key-1, key-2 ' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+    await user.type(
+      await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'),
+      ' key-1, key-2 '
+    )
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
     // The real popup mounts under PopupHost: it carries the mistral-scoped title and lists the
     // two keys parsed from the API key field (short keys render unmasked).
@@ -575,6 +577,7 @@ describe('processing settings pages', () => {
   })
 
   it('reopens the file processing API key list with keys saved from the popup', async () => {
+    const user = userEvent.setup()
     render(
       <>
         <OcrSettings />
@@ -582,10 +585,10 @@ describe('processing settings pages', () => {
       </>
     )
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
     // The popup opens empty (no keys configured yet).
     await screen.findByText('error.no_api_key')
