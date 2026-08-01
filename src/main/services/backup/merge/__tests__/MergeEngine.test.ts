@@ -1608,9 +1608,11 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     })
     const counter = countIdentityBulkSelects(dbh.sqlite)
     await runMerge(topCtx())
+    // Exactly ⌈600/500⌉ = 2 bulk `id IN (...)` probes — the topic PK-existence bulk.
+    // No members and DB_UNIQUE_KEYS.topic=[] (no secondary), so the counter IS the
+    // chunk count, not merely "<N". Pins the chunk count against silent regressions.
     const bulkQueries = counter.count()
-    expect(bulkQueries).toBeGreaterThan(0)
-    expect(bulkQueries).toBeLessThan(N)
+    expect(bulkQueries).toBe(2)
     expect(countRows('topic')).toBe(N) // no row lost at a chunk seam
   })
 
@@ -1627,7 +1629,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     })
     const counter = countIdentityBulkSelects(dbh.sqlite)
     await runMerge(topCtx())
-    expect(counter.count()).toBeLessThan(N)
+    // topic root (1 tuple → 1 PK-existence bulk) + message member ⌈601/500⌉ = 2 →
+    // 3 total bulk IN(...) probes. message secondary is ftsRowid-only (skipped).
+    expect(counter.count()).toBe(3)
     expect(
       (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM message WHERE topic_id='tpc-batch'`).get() as { c: number }).c
     ).toBe(N + 1)
@@ -1647,7 +1651,12 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       insertMessage(db, 'msg-root', 'tpc-scale', 'root', null)
       for (let i = 0; i < N; i++) insertMessage(db, `msg-${i}`, 'tpc-scale', 'assistant', 'msg-root')
     })
+    const counter = countIdentityBulkSelects(dbh.sqlite)
     const result = await runMerge(topCtx())
+    // topic root (1) + message member ⌈1101/500⌉ = 3 → 4 total bulk IN(...) probes
+    // (500+500+101 tail on the member PK-existence bulk). Exact count pins the
+    // multi-chunk + tail seam, not merely "<N".
+    expect(counter.count()).toBe(4)
     expect(result).toMatchObject({ degradedToSkips: [] })
     expect(
       (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM message WHERE topic_id='tpc-scale'`).get() as { c: number }).c
