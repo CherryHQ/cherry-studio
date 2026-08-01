@@ -121,17 +121,18 @@ export class McpServerService {
         throw DataApiErrorFactory.conflict(`MCP server '${existing.name}' already exists`, 'McpServer')
       }
 
-      return tx
-        .insert(mcpServerTable)
-        .values(
-          dtos.map(({ sortOrder, isActive, ...rest }) => ({
+      return dtos.map(({ sortOrder, isActive, ...rest }) => {
+        const [row] = tx
+          .insert(mcpServerTable)
+          .values({
             ...rest,
             sortOrder: sortOrder ?? 0,
             isActive: isActive ?? false
-          }))
-        )
-        .returning()
-        .all()
+          })
+          .returning()
+          .all()
+        return row
+      })
     })
 
     logger.info('Created MCP servers', { count: created.length })

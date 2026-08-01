@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { openRouteInMainWindowMock, protocolServiceMock, loggerMock } = vi.hoisted(() => ({
-  openRouteInMainWindowMock: vi.fn(),
-  protocolServiceMock: {
-    onMainRendererReady: vi.fn()
-  },
-  loggerMock: {
-    warn: vi.fn()
-  }
-}))
+const { acknowledgeMainWindowNavigationMock, openRouteInMainWindowMock, protocolServiceMock, loggerMock } = vi.hoisted(
+  () => ({
+    acknowledgeMainWindowNavigationMock: vi.fn(),
+    openRouteInMainWindowMock: vi.fn(),
+    protocolServiceMock: {
+      onMainRendererReady: vi.fn()
+    },
+    loggerMock: {
+      warn: vi.fn()
+    }
+  })
+)
 
 vi.mock('@application', () => ({
   application: {
@@ -21,6 +24,7 @@ vi.mock('@application', () => ({
 
 vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
+  acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
   openRouteInMainWindow: openRouteInMainWindowMock
 }))
 
@@ -68,5 +72,11 @@ describe('navigationHandlers', () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, { senderId: null })
 
     expect(protocolServiceMock.onMainRendererReady).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges navigation init data for the caller window', async () => {
+    await navigationHandlers['navigation.ack_open_route']({ requestId: 7 }, ctx)
+
+    expect(acknowledgeMainWindowNavigationMock).toHaveBeenCalledWith('w1', 7)
   })
 })

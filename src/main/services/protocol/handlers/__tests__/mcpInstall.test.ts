@@ -35,7 +35,8 @@ describe('MCP install protocol handler', () => {
       createInstallUrl({
         name: 'remote-server',
         type: 'streamableHttp',
-        url: 'https://example.com/mcp'
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer token' }
       })
     )
 
@@ -47,6 +48,7 @@ describe('MCP install protocol handler', () => {
       name: 'remote-server',
       type: 'streamableHttp',
       baseUrl: 'https://example.com/mcp',
+      headers: { Authorization: 'Bearer token' },
       installSource: 'protocol',
       isActive: false,
       isTrusted: false
@@ -56,7 +58,7 @@ describe('MCP install protocol handler', () => {
     expect(servers[0]).not.toHaveProperty('trustedAt')
   })
 
-  it.each(['id', 'env', 'dxtPath'])('rejects the unreviewed %s field', (field) => {
+  it.each(['id', 'dxtPath'])('rejects the unreviewed %s field', (field) => {
     expect(() =>
       handleMcpProtocolUrl(createInstallUrl({ name: 'unsafe-server', command: 'npx', [field]: 'unsafe-value' }))
     ).toThrow()
@@ -81,16 +83,19 @@ describe('MCP install protocol handler', () => {
     handleMcpProtocolUrl(
       createInstallUrl({
         mcpServers: {
-          first: { command: 'npx', args: ['first-package'] },
-          second: { url: 'https://example.com/second' }
+          first: { command: 'npx', args: ['first-package'], env: { API_KEY: 'secret' } },
+          second: { url: 'https://example.com/second', headers: { 'X-Token': 'secret' } }
         }
       })
     )
 
     const { servers } = getPreviewServers()
     expect(servers.map((server: { name: string }) => server.name)).toEqual(['first', 'second'])
-    expect(servers[0]).toMatchObject({ command: 'npx', args: ['first-package'] })
-    expect(servers[1]).toMatchObject({ baseUrl: 'https://example.com/second' })
+    expect(servers[0]).toMatchObject({ command: 'npx', args: ['first-package'], env: { API_KEY: 'secret' } })
+    expect(servers[1]).toMatchObject({
+      baseUrl: 'https://example.com/second',
+      headers: { 'X-Token': 'secret' }
+    })
   })
 
   it('preserves server array order in the install preview', () => {

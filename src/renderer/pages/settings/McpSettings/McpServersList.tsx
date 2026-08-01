@@ -17,6 +17,7 @@ import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettin
 import { toast } from '@renderer/services/toast'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
@@ -31,6 +32,7 @@ import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
 type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
+type ProtocolInstallRequest = { requestId: string; servers: ProtocolMcpServerInstall[] }
 
 const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: string }[] = [
   { value: 'all', labelKey: 'models.all' },
@@ -47,7 +49,7 @@ const McpServersList: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as {
-    protocolInstall?: CreateMcpServerDto[]
+    protocolInstall?: ProtocolMcpServerInstall[]
     protocolInstallRequestId?: string
   }
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
@@ -56,8 +58,10 @@ const McpServersList: FC = () => {
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
   const [filter, setFilter] = useState<McpServerFilter>('all')
-  const [protocolInstallServers, setProtocolInstallServers] = useState<CreateMcpServerDto[] | null>(null)
-  const consumedProtocolInstallRef = useRef<string | null>(null)
+  const [protocolInstallQueue, setProtocolInstallQueue] = useState<ProtocolInstallRequest[]>([])
+  const handledProtocolInstallRequestIdsRef = useRef(new Set<string>())
+  const pendingAutoEnableServerIdRef = useRef<string | null>(null)
+  const protocolInstallRequest = protocolInstallQueue[0]
 
   const [searchText, setSearchText] = useState('')
   // Keep typing responsive: the list re-filters on the deferred value.
@@ -66,12 +70,36 @@ const McpServersList: FC = () => {
   useEffect(() => {
     const protocolInstall = search.protocolInstall
     const requestId = search.protocolInstallRequestId
-    if (!protocolInstall || !requestId || consumedProtocolInstallRef.current === requestId) return
+    if (!protocolInstall || !requestId || handledProtocolInstallRequestIdsRef.current.has(requestId)) return
 
-    consumedProtocolInstallRef.current = requestId
+    handledProtocolInstallRequestIdsRef.current.add(requestId)
     void navigate({ to: '/settings/mcp/servers', search: {}, replace: true })
-    setProtocolInstallServers(protocolInstall)
+    setProtocolInstallQueue((queue) => [...queue, { requestId, servers: protocolInstall }])
   }, [navigate, search.protocolInstall, search.protocolInstallRequestId])
+
+  const consumeProtocolInstallRequest = useCallback(() => {
+    setProtocolInstallQueue((queue) => queue.slice(1))
+  }, [])
+
+  const openProtocolServer = useCallback(
+    (serverId: string) => {
+      void navigate({
+        to: '/settings/mcp/settings/$serverId',
+        params: { serverId },
+        search: { autoEnable: 'true' }
+      })
+    },
+    [navigate]
+  )
+
+  const handleProtocolInstallClose = useCallback(() => {
+    consumeProtocolInstallRequest()
+    if (protocolInstallQueue.length !== 1 || !pendingAutoEnableServerIdRef.current) return
+
+    const serverId = pendingAutoEnableServerIdRef.current
+    pendingAutoEnableServerIdRef.current = null
+    openProtocolServer(serverId)
+  }, [consumeProtocolInstallRequest, openProtocolServer, protocolInstallQueue.length])
 
   const filteredMcpServers = useMemo(() => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -143,11 +171,11 @@ const McpServersList: FC = () => {
   )
 
   const handleProtocolInstall = useCallback(async () => {
-    if (!protocolInstallServers) return
+    if (!protocolInstallRequest) return
 
     let createdServers: McpServer[]
     try {
-      createdServers = await addMcpServers(protocolInstallServers)
+      createdServers = await addMcpServers(protocolInstallRequest.servers)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('settings.mcp.addError'))
       return
@@ -156,14 +184,23 @@ const McpServersList: FC = () => {
     const lastCreatedServer = createdServers.at(-1)
     if (!lastCreatedServer) return
 
-    setProtocolInstallServers(null)
+    consumeProtocolInstallRequest()
     toast.success(t('settings.mcp.addSuccess'))
-    void navigate({
-      to: '/settings/mcp/settings/$serverId',
-      params: { serverId: lastCreatedServer.id },
-      search: { autoEnable: 'true' }
-    })
-  }, [addMcpServers, navigate, protocolInstallServers, t])
+    if (protocolInstallQueue.length > 1) {
+      pendingAutoEnableServerIdRef.current = lastCreatedServer.id
+      return
+    }
+
+    pendingAutoEnableServerIdRef.current = null
+    openProtocolServer(lastCreatedServer.id)
+  }, [
+    addMcpServers,
+    consumeProtocolInstallRequest,
+    openProtocolServer,
+    protocolInstallQueue.length,
+    protocolInstallRequest,
+    t
+  ])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
@@ -301,10 +338,11 @@ const McpServersList: FC = () => {
         initialImportMethod={modalType}
       />
 
-      {protocolInstallServers && (
+      {protocolInstallRequest && (
         <McpProtocolInstallDialog
-          servers={protocolInstallServers}
-          onClose={() => setProtocolInstallServers(null)}
+          key={protocolInstallRequest.requestId}
+          servers={protocolInstallRequest.servers}
+          onClose={handleProtocolInstallClose}
           onInstall={handleProtocolInstall}
         />
       )}

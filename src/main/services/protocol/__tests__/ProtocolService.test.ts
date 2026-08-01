@@ -36,7 +36,9 @@ const {
     handleDeepLinkCallback: vi.fn()
   }
   const windowManagerMock = {
-    getWindowType: vi.fn(() => 'main')
+    getWindowType: vi.fn(() => 'main'),
+    onWindowCreatedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
+    onWindowDestroyedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn())
   }
   return {
     appMock,
@@ -219,6 +221,36 @@ describe('ProtocolService', () => {
 
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
       expect(handlersMock.handleNavigateProtocolUrl.mock.calls[0][0].href).toBe('cherrystudio://navigate/agents')
+    })
+
+    it('queues URLs again while the main renderer reloads or recovers from a crash', async () => {
+      await (service as any).onInit()
+      const listeners = new Map<string, () => void>()
+      const onWindowCreated = windowManagerMock.onWindowCreatedByType.mock.calls[0][1] as (managed: {
+        window: { webContents: { on: (event: string, listener: () => void) => void } }
+      }) => void
+      onWindowCreated({
+        window: {
+          webContents: {
+            on: (event: string, listener: () => void) => listeners.set(event, listener)
+          }
+        }
+      })
+      await markProtocolHandlingReady()
+
+      listeners.get('did-start-loading')?.()
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+
+      listeners.get('render-process-gone')?.()
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/knowledge')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(2)
     })
 
     it('replays queued URLs in order and continues after an invalid URL', async () => {

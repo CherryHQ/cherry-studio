@@ -39,6 +39,18 @@ export class ProtocolService extends BaseService {
     // 1) Register OS-level protocol scheme
     this.registerProtocolScheme()
 
+    const windowManager = application.get('WindowManager')
+    const markMainRendererNotReady = () => {
+      this.isMainRendererReady = false
+    }
+    this.registerDisposable(
+      windowManager.onWindowCreatedByType(WindowType.Main, ({ window }) => {
+        window.webContents.on('did-start-loading', markMainRendererNotReady)
+        window.webContents.on('render-process-gone', markMainRendererNotReady)
+      })
+    )
+    this.registerDisposable(windowManager.onWindowDestroyedByType(WindowType.Main, markMainRendererNotReady))
+
     // 2) macOS open-url listener (cold + hot start)
     const openUrlHandler = (event: Electron.Event, url: string) => {
       event.preventDefault()

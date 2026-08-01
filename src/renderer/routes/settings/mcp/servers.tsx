@@ -1,10 +1,10 @@
 import McpServersList from '@renderer/pages/settings/McpSettings/McpServersList'
-import { CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
+import { ProtocolMcpServersInstallSchema } from '@shared/data/types/mcpProtocolInstall'
 import { createFileRoute } from '@tanstack/react-router'
 import * as z from 'zod'
 
 const mcpServersSearchSchema = z.object({
-  protocolInstall: CreateMcpServerSchema.array().min(1).optional(),
+  protocolInstall: ProtocolMcpServersInstallSchema.optional(),
   protocolInstallRequestId: z.string().min(1).optional()
 })
 

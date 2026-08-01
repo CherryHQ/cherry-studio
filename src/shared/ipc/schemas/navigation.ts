@@ -31,6 +31,12 @@ export const navigationRequestSchemas = {
   'navigation.protocol_dispatch_ready': defineRoute({
     input: z.void(),
     output: z.void()
+  }),
+  'navigation.ack_open_route': defineRoute({
+    input: z.object({
+      requestId: z.number().int().nonnegative()
+    }),
+    output: z.void()
   })
 }
 

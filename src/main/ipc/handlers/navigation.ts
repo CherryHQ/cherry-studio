@@ -1,6 +1,10 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isAllowedRoute, openRouteInMainWindow } from '@main/services/mainWindowNavigation'
+import {
+  acknowledgeMainWindowNavigation,
+  isAllowedRoute,
+  openRouteInMainWindow
+} from '@main/services/mainWindowNavigation'
 import type { navigationRequestSchemas } from '@shared/ipc/schemas/navigation'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -16,5 +20,8 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
   },
   'navigation.protocol_dispatch_ready': async (_input, { senderId }) => {
     if (senderId) application.get('ProtocolService').onMainRendererReady(senderId)
+  },
+  'navigation.ack_open_route': async ({ requestId }, { senderId }) => {
+    if (senderId) acknowledgeMainWindowNavigation(senderId, requestId)
   }
 }

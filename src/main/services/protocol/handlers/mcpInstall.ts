@@ -3,31 +3,11 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
-import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
-import * as z from 'zod'
+import { ProtocolMcpServerConfigSchema, type ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
-const ProtocolMcpServerMetadataSchema = {
-  name: z.string().min(1),
-  description: z.string().optional()
-}
-
-const ProtocolMcpServerSchema = z.union([
-  z.strictObject({
-    ...ProtocolMcpServerMetadataSchema,
-    type: z.enum(['sse', 'streamableHttp']).optional(),
-    baseUrl: z.string().min(1)
-  }),
-  z.strictObject({
-    ...ProtocolMcpServerMetadataSchema,
-    type: z.literal('stdio').optional(),
-    command: z.string().min(1),
-    args: z.array(z.string()).optional()
-  })
-])
-
-function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpServerDto {
+function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): ProtocolMcpServerInstall {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('MCP server config must be an object')
   }
@@ -44,7 +24,7 @@ function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpS
     candidate.baseUrl = legacyUrl
   }
 
-  const protocolServer = ProtocolMcpServerSchema.parse(candidate)
+  const protocolServer = ProtocolMcpServerConfigSchema.parse(candidate)
 
   return {
     ...protocolServer,
@@ -55,23 +35,23 @@ function toCreateMcpServerDto(value: unknown, fallbackName?: string): CreateMcpS
   }
 }
 
-function parseMcpServerDtos(value: unknown): CreateMcpServerDto[] {
+function parseMcpServerDtos(value: unknown): ProtocolMcpServerInstall[] {
   if (Array.isArray(value)) {
-    return value.map((server) => toCreateMcpServerDto(server))
+    return value.map((server) => toProtocolMcpServerInstall(server))
   }
 
   if (value && typeof value === 'object' && 'mcpServers' in value) {
     const servers = (value as { mcpServers?: unknown }).mcpServers
     if (Array.isArray(servers)) {
-      return servers.map((server) => toCreateMcpServerDto(server))
+      return servers.map((server) => toProtocolMcpServerInstall(server))
     }
     if (!servers || typeof servers !== 'object') {
       throw new Error('mcpServers must be an object')
     }
-    return Object.entries(servers).map(([name, server]) => toCreateMcpServerDto(server, name))
+    return Object.entries(servers).map(([name, server]) => toProtocolMcpServerInstall(server, name))
   }
 
-  return [toCreateMcpServerDto(value)]
+  return [toProtocolMcpServerInstall(value)]
 }
 
 export function handleMcpProtocolUrl(url: URL) {

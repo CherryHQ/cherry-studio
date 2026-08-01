@@ -9,14 +9,14 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
-import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getCommandPreview } from './utils'
+import { McpServerConfigPreview } from './ProtocolInstallWarning'
 
 interface McpProtocolInstallDialogProps {
-  servers: CreateMcpServerDto[]
+  servers: ProtocolMcpServerInstall[]
   onClose: () => void
   onInstall: () => Promise<void>
 }
@@ -44,9 +44,7 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
         <Scrollbar className="min-h-0 flex-1">
           <div className="flex flex-col gap-3">
             {servers.map((server, index) => {
-              const serverType = server.type ?? (server.baseUrl ? 'sse' : 'stdio')
-              const connectionPreview = server.baseUrl ?? getCommandPreview(server)
-              const connectionLabel = server.baseUrl ? t('settings.mcp.url') : t('settings.mcp.command')
+              const serverType = server.type ?? ('baseUrl' in server ? 'sse' : 'stdio')
 
               return (
                 <section
@@ -58,14 +56,7 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
                       {t(getMcpTypeLabelKey(serverType))}
                     </Badge>
                   </div>
-                  {connectionPreview && (
-                    <div className="flex flex-col gap-1">
-                      <span className="text-muted-foreground text-xs">{connectionLabel}</span>
-                      <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-sm">
-                        {connectionPreview}
-                      </pre>
-                    </div>
-                  )}
+                  <McpServerConfigPreview server={server} />
                 </section>
               )
             })}

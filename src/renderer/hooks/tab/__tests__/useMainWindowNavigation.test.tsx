@@ -127,11 +127,19 @@ describe('useMainWindowNavigation', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('settings-1')
   })
 
-  it('opens settings from main-window init data', () => {
+  it('acknowledges main-window init data so it is not replayed after remount', () => {
     mocks.initData = { kind: 'navigation', to: '/settings/about', requestId: 1 }
-    render(<MainWindowNavigationHarness />)
+    mocks.ipcRequest.mockImplementation((channel: string) => {
+      if (channel === 'navigation.ack_open_route') mocks.initData = null
+    })
+    const { unmount } = render(<MainWindowNavigationHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
+
+    unmount()
+    render(<MainWindowNavigationHarness />)
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {

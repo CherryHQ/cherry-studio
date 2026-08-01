@@ -1,4 +1,4 @@
-import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -14,23 +14,27 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-const servers: CreateMcpServerDto[] = [
+const servers: ProtocolMcpServerInstall[] = [
   {
     name: 'stdio-preview',
     type: 'stdio',
     command: 'npx',
     args: ['-y', 'example-server'],
+    env: { API_KEY: 'secret' },
     installSource: 'protocol',
     isActive: false,
-    isTrusted: false
+    isTrusted: false,
+    installedAt: 1
   },
   {
     name: 'http-preview',
     type: 'streamableHttp',
     baseUrl: 'https://example.com/mcp',
+    headers: { Authorization: 'Bearer token' },
     installSource: 'protocol',
     isActive: false,
-    isTrusted: false
+    isTrusted: false,
+    installedAt: 2
   }
 ]
 
@@ -44,8 +48,10 @@ describe('McpProtocolInstallDialog', () => {
     expect(screen.getByRole('heading', { name: 'settings.mcp.protocolInstall.title' })).toBeInTheDocument()
     expect(screen.getByText('stdio-preview')).toBeInTheDocument()
     expect(screen.getByText('npx -y example-server')).toBeInTheDocument()
+    expect(screen.getByText('API_KEY=secret')).toBeInTheDocument()
     expect(screen.getByText('http-preview')).toBeInTheDocument()
     expect(screen.getByText('https://example.com/mcp')).toBeInTheDocument()
+    expect(screen.getByText('Authorization: Bearer token')).toBeInTheDocument()
     expect(onInstall).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'settings.mcp.install' }))

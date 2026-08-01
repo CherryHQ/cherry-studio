@@ -101,6 +101,7 @@ describe('McpSettings protocol auto-enable', () => {
     expect(mocks.confirm).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'settings.mcp.protocolInstallWarning.title' })
     )
+    expect(mocks.confirm.mock.calls[0][0].content).toMatchObject({ props: { server } })
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: '/settings/mcp/settings/$serverId',
       params: { serverId: server.id },

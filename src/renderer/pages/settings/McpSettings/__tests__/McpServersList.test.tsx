@@ -1,4 +1,5 @@
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -10,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   addMcpServer: vi.fn(),
   addMcpServers: vi.fn(),
   navigate: vi.fn(),
-  protocolInstall: [] as CreateMcpServerDto[],
+  protocolInstall: [] as ProtocolMcpServerInstall[],
   protocolInstallRequestId: 'request-1'
 }))
 
@@ -53,20 +54,22 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-const protocolServers: CreateMcpServerDto[] = [
+const protocolServers: ProtocolMcpServerInstall[] = [
   {
     name: 'first-server',
     command: 'npx',
     installSource: 'protocol',
     isActive: false,
-    isTrusted: false
+    isTrusted: false,
+    installedAt: 1
   },
   {
     name: 'second-server',
     command: 'uvx',
     installSource: 'protocol',
     isActive: false,
-    isTrusted: false
+    isTrusted: false,
+    installedAt: 2
   }
 ]
 
@@ -112,5 +115,37 @@ describe('McpServersList protocol install', () => {
     rerender(<McpServersList />)
 
     expect(await screen.findByText('first-server')).toBeInTheDocument()
+  })
+
+  it('queues a second request until the first preview is closed', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<McpServersList />)
+
+    expect(await screen.findByText('first-server')).toBeInTheDocument()
+
+    mocks.protocolInstall = [
+      {
+        name: 'queued-server',
+        command: 'node',
+        installSource: 'protocol',
+        isActive: false,
+        isTrusted: false,
+        installedAt: 3
+      }
+    ]
+    mocks.protocolInstallRequestId = 'request-2'
+    rerender(<McpServersList />)
+
+    expect(screen.queryByText('queued-server')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.install' }))
+    expect(await screen.findByText('queued-server')).toBeInTheDocument()
+    expect(mocks.navigate).not.toHaveBeenCalledWith(expect.objectContaining({ to: '/settings/mcp/settings/$serverId' }))
+
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: 'second-server-id' },
+      search: { autoEnable: 'true' }
+    })
   })
 })
