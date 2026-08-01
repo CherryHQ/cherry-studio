@@ -457,6 +457,26 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Abliteration AI - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.abliteration.ai/v1"
+        }
+      },
+      "id": "abliteration",
+      "metadata": {
+        "website": {
+          "apiKey": "https://abliteration.ai",
+          "docs": "https://docs.abliteration.ai",
+          "models": "https://abliteration.ai",
+          "official": "https://abliteration.ai"
+        }
+      },
+      "name": "Abliteration AI"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "PPIO - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -1898,5 +1918,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "645f9b9b0f0ff508"
+  "version": "80be5abb6f04b844"
 }
