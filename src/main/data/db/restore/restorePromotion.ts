@@ -616,13 +616,39 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
 
 /**
  * Pre-commit crash: the old DB still exists (live or aside). Undo the
- * manifest work done so far, put the old DB back, mark failed. The staged
- * restore content is discarded with the staging tree — a failed restore is
- * re-run from the backup archive, never resumed from half-moved files.
+ * manifest work done so far, put the old DB back, mark failed. On a CLEAN
+ * inverse the staged restore content is discarded with the staging tree; a
+ * partial inverse (or an old-DB restore failure) instead leaves the promoting
+ * journal + staging intact for the next boot's recoverPromoting to retry
+ * idempotently. Staging is never deleted while the inverse is incomplete, so a
+ * failed restore is re-run from the backup archive, never resumed from
+ * half-moved files.
  */
 function rollbackPreCommit(ctx: PromotionContext, reason?: string): void {
-  inverseManifest(ctx)
-  restoreLiveFromAside(ctx)
+  const hasFailure = inverseManifest(ctx)
+  let dbRestoreFailed = false
+  try {
+    restoreLiveFromAside(ctx)
+  } catch (error) {
+    dbRestoreFailed = true
+    logger.error('Rollback old-DB restore failed — leaving promoting journal for retry', error as Error)
+  }
+  if (hasFailure || dbRestoreFailed) {
+    // Partial inverse OR the old-DB restore itself failed: do NOT finalize —
+    // deleting staging would destroy the retry both need (and a DB-restore
+    // failure escaping to markRestoreFailedAfterCrash would otherwise finalize
+    // and strand a mixed state). Leave the promoting journal intact so the next
+    // boot's recoverPromoting reruns this rollback (inverse idempotent;
+    // restoreLiveFromAside guard-idempotent) and finishes once the stuck op
+    // resolves (design §9 :409 every crash point revertible / :434 rolls back).
+    logger.warn('Rollback incomplete — leaving promoting journal + staging for retry', {
+      restoreId: ctx.journal.restoreId,
+      reason,
+      hasFailure,
+      dbRestoreFailed
+    })
+    return
+  }
   finalize(ctx, 'failed', undefined, reason)
 }
 
@@ -650,8 +676,30 @@ function revertPostCommit(ctx: PromotionContext, reason?: string): void {
     renameDurable(ctx.livePath, parked)
     logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })
   }
-  restoreLiveFromAside(ctx)
-  inverseManifest(ctx)
+  let dbRestoreFailed = false
+  try {
+    restoreLiveFromAside(ctx)
+  } catch (error) {
+    dbRestoreFailed = true
+    logger.error('Revert old-DB restore failed — leaving promoting journal for retry', error as Error)
+  }
+  const hasFailure = inverseManifest(ctx)
+  if (hasFailure || dbRestoreFailed) {
+    // Partial inverse OR the old-DB restore itself failed: do NOT finalize —
+    // deleting staging would destroy the retry both need (and a DB-restore
+    // failure escaping to markRestoreFailedAfterCrash would otherwise finalize
+    // and strand a mixed state). Leave the promoting journal intact so the next
+    // boot's recoverPromoting reruns this revert idempotently via its aside
+    // guard (:447-454). Avoids the "old DB + new files" mixed state becoming
+    // unrecoverable (design §9 :409/:434).
+    logger.warn('Revert incomplete — leaving promoting journal + staging for retry', {
+      restoreId: ctx.journal.restoreId,
+      reason,
+      hasFailure,
+      dbRestoreFailed
+    })
+    return
+  }
   finalize(ctx, 'failed', undefined, reason)
 }
 
@@ -669,14 +717,23 @@ function restoreLiveFromAside(ctx: PromotionContext): void {
  * entry: one stuck entry must not abort the rest of the inverse — the aside
  * restore of the live DB and the terminal bookkeeping still have to follow.
  */
-function inverseManifest(ctx: PromotionContext): void {
+function inverseManifest(ctx: PromotionContext): boolean {
+  // Returns whether any entry failed (best-effort: one stuck entry does not abort
+  // the rest). Callers MUST NOT finalize when this returns true — deleting the
+  // staging tree would destroy the retry the idempotent inverse needs. Leave the
+  // promoting journal intact so the next boot's recoverPromoting reruns the
+  // revert/rollback and finishes once the stuck entry resolves (design §9 :409
+  // every crash point revertible / :434 idempotently rolls back).
+  let hasFailure = false
   for (const entry of ctx.journal.fileResources) {
     try {
       inverseEntry(ctx, entry)
     } catch (error) {
+      hasFailure = true
       logger.error(`Manifest inverse failed for '${entry.livePath}' (${entry.kind}) — continuing`, error as Error)
     }
   }
+  return hasFailure
 }
 
 function inverseEntry(ctx: PromotionContext, entry: FileResource): void {

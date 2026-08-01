@@ -70,6 +70,21 @@ const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
 
+// Inverse (revert) rename fault injection (A3): a partial inverse failure MUST
+// NOT finalize. Target only the inverse rename-back (live → staging source) by
+// its staging target path; arrange/commit renames land outside staging.
+const inverseRenameFailure = vi.hoisted(() => ({
+  shouldFail: null as ((target: string) => boolean) | null
+}))
+
+// Old-DB restore (aside→live) rename fault injection (A3 P1-1): if the DB
+// restore itself fails mid-revert, the revert MUST still not finalize (else
+// markRestoreFailedAfterCrash later finalizes and strands a mixed state).
+// Target the aside→live rename by its aside source path (contains pre-restore).
+const dbRestoreFailure = vi.hoisted(() => ({
+  shouldFail: null as ((source: string) => boolean) | null
+}))
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
@@ -79,7 +94,17 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.openSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync }, openSync }
+  const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
+    const [source, target] = args
+    if (typeof source === 'string' && dbRestoreFailure.shouldFail?.(source)) {
+      throw Object.assign(new Error('EIO: injected DB-restore rename failure'), { code: 'EIO' })
+    }
+    if (typeof target === 'string' && inverseRenameFailure.shouldFail?.(target)) {
+      throw Object.assign(new Error('EIO: injected inverse rename failure'), { code: 'EIO' })
+    }
+    return actual.renameSync(source, target)
+  }
+  return { ...actual, default: { ...actual, openSync, renameSync }, openSync, renameSync }
 })
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
@@ -634,6 +659,104 @@ describe('runRestorePromotion', () => {
     expect(journalState()).toBe('failed')
     expect(journalReason()).toContain('before the commit point')
     expect(existsSync(stagingDir())).toBe(false)
+  })
+
+  it('does NOT finalize when inverse partially fails — keeps promoting journal + staging for idempotent retry (A3)', async () => {
+    // Inject a PARTIAL inverse failure: the blob's rename-back to its staging
+    // source throws (staging target), while KB/notes invert cleanly. Finalizing
+    // here would delete the staging tree the retry needs, stranding an
+    // unrecoverable "old DB + new files" mixed state.
+    inverseRenameFailure.shouldFail = (target) => target.includes('restore-staging') && target.endsWith('blob-1')
+    try {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      const journal = await buildJournal({ fileResources: standardManifest() })
+      arrangeAdditiveMoved()
+      renameSync(livePath(), asidePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+
+      await runRestorePromotion()
+
+      // Cardinal invariant kept: old DB is back at the live slot.
+      expect(readMarker(livePath())).toBe('old')
+      // MUST NOT finalize: journal stays promoting, staging retained for the next
+      // boot's recoverPromoting to rerun the idempotent inverse (design §9
+      // :409 every crash point revertible / :434 idempotently rolls back).
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+    } finally {
+      inverseRenameFailure.shouldFail = null
+    }
+  })
+
+  it('retries the incomplete inverse on the next boot and finalizes once it succeeds (A3)', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    arrangeAdditiveMoved()
+    renameSync(livePath(), asidePath())
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    // First boot: blob inverse fails → incomplete, journal stays promoting + staging kept.
+    inverseRenameFailure.shouldFail = (target) => target.includes('restore-staging') && target.endsWith('blob-1')
+    await runRestorePromotion()
+    expect(journalState()).toBe('promoting')
+    expect(existsSync(stagingDir())).toBe(true)
+    // Second boot: fault cleared → idempotent inverse completes → finalize failed
+    // + staging removed. Proves recoverPromoting :447/:432 finishes the retry.
+    inverseRenameFailure.shouldFail = null
+    await runRestorePromotion()
+    expect(journalState()).toBe('failed')
+    expect(existsSync(stagingDir())).toBe(false)
+    expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('does NOT finalize when the old-DB restore itself fails mid-revert (A3 P1-1)', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    arrangeAdditiveMoved()
+    renameSync(livePath(), asidePath())
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    // The aside→live rename (old-DB restore) fails. A3 P1-1: the revert MUST NOT
+    // finalize — otherwise the escaped crash → markRestoreFailedAfterCrash would
+    // finalize and strand a mixed state once the DB restore later succeeds.
+    dbRestoreFailure.shouldFail = (source) => source.includes('pre-restore')
+    try {
+      await runRestorePromotion()
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+    } finally {
+      dbRestoreFailure.shouldFail = null
+    }
+  })
+
+  it('does NOT finalize on a post-commit revert with partial inverse failure (A3, revertPostCommit)', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    arrangeAdditiveMoved()
+    // Commit landed, then revert ran park + aside-restore before crashing
+    // mid-inverse: new DB parked, old DB back live, aside cleared. Symmetric to
+    // the pre-commit case but exercises revertPostCommit via recoverPromoting
+    // :447 (aside absent → interrupted revert → rerun revertPostCommit).
+    renameSync(livePath(), asidePath())
+    renameSync(workPath(), livePath())
+    renameSync(livePath(), join(userData, 'work-failed-mock.sqlite'))
+    renameSync(asidePath(), livePath())
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+    inverseRenameFailure.shouldFail = (target) => target.includes('restore-staging') && target.endsWith('blob-1')
+    try {
+      await runRestorePromotion()
+      expect(readMarker(livePath())).toBe('old')
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+    } finally {
+      inverseRenameFailure.shouldFail = null
+    }
   })
 
   it('resumes a post-commit crash (step=work-promoted): entries applied, completed', async () => {
