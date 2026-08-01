@@ -18,6 +18,7 @@ import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { resolvePhysicalPath } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
+import { computeSkillContentHash } from '@main/utils/skillContentHash'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 const logger = loggerService.withContext('backup/SqliteFileStager')
@@ -437,6 +438,35 @@ export class SqliteFileStager implements FileStager {
         }
         throw e
       }
+
+      // Verify the copied descriptor before admitting the skill to the archive. This
+      // catches a copy race or source change that would otherwise create a bad archive.
+      try {
+        const stagedContentHash = await computeSkillContentHash(dest)
+        if (!stagedContentHash) {
+          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          missing.push({ folderName, contentHash })
+          logger.warn('stageSkillDirs: staged skill is missing SKILL.md', {
+            folderName,
+            dest
+          })
+          continue
+        }
+        if (stagedContentHash !== contentHash) {
+          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          missing.push({ folderName, contentHash })
+          logger.warn('stageSkillDirs: staged skill content hash mismatch', {
+            folderName,
+            expectedContentHash: contentHash,
+            actualContentHash: stagedContentHash
+          })
+          continue
+        }
+      } catch (error) {
+        await rm(dest, { recursive: true, force: true }).catch(() => {})
+        throw error
+      }
+
       staged.push({ folderName, contentHash })
     }
     return { skills: staged, missing }

@@ -2,6 +2,7 @@
  * e2e-export full roundtrip (批次1) — AC: `__tests__/e2e/export.full.test.ts`
  * Soft asserts: no `.cherry/index.sqlite*` (knowledge-r1) + notes body 1:1 (fs-catch).
  */
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -49,9 +50,13 @@ describe('e2e-export full roundtrip', () => {
         .insert(knowledgeBaseTable)
         .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20 }])
       await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
+      const skillContent = 'skill-body'
+      const skillContentHash = createHash('sha256').update(skillContent).digest('hex')
       await dbh.db
         .insert(agentGlobalSkillTable)
-        .values([{ id: 's1', folderName: 'zipSkill', name: 'z', source: 'zip', contentHash: 'hz', isEnabled: true }])
+        .values([
+          { id: 's1', folderName: 'zipSkill', name: 'z', source: 'zip', contentHash: skillContentHash, isEnabled: true }
+        ])
 
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-kb-'))
       const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-skills-'))
@@ -67,7 +72,7 @@ describe('e2e-export full roundtrip', () => {
       await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-wal'), 'WAL')
       await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-shm'), 'SHM')
       await mkdir(join(skillsRoot, 'zipSkill'), { recursive: true })
-      await writeFile(join(skillsRoot, 'zipSkill', 'SKILL.md'), 'skill-body')
+      await writeFile(join(skillsRoot, 'zipSkill', 'SKILL.md'), skillContent)
       await writeFile(join(notesRoot, 'note1.md'), note1Body)
       await mkdir(join(notesRoot, 'sub'), { recursive: true })
       await writeFile(join(notesRoot, 'sub', 'note2.md'), note2Body)
@@ -99,7 +104,7 @@ describe('e2e-export full roundtrip', () => {
       expect(manifest.includeFiles).toBe(true)
       expect(manifest.files.ids).toEqual(['f1'])
       expect(manifest.knowledge.bases).toEqual(['kb1'])
-      expect(manifest.skills.folders).toEqual([{ folderName: 'zipSkill', contentHash: 'hz' }])
+      expect(manifest.skills.folders).toEqual([{ folderName: 'zipSkill', contentHash: skillContentHash }])
       expect(new Set(manifest.notes.paths)).toEqual(new Set(['note1.md', 'sub/note2.md']))
 
       const zip = new StreamZip.async({ file: out })

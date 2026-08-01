@@ -1,4 +1,5 @@
 // Unit tests for SqliteFileStager — blob staging from snapshot DB + filesystem roots.
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -34,6 +35,8 @@ async function writeInternalBlob(id: string, ext: string, content: string): Prom
   await mkdir(dirname(blobPath), { recursive: true })
   await writeFile(blobPath, content)
 }
+
+const hashSkillContent = (content: string): string => createHash('sha256').update(content).digest('hex')
 
 describe('SqliteFileStager', () => {
   const dbh = setupTestDatabase()
@@ -167,17 +170,58 @@ describe('SqliteFileStager', () => {
       const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', skillsRoot)
       const r = await stager.stageSkillDirs(
         [
-          { folderName: 'skill-a', contentHash: 'h1' },
+          { folderName: 'skill-a', contentHash: hashSkillContent('x') },
           { folderName: 'skill-missing', contentHash: 'h2' }
         ],
         dest
       )
 
-      expect(r.skills).toEqual([{ folderName: 'skill-a', contentHash: 'h1' }])
+      expect(r.skills).toEqual([{ folderName: 'skill-a', contentHash: hashSkillContent('x') }])
       // Absent dirs surface so the export can record the degradation instead of shipping a
       // registered Skill whose non-re-downloadable content the archive never carried.
       expect(r.missing).toEqual([{ folderName: 'skill-missing', contentHash: 'h2' }])
       expect(existsSync(join(dest, 'skill-a', 'SKILL.md'))).toBe(true)
+    } finally {
+      await rm(skillsRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageSkillDirs reports a copied skill with mismatched content hash as missing degradation', async () => {
+    const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-hash-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      await mkdir(join(skillsRoot, 'skill-tampered'), { recursive: true })
+      await writeFile(join(skillsRoot, 'skill-tampered', 'SKILL.md'), 'actual-content')
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', skillsRoot)
+      const r = await stager.stageSkillDirs(
+        [{ folderName: 'skill-tampered', contentHash: hashSkillContent('expected-content') }],
+        dest
+      )
+
+      expect(r.skills).toEqual([])
+      expect(r.missing).toEqual([{ folderName: 'skill-tampered', contentHash: hashSkillContent('expected-content') }])
+      expect(existsSync(join(dest, 'skill-tampered'))).toBe(false)
+    } finally {
+      await rm(skillsRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageSkillDirs reports a copied skill without SKILL.md as missing degradation', async () => {
+    const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-no-md-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
+    try {
+      await mkdir(join(skillsRoot, 'skill-incomplete'), { recursive: true })
+      await writeFile(join(skillsRoot, 'skill-incomplete', 'README.md'), 'not a skill descriptor')
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', skillsRoot)
+      const r = await stager.stageSkillDirs([{ folderName: 'skill-incomplete', contentHash: 'expected' }], dest)
+
+      expect(r.skills).toEqual([])
+      expect(r.missing).toEqual([{ folderName: 'skill-incomplete', contentHash: 'expected' }])
+      expect(existsSync(join(dest, 'skill-incomplete'))).toBe(false)
     } finally {
       await rm(skillsRoot, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })

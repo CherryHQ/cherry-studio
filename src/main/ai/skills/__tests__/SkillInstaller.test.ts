@@ -10,6 +10,7 @@ const mockFsLstat = vi.fn()
 const mockFsReaddir = vi.fn()
 const mockFsReadFile = vi.fn()
 const mockFindSkillMdPath = vi.fn()
+const mockComputeSkillContentHash = vi.fn()
 
 vi.mock('@main/utils/legacyFile', () => ({
   pathExists: (...args: unknown[]) => mockPathExists(...args)
@@ -29,6 +30,10 @@ vi.mock('fs', () => ({
   }
 }))
 
+vi.mock('@main/utils/skillContentHash', () => ({
+  computeSkillContentHash: (...args: unknown[]) => mockComputeSkillContentHash(...args)
+}))
+
 vi.mock('@main/utils/markdownParser', () => ({
   findSkillMdPath: (...args: unknown[]) => mockFindSkillMdPath(...args)
 }))
@@ -42,6 +47,7 @@ describe('SkillInstaller', () => {
     vi.clearAllMocks()
     mockFsLstat.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
     mockFindSkillMdPath.mockResolvedValue('/global-skills/my-skill/SKILL.md')
+    mockComputeSkillContentHash.mockResolvedValue('skill-content-hash')
     mockFsReadFile.mockResolvedValue('# skill')
     installer = new SkillInstaller()
   })
