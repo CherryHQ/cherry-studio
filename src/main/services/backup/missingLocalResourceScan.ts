@@ -21,7 +21,11 @@
 
 import fs from 'node:fs'
 
+import { loggerService } from '@logger'
 import type Database from 'better-sqlite3'
+
+// Central logger — this scan is diagnostic-only and must never throw into the restore path.
+const logger = loggerService.withContext('backup/missingLocalResourceScan')
 
 /** One MCP server whose `dxtPath` does not resolve on the local filesystem. */
 export interface MissingMcpPackage {
@@ -50,21 +54,34 @@ export function scanMissingMcpPackageDirs(workSqlite: Database.Database): Missin
   // Raw SQL keeps this scan dependency-light and decoupled from the merge engine / drizzle
   // session (consistent with MergeEngine's focused `db.prepare(...)` reads). `dxt_path` is the
   // snake_case column name (drizzle casing: 'snake_case'); `name` is NOT NULL.
-  const rows = workSqlite
-    .prepare('SELECT name, dxt_path AS dxtPath FROM mcp_server WHERE dxt_path IS NOT NULL AND dxt_path <> ?')
-    .all('') as ReadonlyArray<{ name: string; dxtPath: string }>
+  //
+  // The query itself is best-effort: a missing `mcp_server` table (cross-version / corrupt /
+  // test stub), a locked DB, or any prepare/all error must NEVER fail the restore — this scan
+  // is diagnostic-only (D8 partial slice, non-throwing contract). Swallow and return empty.
+  let rows: ReadonlyArray<{ name: string; dxtPath: string }>
+  try {
+    rows = workSqlite
+      .prepare('SELECT name, dxt_path AS dxtPath FROM mcp_server WHERE dxt_path IS NOT NULL AND dxt_path <> ?')
+      .all('') as ReadonlyArray<{ name: string; dxtPath: string }>
+  } catch (error) {
+    logger.warn('mcp_server scan query failed; skipping missing-package report', error as Error)
+    return { count: 0, servers: [] }
+  }
 
   const missing: MissingMcpPackage[] = []
   for (const row of rows) {
-    // existsSync is synchronous (better-sqlite3 is a sync driver); a thrown check (e.g. permission)
-    // is swallowed so a single unreadable path can never fail the restore.
-    let exists = false
+    // dxtPath points at an extracted DXT package DIRECTORY (McpPackageService joins
+    // manifest.json inside it). statSync().isDirectory() rejects a stray regular file at that
+    // path so it isn't misreported as present. statSync is synchronous (better-sqlite3 is a sync
+    // driver); a thrown check (ENOENT / permission) is swallowed so a single unreadable path
+    // can never fail the restore.
+    let isPackageDir = false
     try {
-      exists = fs.existsSync(row.dxtPath)
+      isPackageDir = fs.statSync(row.dxtPath).isDirectory()
     } catch {
-      exists = false
+      isPackageDir = false
     }
-    if (!exists) {
+    if (!isPackageDir) {
       missing.push({ name: row.name, dxtPath: row.dxtPath })
     }
   }

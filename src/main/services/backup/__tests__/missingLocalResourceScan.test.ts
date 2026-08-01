@@ -3,7 +3,7 @@
 // The scan reads the post-merge work DB for mcp_server rows whose `dxtPath` package dir is
 // absent on the local filesystem and reports a NON-BLOCKING stat. These tests cover the pure
 // scanner: existing/missing/null/empty dxtPath handling, and that it never throws.
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -85,11 +85,38 @@ describe('scanMissingMcpPackageDirs', () => {
 
   it('never throws — an unreadable path is treated as missing, not fatal', () => {
     const db = makeDb()
-    // A NUL-terminated string is invalid as a filesystem path; existsSync must not crash the scan.
+    // A NUL-terminated string is invalid as a filesystem path; statSync must not crash the scan.
     db.prepare('INSERT INTO mcp_server (id, name, dxt_path) VALUES (?, ?, ?)').run('srv-bad', 'bad-path-server', 'a\0b')
 
     const stat = scanMissingMcpPackageDirs(db)
     expect(stat.count).toBe(1)
+    db.close()
+  })
+
+  it('returns an empty stat (never throws) when the mcp_server table is absent', () => {
+    // A cross-version / corrupt / stub work DB may not have mcp_server at all. The scan is
+    // diagnostic-only and non-throwing — prepare().all() must be swallowed, not propagated to
+    // fail the restore (D8 non-blocking contract).
+    const db = new Database(':memory:')
+    // No mcp_server table created — prepare() would throw "no such table".
+    const stat = scanMissingMcpPackageDirs(db)
+    expect(stat.count).toBe(0)
+    expect(stat.servers).toEqual([])
+    db.close()
+  })
+
+  it('treats a regular file at dxtPath as missing (dxtPath must be a package DIRECTORY)', () => {
+    // dxtPath points at an extracted DXT package directory (McpPackageService joins manifest.json
+    // inside it). A stray regular file at that path is NOT a valid package and must be reported
+    // missing — not misreported as present by a bare existence check.
+    const db = makeDb()
+    const filePath = join(existingDir, 'not-a-dir-file')
+    writeFileSync(filePath, 'x')
+    db.prepare('INSERT INTO mcp_server (id, name, dxt_path) VALUES (?, ?, ?)').run('srv-file', 'file-server', filePath)
+
+    const stat = scanMissingMcpPackageDirs(db)
+    expect(stat.count).toBe(1)
+    expect(stat.servers).toEqual([{ name: 'file-server', dxtPath: filePath }])
     db.close()
   })
 })
