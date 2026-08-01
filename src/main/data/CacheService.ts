@@ -24,6 +24,7 @@ import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
+import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import type {
   InferSharedCacheValue,
   MainPersistCacheKey,
@@ -815,6 +816,12 @@ export class CacheService extends BaseService {
     this.ipcOn(IpcChannel.Cache_Sync, (event, message: CacheSyncMessage) => {
       // One-way channel: drop untrusted messages silently (no reply leg to carry an error).
       if (!this.isTrustedSender(event, IpcChannel.Cache_Sync)) return
+
+      // Restore promotion replaces live user data — drop cache writes that would be
+      // overwritten between snapshot and promotion. Silent return (NOT throw): this is
+      // a one-way ipcOn channel with no reply leg, so a throw would escape as a main
+      // uncaughtException. Mirrors the untrusted-sender silent drop above.
+      if (isBackupInProgress()) return
 
       const senderWindowId = BrowserWindow.fromWebContents(event.sender)?.id
 

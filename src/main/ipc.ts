@@ -182,25 +182,32 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
-  // file
+  // File mutations are rejected during restore promotion because a write to live user data
+  // in the snapshot→promotion window could be overwritten by the atomic promotion backstop.
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Save, rejectDuringRestore(fileManager.save.bind(fileManager)))
   ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteExternalFile, fileManager.deleteExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_MoveDir, fileManager.moveDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
+  ipcMain.handle(
+    IpcChannel.File_DeleteExternalFile,
+    rejectDuringRestore(fileManager.deleteExternalFile.bind(fileManager))
+  )
+  ipcMain.handle(
+    IpcChannel.File_DeleteExternalDir,
+    rejectDuringRestore(fileManager.deleteExternalDir.bind(fileManager))
+  )
+  ipcMain.handle(IpcChannel.File_Move, rejectDuringRestore(fileManager.moveFile.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_MoveDir, rejectDuringRestore(fileManager.moveDir.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_Rename, rejectDuringRestore(fileManager.renameFile.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_RenameDir, rejectDuringRestore(fileManager.renameDir.bind(fileManager)))
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_CreateTempFile, rejectDuringRestore(fileManager.createTempFile.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_Mkdir, rejectDuringRestore(fileManager.mkdir.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_Write, rejectDuringRestore(fileManager.writeFile.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_SaveImage, rejectDuringRestore(fileManager.saveImage.bind(fileManager)))
+  ipcMain.handle(IpcChannel.File_SavePastedImage, rejectDuringRestore(fileManager.savePastedImage.bind(fileManager)))
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
@@ -210,7 +217,10 @@ export async function registerIpc() {
   )
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
+  ipcMain.handle(
+    IpcChannel.File_BatchUploadMarkdown,
+    rejectDuringRestore(fileManager.batchUploadMarkdownFiles.bind(fileManager))
+  )
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // fs

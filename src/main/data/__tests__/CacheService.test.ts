@@ -13,6 +13,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { IpcMainEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { setBackupInProgress } from '../db/backup/quiesceGate'
+
 // Undo the global mock from main.setup.ts — we want the REAL CacheService
 vi.unmock('@main/data/CacheService')
 
@@ -83,6 +85,7 @@ describe('CacheService subscription', () => {
     vi.clearAllMocks()
     ipcListeners.clear()
     ipcHandlers.clear()
+    setBackupInProgress(false)
 
     const { CacheService } = await import('../CacheService')
     service = new CacheService()
@@ -91,6 +94,7 @@ describe('CacheService subscription', () => {
 
   afterEach(async () => {
     if (service) await service.onStop()
+    setBackupInProgress(false)
     vi.restoreAllMocks()
   })
 
@@ -238,6 +242,25 @@ describe('CacheService subscription', () => {
       listener(trustedEvent, { type: 'shared', key: SHARED_EXACT, value: 'from-renderer' })
 
       expect(cb).toHaveBeenCalledWith('from-renderer', undefined, SHARED_EXACT)
+    })
+
+    it('drops trusted Cache_Sync writes silently while restore quiesce is held (no throw, no write)', () => {
+      setBackupInProgress(true)
+      const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
+
+      // One-way ipcOn channel: the gate must NOT throw (a throw would escape as a
+      // main uncaughtException) — it silently drops, leaving the cache untouched.
+      expect(() => listener(trustedEvent, { type: 'shared', key: SHARED_EXACT, value: 'blocked' })).not.toThrow()
+      expect(service.getShared(SHARED_EXACT)).toBeUndefined()
+    })
+
+    it('accepts Cache_Sync writes after restore quiesce is released', () => {
+      setBackupInProgress(false)
+      const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
+
+      listener(trustedEvent, { type: 'shared', key: SHARED_EXACT, value: 'accepted' })
+
+      expect(service.getShared(SHARED_EXACT)).toBe('accepted')
     })
 
     it('drops IPC Cache_Sync from an untrusted sender (no write, no notify)', () => {
