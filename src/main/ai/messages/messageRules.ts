@@ -63,19 +63,44 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
 }
 
 /**
+ * Drop persisted `reasoning` parts (prior chain-of-thought) from the history before
+ * conversion. Providers never need another turn's draft reasoning to answer, so this
+ * saves a large amount of input tokens on long conversations.
+ *
+ * Only safe for providers that do NOT require reasoning to be round-tripped — callers
+ * must not enable this for Anthropic (signed thinking blocks) or Gemini (thought
+ * signatures). Returns the input unchanged when nothing was stripped, and never
+ * mutates the shared history (parts arrays are rebuilt only where filtered).
+ */
+export function stripHistoryReasoning(messages: UIMessage[]): UIMessage[] {
+  let changed = false
+  const out = messages.map((message) => {
+    if (message.role !== 'assistant' || !Array.isArray(message.parts)) return message
+    const parts = message.parts.filter((part) => part.type !== 'reasoning')
+    if (parts.length === message.parts.length) return message
+    changed = true
+    return { ...message, parts }
+  })
+  return changed ? out : messages
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
- * strip media the model can't accept → convert, dropping incomplete tool calls that
- * would otherwise dangle without a result → merge adjacent same-role turns left by
- * drops → placeholder any turn that still converted to empty content. See #16195.
+ * strip media the model can't accept → optionally strip historical reasoning →
+ * convert, dropping incomplete tool calls that would otherwise dangle without a
+ * result → merge adjacent same-role turns left by drops → placeholder any turn that
+ * still converted to empty content. See #16195.
  */
 export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
-  tools?: ToolSet
+  tools?: ToolSet,
+  options?: { stripReasoning?: boolean }
 ): Promise<ModelMessage[]> {
   const shaped = stripUnsupportedMedia(messages, caps ?? ALL_MEDIA)
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  const pruned = options?.stripReasoning ? stripHistoryReasoning(shaped) : shaped
+  const model = await convertToModelMessages(pruned, { ignoreIncompleteToolCalls: true, tools })
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
 }

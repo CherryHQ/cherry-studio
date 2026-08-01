@@ -15,6 +15,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
+import { isAnthropicProvider, isGeminiProvider } from '@shared/utils/provider'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
@@ -95,6 +96,8 @@ export interface BuiltAgentParams {
   /** Attachment routing inputs for `prepareChatMessages` (chat path). */
   nativeFileSupport: NativeFileSupport
   fileAttachments: FileAttachmentRef[]
+  /** Strip historical reasoning parts before conversion (never for signed-reasoning providers). */
+  stripHistoryReasoning: boolean
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
@@ -133,6 +136,16 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     assistantSummary: provider.settings.summaryText
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
+
+  // Stripping historical chain-of-thought is a per-model opt-out, chat-only (the gateway
+  // manages its own history and is excluded via callOverrides), and never applied to
+  // providers that require signed reasoning round-trips (Anthropic thinking blocks,
+  // Gemini thought signatures).
+  const stripHistoryReasoning =
+    request.callOverrides == null &&
+    !(model.includeReasoningInContext ?? true) &&
+    !isAnthropicProvider(provider) &&
+    !isGeminiProvider(provider)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
@@ -177,7 +190,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     options,
     hookParts: contributions.hookParts,
     nativeFileSupport,
-    fileAttachments
+    fileAttachments,
+    stripHistoryReasoning
   }
 }
 

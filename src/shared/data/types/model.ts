@@ -327,6 +327,8 @@ export const ModelSchema = z.object({
   // Configuration
   /** Context window size */
   contextWindow: z.number().optional(),
+  /** Whether prior reasoning (chain-of-thought) is included in the request context. Default true. */
+  includeReasoningInContext: z.boolean().optional(),
   /** Maximum output tokens */
   maxOutputTokens: z.number().optional(),
   /** Maximum input tokens */

@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `include_reasoning_in_context` integer;

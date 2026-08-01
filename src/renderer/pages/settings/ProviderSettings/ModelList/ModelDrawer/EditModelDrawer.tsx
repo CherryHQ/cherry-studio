@@ -15,6 +15,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
+import { isReasoningModel } from '@shared/utils/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -68,6 +69,7 @@ interface BuildPatchOverrides {
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
   supportsStreaming?: boolean
+  includeReasoningInContext?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
   outputPrice?: string
@@ -120,6 +122,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
+  const [includeReasoningInContext, setIncludeReasoningInContext] = useState<Model['includeReasoningInContext']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
@@ -159,6 +162,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setShowMoreSettings(true)
     setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
+    setIncludeReasoningInContext(model.includeReasoningInContext ?? true)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
@@ -178,6 +182,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         inputModalities: patch.inputModalities,
         outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
+        includeReasoningInContext: patch.includeReasoningInContext,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
@@ -259,6 +264,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { outputModalities: resolvedPurposeFields.outputModalities }
           : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
+        includeReasoningInContext: overrides?.includeReasoningInContext ?? includeReasoningInContext,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
         maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
@@ -296,7 +302,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       purposeFields,
       classification,
       defaultChatEndpoint,
-      supportsStreaming
+      supportsStreaming,
+      includeReasoningInContext
     ]
   )
 
@@ -543,6 +550,30 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   />
                 </div>
               </div>
+
+              {isReasoningModel(model) && (
+                <div className={drawerClasses.sectionCard}>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
+                      {t('settings.models.include_reasoning_in_context.label')}
+                    </span>
+                    <Tooltip content={t('settings.models.include_reasoning_in_context.tooltip')}>
+                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                        <CircleHelp aria-hidden className="size-3" />
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <Switch
+                    size="sm"
+                    aria-label={t('settings.models.include_reasoning_in_context.label')}
+                    checked={includeReasoningInContext ?? true}
+                    onCheckedChange={(checked) => {
+                      setIncludeReasoningInContext(checked)
+                      autoSave({ includeReasoningInContext: checked })
+                    }}
+                  />
+                </div>
+              )}
 
               <div className={drawerClasses.sectionCard}>
                 <ProviderField title={t('models.price.currency')} titleClassName={drawerClasses.fieldTitle}>

@@ -7205,6 +7205,10 @@
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",
+      "include_reasoning_in_context": {
+        "label": "Include Reasoning in Context",
+        "tooltip": "Send prior chain-of-thought to the model. Turn off to reduce token usage (providers that require signed reasoning round-trips, like Claude and Gemini, always keep reasoning)"
+      },
       "list_title": "Models",
       "manage": {
         "add_custom_model": "Add custom model",

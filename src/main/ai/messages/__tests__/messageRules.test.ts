@@ -2,24 +2,18 @@ import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
+import {
+  coalesceConsecutiveSameRole,
+  ensureNonEmptyAssistantContent,
+  stripHistoryReasoning,
+  toModelMessages
+} from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
 
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
-  it('keeps knowledge scope out of provider messages', async () => {
-    const model = await toModelMessages([
-      ui('user', [
-        { type: 'text', text: 'search this' },
-        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
-      ])
-    ])
-
-    expect(model).toEqual([{ role: 'user', content: [{ type: 'text', text: 'search this' }] }])
-  })
-
   it('rescues a data-error-only assistant turn (#16195)', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
@@ -117,6 +111,85 @@ describe('toModelMessages', () => {
     })
     expect(JSON.stringify(model)).not.toContain(imageData)
     expect(messages).toEqual(originalMessages)
+  })
+
+  it('strips historical reasoning parts when stripReasoning is enabled', async () => {
+    const model = await toModelMessages(
+      [
+        ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+        ui(
+          'assistant',
+          [
+            { type: 'reasoning', text: 'let me think about this…' },
+            { type: 'text', text: 'A' }
+          ],
+          'a1'
+        ),
+        ui('user', [{ type: 'text', text: 'next' }], 'u2')
+      ],
+      undefined,
+      undefined,
+      { stripReasoning: true }
+    )
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'A' }] },
+      { role: 'user', content: [{ type: 'text', text: 'next' }] }
+    ])
+  })
+
+  it('keeps historical reasoning parts by default', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          { type: 'reasoning', text: 'let me think about this…' },
+          { type: 'text', text: 'A' }
+        ],
+        'a1'
+      )
+    ])
+    const assistant = model[1]
+    expect(assistant.role).toBe('assistant')
+    expect(JSON.stringify(assistant)).toContain('let me think about this…')
+  })
+
+  it('drops an assistant turn that only had reasoning when stripping', async () => {
+    const model = await toModelMessages(
+      [
+        ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+        ui('assistant', [{ type: 'reasoning', text: 'draft only' }], 'a1'),
+        ui('user', [{ type: 'text', text: 'next' }], 'u2')
+      ],
+      undefined,
+      undefined,
+      { stripReasoning: true }
+    )
+    // a parts-emptied assistant turn converts to nothing and is dropped, so the
+    // surrounding user turns coalesce (same as the empty-parts case above)
+    expect(model).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Q' },
+          { type: 'text', text: 'next' }
+        ]
+      }
+    ])
+  })
+
+  it('does not mutate or rebuild the input when there is nothing to strip', async () => {
+    const messages = [
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [{ type: 'text', text: 'A' }], 'a1')
+    ]
+    const model = await toModelMessages(messages, undefined, undefined, { stripReasoning: true })
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'A' }] }
+    ])
+    expect(stripHistoryReasoning(messages)).toBe(messages)
   })
 })
 

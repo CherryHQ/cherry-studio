@@ -70,6 +70,9 @@ export const userModelTable = sqliteTable(
     /** Context window size */
     contextWindow: integer(),
 
+    /** Whether prior reasoning (chain-of-thought) is included in the request context. Default true. */
+    includeReasoningInContext: integer({ mode: 'boolean' }),
+
     /** Maximum input tokens */
     maxInputTokens: integer(),
 

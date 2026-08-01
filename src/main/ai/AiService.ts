@@ -495,7 +495,8 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport,
-      fileAttachments
+      fileAttachments,
+      stripHistoryReasoning
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
@@ -542,7 +543,8 @@ export class AiService extends BaseService {
           : []),
         ...hookParts
       ],
-      mediaCapabilities: resolveMediaCapabilities(model)
+      mediaCapabilities: resolveMediaCapabilities(model),
+      stripHistoryReasoning
     })
 
     return agent.stream(preparedMessages, signal)

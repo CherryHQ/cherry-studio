@@ -7205,6 +7205,10 @@
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",
+      "include_reasoning_in_context": {
+        "label": "在上下文中包含思考内容",
+        "tooltip": "将历史思考链发送给模型。关闭可减少 token 消耗（Claude、Gemini 等需要回传思考签名的模型会始终保留思考内容）"
+      },
       "list_title": "模型",
       "manage": {
         "add_custom_model": "添加自定义模型",
