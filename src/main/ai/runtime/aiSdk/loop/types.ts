@@ -123,4 +123,9 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   mediaCapabilities?: MediaCapabilities
   /** Media a tool result may carry to this wire+model; defaults to `mediaCapabilities`. */
   toolResultMediaCapabilities?: MediaCapabilities
+  /**
+   * Strip persisted reasoning parts from the conversation history before conversion.
+   * Only ever enabled for providers that do not require reasoning round-trips.
+   */
+  stripHistoryReasoning?: boolean
 }

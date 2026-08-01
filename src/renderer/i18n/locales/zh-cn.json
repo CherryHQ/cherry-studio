@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "筛选模型",
   "settings.models.filter.scroll_left": "向左滚动模型类型",
   "settings.models.filter.scroll_right": "向右滚动模型类型",
+  "settings.models.include_reasoning_in_context.label": "在上下文中包含思考内容",
+  "settings.models.include_reasoning_in_context.tooltip": "将历史思考链发送给模型。关闭可减少 token 消耗（Claude、Gemini 等需要回传思考签名的模型会始终保留思考内容）",
   "settings.models.list_title": "模型",
   "settings.models.manage.add_listed.label": "添加全部模型",
   "settings.models.manage.add_partial_failure": "部分添加成功:成功 {{added}} 个,失败 {{failed}} 个",

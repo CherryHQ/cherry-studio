@@ -194,13 +194,35 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
 }
 
 /**
+ * Drop persisted `reasoning` parts (prior chain-of-thought) from the history before
+ * conversion. Providers never need another turn's draft reasoning to answer, so this
+ * saves a large amount of input tokens on long conversations.
+ *
+ * Only safe for providers that do NOT require reasoning to be round-tripped — callers
+ * must not enable this for Anthropic (signed thinking blocks) or Gemini (thought
+ * signatures). Returns the input unchanged when nothing was stripped, and never
+ * mutates the shared history (parts arrays are rebuilt only where filtered).
+ */
+export function stripHistoryReasoning(messages: UIMessage[]): UIMessage[] {
+  let changed = false
+  const out = messages.map((message) => {
+    if (message.role !== 'assistant' || !Array.isArray(message.parts)) return message
+    const parts = message.parts.filter((part) => part.type !== 'reasoning')
+    if (parts.length === message.parts.length) return message
+    changed = true
+    return { ...message, parts }
+  })
+  return changed ? out : messages
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
  * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
- * strip media the model can't accept → drop tool
- * calls parked on an unanswered approval → restore inferable legacy step boundaries →
+ * strip media the model can't accept → drop tool calls parked on an unanswered approval →
+ * optionally strip historical reasoning → restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -210,13 +232,14 @@ export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
   tools?: ToolSet,
-  toolResultCaps?: MediaCapabilities
+  toolResultCaps?: MediaCapabilities,
+  options?: { stripReasoning?: boolean }
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
-  const shaped = restoreLegacyToolStepBoundaries(
-    dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
-  )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  const shaped = dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
+  const pruned = options?.stripReasoning ? stripHistoryReasoning(shaped) : shaped
+  const withLegacySteps = restoreLegacyToolStepBoundaries(pruned)
+  const model = await convertToModelMessages(withLegacySteps, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

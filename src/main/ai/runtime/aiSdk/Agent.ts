@@ -307,7 +307,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         initialMessages,
         params.mediaCapabilities,
         params.tools,
-        params.toolResultMediaCapabilities
+        params.toolResultMediaCapabilities,
+        { stripReasoning: params.stripHistoryReasoning }
       )
       let hasUsedProvidedMessageId = false
 

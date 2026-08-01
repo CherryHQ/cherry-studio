@@ -10,6 +10,7 @@ import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
+import { isReasoningModel } from '@shared/utils/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import ProviderActions from '../../primitives/ProviderActions'
@@ -58,6 +59,7 @@ interface BuildPatchOverrides {
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
   supportsStreaming?: boolean
+  includeReasoningInContext?: boolean
   pricing?: Model['pricing']
   contextWindow?: number | null
   maxInputTokens?: number | null
@@ -88,6 +90,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
+  const [includeReasoningInContext, setIncludeReasoningInContext] = useState<Model['includeReasoningInContext']>(true)
   const [contextWindow, setContextWindow] = useState<number | null>(null)
   const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
@@ -122,6 +125,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setShowMoreSettings(true)
     setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
+    setIncludeReasoningInContext(model.includeReasoningInContext ?? true)
     setContextWindow(model.contextWindow ?? null)
     setMaxInputTokens(model.maxInputTokens ?? null)
     setMaxOutputTokens(model.maxOutputTokens ?? null)
@@ -206,6 +210,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { outputModalities: resolvedPurposeFields.outputModalities }
           : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
+        includeReasoningInContext: overrides?.includeReasoningInContext ?? includeReasoningInContext,
         ...(hasContextWindowOverride && nextContextWindow !== undefined ? { contextWindow: nextContextWindow } : {}),
         ...(hasMaxInputTokensOverride && nextMaxInputTokens !== undefined
           ? { maxInputTokens: nextMaxInputTokens }
@@ -227,7 +232,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       purposeFields,
       classification,
       defaultChatEndpoint,
-      supportsStreaming
+      supportsStreaming,
+      includeReasoningInContext
     ]
   )
 
@@ -496,6 +502,32 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   />
                 </div>
               </div>
+
+              {isReasoningModel(model) && (
+                <div className={drawerClasses.switchCard}>
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
+                        {t('settings.models.include_reasoning_in_context.label')}
+                      </span>
+                      <Tooltip content={t('settings.models.include_reasoning_in_context.tooltip')}>
+                        <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                          <CircleHelp aria-hidden className="size-3" />
+                        </span>
+                      </Tooltip>
+                    </div>
+                    <Switch
+                      size="sm"
+                      aria-label={t('settings.models.include_reasoning_in_context.label')}
+                      checked={includeReasoningInContext ?? true}
+                      onCheckedChange={(checked) => {
+                        setIncludeReasoningInContext(checked)
+                        autoSave({ includeReasoningInContext: checked })
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className={drawerClasses.sectionCard}>
                 <ModelPricingFields

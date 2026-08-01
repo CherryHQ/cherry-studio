@@ -32,7 +32,13 @@ import {
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import {
+  finalizeWebToolRoutes,
+  isAnthropicProvider,
+  isGeminiProvider,
+  resolveWebToolRoutes,
+  type WebToolRoutes
+} from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -126,6 +132,8 @@ export interface BuiltAgentParams {
   /** Attachment routing inputs for `prepareChatMessages` (chat path). */
   nativeFileSupport: NativeFileSupport
   fileAttachments: FileAttachmentRef[]
+  /** Strip historical reasoning parts before conversion (never for signed-reasoning providers). */
+  stripHistoryReasoning: boolean
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
@@ -288,6 +296,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           return automationRun
         }
       : undefined
+
+  // Stripping historical chain-of-thought is a per-model opt-out, chat-only (caller-owned
+  // histories are excluded), and never applied to providers that require signed reasoning
+  // round-trips (Anthropic thinking blocks, Gemini thought signatures).
+  const stripHistoryReasoning =
+    request.callOverrides == null &&
+    request.contextOwner !== 'caller' &&
+    !(model.includeReasoningInContext ?? true) &&
+    !isAnthropicProvider(provider) &&
+    !isGeminiProvider(provider)
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
@@ -388,7 +407,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     options,
     hookParts,
     nativeFileSupport,
-    fileAttachments
+    fileAttachments,
+    stripHistoryReasoning
   }
 }
 

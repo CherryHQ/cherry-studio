@@ -6,7 +6,12 @@ import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
 
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
-import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
+import {
+  coalesceConsecutiveSameRole,
+  ensureNonEmptyAssistantContent,
+  stripHistoryReasoning,
+  toModelMessages
+} from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
 
@@ -456,6 +461,85 @@ describe('toModelMessages', () => {
       role: 'tool',
       content: [expect.objectContaining({ toolName: declared, output: { type: 'text', value: 'formatted' } })]
     })
+  })
+
+  it('strips historical reasoning parts when stripReasoning is enabled', async () => {
+    const model = await toModelMessages(
+      [
+        ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+        ui(
+          'assistant',
+          [
+            { type: 'reasoning', text: 'let me think about this…' },
+            { type: 'text', text: 'A' }
+          ],
+          'a1'
+        ),
+        ui('user', [{ type: 'text', text: 'next' }], 'u2')
+      ],
+      undefined,
+      undefined,
+      undefined,
+      { stripReasoning: true }
+    )
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'A' }] },
+      { role: 'user', content: [{ type: 'text', text: 'next' }] }
+    ])
+  })
+
+  it('keeps historical reasoning parts by default', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          { type: 'reasoning', text: 'let me think about this…' },
+          { type: 'text', text: 'A' }
+        ],
+        'a1'
+      )
+    ])
+    const assistant = model[1]
+    expect(assistant.role).toBe('assistant')
+    expect(JSON.stringify(assistant)).toContain('let me think about this…')
+  })
+
+  it('drops an assistant turn that only had reasoning when stripping', async () => {
+    const model = await toModelMessages(
+      [
+        ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+        ui('assistant', [{ type: 'reasoning', text: 'draft only' }], 'a1'),
+        ui('user', [{ type: 'text', text: 'next' }], 'u2')
+      ],
+      undefined,
+      undefined,
+      undefined,
+      { stripReasoning: true }
+    )
+    expect(model).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Q' },
+          { type: 'text', text: 'next' }
+        ]
+      }
+    ])
+  })
+
+  it('does not mutate or rebuild the input when there is nothing to strip', async () => {
+    const messages = [
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [{ type: 'text', text: 'A' }], 'a1')
+    ]
+    const model = await toModelMessages(messages, undefined, undefined, undefined, { stripReasoning: true })
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'A' }] }
+    ])
+    expect(stripHistoryReasoning(messages)).toBe(messages)
   })
 })
 
