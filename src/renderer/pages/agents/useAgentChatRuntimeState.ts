@@ -124,16 +124,13 @@ interface UseAgentChatRuntimeStateParams {
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
-  /** Returns the greeting currently visible on an empty session, if any. */
-  getGreetingContext?: () => string | undefined
 }
 
 export function useAgentChatRuntimeState({
   sessionId,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
-  reservedMessages,
-  getGreetingContext
+  reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
@@ -177,18 +174,14 @@ export function useAgentChatRuntimeState({
   )
   const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
   const buildStreamRequest = useCallback(
-    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => {
-      const greetingContext = !isLoading && !hasOlder && uiMessages.length === 0 ? getGreetingContext?.() : undefined
-      return {
-        trigger: 'submit-message',
-        topicId: conversation.topicId,
-        userMessageParts: getAgentTurnParts(input),
-        ...(greetingContext ? { greetingContext } : {}),
-        reasoningEffort: input.options?.body?.reasoningEffort,
-        ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
-      }
-    },
-    [getGreetingContext, hasOlder, isLoading, uiMessages.length]
+    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
+      trigger: 'submit-message',
+      topicId: conversation.topicId,
+      userMessageParts: getAgentTurnParts(input),
+      reasoningEffort: input.options?.body?.reasoningEffort,
+      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
+    }),
+    []
   )
   const { localSendGeneration, send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
