@@ -80,14 +80,23 @@ const FTS_DERIVED_PHYSICAL_COLUMNS = new Set(['fts_rowid', 'searchable_text'])
 const DEGRADE_KEY_SEP = '\x1e'
 
 /**
- * Unit-separator for serializing a composite key tuple (identity / unique / PK values)
- * into a stable string used as a batch-lookup Map key (B17). NULLs are coerced via
- * String() but callers exclude NULL-bearing tuples before lookup — a NULL never
- * matched under `= ?` semantics, so it must never reach the map. String coercion
- * keeps numeric vs text PKs keying identically to how SQLite returned them.
+ * Separator for serializing a composite key tuple (identity / unique / PK values)
+ * into a stable string used as a batch-lookup Map key (B17). Each value is
+ * length-prefixed (`len + ':' + val`) before joining on TUPLE_KEY_SEP so a value
+ * containing the separator itself cannot blur tuple boundaries — composite-key
+ * user text legitimately may contain U+001F (preference scope/key, note path,
+ * job_schedule name, …) and a bare join would collide distinct tuples. NULLs are
+ * coerced via String() but callers exclude NULL-bearing tuples before lookup — a
+ * NULL never matched under `= ?` semantics, so it must never reach the map.
  */
 const TUPLE_KEY_SEP = '\x1f'
-const tupleKey = (values: readonly (string | number)[]): string => values.map((v) => String(v)).join(TUPLE_KEY_SEP)
+export const tupleKey = (values: readonly (string | number)[]): string =>
+  values
+    .map((v) => {
+      const s = String(v)
+      return `${s.length}:${s}`
+    })
+    .join(TUPLE_KEY_SEP)
 
 /**
  * Max bound variables per anchor-id `IN (...)` lookup. Stays far below the bundled

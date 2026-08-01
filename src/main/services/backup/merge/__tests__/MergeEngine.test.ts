@@ -20,6 +20,7 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { assertFtsIntegrity } from '../ftsCentral'
+import { tupleKey } from '../MergeEngine'
 import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '../MergeEngine'
 import type { MergeContext } from '../types'
 
@@ -1649,5 +1650,16 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM message WHERE topic_id='tpc-scale'`).get() as { c: number }).c
     ).toBe(N + 1)
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('tupleKey is collision-free for composite values containing the separator', () => {
+    // U+001F (TUPLE_KEY_SEP) legitimately appears in preference scope/key, note path,
+    // job_schedule name, etc. A bare join('\x1f') would collide distinct tuples and make
+    // batch identity lookups overwrite each other -> wrong PK rewrite (B17 must-fix).
+    expect(tupleKey(['a\x1fb', 'c'])).not.toBe(tupleKey(['a', 'b\x1fc']))
+    expect(tupleKey(['a', ''])).not.toBe(tupleKey(['a\x1f', '']))
+    expect(tupleKey(['ab', 'cd'])).not.toBe(tupleKey(['a', 'bcd']))
+    // Same tuple is stable (idempotent).
+    expect(tupleKey(['x', 'y'])).toBe(tupleKey(['x', 'y']))
   })
 })
