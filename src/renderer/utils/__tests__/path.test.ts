@@ -117,3 +117,56 @@ describe('getRelativePath', () => {
     expect(getRelativePath(p('\\\\server\\share'), p('C:\\workspace\\notes.md'))).toBe(null)
   })
 })
+
+// On POSIX a backslash is an ordinary filename character, not a separator, so
+// `/workspace/a\b.txt` is ONE file named `a\b.txt` — not `b.txt` inside `a`.
+// `canonicalizeFilePath` already models this (its POSIX branch splits on `/`
+// only), and these primitives must not undo it.
+describe('POSIX paths containing a literal backslash', () => {
+  const backslashName = '/workspace/a\\b.txt'
+
+  it('does not treat a backslash in a filename as a separator', () => {
+    expect(isSamePath(p(backslashName), p('/workspace/a/b.txt'))).toBe(false)
+    expect(isPathInside(p(backslashName), p('/workspace/a'))).toBe(false)
+    expect(getRelativePath(p('/workspace/a'), p(backslashName))).toBe(null)
+  })
+
+  it('still matches such a path against itself', () => {
+    expect(isSamePath(p(backslashName), p(backslashName))).toBe(true)
+  })
+
+  it('still resolves genuine containment for such a path', () => {
+    expect(isPathInside(p(backslashName), p('/workspace'))).toBe(true)
+    expect(getRelativePath(p('/workspace'), p(backslashName))).toBe('a\\b.txt')
+  })
+
+  it('does not confuse a backslash name with a real directory of the same spelling', () => {
+    expect(isPathInside(p('/workspace/a/b.txt'), p('/workspace/a'))).toBe(true)
+    expect(isSamePath(p('/workspace/a/b.txt'), p(backslashName))).toBe(false)
+  })
+})
+
+// `//server/share` is the forward-slash spelling of UNC on Windows and is
+// implementation-defined on POSIX. `canonicalizeFilePath` collapses the leading
+// `//` to `/`, which would otherwise make it compare equal to an unrelated
+// POSIX path, so it gets the same verdict as `\\server\share`: not provable.
+describe('double-slash (forward-slash UNC) paths', () => {
+  it('is not the same as the single-slash path it collapses to', () => {
+    expect(isSamePath(p('//server/share/a.txt'), p('/server/share/a.txt'))).toBe(false)
+  })
+
+  it('is not provably the same as itself', () => {
+    expect(isSamePath(p('//server/share/a.txt'), p('//server/share/a.txt'))).toBe(false)
+  })
+
+  it('is not provably inside anything, on either side', () => {
+    expect(isPathInside(p('//server/share/a.txt'), p('//server/share'))).toBe(false)
+    expect(isPathInside(p('//server/share/a.txt'), p('/server'))).toBe(false)
+    expect(isPathInside(p('/server/share/a.txt'), p('//server/share'))).toBe(false)
+  })
+
+  it('yields no relative path, on either side', () => {
+    expect(getRelativePath(p('//server/share'), p('//server/share/a.txt'))).toBe(null)
+    expect(getRelativePath(p('/server/share'), p('//server/share/a.txt'))).toBe(null)
+  })
+})
