@@ -108,36 +108,6 @@ export async function backup(skipBackupFile = false) {
   }
 }
 
-export async function restore() {
-  // notificationService is imported as a module-level singleton
-  const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['zip'] }] })
-
-  if (file) {
-    try {
-      await window.api.backup.restore(file.filePath)
-
-      void notificationService.send({
-        id: uuid(),
-        type: 'success',
-        title: i18n.t('common.success'),
-        message: i18n.t('message.restore.success'),
-        silent: false,
-        timestamp: Date.now(),
-        source: 'backup'
-      })
-      // The main process has committed the restore journal and will relaunch.
-      return
-    } catch (error) {
-      logger.error('restore: Error restoring backup file:', error as Error)
-      void popup.error({
-        title: i18n.t('error.backup.file_format'),
-        content: (error as Error).message,
-        centered: true
-      })
-    }
-  }
-}
-
 // 备份到 webdav
 /**
  * @param showMessage

@@ -5234,20 +5234,7 @@
       "button": "选择备份文件",
       "label": "确定要恢复数据吗？"
     },
-    "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待",
     "messages_paused": "正在恢复备份；完成前已暂停发送新消息。",
-    "progress": {
-      "completed": "恢复完成",
-      "copying_files": "复制文件... {{progress}}%",
-      "extracted": "解压成功",
-      "extracting": "解压备份...",
-      "preparing": "准备恢复...",
-      "reading_data": "读取数据...",
-      "restoring_data": "恢复文件...",
-      "restoring_database": "恢复数据库...",
-      "title": "恢复进度",
-      "validating": "验证备份..."
-    },
     "title": "数据恢复"
   },
   "richEditor": {
