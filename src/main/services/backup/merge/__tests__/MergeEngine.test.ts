@@ -1564,4 +1564,90 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // Whole-graph FK check is the final arbiter — must be clean.
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
+
+  // ─── B17: batch identity lookup (N+1 → chunked) ──────────────────────────────
+  //
+  // countIdentityBulkSelects wraps work.sqlite.prepare with a Proxy so cached SELECT
+  // statements (prepareCached) still route get/all/iterate through the counter. It
+  // counts ONLY `WHERE ... IN (...)` SELECTs — the shape of the batched identity
+  // lookups (bulkSelectLocalPkMap / bulkPkExistsSet). The old per-row path used
+  // `WHERE col = ? LIMIT 1`, which has no IN clause, so it is excluded — this
+  // isolates the B17 batch mechanism from unrelated per-row selects (file-ref
+  // disclosure, field-merge row reads) and proves the engine is no longer O(rows).
+  const countIdentityBulkSelects = (db: Database.Database): { count: () => number } => {
+    let n = 0
+    const origPrepare = db.prepare.bind(db)
+    db.prepare = ((sql: string) => {
+      const stmt = origPrepare(sql)
+      if (!/^\s*SELECT/i.test(sql) || !/\bIN\s*\(/i.test(sql)) return stmt
+      return new Proxy(stmt, {
+        get(target, prop) {
+          const v = target[prop]
+          if (typeof v === 'function' && ['get', 'all', 'iterate'].includes(String(prop))) {
+            return (...args: unknown[]) => {
+              n++
+              return (v as (...a: unknown[]) => unknown).apply(target, args)
+            }
+          }
+          return v
+        }
+      })
+    }) as Database.Database['prepare']
+    return { count: () => n }
+  }
+
+  it('B17: batches root identity probes — N+1 → ⌈N/CHUNK⌉ bulk IN(...) queries', async () => {
+    // 600 backup topics absent locally. The old per-row path ran one
+    // `SELECT 1 FROM topic WHERE id=? LIMIT 1` per root (≥600 probes). The batched
+    // engine resolves them in ⌈600/500⌉ = 2 bulk `id IN (...)` probes — O(chunks),
+    // not O(rows). The batch mechanism must actually run (>0) yet stay far below N.
+    const N = 600
+    seedBackup((db) => {
+      for (let i = 0; i < N; i++) insertTopic(db, `tpc-${i}`)
+    })
+    const counter = countIdentityBulkSelects(dbh.sqlite)
+    await runMerge(topCtx())
+    const bulkQueries = counter.count()
+    expect(bulkQueries).toBeGreaterThan(0)
+    expect(bulkQueries).toBeLessThan(N)
+    expect(countRows('topic')).toBe(N) // no row lost at a chunk seam
+  })
+
+  it('B17: batches member identity probes — message members resolved in bulk', async () => {
+    // One topic + 600 messages. Each message's local PK lookup was a separate
+    // `SELECT 1 WHERE id=?`; now a batched `id IN (...)` probe per chunk. Member
+    // lookups are the hottest path on a large TOPICS restore, so this is the main
+    // win. (file-ref disclosure stays per-row by design — it is out of B17's scope.)
+    const N = 600
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-batch')
+      insertMessage(db, 'msg-root', 'tpc-batch', 'root', null)
+      for (let i = 0; i < N; i++) insertMessage(db, `msg-${i}`, 'tpc-batch', 'user', 'msg-root')
+    })
+    const counter = countIdentityBulkSelects(dbh.sqlite)
+    await runMerge(topCtx())
+    expect(counter.count()).toBeLessThan(N)
+    expect(
+      (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM message WHERE topic_id='tpc-batch'`).get() as { c: number }).c
+    ).toBe(N + 1)
+  })
+
+  it('B17: stays bit-identical across chunk boundaries (multi-chunk bulk + tail)', async () => {
+    // 1100 messages = 3 member chunks (500+500+100) for the PK-existence bulk, plus
+    // 3 backup-anchor chunks. Extends the per-row equivalence (pinned by the rest of
+    // this suite at small N) past the chunk boundary: no row dropped/duplicated at a
+    // seam, merge stays FK-clean, no spurious degradation.
+    const N = 1100
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-scale')
+      insertMessage(db, 'msg-root', 'tpc-scale', 'root', null)
+      for (let i = 0; i < N; i++) insertMessage(db, `msg-${i}`, 'tpc-scale', 'assistant', 'msg-root')
+    })
+    const result = await runMerge(topCtx())
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    expect(
+      (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM message WHERE topic_id='tpc-scale'`).get() as { c: number }).c
+    ).toBe(N + 1)
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
 })

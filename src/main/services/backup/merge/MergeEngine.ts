@@ -80,6 +80,16 @@ const FTS_DERIVED_PHYSICAL_COLUMNS = new Set(['fts_rowid', 'searchable_text'])
 const DEGRADE_KEY_SEP = '\x1e'
 
 /**
+ * Unit-separator for serializing a composite key tuple (identity / unique / PK values)
+ * into a stable string used as a batch-lookup Map key (B17). NULLs are coerced via
+ * String() but callers exclude NULL-bearing tuples before lookup — a NULL never
+ * matched under `= ?` semantics, so it must never reach the map. String coercion
+ * keeps numeric vs text PKs keying identically to how SQLite returned them.
+ */
+const TUPLE_KEY_SEP = '\x1f'
+const tupleKey = (values: readonly (string | number)[]): string => values.map((v) => String(v)).join(TUPLE_KEY_SEP)
+
+/**
  * Max bound variables per anchor-id `IN (...)` lookup. Stays far below the bundled
  * SQLite `SQLITE_MAX_VARIABLE_NUMBER` (32766) so a large aggregate — e.g. a Topic with
  * more messages than the limit, whose nested `chat_message_file_ref` member anchors on
@@ -583,6 +593,50 @@ export class MergeEngine {
         // outside this restore (e.g. lite archive with knowledge pins but KNOWLEDGE stripped).
         const pinEntityMap =
           agg.root === 'pin' ? this.registry.getSchema('TAGS_GROUPS').polymorphicEntityMap : undefined
+        // B17: batch-prefetch local identity lookups (was one SELECT per backup root —
+        // N+1 on large libraries like a TOPICS restore with many natural-key roots).
+        // finalize #13 guarantees every identityKey / UNIQUE / PK matches ≤1 local row,
+        // so these batch IN(...) structures are bit-identical to the prior per-row
+        // LIMIT 1 lookups (NULL-bearing identity tuples are excluded — they never
+        // matched under `= ?`). file_entry's lower(external_path) fold has NO physical
+        // UNIQUE constraint (DB_UNIQUE_KEYS.file_entry = []), so it stays per-row to
+        // avoid any ambiguity — see findLocalByExternalPath below.
+        const identityKeyCols = naturalKey ? (agg.identityKey ?? pkColumns) : pkColumns
+        const identityTuples: (string | number)[][] = []
+        const pkTuples: (string | number)[][] = []
+        for (const row of backupRoots) {
+          // note identity is [rootPath, path]; the loop rewrites rootPath to the
+          // planned target before lookup — mirror it via a transient view so the
+          // prefetched tuple matches the lookup view without mutating the backup row.
+          let identityView = row
+          if (agg.root === 'note') {
+            const plannedRoot = ctx.resourcePlan?.noteAdditions.get(String(row[physicalColumn('path')]))
+            if (plannedRoot !== undefined) {
+              identityView = { ...row, [physicalColumn('rootPath')]: plannedRoot }
+            }
+          }
+          if (naturalKey) {
+            const vals: (string | number)[] = []
+            let nullKey = false
+            for (const c of identityKeyCols) {
+              const v = identityView[physicalColumn(c)]
+              if (v === null || v === undefined) {
+                nullKey = true
+                break
+              }
+              vals.push(v as string | number)
+            }
+            if (!nullKey) identityTuples.push(vals)
+          }
+          pkTuples.push(pkColumns.map((c) => row[physicalColumn(c)] as string | number))
+        }
+        const identityPkMap = naturalKey
+          ? this.bulkSelectLocalPkMap(workSqlite, agg.root, pkColumns, identityKeyCols, identityTuples)
+          : undefined
+        const pkExistsSet = this.bulkPkExistsSet(workSqlite, agg.root, pkColumns, pkTuples)
+        const lookupSecondary = naturalKey
+          ? undefined
+          : this.prefetchSecondaryUniqueMaps(workSqlite, agg.root, pkColumns, backupRoots)
         for (const backupRow of backupRoots) {
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
           // Full restores import an overlay only when planning staged its markdown body.
@@ -646,17 +700,28 @@ export class MergeEngine {
           }
           let localCanonicalPrimaryKey: readonly (string | number)[] | undefined
           if (naturalKey) {
-            localCanonicalPrimaryKey = this.findLocalByIdentityKey(workSqlite, agg, pkColumns, backupRow)
-            if (
-              localCanonicalPrimaryKey === undefined &&
-              this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)
-            ) {
+            // findLocalByIdentityKey (batched): a NULL-bearing identity tuple never
+            // matches (`= ?` semantics) → undefined; else consult the prefetched
+            // identity→PK map. rootPath was already rewritten above for note, so the
+            // tuple view matches the prefetched one.
+            const idVals: (string | number)[] = []
+            let nullIdKey = false
+            for (const c of identityKeyCols) {
+              const v = backupRow[physicalColumn(c)]
+              if (v === null || v === undefined) {
+                nullIdKey = true
+                break
+              }
+              idVals.push(v as string | number)
+            }
+            localCanonicalPrimaryKey = nullIdKey ? undefined : identityPkMap!.get(tupleKey(idVals))
+            if (localCanonicalPrimaryKey === undefined && pkExistsSet.has(tupleKey(backupPrimaryKey))) {
               localCanonicalPrimaryKey = backupPrimaryKey
             }
-          } else if (this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)) {
+          } else if (pkExistsSet.has(tupleKey(backupPrimaryKey))) {
             localCanonicalPrimaryKey = backupPrimaryKey
           } else {
-            localCanonicalPrimaryKey = this.findLocalBySecondaryUnique(workSqlite, agg.root, pkColumns, backupRow)
+            localCanonicalPrimaryKey = lookupSecondary!(backupRow)
             // file_entry expression UNIQUE lower(external_path) — not in DB_UNIQUE_KEYS.
             if (localCanonicalPrimaryKey === undefined && agg.root === 'file_entry') {
               localCanonicalPrimaryKey = this.findLocalByExternalPath(workSqlite, backupRow)
@@ -783,89 +848,157 @@ export class MergeEngine {
   }
 
   /**
-   * Find the LOCAL canonical PK of a natural-key aggregate row by its identityKey.
-   * Returns undefined when work has no row under that identityKey. A key tuple
-   * containing NULL never matches (`= ?` semantics) — such rows take the insert path
-   * and the whole-graph checks remain the arbiter.
+   * Batch-resolve local canonical PKs for many key tuples at once (B17: replaces the
+   * per-row `SELECT pk FROM t WHERE keyCols = ? LIMIT 1` N+1 on large libraries).
+   * Returns a map keyed by `tupleKey(keyValues)` → local PK tuple; tuples with no
+   * local row are simply absent.
+   *
+   * Bit-identical to the prior per-row lookup: finalize #13 guarantees every
+   * identityKey / DB_UNIQUE_KEYS / uniqueMergeRules column set is backed by a real
+   * UNIQUE constraint (or IS the PK itself), so each key tuple matches AT MOST one
+   * local row — the original `LIMIT 1` was always defensive, and the batch
+   * `WHERE keyCols IN (...)` returns the exact same (≤1) row per tuple. Callers
+   * exclude NULL-bearing tuples beforehand (NULL never matched under `= ?`).
+   *
+   * Chunked so a table whose backup holds more roots than SQLITE_MAX_VARIABLE_NUMBER
+   * cannot fail at prepare() with "too many SQL variables" (placeholder budget split
+   * across the tuple's columns). Single-column keys use scalar `IN` (index-friendly);
+   * composite keys use SQLite row-value `IN ((?,?),(?,?))`. One cached statement per
+   * distinct chunk size (full + tail) — the hot path reuses the full-size statement.
    */
-  private findLocalByIdentityKey(
-    workSqlite: Database.Database,
-    agg: AggregateBoundary,
-    pkColumns: readonly string[],
-    backupRow: Record<string, unknown>
-  ): readonly (string | number)[] | undefined {
-    const keyColumns = agg.identityKey ?? this.registry.getPrimaryKey(agg.root).columns
-    const values: (string | number)[] = []
-    for (const c of keyColumns) {
-      const v = backupRow[physicalColumn(c)]
-      if (v === null || v === undefined) return undefined
-      values.push(v as string | number)
-    }
-    return this.selectLocalPkByColumns(workSqlite, agg.root, pkColumns, keyColumns, values)
-  }
-
-  /**
-   * uuid-entity secondary UNIQUE fold — when PK differs but a business UNIQUE collides
-   * (e.g. note(rootPath,path) if scanned as uuid-entity), SKIP with the LOCAL PK instead
-   * of plain-INSERT → UNIQUE abort of the whole restore. Skips fts_rowid-only uniques
-   * (local-only, stripped on insert).
-   */
-  private findLocalBySecondaryUnique(
-    workSqlite: Database.Database,
-    table: DbTableName,
-    pkColumns: readonly string[],
-    backupRow: Record<string, unknown>
-  ): readonly (string | number)[] | undefined {
-    const uniques = DB_UNIQUE_KEYS[table] ?? []
-    const pkSet = new Set(pkColumns)
-    for (const uk of uniques) {
-      if (uk.columns.length === pkColumns.length && uk.columns.every((c) => pkSet.has(c))) continue
-      if (uk.columns.every((c) => c === 'ftsRowid')) continue
-      const values: (string | number)[] = []
-      let missing = false
-      for (const c of uk.columns) {
-        const v = backupRow[physicalColumn(c)]
-        if (v === null || v === undefined) {
-          missing = true
-          break
-        }
-        values.push(v as string | number)
-      }
-      if (missing) continue
-      const found = this.selectLocalPkByColumns(workSqlite, table, pkColumns, uk.columns, values)
-      if (found !== undefined) return found
-    }
-    return undefined
-  }
-
-  private selectLocalPkByColumns(
+  private bulkSelectLocalPkMap(
     workSqlite: Database.Database,
     table: DbTableName,
     pkColumns: readonly string[],
     keyColumns: readonly string[],
-    values: readonly (string | number)[]
-  ): readonly (string | number)[] | undefined {
-    const where = keyColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
-    const select = pkColumns.map((c) => quoteIdent(physicalColumn(c))).join(', ')
-    const sql = `SELECT ${select} FROM ${quoteIdent(table)} WHERE ${where} LIMIT 1`
-    const row = this.prepareCached(workSqlite, `sel:${table}:${where}`, sql).get(...values) as
-      | Record<string, unknown>
-      | undefined
-    if (!row) return undefined
-    return pkColumns.map((c) => row[physicalColumn(c)] as string | number)
+    keyTuples: readonly (readonly (string | number)[])[]
+  ): Map<string, readonly (string | number)[]> {
+    const out = new Map<string, readonly (string | number)[]>()
+    if (keyTuples.length === 0) return out
+    const pkSelect = pkColumns.map((c) => quoteIdent(physicalColumn(c))).join(', ')
+    const keyPhys = keyColumns.map((c) => quoteIdent(physicalColumn(c)))
+    const keyPhysCsv = keyPhys.join(', ')
+    const isScalar = keyColumns.length === 1
+    const tuplesPerChunk = Math.max(1, Math.floor(ANCHOR_ID_CHUNK / keyColumns.length))
+    const stmtForSize = (size: number): Database.Statement => {
+      const placeholders = isScalar
+        ? new Array(size).fill('?').join(',')
+        : new Array(size).fill(`(${new Array(keyColumns.length).fill('?').join(',')})`).join(',')
+      const where = isScalar ? `${keyPhys[0]} IN (${placeholders})` : `(${keyPhysCsv}) IN (${placeholders})`
+      return this.prepareCached(
+        workSqlite,
+        `bulk:${table}:${keyColumns.join(',')}:${size}`,
+        `SELECT ${pkSelect}, ${keyPhysCsv} FROM ${quoteIdent(table)} WHERE ${where}`
+      )
+    }
+    for (let i = 0; i < keyTuples.length; i += tuplesPerChunk) {
+      const batch = keyTuples.slice(i, i + tuplesPerChunk)
+      const rows = stmtForSize(batch.length).all(...batch.flat()) as Record<string, unknown>[]
+      for (const row of rows) {
+        const pk = pkColumns.map((c) => row[physicalColumn(c)] as string | number)
+        const kv = keyColumns.map((c) => row[physicalColumn(c)] as string | number)
+        out.set(tupleKey(kv), pk)
+      }
+    }
+    return out
   }
 
-  /** True when work.sqlite already has a row with the same PK (uuid-entity identity). */
-  private workHasIdentity(
+  /**
+   * Batch existence check (B17: replaces per-row `SELECT 1 FROM t WHERE pk = ? LIMIT 1`
+   * N+1). Returns the serialized PK tuples already present locally. Bit-identical to
+   * the prior per-row check because the PK is UNIQUE (≤1 row), so a tuple is present
+   * iff the batch `WHERE pk IN (...)` returns a row for it. Same chunking as
+   * bulkSelectLocalPkMap.
+   */
+  private bulkPkExistsSet(
     workSqlite: Database.Database,
-    agg: AggregateBoundary,
+    table: DbTableName,
     pkColumns: readonly string[],
-    values: readonly (string | number)[]
-  ): boolean {
-    const where = pkColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
-    const sql = `SELECT 1 FROM ${quoteIdent(agg.root)} WHERE ${where} LIMIT 1`
-    const row = this.prepareCached(workSqlite, `has:${agg.root}:${where}`, sql).get(...values)
-    return row !== undefined
+    pkTuples: readonly (readonly (string | number)[])[]
+  ): Set<string> {
+    const out = new Set<string>()
+    if (pkTuples.length === 0) return out
+    const pkPhys = pkColumns.map((c) => quoteIdent(physicalColumn(c)))
+    const pkPhysCsv = pkPhys.join(', ')
+    const isScalar = pkColumns.length === 1
+    const tuplesPerChunk = Math.max(1, Math.floor(ANCHOR_ID_CHUNK / pkColumns.length))
+    const stmtForSize = (size: number): Database.Statement => {
+      const placeholders = isScalar
+        ? new Array(size).fill('?').join(',')
+        : new Array(size).fill(`(${new Array(pkColumns.length).fill('?').join(',')})`).join(',')
+      const where = isScalar ? `${pkPhys[0]} IN (${placeholders})` : `(${pkPhysCsv}) IN (${placeholders})`
+      return this.prepareCached(
+        workSqlite,
+        `bulkexists:${table}:${pkColumns.join(',')}:${size}`,
+        `SELECT ${pkPhysCsv} FROM ${quoteIdent(table)} WHERE ${where}`
+      )
+    }
+    for (let i = 0; i < pkTuples.length; i += tuplesPerChunk) {
+      const batch = pkTuples.slice(i, i + tuplesPerChunk)
+      const rows = stmtForSize(batch.length).all(...batch.flat()) as Record<string, unknown>[]
+      for (const row of rows) {
+        out.add(tupleKey(pkColumns.map((c) => row[physicalColumn(c)] as string | number)))
+      }
+    }
+    return out
+  }
+
+  /**
+   * Batch-prefetch local PKs for every non-PK, non-ftsRowid UNIQUE key of `table`
+   * (B17: replaces per-row findLocalBySecondaryUnique N+1). Returns a `lookup`
+   * closure that reproduces findLocalBySecondaryUnique's exact semantics:
+   * iterate DB_UNIQUE_KEYS[table] in declared order, skip PK-equivalent and
+   * ftsRowid-only keys, skip NULL-bearing tuples, and return the first key whose
+   * prefetched map hits. Bit-identical to the prior per-row behaviour.
+   */
+  private prefetchSecondaryUniqueMaps(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    pkColumns: readonly string[],
+    backupRows: readonly Record<string, unknown>[]
+  ): (backupRow: Record<string, unknown>) => readonly (string | number)[] | undefined {
+    const uniques = DB_UNIQUE_KEYS[table] ?? []
+    const pkSet = new Set(pkColumns)
+    const maps: Array<{ columns: readonly string[]; map: Map<string, readonly (string | number)[]> }> = []
+    for (const uk of uniques) {
+      if (uk.columns.length === pkColumns.length && uk.columns.every((c) => pkSet.has(c))) continue
+      if (uk.columns.every((c) => c === 'ftsRowid')) continue
+      const tuples: (string | number)[][] = []
+      for (const row of backupRows) {
+        const vals: (string | number)[] = []
+        let missing = false
+        for (const c of uk.columns) {
+          const v = row[physicalColumn(c)]
+          if (v === null || v === undefined) {
+            missing = true
+            break
+          }
+          vals.push(v as string | number)
+        }
+        if (missing) continue
+        tuples.push(vals)
+      }
+      const map = this.bulkSelectLocalPkMap(workSqlite, table, pkColumns, uk.columns, tuples)
+      maps.push({ columns: uk.columns, map })
+    }
+    return (backupRow: Record<string, unknown>): readonly (string | number)[] | undefined => {
+      for (const { columns, map } of maps) {
+        const vals: (string | number)[] = []
+        let missing = false
+        for (const c of columns) {
+          const v = backupRow[physicalColumn(c)]
+          if (v === null || v === undefined) {
+            missing = true
+            break
+          }
+          vals.push(v as string | number)
+        }
+        if (missing) continue
+        const found = map.get(tupleKey(vals))
+        if (found !== undefined) return found
+      }
+      return undefined
+    }
   }
 
   private getWorkColumns(workSqlite: Database.Database, table: DbTableName): Set<string> {
@@ -1132,13 +1265,60 @@ export class MergeEngine {
       const rule = uniqueRules.find((r) => r.table === member.table)
       const memberPolicies = allFieldPolicies.filter((p) => p.table === member.table)
 
-      for (let memberRow of memberRows) {
-        // P2: rewrite member FKs to canonical IDs (e.g. fileEntryId fe-backup → fe-local)
-        // BEFORE any insert/field-merge. A root whose identity was deduped (file_entry by
-        // lower(external_path)) carries backupPk→localPk in targetMap, but its member
-        // tables still reference the backup PK — without rewriting those FKs dangle and
-        // repairDanglingRefs prunes the member rows (attachment/logo loss).
-        memberRow = this.rewriteMemberFks(member.table, memberRow, identityMap)
+      // B17: batch-prefetch member identity lookups (was one SELECT per member row —
+      // N+1 on a Topic with many messages/attachments). Member FKs are rewritten
+      // up-front (batched) so the post-rewrite key values can feed a batched lookup.
+      //
+      // Equivalence to the prior per-row rewrite+lookup interleaving rests on two
+      // verifiable facts about the current contributor set: (1) member tables never
+      // FK-reference a SIBLING row of the same table — message.parentId and
+      // knowledge_item.[baseId,groupId] self-ref, but both are uuid-entity
+      // (identity-stable), so their rewrite is a no-op regardless of targetMap state;
+      // (2) every other member table's FKs target a different table whose targetMap
+      // is already populated before this member def runs (nested members sort after
+      // their parent). So the identityMap each row's rewrite consults is identical
+      // whether rewritten up-front or interleaved with same-table inserts. finalize
+      // #13 + DB UNIQUE ⇒ each key matches ≤1 local row ⇒ bit-identical to LIMIT 1.
+      //
+      // Future-risk: premise (1) holds for the CURRENT contributor set only. If a future
+      // contributor adds a natural-key (non-uuid) self-referencing member FK, the up-front
+      // rewrite would consult a targetMap that only populates after same-table inserts —
+      // such a member must fall back to per-row interleaving or add a runtime guard. The
+      // finalize #13 codegen constraint enforces uniqueness, not this self-ref shape.
+      const rewrittenRows = memberRows.map((r) => this.rewriteMemberFks(member.table, r, identityMap))
+      const memberPkExistsSet = this.bulkPkExistsSet(
+        workSqlite,
+        member.table,
+        memberPkCols,
+        rewrittenRows.map((r) => memberPkCols.map((c) => r[physicalColumn(c)] as string | number))
+      )
+      const memberRuleMap = rule
+        ? this.bulkSelectLocalPkMap(
+            workSqlite,
+            member.table,
+            memberPkCols,
+            rule.uniqueColumns,
+            rewrittenRows.reduce((tuples: (string | number)[][], r) => {
+              const vals: (string | number)[] = []
+              let missing = false
+              for (const c of rule.uniqueColumns) {
+                const v = r[physicalColumn(c)]
+                if (v === null || v === undefined) {
+                  missing = true
+                  break
+                }
+                vals.push(v as string | number)
+              }
+              if (!missing) tuples.push(vals)
+              return tuples
+            }, [])
+          )
+        : undefined
+      const memberSecondaryLookup = rule
+        ? undefined
+        : this.prefetchSecondaryUniqueMaps(workSqlite, member.table, memberPkCols, rewrittenRows)
+
+      for (const memberRow of rewrittenRows) {
         let localPk: readonly (string | number)[] | undefined
         if (rule) {
           const values: (string | number)[] = []
@@ -1151,21 +1331,13 @@ export class MergeEngine {
             }
             values.push(v as string | number)
           }
-          localPk = missing
-            ? undefined
-            : this.selectLocalPkByColumns(workSqlite, member.table, memberPkCols, rule.uniqueColumns, values)
+          localPk = missing ? undefined : memberRuleMap!.get(tupleKey(values))
         } else {
           const backupMemberPk = memberPkCols.map((c) => memberRow[physicalColumn(c)] as string | number)
-          const wherePk = memberPkCols.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
-          const hit = this.prepareCached(
-            workSqlite,
-            `has:${member.table}:${wherePk}`,
-            `SELECT 1 FROM ${quoteIdent(member.table)} WHERE ${wherePk} LIMIT 1`
-          ).get(...backupMemberPk)
-          if (hit) {
+          if (memberPkExistsSet.has(tupleKey(backupMemberPk))) {
             localPk = backupMemberPk
           } else {
-            localPk = this.findLocalBySecondaryUnique(workSqlite, member.table, memberPkCols, memberRow)
+            localPk = memberSecondaryLookup!(memberRow)
           }
         }
 
