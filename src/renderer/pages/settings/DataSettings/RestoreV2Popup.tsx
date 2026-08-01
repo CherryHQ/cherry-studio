@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Alert, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -347,6 +347,10 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             {outcome.state !== 'completed' && outcome.reason ? (
               <div className="break-all text-foreground-secondary text-xs">{outcome.reason}</div>
             ) : null}
+            {/* §3 threat model: the chosen archive carries API keys in plaintext — warn on the
+                result page regardless of outcome, since the file itself stays sensitive after a
+                completed or failed restore. Mirrors BackupExportV2Popup's pre-export warning. */}
+            <Alert type="warning" showIcon message={t('backup.credentials_warning')} />
             {/* A completed restore can still have lost data — disclose it BEFORE the
                 acknowledgement clears the journal, or the loss is never reported at all. */}
             {outcome.state === 'completed' && outcome.summary ? (

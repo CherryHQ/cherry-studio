@@ -318,6 +318,9 @@ describe('RestoreV2Popup', () => {
 
     await waitFor(() => expect(screen.getByTestId('v2-restore-outcome')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup.v2.restore.outcome.completed')).toBeInTheDocument()
+    // §3 threat model: the chosen archive carries plaintext credentials — the result
+    // page must warn regardless of outcome (the file stays sensitive after restore).
+    expect(screen.getByText('backup.credentials_warning')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('v2-restore-acknowledge-button'))
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.restore_acknowledge'))
@@ -362,6 +365,9 @@ describe('RestoreV2Popup', () => {
 
     await waitFor(() => expect(screen.getByText('settings.data.backup.v2.restore.outcome.failed')).toBeInTheDocument())
     expect(screen.getByText("step 'work-promoted' failed: disk full")).toBeInTheDocument()
+    // Credential warning is outcome-agnostic: a failed restore leaves the archive on disk
+    // with its plaintext credentials intact, so the warning still applies.
+    expect(screen.getByText('backup.credentials_warning')).toBeInTheDocument()
   })
 
   it('shows select failure on idle when no archive was chosen yet', async () => {
