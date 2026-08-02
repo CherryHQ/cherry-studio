@@ -35,6 +35,7 @@ import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
+import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
@@ -151,6 +152,10 @@ const readFileTool = tool({
 export function createReadFileToolEntry(): ToolEntry {
   return {
     name: READ_FILE_TOOL_NAME,
+    // Persist-only: blobs an oversized page echo (`text`) out of message.data
+    // while totalChars/nextOffset ride the skeleton. Never triggers in-flight —
+    // toModelOutput emits text, and the truncator's entity path only sees json.
+    codec: makeTextFieldCodec({ textKey: 'text' }),
     namespace: 'file',
     description: 'Read an attached file by filename — returns its text (paged for long files)',
     // Always inline when active so the model can call it directly off the manifest.

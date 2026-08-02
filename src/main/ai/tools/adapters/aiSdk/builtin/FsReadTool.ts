@@ -16,6 +16,7 @@ import { MB } from '@shared/utils/constants'
 import { tool } from 'ai'
 import * as z from 'zod'
 
+import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
@@ -291,10 +292,17 @@ Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large
 export function createFsReadToolEntry(): ToolEntry {
   return {
     name: FS_READ_TOOL_NAME,
-    // Exempt from the context-build truncate/persist layer: fs_read
-    // handles oversize natively (output-too-large + paging); persisting
-    // its result would route the model back through fs_read in a loop.
+    // In-flight exempt: fs_read handles oversize natively (output-too-large +
+    // paging), and truncating its result mid-loop would route the model back
+    // through fs_read in a loop. The codec applies at persist time only (lane
+    // rule in trimToolOutputs.ts), keeping an oversized page echo out of
+    // message.data. At the default configuration it never fires — the output
+    // is capped at READ_OUTPUT_CHAR_CAP == the persist threshold and the
+    // persist gate is strictly `>` — and when a lowered threshold does trim,
+    // repeated reads of the same page dedup onto one echo blob by content hash
+    // (not the source blob: the echo carries cat -n line-number formatting).
     truncatable: false,
+    codec: makeTextFieldCodec({ textKey: 'text' }),
     namespace: 'fs',
     description: 'Read a text file by absolute path (persisted-output retrieval; paginated)',
     defer: 'never',

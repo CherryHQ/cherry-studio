@@ -85,9 +85,9 @@
     {
       "targetKey": "chat.web_search.compression.method",
       "type": "PreferenceTypes.WebSearchCompressionMethod",
-      "defaultValue": "none",
+      "defaultValue": "cutoff",
       "status": "classified",
-      "description": "Web search compression method (from complex migration)"
+      "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
     },
     {
       "targetKey": "feature.code_cli.configs",

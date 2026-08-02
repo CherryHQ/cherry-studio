@@ -21,7 +21,7 @@ vi.mock('@main/ai/tools/adapters/aiSdk/registry', () => ({
   registry: { getAll: registryGetAllMock }
 }))
 
-import { makeEntitiesCodec } from '@main/ai/tools/outputCodec'
+import { makeEntitiesCodec, makeTextFieldCodec } from '@main/ai/tools/outputCodec'
 
 import { trimOversizedToolOutputs } from '../trimToolOutputs'
 
@@ -194,6 +194,41 @@ describe('trimOversizedToolOutputs', () => {
       persistMock.mockRejectedValue(new Error('disk full'))
       const result = await trimOversizedToolOutputs([toolPart(items)])
       expect((result[0] as { output: unknown }).output).toBe(items)
+    })
+  })
+
+  describe('fs_read echo boundary (truncatable:false + text-field codec)', () => {
+    // fs_read caps its output at READ_OUTPUT_CHAR_CAP == the persist
+    // threshold, so with the strict `>` gate the persist codec never fires at
+    // the default configuration — only a lowered threshold trims the echo.
+    const codec = makeTextFieldCodec({ textKey: 'text' })
+    const fsOutput = (text: string) => ({ kind: 'text', text, startLine: 1, endLine: 42, totalLines: 42 })
+
+    beforeEach(() => {
+      registryGetAllMock.mockReturnValue([{ name: 'run_cmd', truncatable: false, codec }])
+    })
+
+    it('does not trim an echo exactly at the threshold (the default cap case)', async () => {
+      const parts = [toolPart(fsOutput('x'.repeat(THRESHOLD)))]
+      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(persistMock).not.toHaveBeenCalled()
+    })
+
+    it('blobs an echo one char over the threshold, paging fields riding the skeleton', async () => {
+      const text = 'x'.repeat(THRESHOLD + 1)
+      const [trimmed] = await trimOversizedToolOutputs([toolPart(fsOutput(text))])
+
+      expect(persistMock).toHaveBeenCalledWith(text)
+      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      expect(ref.shape).toBe('entities')
+      expect(ref.blobRefs).toMatchObject([{ key: '/text', fileEntryId: 'entry-1', totalChars: text.length }])
+      expect(ref.skeleton).toMatchObject({ kind: 'text', text: codec.snippet(text), startLine: 1, totalLines: 42 })
+    })
+
+    it('leaves error results untouched (deflate → null)', async () => {
+      const parts = [toolPart({ kind: 'error', code: 'not-found', message: 'x'.repeat(THRESHOLD * 2) })]
+      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(persistMock).not.toHaveBeenCalled()
     })
   })
 })

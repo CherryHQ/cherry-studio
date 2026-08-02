@@ -164,13 +164,23 @@ describe('executeFsRead — content handling', () => {
 })
 
 describe('createFsReadToolEntry', () => {
-  it('is a never-deferred, truncate-exempt fs entry', () => {
+  it('is a never-deferred fs entry, in-flight exempt but persist-codec-bearing', () => {
     const entry = createFsReadToolEntry()
     expect(entry.name).toBe(FS_READ_TOOL_NAME)
+    // Both set on purpose: truncatable:false wins the in-flight lane (the
+    // active loop always sees the full page), the codec wins the persist lane.
     expect(entry.truncatable).toBe(false)
+    expect(entry.codec).toBeDefined()
     expect(entry.defer).toBe('never')
     expect(entry.namespace).toBe('fs')
     expect(entry.applies).toBeUndefined()
+  })
+
+  it('its codec blobs only the text field of a text result and rejects errors', () => {
+    const { codec } = createFsReadToolEntry()
+    const output = { kind: 'text', text: 'page body', startLine: 1, endLine: 2, totalLines: 2 }
+    expect(codec!.deflate(output)).toEqual({ skeleton: output, blobs: [{ key: '/text', text: 'page body' }] })
+    expect(codec!.deflate({ kind: 'error', code: 'not-found', message: 'x' })).toBeNull()
   })
 })
 

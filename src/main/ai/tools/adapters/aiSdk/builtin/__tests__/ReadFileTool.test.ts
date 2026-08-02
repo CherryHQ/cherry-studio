@@ -180,3 +180,14 @@ describe('readFileModelOutput', () => {
     expect(readFileModelOutput({ error: 'boom' })).toEqual({ type: 'text', value: 'boom' })
   })
 })
+
+describe('createReadFileToolEntry', () => {
+  it('carries a persist-only text-field codec (in-flight output is text, so the codec never fires there)', async () => {
+    const { createReadFileToolEntry } = await import('../ReadFileTool')
+    const entry = createReadFileToolEntry()
+    expect(entry.truncatable).toBeUndefined()
+    const output = { text: 'page body', totalChars: 9 }
+    expect(entry.codec!.deflate(output)).toEqual({ skeleton: output, blobs: [{ key: '/text', text: 'page body' }] })
+    expect(entry.codec!.deflate({ error: 'No attached file named "x".' })).toBeNull()
+  })
+})
