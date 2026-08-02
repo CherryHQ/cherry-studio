@@ -171,4 +171,8 @@ export interface QuickPanelContextType {
   readonly afterAction?: (Options: QuickPanelCallBackOptions) => void
 }
 
+export interface QuickPanelController {
+  readonly getSnapshot: () => QuickPanelContextType
+}
+
 export type QuickPanelScrollTrigger = 'initial' | 'keyboard' | 'none'

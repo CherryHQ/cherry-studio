@@ -13,6 +13,7 @@ export type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelContextType,
+  QuickPanelController,
   QuickPanelFilterFn,
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -24,4 +25,4 @@ export type {
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'
-export { useOptionalQuickPanel, useQuickPanel } from './useQuickPanel'
+export { useOptionalQuickPanel, useQuickPanel, useQuickPanelController } from './useQuickPanel'

@@ -5,21 +5,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
-  const mockQuickPanelValue = {
-    close: vi.fn(),
-    isVisible: false,
-    open: vi.fn(),
-    symbol: '',
-    updateList: vi.fn()
-  }
+const { mockGetQuickPanelSnapshot, mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanelController } =
+  vi.hoisted(() => {
+    const mockQuickPanelValue = {
+      close: vi.fn(),
+      isVisible: false,
+      open: vi.fn(),
+      symbol: '',
+      updateList: vi.fn()
+    }
 
-  return {
-    mockGetToolsForScope: vi.fn(),
-    mockQuickPanelValue,
-    mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
-  }
-})
+    return {
+      mockGetQuickPanelSnapshot: vi.fn(() => mockQuickPanelValue),
+      mockGetToolsForScope: vi.fn(),
+      mockQuickPanelValue,
+      mockUseQuickPanelController: vi.fn(() => ({ getSnapshot: () => mockGetQuickPanelSnapshot() }))
+    }
+  })
 
 vi.mock('@renderer/components/composer/tools/builtinTools', () => ({
   getAllTools: () => [],
@@ -34,7 +36,7 @@ vi.mock('@renderer/components/composer/tools/types', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  useQuickPanel: () => mockUseQuickPanel()
+  useQuickPanelController: () => mockUseQuickPanelController()
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -169,7 +171,8 @@ const LauncherRegistrationProbe = ({
 
 beforeEach(() => {
   mockGetToolsForScope.mockReset()
-  mockUseQuickPanel.mockClear()
+  mockGetQuickPanelSnapshot.mockClear()
+  mockUseQuickPanelController.mockClear()
   mockQuickPanelValue.close.mockClear()
   mockQuickPanelValue.open.mockClear()
   mockQuickPanelValue.updateList.mockClear()
@@ -360,7 +363,7 @@ describe('ComposerToolRuntimeHost', () => {
     )
 
     await waitFor(() => expect(runtimeRender).toHaveBeenCalledTimes(1))
-    expect(mockUseQuickPanel).not.toHaveBeenCalled()
+    expect(mockUseQuickPanelController).not.toHaveBeenCalled()
   })
 })
 
