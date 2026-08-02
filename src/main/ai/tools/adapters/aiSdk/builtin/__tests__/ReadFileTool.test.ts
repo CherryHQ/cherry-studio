@@ -23,7 +23,7 @@ vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { ReadFileInput } from '@shared/ai/builtinTools'
 
-import { readFile, readFileModelOutput } from '../fileLookup'
+import { readFile, readFileModelOutput } from '../ReadFileTool'
 
 const att = (handle: string): FileAttachmentRef => ({ fileEntryId: 'e1', handle, displayName: handle })
 const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })

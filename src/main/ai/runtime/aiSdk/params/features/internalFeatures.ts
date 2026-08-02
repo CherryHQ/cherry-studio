@@ -6,7 +6,8 @@
  *
  * Attachments (pdf/office/image/audio/video) are routed in `prepareChatMessages`
  * (`messages/attachmentRouting.ts`) — native inline or extracted text, with
- * `tools/fileLookup.ts` (`read_file`) paging the overflow — so there is no
+ * `tools/adapters/aiSdk/builtin/ReadFileTool.ts` (`read_file`) paging the
+ * overflow — so there is no
  * document-conversion middleware here.
  */
 
