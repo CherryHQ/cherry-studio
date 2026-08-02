@@ -235,6 +235,7 @@
           "discard_and_continue": "Отменить и продолжить",
           "title": "Отменить несохранённые изменения?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Не удалось перезагрузить последнее содержимое файла.",
         "save_failed": "Не удалось сохранить этот файл. Автоматическое сохранение приостановлено до тех пор, пока вы не повторите попытку или не отмените изменения.",
         "unsaved": "Несохранённый",
@@ -2585,6 +2586,10 @@
     "user": "Пользователь"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "Этот HTML-файл не содержит контента.",
@@ -2650,6 +2655,10 @@
         "description": "Файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
         "title": "Файл слишком большой"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "Открыть с помощью приложения по умолчанию",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "Не удалось переиндексировать источник данных",
       "status": {
         "chunking": "Сегментация",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "Встраивание",
         "error": "Ошибка",
         "pending": "Ожидание",
@@ -3353,7 +3363,7 @@
             "label": "Маленькая модель (необязательно)"
           }
         },
-        "model_config": "Конфигурация модели",
+        "model_config": "Модель",
         "section": {
           "advanced": {
             "desc": "Ограничения на выполнение и параметры времени выполнения",
@@ -3847,6 +3857,7 @@
       }
     },
     "citation": "{{count}} цитат",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "Содержание цитат",
     "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Скопировано!",
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "Сохранение заблокировано, так как не удалось загрузить заметку",
     "save_failed": "Не удалось сохранить заметку",
     "save_failure": {
-      "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено."
+      "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Название+содержание",
@@ -5219,6 +5231,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7355,10 +7368,6 @@
       "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "После включения Cherry Studio обращается к IPInfo, чтобы приблизительно определить страну или регион, а затем отправляет этот результат вместе с вашим именем, языком приложения, местными датой и временем и часовым поясом встроенной модели CherryAI для создания приветствий. По умолчанию отключено.",
-        "title": "Контекстные приветствия, созданные ИИ"
-      },
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
       "title": "Настройки конфиденциальности"
     },
@@ -7707,6 +7716,13 @@
         "usage_title": "Использование",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Открыть Token Factory",
+          "description": "Эквивалент 10 USD в API-кредитах ежедневно: по текущим тарифам это около 10–111 млн входных/выходных токенов в зависимости от модели и типа токенов. Кредиты сбрасываются ежедневно; пополнение пока не поддерживается.",
+          "title": "10 USD бесплатных API-кредитов ежедневно"
+        }
+      },
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
       "reorder_failed": "Не удалось изменить порядок поставщиков",
@@ -7750,13 +7766,6 @@
           "toggle_client_email_visibility": "Переключить видимость электронной почты клиента",
           "toggle_private_key_visibility": "Переключить видимость приватного ключа",
           "toggle_project_id_visibility": "Переключить видимость идентификатора проекта"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Открыть Token Factory",
-          "description": "Эквивалент 10 USD в API-кредитах ежедневно: по текущим тарифам это около 10–111 млн входных/выходных токенов в зависимости от модели и типа токенов. Кредиты сбрасываются ежедневно; пополнение пока не поддерживается.",
-          "title": "10 USD бесплатных API-кредитов ежедневно"
         }
       }
     },
@@ -8085,7 +8094,7 @@
           "save_failed": "Ошибка сохранения",
           "zhipu_sync_failed": "Не удалось синхронизировать ключ API Zhipu с веб-поиском. Повторно сохраните ключ или проверьте настройки веб-поиска."
         },
-        "fetch_urls_provider": "Поставщик загрузки URL по умолчанию",
+        "fetch_urls_provider": "Поставщик загрузки URL",
         "free": "Бесплатно",
         "is_default": "По умолчанию",
         "local_provider": {

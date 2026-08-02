@@ -235,6 +235,7 @@
           "discard_and_continue": "破棄して続行",
           "title": "保存されていない変更を破棄しますか？"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "最新のファイル内容を再読み込みできません。",
         "save_failed": "このファイルを保存できません。変更を再試行するか破棄するまで、自動保存は一時停止されています。",
         "unsaved": "未保存",
@@ -2585,6 +2586,10 @@
     "user": "ユーザー"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "このHTMLファイルにはコンテンツがありません。",
@@ -2650,6 +2655,10 @@
         "description": "{{limit}} MiBを超えるテキストファイルはプレビューできません。",
         "title": "ファイルが大きすぎます"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "デフォルトのアプリで開く",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
         "chunking": "チャンキング",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "埋め込み",
         "error": "エラー",
         "pending": "待機中",
@@ -3353,7 +3363,7 @@
             "label": "小型モデル（オプション）"
           }
         },
-        "model_config": "モデル構成",
+        "model_config": "モデル",
         "section": {
           "advanced": {
             "desc": "実行制限とランタイムパラメータ",
@@ -3847,6 +3857,7 @@
       }
     },
     "citation": "{{count}}個の引用内容",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "引用内容",
     "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "コピーしました！",
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "保存がブロックされました。ノートの読み込みに失敗しました。",
     "save_failed": "メモの保存に失敗しました",
     "save_failure": {
-      "description": "このノートを保存できませんでした。編集内容はエディタに残っており、自動保存は一時停止されています。"
+      "description": "このノートを保存できませんでした。編集内容はエディタに残っており、自動保存は一時停止されています。",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "名称+内容",
@@ -5219,6 +5231,7 @@
     "ppio": "PPIO パイオウクラウド",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7355,10 +7368,6 @@
       "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "有効にすると、Cherry Studio は IPInfo に接続しておおよその国または地域を検出し、その結果を名前、アプリの言語、現地の日付と時刻、タイムゾーンとともに内蔵の CherryAI モデルへ送信してあいさつを生成します。初期設定では無効です。",
-        "title": "AI によるコンテキストに応じたあいさつ"
-      },
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
     },
@@ -7707,6 +7716,13 @@
         "usage_title": "使用",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory を開く",
+          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
+          "title": "毎日 10 米ドル分の無料 API クレジット"
+        }
+      },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
       "reorder_failed": "プロバイダーの並び替えに失敗しました",
@@ -7750,13 +7766,6 @@
           "toggle_client_email_visibility": "クライアントのメールアドレスの表示を切り替える",
           "toggle_private_key_visibility": "秘密鍵の表示を切り替える",
           "toggle_project_id_visibility": "プロジェクトIDの表示を切り替える"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Token Factory を開く",
-          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
-          "title": "毎日 10 米ドル分の無料 API クレジット"
         }
       }
     },
@@ -8085,7 +8094,7 @@
           "save_failed": "保存に失敗しました",
           "zhipu_sync_failed": "Zhipu APIキーのWeb Searchへの同期に失敗しました。キーを再保存するか、Web Searchの設定を確認してください。"
         },
-        "fetch_urls_provider": "デフォルトのURL取得プロバイダー",
+        "fetch_urls_provider": "URL取得プロバイダー",
         "free": "無料",
         "is_default": "デフォルト",
         "local_provider": {

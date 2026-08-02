@@ -198,11 +198,6 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
-      "local_greetings": {
-        "plan": "告诉我你想达成的结果，我来帮你制定计划。",
-        "progress": "今天有什么任务需要我帮你推进？",
-        "research": "需要我帮你调研、规划，还是起草内容？"
-      },
       "welcome_title": "今天想做点什么？"
     },
     "icon": {
@@ -240,6 +235,7 @@
           "discard_and_continue": "放弃并继续",
           "title": "放弃未保存的修改？"
         },
+        "metadata_pending": "文件已保存，但文件元数据仍在恢复中。请勿重试本次保存。",
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
         "unsaved": "未保存",
@@ -1442,11 +1438,6 @@
       "view_full_content": "查看完整内容"
     },
     "home": {
-      "local_greetings": {
-        "casual": "今天有什么想聊聊的吗？",
-        "explore": "今天想一起探索点什么？",
-        "play": "想来个轻松的话题，还是玩个小游戏？"
-      },
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
@@ -3372,7 +3363,7 @@
             "label": "Small 模型"
           }
         },
-        "model_config": "模型配置",
+        "model_config": "模型",
         "section": {
           "advanced": {
             "desc": "最大轮次与环境变量",
@@ -4513,7 +4504,8 @@
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
     "save_failure": {
-      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。",
+      "metadata_pending": "笔记已保存，但文件元数据仍在恢复中。请勿重试本次保存。"
     },
     "search": {
       "both": "名称+内容",
@@ -7376,10 +7368,6 @@
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Chat 和 Agent 的本地动态问候语会在您的设备上生成，关闭此选项时仍可使用。当前显示的问候语会作为不可信上下文随第一条消息发送，让您选择的模型能理解“好”等简短回复；开发者模式的追踪记录可能会保存该内容。开启后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区；若不可用，则明确标注并使用从应用语言推导的地区作为后备信息。国家或地区提示、您的姓名、应用语言、本地日期和时间、时区、Chat 或 Agent 模式、基础后备问候语及上一条问候语会发送给固定的内置 CherryAI Qwen 模型进行情境增强。此选项默认关闭。",
-        "title": "AI 增强的情境问候语"
-      },
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
     },
@@ -8106,7 +8094,7 @@
           "save_failed": "保存失败",
           "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
         },
-        "fetch_urls_provider": "默认 URL 获取服务商",
+        "fetch_urls_provider": "URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {

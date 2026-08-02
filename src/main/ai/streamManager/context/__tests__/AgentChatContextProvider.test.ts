@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
-  listSessionMessages: vi.fn(),
   maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
@@ -30,8 +29,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
-    saveMessages: mocks.saveMessages,
-    listSessionMessages: mocks.listSessionMessages
+    saveMessages: mocks.saveMessages
   }
 }))
 
@@ -138,19 +136,17 @@ describe('AgentChatContextProvider', () => {
       turnId: 'turn-1'
     })
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
-    mocks.listSessionMessages.mockReturnValue({ items: [] })
   })
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
 
-    const prepared = await provider.prepareDispatch(subscriber, openReq({ greetingContext: '   ' }))
+    const prepared = await provider.prepareDispatch(subscriber, openReq())
 
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } })
     )
-    expect(mocks.listSessionMessages).not.toHaveBeenCalled()
     expect(mocks.saveMessages).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(prepared.completionTarget).toEqual({ conversationType: 'agent', conversationId: 'session-1' })
@@ -246,25 +242,6 @@ describe('AgentChatContextProvider', () => {
       })
     ])
     expect(prepared.listeners).toEqual([subscriber])
-  })
-
-  it('relays greeting context only for an empty session and never persists it', async () => {
-    const greetingContext = '我可以帮你完成什么任务？'
-    await provider.prepareDispatch(makeSubscriber(), openReq({ greetingContext }))
-
-    expect(mocks.runtimeBeginTurn).toHaveBeenLastCalledWith(
-      expect.objectContaining({ greetingContext, userMessage: expect.objectContaining({ role: 'user' }) })
-    )
-    expect(mocks.saveMessages.mock.calls[0]?.[0].messages).toEqual([
-      expect.objectContaining({ role: 'user', data: { parts: [{ type: 'text', text: 'hello' }] } }),
-      expect.objectContaining({ role: 'assistant', data: { parts: [] } })
-    ])
-
-    mocks.listSessionMessages.mockReturnValue({ items: [{ id: 'existing-message' }] })
-    await provider.prepareDispatch(makeSubscriber(), openReq({ greetingContext }))
-
-    expect(mocks.listSessionMessages).toHaveBeenCalledTimes(2)
-    expect(mocks.runtimeBeginTurn.mock.calls[1]?.[0]).not.toHaveProperty('greetingContext')
   })
 
   it('forwards headless to the runtime when busy dispatch enqueues a follow-up', async () => {

@@ -11,7 +11,6 @@ import { topicService } from '@data/services/TopicService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import {
   type AssistantTurnOptions,
@@ -30,12 +29,7 @@ import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import {
-  type ChatContextProvider,
-  type DispatchContext,
-  type PreparedDispatch,
-  withGreetingContext
-} from './ChatContextProvider'
+import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
@@ -160,7 +154,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
     const completionTarget = { conversationType: 'assistant', conversationId: req.topicId } as const
-    const topicWasEmpty = !topic?.activeNodeId
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
@@ -316,12 +309,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const persistedHistory = this.buildHistory(userMessage.id)
-      const greetingContext =
-        shouldAutoNameInitialTurn && topicWasEmpty && req.trigger === 'submit-message'
-          ? validateConversationGreeting(req.greetingContext)
-          : ''
-      const history = withGreetingContext(persistedHistory, greetingContext)
+      const history = this.buildHistory(userMessage.id)
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
@@ -333,8 +321,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
-          turnOptions.fastMode === true,
-          Boolean(greetingContext)
+          turnOptions.fastMode === true
         ),
         rootSpan
       }))
@@ -345,7 +332,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             modelId,
             topicId: req.topicId,
             operation: 'chat',
-            messages: greetingContext ? persistedHistory : request.messages
+            messages: request.messages
           })
         }
       }
@@ -560,8 +547,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
-    fastMode: boolean,
-    omitTelemetryInputs = false
+    fastMode: boolean
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -572,8 +558,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messageId,
       knowledgeBaseIds,
       reasoningEffort,
-      fastMode,
-      ...(omitTelemetryInputs ? { omitTelemetryInputs: true } : {})
+      fastMode
     }
   }
 }

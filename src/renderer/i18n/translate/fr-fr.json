@@ -235,6 +235,7 @@
           "discard_and_continue": "Jeter et continuer",
           "title": "Supprimer les modifications non enregistrées ?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Impossible de recharger le contenu du fichier le plus récent.",
         "save_failed": "Impossible d'enregistrer ce fichier. L'enregistrement automatique est suspendu jusqu'à ce que vous réessayiez ou abandonniez les modifications.",
         "unsaved": "Non enregistré",
@@ -2585,6 +2586,10 @@
     "user": "Utilisateur"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "Ce fichier HTML n'a pas de contenu.",
@@ -2650,6 +2655,10 @@
         "description": "Les fichiers texte de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
         "title": "Le fichier est trop volumineux"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "Ouvrir avec l'application par défaut",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "Échec de la réindexation de la source de données",
       "status": {
         "chunking": "Fragmentation",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "Intégration",
         "error": "Erreur",
         "pending": "En attente",
@@ -3353,7 +3363,7 @@
             "label": "Petit modèle (optionnel)"
           }
         },
-        "model_config": "Configuration du modèle",
+        "model_config": "Modèle",
         "section": {
           "advanced": {
             "desc": "Limites d'exécution et paramètres d'exécution",
@@ -3847,6 +3857,7 @@
       }
     },
     "citation": "{{count}} éléments cités",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "Citations",
     "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copié",
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "Enregistrement bloqué car la note n’a pas pu se charger",
     "save_failed": "Échec de l'enregistrement de la note",
     "save_failure": {
-      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu."
+      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nom + Contenu",
@@ -5219,6 +5231,7 @@
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "Silicium Fluide",
     "sophnet": "SophNet",
     "stepfun": "Échelon Étoile",
@@ -7355,10 +7368,6 @@
       "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Lorsque cette option est activée, Cherry Studio contacte IPInfo pour détecter approximativement le pays ou la région, puis envoie ce résultat avec votre nom, la langue de l’application, la date et l’heure locales et le fuseau horaire au modèle CherryAI intégré afin de générer des messages d’accueil. Désactivée par défaut.",
-        "title": "Messages d’accueil contextuels générés par l’IA"
-      },
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
     },
@@ -7707,6 +7716,13 @@
         "usage_title": "Utilisation",
         "usage_unit": "jetons"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Ouvrir Token Factory",
+          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
+          "title": "10 USD de crédits API gratuits par jour"
+        }
+      },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",
       "reorder_failed": "Échec de la réorganisation des fournisseurs",
@@ -7750,13 +7766,6 @@
           "toggle_client_email_visibility": "Basculer la visibilité de l'e-mail du client",
           "toggle_private_key_visibility": "Basculer la visibilité de la clé privée",
           "toggle_project_id_visibility": "Basculer la visibilité de l'ID du projet"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Ouvrir Token Factory",
-          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
-          "title": "10 USD de crédits API gratuits par jour"
         }
       }
     },
@@ -8085,7 +8094,7 @@
           "save_failed": "Échec de l'enregistrement",
           "zhipu_sync_failed": "Échec de la synchronisation de la clé API Zhipu avec la Recherche Web. Veuillez ré-enregistrer la clé ou vérifier les paramètres de la Recherche Web."
         },
-        "fetch_urls_provider": "Fournisseur de récupération d'URL par défaut",
+        "fetch_urls_provider": "Fournisseur de récupération d'URL",
         "free": "Gratuit",
         "is_default": "Défaut",
         "local_provider": {

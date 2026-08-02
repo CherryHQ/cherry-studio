@@ -235,6 +235,7 @@
           "discard_and_continue": "Descartar y continuar",
           "title": "¿Descartar cambios no guardados?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "No se puede volver a cargar el contenido más reciente del archivo.",
         "save_failed": "No se puede guardar este archivo. El guardado automático está pausado hasta que reintente o descarte los cambios.",
         "unsaved": "No guardado",
@@ -2585,6 +2586,10 @@
     "user": "Usuario"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "Este archivo HTML no tiene contenido.",
@@ -2650,6 +2655,10 @@
         "description": "Los archivos de texto mayores de {{limit}} MiB no se pueden previsualizar.",
         "title": "El archivo es demasiado grande"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "Abrir con la aplicación predeterminada",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "Error al reindexar la fuente de datos",
       "status": {
         "chunking": "Fragmentación",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "Incrustación",
         "error": "Error",
         "pending": "Esperando",
@@ -3353,7 +3363,7 @@
             "label": "Modelo pequeño (opcional)"
           }
         },
-        "model_config": "Configuración del modelo",
+        "model_config": "Modelo",
         "section": {
           "advanced": {
             "desc": "Límites de ejecución y parámetros de tiempo de ejecución",
@@ -3847,6 +3857,7 @@
       }
     },
     "citation": "{{count}} contenido citado",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "Citas",
     "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copiado",
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "Guardado bloqueado porque no se pudo cargar la nota",
     "save_failed": "Error al guardar la nota",
     "save_failure": {
-      "description": "Esta nota no se pudo guardar. Tus ediciones permanecen en el editor y el guardado automático está pausado."
+      "description": "Esta nota no se pudo guardar. Tus ediciones permanecen en el editor y el guardado automático está pausado.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Nombre + Contenido",
@@ -5219,6 +5231,7 @@
     "ppio": "PPIO Cloud Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "Silicio Fluido",
     "sophnet": "SophNet",
     "stepfun": "Función Salto",
@@ -7355,10 +7368,6 @@
       "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Cuando se activa, Cherry Studio contacta con IPInfo para detectar de forma aproximada el país o la región y envía ese resultado, junto con tu nombre, el idioma de la aplicación, la fecha y hora locales y la zona horaria, al modelo CherryAI integrado para generar saludos. Desactivado de forma predeterminada.",
-        "title": "Saludos contextuales generados por IA"
-      },
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
       "title": "Configuración de privacidad"
     },
@@ -7707,6 +7716,13 @@
         "usage_title": "Uso",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Abrir Token Factory",
+          "description": "Equivale a 10 USD diarios en créditos de API: unos 10M–111M tokens de entrada/salida con las tarifas actuales, según el modelo y el tipo de token. Los créditos se restablecen a diario; actualmente no se admiten recargas.",
+          "title": "10 USD diarios en créditos de API gratuitos"
+        }
+      },
       "remove_duplicate_keys": "Eliminar claves duplicadas",
       "remove_invalid_keys": "Eliminar claves inválidas",
       "reorder_failed": "Error al reordenar proveedores",
@@ -7750,13 +7766,6 @@
           "toggle_client_email_visibility": "Alternar la visibilidad del correo electrónico del cliente",
           "toggle_private_key_visibility": "Alternar la visibilidad de la clave privada",
           "toggle_project_id_visibility": "Alternar la visibilidad del ID del proyecto"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Abrir Token Factory",
-          "description": "Equivale a 10 USD diarios en créditos de API: unos 10M–111M tokens de entrada/salida con las tarifas actuales, según el modelo y el tipo de token. Los créditos se restablecen a diario; actualmente no se admiten recargas.",
-          "title": "10 USD diarios en créditos de API gratuitos"
         }
       }
     },
@@ -8085,7 +8094,7 @@
           "save_failed": "Error al guardar",
           "zhipu_sync_failed": "Error al sincronizar la clave API de Zhipu con Web Search. Vuelve a guardar la clave o verifica la configuración de Web Search."
         },
-        "fetch_urls_provider": "Proveedor predeterminado de obtención de URL",
+        "fetch_urls_provider": "Proveedor de obtención de URL",
         "free": "Gratis",
         "is_default": "Por defecto",
         "local_provider": {

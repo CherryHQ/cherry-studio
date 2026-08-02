@@ -1033,44 +1033,6 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('relays first-turn greeting context to the runtime connection', async () => {
-    const connection = {
-      events: createAsyncQueue<any>().iterable,
-      send: vi.fn(),
-      close: vi.fn()
-    }
-    runtimeDriverRegistry.register({
-      type: 'test-runtime',
-      capabilities: ['agent-session'],
-      connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
-    })
-    const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({
-      ...baseTurnInput,
-      userMessage: userMessage('user-1'),
-      greetingContext: '我可以帮你完成什么任务？'
-    })
-    const reader = service
-      .openTurnStream({
-        sessionId: 'session-1',
-        turnId: handle.turnId,
-        signal: new AbortController().signal
-      })
-      .getReader()
-
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() =>
-      expect(connection.send).toHaveBeenCalledWith({
-        message: userMessage('user-1'),
-        greetingContext: '我可以帮你完成什么任务？',
-        systemReminder: false
-      })
-    )
-    await reader.cancel().catch(() => undefined)
-  })
-
   it('aborts the current turn controller before the stream starts', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)

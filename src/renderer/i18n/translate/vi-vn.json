@@ -235,6 +235,7 @@
           "discard_and_continue": "Loại bỏ và tiếp tục",
           "title": "Hủy bỏ các thay đổi chưa lưu?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Không thể tải lại nội dung tệp mới nhất.",
         "save_failed": "Không thể lưu tệp này. Tính năng tự động lưu đã tạm dừng cho đến khi bạn thử lại hoặc hủy bỏ các thay đổi.",
         "unsaved": "Chưa lưu",
@@ -2585,6 +2586,10 @@
     "user": "Người dùng"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "Tệp HTML này không có nội dung.",
@@ -2650,6 +2655,10 @@
         "description": "Các tệp văn bản lớn hơn {{limit}} MiB không thể được xem trước.",
         "title": "Tệp quá lớn"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "Mở bằng ứng dụng mặc định",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "Không thể lập chỉ mục lại nguồn dữ liệu",
       "status": {
         "chunking": "Chia nhỏ",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "Nhúng",
         "error": "Lỗi",
         "pending": "Đang chờ",
@@ -3353,7 +3363,7 @@
             "label": "Mô hình nhỏ (tùy chọn)"
           }
         },
-        "model_config": "Cấu hình mô hình",
+        "model_config": "Mô hình",
         "section": {
           "advanced": {
             "desc": "Giới hạn thực thi và các tham số thời gian chạy",
@@ -3847,6 +3857,7 @@
       }
     },
     "citation": "{{count}} trích dẫn",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "Tài liệu tham khảo",
     "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Đã sao chép!",
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "Không thể lưu vì ghi chú không tải được",
     "save_failed": "Không lưu được ghi chú",
     "save_failure": {
-      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng."
+      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Tên+Nội dung",
@@ -5219,6 +5231,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7355,10 +7368,6 @@
       "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Khi bật, Cherry Studio liên hệ với IPInfo để xác định gần đúng quốc gia hoặc khu vực, sau đó gửi kết quả đó cùng với tên của bạn, ngôn ngữ ứng dụng, ngày giờ địa phương và múi giờ đến mô hình CherryAI tích hợp để tạo lời chào. Tính năng này mặc định bị tắt.",
-        "title": "Lời chào theo ngữ cảnh do AI tạo"
-      },
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"
     },
@@ -7707,6 +7716,13 @@
         "usage_title": "Cách sử dụng",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Mở Token Factory",
+          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
+          "title": "10 USD tín dụng API miễn phí mỗi ngày"
+        }
+      },
       "remove_duplicate_keys": "Xóa các khóa trùng lặp",
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
       "reorder_failed": "Không thể sắp xếp lại các nhà cung cấp",
@@ -7750,13 +7766,6 @@
           "toggle_client_email_visibility": "Chuyển đổi hiển thị email của khách hàng",
           "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
           "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Mở Token Factory",
-          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
-          "title": "10 USD tín dụng API miễn phí mỗi ngày"
         }
       }
     },
@@ -8085,7 +8094,7 @@
           "save_failed": "Lưu thất bại",
           "zhipu_sync_failed": "Không thể đồng bộ khóa API Zhipu với Tìm kiếm Web. Vui lòng lưu lại khóa hoặc kiểm tra cài đặt Tìm kiếm Web."
         },
-        "fetch_urls_provider": "Nhà cung cấp tìm nạp URL mặc định",
+        "fetch_urls_provider": "Nhà cung cấp tìm nạp URL",
         "free": "Miễn phí",
         "is_default": "Mặc định",
         "local_provider": {

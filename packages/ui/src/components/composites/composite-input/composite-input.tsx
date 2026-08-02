@@ -23,12 +23,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 
 const inputGroupVariants = cva(
-  [
-    'h-auto',
-    'rounded-md',
-    'has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40',
-    'has-[[data-slot=input-group-control]:focus-visible]:border-ring'
-  ],
+  ['h-auto', 'rounded-md', 'has-[[data-slot=input-group-control]:focus-visible]:border-ring'],
   {
     variants: {
       disabled: {

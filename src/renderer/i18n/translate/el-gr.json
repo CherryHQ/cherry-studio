@@ -235,6 +235,7 @@
           "discard_and_continue": "Απόρριψη και συνέχεια",
           "title": "Απόρριψη μη αποθηκευμένων αλλαγών;"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Αδυναμία επαναφόρτωσης του πιο πρόσφατου περιεχομένου αρχείου.",
         "save_failed": "Δεν είναι δυνατή η αποθήκευση αυτού του αρχείου. Η αυτόματη αποθήκευση έχει διακοπεί έως ότου προσπαθήσετε ξανά ή απορρίψετε τις αλλαγές.",
         "unsaved": "Μη αποθηκευμένο",
@@ -2585,6 +2586,10 @@
     "user": "Χρήστης"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "Αυτό το αρχείο HTML δεν έχει περιεχόμενο.",
@@ -2650,6 +2655,10 @@
         "description": "Αρχεία κειμένου μεγαλύτερα από {{limit}} MiB δεν μπορούν να προεπισκοπηθούν.",
         "title": "Το αρχείο είναι πολύ μεγάλο"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "Ενσωμάτωση",
         "error": "Σφάλμα",
         "pending": "Αναμονή",
@@ -3353,7 +3363,7 @@
             "label": "Μικρό μοντέλο (προαιρετικό)"
           }
         },
-        "model_config": "Διαμόρφωση μοντέλου",
+        "model_config": "Μοντέλο",
         "section": {
           "advanced": {
             "desc": "Όρια εκτέλεσης και παράμετροι χρόνου εκτέλεσης",
@@ -3847,6 +3857,7 @@
       }
     },
     "citation": "{{count}} αναφορές",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "Περιεχόμενα αναφοράς",
     "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Αντιγράφηκε",
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "Η αποθήκευση μπλοκαρίστηκε επειδή η σημείωση απέτυχε να φορτωθεί",
     "save_failed": "Αποτυχία αποθήκευσης σημείωσης",
     "save_failure": {
-      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί."
+      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Όνομα + Περιεχόμενο",
@@ -5219,6 +5231,7 @@
     "ppio": "PPIO Piao Yun",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "Σιδηρική Παρουσία",
     "sophnet": "SophNet",
     "stepfun": "Βήμα Ουράς",
@@ -7355,10 +7368,6 @@
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Όταν ενεργοποιηθεί, το Cherry Studio επικοινωνεί με το IPInfo για να εντοπίσει κατά προσέγγιση τη χώρα ή την περιοχή και στέλνει αυτό το αποτέλεσμα μαζί με το όνομά σας, τη γλώσσα της εφαρμογής, την τοπική ημερομηνία και ώρα και τη ζώνη ώρας στο ενσωματωμένο μοντέλο CherryAI για τη δημιουργία χαιρετισμών. Είναι απενεργοποιημένο από προεπιλογή.",
-        "title": "Χαιρετισμοί βάσει περιβάλλοντος που δημιουργούνται από AI"
-      },
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"
     },
@@ -7707,6 +7716,13 @@
         "usage_title": "Χρήση",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Άνοιγμα Token Factory",
+          "description": "Ισοδυναμεί με πίστωση API 10 USD ημερησίως: περίπου 10M–111M tokens εισόδου/εξόδου με τις τρέχουσες τιμές, ανάλογα με το μοντέλο και τον τύπο token. Η πίστωση επαναφέρεται καθημερινά· προς το παρόν δεν υποστηρίζονται ανανεώσεις υπολοίπου.",
+          "title": "Δωρεάν ημερήσια πίστωση API αξίας 10 USD"
+        }
+      },
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
       "reorder_failed": "Αποτυχία αναδιάταξης παρόχων",
@@ -7750,13 +7766,6 @@
           "toggle_client_email_visibility": "Εναλλαγή ορατότητας email του πελάτη",
           "toggle_private_key_visibility": "Εναλλαγή ορατότητας ιδιωτικού κλειδιού",
           "toggle_project_id_visibility": "Εναλλαγή ορατότητας αναγνωριστικού έργου"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Άνοιγμα Token Factory",
-          "description": "Ισοδυναμεί με πίστωση API 10 USD ημερησίως: περίπου 10M–111M tokens εισόδου/εξόδου με τις τρέχουσες τιμές, ανάλογα με το μοντέλο και τον τύπο token. Η πίστωση επαναφέρεται καθημερινά· προς το παρόν δεν υποστηρίζονται ανανεώσεις υπολοίπου.",
-          "title": "Δωρεάν ημερήσια πίστωση API αξίας 10 USD"
         }
       }
     },
@@ -8085,7 +8094,7 @@
           "save_failed": "Η αποθήκευση απέτυχε",
           "zhipu_sync_failed": "Αποτυχία συγχρονισμού του κλειδιού API του Zhipu με την Αναζήτηση Ιστού. Παρακαλώ αποθηκεύστε ξανά το κλειδί ή ελέγξτε τις ρυθμίσεις Αναζήτησης Ιστού."
         },
-        "fetch_urls_provider": "Προεπιλεγμένος πάροχος λήψης διευθύνσεων URL",
+        "fetch_urls_provider": "Πάροχος λήψης διευθύνσεων URL",
         "free": "Δωρεάν",
         "is_default": "Προεπιλογή",
         "local_provider": {

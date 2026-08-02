@@ -169,7 +169,7 @@
     <div class="content-wrapper">
         <h1>Cherry Studio Privacy Policy</h1>
 
-        <p>Updated Date: July 31, 2026&nbsp;&nbsp;Effective Date: July 31, 2026</p>
+        <p>Updated Date: May 31, 2026&nbsp;&nbsp;Effective Date: May 31, 2026</p>
 
         <p>Welcome to Cherry Studio (hereinafter referred to as “this Software” or “we”). We place a high priority on
             protecting your privacy. This Privacy Policy explains how we handle and protect your personal information
@@ -177,10 +177,10 @@
 
         <h2>I. Scope of Information We Collect</h2>
         <p>To ensure the proper functioning of the Software, optimize user experience, and improve product quality, we
-            collect the fully anonymized non-personal operational information described in subsections (1) and (2)
-            below (collectively, “Anonymous Basic Operational Information”). The optional contextual greeting
-            processing described in subsection (3) is separate, is disabled by default, and is not Anonymous Basic
-            Operational Information.</p>
+            collect the following fully anonymized non-personal operational information on a tiered basis (collectively,
+            “Anonymous Basic Operational Information”). All such information is anonymized, contains no data that can
+            identify you personally, and cannot be linked to your personal information. You retain full control over all
+            data collection activities, as described below.</p>
 
         <h3>(1) Basic Operational Information</h3>
         <p>This information is collected by default to ensure the basic functionality, security, and version
@@ -211,42 +211,8 @@
             previous disabled settings, please revisit the Privacy Settings page after upgrading to adjust them
             accordingly. We apologize for any inconvenience this may cause.</p>
 
-        <h3>(3) Optional Contextual Greetings</h3>
-        <p>Empty Chat and Agent pages display rotating greetings generated on your device. Remote contextual
-            enhancement is disabled by default and starts only after you actively enable [Settings] - [Data Settings] -
-            [Privacy Settings] - [Contextual Greetings]. When it is disabled, the contextual greeting feature does not
-            request a country or region from IPInfo and does not contact the built-in CherryAI model.</p>
-        <p>When you enable contextual greetings, the following processing occurs to generate a greeting appropriate to
-            the time, language, Chat or Agent mode, and, when sufficiently reliable, regional holidays:</p>
-        <ol>
-            <li>IPInfo: The Software contacts IPInfo from your device to obtain the country or region associated with
-                your public egress IP address. IPInfo receives the network request and your public egress IP address and
-                returns a country code. If the lookup is unavailable, the Software uses a region derived from the app
-                language as a labeled fallback rather than treating it as an IP-detected location.</li>
-            <li>CherryAI: The Software sends the country or region hint and its source, your locally configured display
-                name, app language, local date and time, time zone, Chat or Agent mode, the base fallback
-                greeting, and the previous greeting for that conversation to the fixed built-in CherryAI Qwen model.
-                The Software sends this request for the purpose of generating the contextual greeting. It does not
-                include your conversation message content.</li>
-            <li>Your selected model provider: When you send the first message in an empty conversation, the greeting
-                currently displayed—whether generated locally or by CherryAI—is included as explicitly untrusted UI
-                context in the request to your selected model provider. This helps the model understand a short reply
-                such as “yes.” The selected provider may process and retain that greeting under its own privacy policy
-                and terms.</li>
-        </ol>
-        <p>Local storage and retention: Your contextual greeting choice is stored as a local preference until you
-            change it or reset the app data. A successfully detected country code is held in the main process's memory
-            cache for up to 10 minutes, is invalidated when the app's proxy configuration changes, and is cleared when
-            the app process exits. The last displayed greeting for each conversation is kept in renderer session
-            storage so a refresh can avoid repeating it. The greeting-generation input and output are not added to your
-            conversation history by this feature. If developer mode tracing is enabled, the displayed greeting may be
-            recorded in local plaintext trace files, which remain until you clear local trace data. Server-side
-            processing and retention by IPInfo, CherryAI, and your selected model provider are governed by their
-            applicable privacy policies and terms; the Software does not set those retention periods.</p>
-
-        <h3>(4) Our Commitments</h3>
-        <p>For the Anonymous Basic Operational Information described in subsections (1) and (2), we commit that all
-            collected information:</p>
+        <h3>(3) Our Commitments</h3>
+        <p>Whether categorized as mandatory or optional collection, we commit that all collected information:</p>
         <ul>
             <li>Is fully anonymized and cannot be linked to your personal identity;</li>
             <li>Will NOT be used for user profiling, targeted advertising, or sold to third parties;</li>
@@ -254,43 +220,37 @@
                 data (see Section II for details).</li>
         </ul>
 
-        <h2>II. Information We Explicitly Do NOT Collect for Operational Analytics</h2>
-        <p>Except for processing that you actively enable or initiate as described in Sections I(3), III, IV, and V, we
-            do not collect the following data for Cherry Studio operational analytics or upload it to Cherry Studio
-            analytics systems:</p>
+        <h2>II. Information We Explicitly Do NOT Collect</h2>
+        <p>To maximize the protection of your privacy, we explicitly commit that we will NOT collect, store, transmit,
+            or process the following data:</p>
         <ul>
-            <li>Your API Keys: Model service API Keys are used locally to authenticate requests to the providers you
-                configure and are not included in operational analytics;</li>
-            <li>Your Conversation Data: Chat content, instructions, knowledge base information, vector data, and other
-                custom content are not included in operational analytics. When you use an AI feature, the data required
-                for that request is sent to the model provider involved, as described in Sections I(3), III, and IV;</li>
-            <li>Sensitive Personal Identity Information: We do not request sensitive identity information for
-                operational analytics. The optional contextual greeting feature processes only the data categories
-                specifically listed in Section I(3).</li>
+            <li>Your API Keys: The model service API Key information you input into this Software;</li>
+            <li>Your Conversation Data: Any conversation data generated during your use of this Software, including but
+                not limited to chat content, instruction information, knowledge base information, vector data, and other
+                custom content;</li>
+            <li>Sensitive Personal Identity Information: Any sensitive information that could directly identify your
+                personal identity.</li>
         </ul>
 
         <h2>III. Local Storage and Data Interaction Explanation</h2>
         <ul>
             <li>Data Localization: Your API Keys, historical conversation records, and personal preference settings are
-                stored locally on your device. Cherry Studio does not provide cloud synchronization services. Data is
-                transmitted only when required by a feature you enable or invoke, including the contextual greeting
-                processing in Section I(3), AI model requests in Section IV, and third-party services in Section V.</li>
+                all stored locally on your device. Cherry Studio does not provide cloud synchronization services and
+                will not upload this data to our servers.</li>
             <li>Direct Calls: This Software acts solely as a local tool providing interface calling functionality to
-                third-party model services and, for features that you actively enable, the built-in CherryAI service and
-                the third-party IPInfo service. Your terminal device establishes network connections with the applicable
-                service providers. However, you shall not use this Software to produce, reproduce, publish, transmit, or
-                disseminate any illegal or harmful information that violates the laws and regulations of the People’s
-                Republic of China and your country of residence, including but not limited to content endangering
-                national security, harming national honor and interests, undermining ethnic unity, spreading rumors,
-                disrupting social order, promoting obscenity, pornography, violence, or infringing upon the legitimate
-                rights and interests of others.</li>
+                third-party model services. Your terminal device establishes a direct network connection with the
+                servers of the third-party model providers you configure (e.g., OpenAI, Anthropic). However, you shall
+                not use this Software to produce, reproduce, publish, transmit, or disseminate any illegal or harmful
+                information that violates the laws and regulations of the People’s Republic of China and your country of
+                residence, including but not limited to content endangering national security, harming national honor
+                and interests, undermining ethnic unity, spreading rumors, disrupting social order, promoting obscenity,
+                pornography, violence, or infringing upon the legitimate rights and interests of others.</li>
         </ul>
 
         <h2>IV. Privacy Policy Statement Regarding Third-Party Model Service Providers</h2>
-        <p>When you use an AI conversation function, you receive service from the model provider involved in that
-            request. This includes providers that you configure with your own API Keys. Separately, when you enable
-            contextual greetings, the contextual-greeting feature uses the fixed built-in CherryAI model as described
-            in Section I(3):</p>
+        <p>As this Software uses API Keys for third-party model services that you apply for and configure yourself, when
+            you use the AI conversation function, you are effectively receiving services directly from that third-party
+            model service provider:</p>
         <ul>
             <li>You shall bear all privacy and compliance risks associated with using third-party model service
                 providers.</li>
@@ -346,7 +306,7 @@
             product experience.</p>
 
         <div class="footer">
-            Updated Date: July 31, 2026
+            Updated Date: May 31, 2026
         </div>
     </div>
 </body>
