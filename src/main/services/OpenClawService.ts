@@ -1031,12 +1031,10 @@ export class OpenClawService extends BaseService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
-      Promise.resolve(providerService.getByProviderId(providerId)),
-      Promise.resolve(modelService.getByKey(providerId, modelId)),
-      Promise.resolve(modelService.list({ providerId, enabled: true })),
-      Promise.resolve(providerService.getApiKeys(providerId, { enabled: true }))
-    ])
+    const provider = providerService.getByProviderId(providerId)
+    const primaryModel = modelService.getByKey(providerId, modelId)
+    const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {

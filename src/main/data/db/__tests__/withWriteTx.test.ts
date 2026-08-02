@@ -79,8 +79,8 @@ describe('withWriteTx integration — real better-sqlite3', () => {
 
   it('commits writes — two jobs created through withWriteTx both persist', async () => {
     // `jobService.create` is a thin wrapper over `DbService.withWriteTx`. On a
-    // single synchronous connection the two awaited creates simply run one
-    // after the other; the assertion is that both rows survive.
+    // single synchronous connection the two creates simply run one after the
+    // other; the assertion is that both rows survive.
     const results = [jobService.create(makeJobDto('job-0')), jobService.create(makeJobDto('job-1'))]
     expect(results.map((r) => r.id).sort()).toEqual(['job-0', 'job-1'])
 

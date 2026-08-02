@@ -501,7 +501,7 @@ export class SelectionService extends BaseService implements Activatable {
    * Toggle the enabled state of the selection service
    * Will sync the new enabled store to all renderer windows
    */
-  public toggleEnabled(enabled?: boolean): void {
+  public toggleEnabled(enabled: boolean | undefined = undefined): void {
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 

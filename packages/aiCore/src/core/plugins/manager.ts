@@ -141,6 +141,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
       })
       .filter((promise): promise is Promise<void> => promise !== null)
 
+    // 使用 Promise.all 而不是 allSettled，让插件错误能够抛出
     await Promise.all(promises)
   }
 
