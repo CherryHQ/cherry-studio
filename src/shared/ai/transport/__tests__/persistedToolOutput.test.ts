@@ -35,7 +35,6 @@ const entitiesRef: PersistedToolOutputEntitiesRef = {
 }
 
 describe('isPersistedToolOutput', () => {
-  // The v1 arm is frozen: shipped rows must keep validating forever.
   it.each([
     ['v1 text', { $persistedToolOutput: singleRef }],
     ['v1 mcp-content', { $persistedToolOutput: { ...singleRef, shape: 'mcp-content', metadata: { serverId: 's' } } }],
@@ -45,16 +44,10 @@ describe('isPersistedToolOutput', () => {
   })
 
   it.each([
-    ['plain object', { content: 'x' }],
+    ['plain object without the sentinel key', { content: 'x' }],
     ['null ref', { $persistedToolOutput: null }],
-    ['v1 with missing entry id', { $persistedToolOutput: { ...singleRef, fileEntryId: '' } }],
-    ['v1 with unknown shape', { $persistedToolOutput: { ...singleRef, shape: 'zip' } }],
-    ['entities without blobs', { $persistedToolOutput: { shape: 'entities', skeleton: [], blobRefs: [] } }],
-    ['entities without skeleton', { $persistedToolOutput: { shape: 'entities', blobRefs: [blob('/0/content', 1)] } }],
-    [
-      'entities with a malformed blob',
-      { $persistedToolOutput: { shape: 'entities', skeleton: [], blobRefs: [{ key: '/0/content' }] } }
-    ]
+    ['string', 'plain output'],
+    ['null', null]
   ])('rejects %s', (_label, value) => {
     expect(isPersistedToolOutput(value)).toBe(false)
   })

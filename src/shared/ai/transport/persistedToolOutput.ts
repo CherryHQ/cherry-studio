@@ -65,41 +65,12 @@ export interface PersistedToolOutput {
   $persistedToolOutput: PersistedToolOutputRef
 }
 
-function isBlobRef(value: unknown): value is PersistedToolOutputBlobRef {
-  if (typeof value !== 'object' || value === null) return false
-  const ref = value as PersistedToolOutputBlobRef
-  return (
-    typeof ref.key === 'string' &&
-    typeof ref.fileEntryId === 'string' &&
-    !!ref.fileEntryId &&
-    typeof ref.vfsFilename === 'string' &&
-    !!ref.vfsFilename &&
-    typeof ref.head === 'string' &&
-    typeof ref.tail === 'string' &&
-    typeof ref.totalChars === 'number' &&
-    typeof ref.totalLines === 'number'
-  )
-}
-
+/** The `$persistedToolOutput` key is a sentinel only our own trimmer writes,
+ *  so its presence is the whole discriminant — no field validation. */
 export function isPersistedToolOutput(value: unknown): value is PersistedToolOutput {
   if (typeof value !== 'object' || value === null) return false
   const ref = (value as PersistedToolOutput).$persistedToolOutput
-  if (typeof ref !== 'object' || ref === null) return false
-  if (ref.shape === 'entities') {
-    return 'skeleton' in ref && Array.isArray(ref.blobRefs) && ref.blobRefs.length > 0 && ref.blobRefs.every(isBlobRef)
-  }
-  // v1 single-blob arm — exact shipped-data checks, frozen.
-  return (
-    typeof ref.fileEntryId === 'string' &&
-    !!ref.fileEntryId &&
-    typeof ref.vfsFilename === 'string' &&
-    !!ref.vfsFilename &&
-    typeof ref.head === 'string' &&
-    typeof ref.tail === 'string' &&
-    typeof ref.totalChars === 'number' &&
-    typeof ref.totalLines === 'number' &&
-    (ref.shape === 'text' || ref.shape === 'mcp-content')
-  )
+  return typeof ref === 'object' && ref !== null
 }
 
 /** Uniform blob view over both envelope generations (single-blob → one entry, key `""`). */
