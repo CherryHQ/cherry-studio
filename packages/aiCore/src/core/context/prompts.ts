@@ -9,6 +9,12 @@
  * main process), and `getCompactSummaryWrapper` is the framing persisted into
  * `message.compaction_summary` rows.
  */
+/**
+ * Opening tag of the truncation marker. Exported so the truncator can
+ * recognise an already-persisted marker and never re-truncate it.
+ */
+export const PERSISTED_OUTPUT_TAG = '<persisted-output>'
+
 export const ContextPrompts = {
   /**
    * Truncation marker for offloaded tool results. Shows head/tail content
@@ -63,7 +69,7 @@ export const ContextPrompts = {
       : `Full output: ${uri}`
 
     parts.push(
-      `\n<persisted-output>\noutput truncated (${totalLines} lines, ${totalChars} chars total${descriptor})\n${handleLines}\n</persisted-output>\n`
+      `\n${PERSISTED_OUTPUT_TAG}\noutput truncated (${totalLines} lines, ${totalChars} chars total${descriptor})\n${handleLines}\n</persisted-output>\n`
     )
 
     if (tailStr) {

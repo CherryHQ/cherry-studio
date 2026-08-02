@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { Offloader, type VFSStorageAdapter } from '../offloader'
+import { computeHeadTailExcerpt, Offloader, type VFSStorageAdapter } from '../offloader'
+import { ContextPrompts } from '../prompts'
 
 /** In-memory adapter with spied write/exists (no getPhysicalPath). */
 function makeMemoryAdapter() {
@@ -310,5 +311,42 @@ describe('Offloader — content-addressed filenames', () => {
     const r2 = await o.offloadAsync(BIG, { tailChars: 20 })
     expect(write).toHaveBeenCalledTimes(2)
     expect(r1.uri).toBe(r2.uri)
+  })
+
+  it('resolves the physical path after the write (adapter learns the path on write)', async () => {
+    // Models a DB-backed adapter: the backing record — and thus the path —
+    // exists only once write() has run.
+    const store = new Map<string, string>()
+    const adapter: VFSStorageAdapter = {
+      write(filename, content) {
+        store.set(filename, content)
+      },
+      read: (f) => store.get(f) ?? null,
+      getPhysicalPath: (f) => (store.has(f) ? `/db/blobs/${f}` : null)
+    }
+    const o = new Offloader({ threshold: 10, adapter })
+    const r = await o.offloadAsync(BIG, { tailChars: 20 })
+    expect(r.isOffloaded).toBe(true)
+    expect(r.content).toContain('Full output saved to: /db/blobs/vfs_')
+  })
+})
+
+describe('computeHeadTailExcerpt', () => {
+  it('produces the exact excerpt bytes the offload marker embeds', async () => {
+    const content = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} with some padding text`).join('\n')
+    const adapter = makeMemoryAdapter()
+    const o = new Offloader({ threshold: 10, adapter })
+
+    const offloaded = await o.offloadAsync(content, { headChars: 100, tailChars: 120 })
+    const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(content, 100, 120)
+    const rebuilt = ContextPrompts.getVFSOffloadReminder(offloaded.uri!, totalLines, totalChars, head, tail, null)
+
+    expect(offloaded.isOffloaded).toBe(true)
+    expect(rebuilt).toBe(offloaded.content)
+  })
+
+  it('returns empty excerpts for zero head/tail', () => {
+    const content = 'a\nb\nc'
+    expect(computeHeadTailExcerpt(content, 0, 0)).toEqual({ head: '', tail: '', totalChars: 5, totalLines: 3 })
   })
 })

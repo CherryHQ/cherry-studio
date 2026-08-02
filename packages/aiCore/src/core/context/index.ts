@@ -21,13 +21,15 @@ export {
 } from './middleware'
 export { fromModelMessages, type ModelMessageIR, toModelMessages } from './modelMessageAdapter'
 export {
+  computeHeadTailExcerpt,
+  type HeadTailExcerpt,
   Offloader,
   type OffloaderConfig,
   type OffloadOptions,
   type VFSResult,
   type VFSStorageAdapter
 } from './offloader'
-export { ContextPrompts } from './prompts'
+export { ContextPrompts, PERSISTED_OUTPUT_TAG } from './prompts'
 export { type TruncateOptions, truncateToolResults } from './truncator'
 export type {
   Attachment,

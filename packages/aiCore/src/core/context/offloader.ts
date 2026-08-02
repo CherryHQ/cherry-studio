@@ -64,6 +64,47 @@ export interface OffloaderConfig {
   adapter: VFSStorageAdapter
 }
 
+/**
+ * Snaps a character index to the nearest line boundary.
+ * For head: snaps backward to include the last complete line.
+ * For tail: snaps forward to start at the beginning of a line.
+ */
+function snapToLineBoundary(content: string, charIndex: number, direction: 'head' | 'tail'): number {
+  if (charIndex <= 0) return 0
+  if (charIndex >= content.length) return content.length
+
+  if (direction === 'head') {
+    const lastNewline = content.lastIndexOf('\n', charIndex)
+    return lastNewline === -1 ? charIndex : lastNewline + 1
+  }
+  const nextNewline = content.indexOf('\n', charIndex)
+  return nextNewline === -1 ? charIndex : nextNewline + 1
+}
+
+export interface HeadTailExcerpt {
+  head: string
+  tail: string
+  totalChars: number
+  totalLines: number
+}
+
+/**
+ * Line-snapped head/tail excerpt of oversized content — the single source of
+ * the excerpt bytes surrounding a truncation marker. Exported so persist-time
+ * trimming (outside this module) produces byte-identical excerpts to the
+ * in-flight offload path.
+ */
+export function computeHeadTailExcerpt(content: string, headChars: number, tailChars: number): HeadTailExcerpt {
+  const headEnd = headChars > 0 ? snapToLineBoundary(content, headChars, 'head') : 0
+  const tailStart = tailChars > 0 ? snapToLineBoundary(content, content.length - tailChars, 'tail') : content.length
+  return {
+    head: headEnd > 0 ? content.slice(0, headEnd) : '',
+    tail: tailStart < content.length ? content.slice(tailStart) : '',
+    totalChars: content.length,
+    totalLines: content.split('\n').length
+  }
+}
+
 export class Offloader {
   private readonly threshold: number
   private readonly adapter: VFSStorageAdapter
@@ -71,23 +112,6 @@ export class Offloader {
   constructor(config: OffloaderConfig) {
     this.threshold = config.threshold
     this.adapter = config.adapter
-  }
-
-  /**
-   * Snaps a character index to the nearest line boundary.
-   * For head: snaps backward to include the last complete line.
-   * For tail: snaps forward to start at the beginning of a line.
-   */
-  private _snapToLineBoundary(content: string, charIndex: number, direction: 'head' | 'tail'): number {
-    if (charIndex <= 0) return 0
-    if (charIndex >= content.length) return content.length
-
-    if (direction === 'head') {
-      const lastNewline = content.lastIndexOf('\n', charIndex)
-      return lastNewline === -1 ? charIndex : lastNewline + 1
-    }
-    const nextNewline = content.indexOf('\n', charIndex)
-    return nextNewline === -1 ? charIndex : nextNewline + 1
   }
 
   private async _generateFilename(content: string): Promise<{ filename: string; uri: string }> {
@@ -112,17 +136,8 @@ export class Offloader {
     tailChars: number,
     physicalPath: string | null
   ): string {
-    const totalLines = content.split('\n').length
-    const totalChars = content.length
-
-    const headEnd = headChars > 0 ? this._snapToLineBoundary(content, headChars, 'head') : 0
-    const tailStart =
-      tailChars > 0 ? this._snapToLineBoundary(content, content.length - tailChars, 'tail') : content.length
-
-    const headStr = headEnd > 0 ? content.slice(0, headEnd) : ''
-    const tailStr = tailStart < content.length ? content.slice(tailStart) : ''
-
-    return ContextPrompts.getVFSOffloadReminder(uri, totalLines, totalChars, headStr, tailStr, physicalPath)
+    const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(content, headChars, tailChars)
+    return ContextPrompts.getVFSOffloadReminder(uri, totalLines, totalChars, head, tail, physicalPath)
   }
 
   private async _resolvePhysicalPath(filename: string): Promise<string | null> {
@@ -149,14 +164,17 @@ export class Offloader {
     }
 
     const { filename, uri } = await this._generateFilename(content)
-    const physicalPath = await this._resolvePhysicalPath(filename)
-    const truncated = this._buildTruncatedMarker(content, uri, headChars, tailChars, physicalPath)
 
-    if (this.adapter.exists && (await this.adapter.exists(filename))) {
-      return { isOffloaded: true, content: truncated, uri }
+    // Write before resolving the physical path: adapters that create their
+    // backing record on write (e.g. DB-backed file entries) only know the
+    // path afterwards. `exists()` short-circuits the write only, never the
+    // path resolution.
+    if (!(this.adapter.exists && (await this.adapter.exists(filename)))) {
+      await this.adapter.write(filename, content)
     }
 
-    await this.adapter.write(filename, content)
+    const physicalPath = await this._resolvePhysicalPath(filename)
+    const truncated = this._buildTruncatedMarker(content, uri, headChars, tailChars, physicalPath)
 
     return {
       isOffloaded: true,

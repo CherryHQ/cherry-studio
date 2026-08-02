@@ -52,10 +52,18 @@ export type {
   ContextLogger,
   ContextMessage,
   ContextMiddlewareOptions,
+  HeadTailExcerpt,
   TruncateOptions,
   VFSStorageAdapter
 } from './core/context'
-export { compactModelMessages, ContextPrompts, createContextMiddleware, summarizeModelMessages } from './core/context'
+export {
+  compactModelMessages,
+  computeHeadTailExcerpt,
+  ContextPrompts,
+  createContextMiddleware,
+  PERSISTED_OUTPUT_TAG,
+  summarizeModelMessages
+} from './core/context'
 
 // ==================== 错误处理 ====================
 export {

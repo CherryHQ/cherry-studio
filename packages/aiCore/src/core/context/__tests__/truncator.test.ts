@@ -54,6 +54,20 @@ describe('truncateToolResults', () => {
     expect(result).toEqual(prompt)
   })
 
+  it('never re-truncates an already-persisted marker, even below a tiny threshold', async () => {
+    // A marker (head + <persisted-output> block + tail) larger than the
+    // configured threshold must pass through untouched — re-offloading it
+    // would produce a marker pointing at a marker.
+    const marker = [
+      'head line\n'.repeat(30),
+      '<persisted-output>\noutput truncated (500 lines, 9999 chars total)\nFull output saved to: /tmp/vfs_abc.txt\n</persisted-output>\n',
+      'tail line\n'.repeat(30)
+    ].join('')
+    const prompt = makeToolPrompt(marker)
+    const result = await truncateToolResults(prompt, { threshold: 50, headChars: 10, tailChars: 10 })
+    expect(result).toEqual(prompt)
+  })
+
   it('does not affect non-tool messages', async () => {
     const prompt: LanguageModelV3Prompt = [
       { role: 'system', content: 'x'.repeat(200) },

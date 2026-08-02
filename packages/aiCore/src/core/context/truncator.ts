@@ -10,6 +10,7 @@ import type {
 } from '@ai-sdk/provider'
 
 import { Offloader, type VFSStorageAdapter } from './offloader'
+import { PERSISTED_OUTPUT_TAG } from './prompts'
 import type { ContextLogger } from './types'
 
 export interface TruncateOptions {
@@ -98,6 +99,16 @@ export async function truncateToolResults(
 
       const text = extractText(part.output)
       if (text.length <= effThreshold || effHeadChars + effTailChars >= text.length) {
+        newContent.push(part)
+        continue
+      }
+
+      // Never re-truncate an already-persisted marker: with a threshold
+      // configured below the marker size (the pref has no enforced minimum),
+      // the marker itself would be offloaded recursively — a marker pointing
+      // at a marker. Checked only on oversized results to avoid scanning
+      // every output.
+      if (text.includes(PERSISTED_OUTPUT_TAG)) {
         newContent.push(part)
         continue
       }
