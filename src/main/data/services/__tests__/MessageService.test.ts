@@ -1215,32 +1215,6 @@ describe('MessageService', () => {
       expect(refs).toHaveLength(0)
     })
 
-    it('copies file refs when a path is copied into another topic', async () => {
-      const sourceTopic = 'topic-ref-copy-src'
-      const destTopic = 'topic-ref-copy-dst'
-      const fileId = '019606a0-0000-7000-8000-00000000fa0a'
-      await seedTopicWithRoot(sourceTopic)
-      await seedTopicWithRoot(destTopic)
-      await seedFileEntry(fileId)
-
-      const message = messageService.create(sourceTopic, {
-        role: 'assistant',
-        data: partsWithPersistedToolOutput(fileId),
-        status: 'success'
-      })
-
-      const sourceRows = await dbh.db.select().from(messageTable).where(eq(messageTable.id, message.id))
-      const { copiedMessageIds } = messageService.copyPathRowsTx(dbh.db, sourceRows, { topicId: destTopic })
-      const copiedId = copiedMessageIds.get(message.id)!
-
-      const refs = await dbh.db
-        .select()
-        .from(chatMessageFileRefTable)
-        .where(eq(chatMessageFileRefTable.sourceId, copiedId))
-      expect(refs).toHaveLength(1)
-      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: copiedId, role: 'tool_output' })
-    })
-
     it('addToolOutputFileRef is idempotent and no-ops for missing messages', async () => {
       const topicId = 'topic-ref-provisional'
       const fileId = '019606a0-0000-7000-8000-00000000fa0b'

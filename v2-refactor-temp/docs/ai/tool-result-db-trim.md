@@ -88,7 +88,7 @@ blob 移入 `Data/Files` 后不能再给目录级 root(会暴露附件/画作)�
 - **裁剪落点**:`MessageServiceBackend.persistAssistant`(仅 SQLite 路径)在同步 finalize 事务前 await `trimOversizedToolOutputs`;refs 与 data 同事务写入。逐 part 容错,存储失败保留全量。
 - **在飞行车道**:`createFileManagerStorageAdapter`(`ai/contextBuild/persistedOutputAdapter.ts`)write = 去重建 entry + **立即写 provisional `tool_output` ref** 指向 placeholder 行(1h grace 降为兜底);锚定判定 = message 行存在(临时聊天有合成 uuid 无行,只看 messageId 会 FK 违规)。
 - **fs_read**:目录包含改为 per-request 精确路径 allow-list(`RequestContext.persistedOutputPaths`,历史信封 + 在飞行新增;realpath 比较,字面成员优先使 blob 失联时报 not-found)。
-- **顺带修复**:`copyPathRowsTx` 跨话题 fork 此前不复制 file refs——`delete_when_unreferenced` 下删源话题会回收副本仍指向的 entry;现复制行后重导 refs。
+- **设计稿 G1 证伪**:`copyPathRowsTx` 无需补 ref 复制——唯一调用方 `TopicService.duplicate` 已按 source-id map 整体复制 ref 行(role 保真,`tool_output` 自然覆盖);在 copyPathRowsTx 内重导会撞 `(entry, source, role)` 唯一索引。
 - **渲染端**:复用既有 `$deferredToolResult` 传输链,投影时附带 excerpt,取回失败降级为摘录 + 注记。
 
 Breaking-changes 条目:`v2-refactor-temp/docs/breaking-changes/2026-08-02-tool-output-excerpt-storage.md`。

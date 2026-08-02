@@ -1759,15 +1759,14 @@ export class MessageService {
         .returning()
         .all()
 
-      // Re-derive file refs for the copy: without them, deleting the source
-      // topic would strand the copy's attachments / persisted tool outputs
-      // (a `delete_when_unreferenced` entry with zero refs gets reaped).
-      replaceChatMessageFileRefsTx(tx, copiedMessage.id, sourceMessage.data)
-
       copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
       copiedActiveNodeId = copiedMessage.id
     }
 
+    // File refs are NOT re-derived here: the sole caller (TopicService.duplicate)
+    // copies the source rows' refs verbatim by source-id map afterwards
+    // (role-preserving, so `tool_output` refs ride along) — deriving them here
+    // too would collide on the (entry, source, role) unique index.
     return { copiedMessageIds, copiedActiveNodeId }
   }
 
