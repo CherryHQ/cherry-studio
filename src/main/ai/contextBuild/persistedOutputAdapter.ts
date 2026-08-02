@@ -1,6 +1,6 @@
 /**
  * Per-request FileManager-backed `VFSStorageAdapter` for the context-build
- * truncation middleware — replaces the temp-dir VfsBlobService adapter so
+ * truncation middleware — replaced the retired temp-dir VfsBlobService so
  * in-flight offloads land in the same durable store (and dedup to the same
  * entries) as persist-time trimming.
  *

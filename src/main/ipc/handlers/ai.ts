@@ -10,7 +10,6 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import type { AiStreamOpenRequest, AiToolResultResponse, PersistedToolOutput } from '@shared/ai/transport'
 import { isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
-import type { FileEntryId } from '@shared/data/types/file'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
@@ -91,7 +90,7 @@ async function findPersistedToolOutput(
 async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
   const ref = output.$persistedToolOutput
   try {
-    const { content } = await application.get('FileManager').read(ref.fileEntryId as FileEntryId, { encoding: 'text' })
+    const { content } = await application.get('FileManager').read(ref.fileEntryId, { encoding: 'text' })
     return reconstructOutput(ref, content)
   } catch (e) {
     logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: ref.fileEntryId, err: e })

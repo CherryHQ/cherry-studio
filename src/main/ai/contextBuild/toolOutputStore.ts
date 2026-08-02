@@ -101,7 +101,7 @@ export function extractPersistableText(output: unknown): PersistableText | null 
     const block = item as Record<string, unknown>
     if (block.type !== 'text') return null
     if (block.text !== undefined && typeof block.text !== 'string') return null
-    texts.push((block.text as string | undefined) || '')
+    texts.push(block.text || '')
   }
   // '\n' join matches mcpResultToTextSummary for all-text content.
   return { text: texts.join('\n'), shape: 'mcp-content', metadata: record.metadata }

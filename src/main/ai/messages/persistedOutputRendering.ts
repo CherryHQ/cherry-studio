@@ -19,7 +19,6 @@ import { application } from '@application'
 import { ContextPrompts } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isPersistedToolOutput, type PersistedToolOutputRef } from '@shared/ai/transport'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { UIMessage } from 'ai'
 import { isToolUIPart } from 'ai'
 
@@ -28,7 +27,7 @@ const logger = loggerService.withContext('PersistedOutputRendering')
 function renderMarker(ref: PersistedToolOutputRef): string {
   let physicalPath: string | null = null
   try {
-    physicalPath = application.get('FileManager').getPhysicalPath(ref.fileEntryId as FileEntryId)
+    physicalPath = application.get('FileManager').getPhysicalPath(ref.fileEntryId)
   } catch (error) {
     // Entry gone (manual surgery / backup restore) — the model still sees the
     // head/tail; fs_read read-back is simply unavailable for this output.
@@ -60,7 +59,7 @@ export function collectPersistedOutputPaths(messages: UIMessage[]): Set<string> 
       if (!isToolUIPart(part) || part.state !== 'output-available' || !isPersistedToolOutput(part.output)) continue
       const ref = part.output.$persistedToolOutput
       try {
-        paths.add(application.get('FileManager').getPhysicalPath(ref.fileEntryId as FileEntryId))
+        paths.add(application.get('FileManager').getPhysicalPath(ref.fileEntryId))
       } catch {
         // Entry gone — renderMarker logs it; nothing to allow.
       }

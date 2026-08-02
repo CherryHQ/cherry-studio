@@ -1,17 +1,15 @@
 /**
  * fs_read — read-back companion for the context-build persistence layer.
  * Ported from PR #14916's `fs/readFile.ts`, reduced to text-only and
- * re-scoped from any-absolute-path to strict root containment
- * (decision 2026-06-12): allowed roots are the VFS persisted-output dir
- * (always) plus a workspace root when a request carries one — today's
- * aiSdk chat runtime has none, so chat is effectively VFS-only.
+ * re-scoped from any-absolute-path (via strict root containment) to a
+ * per-request exact-path allow-list: only blobs whose `<persisted-output>`
+ * markers appear in this request's prompt are readable
+ * (`RequestContext.persistedOutputPaths`).
  */
 import fsp from 'node:fs/promises'
-import { isAbsolute } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
-import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
 import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { MB } from '@shared/utils/constants'
@@ -80,25 +78,25 @@ const outputSchema = z.discriminatedUnion('kind', [
 
 export type FsReadOutput = z.infer<typeof outputSchema>
 
-/** Allowed containment roots. Grows a workspace root when the chat
- *  runtime gains one (P2-B+); resolved lazily — the path registry and
- *  VfsBlobService are not ready at module import. */
-function allowedRoots(): string[] {
-  return [application.get('VfsBlobService').getRoot()]
-}
-
 /**
  * Exact-path admission against the request's persisted-output allow-list
  * (blobs whose markers appear in this request's prompt). Realpath both sides
  * so macOS `/var` → `/private/var` folding and similar indirections can't
  * defeat the comparison. Membership is exact — the blob directory also holds
- * user attachments, so no directory-level containment is granted.
+ * user attachments, so no directory-level containment is granted. (A
+ * workspace containment root may return when the chat runtime gains one,
+ * P2-B+.)
  */
 async function resolveAgainstAllowedPaths(
   requestedPath: string,
   allowedPaths: ReadonlySet<string> | undefined
 ): Promise<string | null> {
   if (!allowedPaths || allowedPaths.size === 0) return null
+  // Literal membership first, no FS involved — so a marker path whose blob
+  // vanished still resolves and reports `not-found` downstream instead of a
+  // misleading access-denied.
+  const normalized = resolve(requestedPath)
+  if (allowedPaths.has(normalized)) return normalized
   let requestedReal: string
   try {
     requestedReal = await fsp.realpath(requestedPath)
@@ -111,19 +109,6 @@ async function resolveAgainstAllowedPaths(
       if ((await fsp.realpath(allowed)) === requestedReal) return requestedReal
     } catch {
       // Allow-listed blob no longer on disk — skip.
-    }
-  }
-  return null
-}
-
-/** validatePath per root (realpath + containment, same semantics as the
- *  filesystem MCP server); first root that admits the path wins. */
-async function resolveWithinAllowedRoots(requestedPath: string): Promise<string | null> {
-  for (const root of allowedRoots()) {
-    try {
-      return await validatePath(requestedPath, root)
-    } catch {
-      // Outside this root — try the next.
     }
   }
   return null
@@ -179,10 +164,7 @@ export async function executeFsRead(
     return { kind: 'error', code: 'relative-path', message: `Path must be absolute. Got: ${requestedPath}` }
   }
 
-  // Exact allow-list first (persisted blobs referenced by this request's
-  // prompt), then the legacy VFS temp-dir containment root.
-  const absolutePath =
-    (await resolveAgainstAllowedPaths(requestedPath, allowedPaths)) ?? (await resolveWithinAllowedRoots(requestedPath))
+  const absolutePath = await resolveAgainstAllowedPaths(requestedPath, allowedPaths)
   if (!absolutePath) {
     logger.warn('fs_read denied: path outside allowed roots', { requestedPath })
     return {
@@ -284,7 +266,7 @@ export async function executeFsRead(
 const fsReadTool = tool({
   description: `Read a text file by absolute path.
 
-Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Paths are restricted to allowed roots (the persisted-output directory); reads elsewhere return access-denied.
+Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Only paths from this conversation's markers are readable; reads elsewhere return access-denied.
 
 Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Lines are returned in full (never truncated mid-line); the per-call output is bounded as a whole, and oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. The one input it can't subdivide is a single physical line larger than that cap (e.g. heavily minified JSON) — line paging can't split one line and there is no byte-range read, so that case is reported as \`output-too-large\`; reason from the inline head/tail excerpt for such inputs.`,
   inputSchema,

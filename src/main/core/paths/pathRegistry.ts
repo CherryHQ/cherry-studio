@@ -181,6 +181,8 @@ export function buildPathRegistry() {
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
+    // Legacy pre-#16786 persisted-output dir; sole consumer is AiService's
+    // one-shot startup cleanup. Drop the key with that cleanup after a release.
     'feature.context_build.vfs.temp': path.join(appTemp, 'context-build-vfs'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
