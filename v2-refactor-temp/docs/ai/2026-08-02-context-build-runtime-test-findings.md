@@ -97,3 +97,30 @@
 
 - **#1 再次命中且路径更真实**:重启后新话题自动继承助手绑定的 MCP(即 #6 行为),16k 窗口下 auto 池过线 → defer 触发 → aihubmix(Anthropic API)连续 6 个请求 400,用户无任何显式操作即全灭;取消话题 MCP 选择后恢复。
 - anthropic 直连与 gemini 免费层的配额/余额错误为外部因素(gemini free tier 5 req/day)。
+
+---
+
+## #7 web_fetch/web_search 是否应参与截断——分析与分层建议
+
+**性质:改进方案(承接补充测试结论 1;web_fetch 建议尽快做)**
+
+### 豁免现在真正保护的两层
+
+1. **In-flight 引用诚实性**:两工具输出为 `[{id:'<prefix>-<n>', title, url, content}]` JSON 数组(`webLookup.ts` `mapResponse`),模型靠"看见的条目"回写 `[cite:id]`。截断器对 json 是 stringify 后掐 head/tail——cite id 与 content 的映射会被从中间切碎,模型对未见条目要么弃引(信息损失)要么幻引(更糟)。
+2. **落库后的 citation 渲染**:`src/renderer/utils/message/citations.ts` 的 citation registry **就地从 message.data 的工具输出 parts 解析**("no persisted reference metadata")。输出被信封替换后,历史消息的角标/来源卡/导出/复制全部失解。
+
+### 现状的真实风险(实测支撑)
+
+- 压缩层从不折当前 turn(durable 只折 keep 边界前,in-loop 至少保一 turn)——**当前轮一发超大 fetch 结果没有任何防线**。`web_fetch` 的 readable content 无工具级上限(长文档页 50-200k chars),是目前唯一完全裸奔的上下文洪水源;search(max_results=5×snippet)实测单轮仅 3-6k chars。
+- 双份全量落库,重复搜索不去重。
+- 源级压缩 `chat.web_search.compression`(`postProcessing.ts`,cutoff/rag)存在但默认 none。
+
+### 分层建议
+
+1. **web_fetch:应改为可截断,优先做**。引用身份是 URL 且在 **input** 里(result 骨架也有),截 content 不损失引用身份;内容为单篇正文,head/tail + marker + fs_read 读回与 filesystem read 语义同构;又是最大单发洪水源。in-flight 翻 flag 即止血;persist 侧待 `shape:'json'`(#3)配 citation-aware 信封(保留 `{id,url,title}` 骨架)。
+2. **web_search:不建议裸翻 flag**。默认 100k 阈值下几乎永不触发(no-op),触发时伤的恰是引用结构。正确杠杆是**给源级 cutoff 一个温和默认值**(逐条裁 content、天然保留每条 id/url/title),而非动 truncatable。
+3. **终局抽象:结构感知截断**。布尔 flag 表达不了 citable 工具的需求——按 result 条目为单位裁 content、永不裁引用骨架。可在 truncator `perTool` 上扩展 per-tool 自定义 reducer,让 web_search/web_fetch/kb_search 都能安全参与截断+持久化。
+
+**行动排序**:① web_fetch 翻 flag(一行,立即止血)→ ② search 源级 cutoff 默认值 → ③ `shape:'json'` + citation-aware 信封(与 #3 合并)→ ④ per-tool reducer。
+
+**量级 sanity check**:200k 正常窗口下 search 需 ~100+ 轮才顶满(压缩层足够);fetch 一发长页即可 50k+——优先级由此而来。
