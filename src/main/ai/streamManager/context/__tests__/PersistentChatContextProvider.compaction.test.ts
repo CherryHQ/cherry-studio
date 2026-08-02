@@ -265,6 +265,42 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(messages[1].role).toBe('user')
   })
 
+  it('2b. folding an attachment-bearing message keeps the raw-path allow-list and adds the summary manifest', async () => {
+    // Same over-budget setup as test 2, but the FOLDED first user message
+    // carries a file part. Finding #2: the served view loses the part, so
+    // scanning served messages downstream dropped read_file entirely.
+    const BIG = 'token '.repeat(700)
+    const attachedMsg = fakeMsg('u1', 'user', BIG)
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/log.txt',
+      filename: 'log.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    const path = [
+      attachedMsg,
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn({})
+
+    const { messages, prepared } = await makeHistory('u3')
+
+    // Compaction folded u1 (its file part is gone from the served view) …
+    expect(messages.map((m) => m.id)).not.toContain('u1')
+    // … but the request carries the raw-path allow-list …
+    expect(prepared.models[0].request.fileAttachments).toEqual([
+      { fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }
+    ])
+    // … and the served summary row tells the model the file is still readable.
+    const summaryText = (messages[0].parts?.[0] as { text?: string })?.text ?? ''
+    expect(summaryText).toContain('readable in full via the read_file tool: log.txt')
+  })
+
   it('3. existing marker, under budget → apply marker, no new summarization', async () => {
     // a1 has a compactionSummary → applyDeepestMarker replaces [u1,a1] with [summary(a1)].
     // Resulting effective = [summary(a1), u2, a2, u3] — well under 3200 token threshold.

@@ -73,6 +73,8 @@ export interface BuildAgentParamsInput {
     chatId?: string
     messageId?: string
     messages?: UIMessage[]
+    /** Raw-path attachment allow-list from the chat provider (see AiStreamRequest.fileAttachments). */
+    fileAttachments?: FileAttachmentRef[]
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -110,7 +112,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride
   )
   applyHttpTrace(sdkConfig, request.chatId, model)
-  const fileAttachments = collectFileAttachments(request.messages)
+  // Prefer the request-carried allow-list: the persistent chat provider computes
+  // it from the RAW message path, so attachments folded away by durable
+  // compaction stay readable via read_file. Scanning `messages` only sees the
+  // served (post-fold) view.
+  const fileAttachments = request.fileAttachments ?? collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)

@@ -1,5 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
@@ -91,5 +92,12 @@ export interface AiStreamRequest extends AiBaseRequest {
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]
+  /**
+   * Authoritative attachment allow-list computed from the RAW message path
+   * before durable compaction folds file parts out of `messages`. Main-internal
+   * (the renderer sends the smaller AiStreamOpenRequest, so this never crosses
+   * IPC). Absent → consumers fall back to scanning `messages`.
+   */
+  fileAttachments?: FileAttachmentRef[]
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
 }

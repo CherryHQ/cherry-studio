@@ -11,6 +11,8 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
+import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -25,7 +27,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ModelMessage } from 'ai'
+import type { ModelMessage, UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
 import { toModelMessages } from '../../messages/messageRules'
@@ -322,7 +324,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const history = await this.resolveCompactedHistory(
+      const { messages: history, fileAttachments } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model)
@@ -338,7 +340,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
-          turnOptions.fastMode === true
+          turnOptions.fastMode === true,
+          fileAttachments
         ),
         rootSpan
       }))
@@ -424,7 +427,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
+      const { messages: history, fileAttachments } = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
       return {
         topicId: req.topicId,
         models: [
@@ -439,7 +442,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.id,
               knowledgeBaseIds,
               anchor.data.turnOptions?.reasoningEffort,
-              anchor.data.turnOptions?.fastMode === true
+              anchor.data.turnOptions?.fastMode === true,
+              fileAttachments
             ),
             rootSpan
           }
@@ -511,7 +515,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = withSteerReminder(await this.resolveCompactedHistory(req.userMessageId, req.topicId, [model]))
+      const { messages: compactedHistory, fileAttachments } = await this.resolveCompactedHistory(
+        req.userMessageId,
+        req.topicId,
+        [model]
+      )
+      const history = withSteerReminder(compactedHistory)
       return {
         topicId: req.topicId,
         models: [
@@ -525,7 +534,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort,
-              req.fastMode
+              req.fastMode,
+              fileAttachments
             ),
             rootSpan
           }
@@ -595,25 +605,33 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     anchorMessageId: string,
     topicId: string,
     models: Model[]
-  ): Promise<CherryUIMessage[]> {
+  ): Promise<{ messages: CherryUIMessage[]; fileAttachments: FileAttachmentRef[] }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
     const rawMsgs = messagePath.slice(lastClearIndex + 1)
+    // Authoritative allow-list from the RAW path: compaction folds file parts
+    // out of the served view, so scanning served messages downstream would
+    // silently drop read_file for folded attachments (finding #2). Handles are
+    // deduped over the whole path here, so the summary-row manifest, the
+    // allow-list, and inline routing all agree on names.
+    const fileAttachments = collectFileAttachments(rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage))
+    const attachmentHandles = fileAttachments.map((a) => a.handle)
     const rows = rawMsgs.map((m) => this.toRow(m))
-    const effective = applyDeepestMarker(rows)
+    const effective = applyDeepestMarker(rows, attachmentHandles)
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(models[0])
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    if (!on) return effective.map((r) => this.toServed(r))
-    if (!compressionModel) return effective.map((r) => this.toServed(r))
+    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), fileAttachments })
+    if (!on) return serve(effective)
+    if (!compressionModel) return serve(effective)
 
     // contextWindow is a required input — the model layer's contract guarantees it;
     // this layer never fabricates or defaults it.
     const minContextWindow = Math.min(...models.map((m) => m.contextWindow as number))
     if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
-      return effective.map((r) => this.toServed(r))
+      return serve(effective)
     }
 
     const d = findDeepestMarker(rows)
@@ -624,7 +642,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
     // missed compaction — the in-loop `prepareStep` hook owns this case as the second
     // safety net (see inLoopCompaction; the no-double-compact test pins the interaction).
-    if (keepIdx === null) return effective.map((r) => this.toServed(r))
+    if (keepIdx === null) return serve(effective)
 
     const boundary = recent[keepIdx - 1] // real row before the kept user row
 
@@ -643,13 +661,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const summary = await summarizeModelMessages(modelMessages, compressionModel)
       if (!summary) {
         logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
-        return effective.map((r) => this.toServed(r))
+        return serve(effective)
       }
       messageService.setCompactionSummary(boundary.id, summary)
-      return [summaryRow(boundary.id, summary), ...recent.slice(keepIdx)].map((r) => this.toServed(r))
+      return serve([summaryRow(boundary.id, summary, attachmentHandles), ...recent.slice(keepIdx)])
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
-      return effective.map((r) => this.toServed(r))
+      return serve(effective)
     }
   }
 
@@ -661,7 +679,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
-    fastMode: boolean
+    fastMode: boolean,
+    fileAttachments?: FileAttachmentRef[]
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -672,7 +691,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messageId,
       knowledgeBaseIds,
       reasoningEffort,
-      fastMode
+      fastMode,
+      ...(fileAttachments ? { fileAttachments } : {})
     }
   }
 }

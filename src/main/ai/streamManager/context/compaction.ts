@@ -21,12 +21,24 @@ export function summaryMessageId(boundaryId: string): string {
   return `compaction:${boundaryId}`
 }
 
-/** Build the injected summary row (role 'user', continuation-framed). */
-export function summaryRow(boundaryId: string, summary: string): CompactionRow {
+/**
+ * Build the injected summary row (role 'user', continuation-framed).
+ *
+ * `attachmentHandles` restores the read_file call signal that folding erases:
+ * the folded user message's file parts are gone from the served view, so
+ * without this line the model has no idea an attachment exists or what name
+ * `read_file` accepts (runtime-test finding #2). Handles come from the same
+ * `collectFileAttachments` pass that feeds the request's allow-list, and the
+ * rendering is a pure function of them — same path, same bytes.
+ */
+export function summaryRow(boundaryId: string, summary: string, attachmentHandles?: readonly string[]): CompactionRow {
+  const manifest = attachmentHandles?.length
+    ? `\n\n[Files attached in this conversation remain readable in full via the read_file tool: ${attachmentHandles.join(', ')}]`
+    : ''
   return {
     id: summaryMessageId(boundaryId),
     role: 'user',
-    parts: [{ type: 'text', text: ContextPrompts.getCompactSummaryWrapper(summary) }]
+    parts: [{ type: 'text', text: ContextPrompts.getCompactSummaryWrapper(summary) + manifest }]
   }
 }
 
@@ -49,11 +61,11 @@ export function findDeepestMarker(rows: CompactionRow[]): number {
  * Returns the rows unchanged when no row carries a marker. Otherwise returns
  * `[summary(deepest)] + rows after the deepest marker`.
  */
-export function applyDeepestMarker(rows: CompactionRow[]): CompactionRow[] {
+export function applyDeepestMarker(rows: CompactionRow[], attachmentHandles?: readonly string[]): CompactionRow[] {
   const d = findDeepestMarker(rows)
   if (d < 0) return rows
   // non-null: findDeepestMarker only returns an index whose compactionSummary is truthy
-  return [summaryRow(rows[d].id, rows[d].compactionSummary!), ...rows.slice(d + 1)]
+  return [summaryRow(rows[d].id, rows[d].compactionSummary!, attachmentHandles), ...rows.slice(d + 1)]
 }
 
 /**
