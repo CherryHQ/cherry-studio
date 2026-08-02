@@ -54,7 +54,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .post(
     '/search',
     async ({ body }) => {
-      const { query, knowledge_base_ids, document_count = 5 } = body
+      const { query, knowledge_base_ids, document_count } = body
 
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]

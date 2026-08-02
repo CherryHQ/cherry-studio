@@ -62,7 +62,7 @@ const isSameValue = <V extends string | number>(left: V, right: V) => left === r
 const Selector = <V extends string | number>({
   options,
   value,
-  onChange = () => {},
+  onChange,
   placement = 'bottomRight',
   size = 13,
   placeholder,

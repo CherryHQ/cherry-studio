@@ -408,7 +408,7 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+    update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     if (status === 'failed') {
       return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
@@ -425,7 +425,7 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+    update?: FailedKnowledgeItemStatusUpdate | undefined
   ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -563,11 +563,7 @@ export class KnowledgeItemService {
 
   updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): KnowledgeItem
   updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): KnowledgeItem
-  updateStatus(
-    id: string,
-    status: KnowledgeItemStatus,
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
-  ): KnowledgeItem {
+  updateStatus(id: string, status: KnowledgeItemStatus, update?: FailedKnowledgeItemStatusUpdate): KnowledgeItem {
     // Per-type status legality is enforced by the DB CHECK constraint.
     const error = status === 'failed' ? update?.error.trim() : null
 
