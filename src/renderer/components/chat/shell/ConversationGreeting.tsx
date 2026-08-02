@@ -1,5 +1,3 @@
-import { useLayoutEffect } from 'react'
-
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import EmojiIcon from '@renderer/components/EmojiIcon'
