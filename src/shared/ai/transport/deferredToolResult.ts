@@ -10,9 +10,20 @@ export interface DeferredToolResultRef {
   toolCallId: string
 }
 
+/** Head/tail preview carried alongside a deferred reference so the renderer
+ *  can show something meaningful while (or instead of) fetching the full value. */
+export interface DeferredToolOutputExcerpt {
+  head: string
+  tail: string
+  totalChars: number
+  totalLines: number
+}
+
 /** Replaces a tool part's `output` when the real value was too large to send. */
 export interface DeferredToolOutput {
   $deferredToolResult: DeferredToolResultRef
+  /** Present when the stored output is a persisted excerpt (`$persistedToolOutput`). */
+  excerpt?: DeferredToolOutputExcerpt
 }
 
 /** Serialized UTF-8 size at or below which a result travels inline. */

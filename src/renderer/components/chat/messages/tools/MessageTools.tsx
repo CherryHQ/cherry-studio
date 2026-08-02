@@ -48,7 +48,15 @@ export default function MessageTools({ toolResponse }: Props) {
 
   const resolvedToolResponse = useMemo(() => {
     if (!deferredOutput) return toolResponse
-    if (isLoading) return { ...toolResponse, status: 'invoking' as const, response: undefined }
+    if (isLoading) {
+      // A persisted excerpt is real content — show it immediately instead of a
+      // spinner; the resolved full value replaces it when the fetch lands.
+      if (deferredOutput.excerpt) {
+        const { head, tail } = deferredOutput.excerpt
+        return { ...toolResponse, response: normalizeToolOutputResponse([head, '…', tail].filter(Boolean).join('\n')) }
+      }
+      return { ...toolResponse, status: 'invoking' as const, response: undefined }
+    }
     if (error) {
       return {
         ...toolResponse,

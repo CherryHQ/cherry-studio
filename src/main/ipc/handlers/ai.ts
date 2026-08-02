@@ -4,10 +4,13 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest, AiToolResultResponse } from '@shared/ai/transport'
+import type { AiStreamOpenRequest, AiToolResultResponse, PersistedToolOutput } from '@shared/ai/transport'
+import { isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import type { FileEntryId } from '@shared/data/types/file'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
@@ -55,19 +58,46 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 }
 
 /** The persisted half of `ai.tool.get_result` — matches the same shape projection replaces. */
-function findPersistedToolOutput(topicId: string, messageId: string, toolCallId: string): AiToolResultResponse {
+async function findPersistedToolOutput(
+  topicId: string,
+  messageId: string,
+  toolCallId: string
+): Promise<AiToolResultResponse> {
   try {
     const parts = isAgentSessionTopic(topicId)
       ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
       : messageService.getById(messageId).data.parts
     for (const part of parts ?? []) {
       if (!isToolUIPart(part) || part.state !== 'output-available') continue
-      if (part.toolCallId === toolCallId) return { found: true, output: part.output }
+      if (part.toolCallId !== toolCallId) continue
+      if (isPersistedToolOutput(part.output)) {
+        return { found: true, output: await resolvePersistedToolOutput(part.output) }
+      }
+      return { found: true, output: part.output }
     }
   } catch (e) {
     logger.warn('ai.tool.get_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
   }
   return { found: false }
+}
+
+/**
+ * Rebuild a `$persistedToolOutput` envelope into the original output by
+ * reading the blob back from FileManager. When the entry is gone (manual DB
+ * surgery, restore of an older backup) degrade to the stored excerpt with an
+ * explanatory note rather than `found: false` — the renderer treats a miss as
+ * a permanent error, and the excerpt is still real content.
+ */
+async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
+  const ref = output.$persistedToolOutput
+  try {
+    const { content } = await application.get('FileManager').read(ref.fileEntryId as FileEntryId, { encoding: 'text' })
+    return reconstructOutput(ref, content)
+  } catch (e) {
+    logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: ref.fileEntryId, err: e })
+    const excerptText = `${ref.head}\n\n[persisted output no longer available — showing excerpt of ${ref.totalChars} chars]\n\n${ref.tail}`
+    return reconstructOutput(ref, excerptText)
+  }
 }
 
 /**

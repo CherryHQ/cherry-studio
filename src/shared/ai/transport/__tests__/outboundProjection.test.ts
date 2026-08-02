@@ -81,4 +81,26 @@ describe('outbound tool-output projection', () => {
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
   })
+
+  it('projects a persisted envelope to a deferred reference carrying the excerpt', () => {
+    const persisted = {
+      $persistedToolOutput: {
+        fileEntryId: 'entry-1',
+        vfsFilename: 'vfs_0123456789abcdef.txt',
+        head: 'first lines',
+        tail: 'last lines',
+        totalChars: 200_000,
+        totalLines: 5_000,
+        shape: 'text'
+      }
+    }
+    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(isDeferredToolOutput(projected.output)).toBe(true)
+    expect(projected.output).toEqual({
+      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
+    })
+  })
 })

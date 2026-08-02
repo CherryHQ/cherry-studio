@@ -7,7 +7,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
 import { isToolUIPart } from 'ai'
 
-import { deferToolOutput } from './deferredToolResult'
+import { type DeferredToolOutput, deferToolOutput } from './deferredToolResult'
+import { isPersistedToolOutput } from './persistedToolOutput'
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
 export function projectMessagePartForRenderer(
@@ -16,6 +17,21 @@ export function projectMessagePartForRenderer(
   messageId: string
 ): CherryMessagePart {
   if (!isToolUIPart(part) || part.state !== 'output-available') return part
+
+  // A persisted excerpt rides the same deferred-reference transport — the
+  // renderer resolves the full value through `ai.tool.get_result` (which
+  // reconstructs it from the FileManager blob) — but carries the excerpt so
+  // there is something to show without the fetch.
+  if (isPersistedToolOutput(part.output)) {
+    const { head, tail, totalChars, totalLines } = part.output.$persistedToolOutput
+    return {
+      ...part,
+      output: {
+        $deferredToolResult: { topicId, messageId, toolCallId: part.toolCallId },
+        excerpt: { head, tail, totalChars, totalLines }
+      } satisfies DeferredToolOutput
+    }
+  }
 
   const output = deferToolOutput(part.output, { topicId, messageId, toolCallId: part.toolCallId })
   if (output === part.output) return part

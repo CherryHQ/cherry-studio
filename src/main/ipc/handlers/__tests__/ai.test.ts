@@ -43,6 +43,8 @@ const toolPart = (toolCallId: string, output: unknown) => ({
   output
 })
 
+const fileManager = { read: vi.fn() }
+
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
@@ -79,6 +81,8 @@ beforeEach(() => {
         return agentJobsService
       case 'WindowManager':
         return windowManager
+      case 'FileManager':
+        return fileManager
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -288,6 +292,48 @@ describe('aiHandlers — streaming', () => {
         { senderId: null }
       )
     ).resolves.toEqual({ found: false })
+  })
+
+  const persistedEnvelope = {
+    $persistedToolOutput: {
+      fileEntryId: 'entry-1',
+      vfsFilename: 'vfs_0123456789abcdef.txt',
+      head: 'HEAD LINES',
+      tail: 'TAIL LINES',
+      totalChars: 200_000,
+      totalLines: 5_000,
+      shape: 'text' as const
+    }
+  }
+
+  it('get_tool_result reconstructs a persisted envelope from the FileManager blob', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockResolvedValue({ content: 'the full persisted text', mime: 'text/plain', version: null })
+
+    const result = await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(fileManager.read).toHaveBeenCalledWith('entry-1', { encoding: 'text' })
+    expect(result).toEqual({ found: true, output: 'the full persisted text' })
+  })
+
+  it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockRejectedValue(new Error('entry reclaimed'))
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('TAIL LINES')
+    expect(result.output).toContain('no longer available')
   })
 })
 
