@@ -108,14 +108,6 @@ dropping legitimate trace data. The accepted tradeoff is that capture is
 **local-only and developer-gated**; turning that into a redaction/threat-model
 guarantee is a deferred decision. Treat exported trace files as sensitive.
 
-Empty-conversation greetings are passed to the first model turn as explicitly
-untrusted UI context so short replies remain understandable. Normal AI SDK chat
-turns carrying that synthetic context set `recordInputs: false`, and Cherry's
-root turn span records only persisted message history. Claude Code developer
-tracing intentionally captures complete prompts and raw request bodies, so an
-Agent greeting may still appear in its local plaintext trace; the contextual
-greeting setting discloses this behavior.
-
 ## Developer-mode gating
 
 Dev mode only. The span projection (`TraceStorageService`) is built and persisted

@@ -10,7 +10,12 @@ import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 import { FilePreviewToolbar } from '../FilePreviewToolbar'
 
 const mocks = vi.hoisted(() => ({
+  ipcApiRequest: vi.fn(),
   load: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcApiRequest }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -45,7 +50,7 @@ import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  window.api.file.getMetadata = vi.fn().mockResolvedValue({
+  mocks.ipcApiRequest.mockResolvedValue({
     kind: 'file',
     type: 'text',
     size: 128,
@@ -53,7 +58,6 @@ beforeEach(() => {
     modifiedAt: 1,
     mime: 'text/markdown'
   })
-  window.api.file.isTextFile = vi.fn().mockResolvedValue(true)
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
     default: ({

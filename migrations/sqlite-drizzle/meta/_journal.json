@@ -15,6 +15,20 @@
       "when": 1785308910164,
       "tag": "0001_tan_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785476603915,
+      "tag": "0002_strange_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785514531244,
+      "tag": "0003_slow_proudstar",
+      "breakpoints": true
     }
   ]
 }

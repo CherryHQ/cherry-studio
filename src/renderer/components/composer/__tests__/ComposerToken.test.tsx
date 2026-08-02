@@ -416,6 +416,8 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
+    expect(token).toHaveClass('h-6', 'align-middle', 'border-primary', 'ring-1', 'ring-primary/40')
+    expect(token).not.toHaveClass('align-baseline')
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
@@ -619,6 +621,8 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
+    expect(token).toHaveClass('group-focus-visible:border-primary')
+    expect(token).not.toHaveClass('group-data-[state=open]:border-primary')
     const trigger = getFileTokenTrigger(container)
     expect(trigger).toHaveAttribute('role', 'button')
     expect(trigger).toHaveAttribute('tabindex', '0')
@@ -770,6 +774,13 @@ describe('ComposerToken', () => {
     }
   })
 
+  it('keeps selected file tokens highlighted with primary border and ring', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-primary/40')
+  })
+
   it('shows quoted content in a tooltip for quote tokens', () => {
     render(
       <ComposerToken
@@ -902,6 +913,8 @@ describe('ComposerToken', () => {
 
     const link = screen.getByRole('link', { name: url })
     expect(link).toHaveTextContent('example.com/docs')
+    expect(link).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
+    expect(link).not.toHaveClass('focus-visible:ring-[3px]', 'focus-visible:ring-ring/50')
     expect(link.querySelector('svg')).toBeInTheDocument()
     expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
     expect(container.querySelector('[data-composer-link-favicon]')).not.toBeInTheDocument()

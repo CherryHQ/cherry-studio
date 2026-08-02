@@ -5,6 +5,7 @@ import { toast } from '@renderer/services/toast'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -276,28 +277,53 @@ describe('processing settings pages', () => {
     vi.useRealTimers()
   })
 
-  it('sets the active image processor as the image-to-text default', async () => {
+  it('selects an image processor and makes it the image-to-text default', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({
-        defaultImageProcessor: 'system'
+        defaultImageProcessor: 'mistral'
       })
     })
+    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toBeInTheDocument()
   })
 
-  it('sets the active document processor as the document-to-markdown default', async () => {
+  it('selects a document processor and makes it the document-to-markdown default', async () => {
+    const user = userEvent.setup()
     render(<DocumentProcessingSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
+    )
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({
-        defaultDocumentProcessor: 'mineru'
+        defaultDocumentProcessor: 'paddleocr'
       })
     })
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the web search field treatment for document processing inputs', async () => {
+    const { container } = render(<DocumentProcessingSettings />)
+
+    await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
+
+    expect(container.firstElementChild?.firstElementChild).toHaveClass(
+      '[&_input[data-slot=input]]:h-8',
+      '[&_input[data-slot=input]]:rounded-lg',
+      '[&_input[data-slot=input]]:border-border-subtle',
+      '[&_input[data-slot=input]]:bg-muted/30',
+      '[&_input[data-slot=input]]:shadow-none',
+      '[&_input[data-slot=input]:focus-visible]:ring-[1px]'
+    )
   })
 
   it('shows only the processors for the selected feature', async () => {
@@ -328,19 +354,20 @@ describe('processing settings pages', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows the provider detail header with a default badge and hides the default button', async () => {
+  it('shows the selected processor in the header without separate default controls', async () => {
     preferencesMock.defaultImageProcessor = 'system'
 
     render(<OcrSettings />)
 
-    expect((await screen.findAllByText('settings.tool.file_processing.processors.system.name')).length).toBeGreaterThan(
-      0
-    )
-    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
-    expect(screen.getAllByText('common.default').length).toBeGreaterThan(0)
+    expect(
+      await screen.findByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.processors.system.status.available')).toBeInTheDocument()
+    expect(screen.queryByText('common.default')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
   })
 
   it('uses the Open MinerU label', async () => {
@@ -422,13 +449,14 @@ describe('processing settings pages', () => {
   })
 
   it('keeps API host drafts when another field save rerenders the same processor', async () => {
+    const user = userEvent.setup()
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
     fireEvent.change(apiHostInput, {
       target: { value: 'https://draft.example.com' }
     })
@@ -446,6 +474,7 @@ describe('processing settings pages', () => {
     })
 
     overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    preferencesMock.defaultImageProcessor = 'mistral'
     rerender(<OcrSettings />)
 
     expect(screen.getByPlaceholderText('settings.provider.api_host')).toHaveValue('https://draft.example.com')
@@ -518,6 +547,7 @@ describe('processing settings pages', () => {
   })
 
   it('opens the file processing API key list popup from the API key field', async () => {
+    const user = userEvent.setup()
     render(
       <>
         <OcrSettings />
@@ -525,13 +555,14 @@ describe('processing settings pages', () => {
       </>
     )
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
-      target: { value: ' key-1, key-2 ' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+    await user.type(
+      await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'),
+      ' key-1, key-2 '
+    )
+    await user.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
     // The real popup mounts under PopupHost: it carries the mistral-scoped title and lists the
     // two keys parsed from the API key field (short keys render unmasked).
@@ -546,6 +577,7 @@ describe('processing settings pages', () => {
   })
 
   it('reopens the file processing API key list with keys saved from the popup', async () => {
+    const user = userEvent.setup()
     render(
       <>
         <OcrSettings />
@@ -553,10 +585,10 @@ describe('processing settings pages', () => {
       </>
     )
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
     // The popup opens empty (no keys configured yet).
     await screen.findByText('error.no_api_key')
