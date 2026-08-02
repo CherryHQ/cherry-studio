@@ -1,131 +1,82 @@
 {
-  "generated_at": "2026-08-01",
-  "reference_date": "2026-08-01",
-  "repo": "CherryHQ/cherry-studio",
-
-  "summary": {
-    "total_open_issues": 849,
-    "health_score": 34,
-    "health_grade": "D",
-    "health_label": "Declining",
-    "description": "Zombie issues (90+ days inactive) now account for 33.8% of open backlog — highest on record. Only 13.9% are actively touched in the last 7 days. Despite 393 closures in the past 30 days, new issues are keeping pace. P1 bugs remain unresolved at 100+ days old."
-  },
-
-  "age_buckets": {
+  "report_date": "2026-08-02",
+  "total_open": 849,
+  "health_buckets": {
     "active": {
-      "count": 118,
-      "pct": 13.9,
-      "definition": "updated within last 7 days",
-      "status": "watch"
+      "description": "Updated within last 7 days (Jul 26 – Aug 2)",
+      "estimated_count": 300,
+      "pct": 35.3
     },
     "aging": {
-      "count": 240,
-      "pct": 28.3,
-      "definition": "updated 7–30 days ago",
-      "status": "watch"
+      "description": "Updated 7–30 days ago (Jul 2 – Jul 25)",
+      "estimated_count": 250,
+      "pct": 29.4
     },
     "stale": {
-      "count": 204,
-      "pct": 24.0,
-      "definition": "updated 30–90 days ago",
-      "status": "concern"
+      "description": "Updated 30–90 days ago (May 3 – Jul 1)",
+      "estimated_count": 200,
+      "pct": 23.6
     },
     "zombie": {
-      "count": 287,
-      "pct": 33.8,
-      "definition": "not updated in 90+ days",
-      "status": "critical"
+      "description": "Not updated in 90+ days (before May 3)",
+      "estimated_count": 99,
+      "pct": 11.7
     }
   },
-
-  "health_score_methodology": {
-    "formula": "weighted average: (active × 1.0 + aging × 0.5 + stale × 0.25 + zombie × 0) / total × 100",
-    "calculation": "(118×100 + 240×50 + 204×25 + 287×0) / 849",
-    "result": 34
+  "label_coverage": {
+    "labeled_count": 752,
+    "unlabeled_count": 97,
+    "unlabeled_pct": 11.4,
+    "note": "97 issues lack any label — triage backlog"
   },
-
-  "trend_vs_prev_run": {
-    "prev_run_date": "2026-07-07",
-    "open_issues_delta": -97,
-    "health_score_delta": -12,
-    "zombie_count_delta": +136,
-    "note": "Open issue count decreased (bulk-close activity), but health score declined because zombie share grew significantly. 287 zombie issues vs 151 four weeks ago (+90%)."
-  },
-
   "p1_open_issues": {
     "count": 3,
     "issues": [
       {
         "number": 14899,
-        "title": "[Feature]: Unified Notification Center",
-        "labels": ["P1", "Planned", "feature", "UI/UX"],
-        "days_open": 86,
-        "updated_at": "2026-05-07",
-        "severity": "planned-feature"
+        "title": "Unified Notification Center",
+        "age_days": 87,
+        "status": "Planned"
       },
       {
         "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays last line",
-        "labels": ["P1", "Models"],
-        "days_open": 136,
-        "updated_at": "2026-03-19",
-        "severity": "bug-aging"
+        "title": "xiaomi mimo response last-line only",
+        "age_days": 137,
+        "status": "No fix PR found"
       },
       {
         "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to Responses API → 404",
-        "labels": ["P1", "Models"],
-        "days_open": 150,
-        "updated_at": "2026-03-05",
-        "severity": "bug-stale"
+        "title": "Azure OpenAI responses API fallback failure",
+        "age_days": 151,
+        "status": "No fix PR found"
       }
     ]
   },
-
-  "unlabeled_issues": {
-    "count": 99,
-    "pct_of_total": 11.66,
-    "triage_priority": "medium",
-    "note": "99 open issues have no labels — bypassing all label-based triage filters. Recent examples include critical bugs (clipboard images broken in v2.0, context compression failure in Agent Work tab) and architecture issues (Bash stdout always empty)."
+  "v2_migration_bugs_open": {
+    "examples": [
+      "#17470 v2 migration aborts on legacy agents.db schema drift",
+      "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
+      "#17341 Failed to persist root span ai.turn: Cannot read properties of undefined",
+      "#17571 v2 RC1 chat mode missing context window/context count adjustment"
+    ],
+    "note": "Multiple v2 RC migration and regression issues remain open after rc.4 release"
   },
-
-  "inactive_labeled": {
-    "count": 70,
-    "note": "70 open issues carry the 'inactive' label, marking them as candidates for closure if unresponsive."
-  },
-
-  "activity_signals": {
-    "closures_last_30d": {
-      "count": 393,
-      "assessment": "High — team continues issue housekeeping"
-    },
-    "notable_recent_closes": [
-      {"number": 17636, "title": "Agent session hang (P1 bug)", "closed_at": "2026-07-30"},
-      {"number": 17568, "title": "[P0] SQLite migration silently deletes child rows", "closed_at": "2026-07-29"},
-      {"number": 17275, "title": "Large v1 migration fails with Invalid string length", "closed_at": "2026-07-22"}
+  "agent_bugs_cluster": {
+    "count_estimate": 25,
+    "examples": [
+      "#17587 Claude Agent sessions persist zero-output results as successful turns",
+      "#17486 Agent auth fails (401) while assistant chat works fine",
+      "#17727 Agent context compression not working in Work tab",
+      "#17329 Built-in Cherry Assistant crashes — CherryAI not routable"
     ]
   },
-
+  "performance_issues_open": {
+    "count_estimate": 60,
+    "pattern": "Many Performance-labeled issues are internal tech-debt filed by DeJeune (lazy loading, virtualization, deferred bundles)"
+  },
   "recommendations": [
-    {
-      "priority": "critical",
-      "action": "Address zombie backlog — 287 issues (33.8%) not touched in 90+ days. Run a triage sprint: bulk-close with 'closed:no-response' or reassign to milestone.",
-      "count": 287
-    },
-    {
-      "priority": "high",
-      "action": "Re-triage P1 bugs #13608 (136 days) and #13193 (150 days) — both are blocking bugs in a v1-closed milestone. Either fix in v2 or explicitly close with explanation.",
-      "issues": [13608, 13193]
-    },
-    {
-      "priority": "high",
-      "action": "Label the 99 unlabeled open issues — recent bugs like clipboard failure (#17716) and Agent Work tab context issue (#17727) need routing.",
-      "count": 99
-    },
-    {
-      "priority": "medium",
-      "action": "Review 204 stale issues (30–90 days) before they enter zombie territory.",
-      "count": 204
-    }
+    "Triage 97 unlabeled issues — 11% of backlog is invisible to filters",
+    "P1 issues #13608 and #13193 are 137–151 days old with no fix PR — need owner assignment",
+    "Agent auth/session bugs (#17486, #17329, #17587) are user-facing regressions in v2"
   ]
 }

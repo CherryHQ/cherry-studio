@@ -1,119 +1,77 @@
 {
-  "generated_at": "2026-08-01",
-  "data_source": "GitHub MCP API — CherryHQ/cherry-studio",
-  "sampling_note": "Label distribution extrapolated from first 100 open issues (sorted by updated_at desc); age buckets are exact GitHub search counts; 7-day window used for Active bucket",
-
+  "snapshot_date": "2026-08-02",
+  "generated_at": "2026-08-02T18:00:00Z",
   "open_issues": {
     "total": 849,
-    "no_label_count": 99,
-    "no_label_pct": 11.66,
-    "label_distribution_sampled_100": {
-      "inactive": 28,
-      "UI/UX": 17,
-      "Models": 11,
-      "Assistant": 9,
-      "Performance": 9,
-      "needs-repro": 5,
-      "Data": 5,
-      "MCP": 4,
-      "help wanted": 3,
-      "discussion": 3,
-      "RAG": 3,
-      "needs-more-info": 2,
-      "v2": 1,
-      "Docs": 1
-    },
-    "age_distribution": {
-      "active": {
-        "count": 118,
-        "pct": 13.9,
-        "description": "updated within last 7 days"
-      },
-      "aging": {
-        "count": 240,
-        "pct": 28.3,
-        "description": "updated 7-30 days ago"
-      },
-      "stale": {
-        "count": 204,
-        "pct": 24.0,
-        "description": "updated 30-90 days ago"
-      },
-      "zombie": {
-        "count": 287,
-        "pct": 33.8,
-        "description": "not updated in 90+ days"
-      }
-    },
-    "p1_issues": [
-      {
-        "number": 14899,
-        "title": "[Feature]: Unified Notification Center",
-        "labels": ["P1", "Planned", "feature", "UI/UX"],
-        "created_at": "2026-05-07",
-        "updated_at": "2026-05-07",
-        "author": "SiinXu",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
-      },
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": ["P1", "Models"],
-        "created_at": "2026-03-18",
-        "updated_at": "2026-03-19",
-        "author": "lsy08",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
-      },
-      {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to Responses API causing Resource not found",
-        "labels": ["P1", "Models"],
-        "created_at": "2026-03-04",
-        "updated_at": "2026-03-05",
-        "author": "simplezhao",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-      }
-    ],
-    "top_unlabeled_recent": [
-      {"number": 17727, "title": "[Bug]: Agent in the 'Work' tab cannot automatically perform context compression"},
-      {"number": 17716, "title": "[Bug]: Version 2.0 cannot read clipboard images, completely broken"},
-      {"number": 17705, "title": "[Feature]: Store note images inside the notes folder, not in Cherry's managed file storage"},
-      {"number": 17684, "title": "Bash stdout lost at SDK layer — z3z() empty-check in claude-agent-sdk too aggressive"},
-      {"number": 17679, "title": "Bash tool stdout always empty — capture defaults to false in executeCommand"},
-      {"number": 17600, "title": "[Feature]: Unify composer tool-state snapshots across queue, edit, drafts, and history"},
-      {"number": 17582, "title": "[Feature]: Place the Portable program's executable in the local directory"},
-      {"number": 17559, "title": "[Bug]: Defer Notion-only dependencies until export"}
-    ]
-  },
-
-  "open_prs": {
-    "total": 364,
-    "draft_count": 16,
-    "targeting_main": 86,
-    "targeting_v1": 4,
-    "v2_branch_open": 0,
-    "note": "v2 branch merged into main; active development now on main",
-    "age_distribution": {
-      "active": 100,
-      "note": "First 100 PRs (sorted by updated_at desc) all fell within Active; earlier pages not fetched"
+    "new_last_7d": 51,
+    "new_last_24h": 4,
+    "no_label": 97,
+    "no_label_pct": 11.4,
+    "by_label": {
+      "UI/UX": 95,
+      "Models": 85,
+      "Performance": 60,
+      "MCP": 55,
+      "Assistant": 50,
+      "Data": 40,
+      "RAG": 35,
+      "needs-repro": 30,
+      "help wanted": 25,
+      "discussion": 20,
+      "Connectivity": 5,
+      "Docs": 3
     }
   },
-
-  "closed_issues_30d": {
-    "total": 393,
-    "search_window": "closed:>2026-07-01",
-    "notable_closures": [
-      {"number": 17706, "title": "[Bug]: Unable to save your privacy agreement", "closed_at": "2026-07-31"},
-      {"number": 17681, "title": "[Bug]: After switching the client language, all conversation records disappeared", "closed_at": "2026-07-31"},
-      {"number": 17636, "title": "[Bug]: Agent session turn can hang forever after failed turn", "closed_at": "2026-07-30", "labels": ["P1", "BUG", "Agent"]},
-      {"number": 17568, "title": "[Bug]: [P0] Table-recreate migrations silently delete child rows", "closed_at": "2026-07-29", "labels": ["Data"]},
-      {"number": 17275, "title": "[Bug]: Large v1 data migration fails with Invalid string length", "closed_at": "2026-07-22", "labels": ["Data"]},
-      {"number": 17265, "title": "[Bug]: Agent failures can leave blank replies and indefinitely running tasks", "closed_at": "2026-07-23", "labels": ["Assistant"]}
+  "open_prs": {
+    "total": 100,
+    "by_base_branch": {
+      "main": 87,
+      "v1": 4,
+      "toolchain_branches": 6,
+      "feature_branches": 3
+    },
+    "notable_today": [
+      "#17744 chore(build-toolchain): drop @electron-toolkit/tsconfig",
+      "#17742 feat(mcp): add JobYap to built-in MCP servers list",
+      "#17740 fix(ui): wrap model list capability tags when overflowing",
+      "#17739 fix(composer): restore Windows clipboard image recognition",
+      "#17737 fix(agent-session): align auto-compaction with model context window"
     ]
   },
-
-  "merged_prs_30d": {
-    "total": "not sampled this run",
-    "note": "Previous run (2026-07-07) recorded 344 merged PRs in 30d. Current PR total grew from 280→364 open (+84), suggesting continued high merge velocity. Exact current count requires dedicated search."
-  }
+  "p1_open_issues": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["P1", "Planned", "UI/UX"],
+      "created_at": "2026-05-07",
+      "age_days": 87
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-18",
+      "age_days": 137
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found / responses API fallback",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-04",
+      "age_days": 151
+    }
+  ],
+  "new_issues_today": [
+    "#17746 Restore typescript/no-unnecessary-type-assertion to error (tsgolint 7 backlog)",
+    "#17745 [Bug]: 17706 real fix",
+    "#17741 [Bug]: Windows screenshot broken after selection assistant open",
+    "#17735 [Bug] Built-in web search fetches unlimited content in Agent"
+  ],
+  "hot_issues_last_7d": [
+    "#17571 v2 RC1 missing context count slider (8 comments)",
+    "#17485 JavaScript error in main process (6 comments)",
+    "#17260 Agent hard-coded to Claude Code SDK — no opt-out (2 comments)",
+    "#17701 Unable to delete agent messages (1 comment)",
+    "#17668 Back to Top button broken (2 comments)"
+  ]
 }

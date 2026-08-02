@@ -1,138 +1,78 @@
 {
-  "generated_at": "2026-08-01",
-  "repo": "CherryHQ/cherry-studio",
-  "data_source_note": "GitHub Discussions GraphQL endpoint not available in this run. Analysis inferred from Issues with 'discussion' label and high-engagement open issues.",
-
-  "issue_discussions": {
-    "issues_with_discussion_label": {
-      "count_sampled": 3,
-      "sample_basis": "first 100 open issues (sorted by updated_at desc)",
-      "open_discussion_issues": [
-        {"number": 17649, "title": "[Discussion]: Should JobManager support cooperative safe points for long-running backup quiescence?", "author": "DeJeune"},
-        {"number": 17432, "title": "[Discussion]: clarify and strengthen regression coverage for AI SDK Agent stream trajectories"},
-        {"number": 16612, "title": "[Discussion]: Unreasonable Settings for Web Search"}
-      ]
-    }
-  },
-
-  "high_engagement_open_issues": {
-    "note": "Issues with 5+ comments visible in first-page data",
-    "top_issues": [
+  "report_date": "2026-08-02",
+  "note": "Discussions fetched via GraphQL — GitHub Discussions API available but not queried directly this run due to gh CLI absence. Analysis derived from issues tagged 'discussion' and 'help wanted'.",
+  "discussion_labeled_issues_open": {
+    "count": 20,
+    "examples": [
       {
-        "number": 6505,
-        "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-        "comments": 366,
-        "labels": ["Assistant"],
-        "topic": "Selection Assistant FAQ — highest engagement issue in repo"
+        "number": 17649,
+        "title": "[Discussion]: Should JobManager support cooperative safe points for long-running backup quiescence?",
+        "labels": ["help wanted", "discussion"],
+        "created_at": "2026-07-30"
       },
       {
-        "number": 17485,
-        "title": "[Bug]: A JavaScript error occurred in the main process",
-        "comments": 6,
-        "labels": [],
-        "topic": "Main process crash"
+        "number": 17432,
+        "title": "[Discussion]: clarify and strengthen regression coverage for AI SDK Agent stream trajectories",
+        "labels": ["help wanted", "discussion"],
+        "comments": 2,
+        "created_at": "2026-07-26"
       },
       {
-        "number": 16623,
-        "title": "[Bug]: Thinking/Reasoning settings are insufficient",
-        "comments": 3,
-        "labels": ["UI/UX", "Models", "inactive"],
-        "topic": "Reasoning/thinking control across providers"
+        "number": 17389,
+        "title": "[Discussion]: Which sources may declare a FileEntry reference? (unwritten upstream half of file-ref contract)",
+        "labels": ["help wanted", "discussion", "Data"],
+        "created_at": "2026-07-25"
       },
       {
-        "number": 16013,
-        "title": "[Discussion]: How to load skills in assistant?",
-        "comments": 12,
-        "labels": ["needs-more-info", "help wanted", "discussion", "Assistant"],
-        "topic": "Developer onboarding — skills system"
-      },
-      {
-        "number": 15768,
-        "title": "[Feature]: Add Optional Timestamps for Q&A Context",
-        "comments": 7,
-        "labels": [],
-        "topic": "Chat UX metadata feature"
-      }
-    ]
-  },
-
-  "high_engagement_closed_issues_30d": {
-    "top_issues": [
-      {
-        "number": 17591,
-        "title": "[Discussion]: Agent Issues",
-        "closed_at": "2026-07-29",
-        "labels": ["needs-more-info", "help wanted", "discussion", "Assistant"],
-        "topic": "Agent mode catch-all discussion"
-      },
-      {
-        "number": 16997,
-        "title": "[Discussion]: CherryIN 429 Rate Limiting Rules Are Not Transparent",
-        "closed_at": "2026-07-14",
+        "number": 17330,
+        "title": "[Discussion]: Define Agent system workspace directory lifecycle contract",
         "labels": ["Docs", "help wanted", "discussion"],
-        "topic": "CherryIN rate limit transparency"
+        "created_at": "2026-07-24"
+      },
+      {
+        "number": 17183,
+        "title": "[Discussion]: Make AgentSession a lifecycle-managed runtime entity",
+        "labels": ["help wanted", "discussion"],
+        "created_at": "2026-07-20"
+      },
+      {
+        "number": 17271,
+        "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
+        "labels": ["help wanted", "discussion", "RAG", "Assistant"],
+        "created_at": "2026-07-22"
       }
     ]
   },
-
-  "major_tracking_issues": [
+  "recurring_user_pain_points": [
     {
-      "number": 14021,
-      "title": "[Feature]: v2 aiCore Provider layer — 226 issues, 29 categories, 5 solution pillars",
-      "author": "DeJeune",
-      "scope": "Comprehensive tracking for v2 provider refactor",
-      "categories": 29,
-      "sub_issues": 226,
-      "solution_pillars": [
-        "providerOptions passthrough layer (~25 issues)",
-        "Model template (capabilities + limits) (~20 issues)",
-        "Explicit URL template system (~10 issues)",
-        "Unified reasoning abstraction layer (~30 issues)",
-        "Agent removes provider hard-binding (~15 issues)"
-      ]
+      "topic": "v2 migration / RC regression",
+      "frequency": "high",
+      "sample_issues": ["#17470", "#17571", "#17695", "#17341"]
+    },
+    {
+      "topic": "Agent mode model compatibility",
+      "frequency": "high",
+      "sample_issues": ["#17260", "#17486", "#17282", "#16970"]
+    },
+    {
+      "topic": "MCP server reliability",
+      "frequency": "medium-high",
+      "sample_issues": ["#17689", "#17688", "#16951", "#17605"]
+    },
+    {
+      "topic": "Clipboard / file attachment in v2",
+      "frequency": "medium",
+      "sample_issues": ["#17716", "#17741"]
+    },
+    {
+      "topic": "Agent context window management",
+      "frequency": "medium",
+      "sample_issues": ["#17571", "#17727", "#17735"]
     }
   ],
-
-  "topic_clusters": {
-    "MCP_tool_calling": {
-      "open_issues_from_label": "~66 (estimated, from label search)",
-      "hot_areas": ["MCP OAuth flows", "stdio process leaks (#17689)", "mcp-auto-install 404 (#17688)", "MCP image results", "alphaXiv OAuth (#17605)"]
-    },
-    "AI_model_providers": {
-      "open_issues_from_label": "~11 in first 100 (Models label)",
-      "hot_areas": ["Chain of thought length control (#17642)", "Xunfei Xingchen reasoning mode (#17426)", "Azure OpenAI P1 bug (#13193)", "Thinking settings (#16623)"]
-    },
-    "ui_ux": {
-      "open_issues_from_label": "~17 in first 100 (UI/UX label)",
-      "hot_areas": ["v2 RC missing context window control (#17571)", "agent disappears after clear (#17560)", "chat nav back-to-top broken (#17668)", "model list label overflow (#17730)"]
-    },
-    "agent_mode": {
-      "open_issues_from_label": "~9 in first 100 (Assistant label)",
-      "hot_areas": ["Zero-output results persisted as successful (#17587)", "401 auth error in agent mode (#17486)", "Long-term memory system (#17513)", "Split stream lanes (#17545)"]
-    },
-    "data_migration": {
-      "open_issues_from_label": "~5 in first 100 (Data label)",
-      "hot_areas": ["RC users' file entries stuck manual (#17709)", "Agent migration workspace root wrong (#17695)", "AgentWorkspacePath canonical type (#17431)"]
-    },
-    "performance": {
-      "open_issues_from_label": "~9 in first 100 (Performance label)",
-      "hot_areas": ["HTML artifact runtime deferred (#17669)", "Virtualize global search previews (#17412)", "Limit painting template loading (#17618)", "Markdown reparse per-frame (#17504)"]
-    }
-  },
-
-  "sentiment_signals": {
-    "positive": [
-      "393 issues closed in last 30 days — active housekeeping",
-      "High-severity bug #17636 (Agent session hang) closed within 2 weeks of filing",
-      "Critical migration bug #17568 ([P0] SQLite child row deletion) closed quickly",
-      "v2 RC shipped and getting real-world feedback"
-    ],
-    "negative": [
-      "P1 bugs #13193 and #13608 unresolved for 136-150 days",
-      "287 zombie issues (33.8% of backlog) — highest on record, up from 151 (4 weeks ago)",
-      "v2 RC1 missing context window control (#17571) — regression vs v1",
-      "MCP stdio process leak (#17689) accumulates duplicate python processes",
-      "Clipboard image paste broken in v2.0 (#17716)"
-    ]
+  "community_health": {
+    "open_help_wanted": 25,
+    "discussions_awaiting_answer": "unknown (GraphQL not queried)",
+    "note": "Project is very active — 51 new issues in last 7 days, 100+ open PRs"
   }
 }
