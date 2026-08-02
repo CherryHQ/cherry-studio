@@ -6743,6 +6743,7 @@
         "fetch": "MCP server for retrieving URL web content",
         "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
         "flomo": "Connect to flomo to quickly capture notes and ideas via AI. Requires flomo account authorization.",
+        "jobyap": "Search job postings aggregated from companies' official careers sites — salaries, locations, and a community discussion thread on every job. Public read-only remote MCP, no authentication required.",
         "mcp_auto_install": "Automatically install MCP service (beta)",
         "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
         "no": "No description",

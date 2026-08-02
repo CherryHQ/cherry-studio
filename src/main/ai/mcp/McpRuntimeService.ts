@@ -394,14 +394,17 @@ export class McpRuntimeService extends BaseService {
         ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
+          // Special case for nowledgeMem, flomo and jobyap - uses HTTP transport instead of in-memory
           if (
             isInMemoryBuiltinMcpServer(server) &&
-            (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
+            (server.name === BuiltinMcpServerNames.nowledgeMem ||
+              server.name === BuiltinMcpServerNames.flomo ||
+              server.name === BuiltinMcpServerNames.jobyap)
           ) {
             const httpUrlMap: Record<string, string> = {
               [BuiltinMcpServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
-              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp'
+              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp',
+              [BuiltinMcpServerNames.jobyap]: 'https://mcp.jobyap.com/mcp'
             }
             const httpUrl = httpUrlMap[server.name]
             const options: StreamableHTTPClientTransportOptions = {

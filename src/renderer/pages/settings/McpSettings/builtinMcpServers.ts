@@ -154,5 +154,15 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     provider: 'Nowledge',
     installSource: 'builtin',
     isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMcpServerNames.jobyap,
+    reference: 'https://jobyap.com/agents',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'JobYap',
+    installSource: 'builtin',
+    isTrusted: true
   }
 ] as const
