@@ -12,6 +12,7 @@ import { WEB_FETCH_TOOL_NAME, webFetchInputSchema, webFetchOutputSchema } from '
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
+import { makeEntitiesCodec } from '../../../outputCodec'
 import { fetchWeb, WEB_FETCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
@@ -31,7 +32,12 @@ const webFetchTool = tool({
 export function createWebFetchToolEntry(): ToolEntry {
   return {
     name: WEB_FETCH_TOOL_NAME,
-    truncatable: false,
+    // Entity codec instead of the blanket truncatable:false it used to carry:
+    // a fetched page's citation identity is its URL (in the input AND the
+    // result skeleton), so trimming per-entity `content` loses nothing the
+    // model cites — while an uncapped page was the one output no context
+    // guard covered (compaction never folds the current turn; finding #7).
+    codec: makeEntitiesCodec({ contentKey: 'content' }),
     namespace: 'web',
     description: 'Fetch readable content from known web page URLs',
     defer: 'auto',

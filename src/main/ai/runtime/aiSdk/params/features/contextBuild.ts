@@ -22,7 +22,7 @@
  * Ordering invariant: registered before anthropicCacheFeature so truncation
  * happens before cache markers are placed (see internalFeatures.ts).
  */
-import type { ContextMiddlewareOptions, VFSStorageAdapter } from '@cherrystudio/ai-core'
+import type { ContextMiddlewareOptions, TruncateOptions, VFSStorageAdapter } from '@cherrystudio/ai-core'
 import { createContextMiddleware, definePlugin } from '@cherrystudio/ai-core'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
@@ -58,12 +58,15 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
       storage: resolveTruncateStorage(scope),
-      // Declarative opt-out: `truncatable: false` entries (citation +
-      // read-style tools) are preserved verbatim.
-      perTool: scope.registry
-        .getAll()
-        .filter((entry) => entry.truncatable === false)
-        .map((entry) => entry.name)
+      // Lane rules per entry: `truncatable: false` → bare-string preserve
+      // (unconditional — fs_read's loop protection, even if a codec exists);
+      // codec-bearing entries → entity-level trimming via the codec closure;
+      // everything else → default opaque policy.
+      perTool: scope.registry.getAll().flatMap((entry): NonNullable<TruncateOptions['perTool']> => {
+        if (entry.truncatable === false) return [entry.name]
+        if (entry.codec) return [{ name: entry.name, codec: entry.codec }]
+        return []
+      })
     },
 
     logger: { warn: (message, ...args) => logger.warn(message, { args }) }

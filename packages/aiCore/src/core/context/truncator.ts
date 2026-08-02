@@ -13,6 +13,25 @@ import { Offloader, type VFSStorageAdapter } from './offloader'
 import { PERSISTED_OUTPUT_TAG } from './prompts'
 import type { ContextLogger } from './types'
 
+/**
+ * Structure-aware trimming for a tool's output: `deflate` splits a value into
+ * an identity skeleton plus per-entity text blobs (returning `null` for
+ * non-codec-shaped values — errors, steer strings, markers), `assemble`
+ * rebuilds the value with each blob's text swapped for the (possibly trimmed)
+ * text under the same key. `blob.key` is a JSON-pointer-lite path into the
+ * skeleton (`"/<index>/content"`, `"/text"`), fixed here because persisted
+ * envelopes reuse it — stored data must inflate without the codec.
+ *
+ * Passed into the truncator as DATA on a `perTool` entry (functions-as-data):
+ * aiCore stays provider/tool-agnostic and never imports tool code. `assemble`
+ * must preserve key insertion order — the assembled value is stringified into
+ * the prompt and must be byte-stable across lanes for prefix caching.
+ */
+export interface EntityToolOutputCodec {
+  deflate(value: unknown): { skeleton: unknown; blobs: Array<{ key: string; text: string }> } | null
+  assemble(skeleton: unknown, texts: Record<string, string>): unknown
+}
+
 export interface TruncateOptions {
   /** Character count threshold to trigger truncation. */
   threshold: number
@@ -52,6 +71,10 @@ export interface TruncateOptions {
         threshold?: number
         headChars?: number
         tailChars?: number
+        /** Entity-level trimming for structured (`json`) outputs: per-entity
+         *  content is trimmed while the identity skeleton stays verbatim.
+         *  Non-json outputs and `deflate → null` fall back to the opaque path. */
+        codec?: EntityToolOutputCodec
       }
   >
 }
@@ -96,6 +119,23 @@ export async function truncateToolResults(
       const effThreshold = toolPolicy?.threshold ?? threshold
       const effHeadChars = toolPolicy?.headChars ?? headChars
       const effTailChars = toolPolicy?.tailChars ?? tailChars
+
+      // Entity-level path: structured output + a codec → trim per-entity
+      // content, keep the identity skeleton verbatim.
+      if (toolPolicy?.codec && part.output.type === 'json') {
+        const trimmed = await truncateEntities(
+          part,
+          toolPolicy.codec,
+          { threshold: effThreshold, headChars: effHeadChars, tailChars: effTailChars },
+          offloader,
+          logger
+        )
+        if (trimmed !== null) {
+          newContent.push(trimmed)
+          continue
+        }
+        // deflate → null (error object, steer note, …): fall through to opaque.
+      }
 
       const text = extractText(part.output)
       if (text.length <= effThreshold || effHeadChars + effTailChars >= text.length) {
@@ -167,7 +207,73 @@ type ToolPolicy =
       threshold?: number
       headChars?: number
       tailChars?: number
+      codec?: EntityToolOutputCodec
     }
+
+/**
+ * Entity-level trimming of one `json` tool-result part. Returns `null` when
+ * the codec doesn't recognise the value (opaque fallback), the SAME part
+ * reference when nothing needed trimming, or a new part whose output value has
+ * oversized entity texts replaced by head/marker/tail (with storage) or the
+ * inline `--- truncated ---` form (without). A per-blob storage failure keeps
+ * that blob's full text — never trade data for a broken marker.
+ */
+async function truncateEntities(
+  part: LanguageModelV3ToolResultPart,
+  codec: EntityToolOutputCodec,
+  budget: { threshold: number; headChars: number; tailChars: number },
+  offloader: Offloader | null,
+  logger: ContextLogger
+): Promise<LanguageModelV3ToolResultPart | null> {
+  const output = part.output as Extract<LanguageModelV3ToolResultOutput, { type: 'json' }>
+  const deflated = codec.deflate(output.value)
+  if (deflated === null) return null
+
+  const texts: Record<string, string> = {}
+  let anyTrimmed = false
+  for (const blob of deflated.blobs) {
+    const { key, text } = blob
+    const overBudget = text.length > budget.threshold && budget.headChars + budget.tailChars < text.length
+    // Never re-truncate an already-persisted marker (same guard as the opaque path).
+    if (!overBudget || text.includes(PERSISTED_OUTPUT_TAG)) {
+      texts[key] = text
+      continue
+    }
+    if (offloader) {
+      try {
+        const vfsResult = await offloader.offloadAsync(text, {
+          threshold: budget.threshold,
+          headChars: budget.headChars,
+          tailChars: budget.tailChars
+        })
+        texts[key] = vfsResult.content
+        anyTrimmed = anyTrimmed || vfsResult.isOffloaded
+        continue
+      } catch (error) {
+        logger.warn(
+          `[context] Storage adapter write failed for entity ${key} of tool result (${part.toolCallId}). ` +
+            `Keeping full text. Error: ${error instanceof Error ? error.message : String(error)}`
+        )
+        texts[key] = text
+        continue
+      }
+    }
+    const head = text.slice(0, budget.headChars)
+    const tail = text.slice(text.length - budget.tailChars)
+    const totalLines = text.split('\n').length
+    texts[key] = [head, `\n--- truncated (${totalLines} lines, ${text.length} chars total) ---\n`, tail]
+      .filter(Boolean)
+      .join('')
+      .trim()
+    anyTrimmed = true
+  }
+
+  if (!anyTrimmed) return part
+  return {
+    ...part,
+    output: { type: 'json', value: codec.assemble(deflated.skeleton, texts) } as LanguageModelV3ToolResultOutput
+  } satisfies LanguageModelV3ToolResultPart
+}
 
 /**
  * Normalises `perTool` into a name → policy lookup.
@@ -184,7 +290,8 @@ function buildPolicyMap(perTool: TruncateOptions['perTool']): Map<string, ToolPo
       map.set(entry.name, {
         threshold: entry.threshold,
         headChars: entry.headChars,
-        tailChars: entry.tailChars
+        tailChars: entry.tailChars,
+        codec: entry.codec
       })
     }
   }

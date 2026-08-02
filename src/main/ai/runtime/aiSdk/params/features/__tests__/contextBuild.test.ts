@@ -208,6 +208,27 @@ describe('buildContextOptions → createMiddleware', () => {
   })
 })
 
+describe('buildContextOptions — perTool lane rules', () => {
+  const fakeCodec = { deflate: () => null, assemble: (s: unknown) => s, snippet: (t: string) => t }
+
+  it('truncatable:false → bare-string preserve, even when a codec exists (fs_read invariant)', () => {
+    const scope = makeScope({
+      entries: [
+        { name: 'fs_read', truncatable: false, codec: fakeCodec } as never,
+        { name: 'plain_exempt', truncatable: false }
+      ]
+    })
+    const opts = buildContextOptions(scope)!
+    expect(opts.truncate?.perTool).toEqual(['fs_read', 'plain_exempt'])
+  })
+
+  it('codec-bearing entries become perTool objects carrying the codec closure', () => {
+    const scope = makeScope({ entries: [{ name: 'web_fetch', codec: fakeCodec } as never, { name: 'other' }] })
+    const opts = buildContextOptions(scope)!
+    expect(opts.truncate?.perTool).toEqual([{ name: 'web_fetch', codec: fakeCodec }])
+  })
+})
+
 describe('buildContextOptions — storage routing', () => {
   it('anchored request → FileManager adapter wired with the placeholder id and allow-list set', () => {
     const persistedOutputPaths = new Set<string>()

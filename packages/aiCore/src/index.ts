@@ -52,6 +52,7 @@ export type {
   ContextLogger,
   ContextMessage,
   ContextMiddlewareOptions,
+  EntityToolOutputCodec,
   HeadTailExcerpt,
   TruncateOptions,
   VFSStorageAdapter

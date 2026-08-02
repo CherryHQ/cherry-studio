@@ -1,6 +1,15 @@
+import type { EntityToolOutputCodec } from '@cherrystudio/ai-core'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport, UniqueModelId } from '@shared/data/types/model'
 import type { Tool } from 'ai'
+
+/**
+ * Main-side codec: the aiCore deflate/assemble pair plus the persist-lane
+ * snippet policy (the inline stand-in for a blobbed content field).
+ */
+export interface ToolOutputCodec extends EntityToolOutputCodec {
+  snippet(text: string): string
+}
 
 /**
  * Read-only context for `ToolEntry.applies`. Lives here so the tool
@@ -52,8 +61,22 @@ export interface ToolEntry {
    *   - read-style tools — persisting their output would route the model
    *     right back through the same tool to read the persisted file (loop)
    * Default (undefined) = truncatable.
+   *
+   * Lane interplay with `codec`: in-flight, `truncatable: false` wins
+   * unconditionally (fs_read's loop protection); at persist time a codec
+   * makes the tool trimmable even with `truncatable: false` (echo trimming
+   * is safe there — the live loop keeps seeing full content in-flight).
    */
   truncatable?: boolean
+
+  /**
+   * Structure-aware trimming codec (see `EntityToolOutputCodec`): trims only
+   * per-entity content fields, never identity/citation skeletons. Preferred
+   * over the blanket `truncatable: false` for citable tools. `snippet` is the
+   * persist-lane policy for the inline stand-in of a blobbed content field
+   * (~300 chars, byte-aligned with the renderer citation snippet).
+   */
+  codec?: ToolOutputCodec
 
   /**
    * Grouping for `tool_search`. NOT part of the wire-name.
