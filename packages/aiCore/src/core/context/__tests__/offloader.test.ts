@@ -250,6 +250,18 @@ describe('Offloader — content-addressed filenames', () => {
     expect(filename).toMatch(/^vfs_[a-f0-9]{16}\.txt$/)
   })
 
+  it('filename equals sha256(content)[:16] — the formula persist-time naming mirrors', async () => {
+    // Cross-implementation contract with computeVfsFilename in
+    // src/main/ai/contextBuild/toolOutputStore.ts (node:crypto there,
+    // Web Crypto here — both must produce these bytes).
+    const { createHash } = await import('node:crypto')
+    const adapter = makeMemoryAdapter()
+    const o = new Offloader({ threshold: 10, adapter })
+    const r = await o.offloadAsync(BIG, { tailChars: 20 })
+    const sha = createHash('sha256').update(BIG, 'utf8').digest('hex').slice(0, 16)
+    expect(r.uri).toBe(`context://vfs/vfs_${sha}.txt`)
+  })
+
   it('same content → same filename and identical marker across instances', async () => {
     const adapter = makeMemoryAdapter()
     const a = new Offloader({ threshold: 10, adapter })
