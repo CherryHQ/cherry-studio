@@ -6,7 +6,7 @@ export interface ProgressBarProps {
   height?: number
 }
 
-export const ProgressBar: React.FC<ProgressBarProps> = ({ start, progress, height = 6 }) => {
+export const ProgressBar: React.FC<ProgressBarProps> = ({ start = 0, progress, height = 6 }) => {
   const displayProgress = Math.min(100, Math.max(0, progress))
 
   return (
