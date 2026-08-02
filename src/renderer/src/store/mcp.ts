@@ -16,7 +16,13 @@
  */
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
+import {
+  type BuiltinMCPServer,
+  BuiltinMCPServerNames,
+  MCP_AUTO_INSTALL_ARGS,
+  type MCPConfig,
+  type MCPServer
+} from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
 const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
@@ -126,7 +132,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'inMemory',
     command: 'npx',
-    args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
+    args: MCP_AUTO_INSTALL_ARGS,
     isActive: false,
     provider: 'CherryAI',
     installSource: 'builtin',
