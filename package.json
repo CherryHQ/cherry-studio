@@ -169,7 +169,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@e965/xlsx": "^0.20.3",
     "@electron-toolkit/preload": "^3.0.0",
-    "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
     "@electron/rebuild": "^4.0.4",

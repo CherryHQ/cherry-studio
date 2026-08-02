@@ -1,10 +1,25 @@
 {
   "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "sourceMap": false,
+    "strict": true,
+    "noImplicitAny": false,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
     "composite": true,
+    "incremental": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "incremental": true,
-    "moduleResolution": "bundler",
+    "useDefineForClassFields": true,
     "paths": {
       "@application": ["./src/main/core/application/Application"],
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
@@ -25,10 +40,8 @@
       "@test-mocks/*": ["./tests/__mocks__/*"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
-    "types": ["electron-vite/node", "vitest/globals"],
-    "useDefineForClassFields": true
+    "types": ["electron-vite/node", "vitest/globals"]
   },
-  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
     "scripts",
