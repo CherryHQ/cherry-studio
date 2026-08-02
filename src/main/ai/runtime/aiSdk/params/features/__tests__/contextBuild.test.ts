@@ -11,12 +11,19 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import { application } from '@application'
-import { createContextMiddleware } from '@cherrystudio/ai-core'
-import { FileSystemAdapter } from '@main/services/VfsBlobService'
+import { createContextMiddleware, type VFSStorageAdapter } from '@cherrystudio/ai-core'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { LanguageModelMiddleware } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { getByIdMock, adapterFactoryMock } = vi.hoisted(() => ({
+  getByIdMock: vi.fn(),
+  adapterFactoryMock: vi.fn()
+}))
+vi.mock('@data/services/MessageService', () => ({ messageService: { getById: getByIdMock } }))
+vi.mock('@main/ai/contextBuild/persistedOutputAdapter', () => ({
+  createFileManagerStorageAdapter: adapterFactoryMock
+}))
 
 import type { RequestScope } from '../../scope'
 import { buildContextOptions, contextBuildFeature } from '../contextBuild'
@@ -26,11 +33,23 @@ const BIG = 150_000
 
 let tmpDir: string
 
+/** Stand-in for the FileManager-backed adapter: same interface, tmpdir-backed. */
+function tmpDirAdapter(dir: string): VFSStorageAdapter {
+  return {
+    write: (f, c) => fs.writeFileSync(path.join(dir, f), c, 'utf8'),
+    read: (f) => (fs.existsSync(path.join(dir, f)) ? fs.readFileSync(path.join(dir, f), 'utf8') : null),
+    exists: (f) => fs.existsSync(path.join(dir, f)),
+    getPhysicalPath: (f) => path.join(dir, f)
+  }
+}
+
 beforeEach(() => {
+  vi.clearAllMocks()
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'context-build-'))
-  // Global mock's application.get() throws for unknown services — stub the
-  // VfsBlobService surface the feature consumes.
-  vi.mocked(application.get).mockImplementation(() => ({ getAdapter: () => new FileSystemAdapter(tmpDir) }) as never)
+  // Anchored by default: the request id resolves to a message row, so the
+  // truncate layer gets storage (as in a normal chat turn).
+  getByIdMock.mockReturnValue({ id: 'anchor-1' })
+  adapterFactoryMock.mockImplementation(() => tmpDirAdapter(tmpDir))
 })
 
 afterEach(() => {
@@ -42,6 +61,7 @@ interface ScopeOverrides {
   contextSettings?: RequestScope['contextSettings']
   compressionModel?: RequestScope['compressionModel']
   model?: Partial<RequestScope['model']>
+  requestContext?: Partial<RequestScope['requestContext']>
 }
 
 function makeScope(overrides: ScopeOverrides = {}): RequestScope {
@@ -49,6 +69,7 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
     registry: { getAll: () => overrides.entries ?? [] },
     model: { id: 'test-model', contextWindow: 200_000, ...overrides.model },
     request: {},
+    requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
     compressionModel: overrides.compressionModel ?? null
   } as never
@@ -184,6 +205,33 @@ describe('buildContextOptions → createMiddleware', () => {
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
     const reference = compacted(makePrompt('mcp__srv__dump', BIG))
     expect(out.filter((m) => m.role !== 'tool')).toEqual(reference.filter((m) => m.role !== 'tool'))
+  })
+})
+
+describe('buildContextOptions — storage routing', () => {
+  it('anchored request → FileManager adapter wired with the placeholder id and allow-list set', () => {
+    const persistedOutputPaths = new Set<string>()
+    const scope = makeScope({ requestContext: { requestId: 'anchor-1', persistedOutputPaths } })
+    const opts = buildContextOptions(scope)!
+    expect(opts.truncate?.storage).toBeDefined()
+    expect(adapterFactoryMock).toHaveBeenCalledWith({ messageId: 'anchor-1', persistedOutputPaths })
+  })
+
+  it('no message row (temp chat / one-shot streamPrompt) → no storage', () => {
+    getByIdMock.mockReturnValue(null)
+    const opts = buildContextOptions(makeScope())!
+    expect(opts.truncate?.storage).toBeUndefined()
+    expect(adapterFactoryMock).not.toHaveBeenCalled()
+  })
+
+  it('non-anchored oversized results still truncate inline (no files, no marker path)', async () => {
+    getByIdMock.mockReturnValue(null)
+    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
+    const { value } = toolOutput(out)
+    expect(value.length).toBeLessThan(10_000)
+    expect(value).toContain('--- truncated')
+    expect(value).not.toContain('<persisted-output>')
+    expect(fs.readdirSync(tmpDir)).toHaveLength(0)
   })
 })
 

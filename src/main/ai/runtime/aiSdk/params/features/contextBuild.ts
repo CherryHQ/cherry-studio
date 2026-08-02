@@ -4,9 +4,11 @@
  * each call".
  *
  * Layers, all gated on `scope.contextSettings.enabled`:
- * - truncate: large tool results → VfsBlobService, replaced with a
- *   <persisted-output> marker (read back via fs_read). Threshold is the
- *   resolved user setting. `truncatable: false` entries are exempt.
+ * - truncate: large tool results → durable FileManager blobs (anchored
+ *   requests) replaced with a <persisted-output> marker (read back via
+ *   fs_read), or plain inline head/tail truncation when the request has no
+ *   message row to hang a ref on. Threshold is the resolved user setting.
+ *   `truncatable: false` entries are exempt.
  * - compact: mechanical, zero-LLM pruning (drop reasoning before the last
  *   message; drop empty messages).
  * - onBeforeCompress: no-LLM sliding-window fallback (drop oldest) — the only
@@ -20,10 +22,11 @@
  * Ordering invariant: registered before anthropicCacheFeature so truncation
  * happens before cache markers are placed (see internalFeatures.ts).
  */
-import { application } from '@application'
-import type { ContextMiddlewareOptions } from '@cherrystudio/ai-core'
+import type { ContextMiddlewareOptions, VFSStorageAdapter } from '@cherrystudio/ai-core'
 import { createContextMiddleware, definePlugin } from '@cherrystudio/ai-core'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -54,7 +57,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
       threshold: settings.truncateThreshold,
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
-      storage: application.get('VfsBlobService').getAdapter(),
+      storage: resolveTruncateStorage(scope),
       // Declarative opt-out: `truncatable: false` entries (citation +
       // read-style tools) are preserved verbatim.
       perTool: scope.registry
@@ -77,6 +80,25 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
   }
 
   return options
+}
+
+/**
+ * Storage for the truncate layer, decided per request. Anchored = the
+ * request's id maps to a real `message` row (the chat path's assistant
+ * placeholder, committed before dispatch) that a provisional `tool_output`
+ * ref can target. Temporary chats carry a synthetic uuid with no row and
+ * one-shot `streamPrompt` calls (translate / naming / probes) carry a random
+ * one — for those, no storage: the truncator falls back to plain inline
+ * head/tail truncation (these paths practically never produce oversized tool
+ * outputs, and there is nothing to own a durable blob's lifetime).
+ */
+function resolveTruncateStorage(scope: RequestScope): VFSStorageAdapter | undefined {
+  const anchorId = scope.requestContext.requestId
+  if (!messageService.getById(anchorId)) return undefined
+  return createFileManagerStorageAdapter({
+    messageId: anchorId,
+    persistedOutputPaths: scope.requestContext.persistedOutputPaths
+  })
 }
 
 /** Drop the oldest non-system messages until the estimate is under budget,
