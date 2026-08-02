@@ -376,9 +376,6 @@ importers:
       '@electron-toolkit/preload':
         specifier: ^3.0.0
         version: 3.0.2(electron@41.8.0)
-      '@electron-toolkit/tsconfig':
-        specifier: ^1.0.1
-        version: 1.0.1(@types/node@24.10.4)
       '@electron-toolkit/utils':
         specifier: ^3.0.0
         version: 3.0.0(electron@41.8.0)
@@ -3858,11 +3855,6 @@ packages:
     resolution: {integrity: sha512-TWWPToXd8qPRfSXwzf5KVhpXMfONaUuRAZJHsKthKgZR/+LqX1dZVSSClQ8OTAEduvLGdecljCsoT2jSshfoUg==}
     peerDependencies:
       electron: '>=13.0.0'
-
-  '@electron-toolkit/tsconfig@1.0.1':
-    resolution: {integrity: sha512-M0Mol3odspvtCuheyujLNAW7bXq7KFNYVMRtpjFa4ZfES4MuklXBC7Nli/omvc+PRKlrklgAGx3l4VakjNo8jg==}
-    peerDependencies:
-      '@types/node': '*'
 
   '@electron-toolkit/utils@3.0.0':
     resolution: {integrity: sha512-GaXHDhiT7KCvMJjXdp/QqpYinq69T/Pdl49Z1XLf8mKGf63dnsODMWyrmIjEQ0z/vG7dO8qF3fvmI6Eb2lUNZA==}
@@ -18127,10 +18119,6 @@ snapshots:
   '@electron-toolkit/preload@3.0.2(electron@41.8.0)':
     dependencies:
       electron: 41.8.0
-
-  '@electron-toolkit/tsconfig@1.0.1(@types/node@24.10.4)':
-    dependencies:
-      '@types/node': 24.10.4
 
   '@electron-toolkit/utils@3.0.0(electron@41.8.0)':
     dependencies:
