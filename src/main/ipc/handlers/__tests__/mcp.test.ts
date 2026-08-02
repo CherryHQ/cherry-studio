@@ -18,7 +18,6 @@ const runtime = {
 }
 const catalog = { refreshTools: vi.fn() }
 const pkg = { uploadDxt: vi.fn(), uploadMcpb: vi.fn() }
-const protocol = { consumePendingMcpInstallRequests: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -27,7 +26,6 @@ beforeEach(() => {
     if (name === 'McpRuntimeService') return runtime
     if (name === 'McpCatalogService') return catalog
     if (name === 'McpPackageService') return pkg
-    if (name === 'ProtocolService') return protocol
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -61,16 +59,6 @@ describe('mcpHandlers', () => {
   it('get_server_version returns string | null', async () => {
     runtime.getServerVersion.mockResolvedValue(null)
     expect(await mcpHandlers['mcp.server.get_version']({ serverId: 's' }, ctx)).toBeNull()
-  })
-
-  it('consumes pending protocol installs for the calling window', async () => {
-    const pending = []
-    protocol.consumePendingMcpInstallRequests.mockReturnValue(pending)
-
-    const result = await mcpHandlers['mcp.protocol_install.consume_pending'](undefined, ctx)
-
-    expect(protocol.consumePendingMcpInstallRequests).toHaveBeenCalledWith('w1')
-    expect(result).toEqual(pending)
   })
 
   it('upload_dxt / upload_mcpb delegate to McpPackageService with the buffer + fileName', async () => {

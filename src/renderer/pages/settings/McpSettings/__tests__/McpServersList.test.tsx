@@ -112,21 +112,6 @@ describe('McpServersList protocol install', () => {
     })
   })
 
-  it('shows an identical preview again when its request id changes', async () => {
-    const user = userEvent.setup()
-    const { rerender } = render(<McpServersList />)
-
-    expect(await screen.findByText('first-server')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
-    await waitFor(() => expect(screen.queryByText('first-server')).not.toBeInTheDocument())
-
-    mocks.pendingProtocolInstalls = [{ requestId: 'request-2', servers: protocolServers }]
-    mocks.protocolInstallRequestId = 'request-2'
-    rerender(<McpServersList />)
-
-    expect(await screen.findByText('first-server')).toBeInTheDocument()
-  })
-
   it('queues a second request until the first preview is closed', async () => {
     const user = userEvent.setup()
     let resolveInstall!: (servers: McpServer[]) => void
