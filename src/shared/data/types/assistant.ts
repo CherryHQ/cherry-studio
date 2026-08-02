@@ -20,6 +20,14 @@ export const McpModeSchema = z.enum(['disabled', 'auto', 'manual'])
 export type McpMode = z.infer<typeof McpModeSchema>
 
 /**
+ * Effective mcpMode when `settings.mcpMode` is unset. Single source of truth —
+ * main's resolver, the renderer helper, and the composer MCP selector must all
+ * agree, or the same assistant resolves different tool sets per layer
+ * (runtime-test finding #6). 'manual' = only explicitly linked servers.
+ */
+export const DEFAULT_MCP_MODE: McpMode = 'manual'
+
+/**
  * Assistant settings — inference parameters + context source toggles.
  * Stored as a single JSON column in the database.
  *
@@ -82,7 +90,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxTokens: false,
   streamOutput: true,
   reasoning_effort: 'default',
-  mcpMode: 'auto',
+  mcpMode: DEFAULT_MCP_MODE,
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,

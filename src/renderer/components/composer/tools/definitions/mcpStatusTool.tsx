@@ -15,7 +15,7 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpMode } from '@shared/data/types/assistant'
+import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
 import { Cable, Check, Loader2, Settings2 } from 'lucide-react'
@@ -154,7 +154,7 @@ export async function updateMcpBinding({
     return true
   }
 
-  if (!assistant || assistant.settings?.mcpMode !== 'manual') return false
+  if (!assistant || (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) !== 'manual') return false
   await updateAssistant({ mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) })
   return true
 }
@@ -181,7 +181,7 @@ export function buildMcpStatusItems({
     })
   }
 
-  const mode = assistant?.settings?.mcpMode ?? 'disabled'
+  const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
   if (mode === 'disabled') {
     return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.disabled', 'MCP is disabled'))]
   }
@@ -291,7 +291,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const { updateAgent } = useAgentMutationsById(session?.agentId ?? '')
   const [pendingServerId, setPendingServerId] = useState<string | null>(null)
   const bindingMutationInFlightRef = useRef(false)
-  const mode = scope === TopicType.Chat ? (assistant?.settings?.mcpMode ?? 'disabled') : undefined
+  const mode = scope === TopicType.Chat && assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : undefined
   const bindingPanelEditable = scope === TopicType.Session || mode === 'manual'
   const canEditBindings =
     scope === TopicType.Session ? Boolean(session?.agentId && agent) : Boolean(assistant?.id && mode === 'manual')

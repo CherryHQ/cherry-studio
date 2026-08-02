@@ -8,16 +8,15 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { Assistant, McpMode } from '@shared/data/types/assistant'
+import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
-/** `settings.mcpMode` if set; else 'manual' when any linked servers, else 'disabled'. */
+/** `settings.mcpMode` if set; else the shared default ('manual' — only linked
+ *  servers; with zero links that resolves to no tools, same as 'disabled'). */
 export function getEffectiveMcpMode(assistant: Assistant): McpMode {
-  const mode = assistant.settings?.mcpMode
-  if (mode) return mode
-  return assistant.mcpServerIds.length > 0 ? 'manual' : 'disabled'
+  return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
 }
 
 function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
@@ -52,7 +51,14 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
 
   const perServerResults = await Promise.allSettled(
     servers.map(async (server) => {
-      const tools = application.get('McpCatalogService').listTools(server.id)
+      const catalog = application.get('McpCatalogService')
+      // Warm before listing: `listTools` is cache-only, so a cold cache used to
+      // resolve to a silent empty tool set (the request then ran without the
+      // assistant's MCP tools — same assistant, different turns, different
+      // tools). `warmToolsCache` awaits a live refresh when cold, resolves
+      // immediately when populated, and respects the dead-server backoff.
+      await catalog.warmToolsCache(server.id)
+      const tools = catalog.listTools(server.id)
       return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
     })
   )
