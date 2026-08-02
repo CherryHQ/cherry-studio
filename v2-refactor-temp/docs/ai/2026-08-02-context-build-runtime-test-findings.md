@@ -124,3 +124,61 @@
 **行动排序**:① web_fetch 翻 flag(一行,立即止血)→ ② search 源级 cutoff 默认值 → ③ `shape:'json'` + citation-aware 信封(与 #3 合并)→ ④ per-tool reducer。
 
 **量级 sanity check**:200k 正常窗口下 search 需 ~100+ 轮才顶满(压缩层足够);fetch 一发长页即可 50k+——优先级由此而来。
+
+---
+
+## #7 附:根本修复设计——内容/结构分离的「实体级裁剪」(Tool Output Codec)
+
+> 根因一句话:现在的截断把工具输出当**不透明字节流**(extractText → head/tail),而工具输出实际是**有结构的**——身份字段(id/url/title)+ 大体积内容字段。字节级掐断毁结构,整工具豁免弃防线;布尔 `truncatable` 表达不了"裁内容、保骨架"。根本修复 = 把裁剪单位从字节流改成**实体的内容字段**。
+
+### 核心抽象:每个工具注册一个输出编解码器(codec)
+
+```ts
+// ToolEntry 上替代布尔 truncatable 的声明(与工具 schema 同文件,单一事实源)
+interface ToolOutputCodec<TOutput> {
+  /** 拆分:骨架(身份/引用字段,永不裁)+ 可裁文本块(每实体一块) */
+  deflate(output: TOutput): { skeleton: unknown; blobs: Array<{ key: string; text: string }> } | null
+  /** 重建:骨架 + 全文块 → 原始输出(渲染端展开 / ai.tool.get_result 用) */
+  inflate(skeleton: unknown, blobs: Record<string, string>): TOutput
+}
+// 未注册 codec = 现状 'opaque'(字符串/全文本 MCP 走既有 head/tail);
+// 'exempt' 仅留给真正永不裁的场景(如 fs_read 的 in-flight 防循环豁免)。
+```
+
+预置 codec:
+- **web_search / web_fetch / kb_search**:`entities` 形——骨架 = `[{id,url,title}]`,blobs = 各条 `content`。超阈值只裁单条 content 为 head/tail + marker,**引用骨架在 prompt 与 DB 双侧永不有损**。
+- **fs_read / read_file(#3 顺带解决)**:`json-text-field` 形——骨架 = `{kind,startLine,...}`,blob = `text` 字段。fs_read 保留 in-flight 豁免(防循环),但 **persist 侧裁回声**;整页读回的 blob 经 contentHash 去重直接命中它刚读的那个 entry,零额外存储。
+
+### 统一管线(两条 lane 共享一个裁剪原语)
+
+```
+trimToolOutput(toolName, output, budget)          // 唯一入口,查 registry codec
+  ├─ in-flight(truncator):裁后的实体渲染 per-entity marker → 出站 prompt
+  └─ persist(trimToolOutputs):信封扩展为多 blob 形态
+       $persistedToolOutput: {
+         shape: 'text' | 'mcp-content' | 'entities' | 'json-text-field',
+         skeleton,                       // 引用骨架原样落库 → citation registry 照常就地解析
+         blobRefs: [{ key, fileEntryId, vfsFilename, head, tail, totalChars, totalLines }]
+       }
+```
+
+每个 blobRef 一条 `tool_output` file ref(一消息多 ref 已支持);fs_read 的 per-request allow-list 收集全部 blobRefs 路径;`ai.tool.get_result` / 渲染端展开走 `inflate`。
+
+### 五条不变量(「根本」的定义)
+
+1. **引用骨架永不有损**——prompt 侧模型看全每条 id/url/title(内容为摘录),DB 侧 citation registry 解析不变;
+2. **单一裁剪原语**——形状判断只写在 codec 里一处,in-flight 与 persist 永不漂移(今天的 `extractPersistableText`/truncator `extractText` 双实现合并);
+3. **确定性渲染**——marker/骨架为存储字段的纯函数,字节稳定,前缀缓存维持 ≈100% 命中(已有契约测试模式直接沿用);
+4. **全文永可读回**——每个被裁 blob 都有 marker + fs_read 通道 + UI 展开;
+5. **失败回退全量**——codec 抛错则该输出原样落库(宁胖勿丢,沿用现有 per-part try/catch)。
+
+### 落地阶段
+
+| 阶段 | 内容 | 消化的问题 |
+|---|---|---|
+| P1 | codec 接口 + web_fetch entities codec(仅 in-flight) | #7 最大洪水源止血 |
+| P2 | 多 blob 信封 + skeleton 落库 + inflate 读回/展开 | #7 persist 侧、citation 共存 |
+| P3 | web_search/kb_search codec + 源级 cutoff 默认值;fs_read/read_file 回声 codec | #3 全量消化 |
+| P4 | 删除布尔 `truncatable`(迁移为 codec/exempt 声明),truncator 的 `extractText` 与 `extractPersistableText` 合并进 codec | 双实现漂移风险清零 |
+
+**触点**:`src/main/ai/tools/adapters/aiSdk/types.ts`(ToolEntry 声明)、`packages/aiCore/src/core/context/truncator.ts`(改查 codec)、`src/shared/ai/transport/persistedToolOutput.ts`(信封扩展,守卫向后兼容)、`src/main/ai/streamManager/persistence/trimToolOutputs.ts` + `src/main/ai/messages/persistedOutputRendering.ts`(走统一原语)、`src/main/ai/tools/webLookup.ts` / `FsReadTool.ts`(codec 定义)、`src/renderer/utils/message/citations.ts`(skeleton 解析,预期零改动)。
