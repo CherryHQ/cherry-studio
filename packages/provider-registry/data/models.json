@@ -12814,6 +12814,78 @@
       }
     },
     {
+      "capabilities": ["audio-generation"],
+      "id": "speech-01-hd",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-01-hd",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-01-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-01-turbo",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-02-hd",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-02-hd",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-02-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-02-turbo",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-2-6-hd",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-2.6-hd",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-2-6-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-2.6-turbo",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-2-8-hd",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-2.8-hd",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "id": "speech-2-8-turbo",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "speech-2.8-turbo",
+      "outputModalities": ["audio"],
+      "ownedBy": "minimax"
+    },
+    {
       "capabilities": ["function-call", "structured-output", "file-input"],
       "contextWindow": 256000,
       "family": "codestral",
@@ -22190,5 +22262,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ea9e5ee3d7b53cc9"
+  "version": "dfe0effd1a6ef6d4"
 }

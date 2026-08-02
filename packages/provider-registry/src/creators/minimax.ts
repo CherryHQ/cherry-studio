@@ -88,6 +88,62 @@ export default defineCreator({
           }
         }
       }
+    },
+    {
+      id: 'speech-2.8-hd',
+      name: 'speech-2.8-hd',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-2.8-turbo',
+      name: 'speech-2.8-turbo',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-2.6-hd',
+      name: 'speech-2.6-hd',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-2.6-turbo',
+      name: 'speech-2.6-turbo',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-02-hd',
+      name: 'speech-02-hd',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-02-turbo',
+      name: 'speech-02-turbo',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-01-hd',
+      name: 'speech-01-hd',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
+    },
+    {
+      id: 'speech-01-turbo',
+      name: 'speech-01-turbo',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio']
     }
   ]
 })

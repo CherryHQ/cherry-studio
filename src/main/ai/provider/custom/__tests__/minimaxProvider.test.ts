@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MinimaxImageModel } from '../minimax/minimaxImageModel'
 import { createMinimaxProvider } from '../minimax/minimaxProvider'
+import { MinimaxSpeechModel } from '../minimax/minimaxSpeechModel'
 
 describe('createMinimaxProvider', () => {
-  it('uses OpenAI-compatible chat + embedding and the MiniMax image model', () => {
+  it('uses OpenAI-compatible chat + embedding and the MiniMax media models', () => {
     const provider = createMinimaxProvider({
       apiKey: 'sk-test',
       baseURL: 'https://api.minimax.io/v1',
@@ -15,6 +16,7 @@ describe('createMinimaxProvider', () => {
     expect(provider.embeddingModel('embedding-model').provider).toBe('minimax.embedding')
     expect(provider.imageModel('image-01')).toBeInstanceOf(MinimaxImageModel)
     expect(provider.imageModel('image-01-live')).toBeInstanceOf(MinimaxImageModel)
+    expect(provider.speechModel('speech-2.8-hd')).toBeInstanceOf(MinimaxSpeechModel)
   })
 
   it('posts the complete text-to-image request and parses URL output', async () => {
@@ -127,5 +129,74 @@ describe('createMinimaxProvider', () => {
       expect.objectContaining({ method: 'POST' })
     )
     expect(result.images).toEqual([image])
+  })
+
+  it('posts MiniMax speech fields to the global endpoint and decodes hex audio', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { audio: '000102ff', status: 2 }, base_resp: { status_code: 0 } }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL: 'https://api.minimax.io/v1', fetch })
+
+    const result = await provider.speechModel('speech-2.8-hd').doGenerate({
+      text: 'Hello from MiniMax',
+      voice: 'male-qn-qingse',
+      outputFormat: 'wav',
+      speed: 1.2,
+      language: 'English',
+      instructions: 'Speak clearly',
+      providerOptions: {
+        minimax: {
+          voice_setting: { emotion: 'happy' },
+          audio_setting: { sample_rate: 32000 },
+          pronunciation_dict: { tone: ['Hello/(hello)'] },
+          voice_modify: { pitch: 1 },
+          subtitle_enable: true
+        }
+      }
+    })
+
+    expect(fetch).toHaveBeenCalledWith('https://api.minimax.io/v1/t2a_v2', expect.objectContaining({ method: 'POST' }))
+    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
+    expect(sent).toEqual({
+      model: 'speech-2.8-hd',
+      text: 'Hello from MiniMax',
+      stream: false,
+      language_boost: 'English',
+      output_format: 'hex',
+      voice_setting: { emotion: 'happy', voice_id: 'male-qn-qingse', speed: 1.2 },
+      audio_setting: { sample_rate: 32000, format: 'wav' },
+      pronunciation_dict: { tone: ['Hello/(hello)'] },
+      voice_modify: { pitch: 1 },
+      subtitle_enable: true
+    })
+    expect(Array.from(result.audio as Uint8Array)).toEqual([0, 1, 2, 255])
+    expect(result.warnings).toEqual([
+      {
+        type: 'unsupported',
+        feature: 'instructions',
+        details: 'MiniMax speech does not expose an instructions request field.'
+      }
+    ])
+  })
+
+  it('uses the China speech endpoint and surfaces MiniMax API errors', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ base_resp: { status_code: 1004, status_msg: 'invalid voice' } }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL: 'https://api.minimaxi.com/v1', fetch })
+
+    await expect(
+      provider.speechModel('speech-02-hd').doGenerate({ text: 'Hello from China', voice: 'male-qn-qingse' })
+    ).rejects.toMatchObject({ message: 'invalid voice' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.minimaxi.com/v1/t2a_v2',
+      expect.objectContaining({ method: 'POST' })
+    )
   })
 })

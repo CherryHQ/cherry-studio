@@ -1,4 +1,4 @@
-import { minimaxImageOverrides } from './minimax'
+import { minimaxImageOverrides, minimaxSpeechOverrides } from './minimax'
 import { openaiCompatible } from './types'
 
 export default openaiCompatible({
@@ -13,5 +13,5 @@ export default openaiCompatible({
     official: 'https://platform.minimax.io/'
   },
   presetProviderId: 'minimax',
-  overrides: minimaxImageOverrides
+  overrides: [...minimaxImageOverrides, ...minimaxSpeechOverrides]
 })

@@ -82,6 +82,17 @@ export const minimaxImageOverrides = [
   }
 ] satisfies NonNullable<Provider['overrides']>
 
+export const minimaxSpeechOverrides = [
+  { modelId: 'speech-2-8-hd', apiModelId: 'speech-2.8-hd', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-2-8-turbo', apiModelId: 'speech-2.8-turbo', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-2-6-hd', apiModelId: 'speech-2.6-hd', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-2-6-turbo', apiModelId: 'speech-2.6-turbo', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-02-hd', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-02-turbo', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-01-hd', endpointTypes: ['openai-text-to-speech'] },
+  { modelId: 'speech-01-turbo', endpointTypes: ['openai-text-to-speech'] }
+] satisfies NonNullable<Provider['overrides']>
+
 export default openaiCompatible({
   id: 'minimax',
   name: 'MiniMax',
@@ -96,5 +107,5 @@ export default openaiCompatible({
   apiFeatures: {
     arrayContent: false
   },
-  overrides: minimaxImageOverrides
+  overrides: [...minimaxImageOverrides, ...minimaxSpeechOverrides]
 })
