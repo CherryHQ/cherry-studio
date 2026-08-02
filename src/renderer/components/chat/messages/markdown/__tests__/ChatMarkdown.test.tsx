@@ -37,8 +37,9 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => ({ mathEnableSingleDollar: false })
 }))
 
-vi.mock('../useChatMarkdownComponents', () => ({
-  useChatMarkdownComponents: () => ({})
+vi.mock('../ChatMarkdownRenderers', () => ({
+  CHAT_MARKDOWN_COMPONENTS: {},
+  CHAT_MARKDOWN_COMPONENTS_WITH_STYLE: { style: () => null }
 }))
 
 describe('ChatMarkdown', () => {
