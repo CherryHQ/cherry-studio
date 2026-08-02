@@ -210,7 +210,6 @@
     "@e965/xlsx": "^0.20.3",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/preload": "^3.0.0",
-    "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/asar": "3.4.1",
     "@electron/notarize": "^2.5.0",
