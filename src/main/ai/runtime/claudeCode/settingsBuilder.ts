@@ -101,6 +101,8 @@ import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
+const MIN_AUTO_COMPACT_WINDOW = 100_000
+const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
 const CHERRY_ASSISTANT_RUNTIME_GUARD = `## Non-negotiable Cherry Assistant contract
@@ -353,6 +355,8 @@ function buildAssistantContext(): string {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
+  contextWindow?: number
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -516,6 +520,11 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: getSettingSources(agent, provider),
     settings: {
       autoCompactEnabled: true,
+      ...(options?.contextWindow &&
+      options.contextWindow >= MIN_AUTO_COMPACT_WINDOW &&
+      options.contextWindow <= MAX_AUTO_COMPACT_WINDOW
+        ? { autoCompactWindow: options.contextWindow }
+        : {}),
       fastMode: options?.fastMode === true
     },
     includePartialMessages: true,

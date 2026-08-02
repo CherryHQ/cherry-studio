@@ -320,6 +320,7 @@ async function deriveConnectionConfigFromSnapshot(
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const rebuildFacts = {
     modelId: uniqueModelId,
+    contextWindow: model.contextWindow ?? null,
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -446,6 +447,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
+        contextWindow: model.contextWindow,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,

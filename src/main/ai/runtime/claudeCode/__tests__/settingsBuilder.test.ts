@@ -335,6 +335,35 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
+  it('aligns automatic compaction with a model context window supported by Claude Code', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 128_000 }
+    )
+
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 128_000 })
+  })
+
+  it('omits automatic compaction windows outside Claude Code limits', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 2_000_000 }
+    )
+
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+    expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+  })
+
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
     const materializedServer = {
       id: 'mcp-1',

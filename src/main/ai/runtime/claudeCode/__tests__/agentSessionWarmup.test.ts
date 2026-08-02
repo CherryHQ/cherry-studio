@@ -127,7 +127,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 })
     mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
     mocks.resolveApiKey.mockReturnValue({
       value: 'api-key',
@@ -196,7 +196,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ knowledgeBaseIds: ['kb-selected'] }),
+      expect.objectContaining({ contextWindow: 128_000, knowledgeBaseIds: ['kb-selected'] }),
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
