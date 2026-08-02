@@ -3,34 +3,97 @@
  *
  * Runs in the SQLite persistence backend just before the terminal
  * `finalizeAssistantMessage` write: tool-result parts whose text form exceeds
- * the context-build truncate threshold move their full text into a
- * FileManager blob (`toolOutputStore`) and keep only a `$persistedToolOutput`
- * envelope (head/tail excerpt + entry ref) in `message.data`. The
- * `tool_output` file ref written by the same finalize transaction ties the
- * blob's lifetime to the message.
+ * the context-build truncate threshold move their full text into FileManager
+ * blobs (`toolOutputStore`) and keep only a `$persistedToolOutput` envelope
+ * (excerpts + entry refs) in `message.data`. The `tool_output` file refs
+ * written by the same finalize transaction tie the blobs' lifetimes to the
+ * message.
  *
- * Mirrors the in-flight middleware's policy (same threshold pref, same
- * `truncatable: false` exemptions, same head/tail sizes and line-snapping) so
- * the marker later rendered from the envelope is byte-identical to what the
- * middleware showed the model in-flight.
+ * Lane rule (mirrors the in-flight middleware, `contextBuild.ts`): a registry
+ * `codec` routes the output through entity-level trimming — each oversized
+ * blobbed field moves to its own FileManager entry and the skeleton keeps a
+ * snippet in its place — even when the tool is `truncatable: false` (that flag
+ * only exempts the in-flight lane, where the active loop must see full text).
+ * No codec + `truncatable: false` → skip; otherwise the whole-text v1 lane
+ * applies. Thresholds, head/tail sizes, and line-snapping match the middleware
+ * so markers rendered from the envelope are byte-identical to what the model
+ * saw in-flight.
  */
 
 import { application } from '@application'
 import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { extractPersistableText, persistToolOutputText } from '@main/ai/contextBuild/toolOutputStore'
+import { extractPersistableText, persistToolOutputText, spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
 import { registry } from '@main/ai/tools/adapters/aiSdk/registry'
+import type { ToolEntry } from '@main/ai/tools/adapters/aiSdk/types'
 import {
   isDeferredToolOutput,
   isPersistedToolOutput,
   PERSIST_HEAD_CHARS,
   PERSIST_TAIL_CHARS,
-  type PersistedToolOutput
+  type PersistedToolOutput,
+  type PersistedToolOutputBlobRef,
+  type PersistedToolOutputRef
 } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { getToolName, isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('TrimToolOutputs')
+
+/** Entity-level trim: blob every oversized deflated field, snippet it in the
+ *  skeleton, and return the multi-blob envelope. `null` when the codec doesn't
+ *  recognize the value or nothing crosses the threshold. */
+async function trimViaCodec(
+  output: unknown,
+  codec: NonNullable<ToolEntry['codec']>,
+  threshold: number
+): Promise<PersistedToolOutputRef | null> {
+  const deflated = codec.deflate(output)
+  if (!deflated) return null
+  const oversized = deflated.blobs.filter(
+    (blob) => blob.text.length > threshold && PERSIST_HEAD_CHARS + PERSIST_TAIL_CHARS < blob.text.length
+  )
+  if (oversized.length === 0) return null
+
+  const blobRefs: PersistedToolOutputBlobRef[] = []
+  let skeleton = deflated.skeleton
+  for (const blob of oversized) {
+    const { entry, vfsFilename } = await persistToolOutputText(blob.text)
+    const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(
+      blob.text,
+      PERSIST_HEAD_CHARS,
+      PERSIST_TAIL_CHARS
+    )
+    blobRefs.push({ key: blob.key, fileEntryId: entry.id, vfsFilename, head, tail, totalChars, totalLines })
+    skeleton = spliceTextAtKey(skeleton, blob.key, codec.snippet(blob.text))
+  }
+  return { shape: 'entities', skeleton, blobRefs }
+}
+
+/** Whole-text v1 trim: string / all-text MCP outputs move to a single blob. */
+async function trimWholeText(output: unknown, threshold: number): Promise<PersistedToolOutputRef | null> {
+  const extracted = extractPersistableText(output)
+  if (!extracted) return null
+  if (extracted.text.length <= threshold) return null
+  if (PERSIST_HEAD_CHARS + PERSIST_TAIL_CHARS >= extracted.text.length) return null
+
+  const { entry, vfsFilename } = await persistToolOutputText(extracted.text)
+  const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(
+    extracted.text,
+    PERSIST_HEAD_CHARS,
+    PERSIST_TAIL_CHARS
+  )
+  return {
+    fileEntryId: entry.id,
+    vfsFilename,
+    head,
+    tail,
+    totalChars,
+    totalLines,
+    shape: extracted.shape,
+    ...(extracted.metadata !== undefined ? { metadata: extracted.metadata } : {})
+  }
+}
 
 /**
  * Replace oversized terminal tool outputs with persisted envelopes.
@@ -44,47 +107,24 @@ export async function trimOversizedToolOutputs(parts: CherryMessagePart[]): Prom
   if (!prefs.get('chat.context_settings.enabled')) return parts
   const threshold = prefs.get('chat.context_settings.truncate_threshold')
 
-  // Same declarative opt-out the middleware applies (`truncatable: false` —
-  // citation + read-style tools). MCP entries never set the flag, so the
-  // process-wide builtin registry is the complete source.
-  const neverTruncate = new Set(
-    registry
-      .getAll()
-      .filter((entry) => entry.truncatable === false)
-      .map((entry) => entry.name)
-  )
+  // MCP entries never register here, so the process-wide builtin registry is
+  // the complete source of codecs and `truncatable: false` opt-outs.
+  const builtins = new Map(registry.getAll().map((entry) => [entry.name, entry]))
 
   let trimmed: CherryMessagePart[] | undefined
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index]
     if (!isToolUIPart(part) || part.state !== 'output-available') continue
     if (isPersistedToolOutput(part.output) || isDeferredToolOutput(part.output)) continue
-    if (neverTruncate.has(getToolName(part))) continue
-
-    const extracted = extractPersistableText(part.output)
-    if (!extracted) continue
-    if (extracted.text.length <= threshold) continue
-    if (PERSIST_HEAD_CHARS + PERSIST_TAIL_CHARS >= extracted.text.length) continue
+    const entry = builtins.get(getToolName(part))
+    if (!entry?.codec && entry?.truncatable === false) continue
 
     try {
-      const { entry, vfsFilename } = await persistToolOutputText(extracted.text)
-      const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(
-        extracted.text,
-        PERSIST_HEAD_CHARS,
-        PERSIST_TAIL_CHARS
-      )
-      const output: PersistedToolOutput = {
-        $persistedToolOutput: {
-          fileEntryId: entry.id,
-          vfsFilename,
-          head,
-          tail,
-          totalChars,
-          totalLines,
-          shape: extracted.shape,
-          ...(extracted.metadata !== undefined ? { metadata: extracted.metadata } : {})
-        }
-      }
+      const ref = entry?.codec
+        ? await trimViaCodec(part.output, entry.codec, threshold)
+        : await trimWholeText(part.output, threshold)
+      if (!ref) continue
+      const output: PersistedToolOutput = { $persistedToolOutput: ref }
       trimmed ??= [...parts]
       trimmed[index] = { ...part, output } as CherryMessagePart
     } catch (error) {

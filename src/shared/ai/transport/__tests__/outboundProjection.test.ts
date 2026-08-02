@@ -103,4 +103,35 @@ describe('outbound tool-output projection', () => {
       excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
     })
   })
+
+  it('projects an entities envelope with the merged excerpt and the skeleton attached', () => {
+    const blob = (key: string, n: number) => ({
+      key,
+      fileEntryId: `entry-${n}`,
+      vfsFilename: `vfs_${n}.txt`,
+      head: `head-${n}`,
+      tail: `tail-${n}`,
+      totalChars: 1000 * n,
+      totalLines: 10 * n
+    })
+    const skeleton = [
+      { id: 'cite-0', content: 'snippet…' },
+      { id: 'cite-1', content: 'small body' }
+    ]
+    const persisted = {
+      $persistedToolOutput: {
+        shape: 'entities',
+        skeleton,
+        blobRefs: [blob('/0/content', 1), blob('/1/content', 2)]
+      }
+    }
+    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(projected.output).toEqual({
+      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      excerpt: { head: 'head-1', tail: 'tail-2', totalChars: 3000, totalLines: 30 },
+      skeleton
+    })
+  })
 })

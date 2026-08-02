@@ -4,11 +4,16 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { inflateEntities, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest, AiToolResultResponse, PersistedToolOutput } from '@shared/ai/transport'
-import { isPersistedToolOutput } from '@shared/ai/transport'
+import type {
+  AiStreamOpenRequest,
+  AiToolResultResponse,
+  PersistedToolOutput,
+  PersistedToolOutputBlobRef
+} from '@shared/ai/transport'
+import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -82,21 +87,29 @@ async function findPersistedToolOutput(
 
 /**
  * Rebuild a `$persistedToolOutput` envelope into the original output by
- * reading the blob back from FileManager. When the entry is gone (manual DB
- * surgery, restore of an older backup) degrade to the stored excerpt with an
- * explanatory note rather than `found: false` — the renderer treats a miss as
- * a permanent error, and the excerpt is still real content.
+ * reading the blobs back from FileManager. When an entry is gone (manual DB
+ * surgery, restore of an older backup) that blob degrades to its stored
+ * excerpt with an explanatory note rather than `found: false` — the renderer
+ * treats a miss as a permanent error, and the excerpt is still real content.
  */
 async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
   const ref = output.$persistedToolOutput
-  try {
-    const { content } = await application.get('FileManager').read(ref.fileEntryId, { encoding: 'text' })
-    return reconstructOutput(ref, content)
-  } catch (e) {
-    logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: ref.fileEntryId, err: e })
-    const excerptText = `${ref.head}\n\n[persisted output no longer available — showing excerpt of ${ref.totalChars} chars]\n\n${ref.tail}`
-    return reconstructOutput(ref, excerptText)
+  const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
+    try {
+      const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
+      return content
+    } catch (e) {
+      logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, err: e })
+      return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
+    }
   }
+  if (ref.shape === 'entities') {
+    const texts = Object.fromEntries(
+      await Promise.all(ref.blobRefs.map(async (blob) => [blob.key, await readBlob(blob)] as const))
+    )
+    return inflateEntities(ref, texts)
+  }
+  return reconstructOutput(ref, await readBlob(blobRefsOf(ref)[0]))
 }
 
 /**

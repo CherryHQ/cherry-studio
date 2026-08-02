@@ -24,6 +24,10 @@ export interface DeferredToolOutput {
   $deferredToolResult: DeferredToolResultRef
   /** Present when the stored output is a persisted excerpt (`$persistedToolOutput`). */
   excerpt?: DeferredToolOutputExcerpt
+  /** Present when the persisted envelope is `'entities'`-shaped: the stored
+   *  skeleton (identity/citation fields + inline snippets), so citation
+   *  extraction works without resolving any blob. */
+  skeleton?: unknown
 }
 
 /** Serialized UTF-8 size at or below which a result travels inline. */

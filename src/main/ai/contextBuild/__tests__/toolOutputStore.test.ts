@@ -24,9 +24,14 @@ vi.mock('@application', async () => {
 })
 
 const { FileManager } = await import('@main/services/file/FileManager')
-const { computeVfsFilename, extractPersistableText, persistToolOutputText, reconstructOutput } = await import(
-  '../toolOutputStore'
-)
+const {
+  computeVfsFilename,
+  extractPersistableText,
+  inflateEntities,
+  persistToolOutputText,
+  reconstructOutput,
+  spliceTextAtKey
+} = await import('../toolOutputStore')
 
 const BIG_TEXT = Array.from({ length: 200 }, (_, i) => `log line ${i + 1} — lorem ipsum dolor sit amet`).join('\n')
 
@@ -156,6 +161,56 @@ describe('toolOutputStore', () => {
       expect(reconstructOutput({ ...baseRef, shape: 'mcp-content' }, 'x')).toEqual({
         content: [{ type: 'text', text: 'x' }]
       })
+    })
+  })
+
+  describe('spliceTextAtKey', () => {
+    it('replaces an array item field preserving key insertion order and sibling references', () => {
+      const items = [
+        { id: 'a', title: 'A', content: 'alpha' },
+        { id: 'b', title: 'B', content: 'beta' }
+      ]
+      const spliced = spliceTextAtKey(items, '/0/content', 'SPLICED') as Array<Record<string, unknown>>
+      expect(Object.keys(spliced[0])).toEqual(['id', 'title', 'content'])
+      expect(spliced[0].content).toBe('SPLICED')
+      expect(spliced[1]).toBe(items[1])
+      expect(items[0].content).toBe('alpha')
+    })
+
+    it('replaces a top-level record field', () => {
+      const output = { kind: 'text', text: 'body', totalLines: 2 }
+      const spliced = spliceTextAtKey(output, '/text', 'SPLICED') as Record<string, unknown>
+      expect(Object.keys(spliced)).toEqual(['kind', 'text', 'totalLines'])
+      expect(spliced.text).toBe('SPLICED')
+    })
+
+    it.each([
+      ['empty key', [{ content: 'x' }], ''],
+      ['out-of-range index', [{ content: 'x' }], '/9/content'],
+      ['missing field', [{ content: 'x' }], '/0/other'],
+      ['non-array skeleton with indexed key', { content: 'x' }, '/0/content'],
+      ['non-record item', ['plain'], '/0/content']
+    ])('leaves the skeleton untouched for %s', (_label, skeleton, key) => {
+      expect(spliceTextAtKey(skeleton, key, 'SPLICED')).toBe(skeleton)
+    })
+  })
+
+  describe('inflateEntities', () => {
+    it('splices each known blob text into the skeleton and skips missing keys', () => {
+      const ref = {
+        shape: 'entities' as const,
+        skeleton: [
+          { id: 'a', content: 'snippet-a' },
+          { id: 'b', content: 'snippet-b' }
+        ],
+        blobRefs: [
+          { key: '/0/content', fileEntryId: 'e1', vfsFilename: 'v1', head: '', tail: '', totalChars: 1, totalLines: 1 },
+          { key: '/1/content', fileEntryId: 'e2', vfsFilename: 'v2', head: '', tail: '', totalChars: 1, totalLines: 1 }
+        ]
+      }
+      const inflated = inflateEntities(ref, { '/0/content': 'FULL A' }) as Array<Record<string, unknown>>
+      expect(inflated[0].content).toBe('FULL A')
+      expect(inflated[1].content).toBe('snippet-b')
     })
   })
 })

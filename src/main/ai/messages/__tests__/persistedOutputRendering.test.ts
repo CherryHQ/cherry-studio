@@ -11,6 +11,8 @@ vi.mock('@application', () => ({
   application: { get: () => ({ getPhysicalPath: getPhysicalPathMock }) }
 }))
 
+import { makeEntitiesCodec } from '@main/ai/tools/outputCodec'
+
 import { computeVfsFilename } from '../../contextBuild/toolOutputStore'
 import { collectPersistedOutputPaths, renderPersistedToolOutputs } from '../persistedOutputRendering'
 
@@ -100,6 +102,51 @@ describe('renderPersistedToolOutputs', () => {
     const messages = [messageWith('plain output')]
     expect(renderPersistedToolOutputs(messages)).toBe(messages)
   })
+
+  it('renders entities envelopes byte-identical to the in-flight entity codec lane', async () => {
+    // Cross-lane byte contract: the persisted skeleton + per-blob marker must
+    // stringify to the exact value the in-flight truncator assembles for the
+    // same output, or provider prefix caches break at the persist boundary.
+    const codec = makeEntitiesCodec({ contentKey: 'content' })
+    const items = [
+      { id: 'cite-0', url: 'https://a.example', title: 'A', content: TEXT },
+      { id: 'cite-1', url: 'https://b.example', title: 'B', content: 'small body' }
+    ]
+    const offloader = new Offloader({
+      threshold: 10,
+      adapter: { write: () => {}, read: () => null, getPhysicalPath: () => PHYSICAL }
+    })
+    const inFlight = await offloader.offloadAsync(TEXT, { headChars: HEAD, tailChars: TAIL })
+    expect(inFlight.isOffloaded).toBe(true)
+    const { skeleton: deflatedSkeleton } = codec.deflate(items)!
+    const inFlightValue = codec.assemble(deflatedSkeleton, {
+      '/0/content': inFlight.content,
+      '/1/content': 'small body'
+    })
+
+    const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(TEXT, HEAD, TAIL)
+    const [rendered] = renderPersistedToolOutputs([
+      messageWith({
+        $persistedToolOutput: {
+          shape: 'entities',
+          skeleton: [{ ...items[0], content: codec.snippet(TEXT) }, items[1]],
+          blobRefs: [
+            {
+              key: '/0/content',
+              fileEntryId: 'entry-1',
+              vfsFilename: computeVfsFilename(TEXT),
+              head,
+              tail,
+              totalChars,
+              totalLines
+            }
+          ]
+        }
+      })
+    ])
+    const output = (rendered.parts[1] as { output: unknown }).output
+    expect(JSON.stringify(output)).toBe(JSON.stringify(inFlightValue))
+  })
 })
 
 describe('collectPersistedOutputPaths', () => {
@@ -116,5 +163,28 @@ describe('collectPersistedOutputPaths', () => {
 
   it('returns an empty set for plain histories', () => {
     expect(collectPersistedOutputPaths([messageWith('plain')]).size).toBe(0)
+  })
+
+  it('collects every blob of an entities envelope', () => {
+    getPhysicalPathMock.mockImplementation((id: string) => `/mock/files/${id}.txt`)
+    const blob = (key: string, fileEntryId: string) => ({
+      key,
+      fileEntryId,
+      vfsFilename: `vfs_${fileEntryId}.txt`,
+      head: 'h',
+      tail: 't',
+      totalChars: 10,
+      totalLines: 1
+    })
+    const paths = collectPersistedOutputPaths([
+      messageWith({
+        $persistedToolOutput: {
+          shape: 'entities',
+          skeleton: [{ content: 's1' }, { content: 's2' }],
+          blobRefs: [blob('/0/content', 'entry-1'), blob('/1/content', 'entry-2')]
+        }
+      })
+    ])
+    expect([...paths].sort()).toEqual(['/mock/files/entry-1.txt', '/mock/files/entry-2.txt'])
   })
 })

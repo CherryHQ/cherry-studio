@@ -16,7 +16,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
-import { applyApprovalDecisions, type ApprovalDecision, isPersistedToolOutput } from '@shared/ai/transport'
+import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   ActiveNodeStrategy,
@@ -224,7 +224,7 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
     if (part.type === 'file') {
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
-      add(part.output.$persistedToolOutput.fileEntryId, 'tool_output')
+      for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }
   }
   return refs

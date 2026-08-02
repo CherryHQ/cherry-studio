@@ -1,4 +1,4 @@
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { JSONValue, LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
 import { Offloader, type VFSStorageAdapter } from '../offloader'
@@ -329,7 +329,14 @@ describe('truncateToolResults — entity codec', () => {
   const entitiesPrompt = (value: unknown): LanguageModelV3Prompt => [
     {
       role: 'tool',
-      content: [{ type: 'tool-result', toolCallId: 'c1', toolName: 'web_fetch', output: { type: 'json', value } }]
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId: 'c1',
+          toolName: 'web_fetch',
+          output: { type: 'json', value: value as JSONValue }
+        }
+      ]
     }
   ]
   const options = (storage?: VFSStorageAdapter) => ({

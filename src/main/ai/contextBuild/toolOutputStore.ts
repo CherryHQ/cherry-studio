@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto'
 
 import { application } from '@application'
 import { hashContent } from '@main/utils/file'
-import type { PersistedToolOutputRef } from '@shared/ai/transport'
+import type { PersistedToolOutputEntitiesRef, PersistedToolOutputSingleRef } from '@shared/ai/transport'
 import type { FileEntry } from '@shared/data/types/file'
 
 export interface PersistedBlob {
@@ -65,7 +65,7 @@ export async function persistToolOutputText(text: string): Promise<PersistedBlob
 
 export interface PersistableText {
   text: string
-  shape: PersistedToolOutputRef['shape']
+  shape: PersistedToolOutputSingleRef['shape']
   metadata?: unknown
 }
 
@@ -111,12 +111,54 @@ export function extractPersistableText(output: unknown): PersistableText | null 
  * Rebuild a tool output from its persisted envelope + the full text read back
  * from FileManager. `'mcp-content'` collapses the original text blocks into
  * one — the model-facing summary (`'\n'` join) and the rendered text are
- * unchanged by that.
+ * unchanged by that. Single-blob (v1) shapes only; entities inflate via
+ * {@link inflateEntities}.
  */
-export function reconstructOutput(ref: PersistedToolOutputRef, fullText: string): unknown {
+export function reconstructOutput(ref: PersistedToolOutputSingleRef, fullText: string): unknown {
   if (ref.shape === 'text') return fullText
   return {
     content: [{ type: 'text', text: fullText }],
     ...(ref.metadata !== undefined ? { metadata: ref.metadata } : {})
   }
+}
+
+/**
+ * Splice `text` into a shallow clone of `skeleton` at a JSON-pointer-lite
+ * `key` (`"/<index>/<field>"` or `"/<field>"`), preserving key insertion
+ * order. Generic on the key so stored envelopes inflate without the codec
+ * that produced them; unknown keys leave the skeleton untouched.
+ */
+export function spliceTextAtKey(skeleton: unknown, key: string, text: string): unknown {
+  const segments = key.split('/').filter((s) => s.length > 0)
+  if (segments.length === 0) return skeleton
+
+  const replaceField = (record: Record<string, unknown>, field: string): Record<string, unknown> => {
+    if (!(field in record)) return record
+    const clone: Record<string, unknown> = {}
+    for (const k of Object.keys(record)) clone[k] = k === field ? text : record[k]
+    return clone
+  }
+
+  if (segments.length === 1) {
+    if (typeof skeleton !== 'object' || skeleton === null || Array.isArray(skeleton)) return skeleton
+    return replaceField(skeleton as Record<string, unknown>, segments[0])
+  }
+  const index = Number(segments[0])
+  if (!Array.isArray(skeleton) || !Number.isInteger(index) || index < 0 || index >= skeleton.length) return skeleton
+  const item = skeleton[index]
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) return skeleton
+  const replaced = replaceField(item as Record<string, unknown>, segments[1])
+  if (replaced === item) return skeleton
+  const next = [...skeleton]
+  next[index] = replaced
+  return next
+}
+
+/** Inflate an entities envelope: splice each blob's text into the skeleton. */
+export function inflateEntities(ref: PersistedToolOutputEntitiesRef, texts: Record<string, string>): unknown {
+  let value = ref.skeleton
+  for (const blob of ref.blobRefs) {
+    if (blob.key in texts) value = spliceTextAtKey(value, blob.key, texts[blob.key])
+  }
+  return value
 }

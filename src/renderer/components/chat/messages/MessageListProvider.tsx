@@ -193,6 +193,11 @@ export const useOptionalMessageListActions = (): MessageListActions | undefined 
   return use(MessageListActionsContext) ?? undefined
 }
 
+/** Topic id of the surrounding message list; undefined in embeds without one. */
+export const useOptionalMessageListTopicId = (): string | undefined => {
+  return use(MessageListDataContext)?.topic.id
+}
+
 /**
  * Back-compat hook: returns the merged static + selectors UI value. Subscribes
  * to BOTH underlying contexts, so it re-renders on either update — fine for

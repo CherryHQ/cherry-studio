@@ -13,11 +13,16 @@ export {
   projectStreamChunkForRenderer
 } from './outboundProjection'
 export {
+  blobRefsOf,
+  envelopeDisplayExcerpt,
   isPersistedToolOutput,
   PERSIST_HEAD_CHARS,
   PERSIST_TAIL_CHARS,
   type PersistedToolOutput,
-  type PersistedToolOutputRef
+  type PersistedToolOutputBlobRef,
+  type PersistedToolOutputEntitiesRef,
+  type PersistedToolOutputRef,
+  type PersistedToolOutputSingleRef
 } from './persistedToolOutput'
 export type {
   ActiveExecution,

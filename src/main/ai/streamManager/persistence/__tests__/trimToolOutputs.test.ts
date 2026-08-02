@@ -8,7 +8,7 @@ vi.mock('@logger', () => ({
 const { prefsGetMock, persistMock, registryGetAllMock } = vi.hoisted(() => ({
   prefsGetMock: vi.fn(),
   persistMock: vi.fn(),
-  registryGetAllMock: vi.fn(() => [] as Array<{ name: string; truncatable?: boolean }>)
+  registryGetAllMock: vi.fn(() => [] as Array<{ name: string; truncatable?: boolean; codec?: unknown }>)
 }))
 vi.mock('@application', () => ({
   application: { get: (name: string) => (name === 'PreferenceService' ? { get: prefsGetMock } : {}) }
@@ -20,6 +20,8 @@ vi.mock('@main/ai/contextBuild/toolOutputStore', async (importOriginal) => ({
 vi.mock('@main/ai/tools/adapters/aiSdk/registry', () => ({
   registry: { getAll: registryGetAllMock }
 }))
+
+import { makeEntitiesCodec } from '@main/ai/tools/outputCodec'
 
 import { trimOversizedToolOutputs } from '../trimToolOutputs'
 
@@ -135,5 +137,63 @@ describe('trimOversizedToolOutputs', () => {
     const result = await trimOversizedToolOutputs([toolPart(BIG), small])
     expect((result[0] as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
     expect(result[1]).toBe(small)
+  })
+
+  describe('codec lane', () => {
+    const codec = makeEntitiesCodec({ contentKey: 'content' })
+    const items = [
+      { id: 'cite-0', url: 'https://a.example', title: 'A', content: BIG },
+      { id: 'cite-1', url: 'https://b.example', title: 'B', content: 'small body' }
+    ]
+
+    it('blobs each oversized entity field and keeps a snippet in the skeleton', async () => {
+      registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
+      const [trimmed] = await trimOversizedToolOutputs([toolPart(items)])
+
+      expect(persistMock).toHaveBeenCalledTimes(1)
+      expect(persistMock).toHaveBeenCalledWith(BIG)
+      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      expect(ref.shape).toBe('entities')
+      const blobRefs = ref.blobRefs as Array<Record<string, unknown>>
+      expect(blobRefs).toHaveLength(1)
+      expect(blobRefs[0]).toMatchObject({
+        key: '/0/content',
+        fileEntryId: 'entry-1',
+        vfsFilename: 'vfs_0123456789abcdef.txt',
+        totalChars: BIG.length
+      })
+      expect(BIG.startsWith(blobRefs[0].head as string)).toBe(true)
+      expect(BIG.endsWith(blobRefs[0].tail as string)).toBe(true)
+
+      const skeleton = ref.skeleton as Array<Record<string, unknown>>
+      expect(skeleton[0].content).toBe(codec.snippet(BIG))
+      expect(skeleton[0]).toMatchObject({ id: 'cite-0', url: 'https://a.example', title: 'A' })
+      // The under-threshold entity keeps its full text (same object reference).
+      expect(skeleton[1]).toBe(items[1])
+    })
+
+    it('applies even when the tool is truncatable:false (persist-only echo trim)', async () => {
+      registryGetAllMock.mockReturnValue([{ name: 'run_cmd', truncatable: false, codec }])
+      const [trimmed] = await trimOversizedToolOutputs([toolPart(items)])
+      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      expect(ref.shape).toBe('entities')
+    })
+
+    it.each([
+      ['deflate → null (unrecognized shape)', { error: 'nope' }],
+      ['nothing over the threshold', [{ id: 'cite-0', url: 'https://a.example', title: 'A', content: 'small' }]]
+    ])('passes through untouched: %s', async (_label, output) => {
+      registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
+      const parts = [toolPart(output)]
+      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(persistMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps the full output when blob storage fails', async () => {
+      registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
+      persistMock.mockRejectedValue(new Error('disk full'))
+      const result = await trimOversizedToolOutputs([toolPart(items)])
+      expect((result[0] as { output: unknown }).output).toBe(items)
+    })
   })
 })

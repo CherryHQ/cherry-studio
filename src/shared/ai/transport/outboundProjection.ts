@@ -8,7 +8,7 @@ import type { UIMessageChunk } from 'ai'
 import { isToolUIPart } from 'ai'
 
 import { type DeferredToolOutput, deferToolOutput } from './deferredToolResult'
-import { isPersistedToolOutput } from './persistedToolOutput'
+import { envelopeDisplayExcerpt, isPersistedToolOutput } from './persistedToolOutput'
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
 export function projectMessagePartForRenderer(
@@ -23,12 +23,13 @@ export function projectMessagePartForRenderer(
   // reconstructs it from the FileManager blob) — but carries the excerpt so
   // there is something to show without the fetch.
   if (isPersistedToolOutput(part.output)) {
-    const { head, tail, totalChars, totalLines } = part.output.$persistedToolOutput
+    const ref = part.output.$persistedToolOutput
     return {
       ...part,
       output: {
         $deferredToolResult: { topicId, messageId, toolCallId: part.toolCallId },
-        excerpt: { head, tail, totalChars, totalLines }
+        excerpt: envelopeDisplayExcerpt(ref),
+        ...(ref.shape === 'entities' ? { skeleton: ref.skeleton } : {})
       } satisfies DeferredToolOutput
     }
   }
