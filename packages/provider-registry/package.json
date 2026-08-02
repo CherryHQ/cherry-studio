@@ -63,7 +63,7 @@
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",
-    "tsdown": "^0.16.6",
+    "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^4.0.13",
     "zod": "^4.1.12"
