@@ -1,4 +1,5 @@
 import { exec } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -8,9 +9,11 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
+import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import { app } from 'electron'
 
-import { handleMcpProtocolUrl } from './handlers/mcpInstall'
+import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'
 import { handleProvidersProtocolUrl } from './handlers/providersImport'
 
@@ -28,6 +31,7 @@ const logger = loggerService.withContext('ProtocolService')
 // at call time inside listener callbacks — safe because OS events fire post-bootstrap.
 export class ProtocolService extends BaseService {
   private pendingProtocolUrls: string[] = []
+  private pendingMcpInstallRequests: ProtocolMcpInstallRequest[] = []
   private areServicesReady = false
   private isMainRendererReady = false
 
@@ -98,6 +102,14 @@ export class ProtocolService extends BaseService {
     this.flushPendingProtocolUrls()
   }
 
+  public consumePendingMcpInstallRequests(windowId: string): ProtocolMcpInstallRequest[] {
+    if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
+      return []
+    }
+
+    return this.pendingMcpInstallRequests.splice(0)
+  }
+
   private registerProtocolScheme() {
     // In dev, Electron needs the app entry as an absolute path; launchers often
     // pass "." as argv[1], which becomes invalid when the OS invokes the
@@ -142,7 +154,7 @@ export class ProtocolService extends BaseService {
 
       switch (urlObj.hostname.toLowerCase()) {
         case 'mcp':
-          handleMcpProtocolUrl(urlObj)
+          this.handleMcpInstallProtocolUrl(urlObj)
           return
         case 'providers':
           handleProvidersProtocolUrl(urlObj).catch((error) =>
@@ -182,6 +194,19 @@ export class ProtocolService extends BaseService {
     } catch (error) {
       logger.error('Failed to handle protocol URL', error as Error)
     }
+  }
+
+  private handleMcpInstallProtocolUrl(url: URL) {
+    const servers = parseMcpInstallProtocolUrl(url)
+    if (!servers) {
+      application.get('MainWindowService').showMainWindow()
+      return
+    }
+
+    const requestId = randomUUID()
+    this.pendingMcpInstallRequests.push({ requestId, servers })
+    logger.debug('Prepared MCP protocol install preview', { count: servers.length })
+    openSettingsInMainWindow(`/settings/mcp/servers?protocolInstallRequestId=${requestId}`)
   }
 
   private handleArgvForUrl(args: string[]) {

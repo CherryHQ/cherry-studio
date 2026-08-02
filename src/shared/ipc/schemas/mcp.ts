@@ -1,3 +1,4 @@
+import { ProtocolMcpInstallRequestSchema } from '@shared/data/types/mcpProtocolInstall'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
 import * as z from 'zod'
 
@@ -5,6 +6,7 @@ import { defineRoute } from '../define'
 
 /**
  * MCP (Model Context Protocol) IPC schemas, grouped by subject:
+ *   - `mcp.protocol_install.*` — one-shot external install preview handoff
  *   - `mcp.server.*` — server lifecycle + per-server queries (all serverId-scoped)
  *   - `mcp.tool.*`   — in-flight tool-call control
  *   - `mcp.package.*`— .dxt/.mcpb package upload
@@ -31,6 +33,10 @@ export const mcpRequestSchemas = {
   'mcp.server.check_connectivity': defineRoute({ input: serverIdNonEmpty, output: z.boolean() }),
   'mcp.server.get_version': defineRoute({ input: serverIdNonEmpty, output: z.string().nullable() }),
   'mcp.server.get_logs': defineRoute({ input: serverIdNonEmpty, output: z.custom<McpServerLogEntry[]>() }),
+  'mcp.protocol_install.consume_pending': defineRoute({
+    input: z.void(),
+    output: ProtocolMcpInstallRequestSchema.array()
+  }),
   // In-flight tool-call control.
   'mcp.tool.abort_call': defineRoute({ input: z.object({ callId: z.string().min(1) }), output: z.boolean() }),
   // Package upload. Output kept as `z.any()` (McpPackageUploadResult, whose `data.manifest`

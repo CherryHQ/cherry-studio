@@ -1,8 +1,4 @@
-import { randomUUID } from 'node:crypto'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
-import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import { ProtocolMcpServerConfigSchema, type ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
@@ -54,46 +50,16 @@ function parseMcpServerDtos(value: unknown): ProtocolMcpServerInstall[] {
   return [toProtocolMcpServerInstall(value)]
 }
 
-export function handleMcpProtocolUrl(url: URL) {
-  switch (url.pathname) {
-    case '/install': {
-      // jsonConfig example:
-      // {
-      //   "mcpServers": {
-      //     "everything": {
-      //       "command": "npx",
-      //       "args": [
-      //         "-y",
-      //         "@modelcontextprotocol/server-everything"
-      //       ]
-      //     }
-      //   }
-      // }
-      // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
-
-      const data = url.searchParams.get('servers')
-
-      if (data) {
-        const stringify = Buffer.from(data, 'base64').toString('utf8')
-        const jsonConfig = JSON.parse(stringify)
-        const serverDtos = parseMcpServerDtos(jsonConfig)
-        if (serverDtos.length > 0) {
-          const protocolInstall = encodeURIComponent(JSON.stringify(serverDtos))
-          const protocolInstallRequestId = randomUUID()
-          logger.debug('Prepared MCP protocol install preview', { count: serverDtos.length })
-          openSettingsInMainWindow(
-            `/settings/mcp/servers?protocolInstall=${protocolInstall}&protocolInstallRequestId=${protocolInstallRequestId}`
-          )
-          break
-        }
-      }
-
-      application.get('MainWindowService').showMainWindow()
-
-      break
-    }
-    default:
-      logger.error(`Unknown MCP protocol URL: ${url}`)
-      break
+export function parseMcpInstallProtocolUrl(url: URL): ProtocolMcpServerInstall[] | null {
+  if (url.pathname !== '/install') {
+    logger.error(`Unknown MCP protocol URL: ${url}`)
+    return null
   }
+
+  const data = url.searchParams.get('servers')
+  if (!data) return null
+
+  const jsonConfig = JSON.parse(Buffer.from(data, 'base64').toString('utf8'))
+  const servers = parseMcpServerDtos(jsonConfig)
+  return servers.length > 0 ? servers : null
 }

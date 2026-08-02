@@ -39,4 +39,10 @@ export const ProtocolMcpServerInstallSchema = z.union([
 
 export const ProtocolMcpServersInstallSchema = ProtocolMcpServerInstallSchema.array().min(1)
 
+export const ProtocolMcpInstallRequestSchema = z.object({
+  requestId: z.uuid(),
+  servers: ProtocolMcpServersInstallSchema
+})
+
 export type ProtocolMcpServerInstall = z.infer<typeof ProtocolMcpServerInstallSchema>
+export type ProtocolMcpInstallRequest = z.infer<typeof ProtocolMcpInstallRequestSchema>

@@ -84,7 +84,7 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
 }
 
 /**
- * Single consumption point for main-window navigation, mounted once in AppShell.
+ * Single consumption point for main-window navigation, mounted once in MainWindowRuntime.
  * Three delivery legs feed the same routing split:
  *
  * - `OPEN_MAIN_ROUTE_EVENT` DOM event — the in-window fast path used by

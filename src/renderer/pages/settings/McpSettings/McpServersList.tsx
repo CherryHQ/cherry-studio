@@ -10,14 +10,16 @@ import {
   Sortable,
   useDndReorder
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { ipcApi } from '@renderer/ipc'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { toast } from '@renderer/services/toast'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
+import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
@@ -30,10 +32,10 @@ import McpProtocolInstallDialog from './McpProtocolInstallDialog'
 import McpServerCard from './McpServerCard'
 import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
+const logger = loggerService.withContext('McpServersList')
+
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
 type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
-type ProtocolInstallRequest = { requestId: string; servers: ProtocolMcpServerInstall[] }
-
 const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: string }[] = [
   { value: 'all', labelKey: 'models.all' },
   { value: 'enabled', labelKey: 'common.enabled' },
@@ -49,7 +51,6 @@ const McpServersList: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as {
-    protocolInstall?: ProtocolMcpServerInstall[]
     protocolInstallRequestId?: string
   }
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
@@ -58,8 +59,8 @@ const McpServersList: FC = () => {
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
   const [filter, setFilter] = useState<McpServerFilter>('all')
-  const [protocolInstallQueue, setProtocolInstallQueue] = useState<ProtocolInstallRequest[]>([])
-  const handledProtocolInstallRequestIdsRef = useRef(new Set<string>())
+  const [protocolInstallQueue, setProtocolInstallQueue] = useState<ProtocolMcpInstallRequest[]>([])
+  const protocolInstallQueueRef = useRef<ProtocolMcpInstallRequest[]>([])
   const pendingAutoEnableServerIdRef = useRef<string | null>(null)
   const protocolInstallRequest = protocolInstallQueue[0]
 
@@ -67,19 +68,32 @@ const McpServersList: FC = () => {
   // Keep typing responsive: the list re-filters on the deferred value.
   const deferredSearchText = useDeferredValue(searchText)
 
-  useEffect(() => {
-    const protocolInstall = search.protocolInstall
-    const requestId = search.protocolInstallRequestId
-    if (!protocolInstall || !requestId || handledProtocolInstallRequestIdsRef.current.has(requestId)) return
+  const updateProtocolInstallQueue = useCallback(
+    (update: (queue: ProtocolMcpInstallRequest[]) => ProtocolMcpInstallRequest[]) => {
+      const nextQueue = update(protocolInstallQueueRef.current)
+      protocolInstallQueueRef.current = nextQueue
+      setProtocolInstallQueue(nextQueue)
+      return nextQueue
+    },
+    []
+  )
 
-    handledProtocolInstallRequestIdsRef.current.add(requestId)
-    void navigate({ to: '/settings/mcp/servers', search: {}, replace: true })
-    setProtocolInstallQueue((queue) => [...queue, { requestId, servers: protocolInstall }])
-  }, [navigate, search.protocolInstall, search.protocolInstallRequestId])
+  useEffect(() => {
+    if (!search.protocolInstallRequestId) return
+
+    void ipcApi.request('mcp.protocol_install.consume_pending').then(
+      (requests) => {
+        if (requests.length > 0) {
+          updateProtocolInstallQueue((queue) => [...queue, ...requests])
+        }
+      },
+      (error) => logger.error('Failed to consume MCP protocol install requests', error as Error)
+    )
+  }, [search.protocolInstallRequestId, updateProtocolInstallQueue])
 
   const consumeProtocolInstallRequest = useCallback(() => {
-    setProtocolInstallQueue((queue) => queue.slice(1))
-  }, [])
+    return updateProtocolInstallQueue((queue) => queue.slice(1))
+  }, [updateProtocolInstallQueue])
 
   const openProtocolServer = useCallback(
     (serverId: string) => {
@@ -93,13 +107,13 @@ const McpServersList: FC = () => {
   )
 
   const handleProtocolInstallClose = useCallback(() => {
-    consumeProtocolInstallRequest()
-    if (protocolInstallQueue.length !== 1 || !pendingAutoEnableServerIdRef.current) return
+    const remainingRequests = consumeProtocolInstallRequest()
+    if (remainingRequests.length > 0 || !pendingAutoEnableServerIdRef.current) return
 
     const serverId = pendingAutoEnableServerIdRef.current
     pendingAutoEnableServerIdRef.current = null
     openProtocolServer(serverId)
-  }, [consumeProtocolInstallRequest, openProtocolServer, protocolInstallQueue.length])
+  }, [consumeProtocolInstallRequest, openProtocolServer])
 
   const filteredMcpServers = useMemo(() => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -184,23 +198,16 @@ const McpServersList: FC = () => {
     const lastCreatedServer = createdServers.at(-1)
     if (!lastCreatedServer) return
 
-    consumeProtocolInstallRequest()
+    const remainingRequests = consumeProtocolInstallRequest()
     toast.success(t('settings.mcp.addSuccess'))
-    if (protocolInstallQueue.length > 1) {
+    if (remainingRequests.length > 0) {
       pendingAutoEnableServerIdRef.current = lastCreatedServer.id
       return
     }
 
     pendingAutoEnableServerIdRef.current = null
     openProtocolServer(lastCreatedServer.id)
-  }, [
-    addMcpServers,
-    consumeProtocolInstallRequest,
-    openProtocolServer,
-    protocolInstallQueue.length,
-    protocolInstallRequest,
-    t
-  ])
+  }, [addMcpServers, consumeProtocolInstallRequest, openProtocolServer, protocolInstallRequest, t])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
