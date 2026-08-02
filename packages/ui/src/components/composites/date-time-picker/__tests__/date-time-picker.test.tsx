@@ -11,7 +11,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
 })
 
 afterEach(() => {

@@ -134,16 +134,15 @@ vi.mock('../PaintingSettings', () => ({
 // Imported after mocks are registered.
 const { default: PaintingComposer } = await import('../PaintingComposer')
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'p1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  ...overrides
+})
 
 const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingComposer>> = {}) => {
   const onPromptChange = vi.fn()
@@ -164,10 +163,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   return {
     onPromptChange,
     onGenerate,
-    rerenderPainting: (painting: PaintingData) =>
-      view.rerender(
-        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
-      )
+    rerenderPainting: (painting: PaintingData) => view.rerender(<PaintingComposer {...handlers} painting={painting} />)
   }
 }
 

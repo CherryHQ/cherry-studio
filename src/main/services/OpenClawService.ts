@@ -738,7 +738,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
-    return schema as OpenClawConfigSchemaNode
+    return schema
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {

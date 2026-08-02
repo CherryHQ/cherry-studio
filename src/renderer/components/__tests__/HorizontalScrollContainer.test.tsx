@@ -46,7 +46,7 @@ describe('HorizontalScrollContainer', () => {
         }),
         disconnect: instance.disconnect
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {

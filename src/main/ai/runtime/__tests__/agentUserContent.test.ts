@@ -21,7 +21,7 @@ describe('buildAgentUserContent', () => {
     const secondUrl = 'file:///C:/managed/uuid-b'
     const content = buildAgentUserContent(
       message([
-        { type: 'text', text: 'Classify these images.' } as CherryMessagePart,
+        { type: 'text', text: 'Classify these images.' },
         filePart(firstUrl, '20260406_184133 Alex Diaz.jpg'),
         filePart(secondUrl, 'scan "final".jpg')
       ])

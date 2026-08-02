@@ -70,7 +70,7 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { atomicWriteFile, createAtomicWriteStream, isSameFile, move: fsMove } = await import('../fs')
 
 function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
-  return Object.assign(new Error(message), { code }) as NodeJS.ErrnoException
+  return Object.assign(new Error(message), { code })
 }
 
 describe('move (EXDEV cross-device fallback)', () => {

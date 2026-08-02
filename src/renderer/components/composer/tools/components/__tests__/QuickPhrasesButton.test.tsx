@@ -235,7 +235,7 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(isValidElement(manageCurrentItem.icon) && manageCurrentItem.icon.type === Settings2).toBe(true)
     expect(isValidElement(manageGlobalItem.icon) && manageGlobalItem.icon.type === Globe2).toBe(true)
     act(() => {
-      manageCurrentItem.action({} as never)
+      manageCurrentItem.action({})
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -245,7 +245,7 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     act(() => {
-      manageGlobalItem.action({} as never)
+      manageGlobalItem.action({})
     })
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/prompts')
@@ -289,7 +289,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const footerActions = getRegisteredFooterActions(launcher)
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
     act(() => {
-      addItem.action({} as never)
+      addItem.action({})
     })
     screen.getByRole('button', { name: 'save prompt' }).click()
 
@@ -342,7 +342,7 @@ describe('QuickPhrasesToolRuntime', () => {
       (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.manageCurrentAgent'
     )!
     act(() => {
-      manageItem.action({} as never)
+      manageItem.action({})
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -375,7 +375,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
 
     act(() => {
-      addItem.action({ inputAdapter } as never)
+      addItem.action({ inputAdapter })
     })
     act(() => {
       screen.getByText('close prompt edit').click()
@@ -406,7 +406,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
 
     act(() => {
-      addItem.action({} as never)
+      addItem.action({})
     })
     screen.getByRole('button', { name: 'save prompt' }).click()
 

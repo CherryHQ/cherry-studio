@@ -31,7 +31,7 @@ function spawnAnchor(callId: string, description: string, toolName = 'subagent')
     toolCallId: callId,
     toolName,
     input: { description, prompt: 'go' }
-  } as CherryUIMessageChunk
+  }
 }
 
 function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
@@ -40,11 +40,11 @@ function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
     toolCallId: callId,
     toolName: 'send_message',
     input: { subagent_id: subagentId, message: 'go on' }
-  } as CherryUIMessageChunk
+  }
 }
 
 function toolError(callId: string): CherryUIMessageChunk {
-  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' } as CherryUIMessageChunk
+  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' }
 }
 
 function makeSink() {
@@ -194,7 +194,7 @@ describe('DshSubagentCoordinator binding', () => {
       toolCallId: 'call-x',
       toolName: 'read',
       input: { file_path: 'a.txt' }
-    } as CherryUIMessageChunk)
+    })
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleChildEvent('child-1', textDelta(0, 0, 'x'))
     // No anchor → still buffered, nothing mis-parented under call-x.

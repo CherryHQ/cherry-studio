@@ -63,7 +63,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   const handlersRef = useRef(new Map<CommandId, CommandHandlerEntry[]>())
   const dispatcherStateRef = useRef<CommandDispatcherState>({
     context: contextSnapshot,
-    shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
+    shortcutPreferences: shortcutPreferences,
     hasHandler: () => false,
     execute: () => {}
   })
@@ -125,7 +125,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     dispatcherStateRef.current = {
       context: contextSnapshot,
-      shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
+      shortcutPreferences: shortcutPreferences,
       hasHandler,
       execute
     }
@@ -181,8 +181,8 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
 
   const sharedPreferences = useMemo<CommandSharedPreferences>(
     () => ({
-      shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
-      menuPresentationMode: menuPresentationMode as MenuPresentationMode | undefined
+      shortcutPreferences: shortcutPreferences,
+      menuPresentationMode: menuPresentationMode
     }),
     [shortcutPreferences, menuPresentationMode]
   )

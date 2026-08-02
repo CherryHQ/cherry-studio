@@ -56,7 +56,7 @@ export function usePaintingModelSwitch({
           params: { ...painting.params, ...resetPatch },
           model: modelId,
           ...(keepInputFiles ? {} : { inputFiles: [] })
-        } as Partial<PaintingData>)
+        })
         return
       }
 
@@ -82,7 +82,7 @@ export function usePaintingModelSwitch({
         // Switching providers resets the form context; never carry input
         // images across to a different provider's model.
         inputFiles: []
-      } as Partial<PaintingData>)
+      })
     },
     [currentProviderId, ensureProviderCatalog, models, onPaintingChange, painting]
   )

@@ -6,7 +6,7 @@ import type { McpToolResponse } from '@renderer/types/mcpTool'
 import MessageMcpTool from '../mcp/MessageMcpTool'
 
 const mockApproval = vi.hoisted(() => vi.fn())
-const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
+const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockIsToolAutoApproved = vi.hoisted(() => vi.fn(() => false))
 const mockHighlightCode = vi.hoisted(() => vi.fn(async (code: string) => `<pre>${code}</pre>`))
 

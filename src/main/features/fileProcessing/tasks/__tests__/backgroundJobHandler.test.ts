@@ -32,7 +32,7 @@ const {
   processorRegistryMock: {} as Record<string, unknown>,
   persistResultMock: vi.fn(),
   capabilityHandlerMock: {
-    mode: 'background' as 'background' | 'remote-poll',
+    mode: 'background',
     prepare: vi.fn()
   },
   preparedExecuteMock: vi.fn()

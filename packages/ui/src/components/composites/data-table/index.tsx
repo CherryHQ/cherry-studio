@@ -93,11 +93,11 @@ const tableExpandButtonClassName =
   'flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground'
 
 function getColumnMeta<TData>(cell: Cell<TData, unknown>): DataTableColumnMeta | undefined {
-  return cell.column.columnDef.meta as DataTableColumnMeta | undefined
+  return cell.column.columnDef.meta
 }
 
 function getHeaderMeta<TData>(columnDef: ColumnDef<TData, unknown>): DataTableColumnMeta | undefined {
-  return columnDef.meta as DataTableColumnMeta | undefined
+  return columnDef.meta
 }
 
 function getAlignClass(align?: DataTableColumnMeta['align']) {

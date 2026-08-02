@@ -128,7 +128,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         topicId: 'topic-1',
         parentAnchorId: 'a1',
         userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -447,7 +447,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         topicId: 'topic-1',
         parentAnchorId: 'u1',
         userMessageParts: [{ type: 'text', text: 'retry from before' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -542,7 +542,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         parentAnchorId: 'u1',
         mentionedModelIds: [MODEL_A, MODEL_B],
         userMessageParts: [{ type: 'text', text: 'ask both models' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 

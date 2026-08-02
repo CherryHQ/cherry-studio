@@ -518,7 +518,7 @@ describe('AiService', () => {
         modelId: 'test-model',
         pricing: { input: { perMillionTokens: null }, output: { perMillionTokens: null }, perImage: { price: 0.05 } }
       }
-    } as never)
+    })
 
     mockGenerateImage.mockResolvedValue({
       images: [{ base64: 'abc123', mediaType: 'image/png' }, { nonsense: true }],
@@ -644,7 +644,7 @@ describe('AiService', () => {
         providerSettings: {},
         modelId: 'test-model'
       }
-    } as never)
+    })
 
     mockGenerateImage.mockResolvedValue({ images: [] })
     mockApplicationGet.mockImplementation((name: string) =>
@@ -674,7 +674,7 @@ describe('AiService', () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
-    } as never)
+    })
 
     mockGenerateImage.mockResolvedValue({ images: [] })
     mockApplicationGet.mockImplementation((name: string) =>
@@ -717,7 +717,7 @@ describe('AiService', () => {
       vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
-      } as never)
+      })
       mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
       const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
       mockApplicationGet.mockImplementation((name: string) =>
@@ -757,7 +757,7 @@ describe('AiService', () => {
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' },
         assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
-      } as never)
+      })
       mockGenerateImage.mockResolvedValue({
         images: [
           { base64: 'first', mediaType: 'image/png' },
@@ -818,7 +818,7 @@ describe('AiService', () => {
           name: 'Test Embedding Model'
         },
         assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
-      } as never)
+      })
       mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
     }
 
@@ -1259,7 +1259,7 @@ describe('AiService tool approval', () => {
         providerId: 'test-provider',
         name: 'Test Reranker'
       }
-    } as never)
+    })
 
     mockRerank.mockResolvedValue({
       ranking: [
@@ -1311,13 +1311,13 @@ describe('AiService tool approval', () => {
 
   it('caps embedMany parallelism and derives maxRetries from the retry preference', async () => {
     const service = createService()
-    vi.spyOn(service as unknown as AiServicePrivate, 'trackUsage').mockReturnValue(undefined as never)
+    vi.spyOn(service as unknown as AiServicePrivate, 'trackUsage').mockReturnValue(undefined)
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-embed', name: 'Test Embed' }
-    } as never)
+    })
     mockReadRetryPolicy.mockReturnValue({
       enabled: true,
       maxAttempts: 3,
@@ -1346,13 +1346,13 @@ describe('AiService tool approval', () => {
     // Regression: default-config embedding must NOT drop from the SDK's 2
     // retries to 0 — this PR adds retry behavior, it never removes it.
     const service = createService()
-    vi.spyOn(service as unknown as AiServicePrivate, 'trackUsage').mockReturnValue(undefined as never)
+    vi.spyOn(service as unknown as AiServicePrivate, 'trackUsage').mockReturnValue(undefined)
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-embed', name: 'Test Embed' }
-    } as never)
+    })
     mockReadRetryPolicy.mockReturnValue({
       enabled: false,
       maxAttempts: 3,
@@ -1375,7 +1375,7 @@ describe('AiService tool approval', () => {
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-reranker', name: 'Test Reranker' },
       options: {}
-    } as never)
+    })
     // Retry enabled with 4 retries → rerank passes maxRetries: 4.
     mockReadRetryPolicy.mockReturnValue({
       enabled: true,
@@ -1398,7 +1398,7 @@ describe('AiService tool approval', () => {
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
       model: { id: 'test-provider::test-reranker', name: 'Test Reranker' },
       options: {}
-    } as never)
+    })
     mockReadRetryPolicy.mockReturnValue({
       enabled: false,
       maxAttempts: 3,
@@ -1427,7 +1427,7 @@ describe('AiService tool approval', () => {
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
       fileAttachments: []
-    } as never)
+    })
 
     await service.streamText({
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
@@ -1639,7 +1639,7 @@ describe('AiService tool approval', () => {
       assistant: undefined,
       nativeFileSupport: { image: true, pdf: false, audio: false, video: false },
       fileAttachments: []
-    } as never)
+    })
 
     await service.streamText({
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
@@ -1680,7 +1680,7 @@ describe('AiService tool approval', () => {
       hookParts: [],
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
-    } as never)
+    })
 
     await service.generateText({
       uniqueModelId: 'test-provider::test-model',
@@ -1695,7 +1695,7 @@ describe('AiService tool approval', () => {
 
   it('wires retry policy and native requirements into generateText fallbacks', async () => {
     const service = createService()
-    mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
+    mockCreateRetryableWrap.mockReturnValue((model: unknown) => model)
     mockReadRetryPolicy.mockReturnValue({
       enabled: true,
       maxAttempts: 3,
@@ -1714,7 +1714,7 @@ describe('AiService tool approval', () => {
       hookParts: [],
       assistant: undefined,
       nativeFileSupport: { image: true, pdf: false, audio: false, video: false }
-    } as never)
+    })
 
     await service.generateText({
       uniqueModelId: 'test-provider::test-model',

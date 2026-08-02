@@ -154,7 +154,7 @@ describe('internal/content/read', () => {
   })
 
   it('throws when entry id does not exist', async () => {
-    await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc' as FileEntryId)).rejects.toThrow(/not found/i)
+    await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc')).rejects.toThrow(/not found/i)
   })
 
   it('updates DanglingCache to "missing" on ENOENT for external entry', async () => {

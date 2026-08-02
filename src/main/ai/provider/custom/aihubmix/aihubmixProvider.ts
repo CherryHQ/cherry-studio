@@ -169,5 +169,5 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fetch: customFetch
     })
 
-  return provider as AihubmixProvider
+  return provider
 }

@@ -487,7 +487,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
         typeof savedAttrs[attrKey] === 'object' &&
         savedAttrs[attrKey] !== null
       ) {
-        savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData } as AttributeValue
+        savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData }
       } else {
         savedAttrs[attrKey] = rawValue
       }

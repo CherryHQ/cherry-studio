@@ -30,16 +30,15 @@ const supportWith = (key: string, options: string[], def: string) => ({
   modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
 })
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'p1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  ...overrides
+})
 
 describe('PaintingImageSkeleton', () => {
   beforeAll(() => {

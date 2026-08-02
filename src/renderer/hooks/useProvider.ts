@@ -33,11 +33,7 @@ function getErrorType(error: unknown) {
  * use schema template paths directly, so no `as ConcreteApiPaths` casts are needed there.
  */
 function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
-  return [
-    '/providers',
-    `/providers/${providerId}` as ConcreteApiPaths,
-    `/providers/${providerId}/*` as ConcreteApiPaths
-  ]
+  return ['/providers', `/providers/${providerId}`, `/providers/${providerId}/*`]
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────

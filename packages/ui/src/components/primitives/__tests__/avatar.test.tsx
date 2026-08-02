@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -28,7 +29,7 @@ const FIRST_LOGO = 'data:image/png;base64,first'
 const SECOND_LOGO = 'data:image/png;base64,second'
 
 beforeEach(() => {
-  vi.stubGlobal('Image', StubImage as unknown as typeof Image)
+  vi.stubGlobal('Image', StubImage as unknown)
 })
 
 afterEach(() => {

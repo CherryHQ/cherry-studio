@@ -157,7 +157,7 @@ describe('MermaidPreview', () => {
       offsetHeight: { configurable: true, value: 0 }
     })
     act(() => {
-      mocks.observerCallback?.([], mocks.observer as unknown as MutationObserver)
+      mocks.observerCallback?.([], mocks.observer)
     })
     expect(mocks.renderOptions?.shouldRender?.()).toBe(false)
 
@@ -167,7 +167,7 @@ describe('MermaidPreview', () => {
       offsetHeight: { configurable: true, value: 480 }
     })
     act(() => {
-      mocks.observerCallback?.([], mocks.observer as unknown as MutationObserver)
+      mocks.observerCallback?.([], mocks.observer)
     })
 
     expect(mocks.renderOptions?.shouldRender?.()).toBe(true)

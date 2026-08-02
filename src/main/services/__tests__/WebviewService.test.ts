@@ -89,7 +89,7 @@ describe('setOpenLinkExternal', () => {
   })
 
   it('is a no-op when the webview id is unknown', () => {
-    vi.mocked(webContents.fromId).mockReturnValue(undefined as never)
+    vi.mocked(webContents.fromId).mockReturnValue(undefined)
     expect(() => setOpenLinkExternal(404, false)).not.toThrow()
   })
 })

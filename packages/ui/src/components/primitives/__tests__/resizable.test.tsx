@@ -10,7 +10,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
 
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

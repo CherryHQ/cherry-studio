@@ -27,7 +27,7 @@ function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
   return { id, role: id.startsWith('user') ? 'user' : 'assistant', parts } as unknown as CherryUIMessage
 }
 
-const text = (s: string): CherryMessagePart => ({ type: 'text', text: s }) as CherryMessagePart
+const text = (s: string): CherryMessagePart => ({ type: 'text', text: s })
 
 const renderCount: Record<string, number> = {}
 const observedPartCounts: Record<string, number[]> = {}

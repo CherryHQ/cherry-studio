@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 
 const mocks = vi.hoisted(() => ({
@@ -43,7 +42,7 @@ describe('DshRuntimeDriver.listAvailableTools', () => {
   })
 
   it('uses the host-bridge public name and prompts for third-party MCP tools', async () => {
-    mocks.findByIdOrName.mockReturnValue({ id: 'srv-1', name: 'github' } as McpServer)
+    mocks.findByIdOrName.mockReturnValue({ id: 'srv-1', name: 'github' })
     mocks.listTools.mockReturnValue([{ name: 'search_issues', description: 'Search issues' } as McpTool])
 
     const tools = await new DshRuntimeDriver().listAvailableTools(['srv-1'])
@@ -60,7 +59,7 @@ describe('DshRuntimeDriver.listAvailableTools', () => {
   })
 
   it('auto-approves safe Cherry tools but keeps sensitive Cherry tools prompt-gated', async () => {
-    mocks.findByIdOrName.mockReturnValue({ id: 'cherry-id', name: 'cherry-tools' } as McpServer)
+    mocks.findByIdOrName.mockReturnValue({ id: 'cherry-id', name: 'cherry-tools' })
     mocks.listTools.mockReturnValue([
       { name: 'web_search', description: 'Search the web' } as McpTool,
       { name: 'kb_manage', description: 'Manage knowledge' } as McpTool

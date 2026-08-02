@@ -34,7 +34,7 @@ function model(capabilities: Model['capabilities'] = []): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function cloudModel(id: string): Model {

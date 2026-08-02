@@ -186,7 +186,7 @@ function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase
     typeof chunkSizeCandidate === 'number' && Number.isInteger(chunkSizeCandidate) && chunkSizeCandidate > 0
       ? chunkSizeCandidate
       : DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE
-  normalized.chunkSize = chunkSize as T['chunkSize']
+  normalized.chunkSize = chunkSize
 
   const chunkOverlapCandidate = normalized.chunkOverlap
   if (
@@ -195,15 +195,15 @@ function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase
     chunkOverlapCandidate < 0 ||
     chunkOverlapCandidate >= chunkSize
   ) {
-    normalized.chunkOverlap = getDefaultChunkOverlap(chunkSize) as T['chunkOverlap']
+    normalized.chunkOverlap = getDefaultChunkOverlap(chunkSize)
   }
 
   if (normalized.documentCount != null && normalized.documentCount <= 0) {
-    normalized.documentCount = undefined as T['documentCount']
+    normalized.documentCount = undefined
   }
 
   if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
-    normalized.threshold = undefined as T['threshold']
+    normalized.threshold = undefined
   }
 
   return normalized

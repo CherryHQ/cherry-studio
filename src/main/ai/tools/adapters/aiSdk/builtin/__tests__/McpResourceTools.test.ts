@@ -66,7 +66,7 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 function makeServer(id: string, overrides: Partial<McpServer> = {}): McpServer {
-  return { id, name: `${id}-name`, isActive: true, ...overrides } as McpServer
+  return { id, name: `${id}-name`, isActive: true, ...overrides }
 }
 
 function makeResource(serverId: string, uri: string): McpResource {
@@ -83,7 +83,7 @@ function callExecute(
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', ...request }
-  } as ToolExecutionOptions)
+  })
 }
 
 function callNeedsApproval(args: Record<string, unknown>, request: Record<string, unknown>): Promise<boolean> {
@@ -95,7 +95,7 @@ function callNeedsApproval(args: Record<string, unknown>, request: Record<string
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', ...request }
-  } as ToolExecutionOptions)
+  })
 }
 
 describe('mcp_resource_* entries', () => {

@@ -118,11 +118,11 @@ describe('OvOcr executeExtraction', () => {
 
   it('passes AbortSignal to child process execution', async () => {
     const controller = new AbortController()
-    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/cherry-ovocr-1' as never)
+    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/cherry-ovocr-1')
     const copyFileSpy = vi.spyOn(fs.promises, 'copyFile').mockResolvedValue(undefined)
     const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
-    const mkdirSpy = vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined as never)
-    const readFileSpy = vi.spyOn(fs.promises, 'readFile').mockResolvedValue('recognized text' as never)
+    const mkdirSpy = vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined)
+    const readFileSpy = vi.spyOn(fs.promises, 'readFile').mockResolvedValue('recognized text')
     execMock.mockImplementation((_command, _options, callback) => {
       callback?.(null, '', '')
       return {} as never

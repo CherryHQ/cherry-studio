@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { jsonSchema, type StepResult, type Tool, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 

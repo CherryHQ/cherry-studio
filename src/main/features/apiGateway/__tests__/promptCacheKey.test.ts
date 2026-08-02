@@ -27,7 +27,7 @@ function model(providerId: string, endpointType: EndpointType): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 const SESSION_ID = '018f2f45-agent-session'

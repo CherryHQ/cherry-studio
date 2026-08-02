@@ -44,7 +44,7 @@ async function callRepair(
     system: undefined,
     messages: [],
     toolCall,
-    tools: { [KB_SEARCH_TOOL_NAME]: { inputSchema: querySchema } } as never,
+    tools: { [KB_SEARCH_TOOL_NAME]: { inputSchema: querySchema } },
     inputSchema: async () => ({ type: 'object', properties: { query: { type: 'string' } } }) as never,
     error
   })
@@ -197,7 +197,7 @@ describe('createAiRepair', () => {
       system: undefined,
       messages: [],
       toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hello world' }),
-      tools: { [KB_SEARCH_TOOL_NAME]: { inputSchema: querySchema } } as never,
+      tools: { [KB_SEARCH_TOOL_NAME]: { inputSchema: querySchema } },
       inputSchema: async () => ({ type: 'object', properties: { query: { type: 'string' } } }) as never,
       error: inputErr
     })
@@ -227,7 +227,7 @@ describe('createAiRepair', () => {
       system: undefined,
       messages: [],
       toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hi' }),
-      tools: {} as never,
+      tools: {},
       inputSchema: async () => {
         throw new Error('unknown tool')
       },

@@ -29,7 +29,7 @@ describe('FileStorage', () => {
     })
 
     it('returns null when the dialog resolves without a file path', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
     })
   })
@@ -176,7 +176,7 @@ describe('FileStorage', () => {
 
     it('decodes the base64 payload to disk and returns true on confirm', async () => {
       const tmpFile = path.join(os.tmpdir(), `filestorage-image-test-${uniqueId()}.png`)
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
       const payload = Buffer.from('fake-png-bytes').toString('base64')
 
       try {

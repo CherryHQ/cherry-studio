@@ -1093,7 +1093,7 @@ describe('KnowledgeVectorMigrator', () => {
             throw new Error('database is locked')
           })
         }))
-      })) as any
+      }))
 
       await expect(migrator.execute(migrationCtx as any)).rejects.toThrow(
         new RegExp(`Failed to persist the failed status of 1 knowledge base\\(s\\) \\[${MIGRATED_KNOWLEDGE_BASE_ID}\\]`)
@@ -1687,7 +1687,7 @@ describe('KnowledgeVectorMigrator', () => {
             }
           })
         }))
-      })) as any
+      }))
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
@@ -2747,7 +2747,7 @@ describe('KnowledgeVectorMigrator', () => {
         const result = callback(tx)
         migrationCtx.db.updateCalls.push(...txCalls)
         return result
-      }) as any
+      })
 
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
@@ -2816,13 +2816,13 @@ describe('KnowledgeVectorMigrator', () => {
       // The snapshot-pin transaction throws, putting the base on basesToMarkFailed...
       migrationCtx.db.transaction = vi.fn(() => {
         throw new Error('pin update failed')
-      }) as any
+      })
       // ...and the flushBaseFailures UPDATE persisting `failed` throws as well.
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
           where: vi.fn().mockRejectedValue(new Error('disk I/O error'))
         }))
-      })) as any
+      }))
 
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)

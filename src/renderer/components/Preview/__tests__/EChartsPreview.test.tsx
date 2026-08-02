@@ -106,10 +106,7 @@ describe('EChartsPreview', () => {
 
   const fireResize = (width: number, height: number) => {
     act(() => {
-      resizeCallback?.(
-        [{ contentRect: { width, height } } as unknown as ResizeObserverEntry],
-        mocks.resizeObserver as unknown as ResizeObserver
-      )
+      resizeCallback?.([{ contentRect: { width, height } } as unknown as ResizeObserverEntry], mocks.resizeObserver)
     })
   }
 

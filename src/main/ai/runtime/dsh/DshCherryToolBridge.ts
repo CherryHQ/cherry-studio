@@ -147,7 +147,7 @@ function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescripto
   return {
     name: buildDshCherryToolName(serverName, tool.name),
     description: tool.description ?? '',
-    inputSchema: tool.inputSchema as Record<string, unknown>
+    inputSchema: tool.inputSchema
   }
 }
 

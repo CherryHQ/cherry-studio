@@ -522,7 +522,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             type: 'text',
             text: block.content,
             citations: null
-          } as TextBlock)
+          })
           break
         case 'thinking':
           content.push({
@@ -531,7 +531,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             // Real signature when the upstream provided one; '' matches the empty
             // signature used when the block is opened.
             signature: block.signature ?? ''
-          } as ThinkingBlock)
+          })
           break
         case 'tool_use':
           content.push({

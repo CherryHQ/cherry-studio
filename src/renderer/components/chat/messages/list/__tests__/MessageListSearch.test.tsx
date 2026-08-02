@@ -197,8 +197,8 @@ describe('MessageListSearch', () => {
         messages={[message]}
         partsByMessageId={{
           a1: [
-            { type: 'text', text: 'apple apple' } as CherryMessagePart,
-            { type: 'text', text: 'apple apple' } as CherryMessagePart
+            { type: 'text', text: 'apple apple' },
+            { type: 'text', text: 'apple apple' }
           ]
         }}
         renderUserTextAsMarkdown={false}
@@ -264,10 +264,7 @@ describe('MessageListSearch', () => {
       scopeRef: { current: scope }
     }
     const view = render(
-      <MessageListSearch
-        {...props}
-        partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart] }}
-      />
+      <MessageListSearch {...props} partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' }] }} />
     )
 
     act(() => commandMock.handler?.())
@@ -276,18 +273,8 @@ describe('MessageListSearch', () => {
     await waitFor(() => expect(next).toBeEnabled())
 
     await user.click(next)
-    view.rerender(
-      <MessageListSearch
-        {...props}
-        partsByMessageId={{ a1: [{ type: 'text', text: 'banana' } as CherryMessagePart] }}
-      />
-    )
-    view.rerender(
-      <MessageListSearch
-        {...props}
-        partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart] }}
-      />
-    )
+    view.rerender(<MessageListSearch {...props} partsByMessageId={{ a1: [{ type: 'text', text: 'banana' }] }} />)
+    view.rerender(<MessageListSearch {...props} partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' }] }} />)
     act(() => {
       const partElement = document.createElement('div')
       partElement.dataset.messagePartId = 'a1-part-0'
@@ -332,7 +319,7 @@ describe('MessageListSearch', () => {
     render(
       <MessageListSearch
         messages={[message]}
-        partsByMessageId={{ u1: [{ type: 'text', text: 'preview only hidden apple' } as CherryMessagePart] }}
+        partsByMessageId={{ u1: [{ type: 'text', text: 'preview only hidden apple' }] }}
         renderUserTextAsMarkdown={false}
         excludedMessageIds={NO_EXCLUDED_MESSAGE_IDS}
         isStreaming={false}
@@ -378,11 +365,7 @@ describe('MessageListSearch', () => {
       scopeRef: { current: scope }
     }
     const view = render(
-      <MessageListSearch
-        {...props}
-        isStreaming
-        partsByMessageId={{ a1: [{ type: 'text', text: 'banana' } as CherryMessagePart] }}
-      />
+      <MessageListSearch {...props} isStreaming partsByMessageId={{ a1: [{ type: 'text', text: 'banana' }] }} />
     )
 
     act(() => commandMock.handler?.())
@@ -430,8 +413,8 @@ describe('MessageListSearch', () => {
       <MessageListSearch
         messages={messages}
         partsByMessageId={{
-          a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart],
-          a2: [{ type: 'text', text: 'another apple' } as CherryMessagePart]
+          a1: [{ type: 'text', text: 'apple apple' }],
+          a2: [{ type: 'text', text: 'another apple' }]
         }}
         renderUserTextAsMarkdown={false}
         excludedMessageIds={NO_EXCLUDED_MESSAGE_IDS}

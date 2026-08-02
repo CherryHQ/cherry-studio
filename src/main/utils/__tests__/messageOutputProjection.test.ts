@@ -94,7 +94,7 @@ function partWith(output: unknown): CherryMessagePart {
 }
 
 function chunkWith(output: unknown): UIMessageChunk {
-  return { type: 'tool-output-available', toolCallId: TOOL_CALL_ID, output } as UIMessageChunk
+  return { type: 'tool-output-available', toolCallId: TOOL_CALL_ID, output }
 }
 
 const blob = (key: string, n: number) => ({

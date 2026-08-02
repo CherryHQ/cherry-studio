@@ -166,5 +166,5 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       fetch: customFetch
     })
 
-  return provider as NewApiProvider
+  return provider
 }

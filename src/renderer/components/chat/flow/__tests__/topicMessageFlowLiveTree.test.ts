@@ -44,10 +44,10 @@ function uiMessage({
       modelId: metadata.modelId,
       createdAt: metadata.createdAt ?? createdAt
     }
-  } as CherryUIMessage
+  }
 }
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 
 describe('topicMessageFlowLiveTree', () => {
   it('derives a context boundary from the hidden data UI part', () => {

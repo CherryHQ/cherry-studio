@@ -18,7 +18,7 @@ vi.mock('@application', async () => {
       cancel: cancelMock,
       list: listMock
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 vi.mock('@data/services/KnowledgeItemService', () => ({

@@ -50,8 +50,8 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
   // Then, check template patterns
   const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
   for (const schemaKey of schemaKeys) {
-    if (isTemplateKey(schemaKey as string)) {
-      const regex = templateToRegex(schemaKey as string)
+    if (isTemplateKey(schemaKey)) {
+      const regex = templateToRegex(schemaKey)
       if (regex.test(key)) {
         return schemaKey
       }

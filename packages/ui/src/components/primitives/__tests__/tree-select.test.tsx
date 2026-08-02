@@ -32,7 +32,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   Element.prototype.scrollIntoView = vi.fn()
 })
 

@@ -19,7 +19,7 @@ const makeAttachment = (sourceId: string, path: string): ComposerAttachment => (
   origin_name: 'x.png',
   ext: '.png',
   size: 100,
-  type: 'image' as ComposerAttachment['type']
+  type: 'image'
 })
 
 describe('usePaintingComposerInputFiles', () => {
@@ -366,7 +366,7 @@ describe('usePaintingComposerInputFiles', () => {
     window.api = {
       ...window.api,
       file: { ...window.api.file, getPhysicalPath: vi.fn(() => pending) }
-    } as unknown as typeof window.api
+    }
     return release
   }
 

@@ -64,7 +64,7 @@ function createProvider<TProviderId extends WebSearchProvider['id']>(
     basicAuthUsername: '',
     basicAuthPassword: '',
     ...restOverrides
-  } as WebSearchProvider & { id: TProviderId }
+  }
 }
 
 describe('createWebSearchProvider', () => {

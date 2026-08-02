@@ -114,9 +114,7 @@ afterEach(cleanup)
 
 describe('SystemPromptStep', () => {
   it('resolves the selected model name in the prompt preview', () => {
-    render(
-      <Harness modelId={'provider::model' as ResourceCreateWizardFormValues['modelId']} prompt="Use {{model_name}}" />
-    )
+    render(<Harness modelId={'provider::model'} prompt="Use {{model_name}}" />)
 
     expect(screen.getByLabelText('system-prompt')).toHaveValue('Use {{model_name}}')
     expect(screen.getByLabelText('system-prompt-preview')).toHaveTextContent('Use Selected Model')

@@ -51,7 +51,7 @@ function callExecute(
       knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: ctx.abortSignal ?? new AbortController().signal
     }
-  } as ToolExecutionOptions)
+  })
 }
 
 describe('kb_search', () => {

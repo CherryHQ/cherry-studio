@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { BulkUpdateModelsDto } from '@shared/data/api/schemas/models'
 import { MODELS_BULK_UPDATE_MAX_ITEMS } from '@shared/data/api/schemas/models'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { persistProviderModels } from '../providerModelSetup'
 
 function makeModel(index: number): Model {
   return {
-    id: `openai::model-${index}` as UniqueModelId,
+    id: `openai::model-${index}`,
     providerId: 'openai',
     apiModelId: `model-${index}`,
     name: `Model ${index}`,

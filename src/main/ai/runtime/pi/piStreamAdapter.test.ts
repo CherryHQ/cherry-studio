@@ -45,14 +45,14 @@ describe('PiStreamAdapter', () => {
         toolCallId: 't1',
         toolName: 'bash',
         args: { command: 'ls' }
-      } as AgentSessionEvent,
+      },
       {
         type: 'tool_execution_end',
         toolCallId: 't1',
         toolName: 'bash',
         result: 'file.txt',
         isError: false
-      } as AgentSessionEvent,
+      },
       {
         type: 'turn_end',
         message: {
@@ -98,14 +98,14 @@ describe('PiStreamAdapter', () => {
 
   it('stamps the pi transport on tool error output', () => {
     const chunks = collect([
-      { type: 'tool_execution_start', toolCallId: 'e1', toolName: 'edit', args: {} } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 'e1', toolName: 'edit', args: {} },
       {
         type: 'tool_execution_end',
         toolCallId: 'e1',
         toolName: 'edit',
         result: { message: 'boom' },
         isError: true
-      } as AgentSessionEvent
+      }
     ])
     const err = chunks.find((chunk) => chunk.type === 'tool-output-error')
     expect(err).toMatchObject({
@@ -169,14 +169,14 @@ describe('PiStreamAdapter', () => {
       assistantEvent({ type: 'text_start', contentIndex: 0 }),
       assistantEvent({ type: 'text_delta', contentIndex: 0, delta: 'done' }),
       assistantEvent({ type: 'text_end', contentIndex: 0 }),
-      { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'a' } } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'a' } },
       {
         type: 'tool_execution_end',
         toolCallId: 't1',
         toolName: 'read',
         result: 'contents',
         isError: false
-      } as AgentSessionEvent
+      }
     ])
     const message = await accumulate(chunks)
     const text = message.parts.find((part) => part.type === 'text')
@@ -215,14 +215,14 @@ describe('PiStreamAdapter', () => {
     }
     const message = await accumulate(
       collect([
-        { type: 'tool_execution_start', toolCallId: 'artifact-1', toolName, args: input } as AgentSessionEvent,
+        { type: 'tool_execution_start', toolCallId: 'artifact-1', toolName, args: input },
         {
           type: 'tool_execution_end',
           toolCallId: 'artifact-1',
           toolName,
           result: 'Recorded 1 artifact(s).',
           isError: false
-        } as AgentSessionEvent
+        }
       ])
     )
 
@@ -235,14 +235,14 @@ describe('PiStreamAdapter', () => {
 
   it('stamps MCP tools with type mcp, name, and serverName from the tool name', () => {
     const chunks = collect([
-      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} },
       {
         type: 'tool_execution_end',
         toolCallId: 'm1',
         toolName: 'mcp__exa__search',
         result: { content: [{ type: 'text', text: 'results' }] },
         isError: false
-      } as AgentSessionEvent
+      }
     ])
     const toolOutput = chunks.find((chunk) => chunk.type === 'tool-output-available')
     expect(toolOutput).toMatchObject({

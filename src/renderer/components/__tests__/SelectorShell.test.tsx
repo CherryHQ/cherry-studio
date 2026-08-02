@@ -563,7 +563,7 @@ describe('SelectorShell', () => {
         observe,
         disconnect
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
 
     const { rerender } = render(

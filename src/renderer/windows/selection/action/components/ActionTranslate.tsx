@@ -148,7 +148,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   })
 
   const translationParts = useMemo<CherryMessagePart[]>(
-    () => (content ? [{ type: 'text', text: content } as CherryMessagePart] : []),
+    () => (content ? [{ type: 'text', text: content }] : []),
     [content]
   )
 
@@ -166,7 +166,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         metadata: {
           status: isTranslating ? 'pending' : 'success'
         }
-      } as CherryUIMessage,
+      },
       { topicId: TRANSLATION_TOPIC_ID }
     )
   }, [isTranslating, translationParts])

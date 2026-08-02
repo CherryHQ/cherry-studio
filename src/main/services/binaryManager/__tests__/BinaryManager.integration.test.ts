@@ -12,7 +12,7 @@ import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { BinaryManager } from '../BinaryManager'
 
 const { shellEnvRef } = vi.hoisted(() => ({
-  shellEnvRef: { current: {} as Record<string, string> }
+  shellEnvRef: { current: {} }
 }))
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => {

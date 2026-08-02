@@ -41,38 +41,36 @@ const {
   writeDeepSeekHarnessConfig
 } = await import('../config')
 
-const model = (partial: Partial<Model> = {}): Model =>
-  ({
-    id: 'anthropic::claude-sonnet',
-    providerId: 'anthropic',
-    apiModelId: 'claude-sonnet',
-    name: 'Claude Sonnet',
-    capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION],
-    inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false,
-    reasoning: { selectableEfforts: ['none', 'low', 'high', 'auto'] },
-    contextWindow: 200_000,
-    maxOutputTokens: 8192,
-    ...partial
-  }) as Model
+const model = (partial: Partial<Model> = {}): Model => ({
+  id: 'anthropic::claude-sonnet',
+  providerId: 'anthropic',
+  apiModelId: 'claude-sonnet',
+  name: 'Claude Sonnet',
+  capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false,
+  reasoning: { selectableEfforts: ['none', 'low', 'high', 'auto'] },
+  contextWindow: 200_000,
+  maxOutputTokens: 8192,
+  ...partial
+})
 
-const provider = (partial: Partial<Provider> = {}): Provider =>
-  ({
-    id: 'anthropic',
-    name: 'Anthropic',
-    authType: 'api-key',
-    apiKeys: [{ id: 'key', isEnabled: true }],
-    isEnabled: true,
-    reportsActualCost: false,
-    settings: {},
-    endpointConfigs: {
-      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/' },
-      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
-    },
-    ...partial
-  }) as Provider
+const provider = (partial: Partial<Provider> = {}): Provider => ({
+  id: 'anthropic',
+  name: 'Anthropic',
+  authType: 'api-key',
+  apiKeys: [{ id: 'key', isEnabled: true }],
+  isEnabled: true,
+  reportsActualCost: false,
+  settings: {},
+  endpointConfigs: {
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/' },
+    [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
+  },
+  ...partial
+})
 
 const projection = () => ({
   ...createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages'),
@@ -377,12 +375,12 @@ describe('DeepSeek Harness config transaction', () => {
   it('reclaims a managed lock after its owner process has exited', async () => {
     const lockPath = path.join(dir, '.credentials.yaml.lock')
     await writeFile(lockPath, JSON.stringify({ version: 1, pid: 424242, token: 'orphaned-owner' }), { mode: 0o600 })
-    vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals | number) => {
+    vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
       if (pid === 424242 && signal === 0) {
         throw Object.assign(new Error('process not found'), { code: 'ESRCH' })
       }
       return true
-    }) as typeof process.kill)
+    })
 
     await expect(writeDeepSeekHarnessConfig(dir, projection())).resolves.toBeDefined()
     await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })

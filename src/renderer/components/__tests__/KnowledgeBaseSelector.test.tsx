@@ -15,7 +15,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as typeof ResizeObserver
+  }
 })
 
 const options = [

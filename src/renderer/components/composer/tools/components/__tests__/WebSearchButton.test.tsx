@@ -388,7 +388,7 @@ describe('WebSearchButton', () => {
 
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
     mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
-    mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
+    mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')

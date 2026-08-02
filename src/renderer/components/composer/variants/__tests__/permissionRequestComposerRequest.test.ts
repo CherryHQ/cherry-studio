@@ -144,7 +144,7 @@ describe('findNextPendingPermissionRequest', () => {
         makePart({ state: 'approval-responded' }),
         makePart({ approval: undefined }),
         makePart({ toolCallId: undefined }),
-        { type: 'text', text: 'hello' } as CherryMessagePart
+        { type: 'text', text: 'hello' }
       ]
     })
 

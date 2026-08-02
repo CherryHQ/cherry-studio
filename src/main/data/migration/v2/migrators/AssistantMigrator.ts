@@ -63,7 +63,7 @@ export function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistan
     for (const [k, v] of Object.entries(a)) {
       if (isPresent(v)) merged[k] = v
     }
-    return merged as OldAssistant['settings']
+    return merged
   })()
 
   // Spread baseline preserves fields not in OldAssistant; explicit overrides apply isPresent rules.

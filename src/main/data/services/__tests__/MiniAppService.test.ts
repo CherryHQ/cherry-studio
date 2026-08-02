@@ -632,9 +632,7 @@ describe('MiniAppService', () => {
       // There is no installation row to hold it; an UPDATE there matches nothing and
       // "succeeds", so the guard has to come from the kind, not from the write.
       miniAppService.create({ appId: 'site-x', name: 'Site X', url: 'https://x.example' })
-      expect(() => miniAppService.update('site-x', { aiModelId: 'openai::gpt-4o-mini' as UniqueModelId })).toThrow(
-        /installed/i
-      )
+      expect(() => miniAppService.update('site-x', { aiModelId: 'openai::gpt-4o-mini' })).toThrow(/installed/i)
     })
 
     it('refuses to swap an installed app icon through the generic path', () => {

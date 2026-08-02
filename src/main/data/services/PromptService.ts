@@ -97,7 +97,7 @@ export class PromptService {
     }
 
     if ('targetType' in query) {
-      const target = { type: query.targetType, id: query.targetId } as PromptBindingTarget
+      const target = { type: query.targetType, id: query.targetId }
       const boundPrompts = this.listBoundToTargetMatching(target, conditions)
       if (!query.includeGlobal) return boundPrompts
 

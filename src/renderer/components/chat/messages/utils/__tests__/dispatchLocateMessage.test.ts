@@ -19,11 +19,11 @@ function installQueuedAnimationFrame(): { restore(): void; tick(frames?: number)
   let rafId = 0
   let rafQueue = new Map<number, () => void>()
 
-  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+  globalThis.requestAnimationFrame = (callback: FrameRequestCallback) => {
     const id = ++rafId
     rafQueue.set(id, () => callback(0))
     return id
-  }) as typeof requestAnimationFrame
+  }
 
   return {
     restore() {

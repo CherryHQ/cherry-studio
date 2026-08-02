@@ -55,7 +55,7 @@ async function streamOllama(chunks: string[]): Promise<LanguageModelV3StreamPart
   )
   const middlewares = await getOllamaReasoningMiddleware()
   const model = middlewares.length > 0 ? wrapLanguageModel({ model: baseModel, middleware: middlewares }) : baseModel
-  const result = await model.doStream({ prompt: PROMPT } as LanguageModelV3CallOptions)
+  const result = await model.doStream({ prompt: PROMPT })
 
   const parts: LanguageModelV3StreamPart[] = []
   for await (const part of result.stream) parts.push(part)

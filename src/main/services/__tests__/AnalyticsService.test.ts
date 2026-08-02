@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -29,8 +30,8 @@ const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy
         }
       }),
       captured: {
-        prefHandlers: {} as Record<string, (value: never) => void>,
-        preferenceValues: {} as Record<string, boolean | string>
+        prefHandlers: {},
+        preferenceValues: {}
       }
     }
   })

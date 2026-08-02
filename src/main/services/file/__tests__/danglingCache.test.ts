@@ -97,7 +97,7 @@ describe('DanglingCache.check', () => {
     const cache = createDanglingCacheImpl({ statProbe })
     const seen: DanglingStateChangedEvent[] = []
     cache.onDanglingStateChanged((e) => seen.push(e))
-    cache.addEntry('e-unk2' as FileEntryId, '/locked2.txt' as AbsoluteFilePath)
+    cache.addEntry('e-unk2', '/locked2.txt' as AbsoluteFilePath)
     await cache.check(externalEntry('e-unk2', '/locked2.txt'))
     expect(seen).toEqual([])
   })
@@ -143,7 +143,7 @@ describe('DanglingCache.onFsEvent + reverse index', () => {
   it('records the observation; subsequent check returns the observed state without statting', async () => {
     const statProbe = vi.fn<(p: AbsoluteFilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
     const cache = createDanglingCacheImpl({ statProbe })
-    cache.addEntry('e-6' as FileEntryId, '/abs/file.txt' as AbsoluteFilePath)
+    cache.addEntry('e-6', '/abs/file.txt' as AbsoluteFilePath)
     cache.onFsEvent('/abs/file.txt' as AbsoluteFilePath, 'present')
     const state = await cache.check(externalEntry('e-6', '/abs/file.txt'))
     expect(state).toBe('present')
@@ -153,8 +153,8 @@ describe('DanglingCache.onFsEvent + reverse index', () => {
   it('fans out via reverse index when multiple entries share a path', async () => {
     const statProbe = vi.fn<(p: AbsoluteFilePath) => Promise<ObservedPresence>>()
     const cache = createDanglingCacheImpl({ statProbe })
-    cache.addEntry('e-7' as FileEntryId, '/abs/shared.txt' as AbsoluteFilePath)
-    cache.addEntry('e-8' as FileEntryId, '/abs/shared.txt' as AbsoluteFilePath)
+    cache.addEntry('e-7', '/abs/shared.txt' as AbsoluteFilePath)
+    cache.addEntry('e-8', '/abs/shared.txt' as AbsoluteFilePath)
     cache.onFsEvent('/abs/shared.txt' as AbsoluteFilePath, 'missing')
     expect(await cache.check(externalEntry('e-7', '/abs/shared.txt'))).toBe('missing')
     expect(await cache.check(externalEntry('e-8', '/abs/shared.txt'))).toBe('missing')
@@ -175,8 +175,8 @@ describe('DanglingCache.onFsEvent + reverse index', () => {
   it('removeEntry stops events from reaching that entry id', async () => {
     const statProbe = vi.fn<(p: AbsoluteFilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
     const cache = createDanglingCacheImpl({ statProbe })
-    cache.addEntry('e-10' as FileEntryId, '/abs/keep.txt' as AbsoluteFilePath)
-    cache.removeEntry('e-10' as FileEntryId, '/abs/keep.txt' as AbsoluteFilePath)
+    cache.addEntry('e-10', '/abs/keep.txt' as AbsoluteFilePath)
+    cache.removeEntry('e-10', '/abs/keep.txt' as AbsoluteFilePath)
     cache.onFsEvent('/abs/keep.txt' as AbsoluteFilePath, 'present')
     // Cache empty for e-10 → check cold-stats and gets 'missing'
     const state = await cache.check(externalEntry('e-10', '/abs/keep.txt'))
@@ -191,7 +191,7 @@ describe('DanglingCache.onDanglingStateChanged', () => {
     })
     const seen: DanglingStateChangedEvent[] = []
     cache.onDanglingStateChanged((e) => seen.push(e))
-    cache.addEntry('e-11' as FileEntryId, '/abs/x.txt' as AbsoluteFilePath)
+    cache.addEntry('e-11', '/abs/x.txt' as AbsoluteFilePath)
     await cache.check(externalEntry('e-11', '/abs/x.txt'))
     expect(seen).toEqual([{ id: 'e-11', state: 'present' }])
   })
@@ -200,7 +200,7 @@ describe('DanglingCache.onDanglingStateChanged', () => {
     const cache = createDanglingCacheImpl({
       statProbe: vi.fn<(p: AbsoluteFilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
     })
-    cache.addEntry('e-12' as FileEntryId, '/abs/y.txt' as AbsoluteFilePath)
+    cache.addEntry('e-12', '/abs/y.txt' as AbsoluteFilePath)
     cache.onFsEvent('/abs/y.txt' as AbsoluteFilePath, 'present')
     const seen: DanglingStateChangedEvent[] = []
     cache.onDanglingStateChanged((e) => seen.push(e))
@@ -212,7 +212,7 @@ describe('DanglingCache.onDanglingStateChanged', () => {
     const cache = createDanglingCacheImpl({
       statProbe: vi.fn<(p: AbsoluteFilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
     })
-    cache.addEntry('e-13' as FileEntryId, '/abs/z.txt' as AbsoluteFilePath)
+    cache.addEntry('e-13', '/abs/z.txt' as AbsoluteFilePath)
     cache.onFsEvent('/abs/z.txt' as AbsoluteFilePath, 'present')
     const seen: DanglingStateChangedEvent[] = []
     cache.onDanglingStateChanged((e) => seen.push(e))
@@ -255,10 +255,10 @@ describe('DanglingCache.subscribe', () => {
     const cache = createDanglingCacheImpl({
       statProbe: vi.fn<(p: AbsoluteFilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
     })
-    cache.addEntry('e-14' as FileEntryId, '/abs/a' as AbsoluteFilePath)
-    cache.addEntry('e-15' as FileEntryId, '/abs/b' as AbsoluteFilePath)
+    cache.addEntry('e-14', '/abs/a' as AbsoluteFilePath)
+    cache.addEntry('e-15', '/abs/b' as AbsoluteFilePath)
     const seen: Array<[FileEntryId, string]> = []
-    const unsubscribe = cache.subscribe('e-14' as FileEntryId, (id, s) => seen.push([id, s]))
+    const unsubscribe = cache.subscribe('e-14', (id, s) => seen.push([id, s]))
     cache.onFsEvent('/abs/b' as AbsoluteFilePath, 'present') // for e-15 — should not be delivered
     cache.onFsEvent('/abs/a' as AbsoluteFilePath, 'missing') // for e-14 — delivered
     expect(seen).toEqual([['e-14' as FileEntryId, 'missing']])

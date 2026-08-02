@@ -22,8 +22,12 @@ vi.mock('@application', async () => {
 
 import { materializeNativeFilePart } from '../fileProcessor'
 
-const filePart = (p: Partial<FileUIPart>): FileUIPart =>
-  ({ type: 'file', url: '', mediaType: 'application/octet-stream', ...p }) as FileUIPart
+const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
+  type: 'file',
+  url: '',
+  mediaType: 'application/octet-stream',
+  ...p
+})
 
 describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string

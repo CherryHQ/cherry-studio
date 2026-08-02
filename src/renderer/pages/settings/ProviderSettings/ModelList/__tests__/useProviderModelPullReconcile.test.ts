@@ -161,7 +161,7 @@ describe('useProviderModelPullReconcile', () => {
     })
 
     await act(async () => {
-      await result.current.addModels(result.current.allModels as any)
+      await result.current.addModels(result.current.allModels)
     })
 
     expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedOverlap)

@@ -155,7 +155,7 @@ describe('CommandProvider', () => {
     const onExecute = vi.fn()
     renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
 
-    dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+    dispatchShortcut({ isComposing: true })
 
     expect(onExecute).not.toHaveBeenCalled()
   })

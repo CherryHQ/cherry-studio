@@ -5,13 +5,18 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({})
 })
 
 const { createInMemoryMcpServer, getBuiltinHttpHeaders, getBuiltinRegistryEnv } = await import('../factory')
 
-const server = (overrides: Partial<McpServer>): McpServer =>
-  ({ id: 'id', name: 'custom', type: 'stdio', isActive: true, ...overrides }) as McpServer
+const server = (overrides: Partial<McpServer>): McpServer => ({
+  id: 'id',
+  name: 'custom',
+  type: 'stdio',
+  isActive: true,
+  ...overrides
+})
 
 describe('getBuiltinRegistryEnv', () => {
   it('points mcp-auto-install at the registered catalog path when a registry is configured', () => {

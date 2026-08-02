@@ -1873,7 +1873,7 @@ export class AgentSessionRuntimeService extends BaseService {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
         data: anchor
-      } as UIMessageChunk)
+      })
     }
 
     // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
@@ -2176,7 +2176,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private publishBackgroundFlowParts(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
-    const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+    const parts = accumulator.latest?.parts
     if (!parts || !this.isCurrentEntry(entry)) return
     accumulator.lastPublishedAt = Date.now()
     application
@@ -2204,7 +2204,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const completedMessageIds = new Set<string>()
         const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
         for (const accumulator of accumulators) {
-          const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+          const parts = accumulator.latest?.parts
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
@@ -3142,7 +3142,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
     this.clearIdleTimer(entry)
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
-      const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+      const parts = accumulator.latest?.parts
       if (!parts) continue
       application
         .get('CacheService')
@@ -3218,7 +3218,7 @@ export class AgentSessionRuntimeService extends BaseService {
 }
 
 function isAbortError(error: unknown): boolean {
-  return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
+  return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError'
 }
 
 /**

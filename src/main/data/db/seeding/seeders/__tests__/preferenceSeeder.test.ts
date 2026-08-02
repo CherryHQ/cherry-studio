@@ -35,7 +35,7 @@ describe('PreferenceSeeder', () => {
     // Customise its value so we can check the seeder did not overwrite it.
     await dbh.db
       .update(preferenceTable)
-      .set({ value: '__customized__' as unknown as never })
+      .set({ value: '__customized__' })
       .where(and(eq(preferenceTable.scope, first.scope), eq(preferenceTable.key, first.key)))
 
     const seed = new PreferenceSeeder()

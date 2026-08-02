@@ -35,7 +35,7 @@ function makeScope(overrides: {
   request?: Partial<RequestScope['request']>
 }): RequestScope {
   return {
-    request: (overrides.request ?? { mcpToolIds: [] }) as never,
+    request: overrides.request ?? { mcpToolIds: [] },
     signal: undefined,
     registry: {} as never,
     assistant: overrides.assistant as Assistant | undefined,
@@ -44,13 +44,13 @@ function makeScope(overrides: {
     capabilities: overrides.capabilities as never,
     webToolRoutes: overrides.webToolRoutes,
     sdkConfig: {
-      providerId: 'openai' as never,
+      providerId: 'openai',
       providerOptionsKey: 'openai',
-      providerSettings: {} as never,
+      providerSettings: {},
       modelId: 'm1'
     },
     endpointType: overrides.endpointType as never,
-    aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
+    aiSdkProviderId: overrides.aiSdkProviderId ?? 'openai-compatible',
     reasoningProfile: { format: 'none', wire: { disabled: true } },
     reasoning: overrides.reasoning ?? { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: {
@@ -172,7 +172,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: {} } as never,
+          provider: { id: 'anthropic', settings: {} },
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -183,7 +183,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: {} } as never,
+          provider: { id: 'anthropic', settings: {} },
           model: {},
           endpointType: 'openai-chat-completions',
           aiSdkProviderId: 'openai-chat'
@@ -194,7 +194,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } } as never,
+          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } },
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -204,13 +204,13 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
   })
 
   it('no-think activates only on OVMS with at least one MCP tool', () => {
-    expect(
-      activeNames(makeScope({ provider: { id: 'ovms' } as never, model: {}, mcpToolIds: ['mcp__a__b'] }))
-    ).toContain('no-think')
-    expect(activeNames(makeScope({ provider: { id: 'ovms' } as never, model: {} }))).not.toContain('no-think')
-    expect(
-      activeNames(makeScope({ provider: { id: 'openai' } as never, model: {}, mcpToolIds: ['mcp__a__b'] }))
-    ).not.toContain('no-think')
+    expect(activeNames(makeScope({ provider: { id: 'ovms' }, model: {}, mcpToolIds: ['mcp__a__b'] }))).toContain(
+      'no-think'
+    )
+    expect(activeNames(makeScope({ provider: { id: 'ovms' }, model: {} }))).not.toContain('no-think')
+    expect(activeNames(makeScope({ provider: { id: 'openai' }, model: {}, mcpToolIds: ['mcp__a__b'] }))).not.toContain(
+      'no-think'
+    )
   })
 
   it('provider-tool plugins activate from the finalized web-tool routes', () => {
@@ -327,7 +327,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
   it('orders context-build before anthropic-cache', () => {
     const names = activeNames(
       makeScope({
-        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } },
         model: {},
         endpointType: 'anthropic-messages',
         aiSdkProviderId: 'anthropic'

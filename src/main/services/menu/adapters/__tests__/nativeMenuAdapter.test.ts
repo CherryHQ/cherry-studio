@@ -87,7 +87,7 @@ describe('toElectronMenuTemplate', () => {
     )
     expect(template[2]).toEqual(expect.objectContaining({ role: 'quit', label: 'Quit Cherry Studio' }))
 
-    template[3].click?.({} as never, {} as never, {} as never)
+    template[3].click?.({} as never, {} as never, {})
     expect(customClick).toHaveBeenCalledTimes(1)
   })
 })

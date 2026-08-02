@@ -34,8 +34,11 @@ const ENDPOINT_CHAT_TARGETS: EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
 ]
 
-const msg = (role: CherryUIMessage['role'], text: string, id: string = role): CherryUIMessage =>
-  ({ id, role, parts: [{ type: 'text', text }] }) as CherryUIMessage
+const msg = (role: CherryUIMessage['role'], text: string, id: string = role): CherryUIMessage => ({
+  id,
+  role,
+  parts: [{ type: 'text', text }]
+})
 
 describe('hoistSystemMessages', () => {
   it('merges non-leading system messages into the leading one, preserving order', () => {
@@ -71,7 +74,7 @@ describe('hoistSystemMessages', () => {
   })
 
   it('drops an empty system message rather than emitting a blank leading turn', () => {
-    const out = hoistSystemMessages([msg('user', 'go'), { id: 's', role: 'system', parts: [] } as CherryUIMessage])
+    const out = hoistSystemMessages([msg('user', 'go'), { id: 's', role: 'system', parts: [] }])
 
     expect(out.map((m) => m.role)).toEqual(['user'])
   })

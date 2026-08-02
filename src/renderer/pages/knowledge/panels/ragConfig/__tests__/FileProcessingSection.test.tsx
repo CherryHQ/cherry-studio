@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn(),
   showDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>(),
   localModel: {
-    status: 'ready' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    status: 'ready',
     isStatusResolved: true,
     percent: 0,
     download: vi.fn<() => Promise<boolean>>(),
@@ -58,7 +58,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as typeof ResizeObserver
+  }
 })
 
 beforeEach(() => {

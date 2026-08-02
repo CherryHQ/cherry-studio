@@ -71,7 +71,7 @@ type Handler = (
  * places to add a method and one place to forget.
  */
 const ROUTES: Record<MiniAppMethod, Handler> = {
-  'app.getInfo': ((appId) => ({
+  'app.getInfo': (appId) => ({
     appId,
     /** The mini app's own version, from its installation record. */
     version: installedVersionOf(appId),
@@ -80,15 +80,15 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
     // `getAppLanguage()`, never the raw preference: it stays null until the user picks
     // one. No `theme` — `matchMedia` gives the guest the value AND the changes (§6.4).
     locale: getAppLanguage()
-  })) as Handler,
+  }),
 
   // Gated `none` on purpose: it reports the CALLER'S OWN grant state, so there is nothing
   // to protect — gating it would only leave an app blind to what it may call.
-  'app.getPermissions': ((appId) => {
+  'app.getPermissions': (appId) => {
     const manifest = MiniAppManifestSchema.parse(installationOf(appId).manifestJson)
     const granted = new Set(listGrants(appId))
     return Object.fromEntries(declaredGrantKeys(manifest).map((k) => [k, granted.has(k)]))
-  }) as Handler,
+  },
 
   'ai.chat': (appId, params, emit, senderId, _requestId, callId) =>
     aiCapability.chat(appId, params, emit, senderId, callId),

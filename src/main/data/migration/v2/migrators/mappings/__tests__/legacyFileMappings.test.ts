@@ -76,7 +76,7 @@ describe('hasLostOriginalFilename', () => {
     ['external row without an extension', row({ name: 'README', origin_name: 'README', ext: '' }), false],
     // `count` is a v1 reference count, not an upload counter — two messages attaching one file
     // reach 2. It must never influence the verdict.
-    ['normal upload referenced twice', row({ count: 2 } as Partial<FileMetadata>), false]
+    ['normal upload referenced twice', row({ count: 2 }), false]
   ])('returns %s → %s', (_label, input, expected) => {
     expect(hasLostOriginalFilename(input)).toBe(expected)
   })

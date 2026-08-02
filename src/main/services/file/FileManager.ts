@@ -877,7 +877,7 @@ export class FileManager extends BaseService implements IFileManager {
       this.createInternalEntry(createInternalEntryInputSchema.parse(params))
     )
     this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
-      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params) as EnsureExternalEntryIpcParams)
+      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params))
     )
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
@@ -1283,7 +1283,7 @@ export class FileManager extends BaseService implements IFileManager {
         return [id, state] as const
       })
     )
-    return Object.fromEntries(pairs) as Record<FileEntryId, DanglingState>
+    return Object.fromEntries(pairs)
   }
 }
 

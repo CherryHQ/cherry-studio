@@ -175,7 +175,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 </Tooltip>
               )}
               <Selector
-                value={tmpViewMode as EditorView}
+                value={tmpViewMode}
                 onChange={(value: EditorView) => {
                   userViewModeOverrideRef.current = true
                   setTmpViewMode(value)

@@ -104,7 +104,7 @@ describe('extractConnectionFromCliConfigDraft', () => {
 
   it('returns null when a draft file is malformed', () => {
     const badClaude: CliConfigFileDraft = {
-      target: 'claude-settings' as CliConfigTarget,
+      target: 'claude-settings',
       label: '',
       path: '',
       language: 'json',
@@ -164,7 +164,7 @@ describe('extractConnectionFromCliConfigDraft', () => {
   it('opencode: extracts the model addressing key, not the display name', () => {
     const files: CliConfigFileDraft[] = [
       {
-        target: 'opencode-config' as CliConfigTarget,
+        target: 'opencode-config',
         label: '',
         path: '',
         language: 'json',
@@ -262,7 +262,7 @@ describe('extractConfigFromCliConfigDraft', () => {
 
   it('returns null when a draft file is malformed', () => {
     const badKimi: CliConfigFileDraft = {
-      target: 'kimi-config' as CliConfigTarget,
+      target: 'kimi-config',
       label: '',
       path: '',
       language: 'toml',

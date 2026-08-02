@@ -68,9 +68,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             <PaintingFieldRenderer
               item={item}
               painting={paintingParams}
-              onChange={(updates) =>
-                onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
-              }
+              onChange={(updates) => onConfigChange({ params: { ...paintingParams, ...updates } })}
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>

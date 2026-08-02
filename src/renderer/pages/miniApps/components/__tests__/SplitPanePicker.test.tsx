@@ -9,7 +9,7 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 const stubApp = (id: string): MiniAppType => ({
   kind: 'site',
   appId: id,
-  presetMiniAppId: id as MiniAppType['presetMiniAppId'],
+  presetMiniAppId: id,
   status: 'pinned',
   orderKey: 'a0',
   name: id,

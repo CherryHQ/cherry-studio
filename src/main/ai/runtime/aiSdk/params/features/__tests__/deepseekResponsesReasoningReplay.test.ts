@@ -23,7 +23,7 @@ async function transform(prompt: LanguageModelV3Prompt): Promise<LanguageModelV3
   const middleware = await getMiddleware()
   const result = await middleware.transformParams!({
     type: 'stream',
-    params: { prompt } as any,
+    params: { prompt },
     model: {} as any
   })
   return result.prompt

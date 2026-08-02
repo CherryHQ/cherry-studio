@@ -106,7 +106,7 @@ export const useCommandShortcuts = () => {
       const state = resolveCommandShortcutPreference(rule.command, currentValue, currentPlatform)
       if (!state) return
       const nextValue = buildNextPreference(state, currentValue, patch)
-      await setValues({ [rule.command]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
+      await setValues({ [rule.command]: nextValue })
     },
     [setValues, values]
   )

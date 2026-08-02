@@ -62,7 +62,7 @@ describe('warmMcpToolCatalogs', () => {
   })
 
   it('does not fail session startup when a catalog refresh rejects', async () => {
-    mocks.findByIdOrName.mockReturnValue({ id: 'server-1', name: 'server' } as McpServerEntity)
+    mocks.findByIdOrName.mockReturnValue({ id: 'server-1', name: 'server' })
     mocks.refreshTools.mockRejectedValue(new Error('offline'))
 
     await expect(warmMcpToolCatalogs(['server-1'])).resolves.toBeUndefined()

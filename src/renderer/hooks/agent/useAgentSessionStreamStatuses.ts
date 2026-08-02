@@ -60,7 +60,7 @@ export function useAgentSessionStreamStatuses(
       })
 
       if (entries.length === 0) return EMPTY_AGENT_SESSION_STREAM_STATUSES
-      return new Map(entries) as ReadonlyMap<string, AgentSessionStreamState>
+      return new Map(entries)
     },
     [uniqueSessionIds]
   )

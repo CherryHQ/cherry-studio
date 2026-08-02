@@ -95,7 +95,7 @@ describe('McpServersList protocol install', () => {
         mocks.pendingProtocolInstalls = mocks.pendingProtocolInstalls.filter(
           ({ requestId }) => requestId !== input?.requestId
         )
-        return request.servers.map((server) => ({ ...server, id: `${server.name}-id` }) as McpServer)
+        return request.servers.map((server) => ({ ...server, id: `${server.name}-id` }))
       }
 
       if (route === 'mcp.protocol_install.cancel') {
@@ -195,9 +195,7 @@ describe('McpServersList protocol install', () => {
     expect(screen.queryByText('queued-server')).not.toBeInTheDocument()
 
     mocks.pendingProtocolInstalls = mocks.pendingProtocolInstalls.filter(({ requestId }) => requestId !== 'request-1')
-    await act(async () =>
-      resolveInstall(protocolServers.map((server) => ({ ...server, id: `${server.name}-id` }) as McpServer))
-    )
+    await act(async () => resolveInstall(protocolServers.map((server) => ({ ...server, id: `${server.name}-id` }))))
 
     expect(await screen.findByText('queued-server')).toBeInTheDocument()
     expect(mocks.navigate).not.toHaveBeenCalled()

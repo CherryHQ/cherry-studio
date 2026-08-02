@@ -5,7 +5,6 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
@@ -116,7 +115,7 @@ describe('MessageReportArtifacts', () => {
               artifacts: [{ path: 'dist/report.md', description: 'Report' }]
             },
             response: 'Recorded 1 artifact(s).'
-          } as NormalToolResponse
+          }
         ]}
       />
     )
@@ -140,7 +139,7 @@ describe('MessageReportArtifacts', () => {
               summary: 'First summary',
               artifacts: [{ path: 'dist/report.md', description: 'Draft' }]
             }
-          } as NormalToolResponse,
+          },
           {
             id: 'tool-call-2',
             toolCallId: 'tool-call-2',
@@ -150,7 +149,7 @@ describe('MessageReportArtifacts', () => {
               summary: 'Final summary',
               artifacts: [{ path: 'dist/report.md', description: 'Final report' }]
             }
-          } as NormalToolResponse
+          }
         ]}
       />
     )
@@ -176,7 +175,7 @@ describe('MessageReportArtifacts', () => {
             arguments: {
               artifacts: [{ path: 'dist/report.md' }]
             }
-          } as NormalToolResponse
+          }
         ]}
       />,
       { openArtifactFile, resolvePath: (path) => `/workspace/${path}` }
@@ -212,7 +211,7 @@ describe('MessageReportArtifacts', () => {
             arguments: {
               artifacts: [{ path: '~/Desktop/report.html' }]
             }
-          } as NormalToolResponse
+          }
         ]}
       />,
       { openArtifactFile }
@@ -245,7 +244,7 @@ describe('MessageReportArtifacts', () => {
             arguments: {
               artifacts: [{ path: '/workspace/dist/report.md' }]
             }
-          } as NormalToolResponse
+          }
         ]}
       />,
       { copyText }

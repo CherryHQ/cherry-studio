@@ -38,7 +38,7 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
 
   const reorderPaintings = useCallback(
     (paintings: Painting[]) => {
-      return applyReorderedList(paintings as unknown as Array<Record<string, unknown>>)
+      return applyReorderedList(paintings)
     },
     [applyReorderedList]
   )

@@ -220,7 +220,7 @@ const CodeViewer = ({
       let charOffset = 0
       if (node.nodeType === Node.TEXT_NODE) {
         // 遍历该行的所有文本节点，找到当前节点的位置
-        const walker = document.createTreeWalker(lineContent as Node, NodeFilter.SHOW_TEXT)
+        const walker = document.createTreeWalker(lineContent, NodeFilter.SHOW_TEXT)
         let currentNode: Node | null
         while ((currentNode = walker.nextNode())) {
           if (currentNode === node) {

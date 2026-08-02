@@ -134,7 +134,7 @@ describe('agentWorkspaceHandlers integration', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toEqual({
       sessions: { items: [], total: 0 },
       channels: { items: [{ id: channel.id, name: channel.name }], total: 1 },
@@ -159,7 +159,7 @@ describe('agentWorkspaceHandlers integration', () => {
 
     const references = await agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
       params: { workspaceId: workspace.id }
-    } as never)
+    })
     if ('data' in references) throw new Error('Expected the default handler response shape')
 
     expect(references.sessions).toMatchObject({ total: 23 })

@@ -648,7 +648,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           />
         </Command>
       </PopoverContent>
-      {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : (value as string)} />}
+      {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : value} />}
     </Popover>
   )
 }

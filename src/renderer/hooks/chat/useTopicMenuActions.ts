@@ -187,10 +187,7 @@ export function useTopicMenuPreset<TItem>({
   )
   const onAction = useCallback(
     async (item: TItem, action: ResolvedAction, contextOverride?: TopicMenuActionContextOverride) => {
-      await runTopicMenuAction(
-        action as ResolvedAction<TopicActionContext>,
-        getActionContextWithOverride(item, contextOverride)
-      )
+      await runTopicMenuAction(action, getActionContextWithOverride(item, contextOverride))
     },
     [getActionContextWithOverride]
   )

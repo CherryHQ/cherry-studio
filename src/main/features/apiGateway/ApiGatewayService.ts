@@ -276,7 +276,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       host: 'feature.api_gateway.host',
       port: 'feature.api_gateway.port',
       apiKey: 'feature.api_gateway.api_key'
-    }) as ApiGatewayConfig
+    })
 
     return config
   }

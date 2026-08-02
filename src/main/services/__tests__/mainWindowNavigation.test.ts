@@ -230,7 +230,7 @@ describe('mainWindowNavigation', () => {
 
     it('ignores ready signals from a non-main sender', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      windowManagerMock.getWindowType.mockReturnValue('sub-window' as WindowType)
+      windowManagerMock.getWindowType.mockReturnValue('sub-window')
 
       markMainRendererReadyForTabAttach('sub-1')
       openTabInMainWindow(tab)

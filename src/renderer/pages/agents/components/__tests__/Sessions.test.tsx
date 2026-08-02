@@ -260,7 +260,7 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const cacheMocks = vi.hoisted(() => ({
-  state: { activeSessionId: 'session-a' as string | null },
+  state: { activeSessionId: 'session-a' },
   values: new Map<string, unknown>(),
   setActiveSessionId: vi.fn(),
   setCache: vi.fn()

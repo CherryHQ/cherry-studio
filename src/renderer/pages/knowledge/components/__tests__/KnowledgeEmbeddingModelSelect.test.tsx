@@ -10,7 +10,7 @@ import { KnowledgeEmbeddingModelSelect } from '../KnowledgeEmbeddingModelSelect'
 
 const { localModel, mockModelSelectorProps, mockShowDownloadPopup } = vi.hoisted(() => ({
   localModel: {
-    status: 'not_downloaded' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    status: 'not_downloaded',
     isStatusResolved: true
   },
   mockModelSelectorProps: [] as Array<Record<string, any>>,
@@ -72,16 +72,15 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const makeEmbeddingModel = (id: UniqueModelId, providerId: string, name: string): Model =>
-  ({
-    id,
-    providerId,
-    name,
-    capabilities: [MODEL_CAPABILITY.EMBEDDING],
-    supportsStreaming: false,
-    isEnabled: true,
-    isHidden: false
-  }) as Model
+const makeEmbeddingModel = (id: UniqueModelId, providerId: string, name: string): Model => ({
+  id,
+  providerId,
+  name,
+  capabilities: [MODEL_CAPABILITY.EMBEDDING],
+  supportsStreaming: false,
+  isEnabled: true,
+  isHidden: false
+})
 
 describe('KnowledgeEmbeddingModelSelect', () => {
   beforeEach(() => {
