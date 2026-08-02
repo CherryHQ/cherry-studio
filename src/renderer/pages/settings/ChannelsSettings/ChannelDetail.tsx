@@ -523,7 +523,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
-      await updateChannel(channelId, apiUpdates as never)
+      await updateChannel(channelId, apiUpdates)
     },
     [channelList, updateChannel]
   )

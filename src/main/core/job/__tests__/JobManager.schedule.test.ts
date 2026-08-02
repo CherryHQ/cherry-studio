@@ -144,7 +144,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -156,7 +156,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -168,7 +168,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -187,7 +187,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'nightly',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -199,7 +199,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'morning',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -211,7 +211,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'evening',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -223,7 +223,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'to-delete',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -235,7 +235,7 @@ describe('JobManager schedule control APIs', () => {
       jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -247,14 +247,14 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'a',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         name: 'b',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -282,7 +282,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-a',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
@@ -299,7 +299,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-b',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
@@ -317,7 +317,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-c',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       // Disable first; this disposes the in-process entry but keeps the row.
@@ -337,7 +337,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-d',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(getScheduleDisposables().has(snap.id)).toBe(true)
@@ -400,7 +400,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-f',
         trigger: { kind: 'once', at: Date.now() + 600_000 },
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(getScheduleDisposables().has(snap.id)).toBe(true)

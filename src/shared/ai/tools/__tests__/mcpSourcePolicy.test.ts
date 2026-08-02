@@ -42,9 +42,7 @@ describe('mcpSourcePolicy', () => {
   })
 
   it('resolves source force-prompt for auto-approval opt-out', () => {
-    expect(
-      resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] } as McpServer, tool)
-    ).toEqual({
+    expect(resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] }, tool)).toEqual({
       enabled: true,
       approval: 'prompt'
     })

@@ -372,14 +372,14 @@ describe('BackupManager direct v2 data compatibility', () => {
     mockReadAppliedChain.mockReturnValue([{ folderMillis: 1, hash: 'migration-hash' }])
     mockZipExtract.mockResolvedValue(undefined)
     mockZipClose.mockResolvedValue(undefined)
-    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
-    vi.mocked(fs.rename).mockResolvedValue(undefined as never)
-    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
-    vi.mocked(fs.copy).mockResolvedValue(undefined as never)
-    vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
+    vi.mocked(fs.remove).mockResolvedValue(undefined)
+    vi.mocked(fs.rename).mockResolvedValue(undefined)
+    vi.mocked(fs.ensureDir).mockResolvedValue(undefined)
+    vi.mocked(fs.copy).mockResolvedValue(undefined)
+    vi.mocked(fs.writeJson).mockResolvedValue(undefined)
     vi.mocked(fs.readdir).mockResolvedValue([] as never)
     vi.mocked(fs.lstat).mockResolvedValue(createStats('file') as never)
-    vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined)
     vi.mocked(fs.pathExists).mockResolvedValue(false as never)
     vi.mocked(fs.existsSync).mockReturnValue(false)
   })
@@ -681,7 +681,7 @@ describe('BackupManager direct v2 data compatibility', () => {
   })
 
   const arrangeDirectRestore = (restoreMetadata = metadata) => {
-    vi.mocked(fs.readJson).mockResolvedValue(restoreMetadata as never)
+    vi.mocked(fs.readJson).mockResolvedValue(restoreMetadata)
     vi.mocked(fs.lstat).mockResolvedValue(createStats('file') as never)
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => String(entryPath).startsWith('/mock/userData/'))
     vi.spyOn(backupManager as any, 'stageArchiveDirectory').mockResolvedValue(undefined)
@@ -892,7 +892,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       getDirectoryContents
     })
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents: putS3File })
-    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup'))
 
     const manualBackup = backupManager.backupToWebdav({} as Electron.IpcMainInvokeEvent, {
       webdavHost: 'https://example.com',
@@ -986,7 +986,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       getDirectoryContents,
       deleteFile
     })
-    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup'))
 
     const backup = backupManager.backupToWebdav(
       null,
@@ -1019,7 +1019,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       )
       vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
       vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({ putFileContents })
-      vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+      vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup'))
 
       const backup = backupManager.backupToWebdav(null, {
         webdavHost: 'https://example.com',
@@ -1148,7 +1148,7 @@ describe('BackupManager direct v2 data compatibility', () => {
   })
 
   it('rejects a version 7 archive that is missing cache.json without committing a journal', async () => {
-    vi.mocked(fs.readJson).mockResolvedValue(metadata as never)
+    vi.mocked(fs.readJson).mockResolvedValue(metadata)
     vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
       if (String(entryPath).endsWith('cache.json')) {
         throw Object.assign(new Error('missing'), { code: 'ENOENT' })
@@ -1164,7 +1164,7 @@ describe('BackupManager direct v2 data compatibility', () => {
   })
 
   it('rejects a v1 version 6 archive before staging any resources', async () => {
-    vi.mocked(fs.readJson).mockResolvedValue({ version: 6, appName: 'Cherry Studio' } as never)
+    vi.mocked(fs.readJson).mockResolvedValue({ version: 6, appName: 'Cherry Studio' })
 
     await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
       'Unsupported backup version 6. Cherry Studio v2 can only restore backup version 7.'
@@ -1183,7 +1183,7 @@ describe('BackupManager direct v2 data compatibility', () => {
         database: false,
         appClaude: true
       }
-    } as never)
+    })
 
     await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
       'Backup version 7 metadata is incomplete'
@@ -1288,10 +1288,10 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     backupManager = new BackupManager()
-    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
-    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
-    vi.mocked(fs.copy).mockResolvedValue(undefined as never)
-    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+    vi.mocked(fs.ensureDir).mockResolvedValue(undefined)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined)
+    vi.mocked(fs.copy).mockResolvedValue(undefined)
+    vi.mocked(fs.remove).mockResolvedValue(undefined)
     vi.mocked(fs.realpath).mockImplementation(async (entryPath) => String(entryPath) as never)
   })
 
@@ -1373,7 +1373,7 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
   it('should skip a broken symlink without failing backup copy', async () => {
     vi.mocked(fs.readdir).mockResolvedValue([createDirent('missing-skill')] as never)
     vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-    vi.mocked(fs.stat).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) as never)
+    vi.mocked(fs.stat).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
 
     await expect(
       (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
@@ -1538,7 +1538,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   describe('Normal Operations', () => {
     it('should delete valid file in allowed directory', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined)
 
       const validPath = '/tmp/cherry-studio/lan-transfer/backup.zip'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, validPath)
@@ -1550,7 +1550,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
     it('should delete file in nested subdirectory', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined)
 
       const nestedPath = '/tmp/cherry-studio/lan-transfer/sub/dir/file.zip'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, nestedPath)
@@ -1645,7 +1645,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   describe('Error Handling', () => {
     it('should return false and log error on permission denied', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockRejectedValue(new Error('EACCES: permission denied') as never)
+      vi.mocked(fs.remove).mockRejectedValue(new Error('EACCES: permission denied'))
 
       const validPath = '/tmp/cherry-studio/lan-transfer/file.zip'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, validPath)
@@ -1655,7 +1655,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
     })
 
     it('should return false on fs.pathExists error', async () => {
-      vi.mocked(fs.pathExists).mockRejectedValue(new Error('ENOENT') as never)
+      vi.mocked(fs.pathExists).mockRejectedValue(new Error('ENOENT'))
 
       const validPath = '/tmp/cherry-studio/lan-transfer/file.zip'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, validPath)
@@ -1675,7 +1675,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   describe('Edge Cases', () => {
     it('should allow deletion of the temp directory itself', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined)
 
       const tempDir = '/tmp/cherry-studio/lan-transfer'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, tempDir)
@@ -1686,7 +1686,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
     it('should handle path with trailing slash', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined)
 
       const pathWithSlash = '/tmp/cherry-studio/lan-transfer/sub/'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, pathWithSlash)
@@ -1697,7 +1697,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
     it('should handle file with special characters in name', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined)
 
       const specialPath = '/tmp/cherry-studio/lan-transfer/file with spaces & (special).zip'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, specialPath)
@@ -1708,7 +1708,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
     it('should handle path with double slashes', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
-      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined)
 
       const doubleSlashPath = '/tmp/cherry-studio//lan-transfer//file.zip'
       const result = await backupManager.deleteLanTransferBackup({} as Electron.IpcMainInvokeEvent, doubleSlashPath)

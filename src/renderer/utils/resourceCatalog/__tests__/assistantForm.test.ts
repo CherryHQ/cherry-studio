@@ -12,7 +12,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     prompt: '',
     emoji: '🌟',
     description: '',
-    settings: { ...DEFAULT_ASSISTANT_SETTINGS } as AssistantSettings,
+    settings: { ...DEFAULT_ASSISTANT_SETTINGS },
     modelId: null,
     groupId: null,
     orderKey: 'a0',
@@ -38,7 +38,7 @@ describe('initialAssistantFormState', () => {
         temperature: 0.7,
         enableTemperature: true,
         mcpMode: 'manual'
-      } as AssistantSettings,
+      },
       knowledgeBaseIds: ['kb-1'],
       mcpServerIds: ['mcp-1']
     })
@@ -136,7 +136,7 @@ describe('diffAssistantUpdate', () => {
         // `reasoning_effort` is a settings key the library dialog never
         // touches — it MUST survive a columns PATCH.
         reasoning_effort: 'high'
-      } as AssistantSettings
+      }
     })
     const baseline = initialAssistantFormState(assistant)
     const form = { ...baseline, prompt: 'updated' }
@@ -214,7 +214,7 @@ describe('context-management override (P2-D)', () => {
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
         contextSettings: { truncateThreshold: 4000, compress: { enabled: false, modelId: 'openai::c' } }
-      } as AssistantSettings
+      }
     })
     const form = initialAssistantFormState(assistant)
     expect(form.contextOverrideEnabled).toBe(true)
@@ -225,7 +225,7 @@ describe('context-management override (P2-D)', () => {
 
   it('treats a null contextSettings as override-off (inherit)', () => {
     const assistant = createAssistant({
-      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: null } as AssistantSettings
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: null }
     })
     expect(initialAssistantFormState(assistant).contextOverrideEnabled).toBe(false)
   })
@@ -235,7 +235,7 @@ describe('context-management override (P2-D)', () => {
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
         contextSettings: { truncateThreshold: 4000 }
-      } as AssistantSettings
+      }
     })
     const baseline = initialAssistantFormState(assistant)
     const form = { ...baseline, contextOverrideEnabled: false }

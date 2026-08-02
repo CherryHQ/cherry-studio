@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
@@ -155,7 +156,7 @@ describe('fileHandlers (DataApi)', () => {
         'name',
         'ZodError'
       )
-      await expect(handler.GET({ query: { contentHash: hash } } as never)).resolves.toMatchObject([
+      await expect(handler.GET({ query: { contentHash: hash } })).resolves.toMatchObject([
         { id: '019606a0-0000-7000-8000-000000000a30' },
         { id: '019606a0-0000-7000-8000-000000000a31' }
       ])
@@ -177,7 +178,7 @@ describe('fileHandlers (DataApi)', () => {
         seedEntry('019606a0-0000-7000-8000-000000000aa3', { deletedAt: now })
       ])
 
-      const result = (await fileHandlers['/files/entries/stats'].GET({} as never)) as unknown as FileEntryStats
+      const result = (await fileHandlers['/files/entries/stats'].GET({})) as unknown as FileEntryStats
       expect(result.activeTotal).toBe(2)
       expect(result.trashTotal).toBe(1)
       expect(result.extCounts).toEqual(
@@ -195,7 +196,7 @@ describe('fileHandlers (DataApi)', () => {
       await seedEntry(id)
       const entry = (await fileHandlers['/files/entries/:id'].GET({
         params: { id: id as FileEntryId }
-      } as never)) as { id: string }
+      })) as { id: string }
       expect(entry.id).toBe(id)
     })
 
@@ -206,7 +207,7 @@ describe('fileHandlers (DataApi)', () => {
       // see NOT_FOUND. Pin both the code and the resource shape so a future
       // "throw a generic error" regression is caught at the schema boundary.
       const missing = '019606a0-0000-7000-8000-0000000000ff' as FileEntryId
-      const promise = fileHandlers['/files/entries/:id'].GET({ params: { id: missing } } as never)
+      const promise = fileHandlers['/files/entries/:id'].GET({ params: { id: missing } })
       await expect(promise).rejects.toBeInstanceOf(DataApiError)
       await expect(promise).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
@@ -219,9 +220,10 @@ describe('fileHandlers (DataApi)', () => {
       // parse, a malformed id reaches the DB layer and surfaces as either an
       // opaque NOT_FOUND or an internal error. `fileEntry.ts:99-104` requires
       // handlers to validate at the boundary; this test pins that contract.
-      await expect(
-        fileHandlers['/files/entries/:id'].GET({ params: { id: 'not-a-uuid' } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(fileHandlers['/files/entries/:id'].GET({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
     })
   })
 
@@ -236,7 +238,7 @@ describe('fileHandlers (DataApi)', () => {
 
       const result = (await fileHandlers['/files/entries/ref-counts'].GET({
         query: { entryIds: [idA, idB] }
-      } as never)) as Array<{ entryId: string; refCount: number }>
+      })) as Array<{ entryId: string; refCount: number }>
       expect(result.find((r) => r.entryId === idA)?.refCount).toBe(2)
       expect(result.find((r) => r.entryId === idB)?.refCount).toBe(0)
     })
@@ -245,7 +247,7 @@ describe('fileHandlers (DataApi)', () => {
       await expect(
         fileHandlers['/files/entries/ref-counts'].GET({
           query: { entryIds: ['not-a-uuid'] }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
     })
 
@@ -254,9 +256,10 @@ describe('fileHandlers (DataApi)', () => {
       // fan-out into many service round-trips (the service still chunks
       // for SQLite, but it does so once per chunk).
       const ids = Array.from({ length: 501 }, (_, i) => `019606a0-0000-7000-8000-${String(i).padStart(12, '0')}`)
-      await expect(
-        fileHandlers['/files/entries/ref-counts'].GET({ query: { entryIds: ids } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(fileHandlers['/files/entries/ref-counts'].GET({ query: { entryIds: ids } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
     })
   })
 
@@ -267,7 +270,7 @@ describe('fileHandlers (DataApi)', () => {
       await seedPaintingRef(id)
       const refs = (await fileHandlers['/files/entries/:id/refs'].GET({
         params: { id }
-      } as never)) as Array<{ fileEntryId: string }>
+      })) as Array<{ fileEntryId: string }>
       expect(refs.length).toBe(1)
       expect(refs[0].fileEntryId).toBe(id)
     })

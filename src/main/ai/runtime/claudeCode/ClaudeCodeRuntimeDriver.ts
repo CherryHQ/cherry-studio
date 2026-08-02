@@ -329,7 +329,7 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
     if (this.waitResolve) {
       const resolve = this.waitResolve
       this.waitResolve = undefined
-      resolve({ value: undefined as unknown as SDKUserMessage, done: true })
+      resolve({ value: undefined, done: true })
     }
   }
 

@@ -57,7 +57,7 @@ describe('AttachmentToolRuntime', () => {
         ...window.api?.file,
         select: vi.fn(async () => [selectedFile])
       }
-    } as typeof window.api
+    }
     restoreRequestAnimationFrame = installSyncRafMock()
   })
 

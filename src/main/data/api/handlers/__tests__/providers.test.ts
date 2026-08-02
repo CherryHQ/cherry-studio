@@ -114,7 +114,7 @@ describe('providerHandlers', () => {
       const result = await providerHandlers['/providers/:providerId'].PATCH({
         params: { providerId: 'openai' },
         body: { isEnabled: true }
-      } as never)
+      })
 
       expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: true })
       expect(result).toBe(updated)
@@ -136,7 +136,7 @@ describe('providerHandlers', () => {
 
       const result = await providerHandlers['/providers/:providerId'].DELETE({
         params: { providerId: 'openai' }
-      } as never)
+      })
 
       expect(deleteMock).toHaveBeenCalledWith('openai')
       expect(result).toBeUndefined()
@@ -166,7 +166,7 @@ describe('providerHandlers', () => {
       const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
         params: { providerId: 'openai' },
         query: { enabled: true }
-      } as never)
+      })
 
       expect(getApiKeysMock).toHaveBeenCalledWith('openai', { enabled: true })
       expect(result).toEqual({ keys: enabledKeys })
@@ -179,7 +179,7 @@ describe('providerHandlers', () => {
       await providerHandlers['/providers/:providerId/api-keys'].PUT({
         params: { providerId: 'openai' },
         body: { keys }
-      } as never)
+      })
 
       expect(replaceApiKeysMock).toHaveBeenCalledWith('openai', keys)
     })
@@ -191,7 +191,7 @@ describe('providerHandlers', () => {
       const result = await providerHandlers['/providers/:providerId/api-keys'].POST({
         params: { providerId: 'openai' },
         body: { key: 'sk-a', label: 'Primary' }
-      } as never)
+      })
 
       expect(addApiKeyMock).toHaveBeenCalledWith('openai', 'sk-a', 'Primary')
       expect(result).toBe(updated)
@@ -202,7 +202,7 @@ describe('providerHandlers', () => {
         providerHandlers['/providers/:providerId/api-keys'].POST({
           params: { providerId: 'openai' },
           body: { key: '' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(addApiKeyMock).not.toHaveBeenCalled()
@@ -227,7 +227,7 @@ describe('providerHandlers', () => {
 
       const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
         params: { providerId: 'vertexai' }
-      } as never)
+      })
 
       expect(getAuthConfigMock).toHaveBeenCalledWith('vertexai')
       expect(result).toBe(authConfig)
@@ -245,7 +245,7 @@ describe('providerHandlers', () => {
 
       const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
         params: { providerId: 'cherryin' }
-      } as never)
+      })
 
       expect(result).toEqual({ type: 'oauth', clientId: 'client-1', accountId: 'acc-1', expiresAt: 123 })
       expect(result).not.toHaveProperty('accessToken')
@@ -311,7 +311,7 @@ describe('providerHandlers', () => {
       const result = await providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
         params: { providerId: 'openai', keyId: 'key-a' },
         body: { key: 'sk-new', isEnabled: false }
-      } as never)
+      })
 
       expect(updateApiKeyMock).toHaveBeenCalledWith('openai', 'key-a', { key: 'sk-new', isEnabled: false })
       expect(result).toBe(updated)
@@ -322,7 +322,7 @@ describe('providerHandlers', () => {
         providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
           params: { providerId: 'openai', keyId: 'key-a' },
           body: { key: '' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(updateApiKeyMock).not.toHaveBeenCalled()
@@ -334,7 +334,7 @@ describe('providerHandlers', () => {
 
       const result = await providerHandlers['/providers/:providerId/api-keys/:keyId'].DELETE({
         params: { providerId: 'openai', keyId: 'key-a' }
-      } as never)
+      })
 
       expect(deleteApiKeyMock).toHaveBeenCalledWith('openai', 'key-a')
       expect(result).toBe(updated)
@@ -346,7 +346,7 @@ describe('providerHandlers', () => {
       await providerHandlers['/providers/:id/order'].PATCH({
         params: { id: 'openai' },
         body: { before: 'anthropic' }
-      } as never)
+      })
 
       expect(moveMock).toHaveBeenCalledWith('openai', { before: 'anthropic' })
     })
@@ -356,7 +356,7 @@ describe('providerHandlers', () => {
         providerHandlers['/providers/:id/order'].PATCH({
           params: { id: 'openai' },
           body: { before: '' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(moveMock).not.toHaveBeenCalled()
@@ -369,7 +369,7 @@ describe('providerHandlers', () => {
 
       await providerHandlers['/providers/order:batch'].PATCH({
         body: { moves }
-      } as never)
+      })
 
       expect(reorderMock).toHaveBeenCalledWith(moves)
     })
@@ -378,7 +378,7 @@ describe('providerHandlers', () => {
       await expect(
         providerHandlers['/providers/order:batch'].PATCH({
           body: { moves: [] }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(reorderMock).not.toHaveBeenCalled()

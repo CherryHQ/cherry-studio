@@ -518,13 +518,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   status = 'idle',
   selectedId: selectedIdProp,
   defaultSortId,
-  sortOptions = EMPTY_SORT_OPTIONS as ResourceListSortOption<T>[],
-  filterOptions = EMPTY_FILTER_OPTIONS as ResourceListFilterOption<T>[],
+  sortOptions = EMPTY_SORT_OPTIONS,
+  filterOptions = EMPTY_FILTER_OPTIONS,
   groupBy,
   groupSeeds = EMPTY_GROUP_SEEDS,
   sectionBy,
-  getItemId = getDefaultItemId as (item: T) => string,
-  getItemLabel = getDefaultItemLabel as (item: T) => string,
+  getItemId = getDefaultItemId,
+  getItemLabel = getDefaultItemLabel,
   getSectionHeaderAction,
   getGroupHeaderAction,
   getGroupHeaderContextMenu,
@@ -995,7 +995,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
           value={itemAccessors as unknown as ResourceListItemAccessors<ResourceListItemBase>}>
           <ResourceListMetaContext value={meta as unknown as ResourceListMeta<ResourceListItemBase>}>
             <ResourceListSourceItemsContext value={items}>
-              <ResourceListViewContext value={view as unknown as ResourceListView<ResourceListItemBase>}>
+              <ResourceListViewContext value={view}>
                 <ResourceListControlsContext value={controlsState}>
                   <ResourceListContext value={context as unknown as ResourceListContextValue<ResourceListItemBase>}>
                     {children}

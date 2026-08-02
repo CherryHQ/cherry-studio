@@ -132,7 +132,7 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
 async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
   const middleware = createContextMiddleware(buildContextOptions(scope)!)
   const result = await middleware.transformParams!({
-    params: { prompt } as never,
+    params: { prompt },
     type: 'generate',
     model: {} as never
   })
@@ -430,7 +430,7 @@ describe('buildContextOptions — compression wiring', () => {
     it('never leaves an orphan tool result at the head', () => {
       const history = toolHistory()
       // Force a drop whose proportional boundary lands inside a tool turn.
-      const kept = fallback()(history, { currentTokens: 1000, limit: 550 } as never) as Array<{ role: string }>
+      const kept = fallback()(history, { currentTokens: 1000, limit: 550 }) as Array<{ role: string }>
       expect(kept.length).toBeLessThan((history as unknown as unknown[]).length)
       const firstNonSystem = kept.find((m) => m.role !== 'system')
       expect(firstNonSystem?.role).not.toBe('tool')
@@ -438,7 +438,7 @@ describe('buildContextOptions — compression wiring', () => {
 
     it('never keeps an assistant tool-call whose results were dropped', () => {
       const history = toolHistory()
-      const kept = fallback()(history, { currentTokens: 1000, limit: 550 } as never) as Array<{
+      const kept = fallback()(history, { currentTokens: 1000, limit: 550 }) as Array<{
         role: string
         tool_calls?: Array<{ id: string }>
         tool_call_id?: string
@@ -453,7 +453,7 @@ describe('buildContextOptions — compression wiring', () => {
 
     it('leaves history untouched when already under budget', () => {
       const history = toolHistory()
-      expect(fallback()(history, { currentTokens: 100, limit: 1000 } as never)).toBe(history)
+      expect(fallback()(history, { currentTokens: 100, limit: 1000 })).toBe(history)
     })
   })
 

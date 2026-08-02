@@ -5,8 +5,12 @@ import { AnthropicMessageConverter, type ReasoningCache } from '../converters/An
 
 const converter = new AnthropicMessageConverter()
 
-const params = (overrides: Partial<MessageCreateParams>): MessageCreateParams =>
-  ({ model: 'anthropic:claude', max_tokens: 1024, messages: [], ...overrides }) as MessageCreateParams
+const params = (overrides: Partial<MessageCreateParams>): MessageCreateParams => ({
+  model: 'anthropic:claude',
+  max_tokens: 1024,
+  messages: [],
+  ...overrides
+})
 
 describe('AnthropicMessageConverter.toUIMessages', () => {
   it('emits a leading system message from a string system prompt', () => {

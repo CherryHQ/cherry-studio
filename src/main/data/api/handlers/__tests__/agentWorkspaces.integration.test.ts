@@ -62,7 +62,7 @@ describe('agentWorkspaceHandlers integration', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]) })
 
     expect(await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))).toEqual([])
@@ -97,7 +97,7 @@ describe('agentWorkspaceHandlers integration', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
         params: { workspaceId: session.workspace.id }
-      } as never)
+      })
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
 
     const workspaceRows = await dbh.db

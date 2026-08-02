@@ -247,7 +247,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
         try {
           const parsed = JSON.parse(raw) as unknown
           if (parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            modelRef = parsed as LegacyModelRef
+            modelRef = parsed
           }
         } catch (error) {
           logger.warn('Legacy openclaw selectedModelUniqId not valid JSON, dropping', {

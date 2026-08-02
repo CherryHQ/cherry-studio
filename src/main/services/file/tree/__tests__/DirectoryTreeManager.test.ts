@@ -300,28 +300,28 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
 
     it('File_TreeCreate rejects missing rootPath', async () => {
       const handler = registeredHandlers.get('file:tree:create')!
-      await expect(handler({}, { options: { withStats: true } } as unknown)).rejects.toThrow()
+      await expect(handler({}, { options: { withStats: true } })).rejects.toThrow()
     })
 
     it('File_TreeCreate rejects a relative rootPath', async () => {
       const handler = registeredHandlers.get('file:tree:create')!
-      await expect(handler({}, { rootPath: 'relative/path' } as unknown)).rejects.toThrow()
+      await expect(handler({}, { rootPath: 'relative/path' })).rejects.toThrow()
     })
 
     it('File_TreeCreate rejects negative maxDepth', async () => {
       const handler = registeredHandlers.get('file:tree:create')!
-      await expect(handler({}, { rootPath: tmp, options: { maxDepth: -1 } } as unknown)).rejects.toThrow()
+      await expect(handler({}, { rootPath: tmp, options: { maxDepth: -1 } })).rejects.toThrow()
     })
 
     it('File_TreeDispose rejects missing treeId', async () => {
       const handler = registeredHandlers.get('file:tree:dispose')!
-      await expect(handler({}, {} as unknown)).rejects.toThrow()
+      await expect(handler({}, {})).rejects.toThrow()
     })
 
     it('File_TreeRename rejects relative oldPath / newPath', async () => {
       const handler = registeredHandlers.get('file:tree:rename')!
-      await expect(handler({}, { treeId: 't-1', oldPath: 'a.md', newPath: '/abs/b.md' } as unknown)).rejects.toThrow()
-      await expect(handler({}, { treeId: 't-1', oldPath: '/abs/a.md', newPath: 'b.md' } as unknown)).rejects.toThrow()
+      await expect(handler({}, { treeId: 't-1', oldPath: 'a.md', newPath: '/abs/b.md' })).rejects.toThrow()
+      await expect(handler({}, { treeId: 't-1', oldPath: '/abs/a.md', newPath: 'b.md' })).rejects.toThrow()
     })
   })
 

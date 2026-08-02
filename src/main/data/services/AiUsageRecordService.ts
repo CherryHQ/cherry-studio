@@ -945,7 +945,7 @@ function mergeRuntimeSpan(existing: MessageRuntimeSpan, incoming: MessageRuntime
     ...incoming,
     startedAt: Math.min(existing.startedAt, incoming.startedAt),
     ...(completedAt !== undefined ? { completedAt } : {})
-  } as MessageRuntimeSpan
+  }
 }
 
 function mergeMessageRuntimeTiming(

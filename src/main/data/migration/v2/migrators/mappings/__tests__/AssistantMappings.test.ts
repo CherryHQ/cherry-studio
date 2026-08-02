@@ -218,10 +218,10 @@ describe('AssistantMappings', () => {
         id: 'ast-15',
         // Cast the whole bag once: OldAssistantSettings types fields strictly
         // for documentation, but real legacy data in the wild is unconstrained.
-        settings: { maxTokens: 0, enableMaxTokens: false, temperature: 0.5 } as never,
+        settings: { maxTokens: 0, enableMaxTokens: false, temperature: 0.5 },
         // Bogus mcpMode left over from confused v1 callers (real v2 enum is
         // 'disabled' | 'auto' | 'manual').
-        mcpMode: 'prompt' as never
+        mcpMode: 'prompt'
       })
       expect(result.assistant.settings).toStrictEqual({
         ...DEFAULT_ASSISTANT_SETTINGS,

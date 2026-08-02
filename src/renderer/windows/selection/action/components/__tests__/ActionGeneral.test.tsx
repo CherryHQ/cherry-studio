@@ -195,7 +195,7 @@ describe('ActionGeneral', () => {
         id: 'streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
@@ -222,7 +222,7 @@ describe('ActionGeneral', () => {
         id: 'first-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
@@ -243,7 +243,7 @@ describe('ActionGeneral', () => {
         id: 'second-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking again', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)

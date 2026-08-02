@@ -296,7 +296,7 @@ export function mergeCustomProviderParameters(
   providerOptions: Record<string, Record<string, JSONValue>>,
   providerParams: Record<string, any>,
   rawProviderId: string,
-  adapterFamily: AppProviderId = rawProviderId as AppProviderId
+  adapterFamily: AppProviderId = rawProviderId
 ): Record<string, Record<string, JSONValue>> {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]

@@ -45,7 +45,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
     role: row.role,
     parts: row.data.parts ?? [],
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
-  } as CherryUIMessage
+  }
 }
 
 function reservedUIMessageToAgentSessionMessage(
@@ -58,7 +58,7 @@ function reservedUIMessageToAgentSessionMessage(
     id: message.id,
     sessionId,
     role: message.role,
-    data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+    data: { parts: message.parts ?? [] },
     searchableText: '',
     status:
       metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),

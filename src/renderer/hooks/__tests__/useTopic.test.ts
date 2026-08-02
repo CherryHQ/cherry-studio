@@ -56,14 +56,14 @@ describe('getTopicMessages', () => {
         activeNodeId: 'newer',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: apiMessage('older') }],
         nextCursor: undefined,
         activeNodeId: 'newer',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
 
@@ -100,7 +100,7 @@ describe('useTopics', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     renderHook(() => useTopics({ loadAll: true }))
 
@@ -136,20 +136,17 @@ describe('useTopics', () => {
     ]
     let hasNext = true
 
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext,
-          loadNext,
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext,
+      loadNext,
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
 
     const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
 
@@ -233,9 +230,7 @@ describe('useTopicMutations', () => {
 
   it('batch updates topics and returns per-topic settled results', async () => {
     const failed = new Error('move failed')
-    vi.mocked(dataApiService.patch)
-      .mockResolvedValueOnce({ id: 'topic-a' } as never)
-      .mockRejectedValueOnce(failed)
+    vi.mocked(dataApiService.patch).mockResolvedValueOnce({ id: 'topic-a' }).mockRejectedValueOnce(failed)
 
     const { result } = renderHook(() => useTopicMutations())
     const settled = await act(async () =>
@@ -257,10 +252,7 @@ describe('useTopicMutations', () => {
 
   it('re-homes a dragged topic into `/topics/:id` before ordering, then revalidates once', async () => {
     const movedTopic = { id: 'topic-a', assistantId: 'assistant-2' }
-    const patch = vi
-      .mocked(dataApiService.patch)
-      .mockResolvedValueOnce(movedTopic as never)
-      .mockResolvedValueOnce(undefined as never)
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(movedTopic).mockResolvedValueOnce(undefined)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
@@ -285,7 +277,7 @@ describe('useTopicMutations', () => {
   })
 
   it('reorders without an assistant change using only the order write and a list refresh', async () => {
-    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
@@ -301,7 +293,7 @@ describe('useTopicMutations', () => {
 
   it('reconciles caches and rethrows when ordering fails after the assistant change committed', async () => {
     vi.mocked(dataApiService.patch)
-      .mockResolvedValueOnce({ id: 'topic-a', assistantId: 'assistant-2' } as never)
+      .mockResolvedValueOnce({ id: 'topic-a', assistantId: 'assistant-2' })
       .mockRejectedValueOnce(new Error('order failed'))
 
     const { result } = renderHook(() => useTopicMutations())

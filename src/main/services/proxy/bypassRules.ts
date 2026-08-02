@@ -285,7 +285,7 @@ export class ProxyBypassRuleMatcher {
         }
       }
     } catch (error) {
-      logger?.error?.('Failed to check bypass:', error as Error)
+      logger?.error?.('Failed to check bypass:', error)
       return false
     }
 

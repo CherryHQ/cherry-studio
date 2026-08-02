@@ -37,7 +37,7 @@ function createAdapter(
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
     sessionId: 'session-1',
-    streamOptions: { prompt: [] } as any,
+    streamOptions: { prompt: [] },
     sink: { enqueue: (part) => parts.push(part) },
     statusSink: { emit: (event) => statusEvents.push(event) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),

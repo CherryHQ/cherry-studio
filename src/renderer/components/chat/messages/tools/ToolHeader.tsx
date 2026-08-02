@@ -654,7 +654,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 
   const toolName = propToolName || tool?.name || 'Tool'
 
-  const status = propStatus || (toolResponse?.status as ToolStatus)
+  const status = propStatus || toolResponse?.status
   const hasError = propHasError ?? toolResponse?.response?.isError === true
   const args = toolResponse?.arguments ?? propArgs
   const activity = getReadableToolActivity(toolName, args, isStreaming || isActiveStatus(status), t)

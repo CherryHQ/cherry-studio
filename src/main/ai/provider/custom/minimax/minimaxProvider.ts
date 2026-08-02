@@ -67,5 +67,5 @@ export function createMinimaxProvider(settings: MinimaxProviderSettings = {}): M
       fetch: customFetch
     })
 
-  return provider as MinimaxProvider
+  return provider
 }

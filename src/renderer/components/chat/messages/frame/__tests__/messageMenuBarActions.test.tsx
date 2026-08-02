@@ -252,7 +252,7 @@ describe('messageMenuBarActions', () => {
         },
         actions: {
           editMessage: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true
       })
@@ -274,7 +274,7 @@ describe('messageMenuBarActions', () => {
         },
         actions: {
           editMessage: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true
       })
@@ -296,7 +296,7 @@ describe('messageMenuBarActions', () => {
         },
         actions: {
           editMessage: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true
       })
@@ -309,7 +309,7 @@ describe('messageMenuBarActions', () => {
     const context = createActionContext({
       actions: {
         editMessage: vi.fn()
-      } as MessageListActions
+      }
     })
 
     expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
@@ -320,7 +320,7 @@ describe('messageMenuBarActions', () => {
     const context = createActionContext({
       actions: {
         editMessage: vi.fn()
-      } as MessageListActions,
+      },
       isTranslating: true
     })
 
@@ -338,7 +338,7 @@ describe('messageMenuBarActions', () => {
           renderRegenerateModelPicker: vi.fn(),
           setActiveBranch: vi.fn(),
           translateMessage: vi.fn()
-        } as MessageListActions,
+        },
         translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
         isGrouped: true
       })
@@ -368,7 +368,7 @@ describe('messageMenuBarActions', () => {
       createActionContext({
         actions: {
           regenerateMessage: vi.fn()
-        } as MessageListActions
+        }
       })
     )
 
@@ -548,7 +548,7 @@ describe('messageMenuBarActions', () => {
       actions: {
         requestTranslationLanguages,
         translateMessage: vi.fn()
-      } as MessageListActions
+      }
     })
     const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'translate')
     const translationItems = resolveMessageMenuBarTranslationItems(context)
@@ -585,7 +585,7 @@ describe('messageMenuBarActions', () => {
         requestTranslationLanguages: vi.fn(),
         retryTranslationLanguages,
         translateMessage: vi.fn()
-      } as MessageListActions
+      }
     })
 
     const failedItems = resolveMessageMenuBarTranslationItems(failedContext)
@@ -606,7 +606,7 @@ describe('messageMenuBarActions', () => {
           requestTranslationLanguages: vi.fn(),
           retryTranslationLanguages,
           translateMessage: vi.fn()
-        } as MessageListActions
+        }
       })
     )
     expect(recoveredItems.map((item) => item.key)).toEqual(['en'])
@@ -663,7 +663,7 @@ describe('messageMenuBarActions', () => {
         actions: {
           deleteMessage: vi.fn(),
           exportToNotes: vi.fn()
-        } as MessageListActions
+        }
       })
     )
 
@@ -678,7 +678,7 @@ describe('messageMenuBarActions', () => {
           saveTextFile: vi.fn(),
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
-        } as MessageListActions,
+        },
         selection: {
           enabled: true,
           isMultiSelectMode: false,
@@ -705,7 +705,7 @@ describe('messageMenuBarActions', () => {
         actions: {
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
-        } as MessageListActions,
+        },
         isLastMessage: true,
         selection: {
           enabled: true,
@@ -729,7 +729,7 @@ describe('messageMenuBarActions', () => {
         actions: {
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true,
         selection: {
@@ -749,7 +749,7 @@ describe('messageMenuBarActions', () => {
         actions: {
           deleteMessage: vi.fn(),
           regenerateMessage: vi.fn()
-        } as MessageListActions,
+        },
         isProcessing: true
       })
     )
@@ -764,7 +764,7 @@ describe('messageMenuBarActions', () => {
     const language = { langCode: 'fr', label: 'French' } as any
     const translationItems = resolveMessageMenuBarTranslationItems(
       createActionContext({
-        actions: { translateMessage } as MessageListActions,
+        actions: { translateMessage },
         translateLanguages: [language],
         getTranslationLanguageLabel: () => 'French'
       })
@@ -801,7 +801,7 @@ describe('messageMenuBarActions', () => {
       createActionContext({
         hasTranslationBlocks: true,
         messageParts: [{ type: 'data-translation', data: { content: 'translated text' } }] as any,
-        actions: { copyText: vi.fn(), removeMessageTranslation, notifySuccess } as MessageListActions
+        actions: { copyText: vi.fn(), removeMessageTranslation, notifySuccess }
       })
     )
 
@@ -821,7 +821,7 @@ describe('messageMenuBarActions', () => {
   it('enables the translate toolbar action as abort while translation is running', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
-        actions: { abortMessageTranslation: vi.fn() } as MessageListActions,
+        actions: { abortMessageTranslation: vi.fn() },
         isTranslating: true
       })
     )
@@ -833,7 +833,7 @@ describe('messageMenuBarActions', () => {
     const copyText = vi.fn()
     const setCopied = vi.fn()
     const context = createActionContext({
-      actions: { copyText } as MessageListActions,
+      actions: { copyText },
       setCopied
     })
 
@@ -905,7 +905,7 @@ describe('messageMenuBarActions', () => {
     const notifyError = vi.fn()
     const setCopied = vi.fn()
     const context = createActionContext({
-      actions: { copyText, notifyError } as MessageListActions,
+      actions: { copyText, notifyError },
       setCopied
     })
 

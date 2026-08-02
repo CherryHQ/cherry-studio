@@ -159,7 +159,7 @@ describe('mergePresetModel + applyUserOverlay', () => {
     const overlay: UserModelOverlay = {
       name: 'User Override',
       contextWindow: 50_000,
-      capabilities: [CAPABILITY.EMBEDDING] as any
+      capabilities: [CAPABILITY.EMBEDDING]
     }
     const baseline = mergePresetModel(presetModel, override, 'openai')
     const model = applyUserOverlay(baseline, overlay)

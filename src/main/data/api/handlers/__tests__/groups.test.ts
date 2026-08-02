@@ -124,7 +124,7 @@ describe('groupHandlers', () => {
       updateMock.mockResolvedValueOnce({ id: 'g1', entityType: 'topic', name: 'Renamed' })
       deleteMock.mockResolvedValueOnce(undefined)
 
-      await expect(groupHandlers['/groups/:id'].GET({ params: { id: GROUP_ID } } as never)).resolves.toMatchObject({
+      await expect(groupHandlers['/groups/:id'].GET({ params: { id: GROUP_ID } })).resolves.toMatchObject({
         id: 'g1'
       })
 
@@ -132,10 +132,10 @@ describe('groupHandlers', () => {
         groupHandlers['/groups/:id'].PATCH({
           params: { id: GROUP_ID },
           body: { name: 'Renamed' }
-        } as never)
+        })
       ).resolves.toMatchObject({ name: 'Renamed' })
 
-      await expect(groupHandlers['/groups/:id'].DELETE({ params: { id: GROUP_ID } } as never)).resolves.toBeUndefined()
+      await expect(groupHandlers['/groups/:id'].DELETE({ params: { id: GROUP_ID } })).resolves.toBeUndefined()
 
       expect(getByIdMock).toHaveBeenCalledWith(GROUP_ID)
       expect(updateMock).toHaveBeenCalledWith(GROUP_ID, { name: 'Renamed' })
@@ -143,7 +143,7 @@ describe('groupHandlers', () => {
     })
 
     it('should reject an invalid group id in path params with ZodError', async () => {
-      await expect(groupHandlers['/groups/:id'].GET({ params: { id: 'not-a-uuid' } } as never)).rejects.toHaveProperty(
+      await expect(groupHandlers['/groups/:id'].GET({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )
@@ -215,7 +215,7 @@ describe('groupHandlers', () => {
     })
 
     it('should reject an empty moves array with ZodError', async () => {
-      await expect(groupHandlers['/groups/order:batch'].PATCH({ body: { moves: [] } } as never)).rejects.toHaveProperty(
+      await expect(groupHandlers['/groups/order:batch'].PATCH({ body: { moves: [] } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )

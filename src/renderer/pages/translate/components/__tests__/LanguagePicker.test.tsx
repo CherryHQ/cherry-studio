@@ -112,7 +112,7 @@ describe('LanguagePicker', () => {
   })
 
   it('falls back to UNKNOWN display when value is not in the language list', () => {
-    render(<LanguagePicker value={'xx-xx' as never} onChange={vi.fn()} />)
+    render(<LanguagePicker value={'xx-xx'} onChange={vi.fn()} />)
     const trigger = screen.getByRole('button', { expanded: false })
     expect(trigger.textContent).toContain('Unknown')
     expect(trigger.textContent).toContain('🏳️')

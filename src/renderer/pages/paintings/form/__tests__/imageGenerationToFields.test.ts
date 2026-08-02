@@ -13,7 +13,7 @@ import { imageGenerationToFields } from '../imageGenerationToFields'
 describe('imageGenerationToFields', () => {
   it('emits nothing for undefined or empty descriptors', () => {
     expect(imageGenerationToFields(undefined)).toEqual([])
-    expect(imageGenerationToFields({ modes: {} } as ImageGenerationSupport)).toEqual([])
+    expect(imageGenerationToFields({ modes: {} })).toEqual([])
   })
 
   it('gpt-image-1: size enum (chips) + numImages slider + quality/moderation/background selects', () => {

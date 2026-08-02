@@ -44,7 +44,7 @@ const taskDataMock = vi.hoisted(() => {
     nextRun: null,
     lastRun: null,
     enabled: true,
-    status: 'active' as 'active' | 'paused' | 'completed',
+    status: 'active',
     createdAt: '2026-06-25T00:00:00.000Z',
     updatedAt: '2026-06-25T00:00:00.000Z'
   }

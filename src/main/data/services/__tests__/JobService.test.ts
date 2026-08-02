@@ -141,8 +141,8 @@ describe('JobService.addFileRefsTx', () => {
 
   it('writes input and mask refs for an enqueued job', () => {
     const job = jobService.create(baseRow())
-    const input = seedEntry('019606a0-0000-7000-8000-0000000000f1' as FileEntryId)
-    const mask = seedEntry('019606a0-0000-7000-8000-0000000000f2' as FileEntryId)
+    const input = seedEntry('019606a0-0000-7000-8000-0000000000f1')
+    const mask = seedEntry('019606a0-0000-7000-8000-0000000000f2')
 
     application.get('DbService').withWriteTx((tx) => {
       jobService.addFileRefsTx(tx, [
@@ -167,7 +167,7 @@ describe('JobService.addFileRefsTx', () => {
 
   it('releases the refs when the job row is pruned (FK cascade frees the inputs for reclaim)', () => {
     const job = jobService.create(baseRow({ status: 'completed' }))
-    const input = seedEntry('019606a0-0000-7000-8000-0000000000f3' as FileEntryId)
+    const input = seedEntry('019606a0-0000-7000-8000-0000000000f3')
     application.get('DbService').withWriteTx((tx) => {
       jobService.addFileRefsTx(tx, [{ fileEntryId: input.id, sourceId: job.id, role: 'input' }])
     })

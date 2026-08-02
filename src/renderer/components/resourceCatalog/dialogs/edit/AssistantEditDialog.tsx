@@ -1040,7 +1040,7 @@ function CustomParametersField({
               portalContainer={portalContainer}
               onNameChange={(name) => updateField(index, { name })}
               onTypeChange={(type) => updateField(index, { type })}
-              onValueChange={(nextValue) => updateField(index, { value: nextValue } as Partial<CustomParameter>)}
+              onValueChange={(nextValue) => updateField(index, { value: nextValue })}
               onDelete={() => remove(index)}
             />
           ))}

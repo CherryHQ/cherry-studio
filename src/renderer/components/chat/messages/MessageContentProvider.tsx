@@ -30,7 +30,7 @@ function createFallbackTopic(messages: MessageListItem[]): Topic {
     createdAt: firstMessage?.createdAt || '',
     updatedAt: firstMessage?.updatedAt || '',
     messages: []
-  } as Topic
+  }
 }
 
 export function MessageContentProvider({

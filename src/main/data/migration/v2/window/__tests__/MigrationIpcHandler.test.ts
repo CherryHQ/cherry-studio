@@ -90,7 +90,7 @@ describe('MigrationIpcHandler', () => {
 
   const invoke = (channel: string, ...args: unknown[]) => invokeWithEvent(event, channel, ...args)
   const choosePath = (filePath: string) =>
-    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath } as never)
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath })
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -235,8 +235,8 @@ describe('MigrationIpcHandler', () => {
     it('rejects a second save while the first save is still in flight', async () => {
       let resolveFirstSave: (result: 'included') => void = () => undefined
       vi.mocked(dialog.showSaveDialog)
-        .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/first.zip' } as never)
-        .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/second.zip' } as never)
+        .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/first.zip' })
+        .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/second.zip' })
       diagnosticMocks.saveBundle
         .mockImplementationOnce(
           () =>

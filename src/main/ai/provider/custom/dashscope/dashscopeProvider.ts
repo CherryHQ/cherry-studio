@@ -119,5 +119,5 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       fetch: customFetch
     })
 
-  return provider as DashScopeProvider
+  return provider
 }

@@ -37,7 +37,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
-  } as CherryUIMessage
+  }
 }
 
 export class AgentChatContextProvider implements ChatContextProvider {

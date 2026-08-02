@@ -146,7 +146,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
         actions: runtimeActions,
         launcher: getLauncherApiForTool(tool.key),
         t
-      } as ToolRenderContext<S, A>
+      }
     },
     [assistant, getLauncherApiForTool, model, scope, session, t, toolActions, toolState]
   )

@@ -489,7 +489,7 @@ describe('AgentChat settings panel', () => {
   })
 
   it('hides the empty-session greeting once the session has messages', () => {
-    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' } as any] }
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
 
     renderAgentChat()
 

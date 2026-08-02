@@ -788,7 +788,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
-    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+    return new Blob([byteArray.slice()], { type: parseResult.mediaType })
   }
 
   if (src.startsWith('file://')) {
@@ -797,7 +797,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
-    return new Blob([content.slice() as unknown as BlobPart], { type: mime })
+    return new Blob([content.slice()], { type: mime })
   }
 
   const response = await fetch(src)

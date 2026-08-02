@@ -18,7 +18,7 @@ function makeFinalMessage(text: string): CherryUIMessage {
     id: 'final',
     role: 'assistant',
     parts: [{ type: 'text', text }]
-  } as CherryUIMessage
+  }
 }
 
 beforeEach(() => {
@@ -29,8 +29,8 @@ beforeEach(() => {
 describe('TranslationBackend.persistAssistant', () => {
   it('strips any prior data-translation part and appends a fresh one', async () => {
     const existingParts: CherryMessagePart[] = [
-      { type: 'text', text: 'hello world' } as CherryMessagePart,
-      { type: 'data-translation', data: { content: '旧译文', targetLanguage: 'zh-cn' } } as CherryMessagePart
+      { type: 'text', text: 'hello world' },
+      { type: 'data-translation', data: { content: '旧译文', targetLanguage: 'zh-cn' } }
     ]
     getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: existingParts } })
 
@@ -80,7 +80,7 @@ describe('TranslationBackend.persistAssistant', () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
     backend.persistAssistant({
       status: 'success',
-      finalMessage: { id: 'final', role: 'assistant', parts: [] } as CherryUIMessage
+      finalMessage: { id: 'final', role: 'assistant', parts: [] }
     })
 
     expect(updateMock).not.toHaveBeenCalled()
@@ -99,7 +99,7 @@ describe('TranslationBackend.persistAssistant', () => {
           { type: 'text', text: '第一段' },
           { type: 'text', text: '第二段' }
         ]
-      } as CherryUIMessage
+      }
     })
 
     const [, dto] = updateMock.mock.calls[0]
@@ -108,8 +108,8 @@ describe('TranslationBackend.persistAssistant', () => {
 
   it('preserves non-translation parts when writing back', async () => {
     const existingParts: CherryMessagePart[] = [
-      { type: 'text', text: 'original assistant reply' } as CherryMessagePart,
-      { type: 'reasoning', text: 'inner thought' } as CherryMessagePart
+      { type: 'text', text: 'original assistant reply' },
+      { type: 'reasoning', text: 'inner thought' }
     ]
     getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: existingParts } })
 

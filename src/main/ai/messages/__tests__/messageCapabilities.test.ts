@@ -8,12 +8,11 @@ import { resolveMediaCapabilities, stripUnsupportedMedia } from '../messageCapab
 
 const model = (inputModalities: string[]): Model => ({ capabilities: [], inputModalities }) as unknown as Model
 
-const fileMsg = (mediaType: string): UIMessage =>
-  ({
-    id: 'm',
-    role: 'user',
-    parts: [{ type: 'file', mediaType, url: 'data:application/octet-stream;base64,AA' }]
-  }) as UIMessage
+const fileMsg = (mediaType: string): UIMessage => ({
+  id: 'm',
+  role: 'user',
+  parts: [{ type: 'file', mediaType, url: 'data:application/octet-stream;base64,AA' }]
+})
 
 describe('resolveMediaCapabilities', () => {
   it('derives modality flags from the model', () => {

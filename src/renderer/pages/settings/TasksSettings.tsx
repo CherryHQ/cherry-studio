@@ -1326,7 +1326,7 @@ const TasksSettings: FC = () => {
 
   useEffect(() => {
     if (agentsError || tasksError || taskError) {
-      logger.error('Failed to load tasks settings', (agentsError ?? tasksError ?? taskError) as Error)
+      logger.error('Failed to load tasks settings', agentsError ?? tasksError ?? taskError)
       toast.error(t('agent.tasks.error.loadFailed'))
     }
   }, [agentsError, t, taskError, tasksError])

@@ -405,7 +405,7 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
-    const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
+    const emittedEvent = { ...event, id: ++this.nextEventId }
     if (event.status === 'running' || event.status === 'stopped') {
       this.latestTransientEvents.set(event.type, emittedEvent)
     } else {

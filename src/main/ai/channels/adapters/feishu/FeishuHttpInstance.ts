@@ -120,5 +120,5 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
     post: (url: string, data?: any, opts?: any) => doRequest('POST', url, data, opts),
     put: (url: string, data?: any, opts?: any) => doRequest('PUT', url, data, opts),
     patch: (url: string, data?: any, opts?: any) => doRequest('PATCH', url, data, opts)
-  } as Lark.HttpInstance
+  }
 }

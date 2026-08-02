@@ -29,7 +29,7 @@ describe('FileStorage', () => {
     })
 
     it('returns null when the dialog resolves without a file path', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
     })
   })

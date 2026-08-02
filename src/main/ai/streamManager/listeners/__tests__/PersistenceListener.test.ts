@@ -413,7 +413,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
 
     const listener = new PersistenceListener({
       topicId: 'topic-1',
-      modelId: 'openrouter::x' as UniqueModelId,
+      modelId: 'openrouter::x',
       backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
 
@@ -421,7 +421,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     await listener.onDone({
       finalMessage,
       status: 'success',
-      modelId: 'openrouter::x' as UniqueModelId,
+      modelId: 'openrouter::x',
       timings: { startedAt: 100, completedAt: 260 },
       runtimeTiming
     })

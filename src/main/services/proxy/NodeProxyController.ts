@@ -47,7 +47,7 @@ class SelectiveDispatcher extends Dispatcher {
     try {
       await this.proxyDispatcher.close()
     } catch (error) {
-      this.logger?.error?.('Failed to close dispatcher:', error as Error)
+      this.logger?.error?.('Failed to close dispatcher:', error)
       void this.proxyDispatcher.destroy()
     }
   }
@@ -56,7 +56,7 @@ class SelectiveDispatcher extends Dispatcher {
     try {
       await this.proxyDispatcher.destroy()
     } catch (error) {
-      this.logger?.error?.('Failed to destroy dispatcher:', error as Error)
+      this.logger?.error?.('Failed to destroy dispatcher:', error)
     }
   }
 }
@@ -143,7 +143,7 @@ export class NodeProxyController {
       try {
         this.proxyAgent?.destroy()
       } catch (error) {
-        this.logger?.error?.('Failed to destroy proxy agent:', error as Error)
+        this.logger?.error?.('Failed to destroy proxy agent:', error)
       }
 
       this.proxyAgent = null

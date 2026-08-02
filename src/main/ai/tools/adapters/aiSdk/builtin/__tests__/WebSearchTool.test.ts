@@ -30,7 +30,7 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', abortSignal }
-  } as ToolExecutionOptions
+  }
 }
 
 function response() {

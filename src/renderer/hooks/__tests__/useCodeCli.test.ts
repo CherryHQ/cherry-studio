@@ -77,7 +77,7 @@ describe('useCodeCli', () => {
 
   describe('selectedCliTool', () => {
     it('should default to claude-code', () => {
-      setupConfigsMock({} as CodeCliConfigs)
+      setupConfigsMock({})
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.selectedCliTool).toBe(CodeCli.CLAUDE_CODE)
     })
@@ -85,7 +85,7 @@ describe('useCodeCli', () => {
     it('selectTool should switch the selected tool (navigation state)', () => {
       setupConfigsMock({
         'openai-codex': state({ anthropic: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
       act(() => {
         result.current.selectTool(CodeCli.OPENAI_CODEX)
@@ -98,7 +98,7 @@ describe('useCodeCli', () => {
     it('should expose the current provider id and its config', () => {
       setupConfigsMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.currentProviderId).toBe('anthropic')
       expect(result.current.currentProviderConfig?.modelId).toBe('anthropic::claude-4')
@@ -107,7 +107,7 @@ describe('useCodeCli', () => {
     it('should return null currentProviderConfig when no provider is active', () => {
       setupConfigsMock({
         'claude-code': state({ anthropic: cfg() }, null)
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.currentProviderId).toBeNull()
       expect(result.current.currentProviderConfig).toBeNull()
@@ -118,7 +118,7 @@ describe('useCodeCli', () => {
     it('should write sortIndex to each provider entry', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -133,7 +133,7 @@ describe('useCodeCli', () => {
     it('should not fabricate missing provider configs while reordering', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -148,7 +148,7 @@ describe('useCodeCli', () => {
 
   describe('upsertProviderConfig', () => {
     it('should create a new provider config keyed by providerId', async () => {
-      const mockSetter = setupUpdaterMock({} as CodeCliConfigs)
+      const mockSetter = setupUpdaterMock({})
       const { result } = renderHook(() => useCodeCli())
 
       let returnedId = ''
@@ -167,7 +167,7 @@ describe('useCodeCli', () => {
     it('should preserve existing config when updating only modelId', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -184,7 +184,7 @@ describe('useCodeCli', () => {
     it('should remove existing config when config is explicitly undefined', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -202,7 +202,7 @@ describe('useCodeCli', () => {
     it('should preserve existing sortIndex when updating model/config', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg({ sortIndex: 2 }) }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -221,7 +221,7 @@ describe('useCodeCli', () => {
     // back-to-back. usePreference's setter takes a plain value, so the second
     // write used to read a stale snapshot and wipe the just-written provider.
     it('preserves the upserted provider when selecting it immediately after', async () => {
-      const mockSetter = setupUpdaterMock({} as CodeCliConfigs)
+      const mockSetter = setupUpdaterMock({})
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -242,7 +242,7 @@ describe('useCodeCli', () => {
     it('should remove the provider config and clear current if it was active', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -257,7 +257,7 @@ describe('useCodeCli', () => {
     it('should keep current when deleting an inactive provider', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -272,7 +272,7 @@ describe('useCodeCli', () => {
     it('should set the tool current pointer (single-select)', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -285,7 +285,7 @@ describe('useCodeCli', () => {
     it('should support disabling via null', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -300,7 +300,7 @@ describe('useCodeCli', () => {
     it("normalizes the legacy '' sentinel to null on read", () => {
       setupConfigsMock({
         'claude-code': state({ anthropic: { modelId: '' as unknown as null }, openrouter: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       expect(result.current.providerConfigs['anthropic']?.modelId).toBeNull()
@@ -310,7 +310,7 @@ describe('useCodeCli', () => {
     it('self-heals the sentinel on the next write', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: { modelId: '' as unknown as null } }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
@@ -325,7 +325,7 @@ describe('useCodeCli', () => {
     it('should set the tool-level directory', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      } as unknown as CodeCliConfigs)
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {

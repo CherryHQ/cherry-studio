@@ -188,7 +188,7 @@ describe('MigrationEngine', () => {
       success: true,
       errors: [],
       stats: { sourceCount: 2, targetCount: 1, skippedCount: 0 }
-    } as any)
+    })
 
     engine.registerMigrators([migrator as any])
 
@@ -211,7 +211,7 @@ describe('MigrationEngine', () => {
       success: true,
       errors: [],
       stats: { sourceCount: 2, targetCount: 1, skippedCount: 1 }
-    } as any)
+    })
 
     engine.registerMigrators([migrator as any])
 

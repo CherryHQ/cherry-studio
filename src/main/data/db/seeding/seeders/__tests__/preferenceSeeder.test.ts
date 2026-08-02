@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { preferenceTable } from '@data/db/schemas/preference'
 import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -34,7 +35,7 @@ describe('PreferenceSeeder', () => {
     // Customise its value so we can check the seeder did not overwrite it.
     await dbh.db
       .update(preferenceTable)
-      .set({ value: '__customized__' as unknown as never })
+      .set({ value: '__customized__' as unknown })
       .where(and(eq(preferenceTable.scope, first.scope), eq(preferenceTable.key, first.key)))
 
     const seed = new PreferenceSeeder()

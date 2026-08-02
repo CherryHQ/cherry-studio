@@ -177,7 +177,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
         return (await this.executeWithPlugins(
           methodName,
-          { ...params, ...newParams } as TParams,
+          { ...params, ...newParams },
           executor,
           context
         )) as unknown as R
@@ -283,7 +283,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
         return (await this.executeImageWithPlugins(
           methodName,
-          { ...params, ...newParams } as TParams,
+          { ...params, ...newParams },
           executor,
           context
         )) as unknown as R
@@ -378,7 +378,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
         return (await this.executeStreamWithPlugins(
           methodName,
-          { ...params, ...newParams } as TParams,
+          { ...params, ...newParams },
           executor,
           context
         )) as unknown as R

@@ -419,11 +419,9 @@ describe('JobManager pause / drainInFlight', () => {
       const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
 
       const hold = jobManager.pause('test: promoteDueAtFire gate')
-      const handle = jobManager.enqueue(
-        'pause.delayed' as never,
-        { message: 'later' } as never,
-        { scheduledAt: Date.now() + 50 } as never
-      )
+      const handle = jobManager.enqueue('pause.delayed' as never, { message: 'later' } as never, {
+        scheduledAt: Date.now() + 50
+      })
       expect(handle.snapshot.status).toBe('delayed')
 
       // The once promotion timer fires inside the pause window → gated before
@@ -1245,11 +1243,9 @@ describe('JobManager pause / drainInFlight', () => {
       })
 
       const hold = jobManager.pause('test: suppressed promotion re-arm')
-      const handle = jobManager.enqueue(
-        'pause.skew' as never,
-        { message: 'not-yet-due' } as never,
-        { scheduledAt: Date.now() + 600 } as never
-      )
+      const handle = jobManager.enqueue('pause.skew' as never, { message: 'not-yet-due' } as never, {
+        scheduledAt: Date.now() + 600
+      })
       expect(handle.snapshot.status).toBe('delayed')
 
       // The promotion once-timer elapses on the FAKE clock while the wall

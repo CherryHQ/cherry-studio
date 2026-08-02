@@ -556,7 +556,7 @@ describe('ModelService.create', () => {
             name: 'GPT-4o',
             maxInputTokens: 128_000,
             maxOutputTokens: 4_096
-          } as any,
+          },
           registryOverride: null,
           reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
@@ -595,7 +595,7 @@ describe('ModelService.create', () => {
             id: 'gpt-4o',
             name: 'GPT-4o',
             capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
-          } as any,
+          },
           registryOverride: null,
           reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
@@ -914,7 +914,7 @@ describe('ModelService.list', () => {
   it('filters by capability (post-filter)', async () => {
     await seedMultipleModels()
 
-    const models = modelService.list({ capability: 'reasoning' as any })
+    const models = modelService.list({ capability: 'reasoning' })
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('claude-3')

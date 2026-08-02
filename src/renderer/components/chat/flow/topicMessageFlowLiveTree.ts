@@ -90,7 +90,7 @@ export function buildTopicMessageFlowLiveState({
     const parentId = metadata.parentId
     if (parentId == null) return []
 
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const createdAt = metadata.createdAt ?? new Date().toISOString()
     const isStreamingMessage = streamingMessageIds?.has(message.id) ?? false
     const fallbackStatus = message.role === 'assistant' && parts.length === 0 ? 'pending' : 'success'

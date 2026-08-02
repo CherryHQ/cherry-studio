@@ -66,5 +66,5 @@ export function projectStreamChunkForRenderer(
 
   const output = deferToolOutput(chunk.output, { topicId, messageId, toolCallId: chunk.toolCallId })
   if (output === chunk.output) return chunk
-  return { ...chunk, output } as UIMessageChunk
+  return { ...chunk, output }
 }

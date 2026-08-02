@@ -181,13 +181,13 @@ describe('useDirectoryTree', () => {
     mocks.onMutation.mockReturnValue(() => {})
 
     const { rerender, result } = renderHook(({ root }: { root: string | undefined }) => useDirectoryTree(root), {
-      initialProps: { root: '/notes' as string | undefined }
+      initialProps: { root: '/notes' }
     })
 
     // Swap rootPath while the first File_TreeCreate is still pending. The hook's
     // cleanup sets `cancelled=true`; once the first promise finally resolves it
     // must dispose the orphaned builder rather than swap it in.
-    rerender({ root: '/notes2' as string | undefined })
+    rerender({ root: '/notes2' })
 
     await act(async () => {
       resolveFirst?.({ treeId: 't-first', snapshot: makeSnapshot('/notes', []) })

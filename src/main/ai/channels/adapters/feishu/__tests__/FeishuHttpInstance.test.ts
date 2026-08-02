@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createFeishuHttpInstance } from '../FeishuHttpInstance'
@@ -77,7 +78,7 @@ describe('createFeishuHttpInstance', () => {
       headers: new Headers(),
       body: null,
       text: async () => JSON.stringify({ msg: 'invalid file' })
-    } as unknown as Response)
+    } as unknown)
 
     const http = createFeishuHttpInstance()
 

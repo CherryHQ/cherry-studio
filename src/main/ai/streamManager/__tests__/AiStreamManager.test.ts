@@ -914,12 +914,12 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'call-large',
         output: large
-      } as UIMessageChunk)
+      })
       mgr.onChunk(topicId, 'provider-a::model-a', {
         type: 'tool-output-available',
         toolCallId: 'call-small',
         output: { content: 'tiny' }
-      } as UIMessageChunk)
+      })
 
       expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
       // A small output travelled inline, so nothing needs to be resolvable for it.
@@ -942,7 +942,7 @@ describe('AiStreamManager', () => {
           type: 'tool-output-available',
           toolCallId: `call-${tag}`,
           output: large(tag)
-        } as UIMessageChunk)
+        })
       }
 
       // The evicted one is not lost — it resolves from SQLite once the message is persisted.
@@ -962,10 +962,10 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       // `attach` is the public IPC-facing method; tests pass a minimal
@@ -999,7 +999,7 @@ describe('AiStreamManager', () => {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
 
       const snap = ringMgr.inspect('a')!
@@ -1573,8 +1573,8 @@ describe('AiStreamManager', () => {
       // The approval-request chunk flows through the loop's onChunk callback, which re-arms the
       // idle watchdog to the generous approval bound (default 2 h). The stream then stays open with
       // no further chunks (the human is deliberating).
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' })
 
       // Wait for the listener to have actually seen the approval chunk: that is
       // the re-arm, and it is a state rather than an interval. The fake clock is
@@ -1606,8 +1606,8 @@ describe('AiStreamManager', () => {
         listeners: [listener]
       })
 
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' })
 
       // Wait for the approval chunk to land (the re-arm) before moving the clock —
       // otherwise this only ever proves *some* timer fired, not the approval bound.
@@ -1644,11 +1644,11 @@ describe('AiStreamManager', () => {
       // Feed a complete message — the AI SDK stream shape requires both
       // message-level `start` / `finish` boundaries and the text-part
       // triplet for readUIMessageStream to yield a UIMessage snapshot.
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
       controlled.close()
 
       // Let the tee → accumulator → terminal chain drain. Poll for the terminal
@@ -1776,7 +1776,7 @@ describe('AiStreamManager', () => {
       })
 
       // Provider surfaces a terminal error chunk rather than throwing.
-      controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
+      controlled.enqueue({ type: 'error', errorText: 'boom' })
       controlled.close()
 
       // Let the tee → broadcast → terminal chain drain.
@@ -1834,12 +1834,12 @@ describe('AiStreamManager', () => {
       // Continuation: resolve the pre-existing tool call (references the seed's
       // toolCallId), then append text. Without the seed, the tool-output chunk
       // throws inside the accumulator and the later text never accumulates.
-      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' })
+      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
       controlled.close()
 
       await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))

@@ -123,7 +123,7 @@ describe('usePaintingGenerationSubmit', () => {
     // action-scoped flag rather than being folded into it.
     const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
 
-    const { result } = renderSubmit(makePainting({ generationStatus: 'running' } as Partial<PaintingData>))
+    const { result } = renderSubmit(makePainting({ generationStatus: 'running' }))
     await act(async () => {
       await result.current.submit(materialize)
     })

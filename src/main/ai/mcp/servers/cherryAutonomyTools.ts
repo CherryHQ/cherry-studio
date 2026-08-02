@@ -734,8 +734,8 @@ export class CherryAutonomyTools {
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
-    if (args.name !== undefined) updates.name = args.name as string
-    if (args.enabled !== undefined) updates.isActive = args.enabled as boolean
+    if (args.name !== undefined) updates.name = args.name
+    if (args.enabled !== undefined) updates.isActive = args.enabled
     if (args.config !== undefined) {
       updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }

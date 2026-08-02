@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { Tab } from '@renderer/hooks/tab'

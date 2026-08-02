@@ -104,7 +104,7 @@ export const McpGetResourcePayloadSchema = z.object({
 export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
-const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 
 export interface McpToolListChangedEvent {
   serverId: string
@@ -1021,7 +1021,7 @@ export class McpRuntimeService extends BaseService {
       } catch (error) {
         // Ignore ENOENT - file may not exist if server never used OAuth
         if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error as Error)
+          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error)
         }
       }
     }

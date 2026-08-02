@@ -159,7 +159,7 @@ describe('AgentsMigrator', () => {
 
   it('prepare counts all legacy agents rows', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const result = await migrator.prepare(createMigrationContext())
@@ -201,7 +201,7 @@ describe('AgentsMigrator', () => {
     const all = vi.fn().mockReturnValue([])
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
@@ -280,7 +280,7 @@ describe('AgentsMigrator', () => {
       .mockReturnValue(undefined) // ROLLBACK, DETACH
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
@@ -295,7 +295,7 @@ describe('AgentsMigrator', () => {
 
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     // Workspace prelude (3 calls): selectLegacySessionWorkspaceRows skips
@@ -346,7 +346,7 @@ describe('AgentsMigrator', () => {
     const partialCounts = { ...createCounts(), agent_skills: 0, session_messages: 0 }
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(partialSchema as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(partialSchema)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(partialCounts)
 
     // 3 workspace-prelude calls + 4 present specs × 2 = 11 total. Each present
@@ -378,7 +378,7 @@ describe('AgentsMigrator', () => {
 
   it('validate flags target tables whose row count exceeds the expected filtered count', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const all = vi
@@ -419,7 +419,7 @@ describe('AgentsMigrator', () => {
     const resolvePath = vi
       .spyOn(LegacyAgentsDbReader.prototype, 'resolvePath')
       .mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const run = vi.fn().mockReturnValue(undefined)
@@ -455,7 +455,7 @@ describe('AgentsMigrator', () => {
 
   it('validate attaches the legacy db to compare against expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const run = vi.fn().mockReturnValue(undefined)

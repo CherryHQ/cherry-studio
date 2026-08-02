@@ -14,7 +14,7 @@ describe('DMXAPI chat boundary', () => {
         .doGenerate({
           prompt: PROMPT,
           providerOptions: { dmxapi: { reasoningEffort: 'high' } }
-        } as LanguageModelV3CallOptions)
+        })
     )
 
     expect(req.url).toBe('https://www.dmxapi.cn/v1/chat/completions')
@@ -28,7 +28,7 @@ describe('DMXAPI chat boundary', () => {
         .doGenerate({
           prompt: PROMPT,
           providerOptions: { openai: { reasoningEffort: 'high' } }
-        } as LanguageModelV3CallOptions)
+        })
     )
 
     expect(req.url).toBe('https://www.dmxapi.cn/v1/chat/completions')
@@ -39,7 +39,7 @@ describe('DMXAPI chat boundary', () => {
     const req = await captureWithFetch((fetch) =>
       createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
         .languageModel('gemini-2.5-pro')
-        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+        .doGenerate({ prompt: PROMPT })
     )
 
     expect(req.url).toMatch(/^https:\/\/www\.dmxapi\.cn\/v1beta\/models\/gemini-2\.5-pro/)
@@ -57,7 +57,7 @@ describe('DMXAPI chat boundary', () => {
         fetch
       })
         .languageModel('gemini-2.5-pro')
-        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+        .doGenerate({ prompt: PROMPT })
     )
 
     expect(req.url).toMatch(/^https:\/\/gemini\.dmx\.example\/custom\/v1beta\/models\/gemini-2\.5-pro/)

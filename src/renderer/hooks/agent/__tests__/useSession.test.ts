@@ -249,7 +249,7 @@ describe('useActiveSession', () => {
 
     const { result, rerender } = renderHook(
       ({ activeSessionId }) => useActiveSession({ activeSessionId, setActiveSessionId }),
-      { initialProps: { activeSessionId: 'temp-session-1' as string | null } }
+      { initialProps: { activeSessionId: 'temp-session-1' } }
     )
 
     act(() => result.current.setActiveSession(pendingSession))
@@ -292,7 +292,7 @@ describe('useSessions', () => {
       buildInfiniteReturn({
         pages: [{ items: [{ id: 'session-a', name: 'S' }] }],
         hasNext: false
-      }) as never
+      })
     )
 
     renderHook(() => useSessions(undefined, { loadAll: true, pageSize: 200 }))
@@ -329,13 +329,12 @@ describe('useSessions', () => {
     ]
     let hasNext = true
 
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        buildInfiniteReturn({
-          pages,
-          hasNext,
-          loadNext
-        }) as never
+    mockUseInfiniteQuery.mockImplementation(() =>
+      buildInfiniteReturn({
+        pages,
+        hasNext,
+        loadNext
+      })
     )
 
     const { rerender } = renderHook(() => useSessions('agent-1', { loadAll: true, pageSize: 1 }))
@@ -366,7 +365,7 @@ describe('useSessions', () => {
   })
 
   it('returns empty sessions when agentId is null', () => {
-    mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
+    mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn())
 
     const { result } = renderHook(() => useSessions(null))
 
@@ -375,7 +374,7 @@ describe('useSessions', () => {
   })
 
   it('disables both session and pin queries when the source is disabled', () => {
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn())
 
     renderHook(() => useSessions(undefined, { enabled: false }))
 
@@ -396,7 +395,7 @@ describe('useSessions', () => {
       { id: 's-1', name: 'Session 1' },
       { id: 's-2', name: 'Session 2' }
     ]
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ pages: [{ items }] }) as never)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ pages: [{ items }] }))
 
     const { result } = renderHook(() => useSessions('agent-1'))
     await act(async () => {})
@@ -409,7 +408,7 @@ describe('useSessions', () => {
     const page1 = [{ id: 's-1', name: 'Session 1' }]
     const page2 = [{ id: 's-2', name: 'Session 2' }]
     mockUseInfiniteQuery.mockReturnValue(
-      buildInfiniteReturn({ pages: [{ items: page1, nextCursor: 'c1' }, { items: page2 }] }) as never
+      buildInfiniteReturn({ pages: [{ items: page1, nextCursor: 'c1' }, { items: page2 }] })
     )
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -422,7 +421,7 @@ describe('useSessions', () => {
     const sessionA = createSession({ id: 'session-a', name: 'Session A' })
     const sessionB = createSession({ id: 'session-b', name: 'Session B' })
     let pages = [{ items: [sessionA, sessionB] }]
-    mockUseInfiniteQuery.mockImplementation(() => buildInfiniteReturn({ pages }) as never)
+    mockUseInfiniteQuery.mockImplementation(() => buildInfiniteReturn({ pages }))
 
     const { result, rerender } = renderHook(() => useSessions('agent-1'))
     const firstSessions = result.current.sessions
@@ -470,7 +469,7 @@ describe('useSessions', () => {
     }
     let pins: (typeof pin)[] = []
     const infiniteReturn = buildInfiniteReturn()
-    mockUseInfiniteQuery.mockReturnValue(infiniteReturn as never)
+    mockUseInfiniteQuery.mockReturnValue(infiniteReturn)
     mockUseQuery.mockImplementation((path: string) => ({
       data: path === '/pins' ? pins : undefined,
       isLoading: false,
@@ -509,7 +508,7 @@ describe('useSessions', () => {
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
         hasNext: true,
         loadNext
-      }) as never
+      })
     )
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -529,7 +528,7 @@ describe('useSessions', () => {
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
         hasNext: true,
         loadNext
-      }) as never
+      })
     )
 
     renderHook(() => useSessions('agent-1', { loadAll: true }))
@@ -543,7 +542,7 @@ describe('useSessions', () => {
       buildInfiniteReturn({
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
         hasNext: true
-      }) as never
+      })
     )
     MockUseDataApiUtils.mockQueryResult('/pins', {
       data: [],
@@ -565,7 +564,7 @@ describe('useSessions', () => {
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
         hasNext: true,
         loadNext
-      }) as never
+      })
     )
 
     renderHook(() => useSessions('agent-1'))
@@ -581,7 +580,7 @@ describe('useSessions', () => {
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }] }],
         hasNext: false,
         loadNext
-      }) as never
+      })
     )
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -598,7 +597,7 @@ describe('useSessions', () => {
       buildInfiniteReturn({
         pages: [{ items: [], nextCursor: 'c1' }],
         hasNext: true
-      }) as never
+      })
     )
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -613,7 +612,7 @@ describe('useSessions', () => {
       description: 'Notes'
     })
     const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }))
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -669,7 +668,7 @@ describe('useSessions', () => {
       description: 'Notes'
     })
     const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }))
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -687,7 +686,7 @@ describe('useSessions', () => {
   })
 
   it('shows an error toast and returns null when DataApi session creation fails', async () => {
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn())
     const createTrigger = vi.fn().mockRejectedValueOnce(new Error('create failed'))
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
@@ -709,7 +708,7 @@ describe('useLatestSession', () => {
 
   it('keeps first-entry restore gated while cached latest session is revalidating', () => {
     MockUseDataApiUtils.mockQueryResult('/agent-sessions/latest', {
-      data: { session: createSession({ id: 'session-latest' }) } as never,
+      data: { session: createSession({ id: 'session-latest' }) },
       isRefreshing: true
     })
 

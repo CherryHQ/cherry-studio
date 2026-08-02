@@ -101,7 +101,7 @@ const pyodidePromise = (async () => {
     self.postMessage({
       type: 'init-error',
       error: errorMessage
-    } as WorkerResponse)
+    })
 
     throw error
   }
@@ -132,14 +132,14 @@ function processResult(result: any): any {
 // 通知主线程已加载
 pyodidePromise
   .then(() => {
-    self.postMessage({ type: 'initialized' } as WorkerResponse)
+    self.postMessage({ type: 'initialized' })
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
     self.postMessage({
       type: 'init-error',
       error: errorMessage
-    } as WorkerResponse)
+    })
   })
 
 // 处理消息
@@ -209,9 +209,9 @@ self.onmessage = async (event) => {
       type: 'system-error',
       id,
       error: errorMessage
-    } as WorkerResponse)
+    })
   } finally {
     globals?.destroy()
-    self.postMessage({ id, output } as WorkerResponse)
+    self.postMessage({ id, output })
   }
 }

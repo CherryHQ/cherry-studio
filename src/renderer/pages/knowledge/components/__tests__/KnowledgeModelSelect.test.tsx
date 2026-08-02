@@ -49,16 +49,15 @@ vi.mock('lucide-react', () => ({
   ChevronDown: () => <span>chevron</span>
 }))
 
-const makeModel = (id: UniqueModelId, name: string): Model =>
-  ({
-    id,
-    providerId: id.split('::')[0],
-    name,
-    capabilities: [],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false
-  }) as Model
+const makeModel = (id: UniqueModelId, name: string): Model => ({
+  id,
+  providerId: id.split('::')[0],
+  name,
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+})
 
 describe('KnowledgeModelSelect', () => {
   beforeEach(() => {

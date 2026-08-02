@@ -48,7 +48,7 @@ describe('useMessageLeafCapabilities', () => {
 
   it('loads external apps for the message list regardless of inline path hints', () => {
     const partsByMessageId: Record<string, CherryMessagePart[]> = {
-      message: [{ type: 'text', text: 'plain response' } as CherryMessagePart]
+      message: [{ type: 'text', text: 'plain response' }]
     }
 
     renderHook(() => useMessageLeafCapabilities({ partsByMessageId }))

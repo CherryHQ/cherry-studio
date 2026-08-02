@@ -69,7 +69,7 @@ export function serializeError(error: unknown): SerializedError {
     if ('reason' in e) serialized.reason = e.reason as string
     if ('lastError' in e) serialized.lastError = toSerializable(e.lastError)
     if ('errors' in e) serialized.errors = (e.errors as unknown[]).map((err) => toSerializable(err))
-    if ('originalError' in e) serialized.originalError = serializeError(e.originalError) as Serializable
+    if ('originalError' in e) serialized.originalError = serializeError(e.originalError)
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
     if ('responses' in e) serialized.responses = e.responses as string[]
