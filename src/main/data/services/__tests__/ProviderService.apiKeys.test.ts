@@ -87,7 +87,7 @@ describe('ProviderService API keys', () => {
     expect(keys.filter((entry) => entry.key === 'sk-new')).toHaveLength(1)
   })
 
-  it('preserves all API keys added by concurrent calls', async () => {
+  it('preserves all API keys added by successive calls', async () => {
     await seedProvider()
 
     providerService.addApiKey('openai', 'sk-oauth-a', 'OAuth')
@@ -143,7 +143,7 @@ describe('ProviderService API keys', () => {
     })
   })
 
-  it('preserves independent fields changed by concurrent API key updates', async () => {
+  it('preserves independent fields changed by successive API key updates', async () => {
     await seedProvider()
 
     providerService.updateApiKey('openai', 'key-a', { label: 'Updated A' })
@@ -164,7 +164,7 @@ describe('ProviderService API keys', () => {
     expect(storedKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
   })
 
-  it('applies concurrent API key deletes without restoring removed entries', async () => {
+  it('applies successive API key deletes without restoring removed entries', async () => {
     await seedProvider()
 
     providerService.deleteApiKey('openai', 'key-a')

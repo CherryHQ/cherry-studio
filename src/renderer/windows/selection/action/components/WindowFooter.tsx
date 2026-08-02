@@ -16,7 +16,12 @@ interface FooterProps {
   onRegenerate?: () => void
 }
 
-const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause, onRegenerate }) => {
+const WindowFooter: FC<FooterProps> = ({
+  content = '',
+  loading = false,
+  onPause = undefined,
+  onRegenerate = undefined
+}) => {
   const { t } = useTranslation()
 
   const [isWindowFocus, setIsWindowFocus] = useState(true)
