@@ -1,9 +1,21 @@
 # 上下文构建/压缩运行时测试发现的问题
 
-> 更新日期:2026-08-02
+> 更新日期:2026-08-03(修复状态标注)
 > 测试方式:克隆档案 `CherryStudioCtxTest`(阈值 5000→100000、`context_window` 缩至 16000)+ cherry-electron-dev 实例,真实模型(aihubmix::claude-sonnet-4-6 / gemini::gemini-2.5-flash)驱动长程工具任务。
 > 范围:feat/context-build-truncation 分支 @ `7f0a0fbd34`(其中 #1、#5、#6 为 main 既有问题,与本分支无关)。
 > 已验证正常的部分见 `tool-result-db-trim.md` 文末「实施结论」;此文只记问题。
+
+## 修复状态总览(2026-08-03,全部在本分支落地)
+
+| 问题 | 状态 | 提交 |
+|---|---|---|
+| #1 tool_invoke schema 400 | ✅ 已修复(手写 `jsonSchema()` 绕过 SDK 的 additionalProperties 覆盖) | `2ec4f0c07f` |
+| #2 压缩折叠附件后 read_file 失联 | ✅ 已修复(权威附件清单随请求下发 + 摘要行附附件清单提示) | `81a7e1ee37` |
+| #3 read 类工具回声全量占库 | ✅ 已修复(read_file / fs_read persist 侧 text-field codec) | `793b77885f` |
+| #4 in-loop 压缩无记忆化 | ✅ 已修复(prepareStep 闭包内增量折叠缓存,零重复摘要化) | `8bfe78af9a` |
+| #5 AiTurnTrace 持久化崩溃 | ✅ 已修复(non-recording span 不再进 convert/sink;spanConvert 加防御) | `479d4a370a` |
+| #6 MCP 解析非确定性 | ✅ 已修复(解析前 warm 目录缓存 + 三层 mcpMode 缺省统一 `'manual'`) | `9c349245e8` |
+| #7 web 工具截断(根本修复) | ✅ 已落地 P1-P3(实体级 codec;P4 truncatable 布尔退役为后续项) | `f406425279` / `c10902e244` / `793b77885f` |
 
 ## #1 tool_invoke 的 inputExamples 与序列化 schema 不匹配 → Anthropic 端点上 defer 一触发整请求 400
 
@@ -17,6 +29,7 @@
   与 `params: z.record(z.string(), z.unknown()).optional()` 经 zod→JSON Schema 序列化后的结果不匹配(子 schema 落成 `false`),Anthropic API 新增的示例校验按 schema 拒绝该 example。
 - **影响面**:Anthropic 家族端点 + auto 池过线(默认 200k 窗口需 ≈20k tokens 的 MCP 工具描述,约几十个工具;小窗口模型更容易)。多 MCP 重度用户会真实命中,且表现为"开了很多 MCP 后 Claude 突然全部请求报错"。
 - **修复方向**(任一):对齐 example 与序列化后的 schema;去掉 `inputExamples`;anthropic provider 侧在发送前丢弃与 schema 不符的 examples。注意 `toolSearch.ts`/`toolInspect.ts` 的 examples 需一并核查。
+- **✅ 已修复(`2ec4f0c07f`)+ 根因精化**:实际根因不在 zod 序列化本身——zod v4 产出的 `additionalProperties: {}` 是对的,是 `@ai-sdk/provider-utils` 的 `addAdditionalPropertiesToJsonSchema` 对每个 object 节点**无条件覆盖 `additionalProperties: false`**,把 `params` 变成不接受任何属性的死对象(example 校验 400,模型正常传参同样违反)。修法:`toolInvoke.ts` 改用手写 `jsonSchema()`(`asSchema` 对已包装 schema 原样放行,跳过覆盖),`params` 显式 `additionalProperties: true`,运行时校验保留原 zod `safeParse`;`inputExamples` 保留(修后合法)。测试钉住 wire schema 的 `properties.params.additionalProperties === true`。`toolSearch`/`toolInspect` 核查过:examples 全为已声明属性,不中招。
 
 ## #2 durable 压缩折叠附件消息后,read_file 失联、细节不可恢复
 
@@ -28,6 +41,7 @@
 - **对比**:工具输出有 `<persisted-output>` marker + fs_read 幸存通道(信封渲染 + 历史 allow-list 注入,跨压缩仍可读回);**普通附件没有对应通道**。
 - **修复方向**:压缩 serve 视图时保留被折叠消息的 fileAttachments(allow-list 独立于 served parts 收集,如从原始路径行收集);或摘要中保留附件清单提示并保持 read_file 挂载。
 - **位置**:`PersistentChatContextProvider.resolveCompactedHistory`(折叠)× `buildAgentParams.collectFileAttachments`(从 request.messages 收集)。
+- **✅ 已修复(`81a7e1ee37`)**:两条修复方向都做了——`resolveCompactedHistory` 从 RAW 路径行收集权威 `fileAttachments` 清单,经 `AiStreamRequest.fileAttachments`(main 内部字段,不过 IPC)下发,`buildAgentParams` 优先取它(read_file 注册 + allow-list 与 served parts 解耦);同时 durable 摘要行附加附件清单提示(`[Files attached in this conversation remain readable in full via the read_file tool: …]`,纯存储字段渲染,字节稳定),恢复模型的调用信号。
 
 ## #3 read 类工具回声全量占库(v1 裁剪范围边界,两轮测试均出现)
 
@@ -38,6 +52,7 @@
   - 测试 2:20 个 read_file 结构化输出 169KB 全量入 `message.data`。
 - **本质**:v1 裁剪范围只收 string 与全文本 MCP 信封;read 工具(fs_read/read_file)的结构化输出即使巨大也全量入库。**模型越勤快读回,DB 省得越少**。
 - **修复方向**:扩展 `shape:'json'`(结构化输出序列化后裁剪+重建);或单独让 read 类工具输出参与 persist 裁剪——persist 层裁剪不会引发 in-flight 循环(fs_read 的 in-flight 豁免可保留)。
+- **✅ 已修复(`793b77885f`,经由 #7 codec P2/P3)**:read_file 挂 `makeTextFieldCodec({textKey:'text'})`(persist 专属——其 toModelOutput 是 text,in-flight 实体路径只认 json,永不触发),169KB 级页回声落库时 `text` 进 blob、分页字段留骨架;fs_read 保留 in-flight `truncatable:false`(防循环)+ 同款 codec 走 persist lane——默认配置下不触发(输出 cap == persist 阈值,裁剪门限为严格 `>`),阈值调低时才裁,重复读同页经 contentHash 收敛到同一 echo blob(注意:echo 带 cat -n 行号格式,不会命中源 blob)。
 
 ## #4 in-loop 压缩无记忆化的成本放大(代码已注明 accepted cost,此处量化实测)
 
@@ -45,6 +60,7 @@
 
 - **实测**:16k 窗口、20 步 read_file 循环中,主循环步输入被正确压至 9-11k tokens,但每个超限步全量重折叠旧轮次:摘要化调用输入 44k→50k→60k→66k 递增。整轮 20 请求共 446k input tokens($0.83,prompt cache 吸收 cacheRead 252k)。
 - **方向**:循环内 memoize 已折叠摘要(增量折叠),`inLoopCompaction.ts` 头注释已标 "no memoization in v1"。
+- **✅ 已修复(`8bfe78af9a`)**:prepareStep 闭包内缓存 `{consumedCount, compactedPrefix}`,超限步先构造 `[...compactedPrefix, ...messages.slice(consumedCount)]`——低于触发线直接复用(**零 LLM 调用**),仍超限才折叠增量并更新缓存(摘要折摘要,与 durable 语义一致)。摘要化调用输入从 O(全历史) 降到 O(增量),44k→66k 的递增消失。
 
 ## #5 turn 以 ToolLoopTerminalError 终止时 AiTurnTrace 持久化崩溃
 
@@ -52,6 +68,7 @@
 
 - **现象**:`WARN [AiTurnTrace] Failed to persist root span ai.turn TypeError: Cannot read properties of undefined (reading '0') at AiStreamManager.onExecutionError` —— 恰好在最需要 trace 的异常终止路径上丢了 trace。
 - **位置**:`AiStreamManager.onExecutionError` → AiTurnTrace 持久化。
+- **✅ 已修复(`479d4a370a`)+ 根因修正**:原记录"异常终止路径"是采样偏差——真实根因是 **developer mode 关闭时没有 TracerProvider**,`startSpan` 返回 NonRecordingSpan(无 `startTime`),end 补丁无条件 `convertSpanToSpanEntity` → `span.startTime[0]` 抛 TypeError。**每次 turn 结束都崩,与 outcome 无关**,只是 WARN 淹没在正常日志里、异常终止时才被注意到。修法双保险:`AiTurnTrace` end 补丁对无 `startTime` 的 span 直接 no-op 返回(不 convert 不写 sink);`spanConvert.ts` 补 startTime 防御(与既有 endTime 守卫同风格)。新增无 provider 用例:`handle.end()` 不 throw、sink 不被调。
 
 ## #6 mcpToolIds 空数组不回落到助手绑定(行为待确认,可能按设计)
 
@@ -59,6 +76,7 @@
 
 - **现象**:`resolveTools` 中 `request.mcpToolIds` 只有 **undefined** 才回落到 `resolveAssistantMcpToolIds(assistantId)`;渲染端 composer 传空数组时,助手在 DB 里绑定的 MCP 服务器完全不进请求。实测两个新话题行为不一致:重启后 renderer 首个新话题带上了助手绑定的服务器,同一 renderer 会话内再新建的话题则为空选。
 - **待确认**:新话题的 composer MCP 默认选中集是否应继承助手绑定;若是,渲染端初始化逻辑可能有状态残留问题。
+- **✅ 已修复(`9c349245e8`)+ 前提修正**:原记录的"渲染端传空数组"前提不成立——**聊天 IPC schema 根本没有 `mcpToolIds` 字段**,composer 的 MCP 选择器写的是助手级 `mcpServerIds`,聊天请求恒走 `resolveAssistantMcpToolIds` 回落。非确定性另有两源:① `McpCatalogService.listTools` cache-only——冷缓存返回 `[]` 只触发异步预热(空结果还有 5 分钟退避),重启后首个话题 vs 后续话题因此不一致;② 三层 mcpMode 缺省不一致(main `'manual'`/`'disabled'`、shared DEFAULT `'auto'`、renderer `'disabled'`)。修法:解析前对目标服务器 `await warmToolsCache(server.id)`(冷缓存不再静默空集);三层缺省统一为 shared `DEFAULT_MCP_MODE = 'manual'`。新增 resolveAssistantMcpTools 确定性测试。
 
 ---
 
@@ -77,6 +95,8 @@
 ### 结论 1:web 搜索结果没有持久化/截断通道(设计如此,记录为潜在跟进)
 
 `web_search`/`web_fetch` 均 `truncatable: false`(引用工具,citation 抽取需要原文)——搜索结果**双份全量**:出站 prompt 内联 + `message.data` 全量,唯一的瘦身通道是压缩层(折叠旧轮)。另有独立的 `chat.web_search.compression`(method/cutoff_limit,本档案为 none)在结果进入上下文前做源级压缩,与 context-build 无关。若给 citable 工具开 persist 通道,需先解决 citation 与 marker 的共存。
+
+> ✅ 2026-08-03 起已过时:#7 codec P1-P3 落地后,web_search/web_fetch/kb_search 均走实体级截断+持久化(citation 骨架落库,渲染端从 skeleton 解析),源级压缩默认也翻为 cutoff(新装)。
 
 ### 结论 2:durable 压缩对搜索轮生效,prompt -68%,写一次服务多次
 
@@ -124,6 +144,8 @@
 **行动排序**:① web_fetch 翻 flag(一行,立即止血)→ ② search 源级 cutoff 默认值 → ③ `shape:'json'` + citation-aware 信封(与 #3 合并)→ ④ per-tool reducer。
 
 **量级 sanity check**:200k 正常窗口下 search 需 ~100+ 轮才顶满(压缩层足够);fetch 一发长页即可 50k+——优先级由此而来。
+
+**✅ 已落地(升级为下节的 codec 方案,未走"裸翻 flag"路线)**:web_fetch 直接上实体 codec(P1,`f406425279`)而非布尔翻转;web_search/kb_search 同 codec(P3,`793b77885f`,默认阈值下近 no-op、纯保险网);源级 cutoff 翻 schema 默认 `'none'→'cutoff'`(经 classification 重新生成,仅新装生效,存量迁移写入的显式值不动)。citation 共存由 P2 的 skeleton 落库 + 渲染端 skeleton 解析解决。
 
 ---
 
@@ -174,11 +196,13 @@ trimToolOutput(toolName, output, budget)          // 唯一入口,查 registry c
 
 ### 落地阶段
 
-| 阶段 | 内容 | 消化的问题 |
-|---|---|---|
-| P1 | codec 接口 + web_fetch entities codec(仅 in-flight) | #7 最大洪水源止血 |
-| P2 | 多 blob 信封 + skeleton 落库 + inflate 读回/展开 | #7 persist 侧、citation 共存 |
-| P3 | web_search/kb_search codec + 源级 cutoff 默认值;fs_read/read_file 回声 codec | #3 全量消化 |
-| P4 | 删除布尔 `truncatable`(迁移为 codec/exempt 声明),truncator 的 `extractText` 与 `extractPersistableText` 合并进 codec | 双实现漂移风险清零 |
+| 阶段 | 内容 | 消化的问题 | 状态 |
+|---|---|---|---|
+| P1 | codec 接口 + web_fetch entities codec(仅 in-flight) | #7 最大洪水源止血 | ✅ `f406425279` |
+| P2 | 多 blob 信封 + skeleton 落库 + inflate 读回/展开 | #7 persist 侧、citation 共存 | ✅ `c10902e244`(顺带修了 topics GET 不投影导致的冷重载裸信封渲染 bug) |
+| P3 | web_search/kb_search codec + 源级 cutoff 默认值;fs_read/read_file 回声 codec | #3 全量消化 | ✅ `793b77885f` |
+| P4 | 删除布尔 `truncatable`(迁移为 codec/exempt 声明),truncator 的 `extractText` 与 `extractPersistableText` 合并进 codec | 双实现漂移风险清零 | ⬜ 后续项(本轮保留 truncatable 作 in-flight 豁免语义:codec 与 flag 并存时,in-flight preserve、persist 走 codec) |
+
+**落地与设计的偏差记录**:实现用 `deflate/assemble`(in-flight 重组)+ 通用 `spliceTextAtKey`/`inflateEntities`(persist 渲染/读回,靠 blob key 的 JSON-pointer-lite 自描述,不依赖 codec 存在)替代了设计稿的 `deflate/inflate` 对;信封 shape 只增 `'entities'` 一种(`json-text-field` 由单 blob 的 entities 信封覆盖,`key: '/text'`);fs_read 回声 blob 因 cat -n 行号格式**不会**命中源 blob 的 contentHash(设计稿的"零额外存储"不成立,重复读同页仍收敛到同一 echo blob)。跨 lane 字节契约由测试钉死:persist 渲染的 entities 输出与 in-flight truncator 输出 `JSON.stringify` 逐字节相等。
 
 **触点**:`src/main/ai/tools/adapters/aiSdk/types.ts`(ToolEntry 声明)、`packages/aiCore/src/core/context/truncator.ts`(改查 codec)、`src/shared/ai/transport/persistedToolOutput.ts`(信封扩展,守卫向后兼容)、`src/main/ai/streamManager/persistence/trimToolOutputs.ts` + `src/main/ai/messages/persistedOutputRendering.ts`(走统一原语)、`src/main/ai/tools/webLookup.ts` / `FsReadTool.ts`(codec 定义)、`src/renderer/utils/message/citations.ts`(skeleton 解析,预期零改动)。
