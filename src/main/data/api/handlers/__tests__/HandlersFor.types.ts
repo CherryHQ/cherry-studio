@@ -1,12 +1,12 @@
 /**
  * Type-safety regression test matrix for `HandlersFor<Schemas>`.
  *
- * This file has NO runtime tests. It exists solely to be typechecked by tsgo
+ * This file has NO runtime tests. It exists solely to be typechecked by tsc
  * (covered by tsconfig.node.json / `pnpm typecheck:node`). Vitest ignores it
  * because the filename does not contain `.test.` or `.spec.`.
  *
  * Every `@ts-expect-error` directive is a compile-time assertion: if the
- * expected error does not occur, tsgo produces "Unused '@ts-expect-error'
+ * expected error does not occur, tsc produces "Unused '@ts-expect-error'
  * directive" and typecheck fails. So running `pnpm typecheck:node` with
  * zero diagnostics in this file proves the entire matrix holds.
  *
