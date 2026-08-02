@@ -38,7 +38,7 @@
     "@ai-sdk/provider-utils": "^4.0.40"
   },
   "devDependencies": {
-    "tsdown": "^0.20.3",
+    "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^3.2.7"
   },
