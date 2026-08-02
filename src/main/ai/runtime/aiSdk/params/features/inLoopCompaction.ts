@@ -130,14 +130,38 @@ export const inLoopCompactionFeature: RequestFeature = {
     const contextWindow = scope.model.contextWindow as number
     const trigger = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)
     const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    // Per-request incremental-fold cache. The loop rebuilds `messages` each
+    // step as [...initialMessages, ...responseMessages] — append-only, with
+    // settled entries never changing — so "the first N messages" is a stable
+    // identity. After a fold we remember how many original messages it
+    // consumed and what they compacted to; the next over-budget step folds
+    // [compactedPrefix, ...newMessages] instead of the whole history (summary
+    // folds summary, same semantics as the durable path folding its prior
+    // marker). Without this every over-budget step re-summarized the entire
+    // history from scratch — measured 44k→66k tokens per summarizer call over
+    // a 20-step run (runtime-test finding #4).
+    let foldCache: { consumedCount: number; compactedPrefix: ModelMessage[] } | null = null
     return {
       prepareStep: async ({ messages, steps }) => {
+        const candidate = foldCache
+          ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
+          : messages
         // Compact only when strictly over the trigger (`<=` is a no-op), matching the
         // turn-start comparison so the two paths never disagree at estimate === trigger.
-        if (estimatePromptTokens(messages, steps) <= trigger) return undefined
-        const keepRecentTurns = computeKeepRecentTurns(messages, keepBudget)
-        const compacted = await compactModelMessages(messages, model, { keepRecentTurns })
-        return compacted === messages ? undefined : { messages: compacted }
+        // Once a fold is active the usage anchor covers the ORIGINAL prompt and would
+        // overstate the compacted candidate, so estimate the candidate directly then.
+        const estimate = foldCache ? estimateModelMessages(candidate) : estimatePromptTokens(messages, steps)
+        if (estimate <= trigger) {
+          // A previously folded view that still fits is served as-is — zero LLM calls.
+          return foldCache ? { messages: candidate } : undefined
+        }
+        const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget)
+        const compacted = await compactModelMessages(candidate, model, { keepRecentTurns })
+        if (compacted === candidate) {
+          return foldCache ? { messages: candidate } : undefined
+        }
+        foldCache = { consumedCount: messages.length, compactedPrefix: compacted }
+        return { messages: compacted }
       }
     }
   }

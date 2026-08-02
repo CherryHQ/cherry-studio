@@ -158,6 +158,50 @@ describe('inLoopCompactionFeature', () => {
     expect(result).toBeUndefined()
   })
 
+  it('memoizes the fold: a later over-budget step folds only the increment, never the consumed originals', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+
+    // Step 1: over budget → full fold.
+    const original = [userMessage(90_000)]
+    const firstFold = [userMessage(10)] // tiny summary view
+    compactModelMessages.mockResolvedValueOnce(firstFold)
+    await prepareStep({ messages: original } as any)
+
+    // Step 2: loop re-appends history + a huge new tool result → over budget again.
+    const grown = [...original, assistantMessage(5), toolMessage(85_000)]
+    const secondFold = [userMessage(12)]
+    compactModelMessages.mockResolvedValueOnce(secondFold)
+    const result = await prepareStep({ messages: grown } as any)
+
+    // The second summarizer input is [foldedPrefix, ...NEW messages] — the
+    // 90k original is represented by its 10-token fold, not re-summarized
+    // (finding #4: summarizer input grew 44k→66k per step without this).
+    expect(compactModelMessages).toHaveBeenCalledTimes(2)
+    const secondInput = compactModelMessages.mock.calls[1][0] as ModelMessage[]
+    expect(secondInput[0]).toBe(firstFold[0])
+    expect(secondInput).not.toContain(original[0])
+    expect(secondInput).toHaveLength(1 + 2) // folded prefix + the 2 new messages
+    expect(result).toEqual({ messages: secondFold })
+  })
+
+  it('serves a still-fitting folded view with zero LLM calls', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+
+    const original = [userMessage(90_000)]
+    const fold = [userMessage(10)]
+    compactModelMessages.mockResolvedValueOnce(fold)
+    await prepareStep({ messages: original } as any)
+
+    // Next step adds only a small delta: folded view is far under trigger.
+    const grown = [...original, assistantMessage(5), toolMessage(5)]
+    const result = await prepareStep({ messages: grown } as any)
+
+    expect(compactModelMessages).toHaveBeenCalledTimes(1) // no second summarize
+    expect(result).toEqual({ messages: [...fold, ...grown.slice(1)] })
+  })
+
   it('passes at least one recent turn to keep when over budget', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockResolvedValue([userMessage(10)])
