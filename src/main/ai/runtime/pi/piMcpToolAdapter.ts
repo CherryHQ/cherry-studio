@@ -96,7 +96,7 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiM
     name: buildPiMcpToolName(serverName, tool.name),
     label: tool.name,
     description: tool.description ?? '',
-    parameters: tool.inputSchema as ToolDefinition['parameters'],
+    parameters: tool.inputSchema,
     ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
     async execute(_toolCallId, params, signal) {
       const result = (await client.callTool(

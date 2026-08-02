@@ -222,7 +222,7 @@ function geminiSchemaToJsonSchema(schema: unknown): JsonSchemaLike {
       result[key] = value
     }
   }
-  return result as JsonSchemaLike
+  return result
 }
 
 /**

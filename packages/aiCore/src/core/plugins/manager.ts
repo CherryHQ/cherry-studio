@@ -97,7 +97,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
         // SAFETY: transformResult 的契约保证返回 TResult
         // 由于插件接口定义，这个类型断言是安全的
         const transformed = await plugin.transformResult(result, context)
-        result = transformed as TResult
+        result = transformed
       }
     }
 

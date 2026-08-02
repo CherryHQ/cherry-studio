@@ -869,11 +869,7 @@ class ProviderRegistryService {
 
     for (const field of new Set(fields)) {
       if (field === 'endpointConfigs') {
-        result.endpointConfigs = presetProvider
-          ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-              Record<EndpointType, EndpointConfig>
-            > | null)
-          : null
+        result.endpointConfigs = presetProvider ? buildPersistedEndpointConfigs(presetProvider.endpointConfigs) : null
       } else if (field === 'models') {
         result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
       }

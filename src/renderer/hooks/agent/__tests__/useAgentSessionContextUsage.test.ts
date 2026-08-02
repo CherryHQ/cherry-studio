@@ -36,7 +36,7 @@ beforeEach(() => {
     maxTokens: 250_000,
     percentage: 80,
     model: 'small-model'
-  } as unknown as AgentSessionContextUsage)
+  })
 })
 
 afterEach(() => {
@@ -76,7 +76,7 @@ describe('useAgentSessionContextUsage', () => {
       maxTokens: 200_000,
       percentage: 50,
       model: 'claude-sonnet-4-6'
-    } as unknown as AgentSessionContextUsage)
+    })
 
     const { result } = renderHook(() =>
       useAgentSessionContextUsage(SESSION_ID, model('claude-code::claude-sonnet-4-6', 1_000_000))

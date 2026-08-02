@@ -269,7 +269,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               }
 
               if ('target' in event && event.target && 'files' in event.target) {
-                const target = event.target as HTMLInputElement
+                const target = event.target
                 return target.files ? Array.from(target.files) : []
               }
 

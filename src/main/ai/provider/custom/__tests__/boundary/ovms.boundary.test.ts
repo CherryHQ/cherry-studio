@@ -39,7 +39,7 @@ describe('OVMS request boundary', () => {
       // OVMS is in-SDK: the WireProfile diffusion profile delivers the snake_case
       // wire body, so the bag carries `num_inference_steps` (not the camelCase twin).
       providerParams: { num_inference_steps: 8 }
-    } as ImageGenerationSubmitInput)
+    })
 
     expect(req.url).toBe('http://localhost:8000/images/generations')
     bodySchema.parse(req.body)

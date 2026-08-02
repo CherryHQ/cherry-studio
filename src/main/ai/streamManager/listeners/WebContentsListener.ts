@@ -202,7 +202,7 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
     return chunk as CoalescableChunk
   }
   if (chunk.type === 'tool-input-delta') {
-    return chunk as CoalescableChunk
+    return chunk
   }
   return null
 }
@@ -235,7 +235,7 @@ function normalizePending(
 
 function rebuildChunk(p: PendingDelta): UIMessageChunk {
   if (p.type === 'tool-input-delta') {
-    return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text } as UIMessageChunk
+    return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text }
   }
-  return { type: p.type, id: p.identifier, delta: p.text } as UIMessageChunk
+  return { type: p.type, id: p.identifier, delta: p.text }
 }

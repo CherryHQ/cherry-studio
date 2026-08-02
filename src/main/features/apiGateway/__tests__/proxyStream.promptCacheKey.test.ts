@@ -98,7 +98,7 @@ beforeEach(() => {
 async function resolveRequest(): Promise<Record<string, Record<string, unknown>> | undefined> {
   captured.opts = undefined
   const promise = processMessage({
-    params: { model: `${PROVIDER_ID}:${MODEL_ID}`, messages: [] } as any,
+    params: { model: `${PROVIDER_ID}:${MODEL_ID}`, messages: [] },
     inputFormat: 'openai',
     outputFormat: 'openai',
     requestHeaders: new Headers()

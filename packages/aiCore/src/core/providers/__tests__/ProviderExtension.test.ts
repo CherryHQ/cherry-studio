@@ -358,7 +358,7 @@ describe('ProviderExtension', () => {
       })
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
-        create: createFn as any,
+        create: createFn,
         defaultOptions: { apiKey: 'default-key' },
         createRerankingModel: fallbackFactory
       })
@@ -378,11 +378,11 @@ describe('ProviderExtension', () => {
       const nativeFactory = vi.fn(() => nativeModel)
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
-        create: (() =>
+        create: () =>
           createMockProviderV3({
             provider: 'test-provider',
             rerankingModel: nativeFactory
-          })) as any,
+          }),
         createRerankingModel: fallbackFactory
       })
 
@@ -658,7 +658,7 @@ describe('ProviderExtension', () => {
 
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
-        create: createFn as any
+        create: createFn
       })
 
       const settings = { apiKey: 'test-key' }

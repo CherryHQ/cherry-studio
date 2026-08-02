@@ -1612,7 +1612,7 @@ describe('KnowledgeService', () => {
       pollRound: 1,
       firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
       parentJobId: 'check-job-0',
-      processedRelativePath: 'source.md' as PosixRelativeFilePath
+      processedRelativePath: 'source.md'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(

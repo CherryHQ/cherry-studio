@@ -220,10 +220,10 @@ describe('AssistantMappings', () => {
         id: 'ast-15',
         // Cast the whole bag once: OldAssistantSettings types fields strictly
         // for documentation, but real legacy data in the wild is unconstrained.
-        settings: { maxTokens: 0, enableMaxTokens: false, temperature: 0.5 } as never,
+        settings: { maxTokens: 0, enableMaxTokens: false, temperature: 0.5 },
         // Bogus mcpMode left over from confused v1 callers (real v2 enum is
         // 'disabled' | 'auto' | 'manual').
-        mcpMode: 'prompt' as never
+        mcpMode: 'prompt'
       })
       expect(result.assistant.settings).toStrictEqual({
         ...DEFAULT_ASSISTANT_SETTINGS,
@@ -241,7 +241,7 @@ describe('AssistantMappings', () => {
     // GLOBAL limit to 6, so an assistant the user had explicitly set to v1's
     // "unlimited" must not come back inheriting 6.
     it('keeps a v1 unlimited assistant unlimited under a limited migrated global', () => {
-      const migrated = transformAssistant({ id: 'ast-19', settings: { contextCount: 100 } as never })
+      const migrated = transformAssistant({ id: 'ast-19', settings: { contextCount: 100 } })
 
       const effective = resolveContextSettings({
         globals: { ...DEFAULT_CONTEXT_SETTINGS, maxMessages: 6 },
@@ -267,9 +267,9 @@ describe('AssistantMappings', () => {
       // assistant migrates into a finite global that would then re-limit it.
       expect(maxMessagesOf(100)).toBeNull()
       // Garbage stays out.
-      expect(
-        transformAssistant({ id: 'ast-18', settings: { contextCount: 2.5 } as never }).assistant.settings
-      ).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
+      expect(transformAssistant({ id: 'ast-18', settings: { contextCount: 2.5 } }).assistant.settings).toStrictEqual(
+        DEFAULT_ASSISTANT_SETTINGS
+      )
     })
   })
 })

@@ -279,11 +279,11 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     name: dto.name ?? dto.modelId,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? []) as ModelCapability[],
-    inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
+    capabilities: dto.capabilities ?? [],
+    inputModalities: dto.inputModalities ?? null,
     inputModalitiesExplicit: dto.inputModalities !== undefined,
-    outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
-    endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    outputModalities: dto.outputModalities ?? null,
+    endpointTypes: dto.endpointTypes ?? null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
@@ -344,11 +344,11 @@ function presetDeltaToNewUserModel(
     name: fields.has('name') ? (dto.name ?? null) : null,
     description: fields.has('description') ? (dto.description ?? null) : null,
     group: fields.has('group') ? (dto.group ?? null) : null,
-    capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
-    inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
+    capabilities: fields.has('capabilities') ? (dto.capabilities ?? null) : null,
+    inputModalities: fields.has('inputModalities') ? (dto.inputModalities ?? null) : null,
     inputModalitiesExplicit: fields.has('inputModalities'),
-    outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
-    endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
+    outputModalities: fields.has('outputModalities') ? (dto.outputModalities ?? null) : null,
+    endpointTypes: fields.has('endpointTypes') ? (dto.endpointTypes ?? null) : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
@@ -651,7 +651,7 @@ class ModelService {
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {
-      const cap = query.capability as ModelCapability
+      const cap = query.capability
       models = models.filter((m) => m.capabilities.includes(cap))
     }
 
@@ -1086,7 +1086,7 @@ class ModelService {
             .from(userModelTable)
             .where(eq(userModelTable.providerId, providerId))
             .orderBy(asc(userModelTable.orderKey))
-            .all() as UserModelRow[]
+            .all()
         }),
       createModelsSqliteHandlers(values)
     )

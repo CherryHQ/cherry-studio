@@ -53,7 +53,7 @@ describe('withTransportStream', () => {
     const model = { id: 'grok-cli/grok-build', api: 'openai-responses' }
     const context = { messages: [] }
     const piOnPayload = vi.fn().mockResolvedValue({ pi: 'touched' })
-    config.streamSimple!(model as never, context as never, {
+    config.streamSimple!(model as never, context, {
       apiKey: 'placeholder',
       headers: { authorization: 'Bearer placeholder', 'x-pi': 'keep' },
       onPayload: piOnPayload as never
@@ -82,7 +82,7 @@ describe('withTransportStream', () => {
     const { fns, apiStreamSimple } = makeFns()
     const config = withTransportStream(BASE_CONFIG, adapter, fns)
 
-    config.streamSimple!({ id: 'm', api: 'openai-responses' } as never, { messages: [] } as never, {})
+    config.streamSimple!({ id: 'm', api: 'openai-responses' } as never, { messages: [] }, {})
     await vi.waitFor(() => expect(apiStreamSimple).toHaveBeenCalled())
 
     const [, , options] = apiStreamSimple.mock.calls[0]

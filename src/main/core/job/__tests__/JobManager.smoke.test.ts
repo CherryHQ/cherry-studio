@@ -171,8 +171,8 @@ describe('JobManager smoke (dummy.echo)', () => {
 
     await scheduler._doInit()
     await jobManager._doInit()
-    jobManager.registerHandler('dummy.echo' as never, makeEchoHandler() as JobHandler)
-    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler() as JobHandler)
+    jobManager.registerHandler('dummy.echo' as never, makeEchoHandler())
+    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler())
 
     // `onAllReady` now schedules startup recovery via a setTimeout and returns
     // synchronously (the framework runs `_doAllReady` fire-and-forget). Skip
@@ -296,13 +296,9 @@ describe('JobManager smoke (dummy.echo)', () => {
   }, 10_000)
 
   it('reports cancelled for a not-in-flight delayed job', async () => {
-    const handle = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'later' } as never,
-      {
-        scheduledAt: Date.now() + 60_000
-      } as never
-    )
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'later' } as never, {
+      scheduledAt: Date.now() + 60_000
+    })
     expect(handle.snapshot.status).toBe('delayed')
 
     const result = await jobManager.cancel(handle.id)
@@ -324,17 +320,13 @@ describe('JobManager smoke (dummy.echo)', () => {
 
   it('reuses an existing handle when idempotencyKey matches a non-terminal job', async () => {
     const key = `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const first = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'unique', sleepMs: 500 } as never,
-      { idempotencyKey: key } as never
-    )
+    const first = jobManager.enqueue('dummy.echo' as never, { message: 'unique', sleepMs: 500 } as never, {
+      idempotencyKey: key
+    })
     await drainTrailingDispatch()
-    const second = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'unique', sleepMs: 500 } as never,
-      { idempotencyKey: key } as never
-    )
+    const second = jobManager.enqueue('dummy.echo' as never, { message: 'unique', sleepMs: 500 } as never, {
+      idempotencyKey: key
+    })
 
     expect(second.id).toBe(first.id)
 
@@ -398,7 +390,7 @@ describe('JobManager smoke (dummy.echo)', () => {
         return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
       }
     }
-    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler as JobHandler)
+    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler)
 
     const handle = jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
     await drainTrailingDispatch()

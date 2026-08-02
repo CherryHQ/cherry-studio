@@ -130,7 +130,7 @@ export class JsonFileStorage implements IOAuthStorage {
       this.cache = null
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-        logger.error('Error clearing OAuth storage:', error as Error)
+        logger.error('Error clearing OAuth storage:', error)
         throw new Error(`Failed to clear OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
       }
     }

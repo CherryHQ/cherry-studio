@@ -80,7 +80,7 @@ function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSe
     attempt: 0,
     metadata: {},
     ...overrides
-  } as JobSettledEvent<AgentTaskInput>
+  }
 }
 
 describe('AgentTaskJobHandler', () => {

@@ -64,7 +64,7 @@ const {
       }
     ]
   },
-  mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
+  mcpStatusState: { current: {} },
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {

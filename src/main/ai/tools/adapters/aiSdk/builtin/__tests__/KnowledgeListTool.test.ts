@@ -182,7 +182,7 @@ function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}):
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal
       }
-    } as ToolExecutionOptions
+    }
   )
 }
 

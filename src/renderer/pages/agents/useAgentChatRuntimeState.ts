@@ -61,7 +61,7 @@ function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): inp
   return (
     input.approved === true &&
     !!input.updatedInput &&
-    isAskUserQuestionToolName(getToolNameFromPart(input.match.part as AskUserQuestionApprovalPart)) &&
+    isAskUserQuestionToolName(getToolNameFromPart(input.match.part)) &&
     !!parseAskUserQuestionToolInput(input.updatedInput)?.answers
   )
 }

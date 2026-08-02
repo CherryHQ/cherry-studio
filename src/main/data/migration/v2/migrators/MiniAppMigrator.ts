@@ -231,9 +231,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
       // Stamp orderKey in the same visible/hidden scopes used by runtime writes.
       const rowsWithoutOrder: MiniAppRowWithoutOrderKey[] = [...seenIds.values()]
-      this.preparedRows = assignOrderKeysByScope(rowsWithoutOrder, (row) =>
-        orderKeyScopeForStatus(row.status)
-      ) as InsertMiniAppRow[]
+      this.preparedRows = assignOrderKeysByScope(rowsWithoutOrder, (row) => orderKeyScopeForStatus(row.status))
 
       const byStatus = {
         enabled: this.preparedRows.filter((r) => r.status === 'enabled').length,

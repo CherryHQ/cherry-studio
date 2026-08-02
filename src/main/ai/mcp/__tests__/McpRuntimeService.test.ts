@@ -317,13 +317,13 @@ describe('McpRuntimeService QVeris hosted transport', () => {
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'first-key' },
       isActive: true
-    } as McpServer)
+    })
     const second = service.getServerKey({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'second-key' },
       isActive: true
-    } as McpServer)
+    })
 
     expect(first).not.toContain('first-key')
     expect(second).not.toContain('second-key')
@@ -976,7 +976,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —
@@ -1019,7 +1019,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       type,
       baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
       isActive: true
-    } as unknown as McpServer
+    }
   }
 
   type MockClient = InstanceType<typeof mcpSdkMock.Client>
@@ -1273,7 +1273,7 @@ describe('McpRuntimeService prompt/resource capability gate', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
@@ -1319,7 +1319,7 @@ describe('McpRuntimeService list pagination', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('follows the resources cursor so the model sees every page, not just the first', async () => {

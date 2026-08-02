@@ -53,7 +53,7 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
     toolCallId: 't1',
     messages: [],
     experimental_context: { requestId: 'r1', abortSignal }
-  } as ToolExecutionOptions
+  }
 }
 
 function callExecute(

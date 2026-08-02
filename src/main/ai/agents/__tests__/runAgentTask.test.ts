@@ -157,7 +157,7 @@ function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
     type: 'claude-code',
     name: 'Agent A',
     model: 'sonnet' as never,
-    configuration: config as never,
+    configuration: config,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z',
     orderKey: 'k',
@@ -230,7 +230,7 @@ describe('runAgentTask', () => {
   it('throws when the agent cannot be found', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(null as never)
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(null)
 
     await expect(runAgentTask(makeCtx())).rejects.toThrow('Agent not found: a1')
   })
@@ -765,7 +765,7 @@ describe('runAgentTask', () => {
     // Simulate the stream manager dispatching the error to every listener (sentinel + channel).
     const errorResult = { error: new Error('boom'), status: 'error' }
     for (const listener of captured.listeners) {
-      listener.onError?.(errorResult as never)
+      listener.onError?.(errorResult)
     }
 
     await expect(promise).rejects.toThrow('boom')
@@ -822,7 +822,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
     const controller = new AbortController()
     mockStartRun.mockImplementationOnce(async (opts) => {
-      opts.listeners[0].onDone({ status: 'completed' } as never)
+      opts.listeners[0].onDone({ status: 'completed' })
       // This models the runtime terminal listener scheduling a successor immediately after the
       // task listener. A late timeout/cancel must no longer abort the topic.
       controller.abort(new Error('late timeout'))

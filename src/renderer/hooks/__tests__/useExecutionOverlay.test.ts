@@ -135,8 +135,7 @@ const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecu
   attemptId: 1,
   anchorMessageId
 })
-const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
-  ({ id, role: 'assistant', parts }) as CherryUIMessage
+const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage => ({ id, role: 'assistant', parts })
 
 function streamText(
   executionId: string,
@@ -145,12 +144,12 @@ function streamText(
   opts?: { startId?: string; anchorMessageId?: string }
 ) {
   if (opts?.startId) {
-    fake.emit(executionId, { type: 'start', messageId: opts.startId } as CherryUIMessageChunk, opts.anchorMessageId)
+    fake.emit(executionId, { type: 'start', messageId: opts.startId }, opts.anchorMessageId)
   }
-  fake.emit(executionId, { type: 'text-start', id: textId } as CherryUIMessageChunk, opts?.anchorMessageId)
-  fake.emit(executionId, { type: 'text-delta', id: textId, delta: text } as CherryUIMessageChunk, opts?.anchorMessageId)
-  fake.emit(executionId, { type: 'text-end', id: textId } as CherryUIMessageChunk, opts?.anchorMessageId)
-  fake.emit(executionId, { type: 'finish' } as CherryUIMessageChunk, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'text-start', id: textId }, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'text-delta', id: textId, delta: text }, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'text-end', id: textId }, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'finish' }, opts?.anchorMessageId)
 }
 
 function textOf(parts: CherryUIMessage['parts'] | undefined): string {
@@ -295,9 +294,9 @@ describe('useExecutionOverlay', () => {
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
 
-    fake.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk)
-    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'settled text' } as CherryUIMessageChunk)
-    fake.emit(A, { type: 'text-end', id: 't1' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-start', id: 't1' })
+    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'settled text' })
+    fake.emit(A, { type: 'text-end', id: 't1' })
     await waitFor(() => expect(result.current.overlay['anchor-a']?.[0]).toMatchObject({ state: 'done' }))
     const settledText = result.current.overlay['anchor-a'][0]
 
@@ -306,7 +305,7 @@ describe('useExecutionOverlay', () => {
       toolCallId: 'tool-1',
       toolName: 'search',
       dynamic: true
-    } as CherryUIMessageChunk)
+    })
     await waitFor(() => expect(result.current.overlay['anchor-a']).toHaveLength(2))
     expect(result.current.overlay['anchor-a'][0]).toBe(settledText)
 
@@ -315,7 +314,7 @@ describe('useExecutionOverlay', () => {
       toolCallId: 'tool-1',
       output: { phase: 'preliminary' },
       preliminary: true
-    } as CherryUIMessageChunk)
+    })
     await waitFor(() =>
       expect(result.current.overlay['anchor-a'][1]).toMatchObject({ output: { phase: 'preliminary' } })
     )
@@ -325,12 +324,12 @@ describe('useExecutionOverlay', () => {
       type: 'tool-output-available',
       toolCallId: 'tool-1',
       output: { phase: 'final' }
-    } as CherryUIMessageChunk)
+    })
     await waitFor(() => expect(result.current.overlay['anchor-a'][1]).toMatchObject({ output: { phase: 'final' } }))
     const settledTool = result.current.overlay['anchor-a'][1]
     expect(settledTool).not.toBe(preliminaryTool)
 
-    fake.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-start', id: 't2' })
     await waitFor(() => expect(result.current.overlay['anchor-a']).toHaveLength(3))
     expect(result.current.overlay['anchor-a'][0]).toBe(settledText)
     expect(result.current.overlay['anchor-a'][1]).toBe(settledTool)
@@ -346,12 +345,12 @@ describe('useExecutionOverlay', () => {
     })
 
     await act(async () => {
-      fake.emit(A, { type: 'text-start', id: 'ta' } as CherryUIMessageChunk)
-      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'a' } as CherryUIMessageChunk)
-      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'b' } as CherryUIMessageChunk)
-      fake.emit(B, { type: 'text-start', id: 'tb' } as CherryUIMessageChunk)
-      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'x' } as CherryUIMessageChunk)
-      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'y' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-start', id: 'ta' })
+      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'a' })
+      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'b' })
+      fake.emit(B, { type: 'text-start', id: 'tb' })
+      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'x' })
+      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'y' })
       await drainStreamMicrotasks()
     })
 
@@ -373,9 +372,9 @@ describe('useExecutionOverlay', () => {
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { onFinish }))
 
     await act(async () => {
-      fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
-      fake.emit(A, { type: 'text-delta', id: 't', delta: 'final' } as CherryUIMessageChunk)
-      fake.emit(A, { type: 'text-end', id: 't' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-start', id: 't' })
+      fake.emit(A, { type: 'text-delta', id: 't', delta: 'final' })
+      fake.emit(A, { type: 'text-end', id: 't' })
       fake.terminal(A, { isAbort: false, isError: false })
       await drainStreamMicrotasks()
     })
@@ -392,15 +391,15 @@ describe('useExecutionOverlay', () => {
     const ui = [asst('anchor-a')]
     const executions = [exec(A, 'anchor-a')]
     const first = renderHook(() => useExecutionOverlay(TOPIC, executions, ui))
-    fake.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk)
-    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'before' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-start', id: 't1' })
+    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'before' })
     await waitFor(() => expect(textOf(first.result.current.overlay['anchor-a'])).toBe('before'))
 
     first.unmount()
 
     // Stream continues while no consumer is mounted.
     await act(async () => {
-      fake.emit(A, { type: 'text-delta', id: 't1', delta: ' after' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 't1', delta: ' after' })
       await drainStreamMicrotasks()
     })
 
@@ -416,8 +415,8 @@ describe('useExecutionOverlay', () => {
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
 
     await act(async () => {
-      fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
-      fake.emit(A, { type: 'text-delta', id: 't', delta: 'stale' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-start', id: 't' })
+      fake.emit(A, { type: 'text-delta', id: 't', delta: 'stale' })
       await drainStreamMicrotasks()
     })
     const staleFlush = frames.callbacks.values().next().value as () => void
@@ -437,7 +436,7 @@ describe('useExecutionOverlay', () => {
     fake.emit(A, {
       type: 'message-metadata',
       messageMetadata: { totalTokens: 321 }
-    } as CherryUIMessageChunk)
+    })
 
     await waitFor(() => {
       expect(result.current.liveAssistants.at(-1)?.metadata?.totalTokens).toBe(321)
@@ -449,9 +448,9 @@ describe('useExecutionOverlay', () => {
     const ui = [asst('anchor-a')]
     renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { onFinish }))
 
-    fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
-    fake.emit(A, { type: 'text-delta', id: 't', delta: 'x' } as CherryUIMessageChunk)
-    fake.emit(A, { type: 'text-end', id: 't' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-start', id: 't' })
+    fake.emit(A, { type: 'text-delta', id: 't', delta: 'x' })
+    fake.emit(A, { type: 'text-end', id: 't' })
     fake.terminal(A, { isAbort: true, isError: false })
 
     await waitFor(() => expect(onFinish).toHaveBeenCalled())

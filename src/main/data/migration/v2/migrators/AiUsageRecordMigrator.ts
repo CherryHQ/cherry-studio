@@ -131,7 +131,7 @@ function resolveLegacyCost(stats: MessageStats): LegacyAggregateInput['cost'] {
   if (!cost) return undefined
   return {
     amount: cost.amount,
-    currency: cost.currency as Currency,
+    currency: cost.currency,
     source: cost.providerReportedRequestCount > 0 ? 'provider' : 'computed'
   }
 }

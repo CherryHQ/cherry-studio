@@ -91,11 +91,10 @@ const translations: Record<string, string> = {
 
 const t = ((key: string, fallback?: string) => translations[key] ?? fallback ?? key) as any
 
-const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer =>
-  ({
-    type: 'stdio',
-    ...overrides
-  }) as McpServer
+const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer => ({
+  type: 'stdio',
+  ...overrides
+})
 
 const status = (state: McpRuntimeStatus['state']): McpRuntimeStatus => ({
   state,
@@ -422,9 +421,7 @@ describe('mcpStatusTool', () => {
 
   it('shows saving state and ignores rapid repeated binding toggles', async () => {
     let resolveUpdate: (value: unknown) => void = () => undefined
-    mocks.updateAssistant.mockImplementationOnce(
-      () => new Promise((resolve) => (resolveUpdate = resolve as (value: unknown) => void))
-    )
+    mocks.updateAssistant.mockImplementationOnce(() => new Promise((resolve) => (resolveUpdate = resolve)))
     mocks.mcpServers = [server({ id: 'filesystem', name: 'filesystem', isActive: true })]
     const assistant = {
       id: 'assistant-1',

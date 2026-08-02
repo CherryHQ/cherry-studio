@@ -641,8 +641,8 @@ describe('PiRuntimeConnection', () => {
     expect(providerSpan.end).toHaveBeenCalledOnce()
 
     const cb = mocks.subscribeCb!
-    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} } as AgentSessionEvent)
-    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} } as AgentSessionEvent)
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} })
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} })
     cb({ type: 'tool_execution_end', toolCallId: 'tool-b', toolName: 'bash', result: {}, isError: true })
     cb({ type: 'tool_execution_end', toolCallId: 'tool-a', toolName: 'read', result: {}, isError: false })
 
@@ -676,7 +676,7 @@ describe('PiRuntimeConnection', () => {
       toolCallId: 'tool-open',
       toolName: 'bash',
       args: {}
-    } as AgentSessionEvent)
+    })
 
     await connection.close()
 

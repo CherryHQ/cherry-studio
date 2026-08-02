@@ -902,7 +902,7 @@ export class JobManager extends BaseService {
       })
     }
 
-    const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
+    const queueName = opts.queue ?? handler.defaultQueue?.(input) ?? type
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'

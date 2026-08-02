@@ -46,7 +46,7 @@ export function buildCartesianChart(
     categoryBoundaryGap: props.type === 'bar',
     horizontal: props.horizontal ?? false,
     option: props.option,
-    series: series as NonNullable<EChartsCoreOption['series']>,
+    series: series,
     theme,
     visibleCategoryCount: props.visibleCategoryCount
   })

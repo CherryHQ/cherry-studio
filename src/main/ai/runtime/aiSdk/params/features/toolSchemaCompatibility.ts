@@ -91,7 +91,7 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
     if (next !== value) changed = true
     result[key] = next
   }
-  return changed ? (result as JSONSchema7) : schema
+  return changed ? result : schema
 }
 
 function stripList(list: unknown[], keywords: ReadonlySet<string>): unknown[] {
@@ -166,14 +166,14 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     if (
       scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
       scope.sdkConfig.providerId !== 'google-vertex-maas' &&
-      hasIncompatibleGeminiArray(tool.inputSchema as JSONSchema7Definition)
+      hasIncompatibleGeminiArray(tool.inputSchema)
     ) {
       changed = true
       droppedTools.push(tool.name)
       continue
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
-    const inputSchema = stripKeywords(tool.inputSchema as JSONSchema7Definition, keywords)
+    const inputSchema = stripKeywords(tool.inputSchema, keywords)
     if (inputSchema === tool.inputSchema) transformedTools.push(tool)
     else {
       changed = true

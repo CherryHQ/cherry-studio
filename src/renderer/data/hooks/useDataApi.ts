@@ -323,9 +323,7 @@ export function useQuery<TPath extends ApiPath>(
   }
 ): UseQueryResult<TPath> {
   const isEnabled = options?.enabled !== false
-  const resolvedPath = isEnabled
-    ? resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
-    : null
+  const resolvedPath = isEnabled ? resolveTemplate(path, options?.params) : null
   const key =
     isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
 
@@ -535,10 +533,6 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           params: paramsRecord,
           body: capturedArgs?.body,
           query: capturedArgs?.query
-        } as {
-          params?: Record<string, string | number>
-          body?: BodyForPath<TPath, TMethod>
-          query?: QueryParamsForPath<TPath, TMethod>
         })
 
         // Run refresh after the mutation resolves. We do this in `trigger`
@@ -674,7 +668,7 @@ export function prefetch<TPath extends ApiPath>(
     query?: QueryParamsForPath<TPath, 'GET'>
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
-  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const resolvedPath = resolveTemplate(path, options?.params)
   const key = buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined)
   return preload(key, getFetcher)
 }
@@ -840,7 +834,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
-  const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
+  const resolvedPath = resolveTemplate(path, options?.params)
 
   const getKey = useCallback(
     (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {

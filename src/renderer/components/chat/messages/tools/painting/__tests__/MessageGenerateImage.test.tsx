@@ -36,7 +36,7 @@ function toolResponse(overrides: Partial<NormalToolResponse>): NormalToolRespons
     arguments: { prompt: 'a cat' },
     status: 'done',
     ...overrides
-  } as NormalToolResponse
+  }
 }
 
 function mcpToolResponse(response: unknown): McpToolResponse {

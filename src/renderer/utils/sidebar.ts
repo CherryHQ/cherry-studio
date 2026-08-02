@@ -196,7 +196,7 @@ function getForwardCompatibleSidebarFavoriteItems(
   for (const favorite of favorites ?? []) {
     if (!isForwardCompatibleSidebarFavoriteItem(favorite)) continue
 
-    const item = favorite as SidebarFavoriteItem & { type: string; id: string }
+    const item = favorite
     const key = `${item.type}:${item.id}`
     if (seen.has(key)) continue
 

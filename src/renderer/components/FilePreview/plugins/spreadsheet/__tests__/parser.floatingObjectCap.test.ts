@@ -110,7 +110,7 @@ describe('parseWorkbook — floating image cap', () => {
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
     for (let i = 0; i < MAX_FLOATING_OBJECTS + 8; i++) {
       // addImage types require tl/br to be Anchor instances, but runtime accepts plain { col, row } objects.
-      ws.addImage(imgId, { tl: { col: 0, row: i }, ext: { width: 10, height: 10 } } as unknown as ExcelJS.ImagePosition)
+      ws.addImage(imgId, { tl: { col: 0, row: i }, ext: { width: 10, height: 10 } })
     }
 
     const buf = await wb.xlsx.writeBuffer()

@@ -7,7 +7,7 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 const { toastError, localModel } = vi.hoisted(() => ({
   toastError: vi.fn(),
   localModel: {
-    status: 'not_downloaded' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    status: 'not_downloaded',
     percent: 0,
     download: vi.fn<() => Promise<boolean>>(),
     cancel: vi.fn<() => Promise<void>>()

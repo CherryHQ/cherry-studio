@@ -111,28 +111,26 @@ vi.mock('../../hooks/usePaintingSizeInfo', () => ({
 
 const { default: Artboard } = await import('../Artboard')
 
-const makeFile = (id: string): FileMetadata =>
-  ({
-    id,
-    name: `${id}.png`,
-    origin_name: `${id}.png`,
-    path: `/tmp/${id}.png`,
-    size: 100,
-    ext: '.png',
-    type: 'image',
-    created_at: '2026-01-01T00:00:00.000Z',
-    count: 1
-  }) as FileMetadata
+const makeFile = (id: string): FileMetadata => ({
+  id,
+  name: `${id}.png`,
+  origin_name: `${id}.png`,
+  path: `/tmp/${id}.png`,
+  size: 100,
+  ext: '.png',
+  type: 'image',
+  created_at: '2026-01-01T00:00:00.000Z',
+  count: 1
+})
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'painting-1',
-    providerId: 'openai',
-    mode: 'generate',
-    prompt: '',
-    files: [makeFile('image-1'), makeFile('image-2')],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'painting-1',
+  providerId: 'openai',
+  mode: 'generate',
+  prompt: '',
+  files: [makeFile('image-1'), makeFile('image-2')],
+  ...overrides
+})
 
 const firePointer = (element: Element, type: string, init: Record<string, number | string>) => {
   const event = new Event(type, { bubbles: true, cancelable: true })

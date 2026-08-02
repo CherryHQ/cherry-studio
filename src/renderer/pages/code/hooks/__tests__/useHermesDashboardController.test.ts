@@ -159,7 +159,7 @@ describe('useHermesDashboardController', () => {
     mocks.request.mockImplementation((route: string) => {
       if (route === 'hermes_dashboard.get_status') {
         return new Promise((resolve) => {
-          resolveStatus = resolve as (status: { status: 'stopped'; url?: string }) => void
+          resolveStatus = resolve
         })
       }
       if (route === 'hermes_dashboard.start') return Promise.resolve({ success: true, url: 'http://127.0.0.1:49152' })

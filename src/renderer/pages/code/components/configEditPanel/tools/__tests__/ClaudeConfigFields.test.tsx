@@ -110,7 +110,7 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }) => (
     <div data-testid="role-model-selector" data-value={value ?? ''}>
       {trigger}
-      <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1' as UniqueModelId)}>
+      <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1')}>
         select role model
       </button>
       <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>

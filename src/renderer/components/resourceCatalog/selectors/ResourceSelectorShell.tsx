@@ -469,9 +469,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         if (isItemType) {
           const byId = new Map<string, T>(items.map((item) => [item.id, item]))
           const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
-          ;(props.onChange as (value: T[]) => void)(mapped)
+          props.onChange(mapped)
         } else {
-          ;(props.onChange as (value: string[]) => void)(ids)
+          props.onChange(ids)
         }
         return
       }
@@ -479,9 +479,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const id = ids[0] ?? null
       if (isItemType) {
         const item = id ? (items.find((candidate) => candidate.id === id) ?? null) : null
-        ;(props.onChange as (value: T | null) => void)(item)
+        props.onChange(item)
       } else {
-        ;(props.onChange as (value: string | null) => void)(id)
+        props.onChange(id)
       }
     },
     [isItemType, isMulti, items, props.onChange]
@@ -646,9 +646,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const firstId = valueIds[0]
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
-        ;(props.onChange as (value: T[]) => void)(firstItem ? [firstItem] : [])
+        props.onChange(firstItem ? [firstItem] : [])
       } else {
-        ;(props.onChange as (value: string[]) => void)([firstId])
+        props.onChange([firstId])
       }
     },
     [isItemType, isMulti, items, props.onChange, valueIds]

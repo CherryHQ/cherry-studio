@@ -365,7 +365,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
 }
 
 function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot): CherryMessagePart {
-  if (!composer) return { type: 'text', text } as CherryMessagePart
+  if (!composer) return { type: 'text', text }
 
   const cherry: CherryProviderMetadata = { composer }
   return {

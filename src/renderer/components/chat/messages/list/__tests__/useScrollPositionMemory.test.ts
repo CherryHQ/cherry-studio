@@ -115,8 +115,8 @@ describe('useScrollPositionMemory', () => {
     topicId: 't1',
     itemCount: 3,
     bottomPadding: 24,
-    scrollerRef: { current: scroller as unknown as HTMLElement } as RefObject<HTMLElement | null>,
-    vlistHandleRef: { current: handle as unknown as VListHandle } as RefObject<VListHandle | null>,
+    scrollerRef: { current: scroller as unknown as HTMLElement },
+    vlistHandleRef: { current: handle as unknown as VListHandle },
     getDataKeyAtIndex: (index) => keysByIndex[index] ?? null,
     findDataIndexByKey: (key) => {
       const found = Object.entries(keysByIndex).find(([, k]) => k === key)
@@ -177,9 +177,7 @@ describe('useScrollPositionMemory', () => {
   })
 
   it('falls back to scrollTop when no virtua handle is available', () => {
-    renderHook(() =>
-      useScrollPositionMemory(buildInputs({ vlistHandleRef: { current: null } as RefObject<VListHandle | null> }))
-    )
+    renderHook(() => useScrollPositionMemory(buildInputs({ vlistHandleRef: { current: null } })))
     flushRaf()
 
     expect(scroller.scrollTop).toBe(600) // scrollHeight - clientHeight

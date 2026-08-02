@@ -71,7 +71,7 @@ export function resolveAgentCapabilities(
   agent: Pick<AgentEntity, 'configuration'> | null | undefined
 ): AgentCapabilities {
   const role = agent?.configuration?.builtin_role
-  return (role && CAPABILITIES_BY_ROLE[role as BuiltinAgentRole]) || DEFAULT_CAPABILITIES
+  return (role && CAPABILITIES_BY_ROLE[role]) || DEFAULT_CAPABILITIES
 }
 
 /** Resolve this session's host-tool surface; undefined means the assistant MCP servers stay unmounted. */

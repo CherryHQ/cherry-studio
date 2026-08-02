@@ -9,7 +9,7 @@ describe('runFormulaFiber', () => {
     const fetchMock = vi.fn(async () => fiberResponse({ status: 'succeeded', context: { output: 'plain' } }))
 
     await runFormulaFiber(
-      { baseURL: 'https://api.moonshot.cn/v1/', apiKey: 'sk-test', fetch: fetchMock as never },
+      { baseURL: 'https://api.moonshot.cn/v1/', apiKey: 'sk-test', fetch: fetchMock },
       'moonshot/web-search:latest',
       'web_search',
       { query: 'latest models' }
@@ -31,7 +31,7 @@ describe('runFormulaFiber', () => {
     )
 
     await expect(
-      runFormulaFiber({ baseURL: 'https://api.moonshot.cn/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
+      runFormulaFiber({ baseURL: 'https://api.moonshot.cn/v1', apiKey: 'k', fetch: fetchMock }, 'f', 'n', {})
     ).resolves.toBe('----MOONSHOT ENCRYPTED BEGIN----x')
   })
 
@@ -46,7 +46,7 @@ describe('runFormulaFiber', () => {
     )
 
     await expect(
-      runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
+      runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock }, 'f', 'n', {})
     ).resolves.toBe('----MOONSHOT ENCRYPTED BEGIN----y')
   })
 
@@ -60,7 +60,7 @@ describe('runFormulaFiber', () => {
     const fetchMock = vi.fn(async () => fiberResponse(body))
 
     await expect(
-      runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
+      runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock }, 'f', 'n', {})
     ).rejects.toThrow(expected)
   })
 })

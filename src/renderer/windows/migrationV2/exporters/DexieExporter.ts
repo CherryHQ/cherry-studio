@@ -147,7 +147,7 @@ class JsonExportWriter {
 
           await this.append('{')
           let emitted = 0
-          for (const key of Object.keys(value as Record<string, unknown>)) {
+          for (const key of Object.keys(value)) {
             const propertyValue = this.prepareValue((value as Record<string, unknown>)[key])
             if (this.isOmitted(propertyValue)) continue
             if (emitted > 0) await this.append(',')

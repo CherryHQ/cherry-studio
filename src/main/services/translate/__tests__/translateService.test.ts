@@ -112,7 +112,7 @@ describe('translateService.resolveTranslatePayload', () => {
   })
 
   it('throws translate.error.not_configured when the translate model preference is unset', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '' as any)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '')
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
     expect(getByKeyMock).not.toHaveBeenCalled()

@@ -178,11 +178,12 @@ describe('DeepSeekHarnessService', () => {
       'fetch',
       vi.fn(async () => ({ status: 200, body: { cancel: vi.fn(async () => undefined) } }))
     )
-    processKill = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals) => {
+    processKill = vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
       const child = children.find((candidate) => -candidate.pid === pid)
-      if (child) queueMicrotask(() => child.close(null, signal ?? 'SIGTERM'))
+      const closeSignal = signal === 'SIGKILL' ? 'SIGKILL' : 'SIGTERM'
+      if (child) queueMicrotask(() => child.close(null, closeSignal))
       return true
-    }) as typeof process.kill)
+    })
   })
 
   afterEach(() => {
@@ -196,7 +197,7 @@ describe('DeepSeekHarnessService', () => {
     children.push(child)
     mocks.spawn.mockImplementationOnce(() => {
       queueMicrotask(() => action(child))
-      return child as unknown as NodeChildProcess.ChildProcess
+      return child
     })
     return child
   }

@@ -32,7 +32,7 @@ const PaintingPage: FC = () => {
   const [currentPainting, setCurrentPainting] = useState<PaintingData>(() => createDefaultPainting(draftDefaults))
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
-    setCurrentPainting((current) => ({ ...current, ...updates }) as PaintingData)
+    setCurrentPainting((current) => ({ ...current, ...updates }))
   }, [])
 
   const history = usePaintingHistory()
@@ -171,7 +171,7 @@ const PaintingPage: FC = () => {
                         painting={composerPainting}
                         generating={generating}
                         submitting={submitting}
-                        onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                        onPromptChange={(prompt) => patchPainting({ prompt })}
                         onGenerate={submit}
                         onCancel={onCancel}
                         onModelSelect={switchModel}

@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -22,13 +23,13 @@ export function exportViewToUIMessage(message: MessageExportView): CherryUIMessa
     role: message.role,
     parts: message.parts as CherryUIMessage['parts'],
     metadata
-  } as CherryUIMessage
+  }
 }
 
 export function createPartsByMessageId(messages: CherryUIMessage[]): Record<string, CherryMessagePart[]> {
   const partsByMessageId: Record<string, CherryMessagePart[]> = {}
   for (const message of messages) {
-    partsByMessageId[message.id] = (message.parts ?? []) as CherryMessagePart[]
+    partsByMessageId[message.id] = message.parts ?? []
   }
   return partsByMessageId
 }

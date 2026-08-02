@@ -63,7 +63,7 @@ describe('CherryInOAuthService', () => {
             used_quota: 3410000
           }
         })
-      } as Response)
+      })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -74,7 +74,7 @@ describe('CherryInOAuthService', () => {
           email: 'siin@gmail.com',
           group: 'Pro'
         })
-      } as Response)
+      })
 
     const result = await cherryInOAuthService.getBalance('https://open.cherryin.ai')
 
@@ -111,7 +111,7 @@ describe('CherryInOAuthService', () => {
         ({
           text: async () => '{"error":"invalid_token","access_token":"server-token"}'
         }) as Response
-    } as Response)
+    })
 
     await expect(cherryInOAuthService.getBalance('https://open.cherryin.ai')).rejects.toThrow(
       'Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance'
@@ -137,7 +137,7 @@ describe('CherryInOAuthService', () => {
 
   it('revokes remotely and delegates local token clearing to OAuthRuntimeService on logout', async () => {
     runtimeMocks.getValidAccessToken.mockResolvedValue({ accessToken: 'oauth-access' })
-    netMocks.fetch.mockResolvedValue({ ok: true, status: 200, statusText: 'OK' } as Response)
+    netMocks.fetch.mockResolvedValue({ ok: true, status: 200, statusText: 'OK' })
 
     await cherryInOAuthService.logout('https://open.cherryin.ai')
 

@@ -11,11 +11,11 @@ function filePart(fileEntryId: string, filename?: string): CherryMessagePart {
     mediaType: 'application/octet-stream',
     filename,
     providerMetadata: { cherry: { fileEntryId } }
-  } as CherryMessagePart
+  }
 }
 
 function message(id: string, parts: CherryMessagePart[]): CherryUIMessage {
-  return { id, role: 'user', parts } as CherryUIMessage
+  return { id, role: 'user', parts }
 }
 
 describe('assistantFileAttachments', () => {

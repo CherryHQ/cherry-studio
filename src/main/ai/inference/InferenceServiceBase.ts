@@ -283,7 +283,7 @@ export abstract class InferenceServiceBase extends BaseService {
       const cleanup = () => opts.signal?.removeEventListener('abort', onAbort)
       this.pending.set(id, { resolve, reject, onProgress: opts.onProgress, cleanup })
       opts.signal?.addEventListener('abort', onAbort, { once: true })
-      worker.postMessage({ ...request, id } as InferenceRequest)
+      worker.postMessage({ ...request, id })
     })
   }
 

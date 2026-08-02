@@ -40,7 +40,7 @@ describe('strip middleware', () => {
     ]
     const result = await middleware.transformParams!({
       type: 'stream',
-      params: { prompt } as never,
+      params: { prompt },
       model: {} as never
     })
     expect(result.prompt[1].content).toEqual([{ type: 'text', text: 'answer' }])

@@ -177,9 +177,7 @@ vi.mock('../../tools/MessageTools', () => {
 
 vi.mock('../../tools/toolResponse', () => ({
   normalizeToolOutputResponse: (output: unknown) =>
-    output && typeof output === 'object' && !Array.isArray(output) && 'content' in output
-      ? (output as { content: unknown }).content
-      : output,
+    output && typeof output === 'object' && !Array.isArray(output) && 'content' in output ? output.content : output,
   buildToolResponseFromPart: (part: any, fallbackId?: string) => {
     const type = part.type as string
     if (!type.startsWith('tool-') && type !== 'dynamic-tool') return null
@@ -372,16 +370,15 @@ vi.mock('../PlaceholderBlock', () => ({
 
 import MessagePartsRenderer from '../MessagePartsRenderer'
 
-const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
-  ({
-    id: 'msg-1',
-    role: 'assistant',
-    assistantId: 'a',
-    topicId: 't',
-    createdAt: '2026-01-01T00:00:00Z',
-    status: 'success',
-    ...overrides
-  }) as MessageListItem
+const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
+  id: 'msg-1',
+  role: 'assistant',
+  assistantId: 'a',
+  topicId: 't',
+  createdAt: '2026-01-01T00:00:00Z',
+  status: 'success',
+  ...overrides
+})
 
 const renderPartsTree = (
   parts: CherryMessagePart[],
@@ -1077,7 +1074,7 @@ describe('MessagePartsRenderer', () => {
       let clock = 0
       let rafId = 0
       let rafCallbacks = new Map<number, FrameRequestCallback>()
-      vi.stubGlobal('performance', { now: () => clock } as Performance)
+      vi.stubGlobal('performance', { now: () => clock })
       vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
         rafId += 1
         rafCallbacks.set(rafId, callback)

@@ -16,7 +16,7 @@ function rect(top: number, bottom: number, left = 0, right = 1020): DOMRect {
     x: left,
     y: top,
     toJSON: () => ({})
-  } as DOMRect
+  }
 }
 
 function InsetProbe() {
