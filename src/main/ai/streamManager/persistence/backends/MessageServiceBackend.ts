@@ -4,6 +4,7 @@ import { messageService } from '@main/data/services/MessageService'
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
+import { trimOversizedToolOutputs } from '../trimToolOutputs'
 
 export interface MessageServiceBackendOptions {
   assistantMessageId: string
@@ -24,9 +25,13 @@ export class MessageServiceBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, runtimeStats } = input
+    // Offload oversized tool outputs BEFORE the synchronous finalize tx (the
+    // FileManager write is async); the tx then writes the envelope data and
+    // its tool_output file refs together.
+    const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [])
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
-        parts: finalMessage?.parts ?? [],
+        parts,
         ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
       },
       status,

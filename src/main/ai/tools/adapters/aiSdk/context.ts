@@ -31,6 +31,15 @@ export interface RequestContext {
    * Defaults to empty.
    */
   readonly knowledgeBaseIds?: readonly string[]
+
+  /**
+   * Absolute paths of persisted tool-output blobs referenced by this request's
+   * prompt — the exact allow-list `fs_read` may serve. Seeded in
+   * `buildAgentParams` from the history's `$persistedToolOutput` envelopes;
+   * the in-flight offload adapter adds paths as it persists new outputs
+   * mid-turn (the Set is shared and mutable by design).
+   */
+  readonly persistedOutputPaths?: Set<string>
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

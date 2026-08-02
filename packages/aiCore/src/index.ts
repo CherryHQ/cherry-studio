@@ -61,6 +61,7 @@ export {
   computeHeadTailExcerpt,
   ContextPrompts,
   createContextMiddleware,
+  Offloader,
   PERSISTED_OUTPUT_TAG,
   summarizeModelMessages
 } from './core/context'

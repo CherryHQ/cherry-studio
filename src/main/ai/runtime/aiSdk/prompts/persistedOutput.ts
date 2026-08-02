@@ -15,7 +15,7 @@ Full output saved to: /absolute/path/to/persisted_file.txt
 URI (alternative): context://vfs/...
 </persisted-output>
 
-To inspect the full content, call \`${FS_READ_TOOL_NAME}\` with the absolute path shown after "Full output saved to:". Page through large files with \`offset\` and \`limit\` — a single call returns at most ~${CONTEXT_PERSIST_THRESHOLD_CHARS} chars; oversized pages come back as an \`output-too-large\` error with a recommended \`limit\` for that file.
+To inspect the full content, call \`${FS_READ_TOOL_NAME}\` with the absolute path shown after "Full output saved to:". This works for markers from earlier turns too — persisted outputs live as long as their message does. Page through large files with \`offset\` and \`limit\` — a single call returns at most ~${CONTEXT_PERSIST_THRESHOLD_CHARS} chars; oversized pages come back as an \`output-too-large\` error with a recommended \`limit\` for that file.
 
 Paging is line-based and lines come back in full (never chopped mid-line). The one case it can't subdivide is a single physical line larger than the per-call cap (e.g. heavily minified JSON): line paging can't split one line, so \`${FS_READ_TOOL_NAME}\` reports \`output-too-large\` for it. For that input, reason from the inline head/tail excerpt rather than assuming you can page to the rest.
 

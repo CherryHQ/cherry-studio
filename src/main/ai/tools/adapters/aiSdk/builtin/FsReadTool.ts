@@ -18,6 +18,7 @@ import { MB } from '@shared/utils/constants'
 import { tool } from 'ai'
 import * as z from 'zod'
 
+import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('FsReadTool')
@@ -86,6 +87,35 @@ function allowedRoots(): string[] {
   return [application.get('VfsBlobService').getRoot()]
 }
 
+/**
+ * Exact-path admission against the request's persisted-output allow-list
+ * (blobs whose markers appear in this request's prompt). Realpath both sides
+ * so macOS `/var` → `/private/var` folding and similar indirections can't
+ * defeat the comparison. Membership is exact — the blob directory also holds
+ * user attachments, so no directory-level containment is granted.
+ */
+async function resolveAgainstAllowedPaths(
+  requestedPath: string,
+  allowedPaths: ReadonlySet<string> | undefined
+): Promise<string | null> {
+  if (!allowedPaths || allowedPaths.size === 0) return null
+  let requestedReal: string
+  try {
+    requestedReal = await fsp.realpath(requestedPath)
+  } catch {
+    // A path that doesn't resolve can't match an existing allow-listed blob.
+    return null
+  }
+  for (const allowed of allowedPaths) {
+    try {
+      if ((await fsp.realpath(allowed)) === requestedReal) return requestedReal
+    } catch {
+      // Allow-listed blob no longer on disk — skip.
+    }
+  }
+  return null
+}
+
 /** validatePath per root (realpath + containment, same semantics as the
  *  filesystem MCP server); first root that admits the path wins. */
 async function resolveWithinAllowedRoots(requestedPath: string): Promise<string | null> {
@@ -139,20 +169,26 @@ function formatLines(content: string, offset: number | undefined, limit: number 
 }
 
 /** Exported for direct testing (the tool's execute delegates here). */
-export async function executeFsRead(input: { path: string; offset?: number; limit?: number }): Promise<FsReadOutput> {
+export async function executeFsRead(
+  input: { path: string; offset?: number; limit?: number },
+  allowedPaths?: ReadonlySet<string>
+): Promise<FsReadOutput> {
   const { path: requestedPath, offset, limit } = input
 
   if (!isAbsolute(requestedPath)) {
     return { kind: 'error', code: 'relative-path', message: `Path must be absolute. Got: ${requestedPath}` }
   }
 
-  const absolutePath = await resolveWithinAllowedRoots(requestedPath)
+  // Exact allow-list first (persisted blobs referenced by this request's
+  // prompt), then the legacy VFS temp-dir containment root.
+  const absolutePath =
+    (await resolveAgainstAllowedPaths(requestedPath, allowedPaths)) ?? (await resolveWithinAllowedRoots(requestedPath))
   if (!absolutePath) {
     logger.warn('fs_read denied: path outside allowed roots', { requestedPath })
     return {
       kind: 'error',
       code: 'access-denied',
-      message: 'Access denied: path is outside the allowed roots (persisted-output directory).'
+      message: 'Access denied: path is not a persisted output of this conversation.'
     }
   }
 
@@ -264,7 +300,10 @@ Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large
         : ''
     return { type: 'text' as const, value: `${output.text}${tail}` }
   },
-  execute: async (input) => executeFsRead(input)
+  execute: async (input, options) => {
+    const { request } = getToolCallContext(options)
+    return executeFsRead(input, request.persistedOutputPaths)
+  }
 })
 
 export function createFsReadToolEntry(): ToolEntry {

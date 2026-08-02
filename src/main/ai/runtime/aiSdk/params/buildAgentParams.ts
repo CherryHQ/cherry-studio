@@ -20,6 +20,7 @@ import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIM
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
+import { collectPersistedOutputPaths } from '../../../messages/persistedOutputRendering'
 import { createHttpTraceFetch } from '../../../observability'
 import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
@@ -141,7 +142,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     assistant,
     abortSignal: signal,
     fileAttachments,
-    knowledgeBaseIds
+    knowledgeBaseIds,
+    // fs_read's exact allow-list: blobs referenced by the history now, plus
+    // whatever the in-flight offload adapter appends mid-turn.
+    persistedOutputPaths: collectPersistedOutputPaths(request.messages ?? [])
   }
 
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(model)

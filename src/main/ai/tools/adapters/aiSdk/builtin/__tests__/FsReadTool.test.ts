@@ -55,6 +55,31 @@ describe('executeFsRead — path policy', () => {
     expect(out).toMatchObject({ kind: 'error', code: 'access-denied' })
   })
 
+  it('admits a path on the per-request persisted-output allow-list', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-read-blobs-'))
+    const blob = path.join(outside, 'entry-uuid.txt')
+    fs.writeFileSync(blob, 'persisted body\nsecond line')
+    const out = await executeFsRead({ path: blob }, new Set([blob]))
+    expect(out.kind).toBe('text')
+    if (out.kind === 'text') expect(out.text).toContain('persisted body')
+  })
+
+  it('allow-list membership is exact — a sibling file in the same directory stays denied', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-read-blobs-'))
+    const blob = path.join(outside, 'entry-uuid.txt')
+    const sibling = path.join(outside, 'other-users-attachment.txt')
+    fs.writeFileSync(blob, 'persisted body')
+    fs.writeFileSync(sibling, 'not yours')
+    const out = await executeFsRead({ path: sibling }, new Set([blob]))
+    expect(out).toMatchObject({ kind: 'error', code: 'access-denied' })
+  })
+
+  it('an empty allow-list falls back to VFS root containment only', async () => {
+    const p = writeVfsFile('vfs_2.txt', 'still readable')
+    const out = await executeFsRead({ path: p }, new Set())
+    expect(out.kind).toBe('text')
+  })
+
   it('denies symlinks under the VFS root that escape it', async () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-read-target-'))
     const target = path.join(outside, 'real.txt')
