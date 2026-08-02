@@ -503,6 +503,26 @@
       "name": "Qiniu"
     },
     {
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AvalAI - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.avalai.ir/v1"
+        }
+      },
+      "id": "avalai",
+      "metadata": {
+        "website": {
+          "apiKey": "https://avalai.ir",
+          "docs": "https://docs.avalai.ir",
+          "models": "https://docs.avalai.ir",
+          "official": "https://avalai.ir"
+        }
+      },
+      "name": "AvalAI"
+    },
+    {
       "apiFeatures": {
         "reportsActualCost": true
       },
@@ -1898,5 +1918,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "645f9b9b0f0ff508"
+  "version": "ed7ea10f0e3ab566"
 }

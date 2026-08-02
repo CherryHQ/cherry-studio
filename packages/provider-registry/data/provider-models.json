@@ -2161,6 +2161,31 @@
       }
     },
     {
+      "apiModelId": "claude-sonnet-4-5",
+      "modelId": "claude-sonnet-4-5",
+      "providerId": "avalai"
+    },
+    {
+      "apiModelId": "deepseek-chat",
+      "modelId": "deepseek-chat",
+      "providerId": "avalai"
+    },
+    {
+      "apiModelId": "gemini-2.5-flash",
+      "modelId": "gemini-2-5-flash",
+      "providerId": "avalai"
+    },
+    {
+      "apiModelId": "gpt-4o",
+      "modelId": "gpt-4o",
+      "providerId": "avalai"
+    },
+    {
+      "apiModelId": "gpt-4o-mini",
+      "modelId": "gpt-4o-mini",
+      "providerId": "avalai"
+    },
+    {
       "apiModelId": "global.anthropic.claude-fable-5",
       "modelId": "claude-fable-5",
       "pricing": {
@@ -37615,5 +37640,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "b74c1401a7cf1e32"
+  "version": "5410f105baf402ad"
 }

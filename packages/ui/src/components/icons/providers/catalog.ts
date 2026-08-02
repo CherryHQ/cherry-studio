@@ -4,8 +4,8 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-17T16:53:41.285Z
- * Total icons: 157
+ * Generated at: 2026-08-02T03:48:06.409Z
+ * Total icons: 158
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -21,6 +21,7 @@ import { AllenaiIcon } from './allenai'
 import { AnthropicIcon } from './anthropic'
 import { ApplicationIcon } from './application'
 import { ArceeAiIcon } from './arcee-ai'
+import { AvalaiIcon } from './avalai'
 import { AwsBedrockIcon } from './aws-bedrock'
 import { AzureaiIcon } from './azureai'
 import { BaaiIcon } from './baai'
@@ -182,6 +183,7 @@ export const PROVIDER_ICON_CATALOG = {
   anthropic: AnthropicIcon,
   application: ApplicationIcon,
   'arcee-ai': ArceeAiIcon,
+  avalai: AvalaiIcon,
   'aws-bedrock': AwsBedrockIcon,
   azureai: AzureaiIcon,
   baai: BaaiIcon,
