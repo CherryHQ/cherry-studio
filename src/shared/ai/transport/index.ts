@@ -12,6 +12,13 @@ export {
   projectMessagePartsForRenderer,
   projectStreamChunkForRenderer
 } from './outboundProjection'
+export {
+  isPersistedToolOutput,
+  PERSIST_HEAD_CHARS,
+  PERSIST_TAIL_CHARS,
+  type PersistedToolOutput,
+  type PersistedToolOutputRef
+} from './persistedToolOutput'
 export type {
   ActiveExecution,
   AiAgentSessionWarmCloseRequest,
