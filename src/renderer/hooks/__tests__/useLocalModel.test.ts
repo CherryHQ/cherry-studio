@@ -23,6 +23,23 @@ describe('useLocalModel', () => {
     progressHandler.current = undefined
   })
 
+  it('keeps status unresolved until the platform probe completes', async () => {
+    let resolveStatus: ((value: { status: 'unsupported' }) => void) | undefined
+    mockRequest.mockImplementation(
+      () =>
+        new Promise<{ status: 'unsupported' }>((resolve) => {
+          resolveStatus = resolve
+        })
+    )
+    const { result } = renderHook(() => useLocalModel('embedding'))
+
+    expect(result.current.isStatusResolved).toBe(false)
+    act(() => resolveStatus?.({ status: 'unsupported' }))
+
+    await waitFor(() => expect(result.current.isStatusResolved).toBe(true))
+    expect(result.current.status).toBe('unsupported')
+  })
+
   it('tracks matching progress and external ready events', async () => {
     mockRequest.mockResolvedValue({ status: 'not_downloaded' })
     const { result } = renderHook(() => useLocalModel('embedding'))

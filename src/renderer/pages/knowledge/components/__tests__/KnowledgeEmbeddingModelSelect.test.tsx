@@ -9,6 +9,7 @@ import { KnowledgeEmbeddingModelSelect } from '../KnowledgeEmbeddingModelSelect'
 const { localModel, mockModelSelectorProps, mockToastError } = vi.hoisted(() => ({
   localModel: {
     status: 'not_downloaded' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    isStatusResolved: true,
     download: vi.fn<() => Promise<boolean>>()
   },
   mockModelSelectorProps: [] as Array<Record<string, any>>,
@@ -73,6 +74,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     mockModelSelectorProps.length = 0
     mockToastError.mockClear()
     localModel.status = 'not_downloaded'
+    localModel.isStatusResolved = true
     localModel.download.mockReset().mockResolvedValue(true)
   })
 
@@ -88,6 +90,22 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     expect(mockModelSelectorProps.at(-1)?.open).toBeUndefined()
     expect(screen.queryByText(/%$/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('hides and rejects the local model until the platform probe resolves', () => {
+    const localEmbeddingModel = makeEmbeddingModel(
+      LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+      'local-embedding',
+      'Qwen3 Embedding 0.6B'
+    )
+    localModel.isStatusResolved = false
+    const onChange = vi.fn()
+    render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
+
+    expect(mockModelSelectorProps.at(-1)?.filter(localEmbeddingModel)).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'select-local-model' }))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(localModel.download).not.toHaveBeenCalled()
   })
 
   it('uses normal selection without downloading again when the model is ready', () => {

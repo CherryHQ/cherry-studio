@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 export function useLocalModel(model: LocalModelKind) {
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
+  const [isStatusResolved, setIsStatusResolved] = useState(false)
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)
   const cancellingRef = useRef(false)
@@ -13,6 +14,7 @@ export function useLocalModel(model: LocalModelKind) {
       const result = await ipcApi.request('local_model.get_status', { model })
       if (mountedRef.current) {
         setStatus(result.status)
+        setIsStatusResolved(true)
       }
     } catch {
       // Status probing is best-effort; keep the last observed state.
@@ -21,6 +23,7 @@ export function useLocalModel(model: LocalModelKind) {
 
   useEffect(() => {
     mountedRef.current = true
+    setIsStatusResolved(false)
     void refreshStatus()
     return () => {
       mountedRef.current = false
@@ -33,6 +36,7 @@ export function useLocalModel(model: LocalModelKind) {
     }
 
     setPercent(progress.percent)
+    setIsStatusResolved(true)
     if (progress.status === 'ready') {
       setStatus('ready')
     } else if (progress.status === 'error') {
@@ -90,5 +94,5 @@ export function useLocalModel(model: LocalModelKind) {
     return result
   }, [model])
 
-  return { status, percent, download, cancel, remove }
+  return { status, isStatusResolved, percent, download, cancel, remove }
 }

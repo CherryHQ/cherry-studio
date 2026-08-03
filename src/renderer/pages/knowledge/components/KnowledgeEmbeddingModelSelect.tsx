@@ -14,30 +14,30 @@ const LOCAL_EMBEDDING_PRIORITIZED_PROVIDER_IDS = [LOCAL_EMBEDDING_PROVIDER_ID] a
 export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSelectProps) => {
   const { t } = useTranslation()
   const { onChange } = props
-  const { status, download } = useLocalModel('embedding')
+  const { status, isStatusResolved, download } = useLocalModel('embedding')
 
   const handleChange = useCallback(
     (modelId: string | null) => {
+      if (modelId === LOCAL_EMBEDDING_UNIQUE_MODEL_ID && (!isStatusResolved || status === 'unsupported')) {
+        return
+      }
+
       onChange(modelId)
 
-      if (
-        modelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID ||
-        status === 'ready' ||
-        status === 'downloading' ||
-        status === 'unsupported'
-      ) {
+      if (modelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || status === 'ready' || status === 'downloading') {
         return
       }
 
       void download().catch(() => toast.error(t('knowledge.rag.download_local_embedding_failed')))
     },
-    [download, onChange, status, t]
+    [download, isStatusResolved, onChange, status, t]
   )
 
   const filter = useCallback(
     (model: Model) =>
-      isEmbeddingModel(model) && (status !== 'unsupported' || model.id !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID),
-    [status]
+      isEmbeddingModel(model) &&
+      (model.id !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || (isStatusResolved && status !== 'unsupported')),
+    [isStatusResolved, status]
   )
 
   return (

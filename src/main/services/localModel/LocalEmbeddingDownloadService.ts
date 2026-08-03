@@ -2,14 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import type { InferenceProgress } from '@main/ai/inference/InferenceServiceBase'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
-import { eq } from 'drizzle-orm'
 
 import { LocalModelDownloadService } from './LocalModelDownloadService'
 import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
@@ -98,23 +97,21 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   async remove(): Promise<{ removed: boolean }> {
-    const db = application.get('DbService').getDb()
-    const [inUse] = db
-      .select({ id: knowledgeBaseTable.id })
-      .from(knowledgeBaseTable)
-      .where(eq(knowledgeBaseTable.embeddingModelId, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
-      .limit(1)
-      .all()
-    if (inUse) {
-      logger.info('Kept local embedding weights because a knowledge base still uses the model')
+    const releaseGuard = knowledgeBaseService.acquireEmbeddingModelRemovalGuard(LOCAL_EMBEDDING_UNIQUE_MODEL_ID)
+    if (!releaseGuard) {
+      logger.info('Skipped local embedding weight removal because the model is in use or already being removed')
       return { removed: false }
     }
 
-    // Unload the worker first so the weights file isn't held open while we delete it.
-    await application
-      .get('EmbeddingInferenceService')
-      .terminateThen(() => fs.promises.rm(this.modelsRootDir(), { recursive: true, force: true }))
-    return { removed: true }
+    try {
+      // Unload the worker first so the weights file isn't held open while we delete it.
+      await application
+        .get('EmbeddingInferenceService')
+        .terminateThen(() => fs.promises.rm(this.modelsRootDir(), { recursive: true, force: true }))
+      return { removed: true }
+    } finally {
+      releaseGuard()
+    }
   }
 
   private broadcastProgress(p: InferenceProgress): void {

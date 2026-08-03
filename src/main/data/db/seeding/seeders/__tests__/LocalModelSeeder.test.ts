@@ -1,6 +1,6 @@
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { LocalModelSeeder } from '@data/db/seeding/seeders/localModelSeeder'
+import { LocalModelSeeder } from '@data/db/seeding/seeders/LocalModelSeeder'
 import {
   LOCAL_EMBEDDING_MODEL_ID,
   LOCAL_EMBEDDING_MODEL_NAME,

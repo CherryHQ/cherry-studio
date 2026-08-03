@@ -2,7 +2,15 @@ import type * as NodeFs from 'node:fs'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loadEmbedding, terminate, terminateThen, readdirSync, rm } = vi.hoisted(() => {
+const {
+  acquireEmbeddingModelRemovalGuard,
+  loadEmbedding,
+  releaseRemovalGuard,
+  terminate,
+  terminateThen,
+  readdirSync,
+  rm
+} = vi.hoisted(() => {
   const terminate = vi.fn()
   // terminateThen mirrors the real terminate-then-run-after ordering so the
   // invocationCallOrder assertions below (terminate before rm) still hold.
@@ -11,13 +19,19 @@ const { loadEmbedding, terminate, terminateThen, readdirSync, rm } = vi.hoisted(
     return after()
   })
   return {
+    acquireEmbeddingModelRemovalGuard: vi.fn(),
     loadEmbedding: vi.fn(),
+    releaseRemovalGuard: vi.fn(),
     terminate,
     terminateThen,
     readdirSync: vi.fn(),
     rm: vi.fn()
   }
 })
+
+vi.mock('@data/services/KnowledgeBaseService', () => ({
+  knowledgeBaseService: { acquireEmbeddingModelRemovalGuard }
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -74,6 +88,7 @@ function fileEntry(name: string): NodeFs.Dirent {
 describe('LocalEmbeddingDownloadService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    acquireEmbeddingModelRemovalGuard.mockReturnValue(releaseRemovalGuard)
     rm.mockResolvedValue(undefined)
   })
 
@@ -151,19 +166,7 @@ describe('LocalEmbeddingDownloadService', () => {
 
   describe('remove', () => {
     it('keeps the weights when a knowledge base still references the model', async () => {
-      const db = application.get('DbService').getDb()
-      vi.mocked(db.select).mockImplementationOnce(() => {
-        const query = {
-          from: vi.fn(),
-          where: vi.fn(),
-          limit: vi.fn(),
-          all: vi.fn(() => [{ id: 'kb-local-embedding' }])
-        }
-        query.from.mockReturnValue(query)
-        query.where.mockReturnValue(query)
-        query.limit.mockReturnValue(query)
-        return query as never
-      })
+      acquireEmbeddingModelRemovalGuard.mockReturnValueOnce(undefined)
 
       await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: false })
 
@@ -180,6 +183,33 @@ describe('LocalEmbeddingDownloadService', () => {
       // The worker holds the weights open — release it first or the unlink fails on Windows.
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
       expect(vi.mocked(application.get('DbService').getDb().delete)).not.toHaveBeenCalled()
+      expect(releaseRemovalGuard).toHaveBeenCalledOnce()
+    })
+
+    it('holds the removal guard until the asynchronous weight deletion completes', async () => {
+      let finishRemoval: (() => void) | undefined
+      rm.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRemoval = resolve
+          })
+      )
+
+      const pendingRemoval = localEmbeddingDownloadService.remove()
+      await vi.waitFor(() => expect(rm).toHaveBeenCalledOnce())
+      expect(releaseRemovalGuard).not.toHaveBeenCalled()
+
+      finishRemoval?.()
+      await expect(pendingRemoval).resolves.toEqual({ removed: true })
+      expect(releaseRemovalGuard).toHaveBeenCalledOnce()
+    })
+
+    it('releases the removal guard when weight deletion fails', async () => {
+      rm.mockRejectedValueOnce(new Error('disk busy'))
+
+      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow('disk busy')
+
+      expect(releaseRemovalGuard).toHaveBeenCalledOnce()
     })
   })
 
