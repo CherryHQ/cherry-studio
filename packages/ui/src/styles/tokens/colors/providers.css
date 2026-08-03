@@ -106,7 +106,8 @@
   --cs-muted-foreground: oklch(0.708 0 0);
   --cs-foreground-tertiary: oklch(0.559 0 0);
 
-  /* Card & Popover */
+  /* Card & Popover — surfaces stack via color (DESIGN.md): the higher the
+   * layer, the lighter the surface, so popovers sit ABOVE cards, not below. */
   --cs-card: var(--cs-neutral-900);
   --cs-popover: var(--cs-neutral-800);
 

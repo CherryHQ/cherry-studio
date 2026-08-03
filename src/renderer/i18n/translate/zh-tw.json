@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "[to be translated]:Jump to turn {{number}}"
+      },
       "bottom": "回到底端",
       "close": "關閉",
       "first": "已經是第一條訊息",

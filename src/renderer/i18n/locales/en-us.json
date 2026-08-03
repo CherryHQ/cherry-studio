@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Jump to turn {{number}}"
+      },
       "bottom": "Back to bottom",
       "close": "Close",
       "first": "Already at the first message",
