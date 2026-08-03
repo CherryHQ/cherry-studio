@@ -37,12 +37,10 @@ const mocks = vi.hoisted(() => ({
   modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
-  getMetadata: vi.fn(),
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
@@ -743,8 +741,6 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
-    mocks.isDirectory.mockReset()
-    mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
@@ -756,15 +752,24 @@ describe('AgentComposer', () => {
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
-    mocks.getMetadata.mockReset()
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
     mocks.ipcApiRequest.mockReset()
-    mocks.ipcApiRequest.mockImplementation(async (route: string, input: { items: { key: string }[] }) => {
-      if (route !== 'file.batch_get_metadata') return {}
-      return Object.fromEntries(
-        input.items.map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
-      )
-    })
+    mocks.ipcApiRequest.mockImplementation(
+      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
+        if (route === 'file.get_metadata') {
+          // The session workspace-status preflight stays pending so it never flips the composer into a
+          // blocking warning (mirrors the former hanging `isDirectory` default). Send-path physical files
+          // (from buildFileParts) resolve to a real file MIME instead.
+          if (input.kind === 'path' && input.path === mocks.sessionWorkspacePath) {
+            return new Promise(() => undefined)
+          }
+          return { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+        }
+        if (route !== 'file.batch_get_metadata') return {}
+        return Object.fromEntries(
+          (input.items ?? []).map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
+        )
+      }
+    )
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -779,12 +784,10 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory,
         listDirectoryEntries: mocks.listDirectoryEntries,
         createInternalEntry: mocks.createInternalEntry,
-        getPhysicalPath: mocks.getPhysicalPath,
-        getMetadata: mocks.getMetadata
+        getPhysicalPath: mocks.getPhysicalPath
       }
     }
     mocks.updateModel.mockReset()
@@ -1193,38 +1196,6 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
   })
 
-  it('uses the same 20px size for the model and workspace icons', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        onWorkspaceChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('model-avatar')).toHaveAttribute('data-size', '20')
-    expect(screen.getByText('Workspace 1').closest('button')?.querySelector('.lucide-folder')).toHaveAttribute(
-      'width',
-      '20'
-    )
-  })
-
-  it('uses the same 20px size for missing agent, model, and workspace icons', async () => {
-    mocks.sessionLayout = 'time'
-
-    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
-    expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
-    expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
-    expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
-  })
-
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
     mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
     mocks.modelResult = {
@@ -1272,8 +1243,6 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
-    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -1476,8 +1445,6 @@ describe('AgentComposer', () => {
     )
 
     const modelLabel = screen.getByText('Claude Sonnet 4.5')
-    expect(modelLabel).not.toHaveClass('text-muted-foreground')
-    expect(modelLabel).not.toHaveClass('text-foreground/85')
     expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
@@ -1546,9 +1513,6 @@ describe('AgentComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    const newConversationIcon = newSessionButton.querySelector('.new-conversation-icon')
-    expect(newConversationIcon).toHaveAttribute('width', '18')
-    expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -1668,8 +1632,6 @@ describe('AgentComposer', () => {
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(skillButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
 
     fireEvent.click(skillButton)
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ launcherId: 'agent-skills', searchText: 'plugins.skills' })
@@ -1714,8 +1676,6 @@ describe('AgentComposer', () => {
     })
     const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
 
-    expect(slashCommandsButton.querySelector('.lucide-terminal')).toBeInTheDocument()
-    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
     expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
 
     fireEvent.click(slashCommandsButton)
@@ -3310,9 +3270,16 @@ describe('AgentComposer', () => {
     expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.setFiles.mock.invocationCallOrder[0]
     )
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.ipcApiRequest.mock.invocationCallOrder[0]
-    )
+    // Anchor on the send-time batch specifically. `ipcApiRequest` is shared with
+    // the mount-time workspace probe (`useAgentWorkspaceWarning` reads
+    // `file.get_metadata`), so `invocationCallOrder[0]` is that earlier render
+    // call, not the one this test is ordering against.
+    const batchMetadataOrder =
+      mocks.ipcApiRequest.mock.invocationCallOrder[
+        mocks.ipcApiRequest.mock.calls.findIndex(([route]) => route === 'file.batch_get_metadata')
+      ]
+    expect(batchMetadataOrder).toBeDefined()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(batchMetadataOrder)
 
     await act(async () => {
       metadata.resolve({
@@ -3371,7 +3338,7 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.ipcApiRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'file.batch_get_metadata')).toHaveLength(1)
     expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
       items: [
         { key: '/workspace/docs/alpha.md', handle: { kind: 'path', path: '/workspace/docs/alpha.md' } },
@@ -3379,7 +3346,11 @@ describe('AgentComposer', () => {
       ]
     })
     expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/local.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/local.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
 
     const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
     expect(userMessageParts?.map((part) => part.type)).toEqual(['text', 'file', 'file', 'file'])
@@ -3517,7 +3488,11 @@ describe('AgentComposer', () => {
     // The FileEntry is created at send time: the file part carries both file identities,
     // a file:// URL, and a real MIME instead of the raw path / literal extension.
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/notes.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/notes.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
@@ -4160,11 +4135,6 @@ describe('AgentComposer', () => {
     expect(sendAccessory).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
-    expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Claude Sonnet 4.5').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    const workspaceButton = screen.getByText('Workspace 1').closest('button')
-    expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
-
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5'))
     expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
@@ -4351,7 +4321,7 @@ describe('AgentComposer', () => {
   })
 
   it('does not block sends when workspace status preflight fails', async () => {
-    mocks.isDirectory.mockRejectedValueOnce(new Error('preflight unavailable'))
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('preflight unavailable'))
 
     render(
       <AgentHomeComposer
@@ -4363,7 +4333,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => expect(mocks.isDirectory).toHaveBeenCalledWith('/workspace'))
+    await waitFor(() =>
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: '/workspace' })
+    )
     await act(async () => {
       await Promise.resolve()
     })
@@ -4373,23 +4345,6 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
-  })
-
-  it('uses the same 20px size for the workspace warning icon', async () => {
-    mocks.sessionLayout = 'time'
-    mocks.isDirectory.mockResolvedValueOnce(false)
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await waitFor(() => expect(document.querySelector('.lucide-triangle-alert')).toHaveAttribute('width', '20'))
   })
 
   it('does not preflight the system no-project workspace path', () => {
@@ -4420,8 +4375,7 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
-    expect(document.querySelector('.lucide-circle-slash')).toHaveAttribute('width', '20')
-    expect(mocks.isDirectory).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 })
 

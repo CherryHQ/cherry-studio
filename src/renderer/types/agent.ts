@@ -30,6 +30,13 @@ export type PermissionModeCard = {
   descriptionFallback: string
   dangerous?: boolean
   unsupported?: boolean
+  /**
+   * Caveat the user needs before picking this mode, as opposed to `descriptionKey`,
+   * which only says what the mode does. Rendered even where the description is
+   * suppressed for space.
+   */
+  warningKey?: string
+  warningFallback?: string
 }
 
 // ------------------ Channel config (Feishu) ------------------

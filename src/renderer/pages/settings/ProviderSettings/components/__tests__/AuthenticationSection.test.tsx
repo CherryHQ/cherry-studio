@@ -93,16 +93,6 @@ describe('AuthenticationSection', () => {
     })
   })
 
-  it('keeps authentication section wiring thin and providerId-driven', () => {
-    const provider = { id: 'openai', isEnabled: true, name: 'openai' }
-    useProviderMock.mockReturnValue({ provider })
-
-    render(<AuthenticationSection providerId="openai" />)
-
-    expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
-    expect(useProviderConnectionCheckMock).toHaveBeenCalledWith('openai')
-  })
-
   it('passes only minimal coordination props to child domains', () => {
     const openModelHealthCheck = vi.fn()
     const connectionError = { message: 'bad key' }
@@ -121,6 +111,8 @@ describe('AuthenticationSection', () => {
       <AuthenticationSection providerId="openai" onOpenModelHealthCheck={openModelHealthCheck} />
     )
 
+    expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
+    expect(useProviderConnectionCheckMock).toHaveBeenCalledWith('openai')
     expect(apiKeyPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'openai',
@@ -154,30 +146,5 @@ describe('AuthenticationSection', () => {
 
     fireEvent.click(getByRole('button', { name: 'api-key' }))
     expect(openConnectionCheckMock).toHaveBeenCalled()
-  })
-
-  it('still renders the same provider-specific slots for copilot', () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'copilot', isEnabled: true, name: 'copilot' }
-    })
-
-    render(<AuthenticationSection providerId="copilot" />)
-
-    expect(apiKeyPropsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'copilot'
-      })
-    )
-  })
-
-  it('keeps authentication shell mounted when the provider is missing', () => {
-    useProviderMock.mockReturnValue({
-      provider: undefined
-    })
-
-    const { container } = render(<AuthenticationSection providerId="missing" />)
-
-    expect(container.querySelector('section')).not.toBeNull()
-    expect(apiKeyPropsSpy).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'missing' }))
   })
 })

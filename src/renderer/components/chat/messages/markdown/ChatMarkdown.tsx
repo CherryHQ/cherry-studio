@@ -2,6 +2,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
+import type { Citation } from '@renderer/types/message'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'es-toolkit/compat'
@@ -11,8 +12,9 @@ import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
 
 import { HtmlArtifactPopupHost } from '../../HtmlArtifactView'
+import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
+import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
-import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
 interface Props {
   block: MarkdownSource
@@ -21,14 +23,23 @@ interface Props {
   postProcess?: (text: string) => string
   className?: string
   components?: Partial<Components>
+  trustedCitations?: readonly Citation[]
 }
 
 export type InlineHtmlPreviewMode = 'generating' | 'ready'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
+const EMPTY_CITATION_REGISTRY: ReadonlyMap<number, Citation> = new Map()
 
-const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, className, components }) => {
+const ChatMarkdown: FC<Props> = ({
+  block,
+  inlineHtmlPreviewMode,
+  postProcess,
+  className,
+  components,
+  trustedCitations
+}) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
@@ -52,12 +63,11 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
   }, [block.status, block.content, inlineHtmlPreviewMode, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const chatComponents = useChatMarkdownComponents({
-    blockId: block.id,
-    inlineHtmlPreviewMode,
-    hasStyleElement,
-    isStreaming
-  })
+  const citationRegistry = useMemo(() => {
+    if (!trustedCitations?.length) return EMPTY_CITATION_REGISTRY
+    return new Map(trustedCitations.map((citation) => [citation.number, citation]))
+  }, [trustedCitations])
+  const chatComponents = hasStyleElement ? CHAT_MARKDOWN_COMPONENTS_WITH_STYLE : CHAT_MARKDOWN_COMPONENTS
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]
@@ -91,7 +101,15 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
     </Markdown>
   )
 
-  return inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer
+  return (
+    <ChatMarkdownRenderProvider
+      blockId={block.id}
+      citationRegistry={citationRegistry}
+      inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+      isStreaming={isStreaming}>
+      {inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer}
+    </ChatMarkdownRenderProvider>
+  )
 }
 
 export default ChatMarkdown

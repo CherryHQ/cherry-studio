@@ -7,6 +7,7 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
@@ -44,6 +45,8 @@ import {
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
+  editDialogFormRowClassName,
+  editDialogFormRowLabelClassName,
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
@@ -417,64 +420,64 @@ function AssistantBasicFields({
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-[auto_1fr] gap-4">
-        <AvatarField
-          form={form}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="💬"
-          portalContainer={portalContainer}
-          size="sm"
-        />
-        <TextInputField
-          form={form}
-          name="name"
-          label={t('common.name')}
-          placeholder={t('library.config.basic.field.name.placeholder')}
-          required
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="min-w-0">
-          <CompactModelField
-            form={form}
-            name="modelId"
-            label={t('common.model')}
-            allowClear
-            filter={modelFilter}
-            portalContainer={portalContainer}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-            onModelChange={handleAssistantModelChange}
-            onSettingsNavigate={onSettingsNavigate}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="groupId"
-          render={({ field }) => (
-            <FormItem className="min-w-0">
-              <FormLabel className="font-normal">{t('library.config.basic.group')}</FormLabel>
-              <GroupSelector
-                value={field.value}
-                onChange={field.onChange}
-                groups={groups}
-                isLoading={groupsLoading}
-                error={groupsError}
-                portalContainer={portalContainer}
-                onCreateGroup={onCreateGroup}
-              />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+      <AvatarField
+        form={form}
+        emojiPickerOpen={emojiPickerOpen}
+        setEmojiPickerOpen={setEmojiPickerOpen}
+        fallback="💬"
+        portalContainer={portalContainer}
+        size="sm"
+        layout="row"
+      />
+      <TextInputField
+        form={form}
+        name="name"
+        label={t('common.name')}
+        placeholder={t('library.config.basic.field.name.placeholder')}
+        required
+        layout="row"
+      />
       <TextInputField
         form={form}
         name="description"
         label={t('common.description')}
         placeholder={t('library.config.basic.field.description.placeholder')}
+        layout="row"
+      />
+      <CompactModelField
+        form={form}
+        name="modelId"
+        label={t('common.model')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={handleAssistantModelChange}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <FormField
+        control={form.control}
+        name="groupId"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('library.config.basic.group')}</FormLabel>
+            <GroupSelector
+              value={field.value}
+              onChange={field.onChange}
+              groups={groups}
+              isLoading={groupsLoading}
+              error={groupsError}
+              portalContainer={portalContainer}
+              onCreateGroup={onCreateGroup}
+              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
+            />
+            <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
       />
     </div>
   )
@@ -557,9 +560,7 @@ function AssistantToolsFields({
   const { t } = useTranslation()
   const mcpMode = form.watch('mcpMode')
   const mcpServerIds = form.watch('mcpServerIds')
-  const mcpEnabled = mcpMode !== 'disabled'
   const mcpModeLabel = t('library.config.basic.mcp_mode')
-  const selectableMcpModes = useMemo(() => MCP_MODE_OPTIONS.filter((mode) => mode.id !== 'disabled'), [])
 
   const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
   const toggleMcpServer = (id: string, enabled: boolean) =>
@@ -575,45 +576,23 @@ function AssistantToolsFields({
         control={form.control}
         name="mcpMode"
         render={() => (
-          <FormItem className="grid gap-3">
+          <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{`${t('library.action.enable')} MCP`}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{mcpModeLabel}</FormLabel>
               <FormControl>
-                <Switch
+                <SegmentedControl<AssistantFormState['mcpMode']>
                   size="sm"
-                  checked={mcpEnabled}
-                  onCheckedChange={(checked) =>
-                    form.setValue('mcpMode', checked ? 'auto' : 'disabled', { shouldDirty: true })
-                  }
-                  aria-label={`${t('library.action.enable')} MCP`}
+                  className="shrink-0"
+                  aria-label={mcpModeLabel}
+                  value={mcpMode}
+                  onValueChange={(value) => form.setValue('mcpMode', value, { shouldDirty: true })}
+                  options={MCP_MODE_OPTIONS.map((mode) => ({
+                    value: mode.id,
+                    label: t(mode.labelKey)
+                  }))}
                 />
               </FormControl>
             </div>
-            {mcpEnabled ? (
-              <div className="flex items-start justify-between gap-3">
-                <FormLabel className="pt-2 font-normal text-[13px]">{mcpModeLabel}</FormLabel>
-                <div className="w-36 shrink-0">
-                  <Select
-                    value={mcpMode === 'manual' ? 'manual' : 'auto'}
-                    onValueChange={(value) =>
-                      form.setValue('mcpMode', value as AssistantFormState['mcpMode'], { shouldDirty: true })
-                    }>
-                    <FormControl>
-                      <SelectTrigger className="w-full" aria-label={mcpModeLabel}>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent portalContainer={portalContainer}>
-                      {selectableMcpModes.map((mode) => (
-                        <SelectItem key={mode.id} value={mode.id}>
-                          {t(mode.labelKey)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ) : null}
             <FormMessage />
           </FormItem>
         )}
@@ -662,7 +641,7 @@ function AssistantAdvancedFields({
   ]
 
   return (
-    <div className="grid gap-4">
+    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
       <ToggleFieldGroup
         label={t('library.config.basic.temperature')}
         valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
@@ -731,7 +710,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
@@ -793,7 +772,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(
@@ -844,7 +823,7 @@ function ToggleFieldGroup({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground/60 text-xs">{valueLabel}</span> : null}
+          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {enabled && control ? <div className="w-36">{control}</div> : null}
@@ -964,7 +943,7 @@ function CustomParameterRow({
   })()
 
   return (
-    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
+    <div className="rounded-xs border border-border-subtle bg-accent/15 p-2">
       <div className="flex items-stretch gap-2">
         <Input
           placeholder={t('library.config.basic.custom_params_name')}
@@ -1031,9 +1010,7 @@ function CustomParameterRow({
             placeholder='{"key": "value"}'
             hasError={jsonInvalid}
           />
-          {jsonInvalid ? (
-            <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>
-          ) : null}
+          {jsonInvalid ? <p className="mt-1 text-error text-xs">{t('library.config.basic.json_invalid')}</p> : null}
         </div>
       ) : null}
     </div>

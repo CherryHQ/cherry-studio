@@ -35,6 +35,8 @@ function createSignal() {
   return new AbortController().signal
 }
 
+const ignoreCopyProgress = vi.fn()
+
 describe('expandDirectoryOwnerToTree', () => {
   let tempRoot: string | undefined
 
@@ -69,7 +71,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(pathPrefix).toBe('anna')
@@ -122,7 +125,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(JSON.stringify(children)).not.toContain(emptyDir)
@@ -187,7 +191,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(children).toEqual([
@@ -208,6 +213,37 @@ describe('expandDirectoryOwnerToTree', () => {
       'workspace/readme.md',
       { signal: expect.any(AbortSignal), overwrite: true }
     )
+  })
+
+  it('reports copied files against the supported-file total', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'workspace')
+    const nestedDir = path.join(rootDir, 'guides')
+    realFs.mkdirSync(nestedDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
+    realFs.writeFileSync(path.join(nestedDir, 'guide.txt'), 'guide')
+    realFs.writeFileSync(path.join(rootDir, 'app.exe'), 'binary')
+    const onCopyProgress = vi.fn()
+
+    await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: { source: rootDir },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      new Set(),
+      createSignal(),
+      onCopyProgress
+    )
+
+    expect(onCopyProgress.mock.calls.map(([percent]) => percent)).toEqual([0, 50, 100])
   })
 
   it('gives same-basename files in different subdirectories distinct relative paths', async () => {
@@ -237,7 +273,8 @@ describe('expandDirectoryOwnerToTree', () => {
       },
       'kb-1',
       new Set(),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     const relativePaths = JSON.stringify(children)
@@ -271,7 +308,8 @@ describe('expandDirectoryOwnerToTree', () => {
       'kb-1',
       // A prior `project` directory already occupies that top-level name under raw/.
       new Set(['project']),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(pathPrefix).toBe('project_1')
@@ -311,7 +349,8 @@ describe('expandDirectoryOwnerToTree', () => {
       'kb-1',
       // A prior `report.v2` directory already occupies that top-level name under raw/.
       new Set(['report.v2']),
-      createSignal()
+      createSignal(),
+      ignoreCopyProgress
     )
 
     expect(pathPrefix).toBe('report.v2_1')
@@ -349,7 +388,8 @@ describe('expandDirectoryOwnerToTree', () => {
         },
         'kb-1',
         new Set(),
-        controller.signal
+        controller.signal,
+        ignoreCopyProgress
       )
     ).rejects.toBe(abortError)
   })

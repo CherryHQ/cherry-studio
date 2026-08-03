@@ -7,16 +7,17 @@ import {
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
@@ -29,6 +30,7 @@ import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -112,17 +114,38 @@ interface AgentMessageListParams {
   messageTail?: MessageListState['messageTail']
 }
 
-const isAbsoluteFilePath = (path: string): boolean => {
-  return path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path)
+/**
+ * Resolve a tool-reported path to a branded absolute path, applying the session
+ * workspace as the root for relative input.
+ *
+ * Returns `null` when no absolute path exists — the only real case being a
+ * relative path with no workspace root to resolve it against. The user-facing
+ * open/reveal actions turn that into an error so the shared UI can report it.
+ *
+ * `workspacePath` arrives as a bare `string`: main normalizes and enforces
+ * absoluteness before persisting (`@main/utils/agentWorkspacePath`), but
+ * `AgentWorkspacePathSchema` is only `z.string().min(1)`, so the guarantee does
+ * not survive the process boundary as a type. Re-asserting it here is the cost
+ * of that gap, not redundant validation — tracked in
+ * https://github.com/CherryHQ/cherry-studio/issues/17431.
+ */
+const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): AbsoluteFilePath | null => {
+  const normalizedPath = normalizeInlineFilePath(resolveInlineFilePath(rawPath))
+  const isAlreadyAbsolute = AbsoluteFilePathSchema.safeParse(normalizedPath).success
+
+  const candidate =
+    !workspacePath || isAlreadyAbsolute
+      ? normalizedPath
+      : `${workspacePath.replace(/[\\/]+$/g, '')}/${normalizedPath.replace(/^\.?[\\/]+/g, '')}`
+
+  return AbsoluteFilePathSchema.safeParse(candidate).data ?? null
 }
 
-const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): string => {
-  const normalizedPath = normalizeInlineFilePath(resolveInlineFilePath(rawPath))
-  if (!workspacePath || isAbsoluteFilePath(normalizedPath)) return normalizedPath
-
-  const cleanWorkspacePath = workspacePath.replace(/[\\/]+$/g, '')
-  const cleanRelativePath = normalizedPath.replace(/^\.?[\\/]+/g, '')
-  return `${cleanWorkspacePath}/${cleanRelativePath}`
+/** Resolve for an action the user explicitly asked for — an unresolvable path is an error they must see. */
+const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): AbsoluteFilePath => {
+  const resolved = resolveWorkspaceFilePath(workspacePath, rawPath)
+  if (!resolved) throw new Error(`Cannot resolve "${rawPath}" to an absolute path without a workspace root`)
+  return resolved
 }
 
 export function useAgentMessageListProviderValue({
@@ -150,6 +173,7 @@ export function useAgentMessageListProviderValue({
   const navigate = useNavigate()
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -186,25 +210,24 @@ export function useAgentMessageListProviderValue({
     [displayPartsByMessageId, messages]
   )
   const messageItems = useMemo(() => {
-    const resolvedAssistantId = assistantId ?? topic.assistantId
     return visibleMessages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
-      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+      if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) {
         return cached.item
       }
 
       const item = toMessageListItem(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         topicId: topic.id
       })
       messageItemCacheRef.current.set(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         item,
         topicId: topic.id
       })
       return item
     })
-  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
+  }, [resolvedAgentId, visibleMessages, topic.id])
 
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
@@ -247,21 +270,14 @@ export function useAgentMessageListProviderValue({
 
   const openPath = useCallback(
     (path: string) => {
-      return window.api.file.openPath(resolveWorkspaceFilePath(workspacePath, path))
+      return window.api.file.openPath(requireWorkspaceFilePath(workspacePath, path))
     },
     [workspacePath]
   )
 
   const showInFolder = useCallback(
     (path: string) => {
-      return window.api.file.showInFolder(resolveWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
-  )
-
-  const isDirectory = useCallback(
-    (path: string) => {
-      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+      return window.api.file.showInFolder(requireWorkspaceFilePath(workspacePath, path))
     },
     [workspacePath]
   )
@@ -270,7 +286,7 @@ export function useAgentMessageListProviderValue({
     const open = leafCapabilities.openInExternalApp
     if (!open) return undefined
 
-    return (app, path) => open(app, resolveWorkspaceFilePath(workspacePath, path))
+    return (app, path) => open(app, requireWorkspaceFilePath(workspacePath, path))
   }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
@@ -371,13 +387,9 @@ export function useAgentMessageListProviderValue({
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
-      estimateSize: 400,
-      overscan: 6,
-      loadOlderDelayMs: 0,
-      loadingResetDelayMs: 600,
-      listKey: topic.id,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAgentId,
       localSendGeneration,
-      readonly: true,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -400,6 +412,7 @@ export function useAgentMessageListProviderValue({
       displayPartsByMessageId,
       renderActiveTurnStatus,
       renderConfig,
+      resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
       topic
@@ -423,7 +436,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
-      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -441,7 +453,6 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
-      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
@@ -464,7 +475,8 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      aiUsageMessageKind: 'agent-session'
     }),
     [assistantProfile, headerCapabilities.userProfile, topic.name]
   )

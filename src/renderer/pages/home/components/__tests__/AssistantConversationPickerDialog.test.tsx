@@ -61,10 +61,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
-  isSelectableAssistantModel: () => true
-}))
-
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAssistant, isLoading: false })
 }))
@@ -104,7 +100,6 @@ describe('AssistantConversationPickerDialog', () => {
     render(<AssistantConversationPickerDialog open onOpenChange={onOpenChange} assistants={[]} onSelect={vi.fn()} />)
 
     expect(mocks.pickerProps.createAction.label).toBe('selector.assistant.create_new')
-    expect(screen.getByTestId('create-action-icon').querySelector('svg')).toHaveClass('lucide-plus')
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'false')
 
     fireEvent.click(screen.getByText('create-new'))

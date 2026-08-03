@@ -56,7 +56,6 @@ export interface MessageMenuBarActionContext {
   messageForExport: MessageExportView
   messageContainerRef: RefObject<HTMLDivElement>
   mainTextContent: string
-  toolbarButtonIds: ReadonlySet<MessageMenuBarButtonId>
   selection?: MessageListSelectionState
   menuConfig: MessageMenuConfig
   copied: boolean
@@ -68,12 +67,12 @@ export interface MessageMenuBarActionContext {
   isTranslating: boolean
   hasTranslationBlocks: boolean
   isUserMessage: boolean
-  isUseful: boolean
+  isSelectedForContext: boolean
   isEditable: boolean
   translateLanguages: TranslateLanguage[]
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
   startEditingMessage?: (messageId: string) => void
-  onUpdateUseful?: (messageId: string) => void
+  onSelectContext?: (messageId: string) => void
   t: TFunction
 }
 
@@ -117,7 +116,7 @@ function toolbarAvailability(
   isVisible: (context: MessageMenuBarActionContext) => boolean = () => true
 ) {
   return (context: MessageMenuBarActionContext): ActionAvailabilityInput => {
-    const visible = context.toolbarButtonIds.has(id) && isVisible(context)
+    const visible = isVisible(context)
     return {
       visible,
       enabled: visible && !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(id))
@@ -280,8 +279,8 @@ registerCommand('message.exportSiyuan', async ({ actions, messageForExport }) =>
   await actions.exportToSiyuan?.(messageForExport)
 })
 
-registerCommand('message.useful', ({ message, onUpdateUseful }) => {
-  onUpdateUseful?.(message.id)
+registerCommand('message.useful', ({ message, onSelectContext }) => {
+  onSelectContext?.(message.id)
 })
 
 registerToolbarAction({
@@ -333,15 +332,12 @@ registerToolbarAction({
   label: ({ t }) => t('chat.translate'),
   icon: ({ isTranslating }) => (isTranslating ? <CirclePause size={15} /> : <Languages size={15} />),
   availability: (context) => {
-    const visibleInToolbar = context.toolbarButtonIds.has('translate')
     const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
     const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
     const canRemoveTranslation = context.hasTranslationBlocks && !!context.actions.removeMessageTranslation
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
     const visible =
-      visibleInToolbar &&
-      !context.isUserMessage &&
-      (canTranslate || canCopyTranslation || canRemoveTranslation || canAbortTranslation)
+      !context.isUserMessage && (canTranslate || canCopyTranslation || canRemoveTranslation || canAbortTranslation)
 
     return {
       visible,
@@ -356,9 +352,12 @@ registerToolbarAction({
   id: 'useful',
   commandId: 'message.useful',
   label: ({ t }) => t('chat.message.useful.label'),
-  icon: ({ isUseful }) =>
-    isUseful ? <ThumbsUp size={17.5} fill="var(--primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
-  availability: toolbarAvailability('useful', ({ isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped)
+  icon: ({ isSelectedForContext }) =>
+    isSelectedForContext ? <ThumbsUp size={17.5} fill="var(--primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
+  availability: toolbarAvailability(
+    'useful',
+    ({ actions, isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped && !!actions.setActiveBranch
+  )
 })
 
 registerToolbarAction({
@@ -386,8 +385,8 @@ registerToolbarAction({
           destructive: true
         }
       : undefined,
-  availability: ({ actions, isProcessing, message, t, toolbarButtonIds }) => {
-    const visible = toolbarButtonIds.has('delete') && !!actions.deleteMessage
+  availability: ({ actions, isProcessing, message, t }) => {
+    const visible = !!actions.deleteMessage
     const deleteAvailability = actions.getMessageDeleteAvailability?.(message.id) ?? { enabled: true }
     const reason = getMessageDeleteUnavailableText(
       deleteAvailability.enabled ? undefined : deleteAvailability.reason,

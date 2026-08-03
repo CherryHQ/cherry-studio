@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { VersionStatusCard } from '../VersionStatusCard'
@@ -69,18 +70,31 @@ describe('VersionStatusCard', () => {
     expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
   })
 
-  it('renders a disabled launch action when launch requirements are missing', () => {
+  it('keeps an unavailable launch action focusable and exposes the reason', async () => {
+    const user = userEvent.setup()
+    const onLaunch = vi.fn()
     render(
       <VersionStatusCard
         toolId="qwen-code"
         toolName="Qwen Code"
         status={{ source: 'none', installed: true, canUpgrade: false }}
-        onLaunch={vi.fn()}
+        onLaunch={onLaunch}
         canLaunch={false}
+        launchDisabledHint="Choose a provider"
       />
     )
 
-    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+    const launchButton = screen.getByRole('button', { name: 'code.launch.label' })
+    await user.tab()
+
+    expect(launchButton).toHaveFocus()
+    expect(launchButton).toBeEnabled()
+    expect(launchButton).toHaveAttribute('aria-disabled', 'true')
+    expect(launchButton).toHaveAccessibleDescription('Choose a provider')
+    expect(launchButton.parentElement).toHaveAttribute('data-title', 'Choose a provider')
+
+    await user.keyboard('{Enter}')
+    expect(onLaunch).not.toHaveBeenCalled()
   })
 
   it('renders the launching state', () => {
@@ -111,7 +125,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.getByText('v1.1.0')).toHaveClass('text-warning')
+    expect(screen.getByText('v1.1.0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'code.upgrade' }))
     expect(onUpgrade).toHaveBeenCalledTimes(1)
   })

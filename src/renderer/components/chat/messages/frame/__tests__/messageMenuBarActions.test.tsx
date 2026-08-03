@@ -1,7 +1,3 @@
-import {
-  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
-  getMessageMenuBarConfig
-} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -119,8 +115,6 @@ vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn(() => 'plain text')
 }))
 
-import { TopicType } from '@renderer/types/topic'
-
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {
   executeMessageMenuBarAction,
@@ -166,7 +160,6 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
     } as any,
     messageContainerRef: { current: null } as any,
     mainTextContent: 'hello',
-    toolbarButtonIds: new Set(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS),
     menuConfig: defaultMessageMenuConfig,
     copied: false,
     setCopied: vi.fn(),
@@ -176,7 +169,7 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
     isTranslating: false,
     hasTranslationBlocks: false,
     isUserMessage: false,
-    isUseful: false,
+    isSelectedForContext: false,
     isEditable: true,
     translateLanguages: [],
     startEditingMessage: vi.fn(),
@@ -342,6 +335,7 @@ describe('messageMenuBarActions', () => {
           exportToNotes: vi.fn(),
           regenerateMessage: vi.fn(),
           renderRegenerateModelPicker: vi.fn(),
+          setActiveBranch: vi.fn(),
           translateMessage: vi.fn()
         } as MessageListActions,
         translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
@@ -592,19 +586,13 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
   })
 
-  it('keeps session scope capability-driven for toolbar actions', () => {
-    const sessionConfig = getMessageMenuBarConfig(TopicType.Session)
+  it('resolves the session-style toolbar from absent write capabilities alone', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
         actions: {
           deleteMessage: vi.fn(),
-          exportToNotes: vi.fn(),
-          regenerateMessage: vi.fn(),
-          renderRegenerateModelPicker: vi.fn(),
-          translateMessage: vi.fn()
-        } as MessageListActions,
-        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
-        toolbarButtonIds: new Set(sessionConfig.buttonIds)
+          exportToNotes: vi.fn()
+        } as MessageListActions
       })
     )
 

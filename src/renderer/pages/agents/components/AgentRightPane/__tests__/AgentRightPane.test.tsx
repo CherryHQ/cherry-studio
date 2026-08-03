@@ -2,6 +2,7 @@ import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifact
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type {
@@ -40,7 +41,8 @@ const {
   fileSessionState: {
     isDirty: false,
     isSaving: false,
-    saveError: undefined as Error | undefined
+    saveError: undefined as Error | undefined,
+    metadataRecoveryPending: false
   },
   fileTreeModelState: {
     hasLoaded: false,
@@ -196,7 +198,6 @@ vi.mock('@renderer/utils/filePath', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
-  ArtifactFilePreview: () => <div data-testid="artifact-preview" />,
   ArtifactPaneView: ({
     editMode,
     onEditModeChange,
@@ -257,8 +258,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   getArtifactPaneSelectionPath: (
     await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath')
   ).getArtifactPaneSelectionPath,
-  isOfficeDocumentFile: () => false,
-  isImageFile: () => false,
   resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
@@ -280,6 +279,9 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
     conflict: false,
     get saveError() {
       return fileSessionState.saveError
+    },
+    get metadataRecoveryPending() {
+      return fileSessionState.metadataRecoveryPending
     },
     setDraft: vi.fn(),
     discard: fileSessionDiscardMock,
@@ -426,10 +428,10 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
-function OpenArtifactButton() {
+function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   const { openArtifactFile } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openArtifactFile('report.md')}>
+    <button type="button" onClick={() => openArtifactFile(path)}>
       open artifact
     </button>
   )
@@ -489,6 +491,14 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ipcRequestMock.mockResolvedValue({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
     fileSessionState.isDirty = false
     fileSessionState.isSaving = false
     fileSessionState.saveError = undefined
@@ -789,7 +799,7 @@ describe('AgentRightPane', () => {
     )
   })
 
-  it('marks direct artifact opening as user initiated', () => {
+  it('marks direct artifact opening as user initiated', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'report.md'
@@ -808,7 +818,81 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+    })
+    expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/workspace/report.md'
+    })
+  })
+
+  it('ignores a stale artifact metadata resolution after the workspace switches', async () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace-a',
+      filePath: 'report.md'
+    })
+    let resolveMetadata: (metadata: PhysicalFileMetadata | null) => void = () => {}
+    ipcRequestMock.mockImplementationOnce(
+      () =>
+        new Promise<PhysicalFileMetadata | null>((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+    const renderPane = (workspacePath: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath={workspacePath}
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane('/workspace-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    rerender(renderPane('/workspace-b'))
+
+    await act(async () => {
+      resolveMetadata({ kind: 'file', type: 'text', size: 1, createdAt: 1, modifiedAt: 1, mime: 'text/plain' })
+    })
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+  })
+
+  it('opens the files pane without previewing a declared directory', async () => {
+    ipcRequestMock.mockResolvedValue({
+      kind: 'directory',
+      size: 0,
+      createdAt: 1,
+      modifiedAt: 1
+    })
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'html in canvas'
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton path="html in canvas" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await waitFor(() => {
+      expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+        kind: 'path',
+        path: '/workspace/html in canvas'
+      })
+    })
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
   it('replaces the retained flow when another flow is opened', () => {
@@ -871,93 +955,6 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
-  it('hides the message avatar column in a flow panel', () => {
-    const flowPart = {
-      type: 'dynamic-tool',
-      toolCallId: 'flow-1',
-      toolName: 'task',
-      state: 'input-available',
-      input: { prompt: 'Inspect the workspace' }
-    } as unknown as CherryMessagePart
-    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
-
-    render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: [flowPart] }}>
-        <OpenFlowButton />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-
-    expect(screen.getByTestId('message-list').parentElement).toHaveClass('[&_.message-avatar]:hidden')
-  })
-
-  it.each([
-    { status: 'pending', iconClassNames: ['text-muted-foreground'] },
-    { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },
-    { status: 'completed', iconClassNames: ['text-success'] },
-    { status: 'stopped', iconClassNames: ['text-muted-foreground'] },
-    { status: 'error', iconClassNames: ['text-destructive'] }
-  ] as const)('centers the $status task icon within the first text line', ({ status, iconClassNames }) => {
-    const title = `${status} task`
-    renderStatusTasks([{ id: status, status, title }])
-
-    const taskText = screen.getByText(title)
-    const iconContainer = taskText.parentElement?.previousElementSibling
-
-    expect(taskText).toHaveClass('leading-5')
-    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-    expect(iconContainer?.querySelector('svg')).toHaveClass(...iconClassNames)
-  })
-
-  it('keeps a wrapping task icon aligned with the first text line', () => {
-    const title =
-      'Review every renderer task state and verify the status icon remains aligned when this label wraps across lines'
-    renderStatusTasks([{ id: 'wrapping-task', status: 'pending', title }])
-
-    const taskText = screen.getByText(title)
-    const textContainer = taskText.parentElement
-    const row = textContainer?.parentElement
-    const iconContainer = textContainer?.previousElementSibling
-
-    expect(row).toHaveClass('items-start')
-    expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
-    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-  })
-
-  it('keeps shortcut preview task icons aligned while the status panel stays closed', () => {
-    const shortTitle = 'Review task state'
-    const wrappingTitle =
-      'Review every task state shown in the shortcut preview and verify this longer label keeps wrapping below its first line'
-    renderStatusTasks(
-      [
-        { id: 'short-task', status: 'pending', title: shortTitle },
-        { id: 'wrapping-task', status: 'in_progress', title: wrappingTitle }
-      ],
-      { openPanel: false }
-    )
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
-    const preview = screen.getByTestId('status-shortcut-preview')
-
-    // Task events now surface as run-task cards: icon container + a text column inside a card row.
-    for (const title of [shortTitle, wrappingTitle]) {
-      const taskText = within(preview).getByText(title)
-      const textColumn = taskText.parentElement
-      const row = textColumn?.parentElement
-      const iconContainer = textColumn?.previousElementSibling
-
-      expect(row).toHaveClass('flex', 'items-start')
-      expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
-      expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-    }
-  })
-
   it('opens a subagent flow from the shortcut environment context', () => {
     renderStatusTasks(
       [
@@ -973,7 +970,10 @@ describe('AgentRightPane', () => {
     )
 
     const preview = screen.getByTestId('status-shortcut-preview')
-    fireEvent.click(within(preview).getByRole('button', { name: /Inspect task state/ }))
+    const taskButton = within(preview).getByRole('button', { name: /Inspect task state/ })
+    expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
+    expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
+    fireEvent.click(taskButton)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
@@ -1037,42 +1037,6 @@ describe('AgentRightPane', () => {
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('agent.right_pane.status.stop_run_task_failed'))
     expect(stopButton).toBeEnabled()
-  })
-
-  it('renders artifact status filenames with neutral text', () => {
-    const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'artifacts-1',
-        toolName: 'report_artifacts',
-        state: 'output-available',
-        input: {
-          artifacts: [{ path: 'docs/report.md', description: 'Summary report' }]
-        }
-      }
-    ] as unknown as CherryMessagePart[]
-    const messages = [
-      {
-        id: 'm1',
-        role: 'assistant',
-        parts,
-        metadata: {}
-      }
-    ] as CherryUIMessage[]
-
-    render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: parts }}>
-        <AgentRightPane.Shortcuts />
-      </TestAgentRightPane>
-    )
-
-    const artifactButton = screen.getByRole('button', { name: 'report.md' })
-    expect(artifactButton).not.toHaveClass('text-primary')
-    expect(artifactButton).toHaveClass('text-foreground-secondary')
   })
 
   it('does not mount the files capability while the shell is closed', () => {

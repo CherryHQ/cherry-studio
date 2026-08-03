@@ -1,7 +1,6 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
@@ -36,14 +35,13 @@ const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
 interface Props {
   message: MessageListItem
   messageParts?: CherryMessagePart[]
-  topic: Topic
   index?: number
   total?: number
   hideMenuBar?: boolean
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
@@ -54,12 +52,11 @@ interface Props {
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   message,
-  topic,
   // assistant,
   index,
   hideMenuBar = false,
   isGrouped,
-  onUpdateUseful,
+  onSelectContext,
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
@@ -190,7 +187,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         onKeyDown={handleStartNewContextKeyDown}
         role="button"
         tabIndex={canStartNewContext ? 0 : -1}>
-        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-muted text-sm">
+        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-tertiary text-sm">
           <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-border border-dashed" />
@@ -218,18 +215,17 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   )
 
   const userFooter = showUserFooterActions ? (
-    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-muted text-xs leading-none">
+    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-tertiary text-xs leading-none">
       <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
         <MessageMenuBar
           message={message}
-          topic={topic}
           isLastMessage={isLastMessage}
           isAssistantMessage={false}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
           variant="header"
         />
         <SiblingNavigator messageId={message.id} />
@@ -249,7 +245,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         }}>
         <MessageMenuBar
           message={message}
-          topic={topic}
           isLastMessage={isLatestAssistantMessage}
           forceVisible={isMessageMenuOpen}
           isAssistantMessage={isAssistantMessage}
@@ -258,7 +253,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
           onMenuOpenChange={setIsMessageMenuOpen}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
         />
       </HorizontalScrollContainer>
       <SiblingNavigator messageId={message.id} />
@@ -283,13 +278,12 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       {isUserBubbleMessage ? (
         <UserBubbleMessage
           message={message}
-          topic={topic}
           isLastMessage={isLastMessage}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
           onStartEditing={handleStartEditing}
-          onUpdateUseful={onUpdateUseful}
+          onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
           isEditing={isEditing}
@@ -324,25 +318,23 @@ export default memo(MessageItem)
 
 const UserBubbleMessage = ({
   message,
-  topic,
   isLastMessage,
   isGrouped,
   isProcessing,
   messageContainerRef,
   onStartEditing,
-  onUpdateUseful,
+  onSelectContext,
   messageFont,
   fontSize,
   isEditing
 }: {
   message: MessageListItem
-  topic: Topic
   isLastMessage: boolean
   isGrouped?: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   onStartEditing?: (messageId: string) => void
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   messageFont: string
   fontSize: number
   isEditing: boolean
@@ -357,11 +349,11 @@ const UserBubbleMessage = ({
 
   return (
     <div className="flex w-full flex-col items-end">
-      <div className="flex max-w-full items-start justify-end gap-2.5">
+      <div className="flex max-w-full items-start justify-end gap-2.5 has-[.code-block]:w-full">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           <Scrollbar
             data-ui="part:message-content"
-            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,
@@ -375,19 +367,18 @@ const UserBubbleMessage = ({
         <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
       {!isEditing && (
-        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
+        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-tertiary text-xs leading-none">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
             <MessageMenuBar
               message={message}
-              topic={topic}
               isLastMessage={isLastMessage}
               isAssistantMessage={false}
               isGrouped={isGrouped}
               isProcessing={isProcessing}
               messageContainerRef={messageContainerRef}
               onStartEditing={onStartEditing}
-              onUpdateUseful={onUpdateUseful}
+              onSelectContext={onSelectContext}
               variant="header"
             />
             <SiblingNavigator messageId={message.id} />

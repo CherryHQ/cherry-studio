@@ -31,15 +31,22 @@ export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; 
  * Title + optional description for one mode. `dangerous` modes render in `--destructive`:
  * picking one hands the agent unattended file deletion and network access, so it needs
  * to read as dangerous at a glance rather than merely noteworthy.
+ *
+ * A mode's `warningKey` renders on its own line regardless of `withDescription`, since the
+ * warning is what the user needs before choosing the mode. Containers that can only render
+ * a single line (the composer quick panel row is a fixed 30px) pass `withWarning={false}`
+ * and place the caveat themselves.
  */
 export function PermissionModeOptionLabel({
   card,
   t,
-  withDescription = true
+  withDescription = true,
+  withWarning = true
 }: {
   card: PermissionModeCard
   t: TFunction
   withDescription?: boolean
+  withWarning?: boolean
 }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -47,8 +54,13 @@ export function PermissionModeOptionLabel({
         {t(card.titleKey, card.titleFallback)}
       </span>
       {withDescription && (
-        <span className={cn('text-xs', card.dangerous ? 'text-destructive/80' : 'text-muted-foreground')}>
+        <span className={cn('text-xs', card.dangerous ? 'text-destructive' : 'text-muted-foreground')}>
           {t(card.descriptionKey, card.descriptionFallback)}
+        </span>
+      )}
+      {withWarning && card.warningKey && (
+        <span className={cn('text-xs', card.dangerous ? 'text-destructive' : 'text-warning')}>
+          {t(card.warningKey, card.warningFallback ?? '')}
         </span>
       )}
     </div>

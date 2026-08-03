@@ -31,7 +31,7 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
   CompoundLogo.colorPrimary = '#000000'
   return {
     getMiniAppsLogoRef: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling'
+      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' || logo === 'loading-logo'
         ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
         : undefined,
     useMiniAppLogo: (logo: unknown) =>
@@ -107,6 +107,20 @@ describe('MiniAppIcon', () => {
     const { container } = render(<MiniAppIcon app={baseApp} />)
 
     expect(container.firstChild).toBeNull()
+  })
+
+  it('keeps a size-stable placeholder while a preset icon is loading', () => {
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logo: 'loading-logo' }} size={48} style={{ marginTop: 4 }} />
+    )
+
+    expect(container.firstElementChild).toHaveClass('shrink-0')
+    expect(container.firstElementChild).toHaveStyle({
+      width: '48px',
+      height: '48px',
+      marginTop: '4px'
+    })
+    expect(container.querySelector('img, [data-testid="compound-logo"]')).toBeNull()
   })
 
   it('renders compound icons as avatar by default', () => {
