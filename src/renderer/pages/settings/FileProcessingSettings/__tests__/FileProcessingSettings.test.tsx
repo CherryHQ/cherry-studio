@@ -732,18 +732,22 @@ describe('processing settings pages', () => {
 
     const { rerender } = render(<OcrSettings />)
 
-    expect(
-      await screen.findByRole('button', {
-        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
-      })
-    ).toHaveTextContent('PP-OCRv5')
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+        })
+      ).toHaveTextContent('PP-OCRv5')
+    })
 
     rerender(<DocumentProcessingSettings />)
-    expect(
-      await screen.findByRole('button', {
-        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
-      })
-    ).toHaveTextContent('PP-StructureV3')
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+        })
+      ).toHaveTextContent('PP-StructureV3')
+    })
   })
 
   it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
