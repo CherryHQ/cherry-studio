@@ -63,7 +63,13 @@ describe('Cherry Assistant guide', () => {
     expect(instructions).toContain('mcp__assistant__product_info')
     expect(agent.instructions['zh-CN']).toContain('不能仅因问题与 Cherry Studio 无关而拒答')
     expect(instructions).not.toMatch(/\/(?:app|settings)\//)
-    expect(agent.accessible_paths).toEqual(['#{PROJECT_ROOT}'])
+    expect(agent.accessible_paths).toEqual([
+      '#{PROJECT_ROOT}',
+      '#{USER_HOME}/Library/Application Support/CherryStudio/prerelease-adoption.status.json',
+      '#{USER_HOME}/Library/Application Support/CherryStudio/prerelease-adoption.pending.json',
+      '#{USER_HOME}/AppData/Roaming/CherryStudio/prerelease-adoption.status.json',
+      '#{USER_HOME}/AppData/Roaming/CherryStudio/prerelease-adoption.pending.json'
+    ])
   })
 
   it('keeps the assistant lively and patient without forcing humor', () => {
