@@ -9,7 +9,7 @@
 
 | 问题 | 状态 | 提交 |
 |---|---|---|
-| #1 tool_invoke schema 400 | ✅ 已修复(手写 `jsonSchema()` 绕过 SDK 的 additionalProperties 覆盖) | `2ec4f0c07f` |
+| #1 tool_invoke schema 400 | ✅ 已修复(两层覆盖:手写 `jsonSchema()` 绕过 provider-utils + `sanitizeSchema` 保留显式 `additionalProperties:true`) | `2ec4f0c07f` / `@ai-sdk__anthropic.patch` |
 | #2 压缩折叠附件后 read_file 失联 | ✅ 已修复(权威附件清单随请求下发 + 摘要行附附件清单提示) | `81a7e1ee37` |
 | #3 read 类工具回声全量占库 | ✅ 已修复(read_file / fs_read persist 侧 text-field codec) | `793b77885f` |
 | #4 in-loop 压缩无记忆化 | ✅ 已修复(prepareStep 闭包内增量折叠缓存,零重复摘要化) | `8bfe78af9a` |
@@ -29,7 +29,8 @@
   与 `params: z.record(z.string(), z.unknown()).optional()` 经 zod→JSON Schema 序列化后的结果不匹配(子 schema 落成 `false`),Anthropic API 新增的示例校验按 schema 拒绝该 example。
 - **影响面**:Anthropic 家族端点 + auto 池过线(默认 200k 窗口需 ≈20k tokens 的 MCP 工具描述,约几十个工具;小窗口模型更容易)。多 MCP 重度用户会真实命中,且表现为"开了很多 MCP 后 Claude 突然全部请求报错"。
 - **修复方向**(任一):对齐 example 与序列化后的 schema;去掉 `inputExamples`;anthropic provider 侧在发送前丢弃与 schema 不符的 examples。注意 `toolSearch.ts`/`toolInspect.ts` 的 examples 需一并核查。
-- **✅ 已修复(`2ec4f0c07f`)+ 根因精化**:实际根因不在 zod 序列化本身——zod v4 产出的 `additionalProperties: {}` 是对的,是 `@ai-sdk/provider-utils` 的 `addAdditionalPropertiesToJsonSchema` 对每个 object 节点**无条件覆盖 `additionalProperties: false`**,把 `params` 变成不接受任何属性的死对象(example 校验 400,模型正常传参同样违反)。修法:`toolInvoke.ts` 改用手写 `jsonSchema()`(`asSchema` 对已包装 schema 原样放行,跳过覆盖),`params` 显式 `additionalProperties: true`,运行时校验保留原 zod `safeParse`;`inputExamples` 保留(修后合法)。测试钉住 wire schema 的 `properties.params.additionalProperties === true`。`toolSearch`/`toolInspect` 核查过:examples 全为已声明属性,不中招。
+- **✅ 已修复(`2ec4f0c07f`,第一层)+ 根因精化**:实际根因不在 zod 序列化本身——zod v4 产出的 `additionalProperties: {}` 是对的,是 `@ai-sdk/provider-utils` 的 `addAdditionalPropertiesToJsonSchema` 对每个 object 节点**无条件覆盖 `additionalProperties: false`**,把 `params` 变成不接受任何属性的死对象(example 校验 400,模型正常传参同样违反)。修法:`toolInvoke.ts` 改用手写 `jsonSchema()`(`asSchema` 对已包装 schema 原样放行,跳过覆盖),`params` 显式 `additionalProperties: true`,运行时校验保留原 zod `safeParse`;`inputExamples` 保留(修后合法)。`toolSearch`/`toolInspect` 核查过:examples 全为已声明属性,不中招。
+- **✅ 补齐第二层覆盖(2026-08-03 运行时复测发现,`patches/@ai-sdk__anthropic.patch`)**:第一层修复后 aihubmix 端点仍复现同一 400。追因:`@ai-sdk/anthropic` 的 `sanitizeSchema`(由本仓 `@ai-sdk__anthropic.patch` 把 `sanitizeJsonSchema` 接入 `prepareTools` 后,对每个工具 `input_schema` 生效)在**发送前又一次**对每个 object 节点无条件 `result.additionalProperties = false`,把 asSchema 已放行的 `params: additionalProperties:true` 重新压回 `false`。`asSchema` 层(provider-utils)不再覆盖,但 provider 自己的 sanitizer 覆盖——两层是**独立**的两处 clobber。修法:改 `sanitizeSchema` 为 `result.additionalProperties = schema.additionalProperties === true ? true : false`(仅保留显式 `true`,其余仍默认闭合,普通工具零影响)。边界测试 `aihubmix.anthropicTools.test.ts` 新增用例钉住 wire schema:`input_schema.properties.params.additionalProperties === true` 且外层对象仍 `false`——直接跑真实 `prepareTools`→`sanitizeJsonSchema` 序列化路径,无需 Electron。
 
 ## #2 durable 压缩折叠附件消息后,read_file 失联、细节不可恢复
 

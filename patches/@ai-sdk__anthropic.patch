@@ -1,5 +1,5 @@
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index af85cb1..df59cf5 100644
+index af85cb1..5b7aabc 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1480,7 +1480,7 @@ async function prepareTools({
@@ -11,6 +11,15 @@ index af85cb1..df59cf5 100644
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -3194,7 +3194,7 @@ function sanitizeSchema(schema) {
+         ])
+       );
+     }
+-    result.additionalProperties = false;
++    result.additionalProperties = schema.additionalProperties === true ? true : false;
+     if (schema.required != null) {
+       result.required = schema.required;
+     }
 @@ -3459,12 +3459,12 @@ var AnthropicMessagesLanguageModel = class {
      const isThinking = thinkingType === "enabled" || thinkingType === "adaptive";
      let thinkingBudget = thinkingType === "enabled" ? (_f = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _f.budgetTokens : void 0;
@@ -48,7 +57,7 @@ index af85cb1..df59cf5 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 9c37d98..2f2652e 100644
+index 9c37d98..814395d 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1496,7 +1496,7 @@ async function prepareTools({
@@ -60,6 +69,15 @@ index 9c37d98..2f2652e 100644
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -3235,7 +3235,7 @@ function sanitizeSchema(schema) {
+         ])
+       );
+     }
+-    result.additionalProperties = false;
++    result.additionalProperties = schema.additionalProperties === true ? true : false;
+     if (schema.required != null) {
+       result.required = schema.required;
+     }
 @@ -3500,12 +3500,12 @@ var AnthropicMessagesLanguageModel = class {
      const isThinking = thinkingType === "enabled" || thinkingType === "adaptive";
      let thinkingBudget = thinkingType === "enabled" ? (_f = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _f.budgetTokens : void 0;
