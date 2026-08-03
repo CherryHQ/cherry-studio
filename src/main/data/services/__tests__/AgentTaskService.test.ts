@@ -23,7 +23,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 
-import { agentTaskService } from '../AgentTaskService'
+import { agentTaskService, readTaskSessionReuse, writeTaskSessionReuse } from '../AgentTaskService'
 
 const AGENT_ID = 'agent-a1'
 const TASK_ID = 'sched-1'
@@ -237,6 +237,50 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).not.toHaveProperty('taskId')
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
+    })
+  })
+
+  describe('session reuse metadata', () => {
+    it.each([
+      ['absent', {}],
+      ['null', { reuse: null }],
+      ['a primitive', { reuse: 'yes' }],
+      ['an array', { reuse: ['enabled'] }]
+    ])('reads %s reuse metadata as disabled and unbound', (_label, metadata) => {
+      expect(readTaskSessionReuse(metadata as Record<string, unknown>)).toEqual({ enabled: false, sessionId: null })
+    })
+
+    // `ScheduledTaskEntity` promises a null `reuseSessionId` while reuse is off;
+    // a corrupt row must not surface a pointer the UI would present as bound.
+    it('drops a session id left behind on a disabled reuse block', () => {
+      expect(readTaskSessionReuse({ reuse: { enabled: false, sessionId: 'sess-stale' } })).toEqual({
+        enabled: false,
+        sessionId: null
+      })
+    })
+
+    it('rejects a blank or non-string session id', () => {
+      expect(readTaskSessionReuse({ reuse: { enabled: true, sessionId: '' } }).sessionId).toBeNull()
+      expect(readTaskSessionReuse({ reuse: { enabled: true, sessionId: 42 } }).sessionId).toBeNull()
+    })
+
+    it('preserves unrelated keys and replaces only the reuse block', () => {
+      const merged = writeTaskSessionReuse(
+        { unrelated: 'keep', reuse: { enabled: false, sessionId: null } },
+        { enabled: true, sessionId: 'sess-1' }
+      )
+
+      expect(merged).toEqual({ unrelated: 'keep', reuse: { enabled: true, sessionId: 'sess-1' } })
+    })
+
+    // A JSON column can legally hold an array; spreading it would produce numeric keys.
+    it('does not spread a non-record metadata column', () => {
+      const merged = writeTaskSessionReuse(['junk'] as unknown as Record<string, unknown>, {
+        enabled: true,
+        sessionId: 'sess-1'
+      })
+
+      expect(merged).toEqual({ reuse: { enabled: true, sessionId: 'sess-1' } })
     })
   })
 })

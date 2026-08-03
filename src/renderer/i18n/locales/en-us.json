@@ -759,6 +759,7 @@
       },
       "resume": "Resume",
       "reuseSession": {
+        "bound": "View session",
         "description": "Continue every run in the same session instead of starting a new one.",
         "label": "Reuse session",
         "pending": "Waiting for the first run",

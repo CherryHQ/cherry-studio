@@ -780,6 +780,7 @@ const TaskDetail: FC<{
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
+  const { openConversation } = useConversationNavigation('agents')
   const isCompleted = task.status === 'completed'
   const agentName = agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId
   const taskChannels = useMemo(
@@ -833,9 +834,25 @@ const TaskDetail: FC<{
     { label: t('agent.session.display.workdir'), value: workspaceLabel },
     {
       label: t('agent.tasks.reuseSession.label'),
-      // The bound session only exists once a fire has run; until then the
-      // switch is on but there is nothing to point at yet.
-      value: task.reuseSession ? (task.reuseSessionId ?? t('agent.tasks.reuseSession.pending')) : t('common.disabled')
+      // A raw session UUID tells the user nothing — show the state, and make the
+      // bound case a real affordance (the same jump the run log already offers).
+      // The bound session only exists once a fire has run; until then the switch
+      // is on but there is nothing to point at yet.
+      value: !task.reuseSession ? (
+        t('common.disabled')
+      ) : task.reuseSessionId ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto p-0"
+          onClick={() => openConversation(task.reuseSessionId as string)}>
+          {t('agent.tasks.reuseSession.bound')}
+          <ArrowRight size={13} />
+        </Button>
+      ) : (
+        t('agent.tasks.reuseSession.pending')
+      )
     },
     {
       label: t('agent.tasks.channels.label'),

@@ -58,14 +58,22 @@ export type TaskSessionReuse = {
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
 
+/** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
   const raw = metadata?.[TASK_REUSE_METADATA_KEY]
-  if (typeof raw !== 'object' || raw === null) return { enabled: false, sessionId: null }
+  if (!isPlainRecord(raw)) return { enabled: false, sessionId: null }
   const reuse = raw as Partial<TaskSessionReuse>
-  return {
-    enabled: reuse.enabled === true,
-    sessionId: typeof reuse.sessionId === 'string' ? reuse.sessionId : null
-  }
+  const enabled = reuse.enabled === true
+  // Normalize rather than mirror: `ScheduledTaskEntity` promises a null
+  // `reuseSessionId` whenever reuse is off, so a corrupt or hand-edited row
+  // must not surface a pointer the UI would then present as bound.
+  const sessionId =
+    enabled && typeof reuse.sessionId === 'string' && reuse.sessionId.length > 0 ? reuse.sessionId : null
+  return { enabled, sessionId }
 }
 
 /**
@@ -77,7 +85,7 @@ export function writeTaskSessionReuse(
   metadata: Record<string, unknown> | undefined,
   reuse: TaskSessionReuse
 ): Record<string, unknown> {
-  return { ...metadata, [TASK_REUSE_METADATA_KEY]: reuse }
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
 }
 
 function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
