@@ -6778,6 +6778,7 @@
         "allStatuses": "Alle Status",
         "allTypes": "Alle Typen",
         "builtinOnly": "Nur integriert",
+        "label": "Filter",
         "status": "Nach Status filtern",
         "type": "Nach Typ filtern"
       },
@@ -6844,6 +6845,9 @@
         "loadError": "Prompt-Fehler abrufen",
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
+      },
+      "protocolInstall": {
+        "title": "MCP installieren"
       },
       "protocolInstallWarning": {
         "command": "Startbefehl",
