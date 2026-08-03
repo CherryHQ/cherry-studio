@@ -20,6 +20,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import type { Citation } from '@renderer/types/message'
 import {
   type MessageCitations,
   resolveCitationMarkerParts,
@@ -28,7 +29,11 @@ import {
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
-import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import {
+  type CitationReferenceView,
+  convertReferencesToCitationReferences,
+  convertReferencesToCitations
+} from '@renderer/utils/partsToBlocks'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -74,6 +79,15 @@ import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
+
+// The same references array must convert to the same citation array identities
+// across renders: a fresh array here cascades into ChatMarkdown's components
+// map and forces Streamdown to re-render (and re-animate) every markdown block
+// on each streaming tick.
+const referenceCitationsCache = new WeakMap<
+  ContentReference[],
+  { citations: Citation[]; citationReferences?: CitationReferenceView[] }
+>()
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -540,20 +554,23 @@ function renderPart(
 
     case 'text': {
       const cherryMeta = getCherryMeta(part)
-      const citations = cherryMeta?.references
-        ? convertReferencesToCitations(cherryMeta.references as ContentReference[])
-        : []
-      const citationReferences = cherryMeta?.references
-        ? convertReferencesToCitationReferences(cherryMeta.references as ContentReference[], partId)
-        : undefined
+      const references = cherryMeta?.references as ContentReference[] | undefined
+      let converted = references ? referenceCitationsCache.get(references) : undefined
+      if (references && !converted) {
+        converted = {
+          citations: convertReferencesToCitations(references),
+          citationReferences: convertReferencesToCitationReferences(references, partId)
+        }
+        referenceCitationsCache.set(references, converted)
+      }
       return (
         <MainTextBlock
           key={partId}
           id={partId}
           content={part.text || ''}
           isStreaming={isStreaming}
-          citations={citations}
-          citationReferences={citationReferences}
+          citations={converted?.citations}
+          citationReferences={converted?.citationReferences}
           inlineHtmlPreviewMode={inlineHtmlPreviewMode}
           messageCitations={message.role === 'assistant' ? options?.messageCitations : undefined}
           toolCitationProjection={options?.citationProjectionByPart?.get(part)}
