@@ -307,7 +307,9 @@ describe('processing settings pages', () => {
       })
     })
     expect(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
+      await screen.findByRole('button', {
+        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+      })
     ).toBeInTheDocument()
   })
 
