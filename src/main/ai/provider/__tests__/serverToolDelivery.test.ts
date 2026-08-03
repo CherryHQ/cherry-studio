@@ -59,6 +59,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   gateway: { 'web-search': { kind: 'gateway-mapped' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
   'new-api': { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
+  // Native vendor endpoints behind `aihubmix.<vendor>` model provider strings.
+  aihubmix: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
   // Anthropic-direct (anthropic-messages endpoint, adapterFamily 'anthropic').
   'claude-code': { 'url-context': factories('anthropic') }
 }

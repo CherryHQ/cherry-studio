@@ -120,7 +120,19 @@
           "official": "https://aihubmix.com"
         }
       },
-      "name": "AiHubMix"
+      "name": "AiHubMix",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai"]
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini"]
+        }
+      ]
     },
     {
       "authOptional": true,
@@ -2022,5 +2034,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "0963cc63960f2d91"
+  "version": "629a230480a948fa"
 }
