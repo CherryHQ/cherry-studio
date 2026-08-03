@@ -94,14 +94,8 @@ function agentTaskNotFound(taskId: string): IpcError {
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
-  'ai.text.generate': ({ requestId, ...request }) =>
-    exposeAiError('ai.text.generate', () => {
-      const service = application.get('AiService')
-      return requestId ? service.runTextRequest(requestId, request) : service.generateText(request)
-    }),
-  'ai.text.abort': async ({ requestId }) => {
-    application.get('AiService').abortText(requestId)
-  },
+  'ai.text.generate': (request) =>
+    exposeAiError('ai.text.generate', () => application.get('AiService').generateText(request)),
   'ai.embedding.embed_many': (request) =>
     exposeAiError('ai.embedding.embed_many', () => application.get('AiService').embedMany(request)),
   'ai.image.generate': ({ requestId, payload }) =>

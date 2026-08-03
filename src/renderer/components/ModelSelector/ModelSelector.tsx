@@ -767,7 +767,9 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return (
-      <>
+      <div
+        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-testid="model-selector-filter-tags">
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
@@ -776,10 +778,10 @@ export function ModelSelector(props: ModelSelectorProps) {
             showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="h-5 items-center transition-colors"
+            className="h-5 shrink-0 items-center transition-colors"
           />
         ))}
-      </>
+      </div>
     )
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 

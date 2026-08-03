@@ -33,6 +33,8 @@ import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
+const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
+const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
 interface Props {
   children: string
@@ -128,6 +130,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
+  const handleRequestExpand = useCallback(() => setExpandOverride(true), [])
 
   // 重置用户操作
   useEffect(() => {
@@ -309,11 +312,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           expanded={shouldExpand}
           wrapped={shouldWrap}
           maxHeight={sourceMaxHeight}
-          onRequestExpand={maxHeight === undefined && codeCollapsible ? () => setExpandOverride(true) : undefined}
+          onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
-          options={{
-            highlight: !isStreaming
-          }}
+          options={isStreaming ? STREAMING_CODE_VIEWER_OPTIONS : HIGHLIGHTED_CODE_VIEWER_OPTIONS}
         />
       ),
     [
@@ -325,6 +326,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
+      handleRequestExpand,
       isStreaming,
       language,
       maxHeight,
@@ -353,13 +355,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
       return (
-        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-foreground text-sm leading-none" />
+        <div className="code-block-header mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-medium text-muted-foreground text-xs leading-none" />
       )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <div className="flex h-8 items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
+      <div className="code-block-header flex h-8 items-center border-border-subtle border-b-[0.5px] bg-background-subtle px-2.5 font-medium text-muted-foreground text-xs leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.toUpperCase()}
       </div>
@@ -390,7 +392,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   return (
     <div
       className={cn(
-        'code-block relative w-full min-w-[35ch]',
+        'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
         isInSpecialView

@@ -374,6 +374,29 @@ describe('MessageGroup', () => {
     }
   )
 
+  it('uses two equal columns across the full width in grid layout', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 5,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [
+      createMessage('msg-1', 0, 'grid'),
+      createMessage('msg-2', 1, 'grid'),
+      createMessage('msg-3', 2, 'grid')
+    ]
+
+    const { container } = render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+    const grid = container.querySelector('[data-ui="chat.message.group"] > .grid') as HTMLElement
+    expect(grid).toHaveClass('w-full')
+    expect(grid.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
+  })
+
   it('keeps model identity in the existing selector for fold layout', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',

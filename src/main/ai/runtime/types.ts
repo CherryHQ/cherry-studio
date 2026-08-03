@@ -74,11 +74,6 @@ export interface AgentRuntimeConnectInput {
 
 export interface AgentRuntimeUserInput {
   message: AgentSessionMessageEntity
-  /**
-   * Exact greeting displayed before the first user message. Runtimes add it as untrusted user
-   * context and must not persist it as a session message or reuse it for later turns.
-   */
-  greetingContext?: string
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean

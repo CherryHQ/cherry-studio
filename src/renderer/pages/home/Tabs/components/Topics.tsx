@@ -77,7 +77,7 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
+import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -1043,7 +1043,15 @@ export function Topics({
   const getGroupHeaderIcon = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || group.id === TOPIC_PINNED_GROUP_ID) return undefined
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
+        if (assistantIconType === 'none') return undefined
+
+        return (
+          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent text-muted-foreground">
+            <Unlink aria-hidden="true" />
+          </span>
+        )
+      }
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
@@ -1065,7 +1073,7 @@ export function Topics({
   const isGroupHeaderIconVisible = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || assistantIconType === 'none' || group.id === TOPIC_PINNED_GROUP_ID) return false
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return false
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return true
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       return !!assistantId && assistantById.has(assistantId)
@@ -1688,6 +1696,7 @@ const TopicRow = memo(function TopicRow({
         <ResourceList.ItemTitle
           title={topicName}
           className={cn(
+            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
             RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,

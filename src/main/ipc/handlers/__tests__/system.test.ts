@@ -4,7 +4,6 @@ const {
   appGetMock,
   getDeviceTypeMock,
   getCountryMock,
-  getDetectedCountryMock,
   getFontsMock,
   isTrustedMock,
   openPathMock,
@@ -16,7 +15,6 @@ const {
   appGetMock: vi.fn(),
   getDeviceTypeMock: vi.fn(),
   getCountryMock: vi.fn(),
-  getDetectedCountryMock: vi.fn(),
   getFontsMock: vi.fn(),
   isTrustedMock: vi.fn(),
   openPathMock: vi.fn(),
@@ -28,9 +26,7 @@ const {
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/utils/system', () => ({ getDeviceType: getDeviceTypeMock }))
-vi.mock('@main/services/RegionService', () => ({
-  regionService: { getCountry: getCountryMock, getDetectedCountry: getDetectedCountryMock }
-}))
+vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeMock }))
 vi.mock('@main/core/platform', () => ({
   get isMac() {
@@ -77,11 +73,6 @@ describe('systemHandlers', () => {
   it('get_ip_country delegates to RegionService', async () => {
     getCountryMock.mockResolvedValue('US')
     expect(await systemHandlers['system.get_ip_country'](undefined, ctx('w1'))).toBe('US')
-  })
-
-  it('ip_country.detect preserves an unavailable detection instead of applying the legacy CN fallback', async () => {
-    getDetectedCountryMock.mockResolvedValue(null)
-    expect(await systemHandlers['system.ip_country.detect'](undefined, ctx('w1'))).toBeNull()
   })
 
   it('get_fonts strips wrapping quotes and drops empties', async () => {
