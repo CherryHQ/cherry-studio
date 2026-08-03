@@ -25,6 +25,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -58,6 +59,8 @@ interface Props {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  pendingQuote?: SelectionQuoteRequest
+  onQuoteInserted?: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean
@@ -287,6 +290,8 @@ const Chat: FC<Props> = (props) => {
       <ChatContent
         key={activeTopic.id}
         topic={activeTopic}
+        pendingQuote={props.pendingQuote}
+        onQuoteInserted={props.onQuoteInserted}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onNewTopic={props.onNewTopic}
         onCreateEmptyTopic={props.onCreateEmptyTopic}

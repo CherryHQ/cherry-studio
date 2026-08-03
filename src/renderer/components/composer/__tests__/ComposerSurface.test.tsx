@@ -19,6 +19,7 @@ import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExten
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
   editorInstance: undefined as any,
+  editorAvailable: true,
   stabilizeEditor: false,
   simulateDeferredEditorStyle: false,
   actions: undefined as ComposerSurfaceActions | undefined,
@@ -167,6 +168,8 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   useRichTextEditorKernel: (options: any) => {
     mocks.editorOptions = options
+    if (!mocks.editorAvailable) return null
+
     const editor = {
       isDestroyed: false,
       isEditable: true,
@@ -429,6 +432,7 @@ describe('ComposerSurface', () => {
     clearMockTimers()
     mocks.editorOptions = undefined
     mocks.editorInstance = undefined
+    mocks.editorAvailable = true
     mocks.stabilizeEditor = false
     mocks.simulateDeferredEditorStyle = false
     mocks.actions = undefined
@@ -1342,6 +1346,31 @@ describe('ComposerSurface', () => {
     })
 
     expect(mocks.focus).toHaveBeenCalled()
+  })
+
+  it('publishes token insertion actions only after the real editor becomes available', async () => {
+    mocks.editorAvailable = false
+    const { rerender } = render(<Harness />)
+
+    expect(mocks.actions).toBeUndefined()
+
+    mocks.editorAvailable = true
+    mocks.chainRun.mockReturnValue(true)
+    rerender(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    const inserted = mocks.actions?.insertToken({
+      id: 'deferred-quote',
+      kind: 'quote',
+      label: 'Quote',
+      description: 'Deferred selection',
+      promptText: '<blockquote>Deferred selection</blockquote>'
+    })
+
+    expect(inserted).toBe(true)
+    expect(mocks.insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'deferred-quote', kind: 'quote' })
+    )
   })
 
   it('inserts composer tokens using the same spacing as attachment tokens', async () => {

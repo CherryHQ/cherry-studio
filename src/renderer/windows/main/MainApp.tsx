@@ -9,9 +9,13 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useTabs } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { routeSelectionQuoteToChat, selectionQuoteService } from '@renderer/services/SelectionQuoteService'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect } from 'react'
+import { v4 as uuid } from 'uuid'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
@@ -54,6 +58,31 @@ function MainWindowRuntime(): null {
   return null
 }
 
+function SelectionQuoteNavigation(): null {
+  const { activeTab, openTab, setActiveTab, tabs, updateTab } = useTabs()
+
+  useEffect(() => {
+    selectionQuoteService.reconcileTabs(tabs)
+  }, [tabs])
+
+  useEffect(() => {
+    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, text: string) => {
+      if (!text) return
+
+      routeSelectionQuoteToChat({
+        activeTab,
+        openTab,
+        request: { id: uuid(), text },
+        setActiveTab,
+        tabs,
+        updateTab
+      })
+    })
+  }, [activeTab, openTab, setActiveTab, tabs, updateTab])
+
+  return null
+}
+
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
@@ -71,6 +100,7 @@ export function MainWindowContent(): React.ReactElement {
   return (
     <TabsProvider>
       <AppShell />
+      <SelectionQuoteNavigation />
       <MainWindowRuntime />
       <PopupHost />
       <ToastHost />

@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -84,6 +85,7 @@ const homeMocks = vi.hoisted(() => ({
   forceActiveTopicUndefined: false,
   homeTabsTopicsSource: undefined as unknown,
   locationState: undefined as { topic: Topic } | undefined,
+  navigate: vi.fn(),
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
@@ -308,6 +310,7 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
     state: homeMocks.locationState
   }),
+  useNavigate: () => homeMocks.navigate,
   useSearch: () => homeMocks.routeSearch
 }))
 
@@ -340,7 +343,9 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled,
     onPaneCollapse,
     onPaneAutoCollapseChange,
-    paneManualToggle
+    paneManualToggle,
+    pendingQuote,
+    onQuoteInserted
   }: {
     activeTopic?: Topic
     centerSurface?: { content?: ReactNode } | null
@@ -357,6 +362,8 @@ vi.mock('../Chat', () => ({
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
     paneManualToggle?: { seq: number; open: boolean }
+    pendingQuote?: { id: string; text: string }
+    onQuoteInserted?: () => void
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
 
@@ -374,6 +381,12 @@ vi.mock('../Chat', () => ({
             <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
             <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
             <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+            <output data-testid="selection-quote">{pendingQuote?.text ?? ''}</output>
+            {onQuoteInserted && (
+              <button type="button" onClick={onQuoteInserted}>
+                Quote inserted
+              </button>
+            )}
             {showResourceListControls && onSidebarToggle && (
               <button type="button" onClick={onSidebarToggle}>
                 Toggle sidebar
@@ -705,6 +718,7 @@ describe('HomePage', () => {
     homeMocks.assistantsLoading = false
     homeMocks.assistantsRefreshing = false
     homeMocks.routeSearch = {}
+    homeMocks.navigate.mockReset()
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
     homeMocks.topicsById.clear()
@@ -734,6 +748,69 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     ipcMocks.request.mockClear()
+  })
+
+  it('creates a blank chat and delivers a routed selection quote instead of resuming history', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.latestTopicOverride = historyTopic
+    homeMocks.routeSearch = { assistantId: 'assistant-1', quoteRequestId: 'quote-request-1' }
+    selectionQuoteService.store('chat-tab', { id: 'quote-request-1', text: 'Selected text' })
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
+    expect(homeMocks.createTopic).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('selection-quote')).toHaveTextContent('Selected text')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quote inserted' }))
+    expect(screen.getByTestId('selection-quote')).toBeEmptyDOMElement()
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { assistantId: 'assistant-1' },
+      replace: true
+    })
+  })
+
+  it('clears a stale persisted quote request without creating a blank chat', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.persistCacheValues.set('ui.chat.last_used_topic_id', 'topic-last-viewed')
+    homeMocks.topicsById.set('topic-last-viewed', { ...historyTopic, id: 'topic-last-viewed' })
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest' }
+    homeMocks.routeSearch = { quoteRequestId: 'stale-quote-request' }
+
+    const { rerender } = render(<HomePage />)
+
+    await waitFor(() =>
+      expect(homeMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/chat',
+        search: {},
+        replace: true
+      })
+    )
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+
+    homeMocks.routeSearch = {}
+    rerender(<HomePage />)
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-last-viewed'))
+  })
+
+  it.each([
+    ['history records', 'Open history records', 'history-records-view'],
+    ['assistant resources', 'assistants.presets.manage.title', 'resource-catalog-assistant']
+  ])('closes %s before delivering a routed selection quote', async (_, openSurfaceLabel, surfaceTestId) => {
+    const { rerender } = render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: openSurfaceLabel }))
+    expect(screen.getByTestId(surfaceTestId)).toBeInTheDocument()
+
+    const requestId = `quote-request-${surfaceTestId}`
+    selectionQuoteService.store('chat-tab', { id: requestId, text: 'Selected text' })
+    homeMocks.routeSearch = { quoteRequestId: requestId }
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(screen.queryByTestId(surfaceTestId)).not.toBeInTheDocument())
+    expect(screen.getByTestId('selection-quote')).toHaveTextContent('Selected text')
+    fireEvent.click(screen.getByRole('button', { name: 'Quote inserted' }))
   })
 
   it('shows both assistant and topic panes by default when topics are on the right', () => {

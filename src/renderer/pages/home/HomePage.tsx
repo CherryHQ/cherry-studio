@@ -41,7 +41,9 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { selectionQuoteService } from '@renderer/services/SelectionQuoteService'
 import { toast } from '@renderer/services/toast'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -51,7 +53,7 @@ import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useLocation, useSearch } from '@tanstack/react-router'
+import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -150,10 +152,16 @@ const HomePage: FC = () => {
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
+  const navigate = useNavigate()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
+  const currentTabId = useCurrentTabId()
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
+  const routeQuoteRequestId = routeSearch.quoteRequestId
+  const currentQuoteRequestId =
+    routeQuoteRequestId && currentTabId ? selectionQuoteService.getCurrentRequestId(currentTabId) : undefined
+  const [pendingQuote, setPendingQuote] = useState<SelectionQuoteRequest>()
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
@@ -252,7 +260,7 @@ const HomePage: FC = () => {
   // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
   // targets and assistant deep links take precedence over resume.
   const [resumeTopicId] = useState<string | null>(() =>
-    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId && !currentQuoteRequestId ? lastUsedTopicId : null
   )
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
@@ -311,6 +319,40 @@ const HomePage: FC = () => {
     disabled: isMessageOnlyView || isWindowFrame
   })
 
+  const replaceQuoteRequestId = useCallback(
+    (nextRequestId?: string) => {
+      const search = {
+        ...(routeSearch.assistantId ? { assistantId: routeSearch.assistantId } : {}),
+        ...(routeSearch.topicId ? { topicId: routeSearch.topicId } : {}),
+        ...(routeSearch.view ? { view: routeSearch.view } : {}),
+        ...(nextRequestId ? { quoteRequestId: nextRequestId } : {})
+      }
+      void navigate({ to: '/app/chat', search, replace: true })
+    },
+    [navigate, routeSearch.assistantId, routeSearch.topicId, routeSearch.view]
+  )
+
+  useEffect(() => {
+    if (!routeQuoteRequestId) return
+    if (!currentTabId || currentQuoteRequestId !== routeQuoteRequestId) {
+      replaceQuoteRequestId(currentQuoteRequestId)
+      return
+    }
+
+    const request = selectionQuoteService.peek(currentTabId, routeQuoteRequestId)
+    if (!request) return
+
+    closeSurface()
+    setPendingQuote(request)
+  }, [closeSurface, currentQuoteRequestId, currentTabId, replaceQuoteRequestId, routeQuoteRequestId])
+  const handleQuoteInserted = useCallback(() => {
+    if (!pendingQuote || !currentTabId) return
+
+    selectionQuoteService.ack(currentTabId, pendingQuote.id)
+    setPendingQuote(undefined)
+    replaceQuoteRequestId(selectionQuoteService.getCurrentRequestId(currentTabId))
+  }, [currentTabId, pendingQuote, replaceQuoteRequestId])
+
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
     setLastUsedAssistantId(null)
@@ -326,7 +368,6 @@ const HomePage: FC = () => {
   // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its
   // own HomePage. `currentTabId` is *this* tab; `useIsActiveTab` answers "am I the
   // globally-focused tab".
-  const currentTabId = useCurrentTabId()
   const isActiveTab = useIsActiveTab()
 
   const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
@@ -575,6 +616,7 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
+    if (routeQuoteRequestId && currentQuoteRequestId !== routeQuoteRequestId) return
 
     // Resume the last-focused topic before falling back to the most-recently-updated one —
     // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
@@ -594,7 +636,7 @@ const HomePage: FC = () => {
     // fetches its own assistant by id, so it does not need the assistants list to paint (mirrors the agent
     // page). A deep link that pins an assistant (`routeAssistantId`) skips resume and opens a fresh topic
     // for that assistant instead.
-    if (!routeAssistantId && latestTopic) {
+    if (!routeAssistantId && !routeQuoteRequestId && latestTopic) {
       initialTopicStartStateRef.current.firstLaunchStarted = true
       setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
       return
@@ -611,6 +653,7 @@ const HomePage: FC = () => {
   }, [
     activeTopic,
     createAndActivateEmptyTopic,
+    currentQuoteRequestId,
     isActiveTopicLoading,
     isAssistantListResolved,
     isLatestTopicReady,
@@ -619,6 +662,7 @@ const HomePage: FC = () => {
     resumeApiTopic,
     resumeTopicId,
     routeAssistantId,
+    routeQuoteRequestId,
     setActiveTopic,
     shouldAutoCreateTopic,
     state?.topic
@@ -915,6 +959,8 @@ const HomePage: FC = () => {
         <ContentContainer $detached={isWindowFrame}>
           <Chat
             activeTopic={visibleTopic}
+            pendingQuote={pendingQuote}
+            onQuoteInserted={handleQuoteInserted}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}

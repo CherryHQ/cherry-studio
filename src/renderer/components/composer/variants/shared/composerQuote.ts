@@ -1,10 +1,10 @@
 import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { RefObject } from 'react'
-import { useEffect, useEffectEvent } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerDraftToken } from '../../tokens'
+import type { ComposerDraftToken, ComposerSerializedDraft } from '../../tokens'
 
 export const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
   id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
@@ -15,25 +15,33 @@ export const createQuoteToken = (selectedText: string, label: string): ComposerD
 })
 
 interface QuoteInsertionActions {
-  insertToken: (token: ComposerDraftToken) => void
+  getDraft: () => ComposerSerializedDraft
+  insertToken: (token: ComposerDraftToken) => boolean
 }
 
 /**
- * Subscribes to the main-process quote IPC and inserts the quoted text as a quote token via
- * the composer's imperative actions ref. The insertion runs through `useEffectEvent` so the
- * IPC listener subscribes once and stays stable across renders.
+ * Inserts a selection quote routed to this composer by the owning chat page.
  */
-export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(actionsRef: RefObject<T>): void {
+export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
+  actionsRef: RefObject<T>,
+  request?: SelectionQuoteRequest,
+  onDraftChange?: (draft: ComposerSerializedDraft) => void,
+  onInserted?: () => void
+): () => void {
   const { t } = useTranslation()
+  const insertedRequestIdRef = useRef<string | undefined>(undefined)
 
-  const insertQuote = useEffectEvent((selectedText: string) => {
-    if (!selectedText) return
-    actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
-  })
+  const insertPendingQuote = useCallback(() => {
+    if (!request || insertedRequestIdRef.current === request.id) return
+    const token = createQuoteToken(request.text, t('selection.action.builtin.quote'))
+    if (!actionsRef.current.insertToken(token)) return
 
-  useEffect(() => {
-    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
-      insertQuote(selectedText)
-    })
-  }, [insertQuote])
+    insertedRequestIdRef.current = request.id
+    onDraftChange?.(actionsRef.current.getDraft())
+    onInserted?.()
+  }, [actionsRef, onDraftChange, onInserted, request, t])
+
+  useEffect(() => insertPendingQuote(), [insertPendingQuote])
+
+  return insertPendingQuote
 }

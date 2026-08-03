@@ -17,6 +17,7 @@ import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
@@ -31,6 +32,8 @@ import { useChatRuntimeState } from './useChatRuntimeState'
 
 interface Props {
   topic: Topic
+  pendingQuote?: SelectionQuoteRequest
+  onQuoteInserted?: () => void
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -57,6 +60,8 @@ interface Props {
  */
 const ChatContent: FC<Props> = ({
   topic,
+  pendingQuote,
+  onQuoteInserted,
   onOpenCitationsPanel,
   onNewTopic,
   onCreateEmptyTopic,
@@ -86,6 +91,8 @@ const ChatContent: FC<Props> = ({
   return (
     <ChatContentInner
       topic={topic}
+      pendingQuote={pendingQuote}
+      onQuoteInserted={onQuoteInserted}
       onOpenCitationsPanel={onOpenCitationsPanel}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
@@ -136,6 +143,8 @@ interface InnerProps extends Props {
 
 const ChatContentInner: FC<InnerProps> = ({
   topic,
+  pendingQuote,
+  onQuoteInserted,
   onOpenCitationsPanel,
   onNewTopic,
   onCreateEmptyTopic,
@@ -239,6 +248,8 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatComposerSlot
       placement="home"
       topic={topic}
+      pendingQuote={pendingQuote}
+      onQuoteInserted={onQuoteInserted}
       onSend={runtime.sendMessage}
       captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
@@ -251,6 +262,8 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatComposerSlot
       placement="docked"
       topic={topic}
+      pendingQuote={pendingQuote}
+      onQuoteInserted={onQuoteInserted}
       onSend={runtime.sendMessage}
       captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}

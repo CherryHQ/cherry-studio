@@ -103,7 +103,6 @@ import {
 } from './shared/ComposerControlScaffolding'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
-import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
@@ -980,8 +979,6 @@ const AgentComposerInner = ({
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
   }, [refreshAvailableSkills])
-
-  useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })

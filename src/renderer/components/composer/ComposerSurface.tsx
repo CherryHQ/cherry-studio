@@ -114,7 +114,7 @@ export interface ComposerSurfaceActions {
   replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
-  insertToken: (token: ComposerDraftToken) => void
+  insertToken: (token: ComposerDraftToken) => boolean
   getDraft: () => ComposerSerializedDraft
 }
 
@@ -262,11 +262,10 @@ function insertComposerTokenAtCursor(
 ) {
   const chain = editor.chain().focus().insertComposerToken(token)
   if (options.insertSeparator === false) {
-    chain.run()
-    return
+    return chain.run()
   }
 
-  chain.insertContent(' ').run()
+  return chain.insertContent(' ').run()
 }
 
 function createFolderComposerToken(path: string): ComposerDraftToken {
@@ -882,9 +881,9 @@ export default function ComposerSurface({
 
   const insertToken = useCallback((token: ComposerDraftToken) => {
     const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return
+    if (!editor || editor.isDestroyed) return false
 
-    insertComposerTokenAtCursor(editor, token)
+    return insertComposerTokenAtCursor(editor, token)
   }, [])
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
@@ -903,27 +902,6 @@ export default function ComposerSurface({
     editor.commands.setContent(createComposerDraftContent(draft), { emitUpdate: false })
     trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
   }, [])
-
-  useEffect(() => {
-    onActionsChange?.({
-      focus: focusEditor,
-      onTextChange: handleTextChangeFromTool,
-      replaceDraft,
-      toggleExpanded: toggleEditorExpanded,
-      removeToken,
-      insertToken,
-      getDraft
-    })
-  }, [
-    focusEditor,
-    getDraft,
-    handleTextChangeFromTool,
-    insertToken,
-    onActionsChange,
-    removeToken,
-    replaceDraft,
-    toggleEditorExpanded
-  ])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
@@ -1788,6 +1766,30 @@ export default function ComposerSurface({
   useEffect(() => {
     editorRef.current = editor
   }, [editor])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+
+    onActionsChange?.({
+      focus: focusEditor,
+      onTextChange: handleTextChangeFromTool,
+      replaceDraft,
+      toggleExpanded: toggleEditorExpanded,
+      removeToken,
+      insertToken,
+      getDraft
+    })
+  }, [
+    editor,
+    focusEditor,
+    getDraft,
+    handleTextChangeFromTool,
+    insertToken,
+    onActionsChange,
+    removeToken,
+    replaceDraft,
+    toggleEditorExpanded
+  ])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return

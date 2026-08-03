@@ -35,6 +35,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { SelectionQuoteRequest } from '@renderer/types/selectionQuote'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -130,6 +131,8 @@ export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationC
 
 export interface ChatComposerProps {
   topic?: Topic
+  pendingQuote?: SelectionQuoteRequest
+  onQuoteInserted?: () => void
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -319,6 +322,8 @@ const ChatComposerRoot = ({
   topic,
   scopeKey,
   topicId,
+  pendingQuote,
+  onQuoteInserted,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -371,6 +376,8 @@ const ChatComposerRoot = ({
           <ChatComposerInner
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
+            pendingQuote={pendingQuote}
+            onQuoteInserted={onQuoteInserted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -407,6 +414,8 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
 const ChatComposerInner = ({
   scopeKey,
   topicId,
+  pendingQuote,
+  onQuoteInserted,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -539,6 +548,10 @@ const ChatComposerInner = ({
     },
     [resetHistoryIndex]
   )
+  const handleSelectionQuoteDraftChange = useCallback((draft: ComposerSerializedDraft) => {
+    setText(draft.text)
+    setDraftTokens(draft.tokens.length ? draft.tokens : undefined)
+  }, [])
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
@@ -1058,11 +1071,19 @@ const ChatComposerInner = ({
     return items
   }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
 
+  const insertPendingQuote = useComposerQuoteInsertion(
+    actionsRef,
+    pendingQuote,
+    handleSelectionQuoteDraftChange,
+    onQuoteInserted
+  )
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
+      insertPendingQuote()
     },
-    [actionsRef]
+    [actionsRef, insertPendingQuote]
   )
 
   useEffect(() => {
@@ -1076,8 +1097,6 @@ const ChatComposerInner = ({
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
-
-  useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
