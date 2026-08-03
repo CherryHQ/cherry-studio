@@ -22,7 +22,6 @@ import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chat
 
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
-const MESSAGE_VIRTUAL_LIST_MAX_BUFFER_PX = 800
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
 const KEYBOARD_ACTIVATION_SELECTOR = 'button,a,input,textarea,select,[role="button"]'
@@ -249,13 +248,7 @@ export function MessageVirtualList<T>({
                 scrollRef={runtime.scrollerRef}
                 data={runtime.wrappedItems}
                 itemSize={estimateSize}
-                // A message row can contain an entire markdown response or tool
-                // timeline. Keep enough runway for scrolling without mounting
-                // several viewport-sized rows during the initial bottom jump.
-                bufferSize={Math.max(
-                  200,
-                  Math.min(MESSAGE_VIRTUAL_LIST_MAX_BUFFER_PX, overscan * (estimateSize ?? 200))
-                )}
+                bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
                 shift={runtime.shift}
                 keepMounted={runtime.keepMounted}
                 startMargin={topPadding}
