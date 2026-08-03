@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createCustomParamsFetch, selectCustomBodyParameters } from '../customParamsFetch'
 
 function createInnerFetch() {
-  return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 204 }))
+  return vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 204 }))
 }
 
 describe('selectCustomBodyParameters', () => {
