@@ -1,27 +1,25 @@
-import { Badge, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
-import {
-  settingsContentScrollClassName,
-  settingsSubmenuDividerClassName,
-  settingsSubmenuItemClassName,
-  settingsSubmenuItemLabelClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName,
-  settingsSubmenuSectionTitleClassName
-} from '@renderer/pages/settings/settingsStyles'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProviderMeta'
-import { Globe } from 'lucide-react'
 import type { FC } from 'react'
-import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'
-import WebSearchProviderLogo from './components/WebSearchProviderLogo'
 import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'
 import { useWebSearchProviderLists } from './hooks/useWebSearchProviderLists'
 
+const webSearchFieldClassName =
+  '[&_input[data-slot=input]]:h-8 [&_input[data-slot=input]]:rounded-lg [&_input[data-slot=input]]:border-border-subtle ' +
+  '[&_input[data-slot=input]]:bg-muted/30 [&_input[data-slot=input]]:px-2.5 [&_input[data-slot=input]]:shadow-none ' +
+  '[&_input[data-slot=input]:focus-visible]:ring-[1px] [&_input[data-slot=input]:focus-visible]:ring-ring/35 ' +
+  '[&_textarea[data-slot=textarea-input]]:rounded-lg [&_textarea[data-slot=textarea-input]]:border-border-subtle ' +
+  '[&_textarea[data-slot=textarea-input]]:bg-muted/30 [&_textarea[data-slot=textarea-input]]:shadow-none ' +
+  '[&_textarea[data-slot=textarea-input]:focus-visible]:ring-[1px] ' +
+  '[&_textarea[data-slot=textarea-input]:focus-visible]:ring-ring/35'
+
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const {
     defaultFetchUrlsProvider,
     defaultSearchKeywordsProvider,
@@ -34,100 +32,44 @@ const WebSearchSettings: FC = () => {
     setDefaultSearchKeywordsProvider,
     updateProvider
   } = useWebSearchProviderLists()
-  const [activeKey, setActiveKey] = useState('general')
-  const activeEntry = useMemo(
-    () => featureSections.flatMap((section) => section.entries).find((entry) => entry.key === activeKey),
-    [activeKey, featureSections]
-  )
-
-  useEffect(() => {
-    if (activeKey !== 'general' && !activeEntry) {
-      setActiveKey('general')
-    }
-  }, [activeEntry, activeKey])
 
   return (
-    <div className="flex min-w-0 flex-1">
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
-        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
-          <PageHeader title={t('settings.tool.websearch.title')} />
-          <Scrollbar className="min-h-0 flex-1">
-            <MenuList className={settingsSubmenuListClassName}>
-              <MenuItem
-                label={t('settings.tool.websearch.search_provider')}
-                active={activeKey === 'general'}
-                onClick={() => setActiveKey('general')}
-                icon={<Globe />}
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-              />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              {featureSections.map((section, index) => (
-                <Fragment key={section.capability}>
-                  {index > 0 ? <MenuDivider className={settingsSubmenuDividerClassName} /> : null}
-                  <div className={settingsSubmenuSectionTitleClassName}>
-                    {t(getWebSearchCapabilityTitleKey(section.capability))}
-                  </div>
-                  {section.entries.map((entry) => {
-                    const isDefault =
-                      entry.capability === 'fetchUrls'
-                        ? defaultFetchUrlsProvider?.id === entry.provider.id
-                        : defaultSearchKeywordsProvider?.id === entry.provider.id
+    <SettingsContentColumn theme={theme} innerClassName={webSearchFieldClassName}>
+      {featureSections.map((section) => {
+        const defaultProvider =
+          section.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
+        const selectedEntry =
+          section.entries.find((entry) => entry.provider.id === defaultProvider?.id) ?? section.entries[0]
 
-                    return (
-                      <MenuItem
-                        key={entry.key}
-                        label={entry.provider.name}
-                        active={activeKey === entry.key}
-                        onClick={() => setActiveKey(entry.key)}
-                        icon={
-                          <WebSearchProviderLogo
-                            providerId={entry.provider.id}
-                            providerName={entry.provider.name}
-                            size={22}
-                            className="shrink-0 rounded-lg border border-border/30"
-                          />
-                        }
-                        className={settingsSubmenuItemClassName}
-                        labelClassName={settingsSubmenuItemLabelClassName}
-                        suffix={
-                          isDefault ? (
-                            <Badge className="mr-0 ml-auto rounded-full border border-success-border bg-success-subtle px-2.5 py-0.5 text-success-subtle-foreground text-xs">
-                              {t('common.default')}
-                            </Badge>
-                          ) : undefined
-                        }
-                      />
-                    )
-                  })}
-                </Fragment>
-              ))}
-            </MenuList>
-          </Scrollbar>
-        </div>
-        <div className={`${settingsContentScrollClassName} relative flex min-w-0 flex-col`}>
-          {activeEntry ? (
+        if (!selectedEntry) {
+          return null
+        }
+
+        const sectionTitle = t(getWebSearchCapabilityTitleKey(section.capability))
+        const sectionTitleId = `web-search-${section.capability}-title`
+
+        return (
+          <section key={section.capability} className="mt-4 first:mt-0" aria-labelledby={sectionTitleId}>
             <WebSearchProviderSetting
-              key={activeEntry.key}
-              entry={activeEntry}
-              defaultProvider={
-                activeEntry.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
-              }
+              key={selectedEntry.key}
+              entry={selectedEntry}
+              entries={section.entries}
               providerOverrides={providerOverrides}
+              sectionTitle={sectionTitle}
+              sectionTitleId={sectionTitleId}
               onSetApiKeys={setApiKeys}
               onSetBasicAuth={setBasicAuth}
               onSetCapabilityApiHost={setCapabilityApiHost}
               onSetDefaultProvider={
-                activeEntry.capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
+                section.capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
               }
-              onUpdateProvider={updateProvider}
-            />
-          ) : (
-            <WebSearchGeneralSettings />
-          )}
-        </div>
-      </div>
-    </div>
+              onUpdateProvider={updateProvider}>
+              {section.capability === 'searchKeywords' ? <WebSearchGeneralSettings variant="plain" /> : null}
+            </WebSearchProviderSetting>
+          </section>
+        )
+      })}
+    </SettingsContentColumn>
   )
 }
 

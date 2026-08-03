@@ -248,6 +248,9 @@ describe('SkillService', () => {
       const result = await skillService.listLocal(workdir)
 
       expect(result.map((skill) => skill.filename).sort()).toEqual(['linked-skill', 'plain-skill'])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'skills', {
+        calculateSize: false
+      })
     })
 
     it('skips Cherry-managed skill symlinks that point to the global skill storage', async () => {
@@ -296,6 +299,27 @@ describe('SkillService', () => {
       } finally {
         warnSpy.mockRestore()
       }
+    })
+  })
+
+  describe('listLocalFolderNames', () => {
+    it('returns valid local skill folder names without parsing metadata', async () => {
+      vi.mocked(parseSkillMetadata).mockClear()
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-names-workdir-')
+      const skillsDir = path.join(workdir, '.claude', 'skills')
+      await Promise.all([
+        fs.promises.mkdir(path.join(skillsDir, 'valid-skill'), { recursive: true }),
+        fs.promises.mkdir(path.join(skillsDir, 'missing-skill-md'), { recursive: true })
+      ])
+      vi.mocked(findSkillMdPath).mockImplementation(async (skillPath) =>
+        skillPath.endsWith('valid-skill') ? path.join(skillPath, 'SKILL.md') : null
+      )
+
+      const result = await skillService.listLocalFolderNames(workdir)
+
+      expect(result).toEqual(['valid-skill'])
+      expect(parseSkillMetadata).not.toHaveBeenCalled()
     })
   })
 

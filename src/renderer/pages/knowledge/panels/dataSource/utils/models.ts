@@ -73,7 +73,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
-      textClassName: 'text-red-500/60',
+      textClassName: 'text-error',
       icon: 'alert'
     }
   }
@@ -82,7 +82,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500/70',
+      textClassName: 'text-warning',
       icon: 'loader'
     }
   }
@@ -91,7 +91,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
-      textClassName: 'text-blue-500/70',
+      textClassName: 'text-info',
       icon: 'loader'
     }
   }
@@ -100,7 +100,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500/70',
+      textClassName: 'text-yellow-500',
       icon: 'loader'
     }
   }
@@ -109,7 +109,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',
-      textClassName: 'text-zinc-500/70',
+      textClassName: 'text-zinc-500',
       icon: 'loader'
     }
   }
@@ -117,7 +117,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
   return {
     kind: 'processing',
     labelKey: 'knowledge.data_source.status.chunking',
-    textClassName: 'text-violet-500/70',
+    textClassName: 'text-violet-500',
     icon: 'loader'
   }
 }

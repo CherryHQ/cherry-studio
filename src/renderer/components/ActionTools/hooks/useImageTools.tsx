@@ -208,14 +208,16 @@ export const useImageTools = (
   const copy = useCallback(async () => {
     try {
       const imgElement = getCleanImgElement()
-      if (!imgElement) return
+      if (!imgElement) return false
 
       const blob = await svgToPngBlob(imgElement)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       toast.success(t('message.copy.success'))
+      return true
     } catch (error) {
       logger.error('Copy failed:', error as Error)
       toast.error(t('message.copy.failed'))
+      return false
     }
   }, [getCleanImgElement, t])
 

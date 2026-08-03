@@ -59,6 +59,27 @@ describe('dashscope (Bailian) endpoint matrix', () => {
   })
 })
 
+describe('deepseek endpoint matrix', () => {
+  it('uses the native OpenAI adapter for the official Responses endpoint', () => {
+    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
+      adapterFamily: 'openai',
+      baseUrl: 'https://api.deepseek.com',
+      reasoningFormat: { type: 'openai-responses' }
+    })
+  })
+
+  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual(['openai-responses', 'openai-chat-completions'])
+  })
+
+  it.each(['deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])(
+    'pins %s to Chat Completions while DeepSeek Responses does not serve it',
+    (modelId) => {
+      expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
+    }
+  )
+})
+
 describe('doubao (Ark) endpoint matrix', () => {
   // Ark serves /responses for the 250615+ line only (docs/82379/1585128), so here a single-element
   // pin IS correct — the vendor genuinely does not serve the other endpoint.

@@ -27,8 +27,10 @@ export interface DataSourcePanelProps {
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
-  /** View a non-directory item's chunks in-app (note left-click + the row's context menu). */
+  /** View an item's indexed chunks in-app (the row's context menu). */
   onItemClick?: (itemId: string) => void
+  /** View a note's original stored content in-app (note left-click). */
+  onViewNoteContent?: (itemId: string) => void
   /** Drill into a directory item to list its children. */
   onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
   /** The directory currently drilled into, or null/undefined at the base root. */
@@ -50,7 +52,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
         <h3 className="font-semibold text-foreground text-lg leading-7">
           {t('knowledge.data_source.empty_description')}
         </h3>
-        <p className="mt-2 text-foreground-muted text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
+        <p className="mt-2 text-foreground-tertiary text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
         <div className="mt-7 flex flex-wrap justify-center gap-2.5">
           {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => {
             const Icon = dataSourceTypeDisplayConfig[source.value].icon.icon
@@ -63,7 +65,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
                 size="lg"
                 className="h-9 w-24 rounded-lg px-3 font-medium"
                 onClick={() => onAddSource(source.value)}>
-                <Icon className="size-4 text-foreground-secondary" />
+                <Icon className="size-4 text-muted-foreground" />
                 {t(source.labelKey)}
               </Button>
             )
@@ -85,6 +87,7 @@ const DataSourcePanel = ({
   onAdd,
   onPreviewFile,
   onItemClick,
+  onViewNoteContent,
   onDrillIntoDirectory,
   currentDirectory,
   onNavigateUp,
@@ -114,7 +117,8 @@ const DataSourcePanel = ({
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
   // A directory drills in; files and captured URLs preview inline; uncaptured valid HTTP URLs open
-  // in the system browser; notes show chunks. `previewSource` owns warnings and error toasts.
+  // in the system browser; notes show their original stored content. `previewSource` owns warnings
+  // and error toasts. Chunks are a separate advanced action reached from the row's context menu.
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {
@@ -126,9 +130,9 @@ const DataSourcePanel = ({
         void previewSource(item)
         return
       }
-      onItemClick?.(item.id)
+      onViewNoteContent?.(item.id)
     },
-    [invalidatePreviewRequests, onDrillIntoDirectory, onItemClick, previewSource]
+    [invalidatePreviewRequests, onDrillIntoDirectory, onViewNoteContent, previewSource]
   )
 
   const handleNavigateUp = useCallback(() => {
@@ -226,14 +230,14 @@ const DataSourcePanel = ({
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}
             </Button>
-            <span className="min-w-0 truncate text-foreground-secondary text-sm" title={getItemTitle(currentDirectory)}>
+            <span className="min-w-0 truncate text-muted-foreground text-sm" title={getItemTitle(currentDirectory)}>
               {getItemTitle(currentDirectory)}
             </span>
           </div>
         )}
         {!isLoading && items.length === 0 ? (
           currentDirectory ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-muted text-sm">
+            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-tertiary text-sm">
               {t('knowledge.data_source.empty_folder')}
             </div>
           ) : (

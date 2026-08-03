@@ -54,7 +54,7 @@ export const PaintingImageAddButton: FC = () => {
         stop(event)
         void pickImages()
       }}
-      className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border-muted text-muted-foreground transition-colors hover:border-border-hover hover:bg-accent hover:text-foreground">
+      className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border-subtle text-muted-foreground transition-colors hover:border-border-strong hover:bg-accent hover:text-foreground">
       <Plus className="size-5" aria-hidden />
     </button>
   )

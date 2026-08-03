@@ -392,11 +392,12 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime?.wrappedRenderItem(item!, 0).key).toBe('message-a')
   })
 
-  it('enables shift only for renders that prepend existing items', () => {
+  it('enables shift only for renders that add or remove items at the start', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     const initialItems = ['message-a', 'message-b']
     const prependedItems = ['message-old', 'message-a', 'message-b']
-    const appendedItems = ['message-old', 'message-a', 'message-b', 'message-new']
+    const removedFromStartItems = ['message-a', 'message-b']
+    const appendedItems = ['message-a', 'message-b', 'message-new']
     const view = render(<RuntimeProbe items={initialItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
 
     expect(runtime?.shift).toBe(false)
@@ -409,7 +410,60 @@ describe('useChatVirtualizerRuntime', () => {
 
     expect(runtime?.shift).toBe(false)
 
+    view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(true)
+
+    view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(false)
+
     view.rerender(<RuntimeProbe items={appendedItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={[]} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={['message-first']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    expect(runtime?.shift).toBe(false)
+  })
+
+  it('does not claim shift support for an equal-length sliding window', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    view.rerender(
+      <RuntimeProbe
+        items={['message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    expect(runtime?.shift).toBe(false)
+  })
+
+  it('does not treat mixed removals as a start shift', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    view.rerender(
+      <RuntimeProbe items={['message-b', 'message-c']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
 
     expect(runtime?.shift).toBe(false)
   })
@@ -725,6 +779,178 @@ describe('useChatVirtualizerRuntime', () => {
       expect(scrollTop).toBe(0)
     } finally {
       restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('jumps instantly to a key more than a few viewports away', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b sits 2000px away — beyond 3 viewports (3 * 400), so the
+      // animation is skipped and the scroller lands on the target immediately.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 2000),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+
+      expect(scrollTop).toBe(2000)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('scrolls smoothly to a nearby key within a few viewports', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b sits 500px away — within 3 viewports, so it animates.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 500),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+      expect(scrollTop).toBe(0)
+
+      raf.tick(60)
+      expect(scrollTop).toBe(500)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('scrolls smoothly when the raw offset overshoots the reachable bottom but the real movement is short', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 3400
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b's raw offset (6000px) is far past the reachable bottom
+      // (3600px). The raw distance (2600px) exceeds 3 viewports, but the real
+      // movement is only 200px — so it must animate, not jump.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 6000),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+      expect(scrollTop).toBe(3400)
+
+      raf.tick(60)
+      expect(scrollTop).toBe(3600)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('jumps instantly when even the clamped movement exceeds a few viewports', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b's raw offset (6000px) clamps to the reachable bottom
+      // (3600px), still more than 3 viewports away — so it jumps instantly.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 6000),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+
+      expect(scrollTop).toBe(3600)
+    } finally {
       raf.restore()
     }
   })
@@ -1903,6 +2129,65 @@ describe('useChatVirtualizerRuntime', () => {
       expect(scrollTop).toBe(400)
     } finally {
       nowSpy.mockRestore()
+      restoreResizeObserver()
+    }
+  })
+
+  it('keeps native scrollbar ownership while the held thumb reverses direction', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 1200
+      let naturalScrollHeight = 2000
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => {
+        const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
+        return naturalScrollHeight + slack
+      })
+      runtime!.vlistHandleRef.current = createHandle()
+
+      act(() => {
+        runtime!.beginScrollbarDrag()
+        runtime!.takeUserControl()
+        scrollTop = 600
+        runtime!.scrollerProps.onScroll(600)
+      })
+
+      // Measuring the newly visited rows changes virtua's natural extent. It
+      // must not be converted into freeze slack while the thumb is held.
+      naturalScrollHeight = 1500
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')).toBe(0)
+
+      // virtua may report scroll-end during the pause before the user reverses.
+      act(() => runtime!.scrollerProps.onScrollEnd())
+      act(() => {
+        scrollTop = 900
+        runtime!.scrollerProps.onScroll(900)
+      })
+
+      expect(scrollTop).toBe(900)
+      expect(Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')).toBe(0)
+
+      act(() => runtime!.endScrollbarDrag())
+
+      // Once released, ordinary resting-position protection is active again.
+      naturalScrollHeight = 1400
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '100px' })
+      expect(scrollTop).toBe(900)
+    } finally {
       restoreResizeObserver()
     }
   })

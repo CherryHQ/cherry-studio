@@ -51,6 +51,12 @@ overrides:
   '@img/sharp-linux-x64': '0.34.5'
   '@img/sharp-win32-x64': '0.34.5'
   '@napi-rs/canvas': '0.1.97'
+  # system-ocr 1.1.0's macOS 26 structured-document sidecar can recurse
+  # indefinitely through Vision list containers. Keep the 1.1.0 wrapper and
+  # Windows bindings, but use the legacy Accurate macOS implementation until
+  # upstream adds cycle/depth guards.
+  '@napi-rs/system-ocr-darwin-arm64': '1.0.2'
+  '@napi-rs/system-ocr-darwin-x64': '1.0.2'
   '@ai-sdk/provider-utils': '4.0.40'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
@@ -119,3 +125,12 @@ minimumReleaseAgeExclude:
   - '@aiany/sqlite-vec-windows-x64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
   - '@ai-sdk/xai@3.0.111'
+  - '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.220'
+  - '@anthropic-ai/claude-agent-sdk@0.3.220'

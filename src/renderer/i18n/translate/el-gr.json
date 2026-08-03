@@ -139,11 +139,16 @@
         "description": "Λάβετε και απαντήστε σε μηνύματα μέσω WeChat χρησιμοποιώντας το iLink Bot API.",
         "disconnected": "Αποσυνδέθηκε",
         "loginHint": "Η πρώτη σύνδεση απαιτεί σάρωση κωδικού QR. Ελέγξτε τα αρχεία καταγραφής της εφαρμογής για τη διεύθυνση URL σύνδεσης.",
+        "qrExpired": "Ο κωδικός QR έληξε. Προσπαθήστε ξανά εναλλάσσοντας το κανάλι.",
         "qrHint": "Άνοιξε το WeChat στο κινητό σου και σάρωσε τον κωδικό QR για να συνδεθείς.",
         "qrTitle": "Σύνδεση με QR code στο WeChat",
         "title": "WeChat",
         "whoamiTip": "Συμβουλή: Στείλτε /whoami στο WeChat για να λάβετε το αναγνωριστικό ενός χρήστη."
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} εργασία παρασκηνίου σε εκτέλεση",
+      "background_running_other": "{{count}} εργασίες παρασκηνίου σε εκτέλεση"
     },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
@@ -230,6 +235,7 @@
           "discard_and_continue": "Απόρριψη και συνέχεια",
           "title": "Απόρριψη μη αποθηκευμένων αλλαγών;"
         },
+        "metadata_pending": "Το αρχείο αποθηκεύτηκε, αλλά τα μεταδεδομένα του εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτήν την αποθήκευση.",
         "refresh_failed": "Αδυναμία επαναφόρτωσης του πιο πρόσφατου περιεχομένου αρχείου.",
         "save_failed": "Δεν είναι δυνατή η αποθήκευση αυτού του αρχείου. Η αυτόματη αποθήκευση έχει διακοπεί έως ότου προσπαθήσετε ξανά ή απορρίψετε τις αλλαγές.",
         "unsaved": "Μη αποθηκευμένο",
@@ -320,16 +326,25 @@
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",
         "no_subagents": "Καμία υπο-αντιπροσωπεία",
-        "subagents": "Υπο-πράκτορες"
+        "shell_tasks": "Εντολές παρασκηνίου",
+        "subagents": "Υπο-πράκτορες",
+        "workflows": "Ροές εργασίας"
       },
       "status": {
         "activity": "Δραστηριότητα",
         "agent": "Πράκτορας",
         "context": "Συμφραζόμενα",
         "no_tasks": "Κανένα ενεργό καθήκον",
+        "run_task_live_one": "{{count}} ζωντανά",
+        "run_task_live_other": "{{count}} ζωντανά",
+        "run_tasks": "Υποεργασίες",
         "selected_tool": "Επιλεγμένο εργαλείο",
+        "stop_run_task": "Διακοπή εργασίας",
+        "stop_run_task_failed": "Αποτυχία διακοπής εργασίας",
         "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
         "tasks": "Εργασίες",
+        "tool_uses_one": "{{count}} κλήση εργαλείου",
+        "tool_uses_other": "{{count}} κλήσεις εργαλείων",
         "tools_active": "Ενεργός",
         "tools_done": "Έγινε",
         "tools_failed": "Απέτυχε",
@@ -434,12 +449,19 @@
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
+        "unknown_agent_tip": "Αυτή είναι μια ιστορική ομάδα συνεδριών χωρίς πράκτορα, όχι ένας πραγματικός πράκτορας. Είναι μόνο για προβολή και δεν μπορεί να συνεχίσει την εκτέλεση.",
         "yesterday": "Χθες"
       },
       "label_one": "Συνεδρία",
       "label_other": "Συνεδρίες",
       "list": {
         "title": "Εργασίες"
+      },
+      "model_switch_confirm": {
+        "confirm": "Αλλαγή μοντέλου",
+        "description": "Διαφορετικά μοντέλα μπορεί να κατανοούν και να επεξεργάζονται το πλαίσιο με διαφορετικό τρόπο. Η αλλαγή μπορεί να επηρεάσει τη συνέχεια ή την ποιότητα των επόμενων απαντήσεων. Θέλετε να συνεχίσετε;",
+        "skip_for_app_run": "Μη με ξαναρωτήσεις μέχρι να κλείσω την εφαρμογή",
+        "title": "Να αλλάξω σε \"{{model}}\";"
       },
       "new": "Νέα εργασία",
       "pin": {
@@ -607,12 +629,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Οι επεξεργασίες αρχείων και οι λειτουργίες του συστήματος αρχείων εγκρίνονται αυτόματα.",
-            "title": "Αυτόματη αποδοχή επεξεργασιών αρχείων"
+            "description": "Επεξεργάζεται αρχεία ελεύθερα. Ρωτά πριν από εντολές.",
+            "title": "Αυτόματη αποδοχή επεξεργασιών"
+          },
+          "auto": {
+            "description": "Εκτελείται χωρίς συνήθεις ερωτήσεις. Ένας έλεγχος ασφαλείας μπλοκάρει επικίνδυνες ενέργειες.",
+            "title": "Έγκριση για μένα",
+            "warning": "Απαιτεί μοντέλο που το υποστηρίζει· άλλα μοντέλα ενδέχεται να το αγνοήσουν ή να συνεχίσουν να ρωτούν."
           },
           "bypassPermissions": {
-            "description": "Όλα τα αιτήματα άδειας παραλείπονται — χρησιμοποιήστε με προσοχή.",
-            "title": "Παράκαμψη ελέγχων αδειών",
+            "description": "Παρακάμπτει τους ελέγχους δικαιωμάτων. Μπορεί να διαγράψει αρχεία και να χρησιμοποιήσει το δίκτυο.",
+            "title": "Πλήρης πρόσβαση",
             "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση."
           },
           "confirmChange": {
@@ -620,14 +647,14 @@
             "title": "Αλλαγή λειτουργίας δικαιωμάτων;"
           },
           "default": {
-            "description": "Ισχύουν οι κανονικοί έλεγχοι δικαιωμάτων.",
-            "title": "Προεπιλογή (να ερωτηθώ πριν συνεχίσω)"
+            "description": "Ρωτά πριν από την επεξεργασία αρχείων ή την εκτέλεση εντολών.",
+            "title": "Ερώτηση πριν από ενέργειες"
           },
           "helper": "Καθορίζει πώς ο πράκτορας διαχειρίζεται την εξουσιοδότηση χρήσης εργαλείων",
           "placeholder": "Επιλέξτε λειτουργία αδειών",
           "plan": {
-            "description": "Ο Claude μπορεί να χρησιμοποιεί μόνο εργαλεία μόνο για ανάγνωση και παρουσιάζει ένα σχέδιο πριν από την εκτέλεση.",
-            "title": "Λειτουργία σχεδιασμού (έρχεται σύντομα)"
+            "description": "Σχεδιάζει χωρίς να επεξεργάζεται αρχεία. Εκτελούνται μόνο εντολές ανάγνωσης ή εγκεκριμένες.",
+            "title": "Μόνο σχεδιασμός"
           },
           "title": "Λειτουργία αδειών"
         },
@@ -663,6 +690,14 @@
       }
     },
     "sidebar_title": "Πράκτορες",
+    "speed": {
+      "effort": "Προσπάθεια",
+      "fast": "Γρήγορα",
+      "faster": "Πιο γρήγορα",
+      "label": "Ταχύτητα",
+      "smarter": "Εξυπνότερος",
+      "title": "Ρυθμίσεις απόκρισης"
+    },
     "tasks": {
       "add": "Προσθήκη εργασίας",
       "cancel": "Ακύρωση",
@@ -1234,10 +1269,6 @@
           "tip": "Ο πράκτορας θα καλέσει τη δυνατότητα αναγνώρισης πρόθεσης του μεγάλου μοντέλου για να αποφασίσει αν χρειάζεται να κληθεί η βάση γνώσης για να απαντηθεί, και αυτή η λειτουργία θα εξαρτηθεί από τις δυνατότητες του μοντέλου"
         }
       },
-      "max_tool_calls": {
-        "label": "Μέγιστος Αριθμός Κλήσεων Εργαλείων",
-        "tip": "Μέγιστος αριθμός κλήσεων εργαλείων που επιτρέπονται σε μία συνομιλία. Υψηλότερες τιμές επιτρέπουν πιο σύνθετες πολυσταδιακές λειτουργίες, αλλά ενδέχεται να αυξήσουν τη χρήση token και τον χρόνο απόκρισης."
-      },
       "mcp": {
         "description": "Διακομιστής MCP που είναι ενεργοποιημένος εξ ορισμού",
         "enableFirst": "Πρώτα ενεργοποιήστε αυτόν τον διακομιστή στις ρυθμίσεις MCP",
@@ -1443,9 +1474,8 @@
       "image_preview_failed": "Η προεπισκόπηση της εικόνας απέτυχε",
       "knowledge_base": "Βάση γνώσεων",
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
-      "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων ή ενεργοποιήστε τη χρήση εργαλείων στο prompt",
+      "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων",
       "locate_editing_message": "Εντοπίστε το αρχικό μήνυμα",
-      "mcp_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων ή ενεργοποιήστε τη χρήση εργαλείων μέσω προτροπής",
       "new": {
         "context": "Καθαρισμός ενδιάμεσων {{Command}}"
       },
@@ -1551,6 +1581,7 @@
         },
         "open_file": "Άνοιγμα Αρχείου",
         "open_file_error": "Αποτυχία ανοίγματος αρχείου: {{path}}",
+        "open_with": "Άνοιγμα με",
         "reveal_in_finder": "Εμφάνιση στον Finder"
       },
       "topics": "Θέματα",
@@ -1585,13 +1616,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Δεν είναι δυνατή η μετατροπή σε έγκυρη μορφή κλήσης εργαλείου: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση του εργαλείου αυτόματης αναζήτησης και της κλήσης συναρτήσεων",
-        "multiple_tools": "Υπάρχουν πολλαπλά εργαλεία MCP που ταιριάζουν, επιλέχθηκε το {{tool}}",
-        "no_tool": "Δεν βρέθηκε το απαιτούμενο εργαλείο MCP {{tool}}",
         "url_context": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση πλοήγησης στον ιστό και κλήσης συναρτήσεων"
       }
     },
@@ -1633,17 +1659,17 @@
       "token_details": {
         "cache_read": "Ανάγνωση προσωρινής μνήμης",
         "cache_write": "Εγγραφή κρυφής μνήμης",
-        "cost": "[to be translated]:Cost",
-        "cost_billed": "[to be translated]:Billed by provider",
-        "cost_estimated": "[to be translated]:Estimated",
-        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
+        "cost": "Κόστος",
+        "cost_billed": "Χρεώθηκε από τον πάροχο",
+        "cost_estimated": "Εκτιμώμενο",
+        "end_to_end_throughput": "Από άκρο σε άκρο ρυθμοαπόδοση",
         "input": "Είσοδος",
         "input_breakdown": "Ανάλυση εισόδου",
-        "lane_approval": "[to be translated]:Approval",
-        "lane_model": "[to be translated]:Model",
-        "lane_other": "[to be translated]:Other",
-        "lane_tool": "[to be translated]:Tool",
-        "model_throughput": "[to be translated]:Model generation TPS",
+        "lane_approval": "Έγκριση",
+        "lane_model": "Μοντέλο",
+        "lane_other": "Άλλο",
+        "lane_tool": "Εργαλείο",
+        "model_throughput": "Δημιουργία μοντέλου TPS",
         "output": "Έξοδος",
         "reasoning": "Συλλογισμός",
         "reasoning_time": "Αιτιολόγηση",
@@ -1652,7 +1678,7 @@
         "text_output": "Έξοδος κειμένου",
         "tokens": "Μάρκες {{value}}",
         "tokens_per_second_value": "{{value}} Tokens/s",
-        "total_duration": "[to be translated]:End-to-end duration",
+        "total_duration": "Διάρκεια από άκρο σε άκρο",
         "uncached": "Uncached",
         "usage": "Χρήση token",
         "waiting_first_token": "Αναμονή"
@@ -1926,6 +1952,7 @@
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_assistant": "Αποσυνδεδεμένος Βοηθός",
+        "unknown_assistant_tip": "Αυτή είναι μια ιστορική ομάδα συνομιλίας χωρίς βοηθό, όχι ένας πραγματικός βοηθός. Μετακινήστε τη συνομιλία σε έναν υπάρχοντα βοηθό για να συνεχίσετε.",
         "yesterday": "Χθες"
       },
       "list": "Λίστα θεμάτων",
@@ -2293,6 +2320,12 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "group": {
+      "create": "Νέα Ομάδα",
+      "create_failed": "Αποτυχία δημιουργίας ομάδας",
+      "name_placeholder": "Εισαγάγετε το όνομα της ομάδας...",
+      "name_required": "Απαιτείται όνομα ομάδας"
+    },
     "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
@@ -2320,7 +2353,7 @@
     "open_in": "Άνοιγμα στο {{name}}",
     "open_in_new_tab": "Άνοιγμα σε νέα καρτέλα",
     "open_sidebar": "Άνοιγμα πλαϊνής γραμμής",
-    "other": "[to be translated]:Other",
+    "other": "Άλλο",
     "placeholders": {
       "select": {
         "model": "Επιλέξτε μοντέλο"
@@ -2553,6 +2586,10 @@
     "user": "Χρήστης"
   },
   "file_preview": {
+    "directory": {
+      "description": "Επιλέξτε ένα αρχείο σε αυτόν τον φάκελο για να το προεπισκοπήσετε.",
+      "title": "Αυτός είναι ένας φάκελος"
+    },
     "html": {
       "empty": {
         "description": "Αυτό το αρχείο HTML δεν έχει περιεχόμενο.",
@@ -2618,6 +2655,10 @@
         "description": "Αρχεία κειμένου μεγαλύτερα από {{limit}} MiB δεν μπορούν να προεπισκοπηθούν.",
         "title": "Το αρχείο είναι πολύ μεγάλο"
       }
+    },
+    "unavailable": {
+      "description": "Το αρχείο μπορεί να έχει μετακινηθεί, διαγραφεί ή να μην είναι προσβάσιμο.",
+      "title": "Το αρχείο δεν είναι διαθέσιμο"
     },
     "unsupported": {
       "action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
@@ -2879,6 +2920,10 @@
     "code": "Κώδικας",
     "empty_preview": "Δεν υπάρχει περιεχόμενο για εμφάνιση",
     "generating": "Δημιουργία",
+    "interactive_preview": {
+      "action": "Προβολή ιστοσελίδας",
+      "description": "Αυτή η ιστοσελίδα περιέχει δέσμες ενεργειών ή εξωτερικούς πόρους. Το άνοιγμά της μπορεί να εκτελέσει κώδικα και να συνδεθεί στο διαδίκτυο."
+    },
     "preview": "Προεπισκόπηση",
     "split": "Διαχωρισμός",
     "view_mode": "Λειτουργία προβολής"
@@ -3021,6 +3066,7 @@
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
+        "copying": "Αντιγραφή {{percent}}%",
         "embedding": "Ενσωμάτωση",
         "error": "Σφάλμα",
         "pending": "Αναμονή",
@@ -3317,7 +3363,7 @@
             "label": "Μικρό μοντέλο (προαιρετικό)"
           }
         },
-        "model_config": "Διαμόρφωση μοντέλου",
+        "model_config": "Μοντέλο",
         "section": {
           "advanced": {
             "desc": "Όρια εκτέλεσης και παράμετροι χρόνου εκτέλεσης",
@@ -3422,6 +3468,7 @@
         "json_invalid": "Μη έγκυρη μορφή JSON",
         "max_tokens": "Μέγιστα διακριτά σύμβολα",
         "max_tool_calls": "Μέγιστες κλήσεις εργαλείων",
+        "max_tool_calls_default": "Προεπιλογή ({{count}} γύροι)",
         "mcp_mode": "Λειτουργία MCP",
         "model": "Προεπιλεγμένο μοντέλο",
         "model_clear": "Καθαρό",
@@ -3437,8 +3484,7 @@
         "tags": "Ετικέτες",
         "temperature": "Θερμοκρασία",
         "title": "Βασικές ρυθμίσεις",
-        "top_p": "Top-P",
-        "unlimited": "Απεριόριστο"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Βιβλιοθήκη",
       "dialogs": {
@@ -3811,7 +3857,9 @@
       }
     },
     "citation": "{{count}} αναφορές",
+    "citation_source": "Πηγή παραπομπής {{number}}",
     "citations": "Περιεχόμενα αναφοράς",
+    "conversation_reset": "Δεν ήταν δυνατή η εύρεση του ιστορικού προηγούμενης συνομιλίας — συνέχεια σε νέα συνομιλία",
     "copied": "Αντιγράφηκε",
     "copy": {
       "failed": "Η αντιγραφή απέτυχε",
@@ -4093,6 +4141,7 @@
         "write": "Αποθήκευση",
         "writing": "Αποθήκευση"
       },
+      "agent_background": "Εκτέλεση στο παρασκήνιο",
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
@@ -4124,6 +4173,7 @@
         "tool": "Εργαλείο",
         "webFetch": "Ανάκτηση Ιστού",
         "webSearch": "Αναζήτηση στον Ιστό",
+        "workflow": "Ροή εργασίας",
         "write": "Γράψε"
       },
       "noData": "Δεν υπάρχουν διαθέσιμα δεδομένα για αυτό το εργαλείο",
@@ -4181,6 +4231,15 @@
         "plan_other": "{{count}} σχέδια",
         "result_one": "{{count}} αποτέλεσμα",
         "result_other": "{{count}} αποτελέσματα"
+      },
+      "workflow": {
+        "orchestrating": "Οργάνωση ροής εργασιών",
+        "run_id": "Αναγνωριστικό Εκτέλεσης",
+        "script": "Σενάριο ροής εργασίας",
+        "script_path": "Διαδρομή σεναρίου",
+        "started": "Ξεκίνησε η ροή εργασίας",
+        "summary": "Περίληψη",
+        "workflow": "ροή εργασίας"
       }
     },
     "topic": {
@@ -4323,7 +4382,7 @@
     },
     "pinned": "Κατακερματισμένο",
     "price": {
-      "cache_read": "[to be translated]:Cache Read Price",
+      "cache_read": "Τιμή Ανάγνωσης Cache",
       "cost": "Κόστος",
       "currency": "Νόμισμα",
       "custom": "Προσαρμογή",
@@ -4445,7 +4504,8 @@
     "save_blocked_load_failed": "Η αποθήκευση μπλοκαρίστηκε επειδή η σημείωση απέτυχε να φορτωθεί",
     "save_failed": "Αποτυχία αποθήκευσης σημείωσης",
     "save_failure": {
-      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί."
+      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί.",
+      "metadata_pending": "Η σημείωση αποθηκεύτηκε, αλλά τα μεταδεδομένα αρχείου της εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτή την αποθήκευση."
     },
     "search": {
       "both": "Όνομα + Περιεχόμενο",
@@ -5167,6 +5227,7 @@
     "ppio": "PPIO Piao Yun",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "Σιδηρική Παρουσία",
     "sophnet": "SophNet",
     "stepfun": "Βήμα Ουράς",
@@ -5220,6 +5281,7 @@
       "label": "Είστε σίγουροι ότι θέλετε να επαναφέρετε τα δεδομένα;"
     },
     "content": "Η επαναφορά θα χρησιμοποιήσει τα αντίγραφα ασφαλείας για να επικαλύψει όλα τα σημερινά δεδομένα εφαρμογής. Παρακαλούμε σημειώστε ότι η διαδικασία μπορεί να χρειαστεί λίγο καιρό, ευχαριστούμε για την υπομονή.",
+    "messages_paused": "Μια επαναφορά αντιγράφου ασφαλείας βρίσκεται σε εξέλιξη· τα νέα μηνύματα έχουν παγώσει μέχρι να ολοκληρωθεί.",
     "progress": {
       "completed": "Η αποκατάσταση ολοκληρώθηκε",
       "copying_files": "Αντιγραφή αρχείων... {{progress}}%",
@@ -5727,6 +5789,7 @@
         "button": "Προβολή",
         "title": "Ημερολόγιο Ενημερώσεων"
       },
+      "repository": "Αποθετήριο GitHub",
       "social": {
         "title": "Κοινωνικά Λογαριασμοί"
       },
@@ -6586,7 +6649,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Η απενεργοποίηση της υλικοποιημένης επιτάχυνσης απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να επανεκκινήσετε τώρα;",
+        "content_disable": "Η απενεργοποίηση της επιτάχυνσης υλικού απαιτεί επανεκκίνηση της εφαρμογής για να εφαρμοστεί. Θέλετε να επανεκκινήσετε τώρα;",
+        "content_enable": "Η ενεργοποίηση της επιτάχυνσης υλικού απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να επανεκκινήσετε τώρα;",
         "title": "Απαιτείται επανεκκίνηση της εφαρμογής"
       },
       "title": "Απενεργοποίηση επιτάχυνσης υλικού"
@@ -6641,9 +6705,6 @@
           "dxtFile": "Αρχείο Πακέτου DXT",
           "dxtHelp": "Επιλέξτε ένα αρχείο .dxt που περιέχει διακομιστή MCP",
           "dxtProcessFailed": "Αποτυχία επεξεργασίας αρχείου DXT",
-          "error": {
-            "multipleServers": "Δεν είναι δυνατή η εισαγωγή από πολλαπλούς διακομιστές"
-          },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
           "json": "Εισαγωγή από JSON",
           "mcpb": "Εισαγωγή Δέσμης MCPB",
@@ -6797,6 +6858,15 @@
       "providers": "Πάροχοι",
       "registry": "Πηγή Διαχείρισης πακέτων",
       "registryDefault": "Προεπιλεγμένη",
+      "registryOptions": {
+        "custom": "Προσαρμοσμένο",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Τσινγκχουά",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Επιλέξτε την πηγή για την εγκατάσταση πακέτων, για να αντιμετωπιστούν προβλήματα δικτύου από την προεπιλεγμένη πηγή.",
       "requiresConfig": "Απαιτείται Διαμόρφωση",
       "resources": {
@@ -6972,6 +7042,7 @@
         "display": "Διαχείριση οθόνης",
         "preferences": "Προτιμήσεις"
       },
+      "hide_app": "Απόκρυψη {{name}}",
       "open_link_external": {
         "description": "Όταν είναι ενεργοποιημένο, οι σύνδεσμοι που ανοίγουν ένα νέο παράθυρο μέσα σε μια μίνι εφαρμογή ανοίγουν στον προεπιλεγμένο σας περιηγητή",
         "title": "Άνοιγμα νέου παραθύρου σύνδεσης στον περιηγητή"
@@ -6984,6 +7055,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
+      "show_app": "Εμφάνιση {{name}}",
       "title": "Ρυθμίσεις Mini Apps",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
@@ -7640,6 +7712,13 @@
         "usage_title": "Χρήση",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Άνοιγμα Token Factory",
+          "description": "Ισοδυναμεί με πίστωση API 10 USD ημερησίως: περίπου 10M–111M tokens εισόδου/εξόδου με τις τρέχουσες τιμές, ανάλογα με το μοντέλο και τον τύπο token. Η πίστωση επαναφέρεται καθημερινά· προς το παρόν δεν υποστηρίζονται ανανεώσεις υπολοίπου.",
+          "title": "Δωρεάν ημερήσια πίστωση API αξίας 10 USD"
+        }
+      },
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
       "reorder_failed": "Αποτυχία αναδιάταξης παρόχων",
@@ -8011,7 +8090,7 @@
           "save_failed": "Η αποθήκευση απέτυχε",
           "zhipu_sync_failed": "Αποτυχία συγχρονισμού του κλειδιού API του Zhipu με την Αναζήτηση Ιστού. Παρακαλώ αποθηκεύστε ξανά το κλειδί ή ελέγξτε τις ρυθμίσεις Αναζήτησης Ιστού."
         },
-        "fetch_urls_provider": "Προεπιλεγμένος πάροχος λήψης διευθύνσεων URL",
+        "fetch_urls_provider": "Πάροχος λήψης διευθύνσεων URL",
         "free": "Δωρεάν",
         "is_default": "Προεπιλογή",
         "local_provider": {
@@ -8118,104 +8197,104 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "cacheHitRate": "[to be translated]:Cache hit rate",
-        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
-        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "dailyAverage": "[to be translated]:Daily average",
-        "explicitApiKey": "[to be translated]:Selected key",
-        "lastPeriod": "[to be translated]:vs last period",
-        "matchedApiKey": "[to be translated]:Matched override",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "providerAuth": "[to be translated]:Provider auth",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalRequests": "[to be translated]:Requests",
-        "totalTokens": "[to be translated]:Total tokens",
-        "unattributedApiKey": "[to be translated]:Unattributed request",
-        "unattributedSource": "[to be translated]:Unattributed source"
+        "activeDays": "Ενεργές ημέρες",
+        "cacheHitRate": "Ποσοστό επιτυχίας κρυφής μνήμης",
+        "cacheObservedTokens": "Παρατηρήσιμο εισόδου: {{tokens}}",
+        "cacheStartsWithNewRequests": "Ξεκινάει με νέα αιτήματα",
+        "dailyAverage": "Ημερήσιος μέσος όρος",
+        "explicitApiKey": "Επιλεγμένο κλειδί",
+        "lastPeriod": "vs προηγούμενη περίοδος",
+        "matchedApiKey": "Αντιστοίχιση παράκαμψης",
+        "none": "N/A",
+        "peakDay": "Ημέρα αιχμής",
+        "providerAuth": "Πιστοποίηση παρόχου",
+        "streak": "Μεγαλύτερο σερί: {{days}} ημέρες",
+        "topModel": "Κορυφαίο μοντέλο",
+        "totalCost": "Συνολικό κόστος",
+        "totalRequests": "Αιτήματα",
+        "totalTokens": "Σύνολο tokens",
+        "unattributedApiKey": "Αναίτιο αίτημα",
+        "unattributedSource": "Πηγή χωρίς απόδοση"
       },
       "chart": {
-        "bar": "[to be translated]:Bar",
-        "line": "[to be translated]:Line",
-        "pie": "[to be translated]:Pie",
-        "stack": "[to be translated]:Stack"
+        "bar": "Μπαρ",
+        "line": "Γραμμή",
+        "pie": "Πίτα",
+        "stack": "Στοίβα"
       },
-      "currency": "[to be translated]:Currency",
+      "currency": "Νόμισμα",
       "empty": {
-        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Η χρήση εμφανίζεται μετά τη δημιουργία εγγραφών χρήσης από υποστηριζόμενα αιτήματα AI.",
+        "title": "Δεν υπάρχει ακόμη χρήση"
       },
       "explore": {
-        "analysis": "[to be translated]:Analysis",
-        "chart": "[to be translated]:Chart",
-        "clearDate": "[to be translated]:Clear date filter",
-        "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "[to be translated]:Requests",
-        "groupBy": "[to be translated]:Group by",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "metric": "[to be translated]:Metric",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "rollup": "[to be translated]:Rollup",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "shareLabel": "[to be translated]:Share",
-        "title": "[to be translated]:Explore",
-        "top": "[to be translated]:Top",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
-        "totalEntries_other": "[to be translated]:{{count}} entries"
+        "analysis": "Ανάλυση",
+        "chart": "Διάγραμμα",
+        "clearDate": "Εκκαθάριση φίλτρου ημερομηνίας",
+        "drilldownTitle": "{{date}} ανάλυση σε βάθος",
+        "entries": "Αιτήματα",
+        "groupBy": "Ομαδοποίηση κατά",
+        "loadMore": "Φόρτωση περισσότερων",
+        "loading": "Φόρτωση...",
+        "metric": "Μετρικός",
+        "noBreakdown": "Δεν υπάρχουν δεδομένα ανάλυσης",
+        "noBreakdownDescription": "Δοκιμάστε ένα ευρύτερο παράθυρο ή έναν διαφορετικό πάροχο.",
+        "noEntries": "Δεν υπάρχουν εγγραφές",
+        "noEntriesDescription": "Δοκιμάστε ένα ευρύτερο παράθυρο ή έναν διαφορετικό πάροχο.",
+        "rollup": "Rollup",
+        "selectedDate": "Επιλεγμένη ημερομηνία: {{date}}",
+        "shareLabel": "Κοινοποίηση",
+        "title": "Εξερεύνηση",
+        "top": "Κορυφή",
+        "totalEntries_one": "{{count}} καταχώρηση",
+        "totalEntries_other": "{{count}} καταχωρήσεις"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "source": "[to be translated]:Assistant / Agent"
+        "apiKey": "Κλειδί API",
+        "model": "Μοντέλο",
+        "provider": "Πάροχος",
+        "source": "Βοηθός / Πράκτορας"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Χρήση στις {{date}}",
+        "title": "Καθημερινή δραστηριότητα"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "requests": "[to be translated]:Requests",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Κόστος",
+        "requests": "Αιτήματα",
+        "tokens": "Tokens"
       },
       "overview": {
-        "title": "[to be translated]:Overview"
+        "title": "Επισκόπηση"
       },
       "rollup": {
-        "daily": "[to be translated]:Daily",
-        "monthly": "[to be translated]:Monthly",
-        "total": "[to be translated]:Total",
-        "weekly": "[to be translated]:Weekly"
+        "daily": "Καθημερινά",
+        "monthly": "Μηνιαίως",
+        "total": "Σύνολο",
+        "weekly": "Εβδομαδιαίως"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "summary": "{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "model": "[to be translated]:Model",
-        "source": "[to be translated]:Source",
-        "tokens": "[to be translated]:Tokens",
-        "tps": "[to be translated]:TPS",
-        "tpsValue": "[to be translated]:{{value}} tok/s",
-        "ttft": "[to be translated]:TTFT"
+        "cost": "Κόστος",
+        "date": "Ημερομηνία",
+        "model": "Μοντέλο",
+        "source": "Πηγή",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "[to be translated]:Usage Analytics",
+      "title": "Αναλυτικά Στοιχεία Χρήσης",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
-        "requests_other": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Κόστος {{value}}",
+        "requests_one": "{{count}} αίτημα",
+        "requests_other": "{{count}} αιτήματα",
+        "tokens": "{{value}} tokens"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days"
+        "30d": "Τελευταίες 30 ημέρες",
+        "365d": "Πέρυσι",
+        "90d": "Τελευταίες 90 ημέρες"
       }
     },
     "use_system_title_bar": {
@@ -8393,6 +8472,7 @@
         "placeholder": "Αναζήτηση ιστορικού μετάφρασης"
       },
       "source": "Πηγή",
+      "star": "Αγαπημένο",
       "success": {
         "add": "Αποθηκεύτηκε στο ιστορικό",
         "clear": "Το ιστορικό διαγράφηκε",
