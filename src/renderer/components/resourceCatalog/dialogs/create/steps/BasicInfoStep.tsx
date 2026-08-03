@@ -76,6 +76,7 @@ export function BasicInfoStep({
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
         onSettingsNavigate={onSettingsNavigate}
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
       />
 
       <TextInputField

@@ -6,8 +6,10 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void
+  value?: string
   placeholder?: string
   tooltip?: string
+  clearLabel?: string
   icon?: React.ReactNode
   maxWidth?: string | number
   collapsedSize?: number
@@ -21,8 +23,10 @@ interface CollapsibleSearchBarProps {
  */
 const CollapsibleSearchBar = ({
   onSearch,
+  value,
   placeholder = i18n.t('common.search'),
   tooltip = i18n.t('common.search'),
+  clearLabel = i18n.t('common.clear'),
   icon = <Search size={14} color="var(--muted-foreground)" />,
   maxWidth = '100%',
   collapsedSize = 32,
@@ -30,19 +34,25 @@ const CollapsibleSearchBar = ({
   style
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
-  const [searchText, setSearchText] = useState('')
+  const [internalSearchText, setInternalSearchText] = useState('')
+  const searchText = value ?? internalSearchText
   const inputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const focusTriggerAfterCollapseRef = useRef(false)
 
   const handleTextChange = useCallback(
     (text: string) => {
-      setSearchText(text)
+      if (value === undefined) {
+        setInternalSearchText(text)
+      }
       onSearch(text)
     },
-    [onSearch]
+    [onSearch, value]
   )
 
   const handleClear = useCallback(() => {
-    setSearchText('')
+    setInternalSearchText('')
+    focusTriggerAfterCollapseRef.current = true
     setSearchVisible(false)
     onSearch('')
   }, [onSearch])
@@ -50,6 +60,9 @@ const CollapsibleSearchBar = ({
   useEffect(() => {
     if (searchVisible && inputRef.current) {
       inputRef.current.focus()
+    } else if (focusTriggerAfterCollapseRef.current) {
+      focusTriggerAfterCollapseRef.current = false
+      triggerRef.current?.focus()
     }
   }, [searchVisible])
 
@@ -78,21 +91,26 @@ const CollapsibleSearchBar = ({
           expanded: { width: '100%', opacity: 1, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
           collapsed: { width: 0, opacity: 0, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
         }}
-        style={{ overflow: 'hidden', flexShrink: 1 }}>
+        style={{ overflow: 'hidden', flexShrink: 1 }}
+        aria-hidden={!searchVisible}>
         <div className="relative flex items-center">
           <Input
             ref={inputRef}
-            type="text"
+            type="search"
+            aria-label={tooltip}
             placeholder={placeholder}
             value={searchText}
-            autoFocus
+            tabIndex={searchVisible ? 0 : -1}
             className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-ring focus-visible:ring-0"
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.stopPropagation()
                 handleTextChange('')
-                if (!searchText) setSearchVisible(false)
+                if (!searchText) {
+                  focusTriggerAfterCollapseRef.current = true
+                  setSearchVisible(false)
+                }
               }
             }}
             onBlur={() => {
@@ -102,7 +120,8 @@ const CollapsibleSearchBar = ({
           />
           <button
             type="button"
-            aria-label={searchText ? i18n.t('common.clear') : tooltip}
+            aria-label={searchText ? clearLabel : tooltip}
+            tabIndex={searchVisible ? 0 : -1}
             className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
             onMouseDown={(e) => e.preventDefault()}
             onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
@@ -110,7 +129,12 @@ const CollapsibleSearchBar = ({
           </button>
         </div>
       </motion.div>
-      <motion.div
+      <motion.button
+        ref={triggerRef}
+        type="button"
+        aria-label={tooltip}
+        aria-hidden={searchVisible}
+        tabIndex={searchVisible ? -1 : 0}
         initial={false}
         animate={searchVisible ? 'hidden' : 'visible'}
         className="rounded-lg transition-colors hover:bg-accent"
@@ -136,7 +160,7 @@ const CollapsibleSearchBar = ({
         <Tooltip content={tooltip} delay={500}>
           {icon}
         </Tooltip>
-      </motion.div>
+      </motion.button>
     </motion.div>
   )
 }
