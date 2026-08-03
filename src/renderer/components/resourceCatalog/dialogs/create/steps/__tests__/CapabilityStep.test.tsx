@@ -45,6 +45,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: vi.fn(),
   useInstalledSkills: () => ({
     skills: installedSkillsState.skills,
     loading: false

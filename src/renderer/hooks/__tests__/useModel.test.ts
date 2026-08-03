@@ -578,6 +578,21 @@ describe('useDefaultModel', () => {
     }))
   })
 
+  it('keeps every model entity query inactive when its owner is closed', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
+
+    renderHook(() => useDefaultModel({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledTimes(4)
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
+  })
+
   it('persists the picked painting model id to feature.paintings.default_model_id', async () => {
     const { result } = renderHook(() => useDefaultModel())
 

@@ -1,7 +1,3 @@
-import {
-  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
-  getMessageMenuBarConfig
-} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -119,8 +115,6 @@ vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn(() => 'plain text')
 }))
 
-import { TopicType } from '@renderer/types/topic'
-
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {
   executeMessageMenuBarAction,
@@ -166,7 +160,6 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
     } as any,
     messageContainerRef: { current: null } as any,
     mainTextContent: 'hello',
-    toolbarButtonIds: new Set(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS),
     menuConfig: defaultMessageMenuConfig,
     copied: false,
     setCopied: vi.fn(),
@@ -342,6 +335,7 @@ describe('messageMenuBarActions', () => {
           exportToNotes: vi.fn(),
           regenerateMessage: vi.fn(),
           renderRegenerateModelPicker: vi.fn(),
+          setActiveBranch: vi.fn(),
           translateMessage: vi.fn()
         } as MessageListActions,
         translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
@@ -547,6 +541,76 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues).not.toContain(undefined)
   })
 
+  it('keeps translate available and requests languages when its menu first opens', () => {
+    const requestTranslationLanguages = vi.fn()
+    const context = createActionContext({
+      actions: {
+        requestTranslationLanguages,
+        translateMessage: vi.fn()
+      } as MessageListActions
+    })
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'translate')
+    const translationItems = resolveMessageMenuBarTranslationItems(context)
+
+    expect(action).toBeTruthy()
+    expect(translationItems).toEqual([
+      expect.objectContaining({ key: 'translate-loading', label: 'common.loading', enabled: false })
+    ])
+
+    render(
+      renderTranslateToolbarAction({
+        action: action!,
+        actionContext: context,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems
+      })
+    )
+
+    expect(requestTranslationLanguages).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.translate' }))
+
+    expect(requestTranslationLanguages).toHaveBeenCalledOnce()
+    expect(screen.getByRole('menu')).toHaveTextContent('common.loading')
+  })
+
+  it('offers an actionable retry item when the language load failed, then recovers', async () => {
+    const retryTranslationLanguages = vi.fn()
+    const failedContext = createActionContext({
+      translationLanguagesStatus: 'error',
+      actions: {
+        requestTranslationLanguages: vi.fn(),
+        retryTranslationLanguages,
+        translateMessage: vi.fn()
+      } as MessageListActions
+    })
+
+    const failedItems = resolveMessageMenuBarTranslationItems(failedContext)
+    expect(failedItems).toEqual([expect.objectContaining({ key: 'translate-retry', label: 'common.retry' })])
+
+    const retryItem = failedItems[0]
+    expect('onSelect' in retryItem).toBe(true)
+    if ('onSelect' in retryItem) {
+      await retryItem.onSelect()
+    }
+    expect(retryTranslationLanguages).toHaveBeenCalledOnce()
+
+    const recoveredItems = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        translationLanguagesStatus: 'ready',
+        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
+        actions: {
+          requestTranslationLanguages: vi.fn(),
+          retryTranslationLanguages,
+          translateMessage: vi.fn()
+        } as MessageListActions
+      })
+    )
+    expect(recoveredItems.map((item) => item.key)).toEqual(['en'])
+  })
+
   it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
     tooltipOpenValues.length = 0
 
@@ -592,19 +656,13 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
   })
 
-  it('keeps session scope capability-driven for toolbar actions', () => {
-    const sessionConfig = getMessageMenuBarConfig(TopicType.Session)
+  it('resolves the session-style toolbar from absent write capabilities alone', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
         actions: {
           deleteMessage: vi.fn(),
-          exportToNotes: vi.fn(),
-          regenerateMessage: vi.fn(),
-          renderRegenerateModelPicker: vi.fn(),
-          translateMessage: vi.fn()
-        } as MessageListActions,
-        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
-        toolbarButtonIds: new Set(sessionConfig.buttonIds)
+          exportToNotes: vi.fn()
+        } as MessageListActions
       })
     )
 

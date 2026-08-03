@@ -22,7 +22,7 @@ import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -274,6 +274,7 @@ function AgentEditDialogContent({
   } = useInstalledSkills(resource.id || undefined, {
     enabled: open && Boolean(resource.id)
   })
+  useReconcileSkillsOnOpen(open && activeTab === 'tools.skills')
   const skillIdsFromQueryKey = useMemo(
     () =>
       skills
