@@ -543,6 +543,31 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
+  it('survives a tool_use block that opens without a name and recovers it from the assistant message', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'tool-1', input: {} }
+      })
+    )
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: { cmd: 'pwd' } }]
+      }
+    } as any)
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    expect(parts[0]).toMatchObject({ type: 'tool-input-start', toolCallId: 'tool-1', toolName: '' })
+    expect(parts.at(-1)).toMatchObject({ type: 'tool-input-available', toolCallId: 'tool-1', toolName: 'Bash' })
+  })
+
   it('maps assistant tool use and user tool result', () => {
     const { adapter, parts } = createAdapter()
 
