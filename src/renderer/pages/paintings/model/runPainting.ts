@@ -34,7 +34,8 @@ export async function resolvePaintingFiles(result: GenerationResult): Promise<Fi
       result.base64s.map((b64) =>
         window.api.file.createInternalEntry({
           source: 'base64',
-          data: `data:image/png;base64,${b64}`
+          data: `data:image/png;base64,${b64}`,
+          cleanupPolicy: 'delete_when_unreferenced'
         })
       )
     )

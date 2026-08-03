@@ -42,6 +42,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
+    fastMode?: boolean
   }
 }
 
@@ -281,7 +282,8 @@ export function useChatRuntimeState({
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
       mentionedModelIds: options?.mentionedModels,
-      reasoningEffort: options?.reasoningEffort
+      reasoningEffort: options?.reasoningEffort,
+      ...(options?.fastMode ? { fastMode: true } : {})
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })

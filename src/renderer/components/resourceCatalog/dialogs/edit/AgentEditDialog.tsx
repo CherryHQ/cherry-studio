@@ -16,6 +16,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -39,10 +40,11 @@ import {
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { ToolCase, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -53,6 +55,8 @@ import {
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
+  editDialogFormRowClassName,
+  editDialogFormRowLabelClassName,
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
@@ -161,15 +165,46 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     planModel: values.planModelId || '',
     smallModel: values.smallModelId || '',
     instructions: values.instructions,
-    mcps: values.mcps,
-    knowledgeBaseIds: values.knowledgeBaseIds,
-    skillIds: values.skillIds,
-    disabledTools: values.disabledTools,
+    mcps: [...values.mcps],
+    knowledgeBaseIds: [...values.knowledgeBaseIds],
+    skillIds: [...values.skillIds],
+    disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
+}
+
+function advanceAgentFormBaseline(
+  latest: AgentFormState,
+  submitted: AgentFormState,
+  payload: UpdateAgentDto
+): AgentFormState {
+  const next = { ...latest }
+  const hasOwn = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key)
+
+  if (hasOwn(payload, 'name')) next.name = submitted.name
+  if (hasOwn(payload, 'description')) next.description = submitted.description
+  if (hasOwn(payload, 'model')) next.model = submitted.model
+  if (hasOwn(payload, 'planModel')) next.planModel = submitted.planModel
+  if (hasOwn(payload, 'smallModel')) next.smallModel = submitted.smallModel
+  if (hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
+  if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
+  if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
+  if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
+  if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
+
+  const configuration = payload.configuration
+  if (configuration) {
+    if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
+    if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
+    if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
+    if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+  }
+
+  return next
 }
 
 function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: AgentFormState) {
@@ -183,14 +218,6 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
-}
-
-function createAgentPatcher(form: UseFormReturn<AgentEditFormValues>, resource: AgentDetail) {
-  return (patch: Partial<AgentFormState>) => {
-    const baseline = buildInitialAgentFormState(resource)
-    const current = buildAgentFormState(baseline, form.getValues())
-    syncAgentFormState(form, applyAgentFormPatch(current, patch))
-  }
 }
 
 export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, initialTab }: AgentEditDialogProps) {
@@ -219,12 +246,23 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
-  const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
+  const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
+  const formBaselineRef = useRef(formBaseline)
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
-  const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
+  const replaceFormBaseline = useCallback((next: AgentFormState) => {
+    formBaselineRef.current = next
+    setFormBaseline(next)
+  }, [])
+  const patchAgentForm = useCallback(
+    (patch: Partial<AgentFormState>) => {
+      const current = buildAgentFormState(formBaselineRef.current, form.getValues())
+      syncAgentFormState(form, applyAgentFormPatch(current, patch))
+    },
+    [form]
+  )
   const { updateAgent } = useAgentMutationsById(resource.id)
   const { bases: knowledgeBases, isLoading: knowledgeBasesLoading } = useKnowledgeBases()
   const availableKnowledgeBaseIds = useMemo(() => new Set(knowledgeBases.map((base) => base.id)), [knowledgeBases])
@@ -247,10 +285,10 @@ function AgentEditDialogContent({
     () => (skillIdsFromQueryKey ? skillIdsFromQueryKey.split('\0') : []),
     [skillIdsFromQueryKey]
   )
+  const currentFormState = useMemo(() => buildAgentFormState(formBaseline, values), [formBaseline, values])
   const saveIntent = useMemo(() => {
-    const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
-    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [baselineSkillIds, resource, values])
+    return diffAgentSaveIntent(currentFormState, formBaseline)
+  }, [currentFormState, formBaseline])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -282,18 +320,28 @@ function AgentEditDialogContent({
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
-    setBaselineSkillIds([])
+    replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
-  }, [defaultValues, form, initialTab, open, resource])
+  }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
 
-  // Cached rows may render during revalidation, but the editable baseline must
-  // come from the authoritative projection so later toggles diff correctly.
+  // Cached skill rows may render during revalidation, but the editable skill
+  // baseline must come from the authoritative projection so later toggles diff
+  // correctly.
   useEffect(() => {
     if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId === resource.id) return
-    setBaselineSkillIds(skillIdsFromQuery)
+    replaceFormBaseline({ ...formBaselineRef.current, skillIds: [...skillIdsFromQuery] })
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
-  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading, skillsRefreshing])
+  }, [
+    baselineSkillAgentId,
+    form,
+    open,
+    replaceFormBaseline,
+    resource.id,
+    skillIdsFromQuery,
+    skillsLoading,
+    skillsRefreshing
+  ])
 
   useEffect(() => {
     if (!open || knowledgeBasesLoading) return
@@ -304,9 +352,13 @@ function AgentEditDialogContent({
     const currentIds = form.getValues('knowledgeBaseIds')
     const convergedIds = currentIds.filter((id) => availableKnowledgeBaseIds.has(id))
     if (convergedIds.length !== currentIds.length) {
+      replaceFormBaseline({
+        ...formBaselineRef.current,
+        knowledgeBaseIds: formBaselineRef.current.knowledgeBaseIds.filter((id) => availableKnowledgeBaseIds.has(id))
+      })
       form.setValue('knowledgeBaseIds', convergedIds, { shouldDirty: false })
     }
-  }, [availableKnowledgeBaseIds, form, knowledgeBasesLoading, open])
+  }, [availableKnowledgeBaseIds, form, knowledgeBasesLoading, open, replaceFormBaseline])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return
@@ -314,13 +366,19 @@ function AgentEditDialogContent({
   }, [activeTab, leafTabIds])
 
   const rootError = form.formState.errors.root?.message
-  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  const autoSaveChangeKey =
+    saveIntent && values.name.trim().length > 0 ? JSON.stringify({ values, payload: saveIntent.payload }) : null
+  const canPersist = autoSaveChangeKey !== null
   // Tracks whether the most recent save attempt failed, so the close path can
   // keep the dialog open (and the error visible) instead of closing over a loss.
   const saveFailedRef = useRef(false)
 
   const persist = async () => {
-    const pending = saveIntent
+    // Recompute from refs at execution time: the serialized autosave queue may
+    // start its follow-up pass before React has rendered the baseline state
+    // advanced by the previous pass.
+    const submittedFormState = buildAgentFormState(formBaselineRef.current, form.getValues())
+    const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
     if (!pending) return
 
     form.clearErrors('root')
@@ -332,16 +390,22 @@ function AgentEditDialogContent({
       logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       saveFailedRef.current = true
+      return
     }
+
+    // Commit only fields this request actually submitted. Baseline updates that
+    // landed while it was in flight (such as authoritative skill initialization)
+    // must survive so queued edits still diff against the persisted state.
+    replaceFormBaseline(advanceAgentFormBaseline(formBaselineRef.current, submittedFormState, pending.payload))
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /agents/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
+  // Include the pending payload so a baseline update during an in-flight save
+  // can queue a newly meaningful diff even when form values return to the
+  // snapshot that save captured. Values remain in the key to distinguish DTO
+  // clears represented by explicit `undefined`.
   const flush = useDebouncedAutoSave({
     enabled: open,
-    changeKey: canPersist ? JSON.stringify(values) : null,
+    changeKey: autoSaveChangeKey,
     onSave: persist
   })
 
@@ -441,65 +505,71 @@ function AgentBasicFields({
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   return (
-    <div className="grid gap-5">
-      <div className="grid grid-cols-[auto_1fr] gap-4">
-        <AvatarField
-          form={form}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="🤖"
-          portalContainer={portalContainer}
-        />
-        <TextInputField
-          form={form}
-          name="name"
-          label={t('library.config.agent.field.name.label')}
-          placeholder={t('library.config.agent.field.name.placeholder')}
-          required
-        />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <CompactModelField
-          form={form}
-          name="modelId"
-          label={t('library.config.agent.field.model.label')}
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-        <CompactModelField
-          form={form}
-          name="planModelId"
-          label={t('library.config.agent.field.plan_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-        <CompactModelField
-          form={form}
-          name="smallModelId"
-          label={t('library.config.agent.field.small_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-      </div>
+    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+      <AvatarField
+        form={form}
+        emojiPickerOpen={emojiPickerOpen}
+        setEmojiPickerOpen={setEmojiPickerOpen}
+        fallback="🤖"
+        portalContainer={portalContainer}
+        size="sm"
+        layout="row"
+      />
+      <TextInputField
+        form={form}
+        name="name"
+        label={t('library.config.agent.field.name.label')}
+        placeholder={t('library.config.agent.field.name.placeholder')}
+        required
+        layout="row"
+      />
       <TextInputField
         form={form}
         name="description"
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
+        layout="row"
+      />
+      <CompactModelField
+        form={form}
+        name="modelId"
+        label={t('library.config.agent.field.model.label')}
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <CompactModelField
+        form={form}
+        name="planModelId"
+        label={t('library.config.agent.field.plan_model.label')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <CompactModelField
+        form={form}
+        name="smallModelId"
+        label={t('library.config.agent.field.small_model.label')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
       />
       <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       <HeartbeatSettingsField
@@ -521,37 +591,45 @@ function PermissionModeField({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
   const { t } = useTranslation()
+  const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
+  const selectedPermissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
 
   return (
     <FormField
       control={form.control}
       name="permissionMode"
       render={({ field }) => (
-        <FormItem>
-          <div className="flex items-center justify-between gap-3">
-            <FormLabel className="font-normal text-[13px]">
-              {t('library.config.agent.field.permission_mode.label')}
-            </FormLabel>
-            <Select
-              value={field.value || 'default'}
-              onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
-              <FormControl>
-                <SelectTrigger
-                  className="w-48 shrink-0"
-                  aria-label={t('library.config.agent.field.permission_mode.label')}>
-                  <SelectValue />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent portalContainer={portalContainer}>
-                {permissionModeCards.map((card) => (
-                  <SelectItem key={card.mode} value={card.mode}>
-                    {t(card.titleKey, card.titleFallback)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <FormMessage />
+        <FormItem className={editDialogFormRowClassName}>
+          <FormLabel className={editDialogFormRowLabelClassName}>
+            {t('library.config.agent.field.permission_mode.label')}
+          </FormLabel>
+          <Select value={field.value || 'default'} onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
+            <FormControl>
+              <SelectTrigger
+                className="h-9 w-full rounded-md"
+                aria-label={t('library.config.agent.field.permission_mode.label')}>
+                {/* Own children so the trigger stays one line: the items below are two. */}
+                <SelectValue>
+                  {selectedPermissionModeCard && (
+                    <span className={selectedPermissionModeCard.dangerous ? 'text-destructive' : undefined}>
+                      {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
+                    </span>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent portalContainer={portalContainer}>
+              {permissionModeCards.map((card) => (
+                <SelectItem key={card.mode} value={card.mode}>
+                  <div className="flex items-center gap-2">
+                    <PermissionModeIcon mode={card.mode} size={16} />
+                    <PermissionModeOptionLabel card={card} t={t} />
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage className="col-start-2" />
         </FormItem>
       )}
     />
@@ -571,19 +649,19 @@ function HeartbeatSettingsField({
   const label = t('library.config.agent.field.heartbeat_enabled.label')
 
   return (
-    <div className="grid gap-2">
+    <div className="divide-y divide-border-subtle">
       <FormField
         control={form.control}
         name="heartbeatEnabled"
         render={({ field }) => (
-          <FormItem>
-            <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{label}</FormLabel>
-              <FormControl>
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{label}</FormLabel>
+            <FormControl>
+              <div className="flex h-9 items-center">
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
-              </FormControl>
-            </div>
-            <FormMessage />
+              </div>
+            </FormControl>
+            <FormMessage className="col-start-2" />
           </FormItem>
         )}
       />
@@ -592,26 +670,24 @@ function HeartbeatSettingsField({
           control={form.control}
           name="heartbeatInterval"
           render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between gap-3">
-                <FormLabel className="font-normal text-[13px]">
-                  {t('library.config.agent.field.heartbeat_interval.label')}
-                </FormLabel>
-                <FormControl>
-                  <EditableNumber
-                    min={1}
-                    max={1440}
-                    step={1}
-                    precision={0}
-                    align="start"
-                    changeOnBlur
-                    className="w-28"
-                    value={field.value || null}
-                    onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
-                  />
-                </FormControl>
-              </div>
-              <FormMessage />
+            <FormItem className={editDialogFormRowClassName}>
+              <FormLabel className={editDialogFormRowLabelClassName}>
+                {t('library.config.agent.field.heartbeat_interval.label')}
+              </FormLabel>
+              <FormControl>
+                <EditableNumber
+                  min={1}
+                  max={1440}
+                  step={1}
+                  precision={0}
+                  align="start"
+                  changeOnBlur
+                  className="h-9 w-full"
+                  value={field.value || null}
+                  onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                />
+              </FormControl>
+              <FormMessage className="col-start-2" />
             </FormItem>
           )}
         />
@@ -718,7 +794,7 @@ function AgentToolsFields({
           id: tool.name,
           name: t(`agent.tools.builtin.${tool.key}.label`, tool.label),
           description: t(`agent.tools.builtin.${tool.key}.description`, tool.description),
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
+          icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
         }))
     })).filter((section) => section.items.length > 0)
   }, [t, hasKnowledgeScope])
@@ -746,7 +822,7 @@ function AgentToolsFields({
         <div className="grid gap-5">
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
-              <div className="font-medium text-foreground/55 text-xs">{section.label}</div>
+              <div className="font-medium text-muted-foreground text-xs">{section.label}</div>
               <CatalogToggleGrid
                 items={section.items}
                 enabledIds={enabledToolIds}
@@ -789,7 +865,7 @@ function AgentToolsFields({
               type="button"
               variant="ghost"
               onClick={openSkillsSettingsTab}
-              className="h-full min-h-11 w-full rounded-lg border border-border-muted border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-hover hover:bg-accent/50 hover:text-foreground">
+              className="h-full min-h-11 w-full rounded-lg border border-border-subtle border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 hover:text-foreground">
               <ToolCase size={14} strokeWidth={1.7} />
               {t('agent.settings.skills.addMore')}
             </Button>
@@ -804,7 +880,7 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
   const { t } = useTranslation()
 
   return (
-    <div className="grid gap-4">
+    <div>
       <FormField
         control={form.control}
         name="envVarsText"

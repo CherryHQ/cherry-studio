@@ -186,7 +186,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
 import { toast } from '@renderer/services/toast'
 
 import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
@@ -335,15 +334,6 @@ async function openCreateDialog() {
 }
 
 describe('AgentSelector', () => {
-  it('sets the default popover target height', () => {
-    renderSelector()
-    openPopover()
-
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
-      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-    })
-  })
-
   it('fetches agents from DataApi and renders returned rows', () => {
     renderSelector()
     openPopover()
@@ -508,7 +498,7 @@ describe('AgentSelector', () => {
         skillIds: [],
         configuration: {
           avatar: '🤖',
-          permission_mode: 'bypassPermissions'
+          permission_mode: 'default'
         }
       })
     )

@@ -398,6 +398,8 @@ describe('Artboard', () => {
       const trigger = screen.getByRole('button', { name: prompt })
       expect(trigger).toHaveAttribute('type', 'button')
       expect(trigger).toContainElement(preview)
+      expect(trigger).toHaveClass('focus-visible:bg-accent', 'focus-visible:text-foreground')
+      expect(trigger.className).not.toMatch(/focus-visible:ring-(?!0)/)
 
       const zoomButton = screen.getByRole('button', { name: 'preview.zoom_in' })
       zoomButton.focus()
@@ -416,9 +418,11 @@ describe('Artboard', () => {
         'ml-0.5',
         'size-5',
         'text-neutral-50',
+        'focus-visible:bg-neutral-50/10',
         '[&_svg]:stroke-neutral-50!',
         '[&_svg]:text-neutral-50!'
       )
+      expect(copyButton.className).not.toMatch(/focus-visible:ring-(?!0)/)
       expect(copyButton).not.toHaveClass('absolute', 'bg-neutral-700')
 
       fireEvent.click(copyButton)
@@ -644,6 +648,18 @@ describe('Artboard', () => {
     firePointer(image, 'pointermove', { clientX: 35, clientY: 45, pointerId: 1 })
 
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+  })
+
+  it('promotes the image to a compositor layer only while dragging', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} />)
+
+    const image = document.querySelector('img') as HTMLImageElement
+
+    firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+    expect(image).toHaveClass('will-change-transform')
+
+    firePointer(image, 'pointerup', { clientX: 10, clientY: 10, pointerId: 1 })
+    expect(image).not.toHaveClass('will-change-transform')
   })
 
   it('disables zoom controls at image scale boundaries', () => {

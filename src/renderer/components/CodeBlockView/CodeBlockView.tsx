@@ -25,7 +25,17 @@ import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
-import React, { memo, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  memo,
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
@@ -33,6 +43,8 @@ import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
+const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
+const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
 interface Props {
   children: string
@@ -40,6 +52,8 @@ interface Props {
   onSave?: (newContent: string) => void
   editable?: boolean
   isStreaming?: boolean
+  showToolbar?: boolean
+  maxHeight?: string | number
 }
 
 /**
@@ -51,6 +65,7 @@ interface Props {
  *
  * 视图模式：
  * - source: 源代码视图模式
+ * - edit: 编辑视图模式
  * - special: 特殊视图模式（Mermaid、PlantUML、SVG）
  * - split: 分屏模式（源代码和特殊视图并排显示）
  *
@@ -59,7 +74,7 @@ interface Props {
  * - core 工具
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
-  const { children, language, onSave, editable = true, isStreaming = false } = props
+  const { children, language, onSave, editable = true, isStreaming = false, showToolbar = true, maxHeight } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -80,12 +95,21 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   })
 
   const { activeCmTheme } = useCodeStyle()
+  const canEdit = codeEditor.enabled && editable
+  const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
+  const startedStreamingRef = useRef(isStreaming)
 
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
     previousMode: 'special' as ViewMode
   })
-  const { mode: viewMode } = viewState
+  const viewMode = useMemo<ViewMode>(() => {
+    if (viewState.mode === 'edit' && !canEdit) return 'source'
+    if (!hasSpecialView && viewState.mode !== 'edit') {
+      return canEdit && !startedStreamingRef.current && viewState.mode === 'special' ? 'edit' : 'source'
+    }
+    return viewState.mode
+  }, [canEdit, hasSpecialView, viewState.mode])
 
   const setViewMode = useCallback((newMode: ViewMode) => {
     setViewState((current) => ({
@@ -107,9 +131,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const [isRunning, setIsRunning] = useState(false)
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
-
   const [tools, setTools] = useState<ActionTool[]>([])
-  const codeEditorEnabled = codeEditor.enabled && editable && !isStreaming
 
   const isExecutable = useMemo(() => {
     return codeExecutionEnabled && language === 'python'
@@ -117,15 +139,20 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)
+  const latestActionContextRef = useRef({ source: children, language, t })
 
-  const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
+  useLayoutEffect(() => {
+    latestActionContextRef.current = { source: children, language, t }
+  }, [children, language, t])
 
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
+  const isEditing = canEdit && (viewMode === 'edit' || (viewMode === 'split' && viewState.previousMode === 'edit'))
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
+  const handleRequestExpand = useCallback(() => setExpandOverride(true), [])
 
   // 重置用户操作
   useEffect(() => {
@@ -137,8 +164,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setWrapOverride(codeWrappable)
   }, [codeWrappable])
 
-  const shouldExpand = useMemo(() => !codeCollapsible || expandOverride, [codeCollapsible, expandOverride])
+  const shouldExpand = useMemo(
+    () => maxHeight === undefined && (!codeCollapsible || expandOverride),
+    [codeCollapsible, expandOverride, maxHeight]
+  )
   const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
+  const sourceMaxHeight =
+    typeof maxHeight === 'number' ? `${maxHeight}px` : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)
 
   const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
   const expandable = useMemo(() => {
@@ -151,26 +183,26 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     })
   }, [])
 
-  const handleCopySource = useCallback(async () => {
+  const handleCopySource = useCallback(async (): Promise<boolean> => {
     try {
-      // Prioritize getting content from editor, fallback to children
-      const content = sourceViewRef.current?.getContent?.() ?? children
+      const content = sourceViewRef.current?.getContent?.() ?? latestActionContextRef.current.source
       await navigator.clipboard.writeText(content.trimEnd())
-      toast.success(t('code_block.copy.success'))
+      toast.success(latestActionContextRef.current.t('code_block.copy.success'))
+      return true
     } catch (error) {
       logger.error('Failed to copy to clipboard:', { error })
-      toast.error(t('code_block.copy.failed'))
+      toast.error(latestActionContextRef.current.t('code_block.copy.failed'))
+      return false
     }
-  }, [children, t])
-  // Note: sourceViewRef not in deps because it's a stable ref,
-  // and getContent reads content in real-time from editorViewRef.current.state.doc
+  }, [])
 
   const handleDownloadSource = useCallback(() => {
+    const { source: currentSource, language: currentLanguage } = latestActionContextRef.current
     let fileName = ''
 
     // 尝试提取 HTML 标题
-    if (language === 'html') {
-      fileName = getFileNameFromHtmlTitle(extractHtmlTitle(children)) || ''
+    if (currentLanguage === 'html') {
+      fileName = getFileNameFromHtmlTitle(extractHtmlTitle(currentSource)) || ''
     }
 
     // 默认使用日期格式命名
@@ -178,16 +210,17 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       fileName = `${dayjs().format('YYYYMMDDHHmm')}`
     }
 
-    const ext = getExtensionByLanguage(language)
-    void window.api.file.save(`${fileName}${ext}`, children)
-  }, [children, language])
+    const ext = getExtensionByLanguage(currentLanguage)
+    void window.api.file.save(`${fileName}${ext}`, currentSource)
+  }, [])
 
   const handleRunScript = useCallback(() => {
+    const source = latestActionContextRef.current.source
     setIsRunning(true)
     setExecutionResult(null)
 
     pyodideService
-      .runScript(children, {}, codeExecutionTimeoutMinutes * 60000)
+      .runScript(source, {}, codeExecutionTimeoutMinutes * 60000)
       .then((result) => {
         setExecutionResult(result)
       })
@@ -200,15 +233,15 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       .finally(() => {
         setIsRunning(false)
       })
-  }, [children, codeExecutionTimeoutMinutes])
+  }, [codeExecutionTimeoutMinutes])
 
   const showPreviewTools = useMemo(() => {
-    return viewMode !== 'source' && hasSpecialView
+    return hasSpecialView && (viewMode === 'special' || viewMode === 'split')
   }, [hasSpecialView, viewMode])
 
-  const hasStatusBar = isExecutable && !!executionResult
+  const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
+  const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])
 
-  // 复制按钮
   useCopyTool({
     showPreviewTools,
     previewRef: specialViewRef,
@@ -216,7 +249,6 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setTools
   })
 
-  // 下载按钮
   useDownloadTool({
     showPreviewTools,
     previewRef: specialViewRef,
@@ -224,16 +256,15 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setTools
   })
 
-  // 特殊视图的编辑/查看源码按钮，在分屏模式下不可用
   useViewSourceTool({
-    enabled: hasSpecialView,
-    editable: codeEditorEnabled,
+    canEdit,
+    hasSpecialView,
+    isStreaming,
     viewMode,
     onViewModeChange: setViewMode,
     setTools
   })
 
-  // 特殊视图存在时的分屏按钮
   useSplitViewTool({
     enabled: hasSpecialView,
     viewMode,
@@ -241,7 +272,6 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setTools
   })
 
-  // 运行按钮
   useRunTool({
     enabled: isExecutable,
     isRunning,
@@ -249,35 +279,34 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setTools
   })
 
-  // 源代码视图的展开/折叠按钮
   useExpandTool({
-    enabled: !isInSpecialView,
+    enabled: !isInSpecialView && maxHeight === undefined,
     expanded: shouldExpand,
     expandable,
-    toggle: useCallback(() => setExpandOverride((prev) => !prev), []),
+    toggle: handleToggleExpanded,
     setTools
   })
 
-  // 源代码视图的自动换行按钮
   useWrapTool({
     enabled: !isInSpecialView,
     wrapped: shouldWrap,
     wrappable: codeWrappable,
-    toggle: useCallback(() => setWrapOverride((prev) => !prev), []),
+    toggle: handleToggleWrapped,
     setTools
   })
 
-  // 代码编辑器的保存按钮
   useSaveTool({
-    enabled: codeEditorEnabled && !isInSpecialView,
+    enabled: isEditing && !isStreaming && !isInSpecialView,
     sourceViewRef,
     setTools
   })
 
+  const hasStatusBar = isExecutable && !!executionResult
+
   // 源代码视图组件
   const sourceView = useMemo(
     () =>
-      codeEditorEnabled ? (
+      isEditing ? (
         <CodeEditor
           className="source-view"
           ref={sourceViewRef}
@@ -287,7 +316,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
-          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
+          maxHeight={sourceMaxHeight}
           options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
           expanded={shouldExpand}
           wrapped={shouldWrap}
@@ -301,12 +330,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           onHeightChange={handleHeightChange}
           expanded={shouldExpand}
           wrapped={shouldWrap}
-          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
-          onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
+          maxHeight={sourceMaxHeight}
+          onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
-          options={{
-            highlight: !isStreaming
-          }}
+          options={isStreaming ? STREAMING_CODE_VIEWER_OPTIONS : HIGHLIGHTED_CODE_VIEWER_OPTIONS}
         />
       ),
     [
@@ -314,15 +341,18 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       children,
       codeCollapsible,
       codeEditor,
-      codeEditorEnabled,
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
+      handleRequestExpand,
+      isEditing,
       isStreaming,
       language,
+      maxHeight,
       onSave,
       shouldExpand,
-      shouldWrap
+      shouldWrap,
+      sourceMaxHeight
     ]
   )
 
@@ -344,13 +374,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
       return (
-        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-foreground text-sm leading-none" />
+        <div className="code-block-header mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-medium text-muted-foreground text-xs leading-none" />
       )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <div className="flex h-8 items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
+      <div className="code-block-header flex h-8 items-center border-border-subtle border-b-[0.5px] bg-background-subtle px-2.5 font-medium text-muted-foreground text-xs leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.toUpperCase()}
       </div>
@@ -381,7 +411,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   return (
     <div
       className={cn(
-        'code-block relative w-full min-w-[35ch]',
+        'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
         isInSpecialView
@@ -389,7 +419,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
       )}>
       {renderHeader}
-      <CodeToolbar tools={tools} />
+      {showToolbar ? <CodeToolbar tools={tools} /> : null}
       {renderContent}
       {isExecutable && executionResult && (
         <StatusBar>

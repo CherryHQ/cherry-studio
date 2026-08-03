@@ -21,6 +21,21 @@ function siblingFor(model: LocalModelKind) {
   return model === 'embedding' ? localOcrDownloadService : localEmbeddingDownloadService
 }
 
+async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKind): Promise<void> {
+  // 'downloading' counts as still needed — the sibling may be awaiting the same
+  // coalesced binary download.
+  const siblingStatus = siblingFor(model).getStatus()
+  try {
+    await onnxRuntimeBinaryService.removeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
+  } catch (cleanupError) {
+    // Best-effort: a locked file must not turn a cancellation into a failure or
+    // mask the original download error.
+    logger.warn('failed to clean up the shared onnxruntime binary after an interrupted download', {
+      error: String(cleanupError)
+    })
+  }
+}
+
 /**
  * Thin adapters for the local model routes — each dispatches by `model` to the
  * owning download service (`LocalEmbeddingDownloadService` for transformers.js,
@@ -31,21 +46,16 @@ export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas>
   'local_model.get_status': async ({ model }) => ({ status: serviceFor(model).getStatus() }),
   'local_model.download': async ({ model }) => {
     try {
-      await serviceFor(model).download()
+      const result = await serviceFor(model).download()
+      if (result === 'cancelled') {
+        await cleanupSharedRuntimeAfterInterruptedDownload(model)
+      }
+      return { result }
     } catch (error) {
       // The service already dropped its own partial weights (cleanupAfterError)
-      // before rejecting; also drop the shared onnxruntime binary so a cancelled
-      // or failed download leaves no footprint. 'downloading' counts as still
-      // needed — the sibling may be awaiting the same coalesced binary download.
-      const siblingStatus = siblingFor(model).getStatus()
-      try {
-        await onnxRuntimeBinaryService.removeIfUnused(siblingStatus === 'ready' || siblingStatus === 'downloading')
-      } catch (cleanupError) {
-        // Best-effort: a locked file must not mask the original download error.
-        logger.warn('failed to clean up the shared onnxruntime binary after an aborted download', {
-          error: String(cleanupError)
-        })
-      }
+      // before rejecting; also drop the shared onnxruntime binary so a failed
+      // download leaves no footprint.
+      await cleanupSharedRuntimeAfterInterruptedDownload(model)
       throw error
     }
   },

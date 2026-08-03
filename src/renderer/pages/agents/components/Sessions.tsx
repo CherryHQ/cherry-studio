@@ -1251,10 +1251,16 @@ const Sessions = ({
 
       try {
         await toggleAgentPin(agentId)
-        await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
         toast.error(t('common.error'))
+        return
+      }
+
+      try {
+        await refetchAgents()
+      } catch (err) {
+        logger.warn('Failed to refresh agents after toggling pin from session group', { agentId, err })
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -1575,7 +1581,7 @@ const Sessions = ({
         if (!context.collapsed) return <FolderOpen size={13} />
 
         return (
-          <span className="flex size-4 items-center justify-center text-foreground/70 group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
+          <span className="flex size-4 items-center justify-center text-muted-foreground group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
             <Folder size={13} className="block group-hover/resource-list-group:hidden" />
             <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
           </span>
@@ -1865,7 +1871,7 @@ const Sessions = ({
         setActiveSessionId={handleSelectSession}
       />
       {(historyLoading || isLoadingMore || hasMore) && visibleGroupedSessions.length > 0 && (
-        <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">{t('common.loading')}</div>
+        <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">{t('common.loading')}</div>
       )}
       <EditNameDialog
         open={!!renamingWorkspaceGroup}

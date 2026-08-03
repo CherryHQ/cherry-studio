@@ -33,6 +33,26 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AMD GPU Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
+        }
+      },
+      "id": "radeon-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "docs": "https://developer.amd.com.cn/radeon/",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "official": "https://developer.amd.com.cn/radeon/"
+        }
+      },
+      "name": "AMD GPU Cloud"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Silicon - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -242,6 +262,13 @@
                 ]
               }
             }
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.deepseek.com",
+          "reasoningFormat": {
+            "type": "openai-responses"
           }
         }
       },
@@ -661,6 +688,9 @@
           "baseUrl": "https://api.anthropic.com"
         }
       },
+      "fastMode": {
+        "transport": "claude-code"
+      },
       "id": "claude-code",
       "metadata": {
         "website": {
@@ -683,6 +713,9 @@
           "adapterFamily": "openai",
           "baseUrl": "https://chatgpt.com/backend-api/codex"
         }
+      },
+      "fastMode": {
+        "transport": "openai-priority"
       },
       "id": "openai-codex",
       "metadata": {
@@ -1865,5 +1898,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "cc183eedfe6e6c80"
+  "version": "645f9b9b0f0ff508"
 }

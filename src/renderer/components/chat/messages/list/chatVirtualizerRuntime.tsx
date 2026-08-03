@@ -152,6 +152,9 @@ export interface ChatVirtualizerRuntime<T> {
 }
 
 const SCROLL_WHEEL_DEBOUNCE_MS = 100
+// scrollToKey animates smoothly for nearby targets but jumps instantly once the
+// distance exceeds this many viewports — see the behavior choice in scrollToKey.
+const LONG_JUMP_VIEWPORTS = 3
 // During a programmatic bottom-follow, scroll events fire as the viewport
 // catches up. A small negative delta is noise (trackpad inertia, subpixel
 // rounding, virtualization remeasure), not intent — only an upward move beyond
@@ -168,6 +171,10 @@ const USER_SCROLL_INPUT_WINDOW_MS = 250
 const FREEZE_REASSERT_TOLERANCE_PX = 2
 const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
   'button,[role="button"],a,input,textarea,select,h1,h2,h3,h4,h5,h6,.block-wrapper,[data-message-id],p,pre,li,table'
+
+function keysMatchAt(container: readonly string[], candidate: readonly string[], offset: number): boolean {
+  return candidate.every((key, index) => container[index + offset] === key)
+}
 
 export function useChatVirtualizerRuntime<T>({
   items,
@@ -511,12 +518,14 @@ export function useChatVirtualizerRuntime<T>({
   // ---- wrap items with stable DOM identity -----------------------------
 
   const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
-  const previousDataKeysRef = useRef<string[]>([])
+  const previousDataKeysRef = useRef(dataKeys)
   const previousDataKeys = previousDataKeysRef.current
-  const shift =
-    previousDataKeys.length > 0 &&
-    dataKeys.length > previousDataKeys.length &&
-    dataKeys.indexOf(previousDataKeys[0]) > 0
+  const lengthDelta = dataKeys.length - previousDataKeys.length
+  const addedAtStart =
+    previousDataKeys.length > 0 && lengthDelta > 0 && keysMatchAt(dataKeys, previousDataKeys, lengthDelta)
+  const removedFromStart =
+    dataKeys.length > 0 && lengthDelta < 0 && keysMatchAt(previousDataKeys, dataKeys, -lengthDelta)
+  const shift = addedAtStart || removedFromStart
 
   useEffect(() => {
     previousDataKeysRef.current = dataKeys
@@ -815,6 +824,14 @@ export function useChatVirtualizerRuntime<T>({
 
   // ---- imperative API -------------------------------------------------
 
+  // Reading navigations can only land within [0, realBottom]; both the scroll
+  // itself and any distance measured against it must use this same bound.
+  const clampToReachable = useCallback(
+    (scroller: HTMLElement, target: number) =>
+      Math.min(getRealBottom(scroller, bottomFollowInsetRef.current), Math.max(0, target)),
+    []
+  )
+
   const navigateForReading = useCallback(
     (
       getTarget: (scroller: HTMLElement) => number,
@@ -832,7 +849,7 @@ export function useChatVirtualizerRuntime<T>({
       const resolveTarget = () => {
         const current = scrollerRef.current
         if (!current) return 0
-        return Math.min(getRealBottom(current, bottomFollowInsetRef.current), Math.max(0, getTarget(current)))
+        return clampToReachable(current, getTarget(current))
       }
       const finish = () => {
         if (!readNavigationActiveRef.current) return
@@ -848,7 +865,7 @@ export function useChatVirtualizerRuntime<T>({
         takeUserControl(getPreferredAnchor?.() ?? null)
       }
     },
-    [atBottom, handBackToRuntime, smoothScroll, takeUserControl]
+    [atBottom, clampToReachable, handBackToRuntime, smoothScroll, takeUserControl]
   )
 
   const scrollToBottom = useCallback(
@@ -915,23 +932,35 @@ export function useChatVirtualizerRuntime<T>({
       scrollToTop,
       scrollToKey: (key, align = 'start') => {
         if (findDataIndexByKey(key) < 0) return
-        navigateForReading(
-          (scroller) => {
-            const handle = vlistHandleRef.current
-            const idx = findDataIndexByKey(key)
-            if (!handle || idx < 0) return scroller.scrollTop
-            const start = Math.max(0, topPadding) + handle.getItemOffset(idx)
-            const size = handle.getItemSize(idx)
-            if (align === 'center') return start - (scroller.clientHeight - size) / 2
-            if (align === 'end') return start + size - scroller.clientHeight
-            return start
-          },
-          'smooth',
-          () => {
-            const elements = contentRef.current?.querySelectorAll<HTMLElement>('[data-message-key]') ?? []
-            return Array.from(elements).find((element) => element.dataset.messageKey === key) ?? null
-          }
-        )
+        const resolveTarget = (scroller: HTMLElement) => {
+          const handle = vlistHandleRef.current
+          const idx = findDataIndexByKey(key)
+          if (!handle || idx < 0) return scroller.scrollTop
+          const start = Math.max(0, topPadding) + handle.getItemOffset(idx)
+          const size = handle.getItemSize(idx)
+          if (align === 'center') return start - (scroller.clientHeight - size) / 2
+          if (align === 'end') return start + size - scroller.clientHeight
+          return start
+        }
+        // Smooth-scrolling a long jump forces the virtualizer to mount and
+        // discard every heavy message the animation flies over, frame by
+        // frame — janky over hundreds of turns. Past a few viewports the
+        // in-between content is never read anyway, so jump instantly and only
+        // mount the destination window. Measure the distance from the clamped
+        // target — the same reachable bound navigateForReading scrolls to —
+        // so an out-of-range raw offset cannot inflate a short real movement
+        // into an instant jump.
+        const scroller = scrollerRef.current
+        const behavior: ScrollBehavior =
+          scroller &&
+          Math.abs(clampToReachable(scroller, resolveTarget(scroller)) - scroller.scrollTop) >
+            scroller.clientHeight * LONG_JUMP_VIEWPORTS
+            ? 'instant'
+            : 'smooth'
+        navigateForReading(resolveTarget, behavior, () => {
+          const elements = contentRef.current?.querySelectorAll<HTMLElement>('[data-message-key]') ?? []
+          return Array.from(elements).find((element) => element.dataset.messageKey === key) ?? null
+        })
       },
       scrollToElement: (element) => {
         navigateForReading(
@@ -950,6 +979,7 @@ export function useChatVirtualizerRuntime<T>({
     [
       atBottom.isAtBottom,
       captureLocalSendScrollEligibility,
+      clampToReachable,
       findDataIndexByKey,
       navigateForReading,
       scrollToBottom,

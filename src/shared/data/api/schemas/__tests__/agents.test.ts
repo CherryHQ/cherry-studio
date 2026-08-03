@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentEntitySchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
+import { AgentConfigurationSchema, AgentEntitySchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
@@ -35,6 +35,20 @@ describe('AgentEntitySchema', () => {
 
   it('does not accept create-only skillIds on update', () => {
     expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
+  })
+
+  it('validates the persisted agent reasoning effort', () => {
+    expect(AgentConfigurationSchema.parse({ reasoning_effort: 'high' }).reasoning_effort).toBe('high')
+    expect(AgentConfigurationSchema.safeParse({ reasoning_effort: 'invalid' }).success).toBe(false)
+  })
+
+  it('accepts first-level configuration patches and preserves explicit removals', () => {
+    expect(UpdateAgentSchema.parse({ configuration: { reasoning_effort: 'high' } }).configuration).toEqual({
+      reasoning_effort: 'high'
+    })
+
+    const parsed = UpdateAgentSchema.parse({ configuration: { max_turns: undefined } })
+    expect(parsed.configuration).toHaveProperty('max_turns', undefined)
   })
 
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {

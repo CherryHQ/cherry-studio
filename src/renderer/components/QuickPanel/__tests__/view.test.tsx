@@ -354,12 +354,27 @@ describe('QuickPanelView', () => {
     expect(virtualListMocks.scrollToOffset).toHaveBeenCalledWith(0, { align: 'start' })
   })
 
-  it('keeps a button-triggered tracked panel open when the cursor is inside a word', async () => {
+  it.each([
+    {
+      name: 'the cursor is inside a word',
+      text: 'hello world',
+      cursorOffset: 3,
+      queryAnchor: 3,
+      item: { id: 'action', label: 'Action', icon: 'a' }
+    },
+    {
+      name: 'the query contains whitespace',
+      text: 'new chat',
+      cursorOffset: 8,
+      queryAnchor: 0,
+      item: { id: 'new-chat', label: 'New chat', icon: 'message' }
+    }
+  ])('keeps a button-triggered tracked panel open when $name', async ({ text, cursorOffset, queryAnchor, item }) => {
     const captureDispatch = vi.fn()
     const onClose = vi.fn()
     const inputAdapter: QuickPanelInputAdapter = {
-      getText: () => 'hello world',
-      getCursorOffset: () => 3,
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
       insertText: vi.fn(),
       deleteTriggerRange: vi.fn(),
       focus: vi.fn()
@@ -370,46 +385,16 @@ describe('QuickPanelView', () => {
         <PanelHarness
           captureDispatch={captureDispatch}
           inputAdapter={inputAdapter}
-          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
-          queryAnchor={3}
-          triggerInfo={{ type: 'button', position: 3 }}
+          items={[item]}
+          queryAnchor={queryAnchor}
+          triggerInfo={{ type: 'button', position: queryAnchor }}
           trackInputQuery
           onClose={onClose}
         />
       </QuickPanelProvider>
     )
 
-    await screen.findByText('Action')
-
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('keeps a button-triggered tracked panel open when the query contains whitespace', async () => {
-    const captureDispatch = vi.fn()
-    const onClose = vi.fn()
-    const inputAdapter: QuickPanelInputAdapter = {
-      getText: () => 'new chat',
-      getCursorOffset: () => 8,
-      insertText: vi.fn(),
-      deleteTriggerRange: vi.fn(),
-      focus: vi.fn()
-    }
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness
-          captureDispatch={captureDispatch}
-          inputAdapter={inputAdapter}
-          items={[{ id: 'new-chat', label: 'New chat', icon: 'message' }]}
-          queryAnchor={0}
-          triggerInfo={{ type: 'button', position: 0 }}
-          trackInputQuery
-          onClose={onClose}
-        />
-      </QuickPanelProvider>
-    )
-
-    await screen.findByText('New chat')
+    await screen.findByText(item.label)
 
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     expect(onClose).not.toHaveBeenCalled()
@@ -1291,22 +1276,25 @@ describe('QuickPanelView', () => {
     expect(screen.getByText('Root action')).toBeInTheDocument()
   })
 
-  it('tracks non-slash input queries and consumes the trigger range on selection', async () => {
+  it.each([
+    { name: 'a non-slash symbol', symbol: '@', inputText: '@notes' },
+    { name: 'the ideographic comma root alias', symbol: '/', inputText: '、notes' }
+  ])('tracks $name and consumes the trigger range on selection', async ({ symbol, inputText }) => {
     const action = vi.fn()
     const captureDispatch = vi.fn()
     const deleteTriggerRange = vi.fn()
     const inputAdapter: QuickPanelInputAdapter = {
       deleteTriggerRange,
       focus: vi.fn(),
-      getCursorOffset: () => 6,
-      getText: () => '@notes',
+      getCursorOffset: () => inputText.length,
+      getText: () => inputText,
       insertText: vi.fn()
     }
     const items: QuickPanelListItem[] = [{ id: 'notes', label: 'notes.md', icon: 'file', action }]
 
     render(
       <QuickPanelProvider>
-        <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol="@" />
+        <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol={symbol} />
       </QuickPanelProvider>
     )
 
@@ -1321,46 +1309,7 @@ describe('QuickPanelView', () => {
     })
 
     expect(handled).toBe(true)
-    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
-    expect(action).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'enter',
-        searchText: 'notes'
-      })
-    )
-  })
-
-  it('tracks ideographic comma input queries under the root symbol and consumes the trigger range on selection', async () => {
-    const action = vi.fn()
-    const captureDispatch = vi.fn()
-    const deleteTriggerRange = vi.fn()
-    const inputAdapter: QuickPanelInputAdapter = {
-      deleteTriggerRange,
-      focus: vi.fn(),
-      getCursorOffset: () => 6,
-      getText: () => '、notes',
-      insertText: vi.fn()
-    }
-    const items: QuickPanelListItem[] = [{ id: 'notes', label: 'notes.md', icon: 'file', action }]
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol="/" />
-      </QuickPanelProvider>
-    )
-
-    await screen.findByText('notes.md')
-
-    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
-    const { event } = createKeyDownEvent('Enter')
-
-    let handled = false
-    act(() => {
-      handled = dispatchKeyDown(event)
-    })
-
-    expect(handled).toBe(true)
-    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: inputText.length })
     expect(action).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'enter',
@@ -1434,39 +1383,16 @@ describe('QuickPanelView', () => {
     )
   })
 
-  it('closes a tracked non-slash input panel when whitespace terminates the query', async () => {
+  it.each([
+    { name: 'whitespace terminates the query', inputText: '@notes ', cursorOffset: 7 },
+    { name: 'the cursor leaves the query end', inputText: '@notes', cursorOffset: 3 }
+  ])('closes a tracked non-slash input panel when $name', async ({ inputText, cursorOffset }) => {
     const captureDispatch = vi.fn()
     const inputAdapter: QuickPanelInputAdapter = {
       deleteTriggerRange: vi.fn(),
       focus: vi.fn(),
-      getCursorOffset: () => 7,
-      getText: () => '@notes ',
-      insertText: vi.fn()
-    }
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness
-          captureDispatch={captureDispatch}
-          inputAdapter={inputAdapter}
-          items={[{ id: 'notes', label: 'notes.md', icon: 'file', action: vi.fn() }]}
-          symbol="@"
-        />
-      </QuickPanelProvider>
-    )
-
-    await waitFor(() => {
-      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
-    })
-  })
-
-  it('closes a tracked non-slash input panel when the cursor leaves the query end', async () => {
-    const captureDispatch = vi.fn()
-    const inputAdapter: QuickPanelInputAdapter = {
-      deleteTriggerRange: vi.fn(),
-      focus: vi.fn(),
-      getCursorOffset: () => 3,
-      getText: () => '@notes',
+      getCursorOffset: () => cursorOffset,
+      getText: () => inputText,
       insertText: vi.fn()
     }
 

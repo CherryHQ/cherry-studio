@@ -1,9 +1,9 @@
 /**
  * File API Handlers — read-only DataApi surface.
  *
- * Phase 1b.1 implements all five read endpoints. Mutations are intentionally
- * absent: write operations live on File IPC (FileManager); ref writes are
- * called directly by business services via fileRefService.
+ * Mutations are intentionally absent: write operations live on File IPC
+ * (FileManager); ref writes are called directly by business services via
+ * fileRefService.
  *
  * DataApi boundary rule (CLAUDE.md / docs/references/data/api-design-guidelines.md):
  * pure SQL, no FS IO, no main-side resolvers, no in-memory caches outside the DB.
@@ -16,6 +16,7 @@
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import {
+  ContentHashQuerySchema,
   type FileSchemas,
   ListFilesQuerySchema,
   RefCountsQuerySchema,
@@ -36,6 +37,13 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
     GET: async ({ params }) => {
       const id = FileEntryIdSchema.parse(params.id)
       return fileEntryService.getById(id)
+    }
+  },
+
+  '/files/entries/by-content-hash': {
+    GET: async ({ query }) => {
+      const { contentHash } = ContentHashQuerySchema.parse(query)
+      return fileEntryService.findInternalByContentHash(contentHash)
     }
   },
 

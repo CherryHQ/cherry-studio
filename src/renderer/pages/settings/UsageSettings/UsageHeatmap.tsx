@@ -237,7 +237,7 @@ export default function UsageHeatmap({
                 gap: CELL_GAP,
                 gridTemplateRows: `16px repeat(7, ${CELL_SIZE}px)`
               }}>
-              <div className="h-4 overflow-visible whitespace-nowrap pr-3 text-[10px] text-foreground-muted leading-4">
+              <div className="h-4 overflow-visible whitespace-nowrap pr-3 text-[10px] text-foreground-tertiary leading-4">
                 {monthLabels[weekIndex]}
               </div>
 

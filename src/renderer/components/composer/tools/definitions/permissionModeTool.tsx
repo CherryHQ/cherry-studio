@@ -1,29 +1,12 @@
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { PERMISSION_MODE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
+import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
-import { defaultConfiguration } from '@renderer/utils/agent/agentConfiguration'
-import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
-
-const getPermissionModeIcon = (mode: PermissionMode): ReactNode => {
-  switch (mode) {
-    case 'default':
-      return <Pointer size={18} color="#00b96b" />
-    case 'plan':
-      return <Route size={18} color="#faad14" />
-    case 'acceptEdits':
-      return <FolderPen size={18} color="#52c41a" />
-    case 'bypassPermissions':
-      return <RefreshCcw size={18} color="#722ed1" />
-    default:
-      return <Pointer size={18} color="#00b96b" />
-  }
-}
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
@@ -41,10 +24,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     (nextMode: PermissionMode) => {
       if (!agentId || !agent || nextMode === currentMode) return
 
-      const configuration = agent.configuration ?? defaultConfiguration
-      const updatedConfiguration = { ...configuration, permission_mode: nextMode }
-
-      void updateAgent({ id: agentId, configuration: updatedConfiguration }, { showSuccessToast: false })
+      void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
     },
     [currentMode, agent, agentId, updateAgent]
   )
@@ -58,9 +38,26 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         kind: 'command' as const,
         sources: ['popover'] as const,
         order: 80 + index / 100,
-        label: t(card.titleKey, card.titleFallback),
-        description: t(card.descriptionKey, card.descriptionFallback),
-        icon: getPermissionModeIcon(card.mode),
+        // The quick panel row is a fixed-height single line, so the label stays one line and
+        // the mode's caveat rides along in the description column instead of stacking below.
+        label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} withWarning={false} />,
+        // label/description are React nodes, which yield no searchable text — provide it explicitly.
+        searchAliases: getQuickPanelSearchAliases(t, card.titleKey, [
+          t(card.titleKey, card.titleFallback),
+          t(card.descriptionKey, card.descriptionFallback)
+        ]),
+        description: (
+          <span className={card.dangerous ? 'text-destructive/80' : undefined}>
+            {t(card.descriptionKey, card.descriptionFallback)}
+            {card.warningKey && (
+              <span className={card.dangerous ? undefined : 'text-warning'}>
+                {' · '}
+                {t(card.warningKey, card.warningFallback ?? '')}
+              </span>
+            )}
+          </span>
+        ),
+        icon: <PermissionModeIcon mode={card.mode} />,
         active: card.mode === currentMode,
         action: () => handleSelectMode(card.mode)
       })),
@@ -75,7 +72,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
-        icon: getPermissionModeIcon(currentMode),
+        icon: <PermissionModeIcon mode={currentMode} />,
         suffix: tooltipTitle,
         submenu: modeSubmenu
       }
