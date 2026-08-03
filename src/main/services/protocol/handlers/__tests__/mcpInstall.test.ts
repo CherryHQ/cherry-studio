@@ -65,8 +65,14 @@ describe('MCP install protocol handler', () => {
     })
 
     expect(servers.map((server: { name: string }) => server.name)).toEqual(['first', 'second'])
-    expect(servers[0]).toMatchObject({ command: 'npx', args: ['first-package'], env: { API_KEY: 'secret' } })
+    expect(servers[0]).toMatchObject({
+      type: 'stdio',
+      command: 'npx',
+      args: ['first-package'],
+      env: { API_KEY: 'secret' }
+    })
     expect(servers[1]).toMatchObject({
+      type: 'sse',
       baseUrl: 'https://example.com/second',
       headers: { 'X-Token': 'secret' }
     })

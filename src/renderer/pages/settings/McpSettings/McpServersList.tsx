@@ -199,7 +199,8 @@ const McpServersList: FC = () => {
         requestId: protocolInstallRequest.requestId
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('settings.mcp.addError'))
+      logger.error('Failed to install MCP servers from protocol', error as Error)
+      toast.error(t('settings.mcp.addError'))
       return
     }
 

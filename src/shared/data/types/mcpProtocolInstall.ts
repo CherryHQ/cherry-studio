@@ -7,14 +7,14 @@ const protocolMcpServerMetadata = {
 
 const protocolMcpRemoteServer = {
   ...protocolMcpServerMetadata,
-  type: z.enum(['sse', 'streamableHttp']).optional(),
+  type: z.enum(['sse', 'streamableHttp']).default('sse'),
   baseUrl: z.string().min(1),
   headers: z.record(z.string(), z.string()).optional()
 }
 
 const protocolMcpStdioServer = {
   ...protocolMcpServerMetadata,
-  type: z.literal('stdio').optional(),
+  type: z.literal('stdio').default('stdio'),
   command: z.string().min(1),
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional()
