@@ -150,12 +150,6 @@ export type AiStreamOpenRequest = {
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
-      /**
-       * Exact greeting displayed immediately before the first user turn. Main validates both the
-       * text and empty-conversation state before adding it as untrusted user context. It is not
-       * stored as a conversation message; developer traces may record model inputs.
-       */
-      greetingContext?: string
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
       /** Whether to request Fast processing for this turn. */
@@ -167,7 +161,6 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
-      greetingContext?: never
       /** Canonical reasoning selection captured for this regenerated turn. */
       reasoningEffort?: ReasoningEffortOption
       /** Whether to request Fast processing for this regenerated turn. */

@@ -163,7 +163,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   const inputAlignClass = align === 'start' ? 'text-start' : align === 'center' ? 'text-center' : 'text-end'
   const inputClassName = cn(
     'border-input bg-background w-full rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-    'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+    'focus-visible:border-primary',
     'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
     sizeClasses[size],
     inputAlignClass,
@@ -199,7 +199,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
         <div
           className={cn(
             'border-input bg-background flex w-full cursor-text items-center rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow]',
-            'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+            'focus-visible:border-primary',
             disabled && 'pointer-events-none cursor-not-allowed opacity-50',
             alignClasses[align],
             sizeClasses[size],

@@ -63,7 +63,7 @@ const CitationSup: React.FC<CitationSupProps> = (props) => {
         role="button"
         tabIndex={0}
         aria-label={t('message.citation_source', { number: citation.number })}
-        className={cn(supProps.className, 'focus-visible:ring-2 focus-visible:ring-primary')}
+        className={cn(supProps.className, 'rounded-sm focus-visible:bg-accent focus-visible:outline-none')}
       />
     </CitationTooltip>
   )

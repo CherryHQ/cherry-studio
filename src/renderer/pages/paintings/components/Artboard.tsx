@@ -137,7 +137,7 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
                 event.stopPropagation()
                 openPromptPopover('keyboard')
               }}
-              className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left text-inherit outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left text-inherit outline-none focus-visible:bg-accent focus-visible:text-foreground">
               <Palette className="size-3.5 shrink-0" aria-hidden />
               {/* CSS `truncate` clips to the available width responsively — the full
                   prompt stays in the DOM (and in the popover) instead of a fixed-length
@@ -177,7 +177,7 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
               size={14}
               color="inherit"
               hoverColor="inherit"
-              className="float-right ml-0.5 size-5 justify-center rounded-md text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-50/70 [&_svg]:stroke-neutral-50! [&_svg]:text-neutral-50!"
+              className="float-right ml-0.5 size-5 justify-center rounded-md text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50 focus-visible:bg-neutral-50/10 focus-visible:text-neutral-50 focus-visible:outline-none [&_svg]:stroke-neutral-50! [&_svg]:text-neutral-50!"
             />
             <span className="select-text whitespace-pre-wrap break-words">{prompt}</span>
           </PopoverContent>

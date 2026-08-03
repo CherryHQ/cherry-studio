@@ -1,5 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
@@ -208,8 +209,13 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(file.filePath))
+        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
         if (cancelled) return
+
+        if (!metadata) {
+          setResolution({ requestKey, status: 'unavailable' })
+          return
+        }
 
         if (metadata.kind === 'directory') {
           setResolution({ requestKey, status: 'directory' })
@@ -218,8 +224,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
 
         let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
         if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
-          const isText = await window.api.file.isTextFile(file.filePath)
-          if (cancelled) return
+          const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
             plugin = textFilePreviewPlugin

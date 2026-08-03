@@ -134,7 +134,12 @@ async function requestBatchedInternalEntryCreates(
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({
+          source: 'path' as const,
+          path,
+          // Files-page upload = add-to-library: 'manual' keeps zero-ref uploads out of GC (spec §4.1)
+          cleanupPolicy: 'manual' as const
+        }))
       })
     )
   )
