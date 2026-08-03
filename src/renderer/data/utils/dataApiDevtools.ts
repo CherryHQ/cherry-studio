@@ -235,7 +235,7 @@ function installGlobal(): void {
   }
 }
 
-function initialize(): void {
+function exposeControlSurface(): void {
   installGlobal()
 }
 
@@ -322,7 +322,7 @@ function recordRetry(input: {
 }
 
 export const DataApiDevtools = {
-  initialize,
+  exposeControlSurface,
   recordStart,
   recordSuccess,
   recordError,

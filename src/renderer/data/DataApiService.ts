@@ -73,9 +73,9 @@ export class DataApiService implements ApiClient {
   }
 
   constructor() {
-    // Install the DevTools control surface before the first request so payload
-    // capture can be enabled from the panel before any event is recorded.
-    DataApiDevtools.initialize()
+    // Expose the DevTools control surface before the first request so payload
+    // capture can be enabled from the separately installed panel before any event is recorded.
+    DataApiDevtools.exposeControlSurface()
 
     // Attach the fixed data-change channel at construction: consumers reach
     // this singleton through the module import graph before any query mounts,

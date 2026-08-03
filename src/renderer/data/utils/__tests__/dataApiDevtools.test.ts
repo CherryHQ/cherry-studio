@@ -12,7 +12,7 @@ describe('DataApiDevtools', () => {
 
   it('truncates deep, wide, and long payload previews', async () => {
     const { DataApiDevtools, dataApiDevtoolsTesting } = await import('../dataApiDevtools')
-    DataApiDevtools.initialize()
+    DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
 
     const deepValue = { level1: { level2: { level3: { level4: { level5: { level6: 'hidden' } } } } } }
@@ -37,7 +37,7 @@ describe('DataApiDevtools', () => {
 
   it('keeps payloads out of polling summaries and exposes them only by request id', async () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
-    DataApiDevtools.initialize()
+    DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
 
     DataApiDevtools.recordStart({
@@ -69,7 +69,7 @@ describe('DataApiDevtools', () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
     let sanitizing = false
     const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => (sanitizing ? 100 : 10))
-    DataApiDevtools.initialize()
+    DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
 
     DataApiDevtools.recordStart({ requestId: 'req_timing', method: 'GET', path: '/providers', retryAttempt: 0 })
@@ -95,7 +95,7 @@ describe('DataApiDevtools', () => {
 
   it('strips request, response, and error payloads by default', async () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
-    DataApiDevtools.initialize()
+    DataApiDevtools.exposeControlSurface()
 
     DataApiDevtools.recordStart({
       requestId: 'req_1',
@@ -143,7 +143,7 @@ describe('DataApiDevtools', () => {
 
   it('does not throw when payload accessors throw', async () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
-    DataApiDevtools.initialize()
+    DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
     const throwingPayload = {
       get value() {
