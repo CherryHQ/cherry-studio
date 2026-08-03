@@ -6778,6 +6778,7 @@
         "allStatuses": "Tous les statuts",
         "allTypes": "Tous les types",
         "builtinOnly": "Intégré uniquement",
+        "label": "Filtre",
         "status": "Filtrer par statut",
         "type": "Filtrer par type"
       },
@@ -6844,6 +6845,9 @@
         "loadError": "Échec de la récupération des invites",
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
+      },
+      "protocolInstall": {
+        "title": "Installer MCP"
       },
       "protocolInstallWarning": {
         "command": "Commande de démarrage",

@@ -6778,6 +6778,7 @@
         "allStatuses": "Todos los estados",
         "allTypes": "Todos los tipos",
         "builtinOnly": "Solo integrado",
+        "label": "Filtro",
         "status": "Filtrar por estado",
         "type": "Filtrar por tipo"
       },
@@ -6844,6 +6845,9 @@
         "loadError": "Fallo al cargar la indicación",
         "noPromptsAvailable": "No hay indicaciones disponibles",
         "requiredField": "Campo obligatorio"
+      },
+      "protocolInstall": {
+        "title": "Instalar MCP"
       },
       "protocolInstallWarning": {
         "command": "Comando de inicio",
