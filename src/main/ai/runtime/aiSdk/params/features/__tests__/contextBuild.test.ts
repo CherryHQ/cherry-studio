@@ -12,6 +12,7 @@ import path from 'node:path'
 
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { createContextMiddleware, type VFSStorageAdapter } from '@cherrystudio/ai-core'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { LanguageModelMiddleware } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -239,14 +240,19 @@ describe('buildContextOptions — storage routing', () => {
   })
 
   it('no message row (temp chat / one-shot streamPrompt) → no storage', () => {
-    getByIdMock.mockReturnValue(null)
+    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
+    getByIdMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
+    })
     const opts = buildContextOptions(makeScope())!
     expect(opts.truncate?.storage).toBeUndefined()
     expect(adapterFactoryMock).not.toHaveBeenCalled()
   })
 
   it('non-anchored oversized results still truncate inline (no files, no marker path)', async () => {
-    getByIdMock.mockReturnValue(null)
+    getByIdMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
+    })
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
     const { value } = toolOutput(out)
     expect(value.length).toBeLessThan(10_000)

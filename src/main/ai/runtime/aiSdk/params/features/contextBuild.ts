@@ -27,6 +27,7 @@ import { createContextMiddleware, definePlugin } from '@cherrystudio/ai-core'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -97,7 +98,14 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
  */
 function resolveTruncateStorage(scope: RequestScope): VFSStorageAdapter | undefined {
   const anchorId = scope.requestContext.requestId
-  if (!messageService.getById(anchorId)) return undefined
+  try {
+    messageService.getById(anchorId)
+  } catch (error) {
+    // getById throws NOT_FOUND for missing rows (it never returns null) —
+    // that's the expected non-anchored case. Anything else is a real failure.
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return undefined
+    throw error
+  }
   return createFileManagerStorageAdapter({
     messageId: anchorId,
     persistedOutputPaths: scope.requestContext.persistedOutputPaths
