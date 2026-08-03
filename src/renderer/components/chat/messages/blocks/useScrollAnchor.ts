@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
 
-import { findScrollParent, useIsScrollRuntimeManaged } from './ScrollOwnershipContext'
+import { findScrollParent, useIsScrollRuntimeManaged, useRequestScrollReadingControl } from './ScrollOwnershipContext'
 
 interface ScrollAnchorOptions {
+  enterReadingMode?: boolean
   settleAfterMs?: number
 }
 
@@ -29,6 +30,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(true)
   const isRuntimeManaged = useIsScrollRuntimeManaged()
+  const requestReadingControl = useRequestScrollReadingControl(anchorRef)
 
   useEffect(() => {
     isMountedRef.current = true
@@ -61,6 +63,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       // change. Yield only for that exact scroller; context may cross a portal
       // or include an independently scrollable descendant.
       if (isRuntimeManaged(scrollContainer)) {
+        if (options?.enterReadingMode) requestReadingControl()
         update()
         return
       }
@@ -92,7 +95,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
         }, options.settleAfterMs)
       })
     },
-    [isRuntimeManaged]
+    [isRuntimeManaged, requestReadingControl]
   )
 
   return { anchorRef, withScrollAnchor }

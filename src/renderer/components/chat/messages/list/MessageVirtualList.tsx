@@ -6,8 +6,8 @@
  * prepend without visual jump — without owning the basic DOM windowing
  * + ResizeObserver scheduling code that was the source of past jitter.
  *
- * The chat-specific behavior (atBottom state machine, RAF smooth scroll
- * with cancel-on-wheel, and user-owned viewport stability) lives in
+ * The chat-specific behavior (following/reading state, explicit-navigation
+ * animation, and user-owned viewport stability) lives in
  * `chatVirtualizerRuntime`. This component is just the JSX integration.
  */
 
@@ -91,8 +91,6 @@ export interface MessageVirtualListProps<T> {
   topPadding?: number
   /** Extra empty space after the newest message. */
   bottomPadding?: number
-  /** Monotonic generation from the local conversation turn controller. */
-  localSendGeneration?: number
   /** Stable item keys to retain while their live local UI state is active. */
   keepMountedKeys?: readonly string[]
   /** Whether to render the floating scroll-to-bottom affordance when the runtime is far from bottom. */
@@ -120,7 +118,6 @@ export function MessageVirtualList<T>({
   style,
   topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
-  localSendGeneration,
   keepMountedKeys,
   showScrollToBottomButton = false,
   scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX,
@@ -138,7 +135,6 @@ export function MessageVirtualList<T>({
     topPadding,
     topicId,
     bottomPadding,
-    localSendGeneration,
     keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
@@ -166,7 +162,7 @@ export function MessageVirtualList<T>({
       // vertical intent — it must not take scroll ownership away.
       if (event.deltaY === 0) return
       if (isWheelOwnedByNestedScroller(event, scrollerElement)) {
-        takeUserControl(event.target instanceof Element ? event.target : null)
+        takeUserControl('nested-scroll', event.target instanceof Element ? event.target : null)
         return
       }
       onWheel(event)
@@ -175,14 +171,9 @@ export function MessageVirtualList<T>({
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
   }, [onWheel, scrollerElement, takeUserControl])
 
-  // Direct interactions hand the user the viewport immediately, but only an
-  // actual scroll signal seeds a scroll gesture. Keeping those concepts separate
-  // prevents a click-triggered reflow from being mistaken for user scrolling,
-  // while native scrollbar drags stay live until the pointer is actually released.
-  // Only drags that PRESSED inside the scroller count: a drag entering from
-  // outside (text selection started in the composer) carries no scroll intent,
-  // and marking it would let a concurrent virtua remeasure jump read as a user
-  // scroll-away.
+  // Only actual scrolling expresses viewport intent. Ordinary pointer and key
+  // interactions leave following unchanged; scrollbar drags and scroll keys
+  // merely seed intent for the resulting scroll event.
   const pointerDownInsideScrollerRef = useRef(false)
   useEffect(() => {
     if (!scrollerElement) return
@@ -190,7 +181,6 @@ export function MessageVirtualList<T>({
     const onPointerDown = (event: PointerEvent) => {
       pointerDownInsideScrollerRef.current = true
       if (event.target === scrollerElement) beginScrollbarDrag()
-      takeUserControl(event.target instanceof Element ? event.target : null)
     }
     const onPointerMove = (event: PointerEvent) => {
       if (event.buttons !== 0 && pointerDownInsideScrollerRef.current) markUserInput()
@@ -202,7 +192,6 @@ export function MessageVirtualList<T>({
       endScrollbarDrag()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      takeUserControl(event.target instanceof Element ? event.target : null)
       if (isKeyboardScrollIntent(event, scrollerElement)) markUserInput()
     }
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
@@ -217,11 +206,16 @@ export function MessageVirtualList<T>({
       ownerDocument.removeEventListener('pointercancel', onPointerEnd)
       scrollerElement.removeEventListener('keydown', onKeyDown)
     }
-  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement, takeUserControl])
+  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement])
 
   const handleScrollToBottom = useCallback(() => {
-    scrollToBottom('smooth')
+    scrollToBottom()
   }, [scrollToBottom])
+
+  const requestDisclosureReadingControl = useCallback(
+    (anchor: HTMLElement | null) => takeUserControl('disclosure', anchor),
+    [takeUserControl]
+  )
 
   const shouldShowScrollToBottomButton = showScrollToBottomButton && runtime.isScrollToBottomButtonVisible
 
@@ -235,7 +229,8 @@ export function MessageVirtualList<T>({
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
-            requestFollowRecovery={runtime.releaseUserControlIfAtBottomAfterLayout}>
+            requestReadingControl={requestDisclosureReadingControl}
+            scrollToElement={runtime.scrollToElement}>
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}

@@ -31,7 +31,6 @@ import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike 
 import BlockErrorFallback from './BlockErrorFallback'
 import { PartsContext, PartsProvider, usePartsMap } from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
-import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
 import { useScrollAnchor } from './useScrollAnchor'
 
 // ============ Types & Helpers ============
@@ -635,7 +634,6 @@ export const ToolBlockGroup = React.memo(
       items[0] ? `tool-group:${items[0].toolResponse.toolCallId ?? items[0].id}` : undefined
     )
     const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
-    const requestFollowRecovery = useRequestScrollFollowRecovery(anchorRef)
     const allItemsCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const isLiveProgress =
       isLiveProgressProp ?? items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
@@ -648,8 +646,10 @@ export const ToolBlockGroup = React.memo(
           value={isExpanded ? 'tools' : ''}
           onValueChange={(value) => {
             const nextIsExpanded = value === 'tools'
-            if (!nextIsExpanded) requestFollowRecovery()
-            withScrollAnchor(() => setIsExpanded(nextIsExpanded), { settleAfterMs: 220 })
+            withScrollAnchor(() => setIsExpanded(nextIsExpanded), {
+              enterReadingMode: nextIsExpanded,
+              settleAfterMs: 220
+            })
           }}>
           <AccordionItem value="tools" className="border-0 first:border-t-0">
             <AccordionTrigger className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:rotate-0 [&[data-state=open]>svg]:opacity-60">

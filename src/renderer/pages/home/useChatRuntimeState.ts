@@ -24,6 +24,7 @@ import {
   useTopicOverlayHandoffOnTerminal,
   useTopicStreamStatus
 } from '@renderer/hooks/useTopicStreamStatus'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -128,11 +129,20 @@ export function useChatRuntimeState({
       }
     }
   }, [])
-  const captureLocalSendScrollEligibility = useCallback(() => {
-    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
-  }, [])
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
+  }, [])
+  const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
+    const listRuntime = messageListRuntimeRef.current
+    if (!listRuntime) {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+      return
+    }
+
+    listRuntime.locateMessage(messageId)
+    requestAnimationFrame(() => {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+    })
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
@@ -367,8 +377,6 @@ export function useChatRuntimeState({
     refresh,
     cache,
     seedReservedMessages,
-    captureLocalSendScrollEligibility,
-    onLocalSendStarted: turnController.markLocalSendStarted,
     scrollToBottom,
     startNewContextBlocked:
       isHistoryLoading ||
@@ -401,9 +409,8 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,
-    captureLocalSendScrollEligibility,
+    locateMessage,
     sendMessage,
-    localSendGeneration: turnController.localSendGeneration,
     composerContext,
     translationOverlay,
     setTranslationOverlay

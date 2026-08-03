@@ -16,7 +16,6 @@ interface RuntimeProbeProps {
   hasMoreTop?: boolean
   handleRef?: Ref<MessageVirtualListHandle>
   keepMountedKeys?: readonly string[]
-  localSendGeneration?: number
   onReachTop?: () => void
   onRuntime(runtime: ChatVirtualizerRuntime<string>): void
   topPadding?: number
@@ -31,7 +30,6 @@ function RuntimeProbe({
   hasMoreTop = false,
   handleRef,
   keepMountedKeys,
-  localSendGeneration,
   onReachTop,
   onRuntime,
   topPadding
@@ -43,7 +41,6 @@ function RuntimeProbe({
     hasMoreTop,
     handleRef,
     keepMountedKeys,
-    localSendGeneration,
     onReachTop,
     topPadding,
     topReachOverscanItems: 4,
@@ -58,7 +55,6 @@ function RuntimeDomProbe({
   handleRef,
   hasMoreTop = false,
   keepMountedKeys,
-  localSendGeneration,
   nonce,
   onReachTop,
   onRuntime,
@@ -72,7 +68,6 @@ function RuntimeDomProbe({
     hasMoreTop,
     handleRef,
     keepMountedKeys,
-    localSendGeneration,
     onReachTop,
     topPadding,
     topReachOverscanItems: 4,
@@ -588,40 +583,10 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
 
     act(() => {
-      runtime!.scrollToBottom('instant')
+      runtime!.scrollToBottom()
     })
 
     expect(scrollTop).toBe(800)
-    expect(runtime!.isScrollToBottomButtonVisible).toBe(false)
-  })
-
-  it('hides the scroll-to-bottom button when starting smooth scroll to bottom', () => {
-    let runtime: ChatVirtualizerRuntime<string> | undefined
-    render(<RuntimeProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
-
-    let scrollTop = 0
-    const scroller = {
-      scrollHeight: 1300,
-      clientHeight: 500
-    } as HTMLDivElement
-    Object.defineProperty(scroller, 'scrollTop', {
-      configurable: true,
-      get: () => scrollTop,
-      set: (value) => {
-        scrollTop = value
-      }
-    })
-    runtime!.scrollerRef.current = scroller
-
-    act(() => {
-      runtime!.scrollerProps.onScroll(0)
-    })
-    expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
-
-    act(() => {
-      runtime!.scrollToBottom('smooth')
-    })
-
     expect(runtime!.isScrollToBottomButtonVisible).toBe(false)
   })
 
@@ -641,7 +606,6 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['message-a']}
           handleRef={handleRef}
-          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -765,7 +729,7 @@ describe('useChatVirtualizerRuntime', () => {
         })
       })
 
-      act(() => runtime!.scrollToBottom('instant'))
+      act(() => runtime!.scrollToBottom())
       expect(scrollTop).toBe(1200)
 
       act(() => navigate(handle!))
@@ -1017,7 +981,7 @@ describe('useChatVirtualizerRuntime', () => {
       message.append(blockWrapper)
       runtime!.contentRef.current!.prepend(message)
 
-      act(() => runtime!.scrollToBottom('instant'))
+      act(() => runtime!.scrollToBottom())
       act(() => handle!.scrollToElement(heading))
       raf.tick(60)
       expect(scrollTop).toBe(300)
@@ -1115,7 +1079,7 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'clientHeight', () => 400)
 
       act(() => {
-        handle!.scrollToBottom('smooth')
+        handle!.scrollToBottom()
       })
       raf.tick()
       const bottomScrollProgress = scrollTop
@@ -1170,7 +1134,7 @@ describe('useChatVirtualizerRuntime', () => {
       expect(topScrollProgress).toBeLessThan(800)
 
       act(() => {
-        handle!.scrollToBottom('smooth')
+        handle!.scrollToBottom()
       })
       raf.tick()
       expect(scrollTop).toBeGreaterThan(topScrollProgress)
@@ -1223,27 +1187,25 @@ describe('useChatVirtualizerRuntime', () => {
       // The user scrolls to the bottom (1200 - 400 = 800): they take control and
       // bottom-follow re-engages.
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
 
-      // The next large chunk now sticks to the fresh bottom immediately, while
-      // the scrollTop change is paced across frames.
+      // The next large chunk sticks to the fresh bottom synchronously.
       scrollHeight = 2000
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      expect(scrollTop).toBe(800)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(scrollTop).toBe(1600)
+      expect(handle!.isFollowing()).toBe(true)
       expect(runtime!.contentRef.current!.style.transform).toBe('')
 
       raf.tick()
-      expect(scrollTop).toBeGreaterThan(800)
-      expect(scrollTop).toBeLessThan(900)
+      expect(scrollTop).toBe(1600)
 
-      // If another large render lands mid-follow, the in-flight animation
-      // keeps chasing the live bottom instead of restarting from scratch.
+      // A subsequent render reconciles to the new live edge immediately too.
       scrollHeight = 2200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      expect(handle!.isAtBottom()).toBe(true)
-
-      raf.tick(100)
+      expect(handle!.isFollowing()).toBe(true)
       expect(scrollTop).toBe(1800)
     } finally {
       restoreResizeObserver()
@@ -1251,7 +1213,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('follows visible single-line growth instead of snapping instantly', () => {
+  it('sticks exactly to the live edge for visible single-line growth', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1288,18 +1250,17 @@ describe('useChatVirtualizerRuntime', () => {
       expect(scrollTop).toBe(0)
 
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
 
       scrollHeight = 1220
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      expect(scrollTop).toBe(800)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(scrollTop).toBe(820)
+      expect(handle!.isFollowing()).toBe(true)
 
       raf.tick()
-      expect(scrollTop).toBeGreaterThan(800)
-      expect(scrollTop).toBeLessThan(820)
-
-      raf.tick(30)
       expect(scrollTop).toBe(820)
     } finally {
       restoreResizeObserver()
@@ -1340,7 +1301,7 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => handle!.scrollToBottom('instant'))
+      act(() => handle!.scrollToBottom())
       expect(scrollTop).toBe(600)
 
       view.rerender(
@@ -1357,14 +1318,14 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       expect(scrollTop).toBe(800)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('returns to the live bottom when history is prepended in the same update as a local send', () => {
+  it('keeps the reading position when history and a local turn are appended together', () => {
     const raf = installQueuedAnimationFrame()
 
     try {
@@ -1379,7 +1340,6 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['message-a', 'message-b']}
           handleRef={handleRef}
-          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1396,25 +1356,24 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       scrollHeight = 1400
       view.rerender(
         <RuntimeDomProbe
           items={['older-message', 'message-a', 'message-b', 'sent-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
 
-      expect(scrollTop).toBe(1000)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(scrollTop).toBe(400)
+      expect(handle!.isFollowing()).toBe(false)
     } finally {
       raf.restore()
     }
   })
 
-  it('keeps the pre-fork eligibility when a non-scrolling interaction follows the branch shrink', () => {
+  it('keeps reading mode through branch shrink and subsequent growth', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1431,7 +1390,6 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['history-message']}
           handleRef={handleRef}
-          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1448,38 +1406,34 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => runtime!.takeUserControl())
-      act(() => runtime!.captureLocalSendScrollEligibility())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       scrollHeight = 1000
       view.rerender(
         <RuntimeDomProbe
           items={['edited-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(500)
 
-      act(() => runtime!.takeUserControl())
       view.rerender(
         <RuntimeDomProbe
           items={['edited-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
 
-      expect(scrollTop).toBe(600)
+      expect(scrollTop).toBe(500)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(60)
 
-      expect(scrollTop).toBe(800)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(scrollTop).toBe(500)
+      expect(handle!.isFollowing()).toBe(false)
     } finally {
       restoreResizeObserver()
       raf.restore()
@@ -1503,7 +1457,6 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['history-message']}
           handleRef={handleRef}
-          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1520,33 +1473,30 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => runtime!.takeUserControl())
-      act(() => runtime!.captureLocalSendScrollEligibility())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       scrollHeight = 1000
       view.rerender(
         <RuntimeDomProbe
           items={['edited-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(500)
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
 
       view.rerender(
         <RuntimeDomProbe
           items={['edited-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
       raf.tick(60)
 
       expect(scrollTop).toBe(500)
-      expect(handle!.isAtBottom()).toBe(false)
+      expect(handle!.isFollowing()).toBe(false)
     } finally {
       restoreResizeObserver()
       raf.restore()
@@ -1563,11 +1513,7 @@ describe('useChatVirtualizerRuntime', () => {
       let scrollTop = 300
       let scrollHeight = 1200
       const view = render(
-        <RuntimeDomProbe
-          items={['history-message']}
-          localSendGeneration={0}
-          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
-        />
+        <RuntimeDomProbe items={['history-message']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
       )
       const scroller = runtime!.scrollerRef.current!
       Object.defineProperty(scroller, 'scrollTop', {
@@ -1582,13 +1528,12 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       expect(scrollTop).toBe(300)
 
       view.rerender(
         <RuntimeDomProbe
           items={['history-message', 'sent-user-message']}
-          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1646,8 +1591,11 @@ describe('useChatVirtualizerRuntime', () => {
       expect(scrollTop).toBe(0)
 
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      expect(handle!.isFollowing()).toBe(true)
 
       scrollHeight = 2000
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -1660,13 +1608,13 @@ describe('useChatVirtualizerRuntime', () => {
       // A real non-wheel upward gesture (scrollbar drag) fires pointerdown, which
       // the host reports via markUserInput; that's what makes this a takeover
       // rather than a programmatic remeasure jump (which must NOT take over).
-      const userOffset = followedOffset - 40
+      const userOffset = followedOffset - 1
       scrollTop = userOffset
       act(() => {
         runtime!.markUserInput()
         runtime!.scrollerProps.onScroll(userOffset)
       })
-      expect(handle!.isAtBottom()).toBe(false)
+      expect(handle!.isFollowing()).toBe(false)
 
       scrollHeight = 2200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -1716,14 +1664,16 @@ describe('useChatVirtualizerRuntime', () => {
 
       // At the live bottom during streaming — auto-stick follows growth.
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      expect(handle!.isFollowing()).toBe(true)
 
-      // Any direct interaction (a click, a key, a toggle — the host wires them
-      // all to takeUserControl) hands the user the wheel: the at-bottom latch
-      // drops and the viewport freezes where it stands.
-      act(() => runtime!.takeUserControl())
-      expect(handle!.isAtBottom()).toBe(false)
+      // An explicit disclosure action enters reading mode and freezes the
+      // viewport. Ordinary pointer/key interaction is intentionally ignored.
+      act(() => runtime!.takeUserControl('disclosure'))
+      expect(handle!.isFollowing()).toBe(false)
 
       // Streaming keeps growing — the frozen viewport must not follow.
       scrollHeight = 2000
@@ -1736,7 +1686,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('recovers bottom-follow after a local disclosure collapses back at the real bottom', () => {
+  it('keeps reading after a disclosure closes at the real bottom', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1770,25 +1720,24 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
-      act(() => runtime!.takeUserControl())
-      expect(handle!.isAtBottom()).toBe(false)
+      expect(handle!.isFollowing()).toBe(true)
+      act(() => runtime!.takeUserControl('disclosure'))
+      expect(handle!.isFollowing()).toBe(false)
 
-      act(() => runtime!.releaseUserControlIfAtBottomAfterLayout())
       raf.tick(2)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(false)
 
       scrollHeight = 1400
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(20)
-      expect(scrollTop).toBe(1000)
+      expect(scrollTop).toBe(800)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('recovers bottom-follow after disclosure shrink creates temporary freeze slack', () => {
+  it('keeps disclosure reading intent when shrink creates freeze slack', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1825,8 +1774,7 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       act(() => runtime!.scrollerProps.onScroll(800))
-      act(() => runtime!.takeUserControl())
-      act(() => runtime!.releaseUserControlIfAtBottomAfterLayout())
+      act(() => runtime!.takeUserControl('disclosure'))
 
       naturalScrollHeight = 700
       scrollTop = 300
@@ -1836,21 +1784,21 @@ describe('useChatVirtualizerRuntime', () => {
 
       raf.tick(2)
 
-      expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '0px' })
-      expect(scrollTop).toBe(300)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '500px' })
+      expect(scrollTop).toBe(800)
+      expect(handle!.isFollowing()).toBe(false)
 
       naturalScrollHeight = 900
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(20)
-      expect(scrollTop).toBe(500)
+      expect(scrollTop).toBe(800)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('does not recover bottom-follow when disclosure shrink passes a reading viewport', () => {
+  it('keeps reading mode when disclosure shrink passes the viewport', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1892,8 +1840,7 @@ describe('useChatVirtualizerRuntime', () => {
       // The user has moved the sent message above the viewport but is still
       // reading 200px above the real bottom when they collapse the process run.
       scrollTop = 600
-      act(() => runtime!.takeUserControl())
-      act(() => runtime!.releaseUserControlIfAtBottomAfterLayout())
+      act(() => runtime!.takeUserControl('disclosure'))
 
       // The collapse moves the new real bottom above the preserved reading
       // position. Freeze slack restores that position after the browser clamp.
@@ -1903,13 +1850,12 @@ describe('useChatVirtualizerRuntime', () => {
       expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '500px' })
       expect(scrollTop).toBe(600)
 
-      // Recovery must use the pre-collapse bottom snapshot. Treating the
-      // negative post-collapse distance as "at bottom" clears the slack and
-      // exposes the messages above for one visible jump.
+      // Layout clamp and temporary slack must not reinterpret the mode as
+      // following; only a real user arrival at the bottom can do that.
       raf.tick(2)
       expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '500px' })
       expect(scrollTop).toBe(600)
-      expect(handle!.isAtBottom()).toBe(false)
+      expect(handle!.isFollowing()).toBe(false)
     } finally {
       restoreResizeObserver()
       raf.restore()
@@ -1950,7 +1896,7 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       scrollTop = 600
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
 
       // The disclosure shrinks and the browser clamps immediately. This scroll
       // can arrive before the runtime observer, or after virtua's own observer.
@@ -1993,7 +1939,7 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       // The user takes control while reading mid-list; the freeze anchors here.
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
 
       // A rogue programmatic scroll (a child `scrollIntoView`, a remeasure that
       // virtua did not compensate) drifts the frozen viewport; the next observed
@@ -2034,7 +1980,7 @@ describe('useChatVirtualizerRuntime', () => {
       getItemOffset: vi.fn((index) => index * 100)
     })
 
-    act(() => runtime!.takeUserControl())
+    act(() => runtime!.takeUserControl('user-scrolled-up'))
 
     expect(findItemIndex).toHaveBeenCalledWith(144)
   })
@@ -2066,7 +2012,7 @@ describe('useChatVirtualizerRuntime', () => {
         getItemOffset: vi.fn((index) => itemOffsets[index] ?? 0)
       })
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
 
       itemOffsets = [0, 100, 200, 300]
       view.rerender(
@@ -2107,7 +2053,7 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'scrollHeight', () => 2000)
       runtime!.vlistHandleRef.current = createHandle()
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       now = 1_010
       act(() => {
         runtime!.markUserInput()
@@ -2159,7 +2105,7 @@ describe('useChatVirtualizerRuntime', () => {
 
       act(() => {
         runtime!.beginScrollbarDrag()
-        runtime!.takeUserControl()
+        runtime!.takeUserControl('user-scrolled-up')
         scrollTop = 600
         runtime!.scrollerProps.onScroll(600)
       })
@@ -2236,7 +2182,7 @@ describe('useChatVirtualizerRuntime', () => {
       item.append(toggle)
       runtime!.contentRef.current!.prepend(item)
 
-      act(() => runtime!.takeUserControl(toggle))
+      act(() => runtime!.takeUserControl('disclosure', toggle))
 
       // Content above the toggle reflows inside the same MessageGroup. The
       // virtual item's start offset is unchanged, but the interacted element moved.
@@ -2272,7 +2218,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       runtime!.vlistHandleRef.current = createHandle()
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
 
       naturalScrollHeight = 700
       scrollTop = 300 // browser clamp after the collapse
@@ -2309,7 +2255,7 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       view.rerender(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
       raf.tick()
 
@@ -2362,7 +2308,7 @@ describe('useChatVirtualizerRuntime', () => {
 
       // ...and a direct interaction takes the wheel: the animation dies where it
       // is instead of dragging the user away from what they just touched.
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       raf.tick(10)
       expect(scrollTop).toBe(midFlight)
     } finally {
@@ -2434,7 +2380,7 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'clientHeight', () => clientHeight)
       runtime!.vlistHandleRef.current = createHandle()
 
-      act(() => runtime!.scrollToBottom('instant'))
+      act(() => runtime!.scrollToBottom())
       act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
       raf.tick(60)
 
@@ -2486,11 +2432,14 @@ describe('useChatVirtualizerRuntime', () => {
 
       // At the live bottom during streaming — following.
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      expect(handle!.isFollowing()).toBe(true)
 
       // A direct interaction freezes the viewport mid-stream.
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       scrollHeight = 1600
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(10)
@@ -2503,7 +2452,7 @@ describe('useChatVirtualizerRuntime', () => {
         runtime!.markUserInput()
         runtime!.scrollerProps.onScroll(1200)
       })
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
 
       scrollHeight = 1800
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -2515,13 +2464,8 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('keeps a takeover latched while streaming growth stays within the at-bottom tolerance', () => {
-    // Expanding a SHORT thinking block near the live edge grows the content by
-    // less than the 100px at-bottom tolerance, so right after the takeover the
-    // viewport still measures "close to bottom". The size-change must not
-    // re-latch at-bottom over the takeover — otherwise the very next chunk
-    // re-engages auto-stick and scrolls the revealed content away again (the
-    // jitter this latch exists to prevent).
+  it('keeps reading intent through small streaming growth near the live edge', () => {
+    // Geometry close to the bottom cannot reinterpret explicit reading intent.
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -2553,8 +2497,7 @@ describe('useChatVirtualizerRuntime', () => {
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle()
 
-      // Drain the mount's scroll-to-newest rAF first so its programmatic stick
-      // can't fire during the final tick and masquerade as a re-latch.
+      // Drain the mount's scroll-to-newest rAF first.
       raf.tick(60)
 
       scrollHeight = 1200
@@ -2563,22 +2506,22 @@ describe('useChatVirtualizerRuntime', () => {
       // At the live bottom during streaming — auto-stick owns scrollTop.
       scrollTop = 800
       act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
 
-      act(() => runtime!.takeUserControl())
-      expect(handle!.isAtBottom()).toBe(false)
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      expect(handle!.isFollowing()).toBe(false)
 
-      // The short expansion grows content by only 40px — still within tolerance.
+      // The short expansion grows content by only 40px.
       scrollHeight = 1240
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      expect(handle!.isAtBottom()).toBe(false)
+      expect(handle!.isFollowing()).toBe(false)
 
-      // The next streaming chunk must not re-engage bottom-follow.
+      // The next streaming chunk must not reinterpret the mode either.
       scrollHeight = 1300
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(10)
       expect(scrollTop).toBe(800)
-      expect(handle!.isAtBottom()).toBe(false)
+      expect(handle!.isFollowing()).toBe(false)
     } finally {
       restoreResizeObserver()
       raf.restore()
@@ -2619,7 +2562,7 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       // Held mid-stream after a direct interaction.
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       scrollHeight = 1400
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(10)
@@ -2629,7 +2572,7 @@ describe('useChatVirtualizerRuntime', () => {
       // the runtime drives again and the next growth follows.
       act(() => runtime!.scrollToBottom())
       expect(scrollTop).toBe(1000)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
 
       scrollHeight = 1600
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -2676,8 +2619,11 @@ describe('useChatVirtualizerRuntime', () => {
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      expect(handle!.isFollowing()).toBe(true)
 
       scrollHeight = 2000
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -2691,7 +2637,7 @@ describe('useChatVirtualizerRuntime', () => {
       const jumpOffset = followedOffset - 40
       scrollTop = jumpOffset
       act(() => runtime!.scrollerProps.onScroll(jumpOffset))
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
 
       // Streaming continues; bottom-follow is still live and tracks the new bottom.
       scrollHeight = 2200
@@ -2737,11 +2683,11 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
-      act(() => runtime!.takeUserControl())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
       act(() => runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: 600 })))
       scrollTop = 800
       act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
 
       // Virtua remeasures the bottom item in the same input window and moves
       // scrollTop backward without a matching upward wheel. This must not be
@@ -2750,14 +2696,14 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => runtime!.scrollerProps.onScroll(737.5))
 
       expect(scrollTop).toBe(800)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('ignores sub-threshold upward jitter during bottom-follow and keeps following', () => {
+  it('ignores programmatic upward jitter during bottom-follow and keeps following', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -2792,8 +2738,11 @@ describe('useChatVirtualizerRuntime', () => {
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      expect(handle!.isFollowing()).toBe(true)
 
       scrollHeight = 2000
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -2801,27 +2750,26 @@ describe('useChatVirtualizerRuntime', () => {
       const followedOffset = scrollTop
       expect(followedOffset).toBeGreaterThan(800)
 
-      // Sync the tracker to the follow position the way real frame-by-frame
-      // scroll events would (the follow's own writes are forward progress).
+      // Sync the observed offset to the programmatic follow position.
       act(() => runtime!.scrollerProps.onScroll(followedOffset))
 
-      // A tiny upward jitter (< takeover threshold) must NOT cancel the follow.
+      // A tiny upward drift without user input must not cancel the follow.
       const jitterOffset = followedOffset - 3
       scrollTop = jitterOffset
       act(() => runtime!.scrollerProps.onScroll(jitterOffset))
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
 
-      // The follow keeps animating all the way to the live bottom (2000 - 400).
+      // The following owner restores the exact live bottom (2000 - 400).
       raf.tick(100)
       expect(scrollTop).toBe(1600)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('snaps straight to the live bottom when one-shot growth exceeds the crawl threshold', () => {
+  it('sticks straight to the live bottom for one-shot growth', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -2856,16 +2804,18 @@ describe('useChatVirtualizerRuntime', () => {
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(handle!.isAtBottom()).toBe(true)
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      expect(handle!.isFollowing()).toBe(true)
 
-      // A single render adds > 3 viewports (400px each): distance to bottom is
-      // 1300px > 1200px, so the follow snaps in the same frame instead of
-      // crawling. A crawl would leave scrollTop at 800 until the first raf tick.
+      // A single render adds more than three viewports and still reconciles in
+      // the same callback without an animation.
       scrollHeight = 2500
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(2100)
-      expect(handle!.isAtBottom()).toBe(true)
+      expect(handle!.isFollowing()).toBe(true)
     } finally {
       restoreResizeObserver()
       raf.restore()
