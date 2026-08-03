@@ -9,16 +9,17 @@ import {
   pickMessageLeafActions,
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
@@ -761,13 +762,9 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
-      estimateSize: 400,
-      overscan: 6,
-      loadOlderDelayMs: 300,
-      loadingResetDelayMs: 300,
-      listKey: assistant?.id ?? topic.assistantId,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAssistantId,
       localSendGeneration,
-      readonly: false,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -781,7 +778,6 @@ export function useHomeMessageListProviderValue({
       getTranslationLanguageLabel
     }),
     [
-      assistant?.id,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
@@ -798,6 +794,7 @@ export function useHomeMessageListProviderValue({
       messageNavigation,
       partsByMessageId,
       renderConfig,
+      resolvedAssistantId,
       selectionController.selection,
       streamingLayers,
       topic,

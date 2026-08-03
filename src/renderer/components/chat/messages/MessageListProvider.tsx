@@ -21,9 +21,9 @@ import type {
  *   subscribers that only care about, say, `estimateSize`.
  * - `MessageListMessagesContext` — the messages array itself. Streaming chunks
  *   land here.
- * - `MessageListUiStaticContext` — preference-driven static config (readonly,
- *   menuConfig, translationLanguages, externalCodeEditors). Changes when the
- *   user flips a setting.
+ * - `MessageListUiStaticContext` — preference-driven static config (menuConfig,
+ *   translationLanguages, externalCodeEditors). Changes when the user flips a
+ *   setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
  *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
@@ -56,10 +56,7 @@ type MessageListDataValue = Pick<
 
 type MessageListMessagesValue = MessageListItem[]
 
-type MessageListUiStaticValue = Pick<
-  MessageListState,
-  'readonly' | 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'
->
+type MessageListUiStaticValue = Pick<MessageListState, 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'>
 
 type MessageListUiSelectorsValue = Pick<
   MessageListState,
@@ -127,12 +124,11 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
 
   const uiStatic = useMemo<MessageListUiStaticValue>(
     () => ({
-      readonly: state.readonly,
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [state.readonly, state.menuConfig, state.translationLanguages, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(
