@@ -3170,6 +3170,7 @@
         "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
       "processor": "Processing Provider",
+      "processor_not_configured": "Not configured",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -5206,7 +5207,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Local Models",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6786,6 +6787,7 @@
         "allStatuses": "All statuses",
         "allTypes": "All types",
         "builtinOnly": "Built-in only",
+        "label": "Filter",
         "status": "Filter by status",
         "type": "Filter by type"
       },
@@ -6852,6 +6854,9 @@
         "loadError": "Get prompts Error",
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
+      },
+      "protocolInstall": {
+        "title": "Install MCP"
       },
       "protocolInstallWarning": {
         "command": "Startup command",

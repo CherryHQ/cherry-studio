@@ -100,15 +100,12 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: useProvidersMock
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
-  useAgentTools: () => ({ tools: [], isLoading: false, error: undefined })
-}))
-
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
   useMcpRuntimeStatusMap: () => ({})
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: () => {},
   useInstalledSkills: () => ({
     skills: [],
     loading: false
