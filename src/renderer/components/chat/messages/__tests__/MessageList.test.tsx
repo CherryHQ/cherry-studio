@@ -28,9 +28,14 @@ const messageVirtualListMocks = vi.hoisted(() => ({
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const chatLayoutModeMock = vi.hoisted(() => ({
+  railGutterPx: 0,
+  setForceWideLayout: () => {},
+  setRailGutterPx: () => {}
+}))
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
-  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
+  useChatLayoutMode: () => chatLayoutModeMock
 }))
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
@@ -282,12 +287,25 @@ describe('MessageList', () => {
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
     messageGroupMountCounts.clear()
+    chatLayoutModeMock.railGutterPx = 0
   })
 
   it('exposes a stable message-list boundary', () => {
     const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
+  it('pads the message column with the rail gutter from the chat layout context', () => {
+    chatLayoutModeMock.railGutterPx = 24
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    // Base side padding (24) + context gutter (24) on both sides.
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '48px',
+      paddingRight: '48px'
+    })
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {
