@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
-}))
-
-const { getByIdMock, listServersMock, warmMock, listToolsMock } = vi.hoisted(() => ({
+const { getByIdMock, listServersMock, warmMock, listToolsMock, warnMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn(),
   listServersMock: vi.fn(),
   warmMock: vi.fn(),
-  listToolsMock: vi.fn()
+  listToolsMock: vi.fn(),
+  warnMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ debug: vi.fn(), warn: warnMock, info: vi.fn(), error: vi.fn() }) }
 }))
 vi.mock('@data/services/AssistantService', () => ({ assistantDataService: { getById: getByIdMock } }))
 vi.mock('@main/data/services/McpServerService', () => ({ mcpServerService: { list: listServersMock } }))
@@ -49,6 +50,35 @@ describe('resolveAssistantMcpToolIds', () => {
     expect(warmMock).toHaveBeenCalledWith('srv-1')
     expect(warmMock.mock.invocationCallOrder[0]).toBeLessThan(listToolsMock.mock.invocationCallOrder.at(-1)!)
     expect(ids).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
+  })
+
+  it('caps the warm wait: a hung warm does not block, degrades to the current cache, and warns', async () => {
+    vi.useFakeTimers()
+    try {
+      getByIdMock.mockReturnValue(assistant())
+      // Dead server: warm hangs on the connect (3-minute floor) and never settles.
+      warmMock.mockReturnValue(new Promise<void>(() => {}))
+      listToolsMock.mockReturnValue([])
+
+      const resultPromise = resolveAssistantMcpToolIds('a1')
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(await resultPromise).toEqual([])
+      expect(listToolsMock).toHaveBeenCalledWith('srv-1')
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.stringContaining('Timed out warming MCP tools cache'),
+        expect.objectContaining({ serverId: 'srv-1' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not warn when the warm resolves within the cap', async () => {
+    getByIdMock.mockReturnValue(assistant())
+
+    expect(await resolveAssistantMcpToolIds('a1')).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
+    expect(warnMock).not.toHaveBeenCalled()
   })
 
   it('defaults a mode-less assistant to manual (linked servers only)', async () => {
