@@ -6,7 +6,7 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useDefaultModel, useModelById, useModelMutations, useModels, useWarmModelById } from '../useModel'
+import { useDefaultModel, useModelById, useModelMutations, useModels } from '../useModel'
 
 // ─── Mock data ────────────────────────────────────────────────────────
 const mockModel1: any = {
@@ -149,30 +149,6 @@ describe('useModelById', () => {
 
   it('does not fetch until a model id is available', () => {
     renderHook(() => useModelById(undefined))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-})
-
-describe('useWarmModelById', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('starts the same managed query used by useModelById', () => {
-    renderHook(() => useWarmModelById('openai::gpt-4o'))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/openai::gpt-4o', {
-      enabled: true,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-
-  it('does not fetch until a model id is available', () => {
-    renderHook(() => useWarmModelById(undefined))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
       enabled: false,
