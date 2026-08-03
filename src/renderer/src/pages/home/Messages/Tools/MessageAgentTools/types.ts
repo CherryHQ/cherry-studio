@@ -6,6 +6,7 @@ export enum AgentToolsType {
   Read = 'Read',
   Task = 'Task',
   Bash = 'Bash',
+  PowerShell = 'PowerShell',
   Search = 'Search',
   Glob = 'Glob',
   TodoWrite = 'TodoWrite',
@@ -94,6 +95,24 @@ export type BashToolInput = {
 }
 
 export type BashToolOutput = string
+
+// PowerShell 工具的类型定义
+export type PowerShellToolInput = {
+  /**
+   * The PowerShell command to execute
+   */
+  command: string
+  /**
+   * Optional timeout in milliseconds (max 600000)
+   */
+  timeout?: number
+  /**
+   * Clear, concise description of what this command does in 5-10 words
+   */
+  description?: string
+}
+
+export type PowerShellToolOutput = string
 
 // Search 工具的类型定义
 export type SearchToolInput = string
@@ -419,6 +438,7 @@ export type KillBashToolInput = {
 export type ToolInput =
   | TaskToolInput
   | BashToolInput
+  | PowerShellToolInput
   | BashOutputToolInput
   | EditToolInput
   | MultiEditToolInput
@@ -464,6 +484,7 @@ export interface ToolInputMap {
   [AgentToolsType.Read]: ReadToolInput
   [AgentToolsType.Task]: TaskToolInput
   [AgentToolsType.Bash]: BashToolInput
+  [AgentToolsType.PowerShell]: PowerShellToolInput
   [AgentToolsType.Search]: SearchToolInput
   [AgentToolsType.Glob]: GlobToolInput
   [AgentToolsType.TodoWrite]: TodoWriteToolInput
@@ -485,6 +506,7 @@ export interface ToolOutputMap {
   [AgentToolsType.Read]: ReadToolOutput
   [AgentToolsType.Task]: TaskToolOutput
   [AgentToolsType.Bash]: BashToolOutput
+  [AgentToolsType.PowerShell]: PowerShellToolOutput
   [AgentToolsType.Search]: SearchToolOutput
   [AgentToolsType.Glob]: GlobToolOutput
   [AgentToolsType.TodoWrite]: TodoWriteToolOutput

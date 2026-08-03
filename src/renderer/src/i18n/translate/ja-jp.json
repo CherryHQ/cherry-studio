@@ -298,16 +298,9 @@
         "button": "カスタムパスをクリア"
       },
       "customPath": "カスタムパスを使用中: {{path}}",
-      "error": {
-        "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
-        "recheck": "Git Bashのインストールを再確認してください",
-        "required": "WindowsではGit Bashのパスが必要です",
-        "title": "Git Bashが必要です"
-      },
       "found": {
         "title": "Git Bashが設定されました"
       },
-      "notFound": "Git Bash が見つかりません。先にインストールしてください。",
       "pick": {
         "button": "Git Bashパスを選択",
         "failed": "Git Bashパスの設定に失敗しました",
@@ -316,7 +309,7 @@
       },
       "placeholder": "bash.exeのパスを選択",
       "success": "Git Bashが正常に検出されました！",
-      "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
+      "tooltip": "Windows では Git Bash は任意です。設定されていない、または利用できない場合、エージェントは PowerShell を使用します。"
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "Jupyterノートブックの内容を読み取って表示します"
+        },
+        "PowerShell": {
+          "description": "環境内で PowerShell コマンドを実行します"
         },
         "Read": {
           "description": "ファイルの内容を読み取ります"
@@ -2506,6 +2502,7 @@
         "mcpServerTool": "MCPサーバーツール",
         "multiEdit": "マルチエディット",
         "notebookEdit": "ノートブック編集",
+        "powerShell": "PowerShell",
         "readFile": "ファイルを読む",
         "search": "検索",
         "skill": "スキル",

@@ -42,6 +42,14 @@ class TestBaseService extends BaseService {
   public resolve(paths: string[] | undefined, id: string): string[] {
     return this.resolveAccessiblePaths(paths, id)
   }
+
+  public serialize(data: unknown): unknown {
+    return this.serializeJsonFields(data)
+  }
+
+  public deserialize(data: unknown): unknown {
+    return this.deserializeJsonFields(data)
+  }
 }
 
 const buildMcpTool = (id: string): Tool => ({
@@ -108,6 +116,35 @@ describe('BaseService.normalizeAllowedTools', () => {
     const tools: Tool[] = [{ id: 'custom_tool', name: 'custom_tool', type: 'custom' }]
 
     expect(service.normalize(allowedTools, tools)).toEqual(allowedTools)
+  })
+
+  it('preserves opaque PowerShell IDs through normalization and JSON round-trip', () => {
+    const stored = service.serialize({ allowed_tools: ['PowerShell'] }) as { allowed_tools: string }
+
+    expect(stored.allowed_tools).toBe('["PowerShell"]')
+    const restored = service.deserialize(stored) as { allowed_tools: string[] }
+    expect(service.normalize(restored.allowed_tools, [])).toEqual(['PowerShell'])
+  })
+})
+
+describe('BaseService.listMcpTools', () => {
+  const service = new TestBaseService()
+
+  it.each([
+    ['win32', true],
+    ['darwin', false],
+    ['linux', false]
+  ] as const)('exposes PowerShell on %s: %s', async (platform, expected) => {
+    const { tools } = await service.listMcpTools('claude-code', undefined, platform)
+
+    expect(tools.some((tool) => tool.id === 'PowerShell')).toBe(expected)
+    expect(tools.some((tool) => tool.id === 'Bash')).toBe(true)
+  })
+
+  it('does not expose Claude builtins for other agent types', async () => {
+    const { tools } = await service.listMcpTools('openai-codex' as AgentType, undefined, 'win32')
+
+    expect(tools).toEqual([])
   })
 })
 

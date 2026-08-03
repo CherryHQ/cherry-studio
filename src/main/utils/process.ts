@@ -537,11 +537,12 @@ export async function checkGitAvailable(): Promise<{ available: boolean; path: s
 /**
  * Find Git Bash (bash.exe) on Windows
  * @param customPath - Optional custom path from config
+ * @param windows - Platform override for deterministic tests
  * @returns Full path to bash.exe or null if not found
  */
-export function findGitBash(customPath?: string | null): string | null {
+export function findGitBash(customPath?: string | null, windows = isWin): string | null {
   // Git Bash is Windows-only
-  if (!isWin) {
+  if (!windows) {
     return null
   }
 
@@ -626,6 +627,11 @@ export function validateGitBashPath(customPath?: string | null): string | null {
   return resolved
 }
 
+const clearPersistedGitBashPath = (): void => {
+  configManager.set(ConfigKeys.GitBashPath, null)
+  configManager.set(ConfigKeys.GitBashPathSource, null)
+}
+
 /**
  * Auto-discover and persist Git Bash path if not already configured
  * Only called when Git Bash is actually needed
@@ -634,9 +640,10 @@ export function validateGitBashPath(customPath?: string | null): string | null {
  * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
  * 2. Configured path from settings (manual or auto)
  * 3. Auto-discovery via findGitBash (only if no valid config exists)
+ * @param windows - Platform override for deterministic tests
  */
-export function autoDiscoverGitBash(): string | null {
-  if (!isWin) {
+export function autoDiscoverGitBash(windows = isWin): string | null {
+  if (!windows) {
     return null
   }
 
@@ -660,7 +667,8 @@ export function autoDiscoverGitBash(): string | null {
     if (validated) {
       return validated
     }
-    // Existing path is invalid, try to auto-discover
+    // Do not retain stale UI metadata while attempting rediscovery.
+    clearPersistedGitBashPath()
     logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', {
       path: existingPath,
       source: existingSource
@@ -668,7 +676,7 @@ export function autoDiscoverGitBash(): string | null {
   }
 
   // 3. Try to find Git Bash via auto-discovery
-  const discoveredPath = findGitBash()
+  const discoveredPath = findGitBash(undefined, windows)
   if (discoveredPath) {
     // Persist the discovered path with 'auto' source
     configManager.set(ConfigKeys.GitBashPath, discoveredPath)
@@ -682,20 +690,36 @@ export function autoDiscoverGitBash(): string | null {
 /**
  * Get Git Bash path info including source
  * If no path is configured, triggers auto-discovery first
+ * @param windows - Platform override for deterministic tests
  */
-export function getGitBashPathInfo(): GitBashPathInfo {
-  if (!isWin) {
+export function getGitBashPathInfo(windows = isWin): GitBashPathInfo {
+  if (!windows) {
     return { path: null, source: null }
   }
 
-  let path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
-  let source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+  const configuredPath = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
+  const configuredSource = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
 
-  // If no path configured, trigger auto-discovery (handles upgrade from old versions)
-  if (!path) {
-    path = autoDiscoverGitBash()
-    source = path ? 'auto' : null
+  if (configuredPath) {
+    const validated = validateGitBashPath(configuredPath)
+    if (validated) {
+      return { path: validated, source: configuredSource }
+    }
+
+    clearPersistedGitBashPath()
+    logger.warn('Existing Git Bash path is invalid, clearing configuration before auto-discovery', {
+      path: configuredPath,
+      source: configuredSource
+    })
+  } else if (configuredSource) {
+    clearPersistedGitBashPath()
   }
 
-  return { path, source }
+  const discoveredPath = autoDiscoverGitBash(windows)
+  if (!discoveredPath) {
+    return { path: null, source: null }
+  }
+
+  const discoveredSource = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+  return { path: discoveredPath, source: discoveredSource }
 }

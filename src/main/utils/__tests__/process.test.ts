@@ -11,13 +11,15 @@ import {
   findExecutable,
   findGitBash,
   findViaMise,
+  getGitBashPathInfo,
   validateGitBashPath
 } from '../process'
 
 // Mock configManager
 vi.mock('@main/services/ConfigManager', () => ({
   ConfigKeys: {
-    GitBashPath: 'gitBashPath'
+    GitBashPath: 'gitBashPath',
+    GitBashPathSource: 'gitBashPathSource'
   },
   configManager: {
     get: vi.fn(),
@@ -917,6 +919,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         // Should discover and return the new path
         expect(result).toBe(discoveredPath)
+        expect(configManager.set).toHaveBeenNthCalledWith(1, 'gitBashPath', null)
+        expect(configManager.set).toHaveBeenNthCalledWith(2, 'gitBashPathSource', null)
         // Should persist the discovered path (overwrites invalid)
         expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
       })
@@ -936,6 +940,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         // Should discover and return the new path
         expect(result).toBe(discoveredPath)
+        expect(configManager.set).toHaveBeenNthCalledWith(1, 'gitBashPath', null)
+        expect(configManager.set).toHaveBeenNthCalledWith(2, 'gitBashPathSource', null)
         // Should persist the discovered path (overwrites invalid)
         expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
       })
@@ -953,8 +959,9 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         // Both validation and discovery failed
         expect(result).toBeNull()
-        // Should not persist when discovery fails
-        expect(configManager.set).not.toHaveBeenCalled()
+        expect(configManager.set).toHaveBeenNthCalledWith(1, 'gitBashPath', null)
+        expect(configManager.set).toHaveBeenNthCalledWith(2, 'gitBashPathSource', null)
+        expect(configManager.set).toHaveBeenCalledTimes(2)
       })
     })
 
@@ -1375,5 +1382,72 @@ describe('findCommandInShellEnv', () => {
       const result = await resultPromise
       expect(result).toBeNull()
     })
+  })
+})
+
+describe('persisted Git Bash cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+    vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
+    vi.mocked(path.resolve).mockImplementation((value) => value)
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('Not found')
+    })
+  })
+
+  const mockPersistedGitBashConfig = (initialPath: string | null, initialSource: string | null) => {
+    const config = new Map<string, unknown>([
+      ['gitBashPath', initialPath],
+      ['gitBashPathSource', initialSource]
+    ])
+    vi.mocked(configManager.get).mockImplementation((key) => config.get(key))
+    vi.mocked(configManager.set).mockImplementation((key, value) => {
+      config.set(key, value)
+    })
+  }
+
+  it('clears both stale keys before rediscovery persists a replacement', () => {
+    const stalePath = 'C:\\StaleGit\\bin\\bash.exe'
+    const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+    const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    mockPersistedGitBashConfig(stalePath, 'manual')
+    process.env.ProgramFiles = 'C:\\Program Files'
+    vi.mocked(fs.existsSync).mockImplementation((value) => value === gitPath || value === discoveredPath)
+
+    const result = autoDiscoverGitBash(true)
+
+    expect(result).toBe(discoveredPath)
+    expect(vi.mocked(configManager.set).mock.calls).toEqual([
+      ['gitBashPath', null],
+      ['gitBashPathSource', null],
+      ['gitBashPath', discoveredPath],
+      ['gitBashPathSource', 'auto']
+    ])
+  })
+
+  it('returns null path info and leaves both keys cleared when rediscovery fails', () => {
+    mockPersistedGitBashConfig('C:\\StaleGit\\bin\\bash.exe', 'manual')
+
+    const result = getGitBashPathInfo(true)
+
+    expect(result).toEqual({ path: null, source: null })
+    expect(vi.mocked(configManager.set).mock.calls).toEqual([
+      ['gitBashPath', null],
+      ['gitBashPathSource', null]
+    ])
+  })
+
+  it('clears an orphaned source even when no path is persisted', () => {
+    mockPersistedGitBashConfig(null, 'auto')
+
+    const result = getGitBashPathInfo(true)
+
+    expect(result).toEqual({ path: null, source: null })
+    expect(vi.mocked(configManager.set).mock.calls).toEqual([
+      ['gitBashPath', null],
+      ['gitBashPathSource', null]
+    ])
   })
 })
