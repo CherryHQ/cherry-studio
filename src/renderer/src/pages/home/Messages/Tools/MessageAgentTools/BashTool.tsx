@@ -7,25 +7,27 @@ import { TerminalOutput } from './TerminalOutput'
 import {
   AgentToolsType,
   type BashToolInput as BashToolInputType,
-  type BashToolOutput as BashToolOutputType
+  type BashToolOutput as BashToolOutputType,
+  type PowerShellToolInput as PowerShellToolInputType,
+  type PowerShellToolOutput as PowerShellToolOutputType
 } from './types'
 
-export function BashTool({
-  input,
-  output
-}: {
-  input?: BashToolInputType
-  output?: BashToolOutputType
-}): NonNullable<CollapseProps['items']>[number] {
+interface TerminalToolProps {
+  input?: BashToolInputType | PowerShellToolInputType
+  output?: string
+  toolName: AgentToolsType.Bash | AgentToolsType.PowerShell
+}
+
+function TerminalTool({ input, output, toolName }: TerminalToolProps): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
   const command = input?.command
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: AgentToolsType.Bash,
+    key: toolName,
     label: (
       <ToolHeader
-        toolName={AgentToolsType.Bash}
+        toolName={toolName}
         params={<SkeletonValue value={input?.description} width="150px" />}
         variant="collapse-label"
         showStatus={false}
@@ -54,4 +56,24 @@ export function BashTool({
       </div>
     )
   }
+}
+
+export function BashTool({
+  input,
+  output
+}: {
+  input?: BashToolInputType
+  output?: BashToolOutputType
+}): NonNullable<CollapseProps['items']>[number] {
+  return TerminalTool({ input, output, toolName: AgentToolsType.Bash })
+}
+
+export function PowerShellTool({
+  input,
+  output
+}: {
+  input?: PowerShellToolInputType
+  output?: PowerShellToolOutputType
+}): NonNullable<CollapseProps['items']>[number] {
+  return TerminalTool({ input, output, toolName: AgentToolsType.PowerShell })
 }

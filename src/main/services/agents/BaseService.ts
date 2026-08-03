@@ -13,7 +13,7 @@ import { DatabaseManager } from './database/DatabaseManager'
 import type { AgentModelField } from './errors'
 import { AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
-import { builtinTools } from './services/claudecode/tools'
+import { getExposedBuiltinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
 const MCP_TOOL_ID_PREFIX = 'mcp__'
@@ -50,12 +50,13 @@ export abstract class BaseService {
 
   public async listMcpTools(
     agentType: AgentType,
-    ids?: string[]
+    ids?: string[],
+    platform: NodeJS.Platform = process.platform
   ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
     const legacyIdMap = new Map<string, string>()
     if (agentType === 'claude-code') {
-      tools.push(...builtinTools)
+      tools.push(...getExposedBuiltinTools(platform))
     }
     if (ids && ids.length > 0) {
       for (const id of ids) {

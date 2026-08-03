@@ -295,12 +295,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
 
-      if (isWin && !gitBashPathInfo.path) {
-        window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
-        loadingRef.current = false
-        return
-      }
-
       if (isEditing(agent)) {
         if (!agent) {
           loadingRef.current = false
@@ -360,8 +354,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       t,
       updateAgent,
       afterSubmit,
-      addAgent,
-      gitBashPathInfo.path
+      addAgent
     ]
   )
 
@@ -423,15 +416,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             {isWin && (
               <FormItem>
                 <div className="flex items-center gap-2">
-                  <Label>
-                    Git Bash <RequiredMark>*</RequiredMark>
-                  </Label>
-                  <HelpTooltip
-                    title={t(
-                      'agent.gitBash.tooltip',
-                      'Git Bash is required to run agents on Windows. Install from git-scm.com if not available.'
-                    )}
-                  />
+                  <Label>Git Bash</Label>
+                  <HelpTooltip title={t('agent.gitBash.tooltip')} />
                 </div>
                 <GitBashInputWrapper>
                   <Input
@@ -544,11 +530,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
           <FormFooter>
             <Button onClick={onCancel}>{t('common.close')}</Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loadingRef.current}
-              disabled={isWin && !gitBashPathInfo.path}>
+            <Button type="primary" htmlType="submit" loading={loadingRef.current}>
               {isEditing(agent) ? t('common.confirm') : t('common.add')}
             </Button>
           </FormFooter>
