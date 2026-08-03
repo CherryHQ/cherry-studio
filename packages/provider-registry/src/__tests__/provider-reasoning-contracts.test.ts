@@ -15,6 +15,42 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
+  it('maps DeepSeek V4 Flash reasoning to the official effort vocabulary', () => {
+    const contracts = override('deepseek', 'deepseek-v4-flash').reasoningContracts
+    const responsesWire = contracts?.['openai-responses']?.wire
+    expect(responsesWire?.off?.operations).toEqual([
+      { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+    ])
+    expect(responsesWire?.auto?.effortMap).toEqual({
+      auto: 'high',
+      minimal: 'low',
+      low: 'low',
+      medium: 'high',
+      xhigh: 'max'
+    })
+    expect(responsesWire?.effort).toMatchObject({
+      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+    })
+    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+      operations: [
+        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+        { target: 'reasoning_effort', value: { source: 'effort' } }
+      ],
+      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+    })
+  })
+
+  it('keeps DeepSeek V4 Pro low efforts mapped to high', () => {
+    const wire = override('deepseek', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.wire
+    expect(wire?.effort?.effortMap).toEqual({
+      minimal: 'high',
+      low: 'high',
+      medium: 'high',
+      xhigh: 'max'
+    })
+  })
+
   it.each(['anthropic', 'aws-bedrock'])('keeps Claude Opus 4.5 on budget thinking for %s', (providerId) => {
     const contract = override(providerId, 'claude-opus-4-5').reasoningContracts?.['anthropic-messages']
     expect(contract?.wire?.effort).toMatchObject({

@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-rc.3",
+  "version": "2.0.0-rc.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -42,8 +42,6 @@
     "i18n:hardcoded:strict": "cross-env I18N_STRICT=true tsx scripts/check-hardcoded-strings.ts",
     "i18n:unused": "tsx scripts/check-unused-i18n.ts",
     "i18n:remove-unused": "tsx scripts/check-unused-i18n.ts --clean",
-    "styles:legacy-vars": "tsx scripts/check-legacy-css-vars.ts",
-    "styles:legacy-vars:strict": "cross-env LEGACY_CSS_VARS_STRICT=true tsx scripts/check-legacy-css-vars.ts",
     "styles:canonical": "tsx scripts/fix-tailwind-canonical-classes.ts",
     "ui:contract:query": "tsx scripts/uiContract/query.ts",
     "i18n:sync": "dotenv -e .env -- tsx scripts/sync-i18n.ts",
@@ -98,6 +96,7 @@
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.1.0",
+    "@node-rs/xxhash": "1.7.6",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
@@ -123,8 +122,7 @@
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
-    "ws": "^8.21.0",
-    "xxhash-wasm": "^1.1.0"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.96",
@@ -486,6 +484,14 @@
     "@napi-rs/system-ocr-darwin-arm64": "1.0.2",
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.1.0",
-    "@napi-rs/system-ocr-win32-x64-msvc": "1.1.0"
+    "@napi-rs/system-ocr-win32-x64-msvc": "1.1.0",
+    "@node-rs/xxhash-darwin-arm64": "1.7.6",
+    "@node-rs/xxhash-darwin-x64": "1.7.6",
+    "@node-rs/xxhash-linux-arm64-gnu": "1.7.6",
+    "@node-rs/xxhash-linux-arm64-musl": "1.7.6",
+    "@node-rs/xxhash-linux-x64-gnu": "1.7.6",
+    "@node-rs/xxhash-linux-x64-musl": "1.7.6",
+    "@node-rs/xxhash-win32-arm64-msvc": "1.7.6",
+    "@node-rs/xxhash-win32-x64-msvc": "1.7.6"
   }
 }

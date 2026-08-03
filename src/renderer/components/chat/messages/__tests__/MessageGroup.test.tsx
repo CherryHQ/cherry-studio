@@ -351,7 +351,7 @@ describe('MessageGroup', () => {
     expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
-  it.each(['horizontal', 'vertical', 'grid'] as const)(
+  it.each(['vertical', 'grid'] as const)(
     'always shows each model identity in %s multi-model layout',
     (multiModelMessageStyle) => {
       mocks.settings.mockReturnValue({
@@ -373,6 +373,29 @@ describe('MessageGroup', () => {
       expectEveryMessageHeaderToShowModelIdentity(true)
     }
   )
+
+  it('uses two equal columns across the full width in grid layout', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 5,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [
+      createMessage('msg-1', 0, 'grid'),
+      createMessage('msg-2', 1, 'grid'),
+      createMessage('msg-3', 2, 'grid')
+    ]
+
+    const { container } = render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+    const grid = container.querySelector('[data-ui="chat.message.group"] > .grid') as HTMLElement
+    expect(grid).toHaveClass('w-full')
+    expect(grid.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
+  })
 
   it('keeps model identity in the existing selector for fold layout', () => {
     mocks.settings.mockReturnValue({

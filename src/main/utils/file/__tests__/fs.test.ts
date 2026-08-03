@@ -3,14 +3,17 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { ContentHashSchema } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hashContent } from '../contentHash'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   copy as fsCopy,
   createAtomicWriteStream,
+  createPreparedAtomicWriteStream,
   download as fsDownload,
   ensureDir,
   exists,
@@ -19,6 +22,7 @@ import {
   mkdir as fsMkdir,
   move as fsMove,
   PathStaleVersionError,
+  prepareAtomicWrite,
   probeReadable,
   read,
   readChunk,
@@ -369,26 +373,32 @@ describe('hash', () => {
     expect(await hash(f1 as AbsoluteFilePath)).not.toBe(await hash(f2 as AbsoluteFilePath))
   })
 
-  it('returns lowercase hex string', async () => {
+  it('returns a tagged lowercase XXH3-64 hash', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'sample')
     const h = await hash(f as AbsoluteFilePath)
-    expect(h).toMatch(/^[0-9a-f]+$/)
+    expect(h).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
-  it('returns 16-char xxhash-h64 hex (not 32-char md5)', async () => {
+  it('returns the same tagged digest as the in-memory content hasher', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'sample')
     const h = await hash(f as AbsoluteFilePath)
-    expect(h).toHaveLength(16)
+    expect(h).toBe('xxh3-64:06a58212247c13bb')
   })
 
-  it('matches the known xxhash-h64 fixture for "hello"', async () => {
+  it('matches the canonical XXH3-64 fixture for "hello"', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'hello')
     const h = await hash(f as AbsoluteFilePath)
-    // xxhash-h64('hello') = 0x26c7827d889f6da3 (default seed = 0).
-    expect(h).toBe('26c7827d889f6da3')
+    expect(h).toBe('xxh3-64:9555e8555c62dcfd')
+  })
+
+  it('rejects without hashing when the abort signal is already aborted', async () => {
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'hello')
+    const signal = AbortSignal.abort(new DOMException('hash cancelled', 'AbortError'))
+    await expect(hash(f as AbsoluteFilePath, signal)).rejects.toThrow('hash cancelled')
   })
 })
 
@@ -473,6 +483,93 @@ describe('atomicWriteFile', () => {
   })
 })
 
+describe('PreparedAtomicWrite', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-prepared-write-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('derives size and hash from the prepared bytes and commits idempotently', async () => {
+    const target = path.join(tmp, 'prepared.bin') as AbsoluteFilePath
+    await writeFile(target, 'old')
+    const bytes = new Uint8Array([1, 2, 3, 4])
+
+    const prepared = await prepareAtomicWrite(target, bytes)
+    expect(prepared).toMatchObject({
+      target,
+      size: bytes.byteLength,
+      contentHash: hashContent(bytes),
+      state: 'prepared'
+    })
+    expect(await readFile(target, 'utf-8')).toBe('old')
+
+    const firstVersion = await prepared.commit()
+    expect(prepared.state).toBe('committed')
+    expect(Array.from(await readFile(target))).toEqual(Array.from(bytes))
+    await expect(prepared.commit()).resolves.toEqual(firstVersion)
+    await expect(prepared.abort()).resolves.toBeUndefined()
+  })
+
+  it('aborts idempotently without replacing the target and cannot commit afterward', async () => {
+    const target = path.join(tmp, 'aborted.txt') as AbsoluteFilePath
+    await writeFile(target, 'old')
+    const prepared = await prepareAtomicWrite(target, 'new')
+
+    await prepared.abort()
+    await prepared.abort()
+
+    expect(prepared.state).toBe('aborted')
+    expect(await readFile(target, 'utf-8')).toBe('old')
+    expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+    await expect(prepared.commit()).rejects.toThrow(/already aborted/)
+  })
+
+  it('serializes concurrent commit and abort calls onto one terminal transition', async () => {
+    const target = path.join(tmp, 'concurrent.txt') as AbsoluteFilePath
+    await writeFile(target, 'old')
+    const prepared = await prepareAtomicWrite(target, 'new')
+
+    const [firstVersion, secondVersion] = await Promise.all([
+      prepared.commit(),
+      prepared.commit(),
+      prepared.abort().then(() => undefined)
+    ])
+
+    expect(firstVersion).toEqual(secondVersion)
+    expect(prepared.state).toBe('committed')
+    expect(await readFile(target, 'utf-8')).toBe('new')
+    expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+  })
+
+  it('incrementally hashes stream chunks and leaves commit under caller control', async () => {
+    const target = path.join(tmp, 'stream.bin') as AbsoluteFilePath
+    const bytes = Buffer.from('incremental payload')
+    let prepared: Awaited<ReturnType<typeof prepareAtomicWrite>> | undefined
+    const stream = createPreparedAtomicWriteStream(target, async (result) => {
+      prepared = result
+    })
+
+    stream.write(bytes.subarray(0, 5))
+    stream.end(bytes.subarray(5))
+    await new Promise<void>((resolve, reject) => {
+      stream.once('finish', resolve)
+      stream.once('error', reject)
+    })
+
+    expect(prepared).toMatchObject({
+      size: bytes.byteLength,
+      contentHash: hashContent(bytes),
+      state: 'prepared'
+    })
+    expect(await exists(target)).toBe(false)
+    await prepared!.commit()
+    expect(await readFile(target)).toEqual(bytes)
+  })
+})
+
 describe('atomicWriteIfUnchanged', () => {
   let tmp: string
   beforeEach(async () => {
@@ -537,7 +634,7 @@ describe('atomicWriteIfUnchanged', () => {
     await writeFile(target, 'aaaa')
     await utimes(target, 1700000000, 1700000000)
     const expected = { mtime: 1700000000_000, size: 4 }
-    const wrongHash = '0'.repeat(32)
+    const wrongHash = ContentHashSchema.parse(`xxh3-64:${'0'.repeat(16)}`)
     await expect(atomicWriteIfUnchanged(target, 'bbbb', expected, wrongHash)).rejects.toBeInstanceOf(
       PathStaleVersionError
     )

@@ -1520,6 +1520,7 @@ describe('ResourceList', () => {
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
     const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
+    expect(screen.getByText('session')).toHaveClass('font-normal')
     expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
     expect(sessionGroupHeader).toBeNull()
 

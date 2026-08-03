@@ -235,6 +235,7 @@
           "discard_and_continue": "Discard and continue",
           "title": "Discard unsaved changes?"
         },
+        "metadata_pending": "The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Unable to reload the latest file content.",
         "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
         "unsaved": "Unsaved",
@@ -1694,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Jump to turn {{number}}"
+      },
       "bottom": "Back to bottom",
       "close": "Close",
       "first": "Already at the first message",
@@ -2637,9 +2641,9 @@
     "pdf": {
       "too_large": {
         "action": "Open with default app",
-        "description": "PDF files larger than {{limit}} MiB cannot be previewed.",
+        "description": "Part of this PDF is too large to preview safely in the app.",
         "open_error": "Couldn't open this file",
-        "title": "File is too large"
+        "title": "Can't preview this PDF"
       }
     },
     "text": {
@@ -3362,7 +3366,7 @@
             "label": "Small model"
           }
         },
-        "model_config": "Model configuration",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Max turns and environment variables",
@@ -4503,7 +4507,8 @@
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
     "save_failure": {
-      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
+      "metadata_pending": "The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Name+Content",
@@ -5141,6 +5146,7 @@
     "reset": "Reset",
     "rotate_left": "Rotate Left",
     "rotate_right": "Rotate Right",
+    "save_as": "Save As",
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
@@ -8088,7 +8094,7 @@
           "save_failed": "Save failed",
           "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
         },
-        "fetch_urls_provider": "Default URL fetch provider",
+        "fetch_urls_provider": "URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {

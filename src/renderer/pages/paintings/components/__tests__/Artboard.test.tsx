@@ -398,6 +398,8 @@ describe('Artboard', () => {
       const trigger = screen.getByRole('button', { name: prompt })
       expect(trigger).toHaveAttribute('type', 'button')
       expect(trigger).toContainElement(preview)
+      expect(trigger).toHaveClass('focus-visible:bg-accent', 'focus-visible:text-foreground')
+      expect(trigger.className).not.toMatch(/focus-visible:ring-(?!0)/)
 
       const zoomButton = screen.getByRole('button', { name: 'preview.zoom_in' })
       zoomButton.focus()
@@ -416,9 +418,11 @@ describe('Artboard', () => {
         'ml-0.5',
         'size-5',
         'text-neutral-50',
+        'focus-visible:bg-neutral-50/10',
         '[&_svg]:stroke-neutral-50!',
         '[&_svg]:text-neutral-50!'
       )
+      expect(copyButton.className).not.toMatch(/focus-visible:ring-(?!0)/)
       expect(copyButton).not.toHaveClass('absolute', 'bg-neutral-700')
 
       fireEvent.click(copyButton)

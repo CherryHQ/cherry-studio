@@ -17,8 +17,8 @@ interface UsePaintingResultSyncInput {
  * completion time (the user switched away, or the generation belongs to a prior,
  * now-unmounted page instance). In that case the in-memory draft keeps
  * `files: []` while the DB row — and therefore the refreshed history — gained the
- * outputs. `usePaintingInitialSelection` only bootstraps once, so it won't
- * re-adopt the now-file-bearing history item.
+ * outputs. The page does not automatically re-adopt history items, so the
+ * visible in-memory painting needs this targeted result sync.
  *
  * The Artboard's reveal machine, having watched loading go false with no file,
  * then parks at `{ status: 'awaiting' }` forever — there is no `succeeded`
