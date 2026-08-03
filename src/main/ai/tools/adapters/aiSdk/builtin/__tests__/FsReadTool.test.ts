@@ -123,6 +123,16 @@ describe('executeFsRead — content handling', () => {
     expect(out).toMatchObject({ kind: 'error', code: 'binary' })
   })
 
+  it('reads UTF-16 text (encoding-aware sniff, not a NUL probe)', async () => {
+    // UTF-16LE bytes are full of NULs; the old hand-rolled probe rejected
+    // them as binary even though readTextFileWithAutoEncoding decodes them.
+    const p = path.join(blobDir, 'utf16.txt')
+    fs.writeFileSync(p, Buffer.from('﻿hello utf-16 world\nsecond line\n', 'utf16le'))
+    const out = await read({ path: p })
+    expect(out).toMatchObject({ kind: 'text' })
+    if (out.kind === 'text') expect(out.text).toContain('hello utf-16 world')
+  })
+
   it('returns output-too-large with a file-specific recommended limit', async () => {
     // 200 lines × ~1000 chars ≈ 200k chars > 100k cap
     const p = writeBlob('big.txt', Array.from({ length: 200 }, () => 'x'.repeat(1000)).join('\n'))

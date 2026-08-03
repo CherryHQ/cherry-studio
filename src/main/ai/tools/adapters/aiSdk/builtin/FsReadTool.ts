@@ -10,8 +10,10 @@ import fsp from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 
 import { loggerService } from '@logger'
+import { isTextByContent } from '@main/utils/file'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
 import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { tool } from 'ai'
 import * as z from 'zod'
@@ -115,17 +117,6 @@ async function resolveAgainstAllowedPaths(
   return null
 }
 
-async function isBinaryContent(absolutePath: string): Promise<boolean> {
-  const handle = await fsp.open(absolutePath, 'r')
-  try {
-    const probe = Buffer.alloc(8192)
-    const { bytesRead } = await handle.read(probe, 0, probe.length, 0)
-    return probe.subarray(0, bytesRead).includes(0)
-  } finally {
-    await handle.close()
-  }
-}
-
 interface TextReadResult {
   text: string
   startLine: number
@@ -213,7 +204,10 @@ export async function executeFsRead(
   }
 
   try {
-    if (await isBinaryContent(absolutePath)) {
+    // Encoding-aware sniff (isbinaryfile + chardet) rather than a bare NUL
+    // probe, so UTF-16 text files pass — readTextFileWithAutoEncoding below
+    // can decode them. `absolutePath` passed `isAbsolute` above.
+    if (!(await isTextByContent(absolutePath as AbsoluteFilePath))) {
       return { kind: 'error', code: 'binary', message: `Cannot read binary file: ${requestedPath}` }
     }
 
