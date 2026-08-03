@@ -2,13 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import type { InferenceProgress } from '@main/ai/inference/InferenceServiceBase'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 
-import { registerLocalEmbeddingModel, unregisterLocalEmbeddingModelIfUnused } from './localEmbeddingRegistration'
 import { LocalModelDownloadService } from './LocalModelDownloadService'
 import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
 
@@ -75,21 +76,13 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     await application
       .get('EmbeddingInferenceService')
       .loadEmbedding(source, MODEL_REPO, MODEL_DTYPE, (p) => this.broadcastProgress(p), signal)
-    // Now that the weights are on disk, register the provider/model so the KB
-    // embedding picker lists it (lazy equivalent of the old boot seeder).
-    await registerLocalEmbeddingModel()
     this.broadcast({ status: 'ready', percent: 100 })
   }
 
   protected override async cleanupAfterError(): Promise<void> {
-    // A failed or cancelled download must not leave weights that read as `ready` while the
-    // user_model row is missing (e.g. loadEmbedding succeeded but registration failed, or a
-    // cancel left partials). Otherwise get_status reports the leftover weights as ready and
-    // selecting the model in the KB picker would trip the embeddingModelId FK. Release the
-    // worker first (loadEmbedding caches the pipeline, holding the weights open on Windows),
-    // then drop the partial/unregistered weights. terminateThen blocks a request queued
-    // behind the in-flight one from respawning a worker mid-delete (it would otherwise
-    // start reading/writing the very files being removed).
+    // Release the worker first (loadEmbedding caches the pipeline, holding the weights open on
+    // Windows), then drop partial weights. terminateThen blocks a request queued behind the
+    // in-flight one from respawning a worker mid-delete.
     await application
       .get('EmbeddingInferenceService')
       .terminateThen(() => fs.promises.rm(this.modelsRootDir(), { recursive: true, force: true }))
@@ -104,34 +97,21 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   async remove(): Promise<{ removed: boolean }> {
-    const { removed } = await unregisterLocalEmbeddingModelIfUnused()
-    if (!removed) {
-      // A knowledge base still references the model. Keep the weights too — deleting
-      // them would leave that base pointing at a model whose files are gone, breaking
-      // re-index / add-document (or forcing a surprise 600MB re-download).
+    const releaseGuard = knowledgeBaseService.acquireEmbeddingModelRemovalGuard(LOCAL_EMBEDDING_UNIQUE_MODEL_ID)
+    if (!releaseGuard) {
+      logger.info('Skipped local embedding weight removal because the model is in use or already being removed')
       return { removed: false }
     }
+
     try {
       // Unload the worker first so the weights file isn't held open while we delete it.
-      // terminateThen also blocks a request queued behind it from respawning a worker
-      // mid-delete (it would otherwise start reading/writing the very files being removed).
       await application
         .get('EmbeddingInferenceService')
         .terminateThen(() => fs.promises.rm(this.modelsRootDir(), { recursive: true, force: true }))
-    } catch (error) {
-      // The row is gone but the weights survived (e.g. terminate() rejected, or a Windows
-      // lock on rm()). Re-register so "files present ⟺ user_model row present" holds —
-      // otherwise get_status would report the leftover weights as `ready` and selecting the
-      // model would trip the knowledge_base.embeddingModelId FK. Log the error first so the
-      // breadcrumb survives even if the re-register itself throws over the rethrow below.
-      logger.warn(
-        'failed to unload worker or delete embedding weights on removal; re-registering to keep files and row consistent',
-        error as Error
-      )
-      await registerLocalEmbeddingModel()
-      throw error
+      return { removed: true }
+    } finally {
+      releaseGuard()
     }
-    return { removed: true }
   }
 
   private broadcastProgress(p: InferenceProgress): void {
@@ -145,8 +125,8 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // events (no loaded/total/progress). Only compute a percent from the events that
     // actually carry data: map the terminal 'done' to a full bar and drop the empty
     // leading events. Falling through to 0 for 'done' used to snap the full bar back to
-    // empty for the moment between the last byte and the 'ready' emitted after
-    // registration (the download's visible "100% → 0%" flicker).
+    // empty for the moment between the last byte and the terminal 'ready'
+    // (the download's visible "100% → 0%" flicker).
     let rawPercent: number
     if (typeof p.progress === 'number') {
       rawPercent = p.progress

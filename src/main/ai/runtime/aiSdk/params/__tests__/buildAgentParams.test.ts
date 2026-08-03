@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
+import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
 const { resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
@@ -96,6 +98,94 @@ describe('buildAgentParams provider resolution', () => {
       }
     })
     expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+
+  it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
+    const firstCustomParameters = [
+      { name: 'enable_search', type: 'json' as const, value: 'true' },
+      {
+        name: 'chat_template_kwargs',
+        type: 'json' as const,
+        value: JSON.stringify({ enable_thinking: true })
+      },
+      { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 1 }) },
+      { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['one', 'two']) }
+    ]
+    const secondCustomParameters = [
+      { name: 'enable_search', type: 'json' as const, value: 'false' },
+      {
+        name: 'chat_template_kwargs',
+        type: 'json' as const,
+        value: JSON.stringify({ enable_thinking: false })
+      },
+      { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 2 }) },
+      { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['three']) }
+    ]
+    const assistantCustomParameterSets = [firstCustomParameters, secondCustomParameters, firstCustomParameters]
+    const expectedCustomParameterSets = assistantCustomParameterSets.map((customParameters) =>
+      Object.fromEntries(customParameters.map(({ name, value }) => [name, JSON.parse(value)]))
+    )
+    const receivedBodies: Record<string, unknown>[] = []
+    const requestFetches: Array<typeof globalThis.fetch> = []
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBodies.push(JSON.parse(init?.body as string))
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-test',
+          object: 'chat.completion',
+          created: 0,
+          model: 'gpt-test',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockImplementation(async () => ({
+      config: {
+        providerId: 'openai-chat' as const,
+        providerSettings: {
+          apiKey: 'sk-test',
+          baseURL: 'https://api.test/v1',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    }))
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'openai::gpt-test',
+      providerId: 'openai',
+      apiModelId: 'gpt-test'
+    })
+    for (const customParameters of assistantCustomParameterSets) {
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider,
+        model,
+        assistant: makeAssistant({ settings: { customParameters } })
+      })
+      requestFetches.push(result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)
+      await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+        model: result.sdkConfig.modelId,
+        prompt: 'hello',
+        providerOptions: result.options.providerOptions
+      })
+    }
+
+    const receivedCustomParameterSets = expectedCustomParameterSets.map((expectedCustomParameters, index) =>
+      Object.fromEntries(Object.keys(expectedCustomParameters).map((name) => [name, receivedBodies[index]?.[name]]))
+    )
+    expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
+    expect(requestFetches[2]).toBe(requestFetches[0])
+    expect(requestFetches[1]).not.toBe(requestFetches[0])
   })
 })
 
