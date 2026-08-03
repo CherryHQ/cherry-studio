@@ -234,7 +234,9 @@ describe('useSessions', () => {
     // (no quadratic re-fetch of earlier pages) and `loadNext` is invoked
     // once per new page — never extra revalidation-triggered fetches.
     const loadNext = vi.fn()
-    let pages = [{ items: [{ id: 's1', name: 'S1' }], nextCursor: 'c1' }]
+    let pages: Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }> = [
+      { items: [{ id: 's1', name: 'S1' }], nextCursor: 'c1' }
+    ]
     let hasNext = true
 
     mockUseInfiniteQuery.mockImplementation(
