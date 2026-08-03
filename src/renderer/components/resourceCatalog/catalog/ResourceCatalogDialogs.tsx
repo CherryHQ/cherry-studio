@@ -10,7 +10,7 @@ import {
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import type { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 
@@ -60,7 +60,9 @@ export function ResourceCatalogDialogs({
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}
         isSubmitting={dialogs.creatingResource}
-        modelFilter={dialogs.createDialogKind === 'agent' ? agentModelFilter : isSelectableAssistantModel}
+        modelFilter={
+          dialogs.createDialogKind === 'agent' ? agentModelFilter : (candidate) => !isNonChatModel(candidate)
+        }
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
       />
