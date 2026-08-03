@@ -66,6 +66,8 @@ export const CatalogToggleGrid: FC<{
   trailingItem?: ReactNode
   /** Toggle control style. `switch` (default) suits the edit dialog; `checkbox` suits the multi-select create wizard. */
   variant?: 'switch' | 'checkbox'
+  /** `list` presents switch items as one compact, divided surface. */
+  layout?: 'grid' | 'list'
 }> = ({
   items,
   enabledIds,
@@ -75,7 +77,8 @@ export const CatalogToggleGrid: FC<{
   emptyLabel,
   portalContainer,
   trailingItem,
-  variant = 'switch'
+  variant = 'switch',
+  layout = 'grid'
 }) => {
   const { t } = useTranslation()
 
@@ -87,7 +90,13 @@ export const CatalogToggleGrid: FC<{
   }
 
   return (
-    <div className={cn('grid grid-cols-1 sm:grid-cols-2', variant === 'checkbox' ? 'gap-3' : 'gap-x-8 gap-y-3')}>
+    <div
+      className={cn(
+        layout === 'list'
+          ? 'divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle'
+          : 'grid grid-cols-1 sm:grid-cols-2',
+        layout === 'grid' && (variant === 'checkbox' ? 'gap-3' : 'gap-x-8 gap-y-3')
+      )}>
       {items.map((item) => {
         const checked = enabledIds.has(item.id)
         const toggleDisabled = Boolean(disabled || item.disableToggle || (item.pickable === false && !checked))
@@ -147,14 +156,17 @@ export const CatalogToggleGrid: FC<{
         return (
           <div
             key={item.id}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-subtle px-2.5 py-1.5">
+            className={cn(
+              'grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3',
+              layout === 'list' ? 'px-3 py-2' : 'rounded-lg border border-border-subtle px-2.5 py-1.5'
+            )}>
             {info}
             <Tooltip
               content={disabledReason}
               isDisabled={!disabledReason}
               portalContainer={portalContainer ?? undefined}>
               <Switch
-                size="sm"
+                size={layout === 'list' ? 'xs' : 'sm'}
                 checked={checked}
                 disabled={toggleDisabled}
                 onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}

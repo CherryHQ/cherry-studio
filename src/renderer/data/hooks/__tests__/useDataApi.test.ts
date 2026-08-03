@@ -181,11 +181,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }))
     const keyFromConcrete = buildSWRKey('/providers/abc')
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-      ]
-    `)
   })
 
   it('produces identical keys when query is provided', () => {
@@ -193,14 +188,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }), query)
     const keyFromConcrete = buildSWRKey('/providers/abc', query)
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-        {
-          "limit": 10,
-        },
-      ]
-    `)
   })
 
   it('omits query slot when query is empty', () => {

@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Jump to turn {{number}}"
+      },
       "bottom": "Back to bottom",
       "close": "Close",
       "first": "Already at the first message",
@@ -3363,7 +3366,7 @@
             "label": "Small model"
           }
         },
-        "model_config": "Model configuration",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Max turns and environment variables",
@@ -5143,6 +5146,7 @@
     "reset": "Reset",
     "rotate_left": "Rotate Left",
     "rotate_right": "Rotate Right",
+    "save_as": "Save As",
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
@@ -8090,7 +8094,7 @@
           "save_failed": "Save failed",
           "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
         },
-        "fetch_urls_provider": "Default URL fetch provider",
+        "fetch_urls_provider": "URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {
