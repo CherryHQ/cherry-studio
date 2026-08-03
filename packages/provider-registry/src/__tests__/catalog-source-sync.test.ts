@@ -108,7 +108,7 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
       for (const raw of p.overrides ?? []) {
         if (!raw.modelId) continue
         // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
-        const ov = splitOverrideWireId(raw as { modelId: string; apiModelId?: string }) as typeof raw
+        const ov = splitOverrideWireId(raw)
         if (p.modelsDevProvider && !ov.apiModelId && ov.reasoningContracts) {
           const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
           if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/reasoning-template`)

@@ -44,7 +44,7 @@ export const prefixHit = (id: string, p: string): boolean =>
  * spelling (`glm-5-2`) goes on the wire and 404s. A row that already spells `apiModelId` keeps its
  * authored key — canonicalizing those would merge rows the author kept distinct.
  */
-export const splitOverrideWireId = <T extends { modelId: string; apiModelId?: string }>(override: T): T => {
+export const splitOverrideWireId = <T extends { modelId?: string; apiModelId?: string }>(override: T): T => {
   // `modelId` is required by the schema but the source type is Partial<>, so an authoring slip reaches
   // here as undefined — pass it through and let schema validation report it, rather than crashing.
   if (override.apiModelId || !override.modelId) return override
