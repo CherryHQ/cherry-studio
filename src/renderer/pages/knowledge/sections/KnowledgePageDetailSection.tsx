@@ -111,6 +111,7 @@ const KnowledgePageDetailSection = () => {
           </section>
         ) : (
           <DataSourcePanel
+            embeddingModelId={selectedBase.embeddingModelId}
             items={selectedBaseItems}
             total={selectedBaseItemsTotal}
             isLoading={isItemsLoading}

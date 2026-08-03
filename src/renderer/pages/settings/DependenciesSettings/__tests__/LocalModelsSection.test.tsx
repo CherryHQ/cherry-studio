@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,11 +52,11 @@ describe('LocalModelsSection', () => {
   })
 
   it('renders live percent, and cancelling neither fails nor shows a failure notice', async () => {
-    let rejectDownload: ((e: Error) => void) | undefined
+    let resolveDownload: ((result: { result: 'cancelled' }) => void) | undefined
     mockRequest.mockImplementation((route: string, input?: { model: string }) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
       if (route === 'local_model.download' && input?.model === 'embedding')
-        return new Promise<void>((_resolve, reject) => (rejectDownload = reject))
+        return new Promise<{ result: 'cancelled' }>((resolve) => (resolveDownload = resolve))
       return Promise.resolve()
     })
 
@@ -73,10 +74,10 @@ describe('LocalModelsSection', () => {
     fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel'))
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
 
-    // Backend aborts → the in-flight download rejects. A user cancel must not
+    // Backend aborts → the in-flight download resolves as cancelled. A user cancel must not
     // surface as a "download failed" notice, and the card returns to the idle
     // download button.
-    act(() => rejectDownload?.(new Error('download cancelled')))
+    act(() => resolveDownload?.({ result: 'cancelled' }))
     await waitFor(() =>
       expect(within(embeddingCard()).getByText('settings.dependencies.localModels.download')).toBeInTheDocument()
     )
@@ -101,6 +102,28 @@ describe('LocalModelsSection', () => {
         within(embeddingCard()).getByText('settings.dependencies.localModels.notice.downloadFailed')
       ).toBeInTheDocument()
     )
+  })
+
+  it('shows a shared failure as retryable when reopening settings', async () => {
+    const user = userEvent.setup()
+    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+      if (route === 'local_model.get_status') {
+        return Promise.resolve({ status: input?.model === 'embedding' ? 'error' : 'not_downloaded' })
+      }
+      if (route === 'local_model.download') return Promise.resolve({ result: 'ready' })
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+
+    await waitFor(() =>
+      expect(
+        within(embeddingCard()).getByText('settings.dependencies.localModels.notice.downloadFailed')
+      ).toBeInTheDocument()
+    )
+    await user.click(within(embeddingCard()).getByText('common.retry'))
+
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.download', { model: 'embedding' }))
   })
 
   it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {
