@@ -17,6 +17,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
   type AssistantTurnOptions,
   type Message as SharedMessage,
@@ -57,6 +58,21 @@ function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
   const a = assistantDataService.getById(assistantId)
   return { id: a.id, name: a.name, emoji: a.emoji }
+}
+
+/**
+ * The assistant-layer context-settings override, snapshotted once per prepare
+ * and handed to BOTH consumers (durable compaction + the persist-time trim) so
+ * the two lanes stay on the same effective settings. Missing/deleted assistant
+ * (incl. agent-session agentIds) degrades to "inherit globals".
+ */
+function resolveAssistantContextOverride(assistantId: string | undefined): ContextSettingsOverride | null | undefined {
+  if (!assistantId) return undefined
+  try {
+    return assistantDataService.getById(assistantId).settings.contextSettings
+  } catch {
+    return undefined
+  }
 }
 
 /** Author snapshot for an assistant reply: the assistant with its model nested inside. */
@@ -294,6 +310,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 1 subscriber + N per-model persistence listeners. Auto-rename attaches
       // to the first backend only so it fires once for multi-model turns.
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [subscriber]
       for (let i = 0; i < assistantPlaceholders.length; i++) {
         const { model, placeholder } = assistantPlaceholders[i]
@@ -305,6 +322,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             backend: new MessageServiceBackend({
               assistantMessageId: placeholder.id,
               turnOptions,
+              contextSettingsOverride,
               afterPersist: attachAutoRename
                 ? async (finalMessage) => {
                     await topicNamingService.maybeRenameFromConversationSummary(
@@ -327,7 +345,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const { messages: history, retainedContext } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
-        assistantPlaceholders.map((p) => p.model)
+        assistantPlaceholders.map((p) => p.model),
+        contextSettingsOverride
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -412,6 +431,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         status: 'pending'
       })
 
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -419,7 +439,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           modelId: model.id,
           backend: new MessageServiceBackend({
             assistantMessageId: anchor.id,
-            turnOptions: anchor.data.turnOptions
+            turnOptions: anchor.data.turnOptions,
+            contextSettingsOverride
           }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
@@ -427,7 +448,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        anchor.id,
+        req.topicId,
+        [model],
+        contextSettingsOverride
+      )
       return {
         topicId: req.topicId,
         models: [
@@ -503,12 +529,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       })
       const placeholder = placeholders[0]
 
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, turnOptions }),
+          backend: new MessageServiceBackend({
+            assistantMessageId: placeholder.id,
+            turnOptions,
+            contextSettingsOverride
+          }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
@@ -518,7 +549,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
-        [model]
+        [model],
+        contextSettingsOverride
       )
       const history = withSteerReminder(compactedHistory)
       return {
@@ -604,7 +636,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async resolveCompactedHistory(
     anchorMessageId: string,
     topicId: string,
-    models: Model[]
+    models: Model[],
+    assistantContextOverride?: ContextSettingsOverride | null
   ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
@@ -629,7 +662,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
     const effective = applyDeepestMarker(rows, d >= 0 ? manifestHandles(d) : undefined)
 
-    const { contextSettings, compressionModel } = await resolveRequestContextSettings(models[0])
+    const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+      models[0],
+      assistantContextOverride
+    )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
     if (!on) return serve(effective)

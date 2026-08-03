@@ -20,9 +20,10 @@
  * saw in-flight.
  */
 
-import { application } from '@application'
 import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
+import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { extractPersistableText, persistToolOutputText, spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
 import { registry } from '@main/ai/tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '@main/ai/tools/adapters/aiSdk/types'
@@ -35,6 +36,7 @@ import {
   type PersistedToolOutputBlobRef,
   type PersistedToolOutputRef
 } from '@shared/ai/transport'
+import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -101,11 +103,16 @@ async function trimWholeText(output: unknown, threshold: number): Promise<Persis
  * per-part and non-fatal — the full output stays in the message data (never
  * trade real data for a marker).
  */
-export async function trimOversizedToolOutputs(parts: CherryMessagePart[]): Promise<CherryMessagePart[]> {
-  const prefs = application.get('PreferenceService')
-  // Symmetric with the in-flight middleware's gate (`contextBuild.ts`).
-  if (!prefs.get('chat.context_settings.enabled')) return parts
-  const threshold = prefs.get('chat.context_settings.truncate_threshold')
+export async function trimOversizedToolOutputs(
+  parts: CherryMessagePart[],
+  assistantOverride?: ContextSettingsOverride | null
+): Promise<CherryMessagePart[]> {
+  // Same layering as the in-flight middleware's gate (`contextBuild.ts`):
+  // persist-time globals + the turn's assistant override snapshot, so both
+  // lanes trim at the same effective threshold.
+  const settings = resolveContextSettings({ globals: resolveGlobalContextSettings(), assistant: assistantOverride })
+  if (!settings.enabled) return parts
+  const threshold = settings.truncateThreshold
 
   // MCP entries never register here, so the process-wide builtin registry is
   // the complete source of codecs and `truncatable: false` opt-outs.

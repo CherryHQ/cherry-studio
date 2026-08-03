@@ -157,7 +157,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     persistedOutputPaths: new Set(retained.persistedOutputPaths)
   }
 
-  const { contextSettings, compressionModel } = await resolveRequestContextSettings(model)
+  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+    model,
+    assistant?.settings.contextSettings
+  )
 
   const scope: RequestScope = {
     request,

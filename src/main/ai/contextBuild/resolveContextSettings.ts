@@ -8,17 +8,16 @@
  * model" step is the CALLER's job (buildAgentParams) — keeping this helper
  * pure and free of request/model context so it stays trivially testable.
  *
- * NOTE: assistant/topic overrides are accepted but not yet supplied by the
- * pipeline — global prefs are the only wired layer until the P2-D settings
- * UI lands. The signature is 3-layer-complete so P2-D needs no change here.
+ * The assistant layer is wired (P2-D); the topic layer is accepted but not
+ * yet supplied by the pipeline.
  */
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 
 export interface ResolveContextSettingsInput {
   /** Resolved global defaults (from `chat.context_settings.*` prefs). */
   globals: EffectiveContextSettings
-  /** Per-assistant override (assistant.settings.contextSettings). */
-  assistant?: ContextSettingsOverride
+  /** Per-assistant override (assistant.settings.contextSettings; null = none stored). */
+  assistant?: ContextSettingsOverride | null
   /** Per-topic override (topic.contextSettings). */
   topic?: ContextSettingsOverride | null
 }

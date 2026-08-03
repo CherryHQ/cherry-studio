@@ -45,6 +45,10 @@ beforeEach(() => {
   prefsGetMock.mockImplementation((key: string) => {
     if (key === 'chat.context_settings.enabled') return true
     if (key === 'chat.context_settings.truncate_threshold') return THRESHOLD
+    // resolveGlobalContextSettings reads all four keys; compress.* is unused
+    // by the trim gate but must resolve without throwing.
+    if (key === 'chat.context_settings.compress.enabled') return true
+    if (key === 'chat.context_settings.compress.model_id') return null
     throw new Error(`unexpected pref ${key}`)
   })
   registryGetAllMock.mockReturnValue([])
@@ -229,6 +233,34 @@ describe('trimOversizedToolOutputs', () => {
       const parts = [toolPart({ kind: 'error', code: 'not-found', message: 'x'.repeat(THRESHOLD * 2) })]
       expect(await trimOversizedToolOutputs(parts)).toBe(parts)
       expect(persistMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('assistant override (P2-D)', () => {
+    // Global threshold is THRESHOLD (2000) and BIG is ~9000 chars.
+    it('does not trim when the assistant raises the threshold above the output size', async () => {
+      const parts = [toolPart(BIG)]
+      expect(await trimOversizedToolOutputs(parts, { truncateThreshold: 1_000_000 })).toBe(parts)
+      expect(persistMock).not.toHaveBeenCalled()
+    })
+
+    it('trims at the assistant threshold when it is lower than the output size', async () => {
+      const mid = 'x'.repeat(1800)
+      // 1800 < global 2000 (no trim normally) but > head+tail floor(1500) and > assistant 400.
+      const [trimmed] = await trimOversizedToolOutputs([toolPart(mid)], { truncateThreshold: 400 })
+      expect(persistMock).toHaveBeenCalledWith(mid)
+      expect((trimmed as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
+    })
+
+    it('skips entirely when the assistant disables context build', async () => {
+      const parts = [toolPart(BIG)]
+      expect(await trimOversizedToolOutputs(parts, { enabled: false })).toBe(parts)
+      expect(persistMock).not.toHaveBeenCalled()
+    })
+
+    it('inherits the global threshold when the override is null', async () => {
+      const [trimmed] = await trimOversizedToolOutputs([toolPart(BIG)], null)
+      expect((trimmed as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
     })
   })
 })

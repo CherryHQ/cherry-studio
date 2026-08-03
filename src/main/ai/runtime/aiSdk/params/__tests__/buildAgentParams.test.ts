@@ -6,18 +6,34 @@ import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
-  resolveProviderAiSdkConfigMock: vi.fn()
+const { resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  resolveRequestContextSettingsSpy: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
 }))
+
+// Spy that calls through to the real resolver (the null-pref mock keeps it
+// behavior-preserving) so existing tests are untouched but the assistant
+// override passthrough can be asserted.
+vi.mock('../../../../contextBuild/resolveRequestContextSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResolveRequestContextSettingsModule>()
+  return {
+    ...actual,
+    resolveRequestContextSettings: (...args: Parameters<typeof actual.resolveRequestContextSettings>) => {
+      resolveRequestContextSettingsSpy(...args)
+      return actual.resolveRequestContextSettings(...args)
+    }
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
@@ -330,6 +346,28 @@ describe('buildAgentParams retained context', () => {
 
     expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
     expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
+  })
+})
+
+describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
+  it("forwards the assistant's contextSettings override to the resolver", async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    resolveRequestContextSettingsSpy.mockClear()
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    const override = { truncateThreshold: 4000, compress: { enabled: false } }
+    const assistant = makeAssistant({ settings: { contextSettings: override } })
+
+    await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(resolveRequestContextSettingsSpy).toHaveBeenCalledWith(model, override)
   })
 })
 

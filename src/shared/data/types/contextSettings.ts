@@ -17,7 +17,9 @@ import * as z from 'zod'
 
 export const ContextSettingsCompressOverrideSchema = z.object({
   enabled: z.boolean(),
-  modelId: z.string().nullable().optional()
+  // min(1): '' would read as an explicit pick and silently kill compression
+  // (resolveCompressionModel('') → null) — clearing must be expressed as null.
+  modelId: z.string().min(1).nullable().optional()
 })
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 

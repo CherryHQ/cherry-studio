@@ -66,3 +66,52 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     expect(compressionModel).toBeNull()
   })
 })
+
+describe('resolveRequestContextSettings — assistant override layer (P2-D)', () => {
+  beforeEach(() => mockResolveCompressionModel.mockClear())
+
+  it('lets an assistant compress.modelId beat the global pick', async () => {
+    setPrefs({ modelId: 'openai::global-compressor' })
+    await resolveRequestContextSettings(model, { compress: { modelId: 'anthropic::assistant-compressor' } })
+    expect(mockResolveCompressionModel).toHaveBeenCalledWith('anthropic::assistant-compressor')
+  })
+
+  it('lets an assistant disable compression while global keeps it on', async () => {
+    setPrefs({ compressEnabled: true })
+    const { contextSettings, compressionModel } = await resolveRequestContextSettings(model, {
+      compress: { enabled: false }
+    })
+    expect(contextSettings.compress.enabled).toBe(false)
+    expect(mockResolveCompressionModel).not.toHaveBeenCalled()
+    expect(compressionModel).toBeNull()
+  })
+
+  it('lets an assistant enable compression while global has it off', async () => {
+    setPrefs({ compressEnabled: false })
+    const { contextSettings } = await resolveRequestContextSettings(model, { compress: { enabled: true } })
+    expect(contextSettings.compress.enabled).toBe(true)
+    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::gpt-4o')
+  })
+
+  it('applies an assistant truncateThreshold override', async () => {
+    setPrefs({ truncate: 100_000 })
+    const { contextSettings } = await resolveRequestContextSettings(model, { truncateThreshold: 4000 })
+    expect(contextSettings.truncateThreshold).toBe(4000)
+  })
+
+  it.each([
+    ['null override', null],
+    ['undefined override', undefined]
+  ])('inherits globals for %s (identical to no override)', async (_label, override) => {
+    setPrefs({ modelId: 'openai::global-compressor', truncate: 100_000 })
+    const { contextSettings } = await resolveRequestContextSettings(model, override)
+    expect(contextSettings.compress.modelId).toBe('openai::global-compressor')
+    expect(contextSettings.truncateThreshold).toBe(100_000)
+  })
+
+  it('does not let an assistant modelId of null override the global explicit pick (?? passthrough)', async () => {
+    setPrefs({ modelId: 'openai::global-compressor' })
+    await resolveRequestContextSettings(model, { compress: { modelId: null } })
+    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::global-compressor')
+  })
+})

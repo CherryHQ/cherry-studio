@@ -8,6 +8,7 @@
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
+import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
 import { UniqueModelIdSchema } from './model'
 
@@ -76,7 +77,13 @@ export const AssistantSettingsSchema = z.object({
       z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
       z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
     ])
-  )
+  ),
+
+  /** Per-assistant context-settings override (P2-D assistant layer). Absent or
+   *  `null` = inherit the global `chat.context_settings.*` preferences. `null`
+   *  is the wire form for "clear the override" — JSON drops `undefined` keys,
+   *  and the resolver's `??` chain treats null/undefined alike. */
+  contextSettings: ContextSettingsOverrideSchema.nullable().optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 

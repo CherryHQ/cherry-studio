@@ -19,13 +19,22 @@ const {
   mockSetCompactionSummary,
   mockResolveRequestContextSettings,
   mockSummarizeModelMessages,
-  mockCompactModelMessages
+  mockCompactModelMessages,
+  mockGetAssistantById
 } = vi.hoisted(() => ({
   mockGetPathToNode: vi.fn(),
   mockSetCompactionSummary: vi.fn(),
   mockResolveRequestContextSettings: vi.fn(),
   mockSummarizeModelMessages: vi.fn(),
-  mockCompactModelMessages: vi.fn()
+  mockCompactModelMessages: vi.fn(),
+  mockGetAssistantById: vi.fn()
+}))
+
+// The provider reads assistant.settings.contextSettings for the P2-D override.
+// Default: throws NOT_FOUND (assistantId undefined in most tests → never called;
+// the passthrough test overrides it).
+vi.mock('@data/services/AssistantService', () => ({
+  assistantDataService: { getById: mockGetAssistantById }
 }))
 
 // Mock messageService at the source path used by the provider.
@@ -213,6 +222,10 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   beforeEach(() => {
     vi.clearAllMocks()
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
+    // Default: no assistant reachable (matches assistantId=undefined in most tests).
+    mockGetAssistantById.mockImplementation(() => {
+      throw new Error('NOT_FOUND')
+    })
   })
 
   it('1. under budget, no marker → full history served, no summarization', async () => {
@@ -391,6 +404,30 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect([...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]).toEqual([
       '/blobs/fe-blob.txt'
     ])
+  })
+
+  it("2e. threads the assistant's context-settings override into the request-settings resolver (P2-D)", async () => {
+    const OVERRIDE = { truncateThreshold: 4000, compress: { enabled: false } }
+    const { resolveAssistantModelId } = await import('../modelResolution')
+    // Once: prepareDispatch calls it a single time; reverts to the undefined-assistant
+    // factory default so later tests are unaffected.
+    vi.mocked(resolveAssistantModelId).mockReturnValueOnce({
+      assistantId: 'asst-1',
+      defaultModelId: 'openai::gpt-4o' as UniqueModelId
+    })
+    mockGetAssistantById.mockReturnValue({
+      id: 'asst-1',
+      name: 'A',
+      emoji: '🤖',
+      settings: { contextSettings: OVERRIDE }
+    })
+    mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'hello')])
+    compressionOn()
+
+    await makeHistory('u1')
+
+    // resolveCompactedHistory forwards the override as the resolver's 2nd arg.
+    expect(mockResolveRequestContextSettings).toHaveBeenCalledWith(expect.anything(), OVERRIDE)
   })
 
   it('3. existing marker, under budget → apply marker, no new summarization', async () => {
