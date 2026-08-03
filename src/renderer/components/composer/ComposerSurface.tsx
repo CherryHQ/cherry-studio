@@ -85,6 +85,10 @@ import {
   useComposerEditorFrameSizing
 } from './useComposerEditorFrameSizing'
 
+/** Matches NarrowLayout's `px-6` (and the message column's base) — the inline
+ * override is invisible until the rail gutter adds onto it; only applied when
+ * the caller wires `railGutterPx`. */
+const COMPOSER_SIDE_PADDING_PX = 24
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
@@ -154,6 +158,9 @@ export interface ComposerSurfaceProps {
   editable?: boolean
   fontSize: number
   narrowMode: boolean
+  /** Extra padding on both sides matching the message column's anchor-rail gutter,
+   * keeping the composer centred and its margins symmetric while the rail shows. */
+  railGutterPx?: number
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
@@ -540,6 +547,7 @@ export default function ComposerSurface({
   editable = true,
   fontSize,
   narrowMode,
+  railGutterPx,
   onFocus,
   onActionsChange,
   isInputHistoryActive = false,
@@ -2246,7 +2254,22 @@ export default function ComposerSurface({
     // pointer-events-auto: the composer dock stack above is click-through so the
     // pane behind the flanks stays interactive; this width-capped box is where
     // pointer events come back on.
-    <NarrowLayout narrowMode={narrowMode} withSidePadding className="pointer-events-auto" style={{ width: '100%' }}>
+    <NarrowLayout
+      narrowMode={narrowMode}
+      withSidePadding
+      className="pointer-events-auto"
+      // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
+      // gutter mirrored on both sides keeps the composer centred and aligned with
+      // the message column. Other callers keep NarrowLayout's default padding.
+      style={{
+        width: '100%',
+        ...(railGutterPx != null
+          ? {
+              paddingLeft: COMPOSER_SIDE_PADDING_PX + railGutterPx,
+              paddingRight: COMPOSER_SIDE_PADDING_PX + railGutterPx
+            }
+          : {})
+      }}>
       <div className="w-full">
         <div
           className="inputbar relative z-2 flex flex-col pt-0"

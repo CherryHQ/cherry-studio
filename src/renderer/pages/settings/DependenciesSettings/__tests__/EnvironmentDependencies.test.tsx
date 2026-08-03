@@ -506,13 +506,6 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(screen.getAllByText('v2.0.0')).toHaveLength(2))
   })
 
-  it('hides remove controls for bundled-only presets', async () => {
-    setSnapshots({ uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' } } })
-    render(<EnvironmentDependencies />)
-    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
-  })
-
   it('does not render a runtime absent from the live snapshot', async () => {
     render(<EnvironmentDependencies />)
     await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalled())

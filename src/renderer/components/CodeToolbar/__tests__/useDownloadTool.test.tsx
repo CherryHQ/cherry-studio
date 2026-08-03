@@ -42,7 +42,7 @@ describe('useDownloadTool', () => {
     const preview = {
       pan: vi.fn(),
       zoom: vi.fn(),
-      copy: vi.fn(),
+      copy: vi.fn().mockResolvedValue(true),
       download: vi.fn()
     } satisfies BasicPreviewHandles
     const previewRef: { current: BasicPreviewHandles | null } = { current: null }

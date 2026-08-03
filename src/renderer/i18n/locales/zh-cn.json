@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "跳转到第 {{number}} 轮对话"
+      },
       "bottom": "回到底部",
       "close": "关闭",
       "first": "已经是第一条消息",
@@ -5143,6 +5146,7 @@
     "reset": "重置",
     "rotate_left": "向左旋转",
     "rotate_right": "向右旋转",
+    "save_as": "另存为",
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
@@ -5199,7 +5203,7 @@
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "本地模型",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
