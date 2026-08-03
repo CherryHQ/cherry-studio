@@ -891,80 +891,84 @@ function ContextManagementFields({
   }
 
   return (
-    <ToggleFieldGroup
-      label={t('library.config.basic.context_management')}
-      description={t('library.config.basic.field.context_management.hint')}
-      enabled={values.contextOverrideEnabled}
-      onEnabledChange={onOverrideToggle}>
-      <div className="grid gap-4">
-        <FormField
-          control={form.control}
-          name="contextCompressEnabled"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <FieldLabelWithHelp
-                    label={t('library.config.basic.context_compress_enabled')}
-                    help={t('library.config.basic.field.context_compress_enabled.hint')}
-                  />
+    <>
+      <ToggleFieldGroup
+        label={t('library.config.basic.context_management')}
+        description={t('library.config.basic.field.context_management.hint')}
+        enabled={values.contextOverrideEnabled}
+        onEnabledChange={onOverrideToggle}
+      />
+      {values.contextOverrideEnabled ? (
+        <div className="grid gap-4 border-border/60 border-l pl-4">
+          <FormField
+            control={form.control}
+            name="contextCompressEnabled"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <FieldLabelWithHelp
+                      label={t('library.config.basic.context_compress_enabled')}
+                      help={t('library.config.basic.field.context_compress_enabled.hint')}
+                    />
+                  </div>
+                  <FormControl>
+                    <Switch
+                      size="sm"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label={t('library.config.basic.context_compress_enabled')}
+                    />
+                  </FormControl>
                 </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="contextTruncateThreshold"
+            render={({ field }) => (
+              <FormItem>
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.context_truncate_threshold')}
+                  help={t('library.config.basic.field.context_truncate_threshold.hint')}
+                />
                 <FormControl>
-                  <Switch
-                    size="sm"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    aria-label={t('library.config.basic.context_compress_enabled')}
+                  <EditableNumber
+                    block
+                    min={1}
+                    step={1000}
+                    precision={0}
+                    align="start"
+                    changeOnBlur
+                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    value={field.value}
+                    onChange={(value) =>
+                      field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
+                    }
                   />
                 </FormControl>
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="contextTruncateThreshold"
-          render={({ field }) => (
-            <FormItem>
-              <FieldLabelWithHelp
-                label={t('library.config.basic.context_truncate_threshold')}
-                help={t('library.config.basic.field.context_truncate_threshold.hint')}
-              />
-              <FormControl>
-                <EditableNumber
-                  block
-                  min={1}
-                  step={1000}
-                  precision={0}
-                  align="start"
-                  changeOnBlur
-                  className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
-                  value={field.value}
-                  onChange={(value) =>
-                    field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
-                  }
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <CompactModelField
-          form={form}
-          name="contextCompressModelId"
-          label={t('library.config.basic.context_compress_model')}
-          allowClear
-          emptyLabel={t('library.config.basic.context_compress_model_follow')}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => form.setValue('contextCompressModelId', modelId, { shouldDirty: true })}
-        />
-      </div>
-    </ToggleFieldGroup>
+          <CompactModelField
+            form={form}
+            name="contextCompressModelId"
+            label={t('library.config.basic.context_compress_model')}
+            allowClear
+            emptyLabel={t('library.config.basic.context_compress_model_follow')}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => form.setValue('contextCompressModelId', modelId, { shouldDirty: true })}
+          />
+        </div>
+      ) : null}
+    </>
   )
 }
 
