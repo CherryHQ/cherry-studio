@@ -227,6 +227,17 @@ export function useModelMutations() {
 // ─── Layer 3: Single-model lookups ────────────────────────────────────
 
 /**
+ * Starts the model read as soon as a parent list exposes its model id.
+ *
+ * Assistant and agent lists already contain the active model id, while their
+ * detail records load independently. Preloading the exact key used by
+ * {@link useModelById} removes that avoidable detail-to-model waterfall.
+ */
+export function useWarmModelById(uniqueModelId: UniqueModelId | null | undefined) {
+  useModelById(uniqueModelId)
+}
+
+/**
  * Single-model read backed by DataApi (`/models/:uniqueModelId*`). Returns
  * the canonical v2 {@link Model} shape; consumers that need a bare modelId
  * should use `parseUniqueModelId(model.id)`.

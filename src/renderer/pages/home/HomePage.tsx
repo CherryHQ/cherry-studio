@@ -31,6 +31,7 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { useWarmModelById } from '@renderer/hooks/useModel'
 import {
   mapApiTopicToRendererTopic,
   useActiveTopic,
@@ -379,6 +380,7 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
+  useWarmModelById(visibleAssistant?.modelId)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
     if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
