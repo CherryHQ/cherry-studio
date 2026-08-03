@@ -38,6 +38,7 @@ import { defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
+import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
@@ -204,6 +205,11 @@ const MessageList = () => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
+  // needs a projection that only changes when its topology does — otherwise its
+  // `memo` never bails and every chunk re-renders all of its ticks.
+  const anchorMessagesCacheRef = useRef(createStableAnchorMessagesCache())
+  const anchorMessages = useMemo(() => stableAnchorMessages(messages, anchorMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
   const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
     undefined
@@ -808,7 +814,7 @@ const MessageList = () => {
       )}
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
-          messages={messages}
+          messages={anchorMessages}
           activeMessageId={activeAnchorMessageId}
           hasOlder={hasOlder}
           historyPartsByMessageId={

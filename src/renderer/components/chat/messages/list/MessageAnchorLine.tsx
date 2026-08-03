@@ -15,10 +15,12 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
-import type { MessageListItem } from '../types'
+import type { AnchorMessage } from '../types'
 
 interface MessageLineProps {
-  messages: MessageListItem[]
+  /** Topology only — see `AnchorMessage`. MessageList projects onto it so this
+   * prop survives a streaming chunk unchanged and `memo` below can bail. */
+  messages: readonly AnchorMessage[]
   /** Message under the viewport-top reading line; highlights its turn's tick. */
   activeMessageId?: string | null
   /** 0–1 fade driven by the content's rail gutter — the rail eases in/out with width. */
