@@ -652,13 +652,11 @@ describe('processing settings pages', () => {
   })
 
   it('shows PaddleOCR deployment guidance with the deployment link', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-
-    const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
+    const apiKeyLabel = await screen.findByText('settings.tool.file_processing.fields.api_key')
     const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
     const deploymentDescription = screen.getByText(
       'settings.tool.file_processing.processors.paddleocr.deployment.description'
@@ -775,6 +773,8 @@ describe('processing settings pages', () => {
   })
 
   it('manages Tesseract language packs with the settings combobox', async () => {
+    const user = userEvent.setup()
+    preferencesMock.defaultImageProcessor = 'tesseract'
     overridesMock.value = {
       tesseract: {
         options: {
@@ -785,13 +785,9 @@ describe('processing settings pages', () => {
 
     render(<OcrSettings />)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.tesseract.name/ })
-    )
+    expect(await screen.findByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
 
-    expect(screen.getByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
+    await user.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -803,7 +799,7 @@ describe('processing settings pages', () => {
       })
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /English \(eng\)/ }))
+    await user.click(screen.getByRole('button', { name: /English \(eng\)/ }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
