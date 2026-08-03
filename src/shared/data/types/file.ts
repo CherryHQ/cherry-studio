@@ -5,7 +5,7 @@
  * - **FileEntry** — the managed-file entity (this section).
  * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
  * - **FileRef** — the association linking a business entity (chat message,
- *   painting, temp session) to a `FileEntry`.
+ *   painting, job, provider logo, mini-app logo) to a `FileEntry`.
  *
  * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
  *
@@ -37,6 +37,7 @@
  * | `name`        | SoT (user renamable)               | derived from `externalPath` basename (stable)  |
  * | `ext`         | SoT                                | derived from `externalPath` extname (stable)   |
  * | `size`        | SoT (bytes, ≥ 0)                   | **absent** — live value via `getMetadata`      |
+ * | `contentHash` | nullable tagged content hash      | **absent**                                     |
  * | `externalPath`| **absent**                         | non-null absolute path (canonical)             |
  * | `deletedAt`   | optional (present iff trashed)     | **absent** (external cannot be trashed)        |
  *
@@ -120,6 +121,17 @@ import { MessageIdSchema } from './message'
 /** Millisecond epoch timestamp (non-negative integer) */
 export const TimestampSchema = z.int().nonnegative()
 
+/** Canonical lowercase `{algorithm}:{hex}` shape for content-hash values. */
+export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
+
+export const ContentHashSchema = z
+  .string()
+  .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algorithm}:{lowercase hex}`')
+  .brand<'ContentHash'>()
+
+/** Algorithm-tagged content hash validated by {@link ContentHashSchema}. */
+export type ContentHash = z.infer<typeof ContentHashSchema>
+
 /**
  * Name schema with security validations.
  *
@@ -163,6 +175,16 @@ export type FileEntryId = z.infer<typeof FileEntryIdSchema>
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
 export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
+// ─── Cleanup Policy Enum ───
+
+/**
+ * Cleanup intent stored as data — docs/references/file/file-entry-cleanup.md.
+ * 'manual' entries are preserved at zero refs; 'delete_when_unreferenced'
+ * entries may be reclaimed by FileManager's cleanup pass.
+ */
+export const CleanupPolicySchema = z.enum(['manual', 'delete_when_unreferenced'])
+export type CleanupPolicy = z.infer<typeof CleanupPolicySchema>
+
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
 //
 // ## DB row vs Business Object
@@ -203,6 +225,8 @@ const CommonEntryFields = {
    * every assignment site. `FileEntrySchema.parse` is the authoritative check.
    */
   ext: SafeExtSchema.nullable(),
+  /** Cleanup intent — see CleanupPolicySchema. */
+  cleanupPolicy: CleanupPolicySchema,
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
@@ -213,10 +237,11 @@ const CommonEntryFields = {
  * Internal entry — Cherry owns the content at `{userData}/Data/Files/{id}.{ext}`.
  *
  * Variant-only fields: `size` (authoritative byte count), `deletedAt`
- * (optional, present and non-null when entry is trashed). `externalPath`
- * is absent on this variant — there is no user-provided path. The DB row
- * carries `externalPath: null` to satisfy the table schema; the BO
- * dispatcher drops it.
+ * (optional, present and non-null when entry is trashed), and `contentHash`
+ * (nullable while metadata is unknown, a content commit is in-flight, or a
+ * repair is pending). `externalPath` is absent on this variant — there is no
+ * user-provided path. The DB row carries
+ * `externalPath: null` to satisfy the table schema; the BO dispatcher drops it.
  */
 export const InternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
@@ -226,6 +251,8 @@ export const InternalEntrySchema = z.strictObject({
    * this value is authoritative and kept in sync with the backing file on disk.
    */
   size: z.int().nonnegative(),
+  /** Algorithm-tagged content hash. Null means unknown, in-flight, or awaiting repair. */
+  contentHash: ContentHashSchema.nullable(),
   /**
    * Trash timestamp (ms epoch). Optional — present and non-null when the
    * entry is in the trash, absent when it is live. Internal entries are the
@@ -364,17 +391,16 @@ export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSch
 //
 // 1. Add a variant section below (`{domain}SourceType` / `{domain}Roles` /
 //    `{domain}RefFields` / `{domain}FileRefSchema = createRefSchema(...)`),
-//    following `tempSession` as a minimal template.
+//    following `chatMessage` as a template.
 // 2. Add a dedicated SQLite association table with FKs to `file_entry` and the
 //    owning source table so deleting the source cascades refs at the DB layer.
 // 3. Register the variant in the aggregate: add its source-type literal to
 //    `allSourceTypes` and its schema to the `FileRefSchema` union.
 // 4. Route persistent write/delete through the owning business service;
-//    `FileRefService` only exposes cross-source query/ref-count + temp helpers.
+//    `FileRefService` only exposes cross-source query/ref-count.
 //
-// `temp_session` is the exception: app-session memory only (CacheService), not
-// SQLite, pruned via orphan sweep. Knowledge files are owned by the Knowledge
-// workflow and do not register FileManager refs.
+// Knowledge files are owned by the Knowledge workflow and do not register
+// FileManager refs.
 
 // ─── Common ref infrastructure ───
 
@@ -412,35 +438,14 @@ export type BusinessRefShape = {
  * (`id`, `fileEntryId`, `createdAt`, `updatedAt`) with business-specific fields
  * (`sourceType`, `sourceId`, `role`).
  *
- * Each sourceType variant should call this once. See the `tempSession` section
- * below for a minimal working example.
+ * Each sourceType variant should call this once. See the `chatMessage` section
+ * below for a working example.
  */
 export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
   z.object({
     ...refCommonFields,
     ...shape
   })
-
-// ─── temp_session variant ───
-//
-// Tracks transient FileEntry records (typically paste previews, draft
-// attachments) that are in use by a session and should be retained until the
-// session completes. Temp refs are backed by main-process CacheService memory,
-// not SQLite, so they disappear on app restart. Temp refs must be explicitly
-// created and removed by the session owner.
-
-export const tempSessionSourceType = 'temp_session' as const
-
-export const tempSessionRoles = ['pending'] as const
-
-/** Business fields only (no common fields like id/nodeId/timestamps) */
-export const tempSessionRefFields = {
-  sourceType: z.literal(tempSessionSourceType),
-  sourceId: z.string().min(1),
-  role: z.enum(tempSessionRoles)
-}
-
-export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)
 
 // ─── chat_message variant ───
 //
@@ -493,6 +498,43 @@ export const paintingRefFields = {
 }
 
 export const paintingFileRefSchema = createRefSchema(paintingRefFields)
+
+// ─── job variant ───
+//
+// Links a FileEntry to a `job` row (the generic job system). Its sole use today
+// is the async image-generation job (`imageGenerationJobHandler`): input images
+// and the edit mask are persisted as `delete_when_unreferenced` FileEntries at
+// enqueue time and referenced by id inside the job payload.
+//
+// Why a persistent ref (not just the payload id): the payload id lives in
+// `job.input` JSON, which the cleanup anti-join cannot see. Without a real ref
+// row, a job still queued or mid-poll when an interval pass fires could have
+// its inputs reclaimed out from under it once they age past the grace window,
+// breaking `read(inputFileIds)` mid-run. An FK-constrained association table
+// makes the job a first-class holder: the anti-join sees it, and deleting the
+// job row cascades the ref so the inputs become reclaimable exactly when the
+// job record is gone.
+//
+// The window is within one process run: image jobs are `recovery: 'abandon'`,
+// so a non-terminal job is cancelled at startup rather than resumed. A remote
+// poll still easily outlives the 1h grace window and several interval passes,
+// which is what the ref is for.
+//
+// `job.id` is `uuidPrimaryKeyOrdered()` — UUID v7. `z.uuid()` accepts it
+// (version-agnostic), matching the chat_message variant's forgiving stance.
+
+export const jobSourceType = 'job' as const
+
+export const jobRoles = ['input', 'mask'] as const
+export const jobRoleSchema = z.enum(jobRoles)
+
+export const jobRefFields = {
+  sourceType: z.literal(jobSourceType),
+  sourceId: z.uuid(),
+  role: jobRoleSchema
+}
+
+export const jobFileRefSchema = createRefSchema(jobRefFields)
 
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
@@ -553,9 +595,9 @@ export function tagStoredFileRef(id: string): string {
  * "type declared but schema unaware" gap.
  */
 export const allSourceTypes = [
-  tempSessionSourceType,
   chatMessageSourceType,
   paintingSourceType,
+  jobSourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
@@ -578,9 +620,9 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  * bypassed the variant-registration discipline.
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
-  tempSessionFileRefSchema,
   chatMessageFileRefSchema,
   paintingFileRefSchema,
+  jobFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema
 ])

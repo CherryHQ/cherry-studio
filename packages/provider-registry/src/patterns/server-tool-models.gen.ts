@@ -9,7 +9,6 @@ import type { ServerTool } from '../schemas/enums'
 export const SERVER_TOOL_MODEL_IDS: Partial<Record<ServerTool, readonly string[]>> = {
   'web-search': [
     'claude-haiku-4-5',
-    'claude-haiku-4-5-batch',
     'claude-opus-4',
     'claude-opus-4-1',
     'claude-opus-4-5',
@@ -37,6 +36,7 @@ export const SERVER_TOOL_MODEL_IDS: Partial<Record<ServerTool, readonly string[]
     'deepseek-v3-2-exp',
     'deepseek-v3-2-maas',
     'deepseek-v4-flash',
+    'deepseek-v4-flash-latest',
     'deepseek-v4-pro',
     'doubao-seed-1-6',
     'doubao-seed-2-0-code',

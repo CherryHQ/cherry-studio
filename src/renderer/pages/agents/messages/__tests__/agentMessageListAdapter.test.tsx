@@ -58,10 +58,13 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
+const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
   on: vi.fn(() => vi.fn())
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -173,7 +176,15 @@ describe('useAgentMessageListProviderValue', () => {
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
     window.api.file.showInFolder = vi.fn()
-    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
+    ipcApiRequest.mockReset()
+    ipcApiRequest.mockResolvedValue({
+      kind: 'file',
+      type: 'other',
+      size: 0,
+      createdAt: 0,
+      modifiedAt: 0,
+      mime: 'application/octet-stream'
+    })
   })
 
   it('forwards the local-send generation to the shared list state', () => {
@@ -400,6 +411,37 @@ describe('useAgentMessageListProviderValue', () => {
     eventMocks.emit.mockClear()
     value?.actions.locateMessage?.('assistant-1', true)
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
+  })
+
+  it('rejects unresolved relative paths when no workspace root is available', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    let value: MessageListProviderValue | undefined
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        assistantId: 'agent-1',
+        isLoading: false,
+        messageNavigation: 'anchor'
+        // no workspacePath — a session whose workspace has not resolved yet
+      })
+      return null
+    }
+    render(<Probe />)
+
+    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(() => value?.actions.showInFolder?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(window.api.file.openPath).not.toHaveBeenCalled()
+    expect(window.api.file.showInFolder).not.toHaveBeenCalled()
   })
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {

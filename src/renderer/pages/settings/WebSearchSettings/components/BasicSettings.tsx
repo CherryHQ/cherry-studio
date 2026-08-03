@@ -1,15 +1,4 @@
-import {
-  Button,
-  InfoTooltip,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import {
   SettingDivider,
@@ -21,33 +10,24 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
-import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
 import { CompressionSettings } from './CompressionSettings'
-import { WebSearchProviderOption } from './WebSearchProviderOption'
 
-const settingRowClassName = 'items-center justify-between gap-6 py-1'
+const settingRowClassName = 'min-h-8 items-center justify-between gap-3'
 const settingLabelClassName = 'min-w-0 flex-1'
-const selectTriggerClassName = 'h-8 w-56 text-sm'
 const DEFAULT_MAX_RESULTS = 5
 
-const BasicSettings: FC = () => {
+interface Props {
+  variant?: 'card' | 'plain'
+}
+
+const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const {
-    defaultSearchKeywordsProvider: defaultProvider,
-    defaultFetchUrlsProvider,
-    providers,
-    keywordProviders,
-    fetchUrlsProviders,
-    setDefaultFetchUrlsProvider,
-    setDefaultSearchKeywordsProvider
-  } = useWebSearchProviderLists()
   const { clientToolsPreferred, maxResults, compressionConfig, setClientToolsPreferred, setMaxResults } =
     useWebSearchSettings()
   const [draftMaxResultsInput, setDraftMaxResultsInput] = useState(String(maxResults))
@@ -63,18 +43,6 @@ const BasicSettings: FC = () => {
     }
     setMaxResultsBaseline(maxResults)
   }, [maxResults, maxResultsDirty])
-
-  const updateSelectedWebSearchProvider = (
-    providerId: string,
-    updateProvider: (provider: WebSearchProvider) => Promise<void>
-  ) => {
-    const provider = providers.find((p) => p.id === providerId)
-    if (!provider) {
-      return
-    }
-
-    void persist(() => updateProvider(provider), 'Failed to save default web search provider')
-  }
 
   const commitMaxResultsDraft = () => {
     if (!maxResultsDirty) {
@@ -102,55 +70,15 @@ const BasicSettings: FC = () => {
   }
 
   return (
-    <>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow className={settingRowClassName}>
-          <SettingRowTitle className={settingLabelClassName}>
-            {t('settings.tool.websearch.default_provider')}
-          </SettingRowTitle>
-          <Select
-            value={defaultProvider?.id}
-            onValueChange={(providerId) =>
-              updateSelectedWebSearchProvider(providerId, setDefaultSearchKeywordsProvider)
-            }>
-            <SelectTrigger size="sm" className={selectTriggerClassName}>
-              <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              {keywordProviders.map((provider) => (
-                <SelectItem key={provider.id} value={provider.id}>
-                  <WebSearchProviderOption provider={provider} />
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </SettingRow>
-        <SettingRow className={settingRowClassName}>
-          <SettingRowTitle className={settingLabelClassName}>
-            {t('settings.tool.websearch.fetch_urls_provider')}
-          </SettingRowTitle>
-          <Select
-            value={defaultFetchUrlsProvider?.id}
-            onValueChange={(providerId) => updateSelectedWebSearchProvider(providerId, setDefaultFetchUrlsProvider)}>
-            <SelectTrigger size="sm" className={selectTriggerClassName}>
-              <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              {fetchUrlsProviders.map((provider) => (
-                <SelectItem key={provider.id} value={provider.id}>
-                  <WebSearchProviderOption provider={provider} />
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
-        <SettingTitle>{t('settings.general.label')}</SettingTitle>
-        <SettingDivider />
+    <SettingGroup theme={theme} variant={variant} style={{ paddingBottom: 8 }}>
+      {variant === 'card' ? (
+        <>
+          <SettingTitle>{t('settings.general.label')}</SettingTitle>
+          <SettingDivider />
+        </>
+      ) : null}
+      {variant === 'plain' ? <SettingDivider className="mt-0 border-border-subtle" /> : null}
+      <div className="flex flex-col">
         <SettingRow className={settingRowClassName}>
           <div className={settingLabelClassName}>
             <SettingRowTitle>{t('settings.tool.websearch.client_tools_preferred.label')}</SettingRowTitle>
@@ -166,7 +94,7 @@ const BasicSettings: FC = () => {
             }
           />
         </SettingRow>
-        <SettingDivider />
+        <SettingDivider className="border-border-subtle" />
         <SettingRow className={settingRowClassName}>
           <SettingRowTitle className={settingLabelClassName}>
             {t('settings.tool.websearch.search_max_result.label')}
@@ -177,7 +105,7 @@ const BasicSettings: FC = () => {
               />
             )}
           </SettingRowTitle>
-          <div className="flex w-56 shrink-0 items-center justify-end gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             {!isMaxResultsDefault && (
               <Tooltip content={t('common.reset')}>
                 <Button
@@ -210,9 +138,10 @@ const BasicSettings: FC = () => {
             />
           </div>
         </SettingRow>
+        <SettingDivider className="border-border-subtle" />
         <CompressionSettings />
-      </SettingGroup>
-    </>
+      </div>
+    </SettingGroup>
   )
 }
 

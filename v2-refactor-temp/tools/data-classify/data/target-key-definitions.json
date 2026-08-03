@@ -27,13 +27,6 @@
       "description": "Latest privacy policy version acknowledged by the user"
     },
     {
-      "targetKey": "feature.conversation_greeting.enabled",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Allow contextual greetings to contact IPInfo and the built-in CherryAI model after explicit opt-in"
-    },
-    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,

@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   )),
   CodeViewer: vi.fn(({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>),
   runScript: vi.fn(),
-  t: (key: string) => key
+  t: (key: string) => key,
+  writeText: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -44,6 +45,10 @@ vi.mock('react-i18next', () => ({
 describe('CodeBlockView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: mocks.writeText }
+    })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.code.execution.enabled': false,
@@ -63,7 +68,7 @@ describe('CodeBlockView', () => {
     })
   })
 
-  it('uses the editor for editable, non-streaming code', () => {
+  it('uses the editor for editable code that is already settled', () => {
     render(
       <CodeBlockView language="javascript" editable onSave={vi.fn()}>
         const value = 1
@@ -132,6 +137,59 @@ describe('CodeBlockView', () => {
       )
     }
   )
+
+  it('keeps the same viewer while streaming settles and enables highlighting in place', () => {
+    const { rerender } = render(
+      <CodeBlockView language="javascript" editable isStreaming>
+        const value =
+      </CodeBlockView>
+    )
+    const viewer = screen.getByLabelText('Code viewer')
+
+    expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ options: { highlight: false } }),
+      undefined
+    )
+    expect(screen.queryByRole('button', { name: 'code_block.edit.label' })).not.toBeInTheDocument()
+
+    rerender(
+      <CodeBlockView language="javascript" editable>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toBe(viewer)
+    expect(screen.getByRole('button', { name: 'code_block.edit.label' })).toBeInTheDocument()
+    expect(viewer).toHaveTextContent('const value = 1')
+    expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ options: { highlight: true } }),
+      undefined
+    )
+  })
+
+  it('keeps toolbar actions mounted and copies the latest streamed source', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: mocks.writeText }
+    })
+    const { rerender } = render(
+      <CodeBlockView language="javascript" editable isStreaming>
+        const value =
+      </CodeBlockView>
+    )
+    const copyButton = screen.getByRole('button', { name: 'code_block.copy.source' })
+
+    rerender(
+      <CodeBlockView language="javascript" editable isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(screen.getByRole('button', { name: 'code_block.copy.source' })).toBe(copyButton)
+    await user.click(copyButton)
+    expect(mocks.writeText).toHaveBeenCalledWith('const value = 1')
+  })
 
   it('runs Python and displays the execution result', async () => {
     const user = userEvent.setup()

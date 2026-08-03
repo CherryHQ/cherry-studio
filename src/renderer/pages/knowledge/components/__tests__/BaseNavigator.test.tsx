@@ -550,8 +550,7 @@ describe('BaseNavigator', () => {
     onResizeStart: vi.fn()
   }
 
-  // Zero bases never reaches the navigator — KnowledgePage takes over the whole page
-  // with its own empty state — so the only states left here are loading and no-match.
+  // Zero bases normally never reaches the navigator because KnowledgePage owns that empty state.
   it('shows loading before the base query settles', () => {
     render(<BaseNavigator {...baseProps} bases={[]} isLoading />)
 
@@ -559,51 +558,7 @@ describe('BaseNavigator', () => {
     expect(screen.queryByText('无结果')).toBeNull()
   })
 
-  it('withholds the search box until the list grows past three bases', () => {
-    const threeBases = [
-      createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
-      createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
-      createKnowledgeBase({ id: 'base-3', name: 'Gamma' })
-    ]
-
-    const { rerender } = render(<BaseNavigator {...baseProps} bases={threeBases} />)
-
-    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
-    // The create action stays put regardless.
-    expect(screen.getByRole('button', { name: '新建知识库' })).toBeInTheDocument()
-
-    rerender(
-      <BaseNavigator {...baseProps} bases={[...threeBases, createKnowledgeBase({ id: 'base-4', name: 'Delta' })]} />
-    )
-
-    expect(screen.getByPlaceholderText('搜索知识库...')).toBeInTheDocument()
-  })
-
-  it('stops applying a stale query once the search box disappears', () => {
-    const fourBases = [
-      createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
-      createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
-      createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
-      createKnowledgeBase({ id: 'base-4', name: 'Delta' })
-    ]
-
-    const { rerender } = render(<BaseNavigator {...baseProps} bases={fourBases} />)
-
-    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'Alpha' } })
-    expect(screen.queryByRole('button', { name: /Beta/ })).toBeNull()
-
-    // Dropping back under the threshold hides the box; its query must not keep
-    // filtering the list the user can no longer see or clear.
-    rerender(<BaseNavigator {...baseProps} bases={fourBases.slice(0, 3)} />)
-
-    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
-    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Beta/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Gamma/ })).toBeInTheDocument()
-  })
-
-  it('shows a no-results hint when the search filters out every base', () => {
-    // Four bases: the search box only renders past the three-base threshold.
+  it('does not render a knowledge base search box', () => {
     render(
       <BaseNavigator
         {...baseProps}
@@ -616,9 +571,8 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'zzz' } })
-
-    expect(screen.getByText('无结果')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
+    expect(screen.getByRole('button', { name: /Delta/ })).toBeInTheDocument()
   })
 
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
@@ -1224,44 +1178,6 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
   })
 
-  it('filters visible sections and rows when the search value changes', () => {
-    render(
-      <BaseNavigator
-        // Four bases: the search box only renders past the three-base threshold.
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha Notes', groupId: 'group-1' }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta Docs', groupId: 'group-2' }),
-          createKnowledgeBase({ id: 'base-3', name: 'Gamma Files', groupId: 'group-1' }),
-          createKnowledgeBase({ id: 'base-4', name: 'Delta Sheets', groupId: 'group-2' })
-        ]}
-        groups={[
-          createGroup({ id: 'group-1', name: 'Research' }),
-          createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
-        ]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), {
-      target: { value: 'Alpha' }
-    })
-
-    expect(screen.getByText('Research')).toBeInTheDocument()
-    expect(screen.queryByText('Archive')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Alpha Notes/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Beta Docs/ })).not.toBeInTheDocument()
-  })
-
   it('highlights the selected base and forwards selection clicks', () => {
     const onSelectBase = vi.fn()
 
@@ -1291,13 +1207,12 @@ describe('BaseNavigator', () => {
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base from the full-width action above search', () => {
+  it('creates a knowledge base from the full-width action', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
     render(
       <BaseNavigator
-        // Four bases: the search box only renders past the three-base threshold.
         bases={[
           createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
           createKnowledgeBase({ id: 'base-2', name: 'Beta' }),

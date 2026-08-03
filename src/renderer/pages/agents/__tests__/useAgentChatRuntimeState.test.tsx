@@ -18,8 +18,7 @@ const mocks = vi.hoisted(() => ({
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
-  toastWarning: vi.fn(),
-  turnControllerOptions: { current: null as any }
+  toastWarning: vi.fn()
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
@@ -44,13 +43,10 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
-  useConversationTurnController: (options: unknown) => {
-    mocks.turnControllerOptions.current = options
-    return {
-      localSendGeneration: 7,
-      send: mocks.sendTurn
-    }
-  }
+  useConversationTurnController: () => ({
+    localSendGeneration: 7,
+    send: mocks.sendTurn
+  })
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -161,7 +157,6 @@ describe('useAgentChatRuntimeState', () => {
       disposeOverlay: mocks.disposeOverlay,
       reset: mocks.resetOverlay
     })
-    mocks.turnControllerOptions.current = null
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -313,53 +308,6 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.streamingLayers).toBe(streamingLayers)
     expect(result.current.streamingLayers.liveMessageIds).toEqual(['assistant-1'])
     expect(result.current.sendMessage).toBe(sendMessage)
-  })
-
-  it('adds the displayed greeting to the first request only', () => {
-    mocks.useAgentSessionParts.mockReturnValue({
-      messages: [],
-      isLoading: false,
-      hasOlder: false,
-      loadOlder: vi.fn(),
-      refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
-      deleteMessage: mocks.deleteSessionMessage
-    })
-    const getGreetingContext = vi.fn(() => '我可以帮你完成什么任务？')
-    const { rerender } = renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: [],
-        getGreetingContext
-      })
-    )
-
-    const firstRequest = mocks.turnControllerOptions.current.buildStreamRequest(
-      { text: '好' },
-      { topicId: 'agent-session:session-1' }
-    )
-    expect(firstRequest).toMatchObject({
-      greetingContext: '我可以帮你完成什么任务？',
-      userMessageParts: [{ type: 'text', text: '好' }]
-    })
-
-    mocks.useAgentSessionParts.mockReturnValue({
-      messages: [assistantMessage],
-      isLoading: false,
-      hasOlder: false,
-      loadOlder: vi.fn(),
-      refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
-      deleteMessage: mocks.deleteSessionMessage
-    })
-    rerender()
-
-    const laterRequest = mocks.turnControllerOptions.current.buildStreamRequest(
-      { text: '继续' },
-      { topicId: 'agent-session:session-1' }
-    )
-    expect(laterRequest).not.toHaveProperty('greetingContext')
   })
 
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {
