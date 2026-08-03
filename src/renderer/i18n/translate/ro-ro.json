@@ -139,11 +139,16 @@
         "description": "Primește și răspunde la mesaje prin WeChat folosind API-ul iLink Bot.",
         "disconnected": "Deconectat",
         "loginHint": "Prima autentificare necesită scanarea unui cod QR. Verifică jurnalele aplicației pentru adresa URL de autentificare.",
+        "qrExpired": "Codul QR a expirat. Vă rugăm să reîncercați comutând canalul.",
         "qrHint": "Deschideți WeChat pe telefon, scanați codul QR pentru a vă conecta.",
         "qrTitle": "Autentificare WeChat cu cod QR",
         "title": "WeChat",
         "whoamiTip": "Sfat: Trimiteți /whoami în WeChat pentru a obține ID-ul unui utilizator."
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} sarcină de fundal în execuție",
+      "background_running_other": "{{count}} sarcini de fundal în execuție"
     },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
@@ -230,6 +235,7 @@
           "discard_and_continue": "Renunță și continuă",
           "title": "Renunțați la modificările nesalvate?"
         },
+        "metadata_pending": "Fișierul a fost salvat, dar metadatele sale sunt încă în curs de recuperare. Nu reîncercați această salvare.",
         "refresh_failed": "Nu se poate reîncărca conținutul celui mai recent fișier.",
         "save_failed": "Nu s-a putut salva acest fișier. Salvarea automată este întreruptă până când reîncercați sau renunțați la modificări.",
         "unsaved": "Nesalvat",
@@ -320,16 +326,25 @@
         "more": "+{{count}} mai multe",
         "no_artifacts": "Niciun livrabil declarat",
         "no_subagents": "Fără subagenți",
-        "subagents": "Subagenți"
+        "shell_tasks": "Comenzi în fundal",
+        "subagents": "Subagenți",
+        "workflows": "Fluxuri de lucru"
       },
       "status": {
         "activity": "Activitate",
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "Nicio sarcină activă",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} în direct",
+        "run_tasks": "Subtask-uri",
         "selected_tool": "Instrument selectat",
+        "stop_run_task": "Opriți sarcina",
+        "stop_run_task_failed": "Nu s-a putut opri sarcina",
         "task_count": "{{completed}} / {{total}} finalizat",
         "tasks": "Sarcini",
+        "tool_uses_one": "{{count}} apel de instrument",
+        "tool_uses_other": "{{count}} apeluri de instrumente",
         "tools_active": "Activ",
         "tools_done": "Gata",
         "tools_failed": "Eșuat",
@@ -434,6 +449,7 @@
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
+        "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
         "yesterday": "Ieri"
       },
       "label_one": "Sesiune",
@@ -613,12 +629,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Editările de fișiere și operațiunile sistemului de fișiere sunt aprobate automat.",
-            "title": "Acceptă automat editările de fișiere"
+            "description": "Editează fișiere liber. Întreabă înainte de comenzi.",
+            "title": "Acceptă editările automat"
+          },
+          "auto": {
+            "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
+            "title": "Aprobă în locul meu",
+            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe."
           },
           "bypassPermissions": {
-            "description": "Toate solicitările de permisiune sunt omise — folosește cu precauție.",
-            "title": "Omite verificările de permisiune",
+            "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
+            "title": "Acces complet",
             "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
           },
           "confirmChange": {
@@ -626,14 +647,14 @@
             "title": "Schimbi modul de permisiune?"
           },
           "default": {
-            "description": "Instrumentele doar-pentru-citire sunt pre-aprobate; orice altceva necesită încă permisiune.",
-            "title": "Implicit (întreabă înainte de a continua)"
+            "description": "Întreabă înainte de a edita fișiere sau de a rula comenzi.",
+            "title": "Întreabă înainte de a acționa"
           },
           "helper": "Alege cum gestionează agentul aprobările pentru instrumente.",
           "placeholder": "Selectează modul de permisiune",
           "plan": {
-            "description": "Partajează setul implicit de instrumente doar-pentru-citire, dar prezintă un plan înainte de execuție.",
-            "title": "Mod de planificare"
+            "description": "Planifică fără a edita fișiere. Rulează doar comenzi de tip citire sau verificate.",
+            "title": "Doar planificare"
           },
           "title": "Mod de permisiune"
         },
@@ -669,6 +690,14 @@
       }
     },
     "sidebar_title": "Agenți",
+    "speed": {
+      "effort": "Efort",
+      "fast": "Rapid",
+      "faster": "Mai rapid",
+      "label": "Viteză",
+      "smarter": "Mai inteligent",
+      "title": "Setări de răspuns"
+    },
     "tasks": {
       "add": "Adaugă sarcină",
       "cancel": "Anulează",
@@ -1240,10 +1269,6 @@
           "tip": "Asistentul va folosi capacitatea de recunoaștere a intenției modelului mare pentru a determina dacă să folosească baza de cunoștințe pentru a răspunde. Această funcție depinde de capacitățile modelului"
         }
       },
-      "max_tool_calls": {
-        "label": "Apeluri maxime de instrumente",
-        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valorile mai mari permit operațiuni multi-etapă mai complexe, dar pot crește utilizarea tokenilor și timpul de răspuns."
-      },
       "mcp": {
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",
@@ -1449,9 +1474,8 @@
       "image_preview_failed": "Previzualizarea imaginii a eșuat",
       "knowledge_base": "Bază de cunoștințe",
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
-      "knowledge_base_unavailable": "Selectați un model capabil de instrumente sau activați utilizarea instrumentelor în prompt",
+      "knowledge_base_unavailable": "Selectați un model capabil de instrumente",
       "locate_editing_message": "Localizați mesajul original",
-      "mcp_unavailable": "Selectați un model capabil de instrumente sau activați utilizarea instrumentelor în prompt",
       "new": {
         "context": "Șterge contextul {{Command}}"
       },
@@ -1557,6 +1581,7 @@
         },
         "open_file": "Deschide fișier",
         "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
+        "open_with": "Deschide cu",
         "reveal_in_finder": "Afișează în Finder"
       },
       "topics": " Subiecte ",
@@ -1591,13 +1616,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Nu se poate converti într-un format valid de apelare a instrumentului: {{toolCall}}"
-      },
       "warning": {
         "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
-        "multiple_tools": "Există mai multe instrumente MCP care se potrivesc, a fost selectat {{tool}}",
-        "no_tool": "Nu s-a găsit niciun instrument MCP potrivit pentru {{tool}}",
         "url_context": "Gemini nu acceptă utilizarea simultană a contextului URL și a apelării funcțiilor"
       }
     },
@@ -1932,6 +1952,7 @@
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_assistant": "Asistent Deconectat",
+        "unknown_assistant_tip": "Acesta este un grup de conversație istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua.",
         "yesterday": "Ieri"
       },
       "list": "Listă subiecte",
@@ -2299,6 +2320,12 @@
     "generate_random_seed": "Generează sămânță aleatoare",
     "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
+    "group": {
+      "create": "Grup Nou",
+      "create_failed": "Nu s-a putut crea grupul",
+      "name_placeholder": "Introduceți numele grupului...",
+      "name_required": "Numele grupului este obligatoriu"
+    },
     "help": "Ajutor",
     "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
@@ -2559,6 +2586,10 @@
     "user": "Utilizator"
   },
   "file_preview": {
+    "directory": {
+      "description": "Selectați un fișier din acest folder pentru a-l previzualiza.",
+      "title": "Acesta este un dosar"
+    },
     "html": {
       "empty": {
         "description": "Acest fișier HTML nu are conținut.",
@@ -2624,6 +2655,10 @@
         "description": "Fișierele text mai mari de {{limit}} MiB nu pot fi previzualizate.",
         "title": "Fișierul este prea mare"
       }
+    },
+    "unavailable": {
+      "description": "Fișierul poate fi fost mutat, șters sau nu poate fi accesat.",
+      "title": "Fișier indisponibil"
     },
     "unsupported": {
       "action": "Deschide cu aplicația implicită",
@@ -2885,6 +2920,10 @@
     "code": "Cod",
     "empty_preview": "Niciun conținut de afișat",
     "generating": "Se generează",
+    "interactive_preview": {
+      "action": "Vezi pagina web",
+      "description": "Această pagină web conține scripturi sau resurse externe. Deschiderea ei poate rula cod și se poate conecta la internet."
+    },
     "preview": "Previzualizare",
     "split": "Divizat",
     "view_mode": "Mod de vizualizare"
@@ -3027,6 +3066,7 @@
       "reindex_failed": "Nu s-a putut reindexa sursa de date",
       "status": {
         "chunking": "Segmentare",
+        "copying": "Copiere {{percent}}%",
         "embedding": "Încorporare",
         "error": "Eroare",
         "pending": "Așteptare",
@@ -3323,7 +3363,7 @@
             "label": "Model mic (opțional)"
           }
         },
-        "model_config": "Configurație model",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Limite de execuție și parametri de rulare",
@@ -3428,6 +3468,7 @@
         "json_invalid": "Format JSON invalid",
         "max_tokens": "Tokeni maximi",
         "max_tool_calls": "Apeluri maxime de instrumente",
+        "max_tool_calls_default": "Implicit ({{count}} runde)",
         "mcp_mode": "Modul MCP",
         "model": "Model implicit",
         "model_clear": "Clar",
@@ -3443,8 +3484,7 @@
         "tags": "Etichete",
         "temperature": "Temperatură",
         "title": "Setări de bază",
-        "top_p": "Top-P",
-        "unlimited": "Nelimitat"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Bibliotecă",
       "dialogs": {
@@ -3817,7 +3857,9 @@
       }
     },
     "citation": "{{count}} citări",
+    "citation_source": "Sursă citare {{number}}",
     "citations": "Referințe",
+    "conversation_reset": "Istoricul conversației anterioare nu a putut fi găsit — se continuă într-o conversație nouă",
     "copied": "Copiat!",
     "copy": {
       "failed": "Copiere eșuată",
@@ -4099,6 +4141,7 @@
         "write": "Salvează",
         "writing": "Salvare"
       },
+      "agent_background": "Rulează în fundal",
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
@@ -4130,6 +4173,7 @@
         "tool": "Unelte",
         "webFetch": "Preluare web",
         "webSearch": "Căutare pe web",
+        "workflow": "Flux de lucru",
         "write": "Scrie"
       },
       "noData": "Nu sunt disponibile date pentru acest instrument",
@@ -4187,6 +4231,15 @@
         "plan_other": "{{count}} planuri",
         "result_one": "{{count}} rezultat",
         "result_other": "{{count}} rezultate"
+      },
+      "workflow": {
+        "orchestrating": "Orchestrarea fluxului de lucru",
+        "run_id": "ID rulare",
+        "script": "Script de flux de lucru",
+        "script_path": "Calea scriptului",
+        "started": "S-a pornit fluxul de lucru",
+        "summary": "Rezumat",
+        "workflow": "flux de lucru"
       }
     },
     "topic": {
@@ -4451,7 +4504,8 @@
     "save_blocked_load_failed": "Salvarea a fost blocată deoarece nota nu a putut fi încărcată",
     "save_failed": "Nu s-a reușit salvarea notei",
     "save_failure": {
-      "description": "Această notă nu a putut fi salvată. Editările tale rămân în editor și salvarea automată este întreruptă."
+      "description": "Această notă nu a putut fi salvată. Editările tale rămân în editor și salvarea automată este întreruptă.",
+      "metadata_pending": "Nota a fost salvată, dar metadatele fișierului sale sunt încă în curs de recuperare. Nu reîncercați această salvare."
     },
     "search": {
       "both": "Nume+Conținut",
@@ -5173,6 +5227,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -5734,6 +5789,7 @@
         "button": "Lansări",
         "title": "Note de lansare"
       },
+      "repository": "Depozit GitHub",
       "social": {
         "title": "Conturi sociale"
       },
@@ -6593,7 +6649,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Dezactivarea accelerării hardware necesită repornirea aplicației pentru a intra în vigoare. Vrei să repornești acum?",
+        "content_disable": "Dezactivarea accelerării hardware necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
+        "content_enable": "Activarea accelerării hardware necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
         "title": "Repornire necesară"
       },
       "title": "Dezactivează accelerarea hardware"
@@ -6648,9 +6705,6 @@
           "dxtFile": "Fișier pachet DXT",
           "dxtHelp": "Selectează un fișier .dxt care conține un pachet de server MCP",
           "dxtProcessFailed": "Procesarea fișierului DXT a eșuat",
-          "error": {
-            "multipleServers": "Nu se poate importa din mai multe servere"
-          },
           "invalid": "Intrare invalidă, te rugăm să verifici formatul JSON",
           "json": "Importă din JSON",
           "mcpb": "Importă pachetul MCPB",
@@ -6817,6 +6871,15 @@
       "providers": "Furnizori",
       "registry": "Registru pachete",
       "registryDefault": "Implicit",
+      "registryOptions": {
+        "custom": "Personalizat",
+        "npmTaobao": "Oglindă NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "Universitatea de Știință și Tehnologie a Chinei"
+      },
       "registryTooltip": "Alege registrul pentru instalarea pachetelor pentru a rezolva problemele de rețea cu registrul implicit.",
       "requiresConfig": "Necesită configurare",
       "resources": {
@@ -6992,6 +7055,7 @@
         "display": "Gestionarea afișajului",
         "preferences": "Preferințe"
       },
+      "hide_app": "Ascunde {{name}}",
       "open_link_external": {
         "description": "Când este activată, linkurile care deschid o fereastră nouă într-o mini-aplicație se deschid în browserul tău implicit",
         "title": "Deschide în browser linkurile care deschid ferestre noi"
@@ -7004,6 +7068,7 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
+      "show_app": "Arată {{name}}",
       "title": "Setări Mini Apps",
       "visible": "Mini-aplicații vizibile"
     },
@@ -7660,6 +7725,13 @@
         "usage_title": "Utilizare",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Deschide Token Factory",
+          "description": "Echivalentul a 10 USD zilnic în credite API: aproximativ 10M–111M de tokenuri de intrare/ieșire la tarifele actuale, în funcție de model și de tipul de token. Creditele se resetează zilnic; reîncărcările nu sunt acceptate momentan.",
+          "title": "Credite API gratuite de 10 USD pe zi"
+        }
+      },
       "remove_duplicate_keys": "Elimină cheile duplicate",
       "remove_invalid_keys": "Elimină cheile invalide",
       "reorder_failed": "Nu s-a reușit reordonarea furnizorilor",
@@ -8031,7 +8103,7 @@
           "save_failed": "Salvarea a eșuat",
           "zhipu_sync_failed": "Nu s-a reușit sincronizarea cheii API Zhipu cu Căutarea Web. Te rugăm să salvezi din nou cheia sau să verifici setările Căutării Web."
         },
-        "fetch_urls_provider": "Furnizor implicit de preluare URL",
+        "fetch_urls_provider": "Furnizor de preluare URL",
         "free": "Gratuit",
         "is_default": "Implicit",
         "local_provider": {

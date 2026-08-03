@@ -20,6 +20,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
+import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -76,6 +77,8 @@ type InputParams = InputParamsMap[InputFormat]
 export interface MessageConfig {
   provider?: Provider
   modelId?: string
+  /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
+  fastMode?: boolean
   /**
    * The loosely-validated gateway request body. Routes validate only the fields
    * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
@@ -163,15 +166,20 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const provider: Provider = config.provider ?? resolvedProvider
-  const providerOptions = provider
-    ? converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens)
-    : undefined
+  const extractedProviderOptions =
+    converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens) ?? {}
+  const providerOptions = applyFastModeToProviderOptions(
+    provider,
+    model,
+    extractedProviderOptions,
+    config.fastMode === true
+  )
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
     ...streamOptions,
     ...(tools ? { tools } : {}),
-    ...(providerOptions ? { providerOptions } : {})
+    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
   }
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.

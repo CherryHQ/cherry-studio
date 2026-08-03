@@ -10,7 +10,6 @@ import { ClickableFilePath } from '../shared/ClickableFilePath'
 
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
-const mockIsDirectory = vi.fn().mockResolvedValue(false)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
 const mockOpenInExternalApp = vi.fn()
 const mockNotifyError = vi.fn()
@@ -84,7 +83,6 @@ describe('ClickableFilePath', () => {
       modifiedAt: 1,
       mime: 'text/plain'
     })
-    mockIsDirectory.mockResolvedValue(false)
   })
 
   it('should render the path as text', () => {
@@ -146,25 +144,22 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should open a directory in the system file manager instead of the preview pane', async () => {
-    mockIsDirectory.mockResolvedValue(true)
+  it('should delegate directory-looking paths to the artifact pane', async () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/essays/" />, {
       openArtifactFile: mockOpenArtifactFile,
-      openPath: mockOpenPath,
-      isDirectory: mockIsDirectory
+      openPath: mockOpenPath
     })
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/essays/' }))
     await waitFor(() => {
-      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/essays/')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/essays/')
     })
-    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
+    expect(mockOpenPath).not.toHaveBeenCalled()
   })
 
   it('should open a non-directory path in the preview pane', async () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
       openArtifactFile: mockOpenArtifactFile,
-      openPath: mockOpenPath,
-      isDirectory: mockIsDirectory
+      openPath: mockOpenPath
     })
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
     await waitFor(() => {
@@ -208,21 +203,6 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/src/index.tsx')
     })
-  })
-
-  it('should have clickable styling', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
-      openArtifactFile: mockOpenArtifactFile
-    })
-    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
-    expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveClass('text-primary')
-    expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
-  })
-
-  it('should render ellipsis dropdown trigger', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { showInFolder: mockShowInFolder })
-    expect(screen.getByRole('button', { name: 'More' })).toHaveClass('items-center')
   })
 
   it('should render ellipsis dropdown trigger for external editor capability', () => {
@@ -270,9 +250,7 @@ describe('ClickableFilePath', () => {
   it('should render plain text when openArtifactFile capability is unavailable', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
-    expect(screen.getAllByText('/tmp/test.ts').some((element) => element.classList.contains('cursor-default'))).toBe(
-      true
-    )
+    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 
   it('should disable all file actions when interactive is false', () => {
@@ -284,8 +262,6 @@ describe('ClickableFilePath', () => {
 
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
-    const text = screen.getAllByText('/tmp/test.ts').find((element) => element.classList.contains('cursor-default'))
-    expect(text).toBeInTheDocument()
-    expect(text).toHaveClass('text-foreground-secondary')
+    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 })

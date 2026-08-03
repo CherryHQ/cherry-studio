@@ -235,9 +235,10 @@ authored CSS references the official or stable product variable directly. Existi
 palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
 Historical semantic and status utilities are exposed only by the frozen
-`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. Adding a variable to a
-foundation stylesheet does not create a Tailwind color automatically. These compatibility lists are shrink-only
-and must not be used as the registration path for new component APIs.
+`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. The remaining semantic
+entries support the unchanged shared Button contract and existing component-local active treatments; the status
+list is empty. Adding a variable to a foundation stylesheet does not create a Tailwind color automatically. These
+compatibility lists are shrink-only and must not be used as the registration path for new component APIs.
 
 ### 3.6 Internal ownership boundaries
 
@@ -329,9 +330,18 @@ with:
 
 ```text
 --background-subtle
+--foreground-tertiary
+--foreground-disabled
 --border-subtle
 --border-strong
+--border-selected
+--link
 ```
+
+Foreground roles use solid providers so their resolved foreground color does not change with the surface beneath
+them. Contrast still depends on the foreground/background pair and must be validated on every supported surface.
+`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode and
+`--cs-blue-400` in dark mode.
 
 The feedback intents are:
 
@@ -462,11 +472,6 @@ The repository codemod reads this registry and parses CSS plus TS/TSX syntax bef
 idempotent, reports every non-`preserve` migration source, and changes only approved `exact` rules. Generated and
 canonical providers, contract fixtures, vendor files, and explicitly listed isolated local themes are excluded;
 contextual and review rules remain visible manual work.
-
-Run `pnpm styles:legacy-vars` for a strategy-labelled dry-run report, `pnpm styles:legacy-vars --fix` to apply exact
-replacements, or `pnpm styles:legacy-vars:strict` to fail when any non-preserved migration source remains. After a
-fix, contextual and review findings intentionally remain. Reporting and replacement share the same registry, so
-migration policy and the syntax-aware tooling do not maintain separate hard-coded inventories.
 
 ## 8. Governance
 

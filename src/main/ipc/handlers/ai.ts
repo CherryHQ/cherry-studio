@@ -145,21 +145,26 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.session.prewarm': async ({ sessionId }) => {
-    // Trace mode needs each connection created fresh with trace env at turn start; priming a
-    // trace-less connection ahead of the turn would have the first traced turn reuse it. Mirror the
-    // old warm-query path and skip prewarm entirely while trace mode is on.
-    if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) return
-    // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
-    // catalog is read into the cache before the first message — the warm-query handle can't expose it.
-    await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
-  },
+  // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
+  // catalog is read into the cache before the first message — the warm-query handle can't expose it.
+  // Trace mode is no exception: the primed connection resolves the session's container trace up front
+  // and spawns with TRACEPARENT, and the one thing a traced turn must not reuse — a trace-less warm
+  // query — is refused by the driver itself.
+  'ai.agent.session.prewarm': ({ sessionId }) =>
+    application.get('AgentSessionRuntimeService').primeConnection(sessionId),
   'ai.agent.session.close_warm': async ({ sessionId }) => {
     application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
     // Prewarm now opens a real runtime connection, so releasing the warm-query park alone would leak
     // the primed subprocess until the idle TTL. Tear it down on view close unless a turn is running.
     application.get('AgentSessionRuntimeService').releaseIdleConnection(sessionId)
   },
+
+  // ── Agent session runtime queries & commands. ──
+  'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
+    application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
+  },
+  'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
+    application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.task.create': ({ agentId, ...form }) =>

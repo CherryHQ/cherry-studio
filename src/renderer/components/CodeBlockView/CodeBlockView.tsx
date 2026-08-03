@@ -33,6 +33,8 @@ import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
+const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
+const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 
 interface Props {
   children: string
@@ -40,6 +42,8 @@ interface Props {
   onSave?: (newContent: string) => void
   editable?: boolean
   isStreaming?: boolean
+  showToolbar?: boolean
+  maxHeight?: string | number
 }
 
 /**
@@ -59,7 +63,7 @@ interface Props {
  * - core 工具
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
-  const { children, language, onSave, editable = true, isStreaming = false } = props
+  const { children, language, onSave, editable = true, isStreaming = false, showToolbar = true, maxHeight } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -126,6 +130,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
+  const handleRequestExpand = useCallback(() => setExpandOverride(true), [])
 
   // 重置用户操作
   useEffect(() => {
@@ -137,8 +142,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setWrapOverride(codeWrappable)
   }, [codeWrappable])
 
-  const shouldExpand = useMemo(() => !codeCollapsible || expandOverride, [codeCollapsible, expandOverride])
+  const shouldExpand = useMemo(
+    () => maxHeight === undefined && (!codeCollapsible || expandOverride),
+    [codeCollapsible, expandOverride, maxHeight]
+  )
   const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
+  const sourceMaxHeight =
+    typeof maxHeight === 'number' ? `${maxHeight}px` : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)
 
   const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
   const expandable = useMemo(() => {
@@ -251,7 +261,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   // 源代码视图的展开/折叠按钮
   useExpandTool({
-    enabled: !isInSpecialView,
+    enabled: !isInSpecialView && maxHeight === undefined,
     expanded: shouldExpand,
     expandable,
     toggle: useCallback(() => setExpandOverride((prev) => !prev), []),
@@ -287,7 +297,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
-          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
+          maxHeight={sourceMaxHeight}
           options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
           expanded={shouldExpand}
           wrapped={shouldWrap}
@@ -301,12 +311,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           onHeightChange={handleHeightChange}
           expanded={shouldExpand}
           wrapped={shouldWrap}
-          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
-          onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
+          maxHeight={sourceMaxHeight}
+          onRequestExpand={maxHeight === undefined && codeCollapsible ? handleRequestExpand : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
-          options={{
-            highlight: !isStreaming
-          }}
+          options={isStreaming ? STREAMING_CODE_VIEWER_OPTIONS : HIGHLIGHTED_CODE_VIEWER_OPTIONS}
         />
       ),
     [
@@ -318,11 +326,14 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
+      handleRequestExpand,
       isStreaming,
       language,
+      maxHeight,
       onSave,
       shouldExpand,
-      shouldWrap
+      shouldWrap,
+      sourceMaxHeight
     ]
   )
 
@@ -344,13 +355,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
       return (
-        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-foreground text-sm leading-none" />
+        <div className="code-block-header mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-medium text-muted-foreground text-xs leading-none" />
       )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <div className="flex h-8 items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
+      <div className="code-block-header flex h-8 items-center border-border-subtle border-b-[0.5px] bg-background-subtle px-2.5 font-medium text-muted-foreground text-xs leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.toUpperCase()}
       </div>
@@ -381,7 +392,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   return (
     <div
       className={cn(
-        'code-block relative w-full min-w-[35ch]',
+        'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
         isInSpecialView
@@ -389,7 +400,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
       )}>
       {renderHeader}
-      <CodeToolbar tools={tools} />
+      {showToolbar ? <CodeToolbar tools={tools} /> : null}
       {renderContent}
       {isExecutable && executionResult && (
         <StatusBar>

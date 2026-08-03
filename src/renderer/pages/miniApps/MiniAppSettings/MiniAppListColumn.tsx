@@ -53,7 +53,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
               return (
                 <Tooltip content={displayName} placement="left" fullWidthTrigger>
                   <div
-                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none"
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -75,7 +75,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                     <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} />
                     <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
                     <span
-                      className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/40"
+                      className="flex size-6 shrink-0 items-center justify-center text-foreground-tertiary"
                       aria-hidden="true">
                       <Icon className="size-3.5" />
                     </span>
