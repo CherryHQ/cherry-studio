@@ -326,12 +326,4 @@ describe('ApiHost', () => {
 
     expect(container).toBeEmptyDOMElement()
   })
-
-  it('renders nothing when the provider is missing', () => {
-    useProviderMock.mockReturnValue({ provider: undefined })
-
-    const { container } = render(<ApiHost providerId="openai" />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
 })

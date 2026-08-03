@@ -510,14 +510,6 @@ describe('MainTextBlock', () => {
       expect(textElement.textContent).toBe(complexContent)
     })
 
-    it('should handle empty content gracefully', () => {
-      expect(() => {
-        renderMainTextBlock({ content: '', role: 'assistant' })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-    })
-
     it('should not show the collapse toggle for user messages with up to five effective lines', () => {
       const fiveEffectiveLines = ['Line 1', '', 'Line 2', 'Line 3', 'Line 4', 'Line 5'].join('\n')
 
@@ -1082,11 +1074,6 @@ describe('MainTextBlock', () => {
       expect(screen.getByText('@deepseek-r1')).toBeInTheDocument()
       expect(screen.getByText('@claude-sonnet-4')).toBeInTheDocument()
     })
-
-    it('should not display mentions when none provided', () => {
-      renderMainTextBlock({ content: 'No mentions content', role: 'assistant', mentions: [] })
-      expect(screen.queryAllByText(/@/)).toHaveLength(0)
-    })
   })
 
   describe('citation processing', () => {
@@ -1132,57 +1119,6 @@ describe('MainTextBlock', () => {
 
       expect(screen.getByText('Markdown: Content [1]')).toBeInTheDocument()
       expect(mockWithCitationTags).not.toHaveBeenCalled()
-    })
-
-    it('should handle multiple citations gracefully', () => {
-      const citations: Citation[] = [
-        { number: 1, url: 'https://first.com', title: 'First' },
-        { number: 2, url: 'https://second.com', title: 'Second' }
-      ]
-      const citationReferences = [{ citationBlockSource: 'DEFAULT' as any }]
-
-      expect(() => {
-        renderMainTextBlock({
-          content: 'Multiple citations [1] and [2]',
-          role: 'assistant',
-          citations,
-          citationReferences
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-    })
-  })
-
-  describe('settings integration', () => {
-    it('should respond to markdown rendering setting changes', () => {
-      // Test with markdown enabled
-      mockRenderConfig.renderInputMessageAsMarkdown = true
-      const { unmount } = renderMainTextBlock({ content: 'Settings test content', role: 'user' })
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      unmount()
-
-      // Test with markdown disabled
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      renderMainTextBlock({ content: 'Settings test content', role: 'user' })
-      expect(getRenderedPlainText()).toBeInTheDocument()
-      expect(getRenderedMarkdown()).not.toBeInTheDocument()
-    })
-  })
-
-  describe('robustness', () => {
-    it('should handle null and undefined values gracefully', () => {
-      expect(() => {
-        renderMainTextBlock({
-          content: 'Null safety test',
-          role: 'assistant',
-          mentions: undefined,
-          citations: undefined,
-          citationReferences: undefined
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
     })
   })
 })

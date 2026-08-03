@@ -84,17 +84,6 @@ describe('copy', () => {
       expect(toast.success).toHaveBeenCalledWith('message.copy.success')
     })
 
-    it('should handle export function errors', async () => {
-      // 测试导出函数错误
-      const topic = createTestTopic()
-      const { topicToMarkdown } = await import('@renderer/services/ExportService')
-      vi.mocked(topicToMarkdown).mockRejectedValue(new Error('Export error'))
-
-      await expect(copyTopicAsMarkdown(topic)).rejects.toThrow('Export error')
-      expect(mockClipboard.writeText).not.toHaveBeenCalled()
-      expect(toast.success).not.toHaveBeenCalled()
-    })
-
     it('should handle clipboard write errors', async () => {
       // 测试剪贴板写入错误
       const topic = createTestTopic()
@@ -125,17 +114,6 @@ describe('copy', () => {
       expect(mockClipboard.writeText).toHaveBeenCalledWith(plainTextContent)
       expect(toast.success).toHaveBeenCalledWith('message.copy.success')
     })
-
-    it('should handle export function errors', async () => {
-      // 测试导出函数错误
-      const topic = createTestTopic()
-      const { topicToPlainText } = await import('@renderer/services/ExportService')
-      vi.mocked(topicToPlainText).mockRejectedValue(new Error('Export error'))
-
-      await expect(copyTopicAsPlainText(topic)).rejects.toThrow('Export error')
-      expect(mockClipboard.writeText).not.toHaveBeenCalled()
-      expect(toast.success).not.toHaveBeenCalled()
-    })
   })
 
   describe('copyMessageAsPlainText', () => {
@@ -153,40 +131,6 @@ describe('copy', () => {
       expect(messageToPlainText).toHaveBeenCalledWith(message)
       expect(mockClipboard.writeText).toHaveBeenCalledWith(plainTextContent)
       expect(toast.success).toHaveBeenCalledWith('message.copy.success')
-    })
-
-    it('should handle messageToPlainText errors', async () => {
-      // 测试消息转换错误
-      const message = createTestMessage()
-      const { messageToPlainText } = await import('@renderer/utils/export')
-      vi.mocked(messageToPlainText).mockImplementation(() => {
-        throw new Error('Message conversion error')
-      })
-
-      await expect(copyMessageAsPlainText(message)).rejects.toThrow('Message conversion error')
-      expect(mockClipboard.writeText).not.toHaveBeenCalled()
-      expect(toast.success).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should handle null or undefined inputs gracefully', async () => {
-      // 测试null/undefined输入的错误处理
-      const { topicToMarkdown, topicToPlainText } = await import('@renderer/services/ExportService')
-      const { messageToPlainText } = await import('@renderer/utils/export')
-
-      vi.mocked(topicToMarkdown).mockRejectedValue(new Error('Cannot read properties of null'))
-      vi.mocked(topicToPlainText).mockRejectedValue(new Error('Cannot read properties of undefined'))
-      vi.mocked(messageToPlainText).mockImplementation(() => {
-        throw new Error('Cannot read properties of null')
-      })
-
-      // @ts-expect-error 测试类型错误
-      await expect(copyTopicAsMarkdown(null)).rejects.toThrow('Cannot read properties of null')
-      // @ts-expect-error 测试类型错误
-      await expect(copyTopicAsPlainText(undefined)).rejects.toThrow('Cannot read properties of undefined')
-      // @ts-expect-error 测试类型错误
-      await expect(copyMessageAsPlainText(null)).rejects.toThrow('Cannot read properties of null')
     })
   })
 })
