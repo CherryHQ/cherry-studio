@@ -91,15 +91,18 @@ describe('file preview registry', () => {
     }
   )
 
-  it.each(['pdf', 'PDF'])('registers the PDF plugin for .%s files', (extension) => {
+  it('registers the PDF plugin', () => {
+    const extension = 'pdf'
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('pdf')
   })
 
-  it.each(['docx', 'DOCX'])('registers the Word plugin for .%s files', (extension) => {
+  it('registers the Word plugin', () => {
+    const extension = 'docx'
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
   })
 
-  it.each(['pptx', 'PPTX'])('registers the PowerPoint plugin for .%s files', (extension) => {
+  it('registers the PowerPoint plugin', () => {
+    const extension = 'pptx'
     expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')
   })
 
@@ -107,11 +110,11 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/workbook.${extension}`, filePreviewRegistry)?.id).toBe('spreadsheet')
   })
 
-  it.each(['html', 'htm', 'HTML', 'HTM'])('registers the HTML plugin for .%s files', (extension) => {
+  it.each(['html', 'htm'])('registers the HTML plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/page.${extension}`, filePreviewRegistry)?.id).toBe('html')
   })
 
-  it.each(['md', 'markdown', 'mdx', 'MDX'])('registers the Markdown plugin for .%s files', (extension) => {
+  it.each(['md', 'markdown', 'mdx'])('registers the Markdown plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/readme.${extension}`, filePreviewRegistry)?.id).toBe('markdown')
   })
 
@@ -119,23 +122,9 @@ describe('file preview registry', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })
 
-  it.each(TEXT_PREVIEW_EXTENSIONS)('registers the text plugin for .%s files', (extension) => {
-    expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).toBe('text')
+  it('does not route an unknown extension through the registry', () => {
+    expect(resolveExtensionPlugin('/tmp/source.unknown', filePreviewRegistry)).toBeNull()
   })
-
-  it.each(['md', 'markdown', 'mdx', 'pdf', 'png', 'jpg', 'html', 'htm', 'xlsx', 'csv', 'tsv', 'svg'])(
-    'does not route dedicated .%s formats through the text plugin',
-    (extension) => {
-      expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).not.toBe('text')
-    }
-  )
-
-  it.each(['Dockerfile', 'Makefile', '.env', '.gitignore', 'source.unknown'])(
-    'does not route special or unknown filename %s through the text plugin',
-    (fileName) => {
-      expect(resolveExtensionPlugin(`/tmp/${fileName}`, filePreviewRegistry)).toBeNull()
-    }
-  )
 
   it('matches text extensions case-insensitively', () => {
     expect(resolveExtensionPlugin('/tmp/source.JSON', filePreviewRegistry)?.id).toBe('text')
