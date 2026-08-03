@@ -1,4 +1,5 @@
 import { ProtocolMcpInstallRequestSchema } from '@shared/data/types/mcpProtocolInstall'
+import { McpServerSchema } from '@shared/data/types/mcpServer'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
 import * as z from 'zod'
 
@@ -21,6 +22,7 @@ import { defineRoute } from '../define'
 const serverId = z.object({ serverId: z.string() })
 const serverIdNonEmpty = z.object({ serverId: z.string().min(1) })
 const uploadInput = z.object({ buffer: z.instanceof(ArrayBuffer), fileName: z.string() })
+const protocolInstallRequestId = z.object({ requestId: z.uuid() })
 
 export const mcpRequestSchemas = {
   // Server lifecycle + per-server queries.
@@ -33,10 +35,15 @@ export const mcpRequestSchemas = {
   'mcp.server.check_connectivity': defineRoute({ input: serverIdNonEmpty, output: z.boolean() }),
   'mcp.server.get_version': defineRoute({ input: serverIdNonEmpty, output: z.string().nullable() }),
   'mcp.server.get_logs': defineRoute({ input: serverIdNonEmpty, output: z.custom<McpServerLogEntry[]>() }),
-  'mcp.protocol_install.consume_pending': defineRoute({
+  'mcp.protocol_install.list_pending': defineRoute({
     input: z.void(),
     output: ProtocolMcpInstallRequestSchema.array()
   }),
+  'mcp.protocol_install.install': defineRoute({
+    input: protocolInstallRequestId,
+    output: McpServerSchema.array()
+  }),
+  'mcp.protocol_install.cancel': defineRoute({ input: protocolInstallRequestId, output: z.void() }),
   // In-flight tool-call control.
   'mcp.tool.abort_call': defineRoute({ input: z.object({ callId: z.string().min(1) }), output: z.boolean() }),
   // Package upload. Output kept as `z.any()` (McpPackageUploadResult, whose `data.manifest`

@@ -47,7 +47,7 @@ const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: strin
 ]
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMcpServer, addMcpServers, reorderMcpServers } = useMcpServers()
+  const { mcpServers, addMcpServer, reorderMcpServers, refetch } = useMcpServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as {
@@ -79,21 +79,18 @@ const McpServersList: FC = () => {
   )
 
   useEffect(() => {
-    if (!search.protocolInstallRequestId) return
-
-    void ipcApi.request('mcp.protocol_install.consume_pending').then(
-      (requests) => {
-        if (requests.length > 0) {
-          updateProtocolInstallQueue((queue) => [...queue, ...requests])
-        }
-      },
-      (error) => logger.error('Failed to consume MCP protocol install requests', error as Error)
+    void ipcApi.request('mcp.protocol_install.list_pending').then(
+      (requests) => updateProtocolInstallQueue(() => requests),
+      (error) => logger.error('Failed to list MCP protocol install requests', error as Error)
     )
   }, [search.protocolInstallRequestId, updateProtocolInstallQueue])
 
-  const consumeProtocolInstallRequest = useCallback(() => {
-    return updateProtocolInstallQueue((queue) => queue.slice(1))
-  }, [updateProtocolInstallQueue])
+  const removeProtocolInstallRequest = useCallback(
+    (requestId: string) => {
+      return updateProtocolInstallQueue((queue) => queue.filter((request) => request.requestId !== requestId))
+    },
+    [updateProtocolInstallQueue]
+  )
 
   const openProtocolServer = useCallback(
     (serverId: string) => {
@@ -106,14 +103,23 @@ const McpServersList: FC = () => {
     [navigate]
   )
 
-  const handleProtocolInstallClose = useCallback(() => {
-    const remainingRequests = consumeProtocolInstallRequest()
+  const handleProtocolInstallClose = useCallback(async () => {
+    if (!protocolInstallRequest) return
+
+    try {
+      await ipcApi.request('mcp.protocol_install.cancel', { requestId: protocolInstallRequest.requestId })
+    } catch (error) {
+      logger.error('Failed to cancel MCP protocol install request', error as Error)
+      return
+    }
+
+    const remainingRequests = removeProtocolInstallRequest(protocolInstallRequest.requestId)
     if (remainingRequests.length > 0 || !pendingAutoEnableServerIdRef.current) return
 
     const serverId = pendingAutoEnableServerIdRef.current
     pendingAutoEnableServerIdRef.current = null
     openProtocolServer(serverId)
-  }, [consumeProtocolInstallRequest, openProtocolServer])
+  }, [openProtocolServer, protocolInstallRequest, removeProtocolInstallRequest])
 
   const filteredMcpServers = useMemo(() => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -189,7 +195,9 @@ const McpServersList: FC = () => {
 
     let createdServers: McpServer[]
     try {
-      createdServers = await addMcpServers(protocolInstallRequest.servers)
+      createdServers = await ipcApi.request('mcp.protocol_install.install', {
+        requestId: protocolInstallRequest.requestId
+      })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('settings.mcp.addError'))
       return
@@ -198,7 +206,10 @@ const McpServersList: FC = () => {
     const lastCreatedServer = createdServers.at(-1)
     if (!lastCreatedServer) return
 
-    const remainingRequests = consumeProtocolInstallRequest()
+    void refetch().catch((error) =>
+      logger.error('Failed to refresh MCP servers after protocol install', error as Error)
+    )
+    const remainingRequests = removeProtocolInstallRequest(protocolInstallRequest.requestId)
     toast.success(t('settings.mcp.addSuccess'))
     if (remainingRequests.length > 0) {
       pendingAutoEnableServerIdRef.current = lastCreatedServer.id
@@ -207,7 +218,7 @@ const McpServersList: FC = () => {
 
     pendingAutoEnableServerIdRef.current = null
     openProtocolServer(lastCreatedServer.id)
-  }, [addMcpServers, consumeProtocolInstallRequest, openProtocolServer, protocolInstallRequest, t])
+  }, [openProtocolServer, protocolInstallRequest, refetch, removeProtocolInstallRequest, t])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)

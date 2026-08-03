@@ -1,7 +1,6 @@
-import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest, ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,11 +8,11 @@ import McpServersList from '../McpServersList'
 
 const mocks = vi.hoisted(() => ({
   addMcpServer: vi.fn(),
-  addMcpServers: vi.fn(),
   ipcRequest: vi.fn(),
   navigate: vi.fn(),
   pendingProtocolInstalls: [] as ProtocolMcpInstallRequest[],
-  protocolInstallRequestId: 'request-1'
+  protocolInstallRequestId: 'request-1',
+  refetch: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -28,8 +27,8 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({
     mcpServers: [],
     addMcpServer: mocks.addMcpServer,
-    addMcpServers: mocks.addMcpServers,
-    reorderMcpServers: vi.fn()
+    reorderMcpServers: vi.fn(),
+    refetch: mocks.refetch
   })
 }))
 
@@ -82,14 +81,30 @@ describe('McpServersList protocol install', () => {
     vi.clearAllMocks()
     mocks.protocolInstallRequestId = 'request-1'
     mocks.pendingProtocolInstalls = [{ requestId: 'request-1', servers: protocolServers }]
-    mocks.ipcRequest.mockImplementation(async () => {
-      const requests = mocks.pendingProtocolInstalls
-      mocks.pendingProtocolInstalls = []
-      return requests
+    mocks.ipcRequest.mockImplementation(async (route: string, input?: { requestId: string }) => {
+      if (route === 'mcp.protocol_install.list_pending') {
+        return mocks.pendingProtocolInstalls
+      }
+
+      const request = mocks.pendingProtocolInstalls.find(({ requestId }) => requestId === input?.requestId)
+      if (route === 'mcp.protocol_install.install') {
+        if (!request) throw new Error('request not found')
+        mocks.pendingProtocolInstalls = mocks.pendingProtocolInstalls.filter(
+          ({ requestId }) => requestId !== input?.requestId
+        )
+        return request.servers.map((server) => ({ ...server, id: `${server.name}-id` }) as McpServer)
+      }
+
+      if (route === 'mcp.protocol_install.cancel') {
+        mocks.pendingProtocolInstalls = mocks.pendingProtocolInstalls.filter(
+          ({ requestId }) => requestId !== input?.requestId
+        )
+        return undefined
+      }
+
+      throw new Error(`unexpected route: ${route}`)
     })
-    mocks.addMcpServers.mockImplementation(async (dtos: CreateMcpServerDto[]) =>
-      dtos.map((dto) => ({ ...dto, id: `${dto.name}-id` }) as McpServer)
-    )
+    mocks.refetch.mockResolvedValue(undefined)
   })
 
   it('waits for install confirmation, creates in order, and requests run confirmation for the last server', async () => {
@@ -98,13 +113,14 @@ describe('McpServersList protocol install', () => {
 
     expect(await screen.findByText('first-server')).toBeInTheDocument()
     expect(screen.getByText('second-server')).toBeInTheDocument()
-    expect(mocks.addMcpServers).not.toHaveBeenCalled()
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('mcp.protocol_install.consume_pending')
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('mcp.protocol_install.list_pending')
 
     await user.click(screen.getByRole('button', { name: 'settings.mcp.install' }))
 
-    await waitFor(() => expect(mocks.addMcpServers).toHaveBeenCalledOnce())
-    expect(mocks.addMcpServers).toHaveBeenCalledWith(protocolServers)
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('mcp.protocol_install.install', { requestId: 'request-1' })
+    )
+    expect(mocks.refetch).toHaveBeenCalledOnce()
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: '/settings/mcp/settings/$serverId',
       params: { serverId: 'second-server-id' },
@@ -112,52 +128,23 @@ describe('McpServersList protocol install', () => {
     })
   })
 
-  it('queues a second request until the first preview is closed', async () => {
+  it('restores a pending request after remount and removes it only after cancellation', async () => {
     const user = userEvent.setup()
-    let resolveInstall!: (servers: McpServer[]) => void
-    mocks.addMcpServers.mockImplementationOnce(
-      () =>
-        new Promise<McpServer[]>((resolve) => {
-          resolveInstall = resolve
-        })
-    )
-    const { rerender } = render(<McpServersList />)
+    const view = render(<McpServersList />)
 
     expect(await screen.findByText('first-server')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'settings.mcp.install' }))
-    await waitFor(() => expect(mocks.addMcpServers).toHaveBeenCalledOnce())
-
-    mocks.pendingProtocolInstalls = [
-      {
-        requestId: 'request-2',
-        servers: [
-          {
-            name: 'queued-server',
-            command: 'node',
-            installSource: 'protocol',
-            isActive: false,
-            isTrusted: false,
-            installedAt: 3
-          }
-        ]
-      }
-    ]
-    mocks.protocolInstallRequestId = 'request-2'
-    rerender(<McpServersList />)
-
-    expect(screen.queryByText('queued-server')).not.toBeInTheDocument()
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
-    await act(async () => {
-      resolveInstall(protocolServers.map((server) => ({ ...server, id: `${server.name}-id` }) as McpServer))
-    })
-    expect(await screen.findByText('queued-server')).toBeInTheDocument()
-    expect(mocks.navigate).not.toHaveBeenCalledWith(expect.objectContaining({ to: '/settings/mcp/settings/$serverId' }))
+    view.unmount()
+    render(<McpServersList />)
+    expect(await screen.findByText('first-server')).toBeInTheDocument()
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'mcp.protocol_install.list_pending')).toHaveLength(
+      2
+    )
 
     await user.click(screen.getByRole('button', { name: 'common.cancel' }))
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/settings/mcp/settings/$serverId',
-      params: { serverId: 'second-server-id' },
-      search: { autoEnable: 'true' }
-    })
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('mcp.protocol_install.cancel', { requestId: 'request-1' })
+    )
+    expect(screen.queryByText('first-server')).not.toBeInTheDocument()
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 })

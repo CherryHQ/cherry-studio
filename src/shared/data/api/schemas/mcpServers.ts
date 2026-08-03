@@ -56,9 +56,6 @@ const MCP_SERVER_MUTABLE_FIELDS = {
 export const CreateMcpServerSchema = McpServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateMcpServerDto = z.infer<typeof CreateMcpServerSchema>
 
-export const CreateMcpServersSchema = CreateMcpServerSchema.array().min(1)
-export type CreateMcpServersDto = z.infer<typeof CreateMcpServersSchema>
-
 /**
  * DTO for updating an existing MCP server. All fields optional, chain-derived from Create.
  */
@@ -114,13 +111,6 @@ export type McpServerSchemas = {
     PATCH: {
       body: ReorderMcpServersBody
       response: void
-    }
-  }
-
-  '/mcp-servers/batch': {
-    POST: {
-      body: CreateMcpServersDto
-      response: McpServer[]
     }
   }
 

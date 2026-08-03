@@ -5,12 +5,14 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { app } from 'electron'
 
 import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
@@ -102,12 +104,38 @@ export class ProtocolService extends BaseService {
     this.flushPendingProtocolUrls()
   }
 
-  public consumePendingMcpInstallRequests(windowId: string): ProtocolMcpInstallRequest[] {
+  public listPendingMcpInstallRequests(windowId: string): ProtocolMcpInstallRequest[] {
     if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
       return []
     }
 
-    return this.pendingMcpInstallRequests.splice(0)
+    return [...this.pendingMcpInstallRequests]
+  }
+
+  public installPendingMcpInstallRequest(windowId: string, requestId: string): McpServer[] {
+    const requestIndex = this.findPendingMcpInstallRequest(windowId, requestId)
+    if (requestIndex === -1) {
+      throw new Error('MCP protocol install request not found')
+    }
+
+    const createdServers = mcpServerService.createMany(this.pendingMcpInstallRequests[requestIndex].servers)
+    this.pendingMcpInstallRequests.splice(requestIndex, 1)
+    return createdServers
+  }
+
+  public cancelPendingMcpInstallRequest(windowId: string, requestId: string): void {
+    const requestIndex = this.findPendingMcpInstallRequest(windowId, requestId)
+    if (requestIndex !== -1) {
+      this.pendingMcpInstallRequests.splice(requestIndex, 1)
+    }
+  }
+
+  private findPendingMcpInstallRequest(windowId: string, requestId: string): number {
+    if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
+      return -1
+    }
+
+    return this.pendingMcpInstallRequests.findIndex((request) => request.requestId === requestId)
   }
 
   private registerProtocolScheme() {

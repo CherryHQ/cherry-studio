@@ -12,7 +12,6 @@ import { mcpServerService } from '@data/services/McpServerService'
 import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
   CreateMcpServerSchema,
-  CreateMcpServersSchema,
   ListMcpServersQuerySchema,
   ReorderMcpServersSchema,
   UpdateMcpServerSchema
@@ -35,13 +34,6 @@ export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
       const parsed = ReorderMcpServersSchema.parse(body)
       mcpServerService.reorder(parsed.orderedIds)
       return undefined
-    }
-  },
-
-  '/mcp-servers/batch': {
-    POST: async ({ body }) => {
-      const parsed = CreateMcpServersSchema.parse(body)
-      return mcpServerService.createMany(parsed)
     }
   },
 

@@ -30,8 +30,15 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     application.get('McpRuntimeService').checkMcpConnectivity(serverId),
   'mcp.server.get_version': async ({ serverId }) => application.get('McpRuntimeService').getServerVersion(serverId),
   'mcp.server.get_logs': async ({ serverId }) => application.get('McpRuntimeService').getServerLogs(serverId),
-  'mcp.protocol_install.consume_pending': async (_input, { senderId }) =>
-    senderId ? application.get('ProtocolService').consumePendingMcpInstallRequests(senderId) : [],
+  'mcp.protocol_install.list_pending': async (_input, { senderId }) =>
+    senderId ? application.get('ProtocolService').listPendingMcpInstallRequests(senderId) : [],
+  'mcp.protocol_install.install': async ({ requestId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP protocol install request not found')
+    return application.get('ProtocolService').installPendingMcpInstallRequest(senderId, requestId)
+  },
+  'mcp.protocol_install.cancel': async ({ requestId }, { senderId }) => {
+    if (senderId) application.get('ProtocolService').cancelPendingMcpInstallRequest(senderId, requestId)
+  },
   // In-flight tool-call control.
   'mcp.tool.abort_call': async ({ callId }) => application.get('McpRuntimeService').abortTool(callId),
   // Package upload.
