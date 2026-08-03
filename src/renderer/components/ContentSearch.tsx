@@ -287,15 +287,10 @@ export function ContentSearch({
       }
 
       if (trimmed === '') {
+        // Only the term WE seeded is ours to clear; anything else in the input was typed
+        // into the bar and must survive the outside UI dropping its keyword. (A visible
+        // bar never reaches here — it owns the highlight and returned above.)
         const barQuery = searchInputRef.current?.value.trim() ?? ''
-        // The input may still hold the term WE seeded, which is not a query of the
-        // bar's own — treating it as one would keep highlighting a keyword the outside
-        // UI has already dropped. Only a visible bar showing something else counts.
-        const barHasOwnQuery = barVisibleRef.current && barQuery !== '' && barQuery !== previousExternal
-        if (barHasOwnQuery) {
-          search(false)
-          return
-        }
         if (searchInputRef.current && barQuery === previousExternal) {
           searchInputRef.current.value = ''
         }
@@ -353,7 +348,7 @@ export function ContentSearch({
 
       setCurrentIndex(scopedPositions[activeIndex])
     },
-    [target, filter, resetSearch, search]
+    [target, filter, resetSearch]
   )
 
   const implementation = useMemo(
@@ -381,14 +376,11 @@ export function ContentSearch({
               search(false)
             })
           } else {
+            // A term may already be there (an outside search seeded it); the
+            // enableContentSearch effect below re-runs the search for it on open.
             requestAnimationFrame(() => {
               inputEl.focus()
               inputEl.select()
-              // A term may already be there (an outside search seeded it). Without this
-              // the bar opens reading "0/N" against stale ranges instead of match 1.
-              if (inputEl.value.trim()) {
-                search(true)
-              }
             })
           }
         }
@@ -433,6 +425,10 @@ export function ContentSearch({
   const searchHandler = useCallback(() => {
     _searchHandlerDebounce()
   }, [_searchHandlerDebounce])
+
+  // The debounced instance now outlives every render, so a pending timer would still
+  // fire after unmount and search a torn-down target.
+  useEffect(() => () => _searchHandlerDebounce.cancel(), [_searchHandlerDebounce])
 
   const userInputHandler = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
