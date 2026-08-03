@@ -53,6 +53,7 @@ import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
+import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
@@ -370,12 +371,19 @@ function buildAgentOptions(
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = filterStandardParams(split.standardParams, model)
+      const customBodyParams = selectCustomBodyParameters(split.providerParams, providerOptions, provider.id)
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
         split.providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
+      if (Object.keys(customBodyParams).length > 0) {
+        sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+          sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+          customBodyParams
+        )
+      }
     }
   }
 
