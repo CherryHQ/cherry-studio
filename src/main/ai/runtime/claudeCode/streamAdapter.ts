@@ -912,7 +912,9 @@ export class ClaudeCodeStreamAdapter {
       const effectiveInput = accumulatedInput || state.lastSerializedInput || ''
       state.lastSerializedInput = effectiveInput
 
-      if (!state.callEmitted) {
+      // A nameless block is still waiting for the name the completed assistant message carries;
+      // emitting now would freeze the call under an unusable name.
+      if (!state.callEmitted && state.name) {
         this.emitToolInputAvailable(toolId, state, ctx)
       }
     }
@@ -1019,6 +1021,11 @@ export class ClaudeCodeStreamAdapter {
       }
       state.lastSerializedInput = serializedInput
     }
+
+    // The content block closed before the name was known, so its emission was deferred to here.
+    if (state.inputClosed && !state.callEmitted) {
+      this.emitToolInputAvailable(toolId, state, ctx)
+    }
   }
 
   private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
@@ -1073,7 +1080,7 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.toolResultsEmitted.has(result.tool_use_id)) return
 
     let state = ctx.toolStates.get(result.tool_use_id)
-    const toolName = state?.name ?? this.getToolNameFromResultType(result.type) ?? UNKNOWN_TOOL_NAME
+    const toolName = state?.name || this.getToolNameFromResultType(result.type) || UNKNOWN_TOOL_NAME
 
     if (!state) {
       const resolvedParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
@@ -1825,7 +1832,8 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'tool-input-available',
       toolCallId: toolId,
-      toolName: state.name,
+      // Last resort: the name never arrived, so the call is emitted under the placeholder.
+      toolName: state.name || UNKNOWN_TOOL_NAME,
       input: this.deserializeToolInput(serializedInput),
       providerExecuted: true,
       dynamic: true,

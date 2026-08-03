@@ -553,6 +553,15 @@ describe('ClaudeCodeStreamAdapter', () => {
         content_block: { type: 'tool_use', id: 'tool-1', input: {} }
       })
     )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '{"cmd":"pwd"}' }
+      })
+    )
+    // Real Anthropic ordering: the content block closes before the aggregated assistant message.
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     adapter.handleMessage({
       type: 'assistant',
       parent_tool_use_id: null,
@@ -562,10 +571,29 @@ describe('ClaudeCodeStreamAdapter', () => {
         content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: { cmd: 'pwd' } }]
       }
     } as any)
-    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
 
     expect(parts[0]).toMatchObject({ type: 'tool-input-start', toolCallId: 'tool-1', toolName: '' })
-    expect(parts.at(-1)).toMatchObject({ type: 'tool-input-available', toolCallId: 'tool-1', toolName: 'Bash' })
+    expect(parts.filter((part) => part.type === 'tool-input-available')).toEqual([
+      expect.objectContaining({ toolCallId: 'tool-1', toolName: 'Bash', input: { cmd: 'pwd' } })
+    ])
+  })
+
+  it('falls back to a placeholder name when a nameless tool_use block is never completed', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'tool-1', input: {} }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(successResult())
+
+    expect(parts.filter((part) => part.type === 'tool-input-available')).toEqual([
+      expect.objectContaining({ toolCallId: 'tool-1', toolName: 'unknown-tool' })
+    ])
   })
 
   it('maps assistant tool use and user tool result', () => {
