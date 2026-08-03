@@ -48,6 +48,20 @@ describe('server-tool model eligibility', () => {
     expect(isServerToolModelEligible(embedding, SERVER_TOOL.WEB_SEARCH)).toBe(false)
   })
 
+  // Gateways serve namespaced ids (`google/gemini-3-pro-preview`). VENDOR_PATTERNS are anchored, so
+  // an unstripped namespace matches nothing and `vendors` narrowing withheld the tool from every
+  // model whose vendor slug differs from its namespace — cherryin's Gemini and Claude lines both.
+  it('narrows by vendor through a gateway namespace prefix', () => {
+    const cherryin = {
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
+    } as unknown as Provider
+
+    expect(isBuiltinWebSearchAvailable(model('google/gemini-3-pro-preview'), cherryin)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(model('openai/gpt-5.5'), cherryin)).toBe(true)
+    // Still excluded: its vendor is simply not on the declaration.
+    expect(isBuiltinWebSearchAvailable(model('deepseek/deepseek-v3.2'), cherryin)).toBe(false)
+  })
+
   it('keeps provider-wide tools independent from model-dependent eligibility', () => {
     expect(isBuiltinWebSearchAvailable(model('private-model'), provider('all-chat-models'))).toBe(true)
   })

@@ -12,7 +12,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
+import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
 // Azure/Vertex/Bedrock reuse other vendors' endpoint protocols, so authType
@@ -198,7 +198,10 @@ function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) 
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
-  const vendor = matchVendor(getRawModelId(model).toLowerCase())
+  // VENDOR_PATTERNS are anchored and assume a namespace-stripped id: a gateway's
+  // `google/gemini-3-pro-preview` matches nothing, silently withholding the tool from
+  // every namespaced model whose vendor slug differs from its namespace.
+  const vendor = matchVendor(getLowerBaseModelName(getRawModelId(model)))
   return vendor !== undefined && tool.vendors.includes(vendor)
 }
 
