@@ -180,7 +180,7 @@ describe('useWebSearch', () => {
     expect(result.current.excludeDomains).toEqual(['example.com'])
     expect(result.current.compressionConfig).toEqual({
       method: 'cutoff',
-      cutoffLimit: 2000
+      cutoffLimit: 10000
     })
   })
 })

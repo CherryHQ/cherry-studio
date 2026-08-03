@@ -8069,7 +8069,7 @@
             "limit": {
               "label": "Cutoff Limit",
               "placeholder": "Enter length",
-              "tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)"
+              "tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 10000 estimated tokens)"
             },
             "unit": {
               "char": "Char",

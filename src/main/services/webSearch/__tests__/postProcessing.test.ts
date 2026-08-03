@@ -115,4 +115,34 @@ describe('postProcessWebSearchResponse', () => {
     // so this fast path can safely avoid tokenization for short results.
     expect(result.response.results).toBe(response.results)
   })
+
+  it('applies hard character ceiling when token estimation undercounts long numeric content', async () => {
+    const numericContent = '1'.repeat(500_000)
+    const result = await postProcessWebSearchResponse(
+      {
+        ...response,
+        results: [
+          {
+            title: 'Numeric table',
+            content: numericContent,
+            url: 'https://example.com/table',
+            sourceInput: 'hello'
+          }
+        ]
+      },
+      {
+        ...runtimeConfig,
+        compression: {
+          method: 'cutoff',
+          cutoffLimit: 100_000
+        }
+      }
+    )
+
+    // tokenx estimates '1'.repeat(500_000) as ~1 token, so token-based
+    // slicing alone would pass through all 500K chars.  The hard ceiling
+    // of 400K should truncate the result.
+    expect(result.response.results[0].content.length).toBeLessThanOrEqual(400_003)
+    expect(result.response.results[0].content).toContain('...')
+  })
 })

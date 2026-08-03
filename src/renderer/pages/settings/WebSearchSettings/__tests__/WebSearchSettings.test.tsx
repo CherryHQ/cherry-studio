@@ -375,7 +375,7 @@ describe('WebSearchSettings', () => {
     })
 
     await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(2000)
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(10000)
     })
   })
 
