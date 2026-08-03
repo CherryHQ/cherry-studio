@@ -2,12 +2,6 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
-import {
-  EXPORT_OFFICE_DESCRIPTION,
-  EXPORT_OFFICE_TOOL_NAME,
-  exportOfficeArtifact,
-  exportOfficeInputSchema
-} from '@main/ai/tools/exportOffice'
 import { READ_FILE_DESCRIPTION, readFile, readFileModelOutput } from '@main/ai/tools/fileLookup'
 import {
   MOVE_TO_TRASH_DESCRIPTION,
@@ -101,12 +95,6 @@ export class AssistantFileToolsServer {
         inputSchema: moveToTrashInputSchema,
         run: async (args, signal) =>
           moveWorkspaceItemToTrash(context.workspacePath, moveToTrashInputSchema.parse(args), signal)
-      },
-      [EXPORT_OFFICE_TOOL_NAME]: {
-        description: EXPORT_OFFICE_DESCRIPTION,
-        inputSchema: exportOfficeInputSchema,
-        run: async (args, signal) =>
-          exportOfficeArtifact(context.workspacePath, exportOfficeInputSchema.parse(args), signal)
       }
     }
 

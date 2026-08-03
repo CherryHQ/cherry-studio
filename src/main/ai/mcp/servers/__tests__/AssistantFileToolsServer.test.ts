@@ -1,12 +1,10 @@
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import type * as ExportOfficeModule from '@main/ai/tools/exportOffice'
 import type * as FileLookupModule from '@main/ai/tools/fileLookup'
 import type * as MoveToTrashModule from '@main/ai/tools/moveToTrash'
 import type * as SaveAttachmentModule from '@main/ai/tools/saveAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  exportOfficeArtifact: vi.fn(),
   listSessionMessages: vi.fn(),
   moveWorkspaceItemToTrash: vi.fn(),
   readFile: vi.fn(),
@@ -26,11 +24,6 @@ vi.mock('@main/ai/tools/fileLookup', async (importOriginal) => ({
 vi.mock('@main/ai/tools/saveAttachment', async (importOriginal) => ({
   ...(await importOriginal<typeof SaveAttachmentModule>()),
   saveAttachmentToWorkspace: mocks.saveAttachmentToWorkspace
-}))
-
-vi.mock('@main/ai/tools/exportOffice', async (importOriginal) => ({
-  ...(await importOriginal<typeof ExportOfficeModule>()),
-  exportOfficeArtifact: mocks.exportOfficeArtifact
 }))
 
 vi.mock('@main/ai/tools/moveToTrash', async (importOriginal) => ({
@@ -85,7 +78,6 @@ describe('AssistantFileToolsServer', () => {
     const result = await handlers(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
 
     expect(result.tools.map((tool: { name: string }) => tool.name).sort()).toEqual([
-      'export_office',
       'move_to_trash',
       'read_file',
       'save_attachment'
@@ -148,18 +140,6 @@ describe('AssistantFileToolsServer', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toBe('Error: Tool execution failed')
     expect(JSON.stringify(result)).not.toContain('database unavailable')
-  })
-
-  it('exports directly from the assistant workspace without reading the transcript', async () => {
-    const input = { operation: 'markdown_to_docx', source_path: 'report.md', output_path: 'report.docx' }
-    mocks.exportOfficeArtifact.mockResolvedValue({ path: 'report.docx' })
-    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
-
-    const result = await callTool(server, 'export_office', input)
-
-    expect(mocks.exportOfficeArtifact).toHaveBeenCalledWith('/workspace', input, expect.any(AbortSignal))
-    expect(mocks.listSessionMessages).not.toHaveBeenCalled()
-    expect(result.isError).not.toBe(true)
   })
 
   it('moves a confirmed workspace path to trash without reading the transcript', async () => {

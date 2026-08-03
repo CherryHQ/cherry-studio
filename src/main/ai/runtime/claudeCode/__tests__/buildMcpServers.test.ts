@@ -201,7 +201,6 @@ describe('adjustAllowedToolsForMcp', () => {
     expect(allowed).not.toContain('mcp__assistant__*')
     expect(allowed).toContain('mcp__assistant-files__read_file')
     expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
-    expect(allowed).not.toContain('mcp__assistant-files__export_office')
     expect(allowed).not.toContain('mcp__assistant-files__*')
   })
 })

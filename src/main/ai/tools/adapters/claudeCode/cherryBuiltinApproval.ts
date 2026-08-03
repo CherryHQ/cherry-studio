@@ -24,7 +24,6 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
-import { EXPORT_OFFICE_TOOL_NAME } from '../../exportOffice'
 import { MOVE_TO_TRASH_TOOL_NAME } from '../../moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '../../saveAttachment'
 
@@ -102,7 +101,6 @@ export const ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
 ]
 
 export const ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
-  toAssistantFileRuntimeName(EXPORT_OFFICE_TOOL_NAME),
   toAssistantFileRuntimeName(MOVE_TO_TRASH_TOOL_NAME),
   toAssistantFileRuntimeName(SAVE_ATTACHMENT_TOOL_NAME)
 ]

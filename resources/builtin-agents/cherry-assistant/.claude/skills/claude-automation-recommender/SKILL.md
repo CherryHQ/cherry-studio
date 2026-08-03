@@ -182,7 +182,6 @@ See [references/plugins-reference.md](references/plugins-reference.md) for avail
 | Codebase Signal | Recommended Plugin |
 |-----------------|-------------------|
 | General productivity | **anthropic-agent-skills** - Core skills bundle |
-| Document workflows | Install docx, xlsx, pdf skills |
 | Frontend development | **frontend-design** plugin |
 | Building AI tools | **mcp-builder** for MCP development |
 
@@ -259,7 +258,6 @@ disable-model-invocation: true  # for user-only
 
 ### When to Recommend Skills
 
-- Document generation (docx, xlsx, pptx, pdf — also in plugins)
 - Frequently repeated prompts or workflows
 - Project-specific tasks with arguments
 - Applying templates or scripts to tasks (skills can bundle supporting files)

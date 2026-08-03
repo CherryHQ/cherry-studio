@@ -293,15 +293,9 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
 export async function atomicWriteFile(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number; signal?: AbortSignal }
+  options?: { mode?: number }
 ): Promise<void> {
   const prepared = await prepareAtomicWrite(target, data, options)
-  try {
-    options?.signal?.throwIfAborted()
-  } catch (err) {
-    await prepared.abort()
-    throw err
-  }
   await prepared.commit()
 }
 
@@ -416,22 +410,20 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
 export async function prepareAtomicWrite(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number; signal?: AbortSignal }
+  options?: { mode?: number }
 ): Promise<PreparedAtomicWrite> {
-  options?.signal?.throwIfAborted()
   const tmp = tmpNameFor(target)
   const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
   const bytes = typeof data === 'string' ? Buffer.from(data) : data
   try {
     try {
-      await tmpHandle.writeFile(bytes, options?.signal ? { signal: options.signal } : undefined)
+      await tmpHandle.writeFile(bytes)
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
       await bestEffortUnlinkTmp(tmp, target)
       throw err
     }
     await tmpHandle.close()
-    options?.signal?.throwIfAborted()
   } catch (err) {
     await bestEffortUnlinkTmp(tmp, target)
     throw err

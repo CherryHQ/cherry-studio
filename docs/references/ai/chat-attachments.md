@@ -83,10 +83,10 @@ Default cap ≈ 8k chars/file (tunable).
   `read_file` carries no media result — no `toModelOutput` base64 re-read, no
   resend re-materialization.
 
-Cherry Assistant also gets approval-gated `save_attachment` and `export_office`
-operations from the same session-scoped server. They write only new paths inside
-the session workspace and never overwrite an existing file. No attachment state
-or Office tools are added to the shared chat runtime or to ordinary Agents.
+Cherry Assistant also gets approval-gated `save_attachment` from the same
+session-scoped server. It writes only new paths inside the session workspace and
+never overwrites an existing file. No attachment state or write tools are added
+to the shared chat runtime or to ordinary Agents.
 
 ## Extraction & OCR
 

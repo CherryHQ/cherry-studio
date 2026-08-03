@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -5,9 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { atomicWriteFile } from '@main/utils/file'
 import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { sanitizeFilename } from '@shared/utils/file'
 import { type BrowserWindow, dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
@@ -19,12 +18,6 @@ const markdownIt = new MarkdownIt({
   linkify: true,
   typographer: false
 })
-const markdownItWithoutImages = new MarkdownIt({
-  html: false,
-  linkify: true,
-  typographer: false
-})
-markdownItWithoutImages.renderer.rules.image = (tokens, index) => escapeHtml(tokens[index].content)
 
 const PRINT_CJK_FONT_LOCAL_NAMES = [
   'PingFang SC',
@@ -81,39 +74,6 @@ function getDefaultPdfPath(title: string): string {
   return `${sanitized}.pdf`
 }
 
-function inlineTokenText(token: ReturnType<MarkdownIt['parse']>[number]): string {
-  if (!token.children) return token.content
-  return token.children
-    .map((child) => {
-      if (child.type === 'softbreak' || child.type === 'hardbreak') return ' '
-      return child.type === 'text' || child.type === 'code_inline' || child.type === 'image' ? child.content : ''
-    })
-    .join('')
-}
-
-function renderPrintableMarkdown(title: string, markdown: string, allowImages: boolean | undefined): string {
-  const parser = allowImages === false ? markdownItWithoutImages : markdownIt
-  const environment = {}
-  const tokens = parser.parse(markdown, environment)
-
-  for (let index = 0; index < tokens.length - 2; index += 1) {
-    const headingOpen = tokens[index]
-    const headingInline = tokens[index + 1]
-    const headingClose = tokens[index + 2]
-    if (
-      headingOpen.type === 'heading_open' &&
-      headingInline.type === 'inline' &&
-      headingClose.type === 'heading_close' &&
-      inlineTokenText(headingInline).trim() === title.trim()
-    ) {
-      tokens.splice(index, 3)
-      break
-    }
-  }
-
-  return parser.renderer.render(tokens, parser.options, environment)
-}
-
 function buildRendererReadyScript(): string {
   return `
 new Promise((resolve) => {
@@ -151,11 +111,8 @@ new Promise((resolve) => {
 })`
 }
 
-export function buildPrintableHtml(
-  { title, markdown, sourcePath }: PrintableDocumentPayload,
-  options: { allowImages?: boolean } = {}
-): string {
-  const renderedContent = renderPrintableMarkdown(title, markdown, options.allowImages)
+export function buildPrintableHtml({ title, markdown, sourcePath }: PrintableDocumentPayload): string {
+  const renderedContent = markdownIt.render(markdown)
   const escapedTitle = escapeHtml(title.trim() || 'Untitled')
   const baseTag = getBaseTag(sourcePath)
 
@@ -312,8 +269,7 @@ export function buildPrintableHtml(
 
 export class PrintService {
   private async openPrintWindow(
-    payload: PrintableDocumentPayload,
-    options?: { allowImages?: boolean }
+    payload: PrintableDocumentPayload
   ): Promise<{ windowId: string; window: BrowserWindow }> {
     const windowManager = application.get('WindowManager')
     const windowId = windowManager.open(WindowType.Print)
@@ -325,42 +281,11 @@ export class PrintService {
     }
 
     try {
-      await window.loadURL(toDataUrl(buildPrintableHtml(payload, options)))
+      await window.loadURL(toDataUrl(buildPrintableHtml(payload)))
       await window.webContents.executeJavaScript(buildRendererReadyScript(), true)
       return { windowId, window }
     } catch (error) {
       windowManager.close(windowId)
-      throw error
-    }
-  }
-
-  private async renderPdf(payload: PrintableDocumentPayload, options?: { allowImages?: boolean }): Promise<Buffer> {
-    const { windowId, window } = await this.openPrintWindow(payload, options)
-    const windowManager = application.get('WindowManager')
-
-    try {
-      return await window.webContents.printToPDF({
-        margins: { marginType: 'default' },
-        pageSize: 'A4',
-        preferCSSPageSize: true,
-        printBackground: true
-      })
-    } finally {
-      windowManager.close(windowId)
-    }
-  }
-
-  async exportToPdfPath(
-    payload: PrintableDocumentPayload,
-    filePath: AbsoluteFilePath,
-    options: { signal?: AbortSignal; allowImages?: boolean } = {}
-  ): Promise<void> {
-    try {
-      const pdfData = await this.renderPdf(payload, options)
-      options.signal?.throwIfAborted()
-      await atomicWriteFile(filePath, pdfData, options.signal ? { signal: options.signal } : undefined)
-    } catch (error) {
-      logger.error('Failed to export printable document to PDF', error as Error)
       throw error
     }
   }
@@ -376,8 +301,24 @@ export class PrintService {
       return false
     }
 
-    await this.exportToPdfPath(payload, AbsoluteFilePathSchema.parse(filePath))
-    return true
+    const { windowId, window } = await this.openPrintWindow(payload)
+    const windowManager = application.get('WindowManager')
+
+    try {
+      const pdfData = await window.webContents.printToPDF({
+        margins: { marginType: 'default' },
+        pageSize: 'A4',
+        preferCSSPageSize: true,
+        printBackground: true
+      })
+      await fs.writeFile(filePath, pdfData)
+      return true
+    } catch (error) {
+      logger.error('Failed to export printable document to PDF', error as Error)
+      throw error
+    } finally {
+      windowManager.close(windowId)
+    }
   }
 
   async print(payload: PrintableDocumentPayload): Promise<void> {

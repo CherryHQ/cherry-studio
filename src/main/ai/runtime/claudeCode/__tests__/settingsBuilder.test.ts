@@ -1364,7 +1364,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
-    expect(settings.allowedTools).not.toContain('mcp__assistant-files__export_office')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__move_to_trash')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__*')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]

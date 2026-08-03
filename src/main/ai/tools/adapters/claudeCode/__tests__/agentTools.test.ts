@@ -277,7 +277,6 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
 
     expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant-files__read_file'])
     expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
-      'mcp__assistant-files__export_office',
       'mcp__assistant-files__move_to_trash',
       'mcp__assistant-files__save_attachment'
     ])

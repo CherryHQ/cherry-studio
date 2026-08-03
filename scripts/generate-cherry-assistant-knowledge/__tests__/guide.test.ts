@@ -11,10 +11,6 @@ const TEMPLATE_PATH = path.join(
 const AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/agent.template.json')
 const SOUL_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/SOUL.md')
 const USER_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/USER.md')
-const DOC_WRITER_PATH = path.join(
-  ROOT_DIR,
-  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-doc-writer/SKILL.md'
-)
 const MARKETPLACE_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-skill-marketplace/SKILL.md'
@@ -30,14 +26,6 @@ const ISSUE_REPORTER_PATH = path.join(
 const SKILLS_MANAGER_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/skills-manager/SKILL.md'
-)
-const WEB_PPT_PATH = path.join(
-  ROOT_DIR,
-  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-web-ppt/SKILL.md'
-)
-const CHERRY_PPT_PATH = path.join(
-  ROOT_DIR,
-  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-ppt/SKILL.md'
 )
 const SUPPORTING_PROMPT_PATHS = [
   'resources/builtin-agents/cherry-assistant/SOUL.md',
@@ -196,26 +184,6 @@ describe('Cherry Assistant guide', () => {
     expect(feedback).not.toContain('UqjTbBFGWapnOrsJaDgcuyEbnUg')
     expect(issueReporter).toContain('只有用户明确要求提交到 GitHub')
     expect(issueReporter).toContain('不得运行 `gh auth status`')
-  })
-
-  it('routes document conversion through content reconstruction without promising layout fidelity', () => {
-    const docWriter = fs.readFileSync(DOC_WRITER_PATH, 'utf-8')
-
-    expect(docWriter).toContain('PDF 转 Word')
-    expect(docWriter).toContain('Word 转 PDF')
-    expect(docWriter).toContain('内容重建式转换')
-    expect(docWriter).toContain('扫描件 OCR、高保真互转')
-  })
-
-  it('routes Cherry Studio template requests through Cherry-PPT', () => {
-    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as { skills: string[] }
-    const webPpt = fs.readFileSync(WEB_PPT_PATH, 'utf-8')
-    const cherryPpt = fs.readFileSync(CHERRY_PPT_PATH, 'utf-8')
-
-    expect(agent.skills).toContain('cherry-ppt')
-    expect(webPpt).toContain('立即调用 `cherry-ppt`')
-    expect(cherryPpt).toContain('operation = cherry_ppt_to_pptx')
-    expect(cherryPpt).toContain('保留 Master/Layout')
   })
 
   it('declares only skills that are bundled with Cherry Assistant', () => {

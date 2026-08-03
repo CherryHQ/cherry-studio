@@ -31,62 +31,6 @@
       }
     },
     {
-      "filename": "cherry-doc-writer",
-      "type": "skill",
-      "metadata": {
-        "sourcePath": "skills/cherry-doc-writer",
-        "filename": "cherry-doc-writer",
-        "name": "cherry-doc-writer",
-        "description": "创建、改写、总结、翻译、比较或转换办公文档，处理 Markdown、TXT、HTML、DOCX 和可提取文本的 PDF。用户说“写周报/纪要/方案”“润色/总结文档”“比较版本”“转成 Word/PDF/Markdown”“PDF 转 Word”或“Word 转 PDF”时触发。Office/PDF 转换基于可提取文本重建内容，不保留原版式。不要处理 PPT 或数据表分析。",
-        "category": "skills",
-        "type": "skill",
-        "size": 3035,
-        "contentHash": "3010eb4fcaf60682a061ec0cfb70d8bf1b96de511bfcc0585d5ec6e205125a69"
-      }
-    },
-    {
-      "filename": "cherry-web-ppt",
-      "type": "skill",
-      "metadata": {
-        "sourcePath": "skills/cherry-web-ppt",
-        "filename": "cherry-web-ppt",
-        "name": "cherry-web-ppt",
-        "description": "从主题、提纲、文档或 HTML 制作普通演示文稿，默认输出真实 PPTX；用户指定 Cherry-PPT 或 Cherry Studio 品牌模板时转交 `cherry-ppt`。HTML → PPTX 采用内容重建，用户明确选择网页演示时才输出单文件 HTML。“修改 PPT”只能根据附件提取文本重做，不保留原版式。",
-        "category": "skills",
-        "type": "skill",
-        "size": 3973,
-        "contentHash": "bacbe18a48d7bbb2057b80719ade58df3f60790d94841f0c814118a8fea8019a"
-      }
-    },
-    {
-      "filename": "cherry-ppt",
-      "type": "skill",
-      "metadata": {
-        "sourcePath": "skills/cherry-ppt",
-        "filename": "cherry-ppt",
-        "name": "cherry-ppt",
-        "description": "使用 Cherry Studio 内置 Cherry-PPT 品牌模板生成真实、可编辑并保留 Master/Layout 的 PPTX。用户要求使用 Cherry-PPT、Cherry Studio PPT 模板，或正式红白、企业蓝、Young、CY2K 风格制作演示文稿时触发。不要用于网页演示、普通无模板 PPT 或修改任意外部 PPTX。",
-        "category": "skills",
-        "type": "skill",
-        "size": 7898746,
-        "contentHash": "3a1be916246ffab9f36e4df6198f771da1925cca70a5950ea0eea1b5806a6101"
-      }
-    },
-    {
-      "filename": "cherry-data-analyst",
-      "type": "skill",
-      "metadata": {
-        "sourcePath": "skills/cherry-data-analyst",
-        "filename": "cherry-data-analyst",
-        "name": "cherry-data-analyst",
-        "description": "读取、清洗、合并和汇总 CSV、TSV、JSON；聊天附件经用户批准保存到 workspace 后由本地脚本处理，避免全量数据进入模型上下文。Excel 附件仅做提取文本概览，逐单元格处理需先导出 CSV。支持去重、同比环比、轻量报表和 CSV 转 XLSX。不要处理普通文档或 PPT。",
-        "category": "skills",
-        "type": "skill",
-        "size": 3770,
-        "contentHash": "34214ca46e026c29da48466cfef9c1b5e61089f9eb9e1f7a2f017a036cb48e44"
-      }
-    },
-    {
       "filename": "claude-automation-recommender",
       "type": "skill",
       "metadata": {
@@ -96,8 +40,8 @@
         "description": "Analyze a codebase and recommend Claude Code automations (hooks, subagents, skills, plugins, MCP servers). Use when user asks for automation recommendations, wants to optimize their Claude Code setup, mentions improving Claude Code workflows, asks how to first set up Claude Code for a project, or wants to know what Claude Code features they should use.",
         "category": "skills",
         "type": "skill",
-        "size": 57239,
-        "contentHash": "3794515f0106f3a1d53833d28088eac4ed38dbd3678736d485685e7c1df23809"
+        "size": 57117,
+        "contentHash": "a7088d8851ea63ecc93f7867ce392aeb6ecf14245c5fa9e601c587953529ed01"
       }
     },
     {
