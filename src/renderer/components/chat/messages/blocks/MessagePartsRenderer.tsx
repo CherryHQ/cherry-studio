@@ -93,6 +93,11 @@ const referenceCitationsCache = new WeakMap<
 // Animation shared by message block renderers.
 // ============================================================================
 
+const blockWrapperStaticVariant = {
+  opacity: 1,
+  transition: { duration: 0 }
+}
+
 const blockWrapperVariants: Variants = {
   visible: {
     opacity: 1,
@@ -104,9 +109,8 @@ const blockWrapperVariants: Variants = {
     x: 10
   },
   static: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0 }
+    ...blockWrapperStaticVariant,
+    x: 0
   }
 }
 
@@ -117,7 +121,8 @@ const blockWrapperFadeVariants: Variants = {
   },
   hidden: {
     opacity: 0
-  }
+  },
+  static: blockWrapperStaticVariant
 }
 
 const AnimatedBlockWrapper: React.FC<{
@@ -151,9 +156,9 @@ const AnimatedBlockWrapper: React.FC<{
   return (
     <motion.div
       className={wrapperClassName}
-      variants={enableAnimation ? variants : undefined}
-      initial={enableAnimation ? 'hidden' : undefined}
-      animate={enableAnimation ? 'visible' : undefined}>
+      variants={variants}
+      initial={enableAnimation ? 'hidden' : false}
+      animate={enableAnimation ? 'visible' : 'static'}>
       <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
     </motion.div>
   )
