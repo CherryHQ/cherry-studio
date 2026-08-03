@@ -34,6 +34,7 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
@@ -961,6 +962,8 @@ function ContextManagementFields({
             label={t('library.config.basic.context_compress_model')}
             allowClear
             emptyLabel={t('library.config.basic.context_compress_model_follow')}
+            // A compression model summarizes history — only chat-capable models qualify.
+            filter={(model) => !isNonChatModel(model)}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
