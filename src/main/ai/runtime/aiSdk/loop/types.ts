@@ -115,4 +115,9 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
   /** Modalities the model accepts; unsupported media is stripped before conversion. */
   mediaCapabilities?: MediaCapabilities
+  /**
+   * Strip persisted reasoning parts from the conversation history before conversion.
+   * Only ever enabled for providers that do not require reasoning round-trips.
+   */
+  stripHistoryReasoning?: boolean
 }
