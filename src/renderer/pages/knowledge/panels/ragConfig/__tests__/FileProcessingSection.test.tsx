@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -43,7 +44,8 @@ beforeEach(() => {
 
 const options = [
   { value: 'paddleocr', label: 'PaddleOCR', disabled: false },
-  { value: 'doc2x', label: 'Doc2X', disabled: true }
+  { value: 'doc2x', label: 'Doc2X', disabled: true },
+  { value: 'mineru', label: 'MinerU', disabled: false }
 ]
 
 const renderSection = (onFileProcessorChange = vi.fn()) => {
@@ -63,7 +65,7 @@ describe('FileProcessingSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
 
-    expect(screen.getByTestId('file-processor-selector-content')).toHaveStyle({ height: '149px' })
+    expect(screen.getByTestId('file-processor-selector-content')).toHaveStyle({ height: '185px' })
     expect(screen.getByText('Not configured')).toBeInTheDocument()
     expect(screen.getByTestId('processor-icon-paddleocr').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('processor-icon-doc2x').querySelector('svg')).toBeInTheDocument()
@@ -84,5 +86,29 @@ describe('FileProcessingSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
     fireEvent.click(screen.getByRole('button', { name: 'Go to settings' }))
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/file-processing')
+  })
+
+  it('focuses the list and skips unavailable processors during keyboard navigation', async () => {
+    const user = userEvent.setup()
+    const onFileProcessorChange = renderSection()
+
+    await user.click(screen.getByRole('button', { name: 'File processing' }))
+
+    const listbox = screen.getByRole('listbox', { name: 'File processing' })
+    const paddleOption = screen.getByRole('option', { name: 'PaddleOCR' })
+    const mineruOption = screen.getByRole('option', { name: 'MinerU' })
+    await waitFor(() => {
+      expect(listbox).toHaveFocus()
+      expect(listbox).toHaveAttribute('aria-activedescendant', paddleOption.id)
+    })
+
+    await user.keyboard('{ArrowDown}')
+    expect(listbox).toHaveAttribute('aria-activedescendant', mineruOption.id)
+
+    await user.keyboard('{ArrowUp}')
+    expect(listbox).toHaveAttribute('aria-activedescendant', paddleOption.id)
+
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onFileProcessorChange).toHaveBeenCalledWith('mineru')
   })
 })

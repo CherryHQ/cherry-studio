@@ -3,8 +3,9 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
+import { useListboxKeyboardNavigation } from '@renderer/components/useListboxKeyboardNavigation'
 import { ChevronDown, Library } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const KNOWLEDGE_BASE_ROW_HEIGHT = 36
 const KNOWLEDGE_BASE_LIST_PADDING = 8
@@ -40,10 +41,11 @@ export const KnowledgeBaseSelector = ({
 }: KnowledgeBaseSelectorProps) => {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
-  const listboxId = useId()
   const selectedOption = options.find((option) => option.value === value)
-  const query = searchValue.trim().toLowerCase()
-  const filteredOptions = query ? options.filter((option) => option.label.toLowerCase().includes(query)) : options
+  const filteredOptions = useMemo(() => {
+    const query = searchValue.trim().toLowerCase()
+    return query ? options.filter((option) => option.label.toLowerCase().includes(query)) : options
+  }, [options, searchValue])
   const listHeight =
     filteredOptions.length > 0
       ? filteredOptions.length * KNOWLEDGE_BASE_ROW_HEIGHT + KNOWLEDGE_BASE_LIST_PADDING
@@ -61,6 +63,14 @@ export const KnowledgeBaseSelector = ({
     onChange(nextValue)
     handleOpenChange(false)
   }
+
+  const { activeIndex, activeOptionId, getOptionId, handleKeyDown, listboxId, listRef, setActiveIndex } =
+    useListboxKeyboardNavigation({
+      open,
+      options: filteredOptions,
+      value,
+      onSelect: (option) => handleSelect(option.value)
+    })
 
   return (
     <SelectorShell
@@ -88,29 +98,45 @@ export const KnowledgeBaseSelector = ({
         value: searchValue,
         onChange: setSearchValue,
         placeholder: searchPlaceholder,
-        ariaControls: listboxId
+        ariaControls: listboxId,
+        activeDescendant: activeOptionId
       }}
+      contentProps={{ onKeyDown: handleKeyDown }}
       data-testid="knowledge-base-selector-content">
       {({ availableListHeight }) => (
         <Scrollbar
           id={listboxId}
+          ref={listRef}
           role="listbox"
+          aria-label={ariaLabel}
           tabIndex={-1}
           className="min-h-0 flex-1 px-1 py-1 outline-none"
           style={{ height: availableListHeight ?? listHeight }}>
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((option) => {
+            filteredOptions.map((option, index) => {
               const selected = option.value === value
+              const active = index === activeIndex
 
               return (
-                <div key={option.value} className="py-0.5">
+                <div
+                  key={option.value}
+                  className="py-0.5"
+                  data-listbox-option-index={index}
+                  onMouseEnter={() => {
+                    if (!option.disabled) setActiveIndex(index)
+                  }}>
                   <ModelSelectorRow
                     selected={selected}
+                    focused={active}
                     disabled={option.disabled}
                     showSelectedIndicator={selected}
                     leading={<Library className="size-4 shrink-0 text-muted-foreground" />}
                     onSelect={() => handleSelect(option.value)}
-                    optionProps={{ 'aria-selected': selected }}>
+                    optionProps={{
+                      id: getOptionId(index),
+                      'aria-selected': selected,
+                      'data-active': active || undefined
+                    }}>
                     <span className="truncate">{option.label}</span>
                   </ModelSelectorRow>
                 </div>

@@ -4,6 +4,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
+import { useListboxKeyboardNavigation } from '@renderer/components/useListboxKeyboardNavigation'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { ChevronDown, CircleSlash, Settings2 } from 'lucide-react'
 import { useState } from 'react'
@@ -71,6 +72,14 @@ export const FileProcessorSelector = ({
     onSettingsNavigate()
   }
 
+  const { activeIndex, activeOptionId, getOptionId, handleKeyDown, listboxId, listRef, setActiveIndex } =
+    useListboxKeyboardNavigation({
+      open,
+      options,
+      value,
+      onSelect: (option) => handleSelect(option.value)
+    })
+
   return (
     <SelectorShell
       trigger={
@@ -108,26 +117,49 @@ export const FileProcessorSelector = ({
           onClick: () => handleSelect(null)
         }
       ]}
+      contentProps={{
+        onKeyDown: handleKeyDown,
+        onOpenAutoFocus: (event) => {
+          event.preventDefault()
+          listRef.current?.focus()
+        }
+      }}
       data-testid="file-processor-selector-content">
       {({ availableListHeight }) => (
         <Scrollbar
+          id={listboxId}
+          ref={listRef}
           role="listbox"
-          tabIndex={-1}
+          aria-label={ariaLabel}
+          aria-activedescendant={activeOptionId}
+          tabIndex={0}
           className="min-h-0 flex-1 px-1 py-1 outline-none"
           style={{ height: availableListHeight ?? listHeight }}>
-          {options.map((option) => {
+          {options.map((option, index) => {
             const selected = option.value === value
+            const active = index === activeIndex
 
             return (
-              <div key={option.value} className="py-0.5">
+              <div
+                key={option.value}
+                className="py-0.5"
+                data-listbox-option-index={index}
+                onMouseEnter={() => {
+                  if (!option.disabled) setActiveIndex(index)
+                }}>
                 <ModelSelectorRow
                   selected={selected}
+                  focused={active}
                   disabled={option.disabled}
                   showSelectedIndicator={selected}
                   leading={<FileProcessorIcon processorId={option.value} />}
                   trailing={option.disabled ? <span className="text-[10px]">{unavailableLabel}</span> : undefined}
                   onSelect={() => handleSelect(option.value)}
-                  optionProps={{ 'aria-selected': selected }}>
+                  optionProps={{
+                    id: getOptionId(index),
+                    'aria-selected': selected,
+                    'data-active': active || undefined
+                  }}>
                   <span className="truncate">{option.label}</span>
                 </ModelSelectorRow>
               </div>

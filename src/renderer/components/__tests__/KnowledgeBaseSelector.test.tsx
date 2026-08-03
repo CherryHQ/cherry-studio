@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -18,7 +19,8 @@ beforeAll(() => {
 
 const options = [
   { value: 'base-alpha', label: 'Alpha Knowledge' },
-  { value: 'base-beta', label: 'Beta Knowledge', disabled: true }
+  { value: 'base-beta', label: 'Beta Knowledge', disabled: true },
+  { value: 'base-gamma', label: 'Gamma Knowledge' }
 ]
 
 const renderSelector = (onChange = vi.fn()) => {
@@ -44,7 +46,7 @@ describe('KnowledgeBaseSelector', () => {
 
     expect(screen.getByTestId('knowledge-base-selector-content')).toHaveStyle({
       width: 'var(--radix-popover-trigger-width)',
-      height: '120px'
+      height: '156px'
     })
     expect(screen.getByRole('option', { name: 'Alpha Knowledge' })).toBeInTheDocument()
 
@@ -64,5 +66,26 @@ describe('KnowledgeBaseSelector', () => {
 
     fireEvent.click(screen.getByRole('option', { name: 'Alpha Knowledge' }))
     expect(onChange).toHaveBeenCalledWith('base-alpha')
+  })
+
+  it('navigates from the search input and skips disabled knowledge bases', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSelector()
+
+    await user.click(screen.getByRole('button', { name: 'Select knowledge base' }))
+
+    const searchInput = screen.getByPlaceholderText('Search knowledge bases')
+    const alphaOption = screen.getByRole('option', { name: 'Alpha Knowledge' })
+    const gammaOption = screen.getByRole('option', { name: 'Gamma Knowledge' })
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', alphaOption.id))
+
+    await user.keyboard('{ArrowDown}')
+    expect(searchInput).toHaveAttribute('aria-activedescendant', gammaOption.id)
+
+    await user.keyboard('{ArrowUp}')
+    expect(searchInput).toHaveAttribute('aria-activedescendant', alphaOption.id)
+
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('base-gamma')
   })
 })
