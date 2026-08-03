@@ -137,13 +137,15 @@ override them, and per-call overrides apply last.
 
 The resolved raw limit is also used to resolve the reasoning invocation;
 when it is undefined, `model.maxOutputTokens` remains a budget-sizing
-fallback without being forced into `AgentOptions`. When an
-`anthropic-messages` request has an explicit additive thinking budget,
-`buildAgentOptions` subtracts that budget exactly once before passing the
-non-thinking remainder to the SDK (with a minimum of one token). Adaptive
-thinking has no explicit budget and is not subtracted. An undefined raw
-limit remains omitted, so unknown Anthropic-compatible models can defer to
-the endpoint instead of inheriting an SDK fallback.
+fallback without being forced into `AgentOptions`. For an
+`anthropic-messages` request, `buildAgentOptions` reads the effective thinking
+mode after per-call provider-option overrides. It subtracts an explicit additive
+budget exactly once before passing the non-thinking remainder to the SDK (with a
+minimum of one token). Adaptive or disabled thinking has no explicit budget and
+is not subtracted. An undefined raw limit remains omitted, so unknown
+Anthropic-compatible non-Claude models can defer to the endpoint instead of
+inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
+fallback because Anthropic requires `max_tokens`.
 
 Flat provider params also pass through a request-local fetch wrapper after the
 AI SDK serializes its JSON POST body. This preserves provider-defined wire names

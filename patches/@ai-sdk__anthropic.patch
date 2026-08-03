@@ -6,7 +6,7 @@ diff --git a/dist/index.js b/dist/index.js
          type: "compatibility",
          feature: "maxOutputTokens",
 -        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
-+        details: `The model "${this.modelId}" is unknown. The provider will determine the max output tokens. Set maxOutputTokens explicitly to define a limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
        });
      }
      if (rejectsSamplingParameters) {
@@ -15,7 +15,7 @@ diff --git a/dist/index.js b/dist/index.js
      let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
      const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
-+    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isKnownModel ? maxOutputTokensForModel : void 0;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
        // model id:
        model: this.modelId,
@@ -44,7 +44,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          type: "compatibility",
          feature: "maxOutputTokens",
 -        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
-+        details: `The model "${this.modelId}" is unknown. The provider will determine the max output tokens. Set maxOutputTokens explicitly to define a limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
        });
      }
      if (rejectsSamplingParameters) {
@@ -53,7 +53,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
      const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
-+    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isKnownModel ? maxOutputTokensForModel : void 0;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
        // model id:
        model: this.modelId,
@@ -91,7 +91,7 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
          type: "compatibility",
          feature: "maxOutputTokens",
 -        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
-+        details: `The model "${this.modelId}" is unknown. The provider will determine the max output tokens. Set maxOutputTokens explicitly to define a limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
        });
      }
      if (rejectsSamplingParameters) {
@@ -100,7 +100,7 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
      let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
      const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
-+    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isKnownModel ? maxOutputTokensForModel : void 0;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
        // model id:
        model: this.modelId,
@@ -138,7 +138,7 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
          type: "compatibility",
          feature: "maxOutputTokens",
 -        details: `The model "${this.modelId}" is unknown. The max output tokens have been limited to ${maxOutputTokensForModel}. Set maxOutputTokens explicitly to override this limit.`
-+        details: `The model "${this.modelId}" is unknown. The provider will determine the max output tokens. Set maxOutputTokens explicitly to define a limit.`
++        details: `The model "${this.modelId}" is unknown. Set maxOutputTokens explicitly to define a limit.`
        });
      }
      if (rejectsSamplingParameters) {
@@ -147,7 +147,7 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
      let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
      const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
-+    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isKnownModel ? maxOutputTokensForModel : void 0;
++    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
        // model id:
        model: this.modelId,

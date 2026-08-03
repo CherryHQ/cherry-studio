@@ -276,6 +276,29 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.maxOutputTokens).toBe(32_000)
   })
 
+  it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    const result = await buildAgentParams({
+      request: {
+        callOverrides: {
+          maxOutputTokens: 10_000,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toMatchObject({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+    })
+    expect(result.options.maxOutputTokens).toBe(6000)
+  })
+
   it('does not apply a model catalog limit to a non-Anthropic endpoint', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 65_536)
     const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })

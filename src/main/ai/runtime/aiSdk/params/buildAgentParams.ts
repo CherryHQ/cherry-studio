@@ -421,19 +421,26 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, reasoning)
-  if (maxOutputTokens !== undefined) {
-    standardParams = { ...standardParams, maxOutputTokens }
-  } else if ('maxOutputTokens' in standardParams) {
-    standardParams = { ...standardParams }
-    delete standardParams.maxOutputTokens
-  }
   const effectiveProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     overridden.providerOptions,
     request.fastMode === true
   )
+  const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
+    effectiveProviderOptions,
+    sdkConfig.providerOptionsKey,
+    reasoning.budgetTokens
+  )
+  const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
+    budgetTokens: effectiveBudgetTokens
+  })
+  if (maxOutputTokens !== undefined) {
+    standardParams = { ...standardParams, maxOutputTokens }
+  } else if ('maxOutputTokens' in standardParams) {
+    standardParams = { ...standardParams }
+    delete standardParams.maxOutputTokens
+  }
 
   const { headers, maxRetries } = request.requestOptions ?? {}
   const toolCallLimit = resolveToolCallLimit(assistant)
@@ -457,6 +464,21 @@ function buildAgentOptions(
       getUsagePlugins: getRepairUsagePlugins
     })
   }
+}
+
+function resolveEffectiveThinkingBudget(
+  providerOptions: ProviderOptions,
+  providerOptionsKey: string,
+  fallbackBudgetTokens: number | undefined
+): number | undefined {
+  const thinking = providerOptions[providerOptionsKey]?.thinking
+  if (thinking === undefined) return fallbackBudgetTokens
+  if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
+
+  const thinkingOptions = thinking as Record<string, unknown>
+  return thinkingOptions.type === 'enabled' && typeof thinkingOptions.budgetTokens === 'number'
+    ? thinkingOptions.budgetTokens
+    : undefined
 }
 
 /**

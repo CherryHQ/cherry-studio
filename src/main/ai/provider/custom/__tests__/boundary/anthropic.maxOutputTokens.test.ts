@@ -57,6 +57,27 @@ describe('@ai-sdk/anthropic maxOutputTokens boundary', () => {
     expect(bodyOf(request).max_tokens).toBe(128_000)
   })
 
+  it('keeps the SDK fallback for an unrecognized public Claude alias', async () => {
+    const request = await captureRequest((fetch) =>
+      createAnthropic({ apiKey: 'sk', baseURL: 'https://example.com/v1', fetch }).languageModel('claude-sonnet-latest')
+    )
+
+    expect(bodyOf(request).max_tokens).toBe(128_000)
+  })
+
+  it('keeps the SDK fallback for an unrecognized internal Claude alias', async () => {
+    const request = await captureRequest((fetch) =>
+      createNewApi({
+        apiKey: 'sk',
+        baseURL: 'https://example.com/v1',
+        endpointType: 'anthropic',
+        fetch
+      }).languageModel('claude-sonnet-latest')
+    )
+
+    expect(bodyOf(request).max_tokens).toBe(128_000)
+  })
+
   it('does not synthesize max_tokens when thinking is enabled without a limit', async () => {
     const request = await captureRequest(
       (fetch) =>
