@@ -142,10 +142,10 @@ vi.mock('react-i18next', () => ({
           'knowledge.add.group': '分组',
           'knowledge.add.submit': '创建',
           'knowledge.embedding_model': '嵌入模型',
-          'knowledge.not_set': '未设置',
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.error.failed_to_create': '知识库创建失败',
           'knowledge.groups.default': '默认',
+          'knowledge.rag.rerank_disabled': '不使用',
           'message.error.get_embedding_dimensions': '获取嵌入维度失败'
         }) as Record<string, string>
       )[key] ?? key
@@ -224,6 +224,8 @@ describe('CreateKnowledgeBaseDialog', () => {
 
     expect(screen.getByText('嵌入模型')).toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
+    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
   })
 
   it('renders all required fields and actions when a knowledge base is being created', () => {
@@ -431,7 +433,7 @@ describe('CreateKnowledgeBaseDialog', () => {
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
     fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
-    await user.click(screen.getByRole('button', { name: '未设置' }))
+    await user.click(screen.getByRole('button', { name: '不使用' }))
     await user.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base' }))

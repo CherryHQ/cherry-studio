@@ -18,7 +18,8 @@ const EmbeddingSection = ({ embeddingModelId, onEmbeddingModelChange }: Embeddin
         <KnowledgeEmbeddingModelSelect
           aria-label={t('knowledge.rag.embedding_model')}
           value={embeddingModelId}
-          placeholder={t('knowledge.not_set')}
+          placeholder={t('knowledge.rag.rerank_disabled')}
+          noneOptionLabel={t('knowledge.rag.rerank_disabled')}
           onChange={onEmbeddingModelChange}
         />
       </div>

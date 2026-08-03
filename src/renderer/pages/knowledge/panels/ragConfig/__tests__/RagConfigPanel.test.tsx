@@ -1,7 +1,7 @@
 import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -218,11 +218,13 @@ vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
   KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
+    noneOptionLabel,
     onChange,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
+    noneOptionLabel?: string
     onChange: (modelId: string | null) => void
     'aria-label'?: string
   }) => (
@@ -236,6 +238,11 @@ vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
       <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
         select-local-embedding
       </button>
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }))
@@ -250,7 +257,6 @@ vi.mock('react-i18next', () => ({
           'knowledge.error.failed_to_edit': '保存失败',
           'knowledge.error.missing_embedding_model':
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
-          'knowledge.not_set': '未设置',
           'knowledge.embedding_model': '嵌入模型',
           'knowledge.embedding_model_required': '请选择嵌入模型',
           'knowledge.provider_not_found': '找不到提供商',
@@ -374,7 +380,8 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('文档处理')).toBeInTheDocument()
     expect(screen.getByText('Top K')).toBeInTheDocument()
     expect(screen.getByText('重排模型')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '不使用' })).toHaveLength(2)
+    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
@@ -439,7 +446,9 @@ describe('RagConfigPanel', () => {
     })
 
     renderRagConfigPanel()
-    await user.click(screen.getByRole('button', { name: '不使用' }))
+    const rerankSelect = screen.getByLabelText('重排模型').parentElement
+    expect(rerankSelect).not.toBeNull()
+    await user.click(within(rerankSelect!).getByRole('button', { name: '不使用' }))
     await user.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
@@ -583,6 +592,26 @@ describe('RagConfigPanel', () => {
     })
     expect(onRestoreBase).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('saves disabled embedding directly when the base has no items', async () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    const embeddingSelect = screen.getByLabelText('嵌入模型').parentElement
+    expect(embeddingSelect).not.toBeNull()
+    fireEvent.click(within(embeddingSelect!).getByRole('button', { name: '不使用' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ embeddingModelId: null }), {
+        embeddingModelId: null,
+        dimensions: null
+      })
+    })
+    expect(mockEmbedMany).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
   })
 
   it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
@@ -755,6 +784,23 @@ describe('RagConfigPanel', () => {
     expect(mockEnableEmbedding).not.toHaveBeenCalled()
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
       embeddingModelId: 'voyage::voyage-3-large'
+    })
+  })
+
+  it('routes disabled embedding through rebuild when an already-configured base has items', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 5)
+
+    const embeddingSelect = screen.getByLabelText('嵌入模型').parentElement
+    expect(embeddingSelect).not.toBeNull()
+    fireEvent.click(within(embeddingSelect!).getByRole('button', { name: '不使用' }))
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(mockEnableEmbedding).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: null
     })
   })
 })
