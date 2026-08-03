@@ -21,6 +21,10 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useEnableKnowledgeBaseEmbedding: () => ({ enableEmbedding: mockEnableEmbedding, isEnabling: false })
 }))
 
+vi.mock('../FileProcessorSelector', () => ({
+  FileProcessorSelector: () => null
+}))
+
 const renderRagConfigPanel = (
   onRestoreBase = vi.fn(),
   baseOverrides: Partial<KnowledgeBase> = {},

@@ -7,16 +7,17 @@ import {
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
@@ -172,6 +173,7 @@ export function useAgentMessageListProviderValue({
   const navigate = useNavigate()
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -208,25 +210,24 @@ export function useAgentMessageListProviderValue({
     [displayPartsByMessageId, messages]
   )
   const messageItems = useMemo(() => {
-    const resolvedAssistantId = assistantId ?? topic.assistantId
     return visibleMessages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
-      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+      if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) {
         return cached.item
       }
 
       const item = toMessageListItem(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         topicId: topic.id
       })
       messageItemCacheRef.current.set(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         item,
         topicId: topic.id
       })
       return item
     })
-  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
+  }, [resolvedAgentId, visibleMessages, topic.id])
 
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
@@ -386,13 +387,9 @@ export function useAgentMessageListProviderValue({
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
-      estimateSize: 400,
-      overscan: 6,
-      loadOlderDelayMs: 0,
-      loadingResetDelayMs: 600,
-      listKey: topic.id,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAgentId,
       localSendGeneration,
-      readonly: true,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -415,6 +412,7 @@ export function useAgentMessageListProviderValue({
       displayPartsByMessageId,
       renderActiveTurnStatus,
       renderConfig,
+      resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
       topic
@@ -477,7 +475,8 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      aiUsageMessageKind: 'agent-session'
     }),
     [assistantProfile, headerCapabilities.userProfile, topic.name]
   )

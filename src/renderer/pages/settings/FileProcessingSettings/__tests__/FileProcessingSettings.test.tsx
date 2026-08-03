@@ -430,16 +430,16 @@ describe('processing settings pages', () => {
   })
 
   it('stores API key input as file processing overrides', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
     expect(screen.queryByText('settings.tool.file_processing.fields.model_id')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
-      target: { value: ' key-1, key-2 ' }
-    })
-    fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
+    const apiKeysInput = await screen.findByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')
+    await user.type(apiKeysInput, ' key-1, key-2 ')
+    await user.tab()
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -483,17 +483,18 @@ describe('processing settings pages', () => {
   })
 
   it('reports API host save failures', async () => {
+    const user = userEvent.setup()
     const error = new Error('persist failed')
     setOverridesMock.mockRejectedValueOnce(error)
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_host'), {
-      target: { value: 'https://draft.example.com' }
-    })
-    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_host'))
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, 'https://draft.example.com')
+    await user.tab()
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
@@ -502,17 +503,17 @@ describe('processing settings pages', () => {
   })
 
   it('trims API host before persisting', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
-    fireEvent.change(apiHostInput, {
-      target: { value: '  https://draft.example.com  ' }
-    })
-    fireEvent.blur(apiHostInput)
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, '  https://draft.example.com  ')
+    await user.tab()
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -529,17 +530,17 @@ describe('processing settings pages', () => {
   })
 
   it('rejects invalid API host before persisting', async () => {
+    const user = userEvent.setup()
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     )
 
-    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
-    fireEvent.change(apiHostInput, {
-      target: { value: '  not-a-url  ' }
-    })
-    fireEvent.blur(apiHostInput)
+    const apiHostInput = await screen.findByPlaceholderText('settings.provider.api_host')
+    await user.clear(apiHostInput)
+    await user.type(apiHostInput, '  not-a-url  ')
+    await user.tab()
 
     await waitFor(() => {
       expect(toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')

@@ -1,13 +1,14 @@
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { useTranslation } from 'react-i18next'
 
-import { RagFieldLabel, RagSelectField } from './panelPrimitives'
+import { FileProcessorSelector, type FileProcessorSelectorOption } from './FileProcessorSelector'
+import { RagFieldLabel } from './panelPrimitives'
 
-const EMPTY_OPTION_VALUE = '__none__'
+const openFileProcessingSettings = () => openSettingsTab('/settings/file-processing')
 
 interface FileProcessingSectionProps {
   fileProcessorId: string | null
-  fileProcessorOptions: KnowledgeSelectOption[]
+  fileProcessorOptions: FileProcessorSelectorOption[]
   onFileProcessorChange: (value: string | null) => void
 }
 
@@ -21,10 +22,15 @@ const FileProcessingSection = ({
   return (
     <div>
       <RagFieldLabel label={t('knowledge.rag.file_processing')} hint={t('knowledge.rag.file_processing_hint')} />
-      <RagSelectField
-        value={fileProcessorId ?? EMPTY_OPTION_VALUE}
-        options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.not_set') }, ...fileProcessorOptions]}
-        onValueChange={(value) => onFileProcessorChange(value === EMPTY_OPTION_VALUE ? null : value)}
+      <FileProcessorSelector
+        aria-label={t('knowledge.rag.file_processing')}
+        value={fileProcessorId}
+        options={fileProcessorOptions}
+        placeholder={t('knowledge.not_set')}
+        unavailableLabel={t('knowledge.rag.processor_not_configured')}
+        settingsLabel={t('common.go_to_settings')}
+        onChange={onFileProcessorChange}
+        onSettingsNavigate={openFileProcessingSettings}
       />
     </div>
   )

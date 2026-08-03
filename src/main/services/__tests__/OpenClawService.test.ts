@@ -177,6 +177,45 @@ describe('OpenClawService gateway status state machine', () => {
     })
   })
 
+  describe('gateway health probe', () => {
+    it('uses the canonical /healthz endpoint when /health serves HTML', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+        const url = String(input)
+        if (url.endsWith('/healthz')) {
+          return new Response(JSON.stringify({ ok: true, status: 'live' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          })
+        }
+
+        return new Response('<!doctype html><html></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' }
+        })
+      })
+
+      await expect((service as any).checkGatewayHealthWithError()).resolves.toEqual({ status: 'healthy' })
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://127.0.0.1:18790/healthz',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    })
+
+    it('reports an HTML health response without exposing a JSON parser error', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response('<!doctype html><html></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' }
+        })
+      )
+
+      await expect((service as any).checkGatewayHealthWithError()).resolves.toEqual({
+        status: 'unhealthy',
+        error: 'Invalid JSON from /healthz (text/html)'
+      })
+    })
+  })
+
   // ─── getStatus ───────────────────────────────────────────────
 
   describe('getStatus', () => {

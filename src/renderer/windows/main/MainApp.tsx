@@ -9,6 +9,7 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
@@ -38,6 +39,7 @@ const logger = loggerService.withContext('MainApp')
 // siblings in the App JSX below, so a window's host composition is visible there.
 function MainWindowRuntime(): null {
   useWindowRuntime()
+  useMainWindowNavigation()
 
   // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
   // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
@@ -61,24 +63,13 @@ function MainWindowRuntime(): null {
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
-  if (providerSetupStatus === 'pending') {
-    return (
-      <>
-        <OnboardingPage />
-        <MainWindowRuntime />
-        <PopupHost />
-        <ToastHost />
-      </>
-    )
-  }
-
   return (
     <TabsProvider>
-      <AppShell />
+      {providerSetupStatus === 'pending' ? <OnboardingPage /> : <AppShell />}
       <MainWindowRuntime />
       <PopupHost />
       <ToastHost />
-      <PrivacyPolicyUpdateGate />
+      {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
     </TabsProvider>
   )
 }
