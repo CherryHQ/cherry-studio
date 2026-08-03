@@ -19,6 +19,8 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
 
+const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
+
 export interface ChatConversationControlsProps {
   assistantId: string | null
   assistantName: string
@@ -140,7 +142,7 @@ export function ChatConversationControls({
           onOpenChange={setMentionedModelSelectorOpen}
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
-          filter={(candidate) => !isNonChatModel(candidate)}
+          filter={CHAT_MODEL_FILTER}
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -165,7 +167,7 @@ export function ChatConversationControls({
           multiple={false}
           value={model}
           onSelect={onModelSelect}
-          filter={(candidate) => !isNonChatModel(candidate)}
+          filter={CHAT_MODEL_FILTER}
           shortcut="chat.model.select"
           side={side}
           align="start"
