@@ -17,4 +17,5 @@ ALTER TABLE `__new_chat_message_file_ref` RENAME TO `chat_message_file_ref`;--> 
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `cmfr_entry_id_idx` ON `chat_message_file_ref` (`file_entry_id`);--> statement-breakpoint
 CREATE INDEX `cmfr_source_id_idx` ON `chat_message_file_ref` (`source_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `cmfr_unique_idx` ON `chat_message_file_ref` (`file_entry_id`,`source_id`,`role`);
+CREATE UNIQUE INDEX `cmfr_unique_idx` ON `chat_message_file_ref` (`file_entry_id`,`source_id`,`role`);--> statement-breakpoint
+ALTER TABLE `message` ADD `compaction_summary` text;

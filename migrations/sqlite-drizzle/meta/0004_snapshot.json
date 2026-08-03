@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "581e9289-dbc8-4192-8030-f9d943138362",
+  "id": "77dab5b3-daaf-4669-bf97-c1801025f509",
   "prevId": "ef12a49f-fae9-44eb-831a-c668131c952e",
   "tables": {
     "agent": {
@@ -1910,7 +1910,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output')"
         }
       }
     },
