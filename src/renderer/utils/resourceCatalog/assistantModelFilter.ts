@@ -1,13 +1,12 @@
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-
-const DISALLOWED_ASSISTANT_CAPABILITIES = new Set<string>([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])
+import type { Model } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 
 /**
- * Keep assistant model selection aligned with the legacy assistant settings:
- * assistants can only pick chat-capable models, not embedding / rerank models.
+ * Assistants can only invoke chat models directly. Dedicated embedding,
+ * rerank, image, video, audio, and transcription models are not selectable.
  */
 export function isSelectableAssistantModel(model: Model): boolean {
-  return !model.capabilities.some((capability) => DISALLOWED_ASSISTANT_CAPABILITIES.has(capability))
+  return !isNonChatModel(model)
 }
 
 // NOTE: Earlier versions exported a `resolveAssistantModelName` helper that

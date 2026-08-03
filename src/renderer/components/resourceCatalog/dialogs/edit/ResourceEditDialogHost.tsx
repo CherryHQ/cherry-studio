@@ -106,8 +106,8 @@ function AgentEditDialogHost({
   open: boolean
 }) {
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const { agent, error } = useAgent(target.id)
+  const modelFilter = useAgentModelFilter(agent?.type)
 
   useEffect(() => {
     if (!error) return
