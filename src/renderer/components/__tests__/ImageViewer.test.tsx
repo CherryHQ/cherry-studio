@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
   clipboard: {
     write: vi.fn(),
     writeText: vi.fn()
-  }
+  },
+  saveImage: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -37,21 +38,23 @@ describe('ImageViewer', () => {
       blob: async () => new Blob(['remote'], { type: 'image/webp' })
     })
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.saveImage.mockResolvedValue(true)
 
     Object.assign(window, {
-      api: { fs: { read: mocks.fsRead } }
+      api: { file: { saveImage: mocks.saveImage }, fs: { read: mocks.fsRead } }
     })
     Object.assign(navigator, { clipboard: mocks.clipboard })
     vi.stubGlobal('ClipboardItem', MockClipboardItem)
     vi.stubGlobal('fetch', mocks.fetch)
   })
 
-  it('opens the shared preview dialog when clicked', () => {
+  it('opens the shared preview dialog with the save-as toolbar action', () => {
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
     fireEvent.click(screen.getByRole('img', { name: 'Example image' }))
 
     expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'preview.save_as' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'preview.copy.image' })).not.toBeInTheDocument()
   })
 
@@ -85,6 +88,18 @@ describe('ImageViewer', () => {
       expect(mocks.clipboard.write).toHaveBeenCalledWith([expect.any(MockClipboardItem)])
     })
     expect(toast.success).toHaveBeenCalledWith('message.copy.success')
+  })
+
+  it('saves image data from the context menu with the existing file save flow', async () => {
+    render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
+
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
+
+    await waitFor(() => {
+      expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,aGVsbG8=')
+    })
+    expect(toast.success).toHaveBeenCalledWith('common.saved')
   })
 
   it('does not expose a download action in the preview toolbar or context menu', () => {
