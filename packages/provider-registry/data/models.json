@@ -1955,7 +1955,7 @@
       "family": "qwen",
       "id": "qwen3-7-flash",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Qwen 3.7 Flash",
       "outputModalities": ["text"],
@@ -1981,12 +1981,12 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "toggle"
+          },
+          {
             "kind": "budget",
             "max": 81920,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -13283,6 +13283,26 @@
       }
     },
     {
+      "capabilities": ["audio-recognition"],
+      "family": "voxtral",
+      "id": "voxtral-mini-latest",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "Voxtral Mini (latest)",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "family": "voxtral",
+      "id": "voxtral-mini-tts-latest",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Voxtral Mini TTS (latest)",
+      "outputModalities": ["audio"],
+      "ownedBy": "mistral"
+    },
+    {
       "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input"],
       "contextWindow": 32000,
       "family": "mistral",
@@ -13302,6 +13322,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.35
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "audio-recognition", "file-input"],
+      "contextWindow": 32000,
+      "family": "voxtral",
+      "id": "voxtral-small-latest",
+      "inputModalities": ["text", "audio"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Voxtral Small (latest)",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -16249,7 +16292,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6000000000000001
+          "perMillionTokens": 0.6
         }
       },
       "reasoning": {
@@ -16409,7 +16452,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.0000000000000002
+          "perMillionTokens": 1
         },
         "output": {
           "currency": "USD",
@@ -21108,5 +21151,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "720c311cd96313c4"
+  "version": "3a53475ff800ab27"
 }

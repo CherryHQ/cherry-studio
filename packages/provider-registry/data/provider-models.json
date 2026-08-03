@@ -17433,6 +17433,21 @@
       "providerId": "huggingface"
     },
     {
+      "apiModelId": "thinkingmachines/Inkling-Small",
+      "modelId": "inkling-small",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
       "apiModelId": "moonshotai/Kimi-K2-Thinking",
       "modelId": "kimi-k2",
       "pricing": {
@@ -23143,6 +23158,20 @@
     {
       "apiModelId": "~deepseek/deepseek-v4-flash-latest",
       "modelId": "deepseek-v4-flash-latest",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.018
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.09
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        }
+      },
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -24978,15 +25007,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.208
+          "perMillionTokens": 0.05278
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 0.2842
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.52
+          "perMillionTokens": 0.8932
         }
       },
       "providerId": "openrouter",
@@ -26677,13 +26706,17 @@
       "apiModelId": "openai/gpt-oss-20b",
       "modelId": "gpt-oss-20b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.03
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.13
         }
       },
       "providerId": "openrouter",
@@ -27245,15 +27278,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.116
+          "perMillionTokens": 0.1
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.58
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.44
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "openrouter",
@@ -27404,15 +27437,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0992
+          "perMillionTokens": 0.2
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.589
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.48
+          "perMillionTokens": 3.41
         }
       },
       "providerId": "openrouter",
@@ -30000,7 +30033,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.27
+          "perMillionTokens": 0.28
         }
       },
       "providerId": "openrouter"
@@ -37170,5 +37203,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "4908e2f1a5633f0d"
+  "version": "31cdb33358f96efa"
 }
