@@ -308,12 +308,12 @@ export class OpenClawService extends BaseService {
       }
 
       logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const { status, error: healthError } = await this.checkGatewayHealthWithError()
-      if (status === 'healthy') {
+      const healthResult = await this.checkGatewayHealthWithError()
+      if (healthResult.status === 'healthy') {
         logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
         return
       }
-      if (healthError) lastError = healthError
+      lastError = healthResult.error
     }
 
     // Combine all available diagnostics: health check errors, stderr, and stdout
