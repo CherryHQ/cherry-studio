@@ -292,7 +292,7 @@ describe('TranslateHistory', () => {
     expect(clearMock).toHaveBeenCalledTimes(1)
   })
 
-  it('hides history actions when there are no histories to filter or clear', () => {
+  it('centers the empty state and hides history actions', () => {
     translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
       historyState({
         items: [],
@@ -306,19 +306,6 @@ describe('TranslateHistory', () => {
     expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
-  })
-
-  it('centers the empty history state within the available body area', () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
-      historyState({
-        items: [],
-        total: 0,
-        status: 'ready'
-      })
-    )
-
-    renderHistory()
-
     expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
       'flex',
       'min-h-0',

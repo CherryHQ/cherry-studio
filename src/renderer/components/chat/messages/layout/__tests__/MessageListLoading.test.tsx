@@ -27,15 +27,14 @@ describe('MessageListInitialLoading', () => {
     expect(document.querySelector('[data-message-list-loading-skeleton]')).toBeInTheDocument()
   })
 
-  it('does not show the skeleton after unmounting before the delay', () => {
+  it('clears the pending skeleton timer on unmount', () => {
     vi.useFakeTimers()
 
     const { unmount } = render(<MessageListInitialLoading delayMs={300} />)
+    expect(vi.getTimerCount()).toBe(1)
+
     unmount()
 
-    act(() => {
-      vi.advanceTimersByTime(300)
-    })
-    expect(document.querySelector('[data-message-list-loading-skeleton]')).not.toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
