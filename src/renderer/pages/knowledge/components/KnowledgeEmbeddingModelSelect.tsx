@@ -1,4 +1,5 @@
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_PROVIDER_ID, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Model } from '@shared/data/types/model'
@@ -17,17 +18,27 @@ export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSele
   const { status, isStatusResolved, download } = useLocalModel('embedding')
 
   const handleChange = useCallback(
-    (modelId: string | null) => {
+    async (modelId: string | null) => {
       if (modelId === LOCAL_EMBEDDING_UNIQUE_MODEL_ID && (!isStatusResolved || status === 'unsupported')) {
         return
       }
 
-      onChange(modelId)
-
       if (modelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || status === 'ready' || status === 'downloading') {
+        onChange(modelId)
         return
       }
 
+      const confirmed = await popup.confirm({
+        title: t('knowledge.rag.download_local_embedding'),
+        content: t('settings.dependencies.localModels.embedding.subtitle'),
+        okText: t('settings.dependencies.localModels.download'),
+        cancelText: t('common.cancel')
+      })
+      if (!confirmed) {
+        return
+      }
+
+      onChange(modelId)
       void download().catch(() => toast.error(t('knowledge.rag.download_local_embedding_failed')))
     },
     [download, isStatusResolved, onChange, status, t]
