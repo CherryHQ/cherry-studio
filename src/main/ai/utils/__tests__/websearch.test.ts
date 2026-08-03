@@ -17,6 +17,19 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     expect(config).toEqual({ openai: {} })
   })
 
+  // Availability keys off the wire id with an `apiModelId ?? id` fallback, so a model
+  // carrying the wire name in `id` alone still routes to the server side. Reading
+  // `apiModelId` directly here made the config undefined for exactly those models:
+  // the route stayed 'server' (client tools withheld) and nothing was injected.
+  it('resolves the dashscope responses config from the wire id even without apiModelId', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openai',
+      webSearchConfig,
+      model({ id: 'dashscope::qwen3.8-max', providerId: 'dashscope' })
+    )
+    expect(config).toEqual({ openai: {} })
+  })
+
   it('emits a bare openai config for dashscope responses models (bare {type:"web_search"} for Bailian)', () => {
     const config = buildProviderBuiltinWebSearchConfig(
       'openai',

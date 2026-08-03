@@ -1,7 +1,7 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
-import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
+import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 
 import type { AppProviderId } from '../types'
 
@@ -19,7 +19,7 @@ export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.providerId === 'dashscope') {
     // Chat-Completions web search (help.aliyun.com/zh/model-studio/web-search). The newest qwen-max and
     // multimodal (omni/vl) SKUs only search under the `agent` strategy; older SKUs use the default.
-    const apiModelId = model.apiModelId ?? model.id
+    const apiModelId = getRawModelId(model)
     const needsAgentStrategy = /qwen3-max|omni|qwen3-vl/.test(apiModelId)
     return {
       enable_search: true,
@@ -57,7 +57,11 @@ export function getWebSearchParams(model: Model): Record<string, any> {
  * Those aliases are ordered chat-first in the registry, so this only guards a manual endpoint override.
  */
 function servesResponsesWebSearch(model: Model): boolean {
-  return /^qwen3[.-]/.test(model.apiModelId ?? '')
+  // Key off the shared wire-id resolution: `apiModelId` alone is optional on the
+  // runtime Model, and reading it directly made this silently return false — the
+  // route still picked the server side, so the request went out with no search
+  // tool AND no client tools.
+  return /^qwen3[.-]/.test(getRawModelId(model))
 }
 
 /**

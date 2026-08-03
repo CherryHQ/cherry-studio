@@ -12,7 +12,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
+import { getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
 // Azure/Vertex/Bedrock reuse other vendors' endpoint protocols, so authType
@@ -193,11 +193,6 @@ export function isSupportStreamOptionsProvider(provider: Provider): boolean {
 
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
   return provider.serverTools?.find((tool) => tool.id === id)
-}
-
-function getRawModelId(model: Model): string {
-  const separatorIndex = model.id.indexOf('::')
-  return model.apiModelId ?? (separatorIndex >= 0 ? model.id.slice(separatorIndex + '::'.length) : model.id)
 }
 
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
