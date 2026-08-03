@@ -79,6 +79,7 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -154,76 +155,58 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-rc.1 - Backup & Restore, Painting Improvements & v2 Stabilization
+    Cherry Studio 2.0.0-rc.4 - Providers, Files & Polish
 
     ✨ New Features
-    - [Paintings] Added a localized prompt-template gallery to the empty painting canvas, with editable concrete prompt tokens and an accessible prompt preview and copy action. The gallery disappears once image generation begins so completed results retain the standard image-only viewer.
+    - [Files] Files exclusively owned by deleted chats, topics, or paintings are now cleaned up automatically after a grace period instead of accumulating forever. Files you upload from the Files page are kept permanently; v1-migrated files are preserved unless they belonged to migrated chats or paintings.
+    - [Providers] Add AMD GPU Cloud as a built-in model provider and mini app, including Token Factory API key setup and source attribution.
+    - [Providers] Add official DeepSeek V4 Flash Responses API support while retaining Chat Completions fallback.
+    - [Providers] Provider request settings now allow changing the default chat endpoint.
+    - [Knowledge] Show live copy progress for folder imports and list folders before files in knowledge bases.
 
     🐛 Bug Fixes
-    - [Backup & Restore] action required: Create a fresh version 7 backup after upgrading from v1; local, WebDAV, Nutstore, and S3 backup and restore are available again, and partial backup is no longer offered.
-    - [Data] action required: The v2 database now lives at `Data/cherrystudio.sqlite`, Claude config is migrated to `Data/Agents/.claude`, and existing pre-alpha database files at the former root location are not imported automatically.
-    - [Agent] action required: New users who skip provider setup must configure a model before using the built-in Cherry Assistant. Choosing a model during onboarding configures it automatically.
-    - [Data Directory] action required: Removed special protection for the OS Music, Pictures, and Videos directories when choosing a data-directory relocation target; avoid selecting these shared media roots unless you intentionally want Cherry Studio to use them as its data directory.
-    - [Migration] Fixed v2 migration failure when an existing Claude config directory is present.
-    - [Migration] Fixed Windows Agent data migration failures when copied workspaces contain directory links.
-    - [Migration] Fixed v1-to-v2 migration so custom mini-apps are preserved, and aligned custom and Ant Ling launchpad icon sizing.
-    - [Search] Fixed global search losing keyboard focus after clearing the query.
-    - [Composer] Follow-up queue auto-send now stays paused for each conversation until the user explicitly resumes it.
-    - [File Preview] Fixed generated HTML and other Unicode text files being incorrectly reported as binary when previewed.
-    - [Agent] Skills created or installed by agents now appear reliably in the Skills library, and skill cards show the declared version when available.
-    - [Chat] Fixed blank space after regenerating long conversations and removed the message image-export menu flash.
-    - [Paintings] Fixed the Paintings preview so generation prompts remain fixed above the image and long prompts stay contained while the image is dragged, zoomed, or rotated.
-    - [Paintings] Fixed duplicate custom-size options and labels for image models that already declare custom dimensions.
-    - [Quick Assistant] Quick Assistant now keeps typed input separate from clipboard previews and renders sent user messages as compact right-aligned bubbles.
-    - [Chat] Fixed active responses losing streamed content when switching away from and back to a tab, and collapsed/expanded message sections resetting while a response streams.
-    - [Chat] Fixed empty assistant messages shown when a response is interrupted before the first content chunk.
-    - [Providers] Fixed AWS Bedrock authentication settings so users can switch between IAM credentials and Bedrock API keys in either direction.
-    - [macOS] Fixed toggling the Selection Assistant on no longer sending the whole app behind other apps or removing the Dock icon.
-    - [Providers] Fixed provider model lists to preserve distinct registry and OpenAI-compatible display names.
-    - [Build] Fixed a startup crash on Intel Macs caused by a missing native binary.
-    - [Chat] Fixed image copy and export for assistant topics and agent sessions, including captures with local avatars.
-    - [Windows] Fixed Windows portable builds omitting the sqlite-vec extension, which prevented users from creating knowledge bases.
-    - [Onboarding] Fixed onboarding model selection to exclude embedding, reranking, image, audio, and video-only models.
-    - [Notes] Fixed note imports so clicking the sidebar import hint opens the Markdown file picker.
+    - [Chat] Fixed multi-model context selection so the indicator matches the branch used for subsequent messages, and selecting context no longer jumps the conversation to the latest message.
+    - [Paintings] Fixed the Paintings page opening the latest generated image instead of a fresh empty draft.
+    - [Agent] Claude Code Agent sessions no longer fail when SDK usage messages omit a model identifier.
+    - [Agent] Fixed the agent permission-mode switcher in the composer, where the "Approve for Me" and "Full Access" model-support warnings overflowed their rows and overlapped neighbouring options. The same warning no longer pushes the channel permission-mode selector onto two lines.
+    - [Agent] New agents now start in the "Ask Before Acting" permission mode instead of "Approve for Me". "Approve for Me" relies on model-side classification that not every model supports, so it is now an explicit choice and warns about model support when selected. Existing agents keep their current mode.
+    - [Agent] Fixed Agent v2 migration retries failing on stale Agent, workspace, or Claude Session cache targets.
+    - [Migration] Fixed model metadata (capabilities, context window, token limits) not being resolved from the provider registry after migrating from Cherry Studio v1 for models under user-defined custom providers.
+    - [Onboarding] Fixed onboarding blocking migrated users whose current privacy agreement was already saved.
+    - [Providers] Prevented API keys with non-ByteString characters from causing request encoding failures. Action required: replace any existing affected API key in provider settings.
+    - [Files] Agent file outputs now open in the appropriate Files pane view, with consistent previews and interactive HTML artifact support.
+    - [Mini Apps] Use a distinct grid icon for the mini-app launchpad action so it is easier to distinguish from the detached window always-on-top control.
 
     💄 Improvements
-    - [Paintings] Improved painting generation feedback with a subtle color-sampled grid that gradually reveals the finished image.
-    - [UI] Refined the new conversation icon with thinner, consistently scaled strokes.
+    - [UI] Improved visual consistency and usability across settings, chat, Markdown, resource dialogs, and related navigation surfaces.
+    - [UI] Improved focus feedback so controls no longer draw an extra outer frame or change selector borders on pointer open.
+    - [Themes] Improved the consistency and readability of secondary text, links, focus outlines, selected borders, and feedback surfaces across light and dark themes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-rc.1 - 备份恢复、绘图改进与 v2 稳定化
+    Cherry Studio 2.0.0-rc.4 - 服务商、文件与界面打磨
 
     ✨ 新功能
-    - [绘图] 在空白的绘图画布上新增本地化提示词模板画廊，模板带可编辑的具体示例 Token，并提供无障碍的提示词预览与复制；开始生成后画廊自动消失，已完成结果仍使用原有纯图查看器。
+    - [文件] 已删除对话、话题或绘画面板专属的文件现会在宽限期后自动清理，而非永久堆积。从”文件”页上传的文件将永久保留；从 v1 迁移过来的文件除非属于已迁移的对话或绘画面板，否则也会保留。
+    - [服务商] 新增 AMD GPU Cloud 作为内置模型服务商与小程序，包含 Token Factory API 密钥设置与来源标注。
+    - [服务商] 新增 DeepSeek V4 Flash Responses API 官方支持，并保留 Chat Completions 作为回退。
+    - [服务商] 服务商请求设置现允许更改默认聊天端点。
+    - [知识库] 文件夹导入现显示实时复制进度，并在知识库中将文件夹排在文件之前。
 
     🐛 问题修复
-    - [备份与恢复] action required: 从 v1 升级后请重新创建 version 7 备份；本地、WebDAV、坚果云、S3 的备份与恢复已重新可用，不再提供部分备份。
-    - [数据] action required: v2 数据库现已位于 `Data/cherrystudio.sqlite`，Claude 配置迁移至 `Data/Agents/.claude`，原根目录下的预发布版数据库文件不会被自动导入。
-    - [智能体] action required: 跳过服务商配置的新用户需在使用内置 Cherry Assistant 前先配置一个模型；在引导流程中选择模型会自动完成配置。
-    - [数据目录] action required: 选择数据目录迁移目标时不再对系统“音乐”“图片”“视频”目录做特殊保护；除非确实希望将它们作为 Cherry Studio 的数据目录，请避免选择这些共享媒体根目录。
-    - [迁移] 修复了已存在 Claude 配置目录时 v2 迁移失败的问题。
-    - [迁移] 修复了 Windows 智能体数据迁移在复用的工作区包含目录链接时失败的问题。
-    - [迁移] 修复了 v1 到 v2 迁移时自定义小程序丢失的问题，并统一了自定义与 Ant Ling 启动台图标尺寸。
-    - [搜索] 修复了清空查询后全局搜索失去键盘焦点的问题。
-    - [输入框] 跟进队列的自动发送现在在每段对话中保持暂停，直至用户显式恢复。
-    - [文件预览] 修复了生成的 HTML 等 Unicode 文本文件被错误识别为二进制的问题。
-    - [智能体] 智能体创建或安装的技能现可可靠出现在技能库中，技能卡片在可用时显示声明的版本号。
-    - [聊天] 修复了重新生成长对话后出现的空白区域，并消除消息图片导出菜单的闪烁。
-    - [绘图] 修复了绘图预览：生成提示词固定在图像上方，拖动、缩放或旋转图像时长提示词不再溢出。
-    - [绘图] 修复了已声明自定义尺寸的图像模型出现重复自定义尺寸选项与标签的问题。
-    - [快捷助手] 快捷助手现在将键入内容与剪贴板预览分开显示，并将已发送的用户消息渲染为紧凑的右对齐气泡。
-    - [聊天] 修复了切换标签页再返回时当前回复丢失流式内容、以及流式输出时展开/折叠的消息段落被重置的问题。
-    - [聊天] 修复了回复在首个内容片段前被中断时显示空白助手消息的问题。
-    - [服务商] 修复了 AWS Bedrock 鉴权设置，用户可在 IAM 凭证与 Bedrock API Key 之间双向切换。
-    - [macOS] 修复了在 macOS 上开启选中助手时不再将整个应用置于其他应用之后或移除 Dock 图标的问题。
-    - [服务商] 修复了服务商模型列表，保留注册表与 OpenAI 兼容显示名的差异。
-    - [构建] 修复了 Intel Mac 上因缺少原生二进制导致的启动崩溃。
-    - [聊天] 修复了助手话题与智能体会话的图片复制与导出，包括带本地头像的截图。
-    - [Windows] 修复了 Windows 便携版构建遗漏 sqlite-vec 扩展导致用户无法创建知识库的问题。
-    - [引导] 修复了引导流程中模型选择，排除嵌入、重排、图像、音频与仅视频模型。
-    - [笔记] 修复了笔记导入：点击侧边栏导入提示会打开 Markdown 文件选择器。
+    - [聊天] 修复多模型上下文选择：指示器现与后续消息所用分支一致，选择上下文不再让对话跳转到最新消息。
+    - [绘画面板] 修复绘画面板打开时显示最近生成图片而非空白草稿的问题。
+    - [智能体] Claude Code 智能体会话在 SDK 用量消息缺少模型标识时不再失败。
+    - [智能体] 修复输入框中智能体权限模式切换器的”为我审批”与”完全访问”模型支持警告溢出行、与相邻选项重叠的问题；该警告也不再使频道权限模式选择器折成两行。
+    - [智能体] 新建智能体现以”操作前询问”权限模式启动，而非”为我审批”。”为我审批”依赖并非所有模型都支持的模型端分类，因此现为显式选择，并在选中时提示模型支持情况。已有智能体保持当前模式不变。
+    - [智能体] 修复智能体 v2 迁移在遇到陈旧的智能体、工作区或 Claude Session 缓存目标时重试失败的问题。
+    - [迁移] 修复从 Cherry Studio v1 迁移后，用户自定义服务商下模型的元数据（能力、上下文窗口、token 上限）无法从服务商注册表解析的问题。
+    - [引导] 修复引导流程卡住已保存过隐私协议的迁移用户的问题。
+    - [服务商] 阻止包含非 ByteString 字符的 API 密钥导致请求编码失败。需要操作：在服务商设置中替换任何已存在的受影响 API 密钥。
+    - [文件] 智能体文件输出现可在相应的”文件”窗格视图中打开，预览一致并支持交互式 HTML 工件。
+    - [小程序] 为小程序启动台操作使用独立的网格图标，使其更易与分离窗口的置顶控件区分。
 
     💄 改进
-    - [绘图] 改进了绘图生成反馈：细腻的色样网格会逐渐揭示最终图像。
-    - [界面] 优化了新建对话图标，使用更细且均匀可缩放的描边。
+    - [界面] 改进设置、聊天、Markdown、资源对话框及相关导航界面的视觉一致性与可用性。
+    - [界面] 改进焦点反馈，控件不再在指针打开时绘制多余外框或更改选择器边框。
+    - [主题] 改进亮色与暗色主题下辅助文本、链接、焦点轮廓、选中边框与反馈界面的一致性与可读性。
     <!--LANG:END-->

@@ -385,7 +385,8 @@ describe('KnowledgeService', () => {
     expect(getDependencies(KnowledgeService)).toEqual([
       'KnowledgeVectorStoreService',
       'JobManager',
-      'FileProcessingService'
+      'FileProcessingService',
+      'WebSearchService'
     ])
   })
 
@@ -660,6 +661,30 @@ describe('KnowledgeService', () => {
       'knowledge.index-documents',
       expect.objectContaining({ baseId: 'restored-kb' }),
       expect.objectContaining({ idempotencyKey: expect.stringContaining('knowledge:restored-kb:') })
+    )
+  })
+
+  it('restores a base without embeddings as BM25-only', async () => {
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: null, dimensions: null })
+    knowledgeBaseGetByIdMock
+      .mockReturnValueOnce(createBase({ id: 'source-kb' }))
+      .mockReturnValueOnce(restoredBase)
+      .mockReturnValueOnce(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([createNoteItem('source-note', 'source-kb')])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored BM25 KB',
+        embeddingModelId: null,
+        dimensions: null
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ embeddingModelId: null, dimensions: null })
     )
   })
 

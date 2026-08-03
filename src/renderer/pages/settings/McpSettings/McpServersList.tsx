@@ -74,8 +74,6 @@ const McpServersList: FC = () => {
     })
   }, [deferredSearchText, filter, mcpServers])
 
-  const activeServerCount = useMemo(() => mcpServers.filter((server) => server.isActive).length, [mcpServers])
-
   const { onSortEnd } = useDndReorder({
     originalList: mcpServers,
     filteredList: filteredMcpServers,
@@ -115,8 +113,11 @@ const McpServersList: FC = () => {
   )
 
   const handleAddServerSuccess = useCallback(
-    async (dto: CreateMcpServerDto): Promise<McpServer> => {
-      const created = await addMcpServer(dto)
+    async (dtos: CreateMcpServerDto[]): Promise<McpServer[]> => {
+      const created: McpServer[] = []
+      for (const dto of dtos) {
+        created.push(await addMcpServer(dto))
+      }
       setIsAddModalVisible(false)
       toast.success(t('settings.mcp.addSuccess'))
       return created
@@ -136,16 +137,11 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-2 pb-6">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-3 pb-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
-              <span className="text-muted-foreground text-sm tabular-nums">
-                {activeServerCount}/{mcpServers.length}
-              </span>
-            </div>
+            <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
             <div className="flex shrink-0 items-center gap-1">
               <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
                 <PopoverTrigger asChild>
@@ -194,10 +190,10 @@ const McpServersList: FC = () => {
             <EnvironmentDependencies mini />
             <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
               <PopoverTrigger asChild>
-                <Button type="button">
-                  <Plus size={16} />
+                <Button type="button" size="sm">
+                  <Plus className="size-3" />
                   {t('common.add')}
-                  <ChevronDown size={14} />
+                  <ChevronDown className="size-3" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" side="bottom" className="w-auto p-1">

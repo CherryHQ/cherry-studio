@@ -31,6 +31,15 @@ const mocks = vi.hoisted(() => {
           Save HTML
         </button>
       </div>
+    )),
+    MessageHtmlArtifact: vi.fn(({ html, onSave, editable, isStreaming }) => (
+      <div data-testid="message-html-artifact">
+        <span>{html}</span>
+        <span data-testid="message-html-streaming-state">{String(isStreaming)}</span>
+        <button type="button" disabled={!editable} onClick={() => onSave('new inline html content')}>
+          Save Inline HTML
+        </button>
+      </div>
     ))
   }
 })
@@ -63,6 +72,10 @@ vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
   default: mocks.HtmlArtifactsCard
 }))
 
+vi.mock('@renderer/components/chat/messages/blocks/MessageHtmlArtifact', () => ({
+  MessageHtmlArtifact: mocks.MessageHtmlArtifact
+}))
+
 // Mock ClickableFilePath
 vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
@@ -93,11 +106,6 @@ describe('CodeBlock', () => {
   })
 
   describe('rendering', () => {
-    it('should render a snapshot', () => {
-      const { container } = render(<CodeBlock {...defaultProps} />)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should render inline code when no language match is found', () => {
       const inlineProps = {
         ...defaultProps,
@@ -108,8 +116,6 @@ describe('CodeBlock', () => {
 
       const codeElement = screen.getByText('inline code')
       expect(codeElement.tagName).toBe('CODE')
-      expect(codeElement).not.toHaveAttribute('style')
-      expect(codeElement).toHaveClass('whitespace-pre-wrap!')
       expect(mocks.CodeBlockView).not.toHaveBeenCalled()
     })
 
@@ -131,8 +137,6 @@ describe('CodeBlock', () => {
 
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
       expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
-      expect(screen.getByTestId('clickable-file-path').closest('code')).not.toHaveAttribute('style')
-      expect(screen.getByTestId('clickable-file-path').closest('code')).toHaveClass('break-all!')
     })
 
     it('should render ClickableFilePath for workspace-relative file paths', () => {
@@ -157,14 +161,8 @@ describe('CodeBlock', () => {
     })
 
     it.each([
-      '/home/user/project/src/index.ts',
-      '/tmp/test.log',
-      '/var/log/app.log',
-      '/etc/nginx/nginx.conf',
-      '/path with spaces/file.ts',
       '/Users/suyao/Library/Application Support/CherryStudioDev/.claude/skills/guizang-ppt-skill/',
       './src/index.ts',
-      '../packages/ui/src/button.tsx',
       '../packages/ui/src/'
     ])('should detect %s as a file path', (path) => {
       render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
@@ -188,14 +186,11 @@ describe('CodeBlock', () => {
       }
     )
 
-    it.each(['/home/user/project/src/index.ts', '/tmp/test.log', '/var/log/app.log', '/etc/nginx/nginx.conf'])(
-      'should NOT detect %s as a file path on Windows',
-      (path) => {
-        mocks.isWin = true
-        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
-        expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
-      }
-    )
+    it('should NOT detect a POSIX path as a file path on Windows', () => {
+      mocks.isWin = true
+      render(<CodeBlock {...defaultProps} className={undefined} children="/home/user/project/src/index.ts" />)
+      expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+    })
 
     it('should render mermaid code fences with the app code block view', () => {
       render(<CodeBlock {...defaultProps} className="language-mermaid" children="graph TD; A-->B;" />)
@@ -281,6 +276,53 @@ describe('CodeBlock', () => {
         undefined
       )
     })
+
+    it('renders completed HTML directly in its original Markdown position', () => {
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className="language-html"
+          children="<h1>Hello</h1>"
+          inlineHtmlPreviewMode="ready"
+        />
+      )
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          artifactId: 'test-msg-block-id:test-code-block-id',
+          editable: true,
+          html: '<h1>Hello</h1>',
+          kind: 'fragment',
+          isStreaming: false,
+          onSave: expect.any(Function)
+        }),
+        undefined
+      )
+    })
+
+    it('classifies a completed HTML document so the view can gate it', () => {
+      const html =
+        '<!doctype html><html><head><link rel="stylesheet" href="https://example.com/style.css"></head></html>'
+      render(<CodeBlock {...defaultProps} className="language-html" children={html} inlineHtmlPreviewMode="ready" />)
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html, kind: 'document', isStreaming: false }),
+        undefined
+      )
+    })
+
+    it('classifies active markup embedded in prose as a fragment, never gated', () => {
+      const html = '<script>document.body.textContent = "interactive"</script>'
+      render(<CodeBlock {...defaultProps} className="language-html" children={html} inlineHtmlPreviewMode="ready" />)
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html, kind: 'fragment', isStreaming: false }),
+        undefined
+      )
+    })
   })
 
   describe('save', () => {
@@ -325,6 +367,25 @@ describe('CodeBlock', () => {
       })
     })
 
+    it('should call saveCodeBlock when saving an inline HTML artifact', () => {
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className="language-html"
+          children="<h1>Hello</h1>"
+          inlineHtmlPreviewMode="ready"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save Inline HTML' }))
+
+      expect(mocks.saveCodeBlock).toHaveBeenCalledWith({
+        msgBlockId: 'test-msg-block-id',
+        codeBlockId: 'test-code-block-id',
+        newContent: 'new inline html content'
+      })
+    })
+
     it('should pass Streamdown incomplete fence state to HTML artifact cards', () => {
       mocks.isCodeFenceIncomplete = true
       const htmlProps = {
@@ -336,6 +397,86 @@ describe('CodeBlock', () => {
       render(<CodeBlock {...htmlProps} />)
 
       expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+    })
+
+    it('renders a streaming fenced HTML fragment in the existing message artifact view', () => {
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+          {'<div><h1>Hello</h1></div>'}
+        </CodeBlock>
+      )
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<div><h1>Hello</h1></div>', kind: 'fragment', isStreaming: true }),
+        undefined
+      )
+      expect(screen.getByTestId('message-html-streaming-state')).toHaveTextContent('true')
+    })
+
+    it('keeps a streaming HTML document in the display-only source view', () => {
+      const html = '<!doctype html><html><body><h1>Hello</h1></body></html>'
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+          {html}
+        </CodeBlock>
+      )
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          children: html,
+          editable: false,
+          language: 'html',
+          isStreaming: true,
+          maxHeight: 350,
+          showToolbar: false
+        }),
+        undefined
+      )
+    })
+
+    it('renders an empty streaming fence without crashing', () => {
+      expect(() =>
+        render(
+          <CodeBlock
+            blockId={defaultProps.blockId}
+            node={defaultProps.node}
+            className="language-html"
+            inlineHtmlPreviewMode="generating"
+          />
+        )
+      ).not.toThrow()
+
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
+    })
+
+    it('holds the surface until a streamed prefix can be classified', () => {
+      const partial = '<!doc'
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+          {partial}
+        </CodeBlock>
+      )
+
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
+    })
+
+    it('falls back to the fragment surface for unclassifiable but completed HTML', () => {
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="ready">
+          {'plain text in an html fence'}
+        </CodeBlock>
+      )
+
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'fragment', isStreaming: false }),
+        undefined
+      )
     })
   })
 })

@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/tags/CustomTag'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { getMessageTitle } from '@renderer/services/ExportService'
 import {
   analyzeMessagesContent,
   analyzeTopicContent,
@@ -108,7 +109,7 @@ interface SaveResult {
 
 type Props = ShowParams & PopupInjectedProps<SaveResult | null>
 
-const getNoteSource = (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
+const getNoteSource = async (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
   const trimmedSourceTitle = sourceTitle?.trim()
 
   if (trimmedSourceTitle) {
@@ -127,7 +128,7 @@ const getNoteSource = (source: ContentSource, fallbackConversationTitle: string,
     return source.data.title.trim() || fallbackConversationTitle
   }
 
-  return source.data.id
+  return getMessageTitle(source.data)
 }
 
 const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, open, resolve }) => {
@@ -306,7 +307,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       const items: KnowledgeAddItemInput[] = []
-      const noteSource = getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
+      const noteSource = await getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
 
       if (isNoteMode) {
         const note = source.data

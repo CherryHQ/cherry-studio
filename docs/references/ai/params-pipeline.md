@@ -17,9 +17,11 @@ interface BuiltAgentParams {
 }
 ```
 
-It is a pure async function — no class, no shared state. Callers (chat,
-agent session, translate, prompt-only) shape their own `AiBaseRequest` and
-hand it in.
+It is a standalone async orchestrator — no class or retained request state.
+Callers (chat, agent session, translate, prompt-only) shape their own
+`AiBaseRequest` and hand it in. The pipeline refines the request-local
+`sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
+passthrough is required.
 
 ## RequestFeature
 
@@ -80,15 +82,17 @@ interface RequestScope extends ToolApplyScope {
 }
 ```
 
-Features must never mutate the scope. The scope IS shared across all
-features for a single request, so any added field becomes part of the
-contract — keep it minimal.
+Features must never mutate the scope. The scope IS shared across all features
+for a single request, so any added field becomes part of the contract — keep it
+minimal. After feature collection, the pipeline may still refine the
+request-local `sdkConfig.providerSettings.fetch` before returning it.
 
 ## Pipeline order
 
 ```
 buildAgentParams(input)
   ├─ resolveSdkConfig         → providerToAiSdkConfig + modelId
+  ├─ applyHttpTrace           → optional request-local fetch wrapper
   ├─ canModelConsumeTools?    → resolveTools (registry sync + defer)
   │     └─ syncMcpToolsToRegistry  (only servers owning a selected tool)
   │     └─ registry.selectActive   (per-entry applies)
@@ -99,6 +103,7 @@ buildAgentParams(input)
   ├─ collectFromFeatures      → plugins + hookParts
   ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
   └─ buildAgentOptions        → providerOptions + customParameters split
+                                + optional body-passthrough fetch wrapper
                                 + headers + stopWhen + repair + telemetry
 ```
 
@@ -111,6 +116,13 @@ top-level `AgentOptions` (AI SDK forwards them to the model), provider
 params merge into `providerOptions[aiSdkProviderId]` (after a
 `mergeCustomProviderParameters` pass that respects existing capability
 options).
+
+Flat provider params also pass through a request-local fetch wrapper after the
+AI SDK serializes its JSON POST body. This preserves provider-defined wire names
+such as `snake_case` keys that an adapter schema does not recognize. Provider
+namespace bags remain exclusive to `providerOptions`, non-JSON requests are
+left unchanged, and SDK-produced body fields take precedence over custom
+parameters.
 
 ## Where to read more
 

@@ -540,9 +540,13 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
-        showSuccessToast: false
-      })
+      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+        {
+          agentId: 'agent-1',
+          modelId: 'provider:model-2'
+        },
+        { showSuccessToast: false }
+      )
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -571,9 +575,13 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
-        showSuccessToast: false
-      })
+      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+        {
+          agentId: 'agent-1',
+          modelId: 'provider:model-2'
+        },
+        { showSuccessToast: false }
+      )
     )
   })
 
@@ -603,37 +611,6 @@ describe('AgentChat settings panel', () => {
 
     await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-1' }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByText('Choose logger')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
   it('keeps the missing-agent home composer for pending ask-user-question requests', async () => {

@@ -87,6 +87,35 @@ describe('modelListDerivedState', () => {
     expect(Object.keys(groupModels(groupedModels as any))).toEqual(['deepseek', 'openai'])
   })
 
+  it('repairs legacy provider-id groups while preserving explicit user groups', () => {
+    const groupedModels = [
+      {
+        id: 'opencode::deepseek-v4-pro',
+        apiModelId: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        providerId: 'opencode',
+        group: 'opencode',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'opencode::gpt-5.6-sol',
+        apiModelId: 'gpt-5.6-sol',
+        name: 'GPT 5.6 Sol',
+        providerId: 'opencode',
+        group: 'Featured',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    const groups = groupModels(groupedModels as any, false, { preferModelGroup: true })
+
+    expect(groups.deepseek.map((model) => model.id)).toEqual(['opencode::deepseek-v4-pro'])
+    expect(groups.Featured.map((model) => model.id)).toEqual(['opencode::gpt-5.6-sol'])
+    expect(groups.opencode).toBeUndefined()
+  })
+
   it('applies search text and capability filters together', () => {
     expect(applyModelFilters(models as any, 'alpha', 'all').map((model) => model.id)).toEqual([
       'openai::reasoning-free',
