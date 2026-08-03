@@ -144,50 +144,42 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.12 - Model, Provider, and Tool Updates
+    Cherry Studio 1.9.13 - Agent, Model, and Reliability Updates
 
     ✨ New Features
-    - [Models] Add support for Kimi K2.7 Code and refresh Moonshot defaults.
+    - [Claude Code] Let Windows agents fall back to PowerShell when Git Bash is unavailable.
+    - [Models] Add Doubao Seed 2.1 Pro, Doubao Seed 2.1 Turbo, and Doubao Seed Evolving with adjustable thinking levels.
+    - [Models] Add LongCat 2.0 as the default LongCat model and support toggling thinking mode.
 
     🐛 Bug Fixes
-    - [Models] Fix DeepSeek V4+ thinking effort not applying with custom OpenAI-compatible providers.
-    - [Models] Fix Claude Fable and Opus 5 capability detection.
-    - [Tools] Fix approval buttons toggling collapsed tool groups.
-    - [Providers] Fix NewAPI/OneAPI ignoring the configured Anthropic API host.
-    - [Agent] Fix agent mode requests being blocked by some third-party provider risk checks.
-    - [Images] Fix downloading AI-generated SVG images that were blocked by browser security rules.
-    - [Files] Fix saved or pasted images getting malformed file extensions.
-    - [Models] Fix MiniMax M3 thinking controls.
-    - [Chat] Show an error when a response stream ends unexpectedly.
-    - [CherryIN] Fix CherryIN API requests using the wrong domain.
-    - [Web Search] Fix ExaMCP results missing usable URLs and highlights.
-    - [Claude Code] Fix Windows updates that could leave the native binary missing.
-    - [Providers] Fix AiHubMix Gemini requests ignoring custom base URLs.
+    - [Copilot] Fix device-code authorization when custom headers are configured.
+    - [Agent] Make Ctrl/Cmd+F open in-chat search in Agent sessions.
+    - [Chat] Load more history automatically when the initial message list does not fill the viewport.
+    - [Web Search] Fix query rewriting so conversation context is handled correctly.
+    - [CherryIN] Update website and OAuth links to open.cherryin.net.
+    - [Providers] Fix NewAPI Gemini requests using the wrong endpoint.
+    - [AI Diagnosis] Improve diagnosis of rate limits, quota errors, regional restrictions, content filters, and feature-specific timeouts.
 
-    💄 Improvements
-    - [Models] Fetch Anthropic model lists directly from Anthropic so new models appear sooner.
+    ⚡ Performance
+    - [Chat] Reduce memory usage during large code-block streaming while preserving the complete generated content.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.12 - 模型、提供商与工具更新
+    Cherry Studio 1.9.13 - 智能体、模型与稳定性更新
 
     ✨ 新功能
-    - [模型] 新增 Kimi K2.7 Code 支持，并更新 Moonshot 默认模型列表。
+    - [Claude Code] Windows 环境未安装 Git Bash 时，智能体可自动使用 PowerShell。
+    - [模型] 新增豆包 Seed 2.1 Pro、Seed 2.1 Turbo 和 Seed Evolving，并支持调节思考强度。
+    - [模型] 将 LongCat 2.0 设为默认 LongCat 模型，并支持开关思考模式。
 
     🐛 问题修复
-    - [模型] 修复自定义 OpenAI 兼容提供商中 DeepSeek V4+ 思考强度不生效的问题。
-    - [模型] 修复 Claude Fable 系列和 Opus 5 能力识别问题。
-    - [工具] 修复折叠工具组中点击审批按钮会误触发展开/收起的问题。
-    - [提供商] 修复 NewAPI/OneAPI 未使用已配置 Anthropic API Host 的问题。
-    - [智能体] 修复部分第三方提供商误拦截智能体模式请求的问题。
-    - [图片] 修复部分 AI 生成 SVG 图片无法下载的问题。
-    - [文件] 修复保存或粘贴图片时文件扩展名异常的问题。
-    - [模型] 修复 MiniMax M3 思考开关控制问题。
-    - [聊天] 修复回复流异常结束时未正确提示错误的问题。
-    - [CherryIN] 修复 CherryIN API 请求域名错误的问题。
-    - [联网搜索] 修复 ExaMCP 搜索结果 URL 和高亮内容解析问题。
-    - [Claude Code] 修复 Windows 更新后可能丢失原生可执行文件的问题。
-    - [提供商] 修复 AiHubMix Gemini 请求未使用自定义 base URL 的问题。
+    - [Copilot] 修复配置自定义请求头后设备授权可能失败的问题。
+    - [智能体] 修复智能体会话中 Ctrl/Cmd+F 无法打开聊天内容搜索的问题。
+    - [聊天] 修复首屏消息未填满窗口时无法继续加载历史消息的问题。
+    - [联网搜索] 修复查询改写未正确处理对话上下文的问题。
+    - [CherryIN] 将网站及 OAuth 链接更新至 open.cherryin.net。
+    - [提供商] 修复 NewAPI Gemini 请求使用错误接口版本的问题。
+    - [AI 诊断] 改进限流、额度不足、地区限制、内容过滤和功能超时等错误的诊断准确性。
 
-    💄 改进
-    - [模型] 改为直接从 Anthropic 获取模型列表，让新模型更快显示。
+    ⚡ 性能优化
+    - [聊天] 降低大型代码块生成过程中的内存占用，并保留完整生成内容。
     <!--LANG:END-->
