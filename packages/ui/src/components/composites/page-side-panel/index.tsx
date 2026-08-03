@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
+import { useDialogPortalContainer, usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { XIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -10,14 +10,25 @@ import { createPortal } from 'react-dom'
 import Scrollbar from '../scrollbar'
 
 /**
- * A page-owned floating side panel. It portals into the nearest portal container
- * provided by `PortalContainerProvider` (e.g. a route tab root) when present,
- * otherwise to `document.body`. Scoped to a container it positions `absolute`
- * within it; at `document.body` it stays `fixed` to the viewport.
+ * A page-owned floating side panel. It prefers the page-level portal container
+ * used by dialogs so the panel remains attached to its owning route tab, then
+ * falls back to the nearest overlay container or `document.body`.
  *
  * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
  */
 type PageSidePanelPlacement = 'left' | 'right'
+type PageSidePanelPositioning = 'container' | 'viewport'
+
+const PageSidePanelPositioningContext = React.createContext<PageSidePanelPositioning | null>(null)
+
+interface PageSidePanelPositioningProviderProps {
+  positioning: PageSidePanelPositioning
+  children: React.ReactNode
+}
+
+function PageSidePanelPositioningProvider({ positioning, children }: PageSidePanelPositioningProviderProps) {
+  return <PageSidePanelPositioningContext value={positioning}>{children}</PageSidePanelPositioningContext>
+}
 
 interface PageSidePanelProps {
   open: boolean
@@ -61,10 +72,14 @@ function PageSidePanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
-  const scopedContainer = usePortalContainer()
-  const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
+  const pagePortalContainer = useDialogPortalContainer()
+  const nearestPortalContainer = usePortalContainer()
+  const configuredPositioning = React.use(PageSidePanelPositioningContext)
+  const portalContainer =
+    pagePortalContainer ?? nearestPortalContainer ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
+  const positioning = configuredPositioning ?? (isScopedPortal ? 'container' : 'viewport')
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -99,7 +114,7 @@ function PageSidePanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             data-slot="page-side-panel-backdrop"
-            className={cn(isScopedPortal ? 'absolute inset-0' : 'fixed inset-0', 'z-60 bg-black/50', backdropClassName)}
+            className={cn('fixed inset-0 z-60 bg-black/50', backdropClassName)}
             onClick={handleClose}
           />
           <motion.aside
@@ -118,7 +133,7 @@ function PageSidePanel({
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             data-slot="page-side-panel"
             className={cn(
-              isScopedPortal ? 'absolute' : 'fixed',
+              positioning === 'container' ? 'absolute' : 'fixed',
               'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
@@ -227,6 +242,8 @@ export {
   PageSidePanelItem,
   type PageSidePanelItemProps,
   type PageSidePanelPlacement,
+  type PageSidePanelPositioning,
+  PageSidePanelPositioningProvider,
   type PageSidePanelProps,
   PageSidePanelSection,
   type PageSidePanelSectionProps

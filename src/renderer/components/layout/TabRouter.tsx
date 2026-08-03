@@ -1,7 +1,12 @@
-import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
+import {
+  DialogPortalContainerProvider,
+  PageSidePanelPositioningProvider,
+  PortalContainerProvider
+} from '@cherrystudio/ui'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
+import { isMac } from '@renderer/utils/platform'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
@@ -58,13 +63,15 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
       <TabIdProvider tabId={tab.id}>
-        {/* This tab's content root is the portal target for overlays and PageSidePanel
-            scoped to the tab (`relative` anchors the scoped panel's absolute layout), so a
-            background tab's still-open surface stays hidden with its owning tab. */}
+        {/* This tab root owns page-level portals so background-tab surfaces stay hidden.
+            PageSidePanel keeps container positioning on Windows/Linux and uses viewport
+            positioning on macOS while its fixed backdrop covers the whole window. */}
         <div ref={captureTabPortalContainer} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
             <DialogPortalContainerProvider container={tabPortalContainer}>
-              <RouterProvider router={router} />
+              <PageSidePanelPositioningProvider positioning={isMac ? 'viewport' : 'container'}>
+                <RouterProvider router={router} />
+              </PageSidePanelPositioningProvider>
             </DialogPortalContainerProvider>
           </PortalContainerProvider>
         </div>
