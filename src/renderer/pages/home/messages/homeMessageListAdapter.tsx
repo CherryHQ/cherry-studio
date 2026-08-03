@@ -9,16 +9,17 @@ import {
   pickMessageLeafActions,
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
@@ -105,11 +106,19 @@ export function useHomeMessageListProviderValue({
   const navigate = useNavigate()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
-  const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
+  const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
+  const {
+    languages: translationLanguages,
+    getLabel: getTranslationLanguageLabel,
+    status: translationLanguagesStatus,
+    refetch: refetchTranslationLanguages
+  } = useLanguages({
+    enabled: normalInteractionsEnabled && translationLanguagesRequested
+  })
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
   const { editingMessage, editingMessageId, startEditing } = useMessageEditing()
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const canStartNewContext =
     normalInteractionsEnabled && Boolean(chatWrite?.canStartNewContext) && editingMessage?.message.topicId !== topicId
   const resolvedAssistantId = assistant?.id ?? assistantId
@@ -167,6 +176,14 @@ export function useHomeMessageListProviderValue({
     (messageId: string) => translatingMessageIds.has(messageId),
     [translatingMessageIds]
   )
+
+  const requestTranslationLanguages = useCallback(() => {
+    setTranslationLanguagesRequested(true)
+  }, [])
+
+  const retryTranslationLanguages = useCallback(() => {
+    void refetchTranslationLanguages()
+  }, [refetchTranslationLanguages])
 
   useEffect(() => {
     messagesRef.current = messageItems
@@ -761,18 +778,15 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
-      estimateSize: 600,
-      overscan: 8,
-      loadOlderDelayMs: 300,
-      loadingResetDelayMs: 300,
-      listKey: assistant?.id ?? topic.assistantId,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAssistantId,
       localSendGeneration,
-      readonly: false,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
       editingMessageId,
       translationLanguages: translationLanguages ?? [],
+      translationLanguagesStatus,
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
       getMessageActivityState,
@@ -781,7 +795,6 @@ export function useHomeMessageListProviderValue({
       getTranslationLanguageLabel
     }),
     [
-      assistant?.id,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
@@ -798,10 +811,12 @@ export function useHomeMessageListProviderValue({
       messageNavigation,
       partsByMessageId,
       renderConfig,
+      resolvedAssistantId,
       selectionController.selection,
       streamingLayers,
       topic,
-      translationLanguages
+      translationLanguages,
+      translationLanguagesStatus
     ]
   )
 
@@ -836,6 +851,8 @@ export function useHomeMessageListProviderValue({
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
       regenerateMessage,
+      requestTranslationLanguages: normalInteractionsEnabled ? requestTranslationLanguages : undefined,
+      retryTranslationLanguages: normalInteractionsEnabled ? retryTranslationLanguages : undefined,
       translateMessage,
       abortMessageTranslation,
       removeMessageTranslation,
@@ -865,6 +882,8 @@ export function useHomeMessageListProviderValue({
       openCitationsPanel,
       openPath,
       regenerateMessage,
+      requestTranslationLanguages,
+      retryTranslationLanguages,
       renderRegenerateModelPicker,
       removeMessageErrorPart,
       saveCodeBlock,

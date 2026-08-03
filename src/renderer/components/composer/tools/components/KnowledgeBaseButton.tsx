@@ -13,7 +13,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FileSearch } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -58,7 +58,14 @@ const useKnowledgeBaseToolController = ({
   const { i18n, t } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
   const { isVisible: isQuickPanelVisible, symbol: quickPanelSymbol, updateList: updateQuickPanelList } = useQuickPanel()
-  const { bases: knowledgeBases } = useKnowledgeBases()
+  const [dataRequested, setDataRequested] = useState(false)
+  const panelNeedsData =
+    isQuickPanelVisible &&
+    (quickPanelSymbol === ComposerPanelSymbol.Root || quickPanelSymbol === ComposerPanelSymbol.KnowledgeBase)
+  const knowledgeBasesEnabled = dataRequested || panelNeedsData || (selectedBases?.length ?? 0) > 0
+  const { bases: knowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesEnabled
+  })
   const onSelectRef = useRef(onSelect)
   const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
   const configuredBasesRef = useRef<KnowledgeBase[]>([])
@@ -79,7 +86,7 @@ const useKnowledgeBaseToolController = ({
   tRef.current = t
 
   const isEnabled = (selectedBases?.length ?? 0) > 0
-  const isDisabled = disabled || configuredBases.length === 0
+  const isDisabled = disabled || (knowledgeBasesEnabled && !isKnowledgeBasesLoading && configuredBases.length === 0)
   const fallbackDisabledReason = disabled
     ? t('chat.input.knowledge_base_disabled_by_files')
     : t('chat.save.knowledge.empty.no_knowledge_base')
@@ -160,6 +167,7 @@ const useKnowledgeBaseToolController = ({
       triggerInfo?: { type: 'input' | 'button' }
     }) => {
       if (isDisabled) return
+      setDataRequested(true)
       disposeCloseOnInputAfterSelection()
       const inputQueryCleared = clearKnowledgeBaseInputQuery(inputAdapter, queryAnchor, triggerInfo)
       actionQuickPanel.open({

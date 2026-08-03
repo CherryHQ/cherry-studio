@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-rc.3",
+  "version": "2.0.0-rc.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -126,7 +126,7 @@
   },
   "devDependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.96",
-    "@ai-sdk/anthropic": "^3.0.71",
+    "@ai-sdk/anthropic": "^3.0.103",
     "@ai-sdk/azure": "^3.0.54",
     "@ai-sdk/bytedance": "1.0.29",
     "@ai-sdk/cerebras": "^2.0.67",

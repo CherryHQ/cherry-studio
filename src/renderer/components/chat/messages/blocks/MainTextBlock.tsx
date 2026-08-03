@@ -57,6 +57,10 @@ type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputT
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
+// A fresh empty array per render would cascade through trustedCitations into
+// ChatMarkdown's components map and force Streamdown to re-render (and
+// re-animate) every markdown block on each streaming tick.
+const EMPTY_CITATIONS: Citation[] = []
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
   return isComposerInputTokenKind(token.kind)
@@ -227,7 +231,7 @@ function CollapsibleUserMessageContent({
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
-        className="max-w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        className="max-w-full has-[.code-block]:w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
         {children}
       </div>
       {isCollapsible && (
@@ -256,7 +260,7 @@ const MainTextBlock: React.FC<Props> = ({
   content,
   inlineHtmlPreviewMode,
   isStreaming,
-  citations = [],
+  citations = EMPTY_CITATIONS,
   citationReferences,
   messageCitations,
   toolCitationProjection,
@@ -346,7 +350,7 @@ const MainTextBlock: React.FC<Props> = ({
     },
     [citationReferences, citations, toolCitations]
   )
-  const toolCitedCitations = toolCitations?.projection.cited ?? []
+  const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations
   const trustedCitations = useMemo(() => footerCitations.map(toTooltipCitation), [footerCitations])
   const composerMarkdownContent = useMemo(() => {

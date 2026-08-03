@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   openSettingsTab: vi.fn(),
   setActiveTab: vi.fn(),
+  useMiniApps: vi.fn(),
   updateTab: vi.fn(),
   activeTab: {
     id: 'chat',
@@ -76,12 +77,15 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({
-    allApps: mocks.allApps,
-    miniApps: mocks.visibleMiniApps ?? mocks.allApps,
-    pinned: mocks.pinnedMiniApps,
-    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
-  })
+  useMiniApps: (options?: { enabled?: boolean }) => {
+    mocks.useMiniApps(options)
+    return {
+      allApps: mocks.allApps,
+      miniApps: mocks.visibleMiniApps ?? mocks.allApps,
+      pinned: mocks.pinnedMiniApps,
+      reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
+    }
+  }
 }))
 vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (icon: string) =>
@@ -313,6 +317,7 @@ afterEach(() => {
   mocks.setSidebarFavorites.mockResolvedValue(undefined)
   mocks.reorderMiniAppsByStatus.mockReset()
   mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+  mocks.useMiniApps.mockReset()
   mocks.activeTab = {
     id: 'chat',
     type: 'route',
@@ -329,6 +334,16 @@ afterEach(() => {
 })
 
 describe('app Sidebar', () => {
+  it('loads mini apps only when the sidebar contains a custom mini-app favorite', () => {
+    const view = render(<Sidebar />)
+    expect(mocks.useMiniApps).toHaveBeenLastCalledWith({ enabled: false })
+
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('mini-1')]
+    view.rerender(<Sidebar />)
+
+    expect(mocks.useMiniApps).toHaveBeenLastCalledWith({ enabled: true })
+  })
+
   it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
     const { container } = render(<Sidebar />)
 

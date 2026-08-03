@@ -1,7 +1,5 @@
-import type * as UseCacheModule from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,13 +22,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@data/hooks/useCache', async (importOriginal) => ({
-  // Real hook over the globally mocked cacheService — useAgentTools reads MCP
-  // tool caches through it (physically empty here → misses).
-  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
-  useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
-}))
-
 describe('useAgent', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
@@ -45,6 +36,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeUndefined()
     expect(mockUseQuery).toHaveBeenCalledWith('/agents/:agentId', expect.objectContaining({ enabled: false }))
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('fetches agent when id is provided', () => {
@@ -64,6 +56,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeDefined()
     expect(result.current.agent?.id).toBe('agent-1')
+    expect(result.current.agent).not.toHaveProperty('tools')
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith(
       '/agents/:agentId',
@@ -72,6 +65,7 @@ describe('useAgent', () => {
         swrOptions: expect.objectContaining({ keepPreviousData: false })
       })
     )
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
@@ -139,7 +133,6 @@ describe('useAgent', () => {
 describe('useAgents', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    MockCacheUtils.resetMocks()
     vi.clearAllMocks()
     mockUseInvalidateCache.mockReturnValue(invalidateSpy)
   })
