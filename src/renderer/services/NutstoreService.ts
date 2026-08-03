@@ -79,7 +79,12 @@ let syncTimeout: NodeJS.Timeout | null = null
 let isAutoBackupRunning = false
 let isManualBackupRunning = false
 
-async function cleanupOldBackups(webdavConfig: WebDavConfig, maxBackups: number): Promise<void> {
+async function cleanupOldBackups(
+  webdavConfig: WebDavConfig,
+  maxBackups: number,
+  hostname: string,
+  deviceType: string
+): Promise<void> {
   if (maxBackups <= 0) {
     logger.debug('[cleanupOldBackups] Skip cleanup: maxBackups <= 0')
     return
@@ -93,16 +98,17 @@ async function cleanupOldBackups(webdavConfig: WebDavConfig, maxBackups: number)
       return
     }
 
+    const currentDeviceSuffix = `.${hostname}.${deviceType}.zip`
     const backupFiles = files
-      .filter((file) => file.fileName.startsWith('cherry-studio') && file.fileName.endsWith('.zip'))
+      .filter((file) => file.fileName.startsWith('cherry-studio.') && file.fileName.endsWith(currentDeviceSuffix))
       .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
 
-    if (backupFiles.length < maxBackups) {
+    if (backupFiles.length <= maxBackups) {
       logger.info(`[cleanupOldBackups] No cleanup needed: ${backupFiles.length}/${maxBackups} backups`)
       return
     }
 
-    const filesToDelete = backupFiles.slice(maxBackups - 1)
+    const filesToDelete = backupFiles.slice(maxBackups)
     logger.info(`[cleanupOldBackups] Deleting ${filesToDelete.length} old backup files`)
 
     let deletedCount = 0
@@ -155,13 +161,15 @@ export async function backupToNutstore({
   }
 
   let deviceType = 'unknown'
+  let hostname = 'unknown'
   try {
     deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
+    hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
-    logger.error('[backupToNutstore] Failed to get device type:', error as Error)
+    logger.error('[backupToNutstore] Failed to get device type or hostname:', error as Error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
-  const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.zip`
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
 
   isManualBackupRunning = true
@@ -172,9 +180,6 @@ export async function backupToNutstore({
   const maxBackups = await preferenceService.get('data.backup.nutstore.max_backups')
 
   try {
-    // 先清理旧备份
-    await cleanupOldBackups(config, maxBackups)
-
     const isSuccess = await window.api.backup.backupToWebdav({
       ...config,
       fileName: finalFileName,
@@ -182,6 +187,7 @@ export async function backupToNutstore({
     })
 
     if (isSuccess) {
+      await cleanupOldBackups(config, maxBackups, hostname, deviceType)
       setNutstoreSyncState({ lastSyncError: null })
       showMessage && toast.success(i18n.t('message.backup.success'))
     } else {
