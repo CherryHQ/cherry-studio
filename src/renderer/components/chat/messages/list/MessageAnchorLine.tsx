@@ -1,9 +1,20 @@
-import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
-import { type FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import {
+  type FC,
+  memo,
+  type MouseEvent as ReactMouseEvent,
+  type UIEvent as ReactUIEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks/MessagePartsContext'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
 
 interface MessageLineProps {
@@ -17,6 +28,12 @@ interface MessageLineProps {
    * for the whole rail lifetime (bottom-anchored vs centred), so finishing the
    * last page load never shifts the visible ticks. */
   hasOlder?: boolean
+  /** Parts for every message outside the mutable streaming tail. Passing this
+   * snapshot instead of reading PartsContext here keeps the rail out of the
+   * streaming render path — only the live preview leaf subscribes to chunks. */
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  /** Messages that must read their current parts from PartsContext. */
+  liveMessageIds: readonly string[]
   scrollToMessageId?: (messageId: string) => void
 }
 
@@ -52,22 +69,27 @@ const RAIL_TICK_PITCH_PX = 10
 const RAIL_FADE_PX = 44
 /** With fewer turns there is nothing worth anchoring — the rail stays hidden. */
 const RAIL_MIN_TURNS = 5
+const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 
 const tickTransitionClassName =
   'transition-[width,height,background-color] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:width]'
 
-const MessageAnchorLine: FC<MessageLineProps> = ({
+const MessageAnchorLine = memo(function MessageAnchorLine({
   messages,
   activeMessageId,
   railOpacity = 1,
   hasOlder = false,
+  historyPartsByMessageId,
+  liveMessageIds,
   scrollToMessageId
-}) => {
+}: MessageLineProps) {
   const { t } = useTranslation()
-  const partsMap = usePartsMap()
+  const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const railScrollRef = useRef<HTMLDivElement>(null)
+  const latestClientYRef = useRef<number | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
 
   /** Rail height in px; drives every tick position so they never depend on DOM reads. */
   const [railHeight, setRailHeight] = useState(0)
@@ -168,24 +190,52 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
   }, [mouseY, turns.length, railHeight, geometry])
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const flushMouseMove = useCallback(() => {
+    animationFrameRef.current = null
     const wrapper = wrapperRef.current
-    if (!wrapper) return
-    setMouseY(e.clientY - wrapper.getBoundingClientRect().top)
-  }
+    const clientY = latestClientYRef.current
+    if (!wrapper || clientY === null) return
+    setMouseY(clientY - wrapper.getBoundingClientRect().top)
+  }, [])
 
-  const handleMouseLeave = () => setMouseY(null)
+  // Pointer moves fire far faster than paint, and each one re-renders every
+  // tick — coalesce them so at most one layout read and one render happen per
+  // frame, always against the latest cursor position.
+  const handleMouseMove = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      latestClientYRef.current = event.clientY
+      if (animationFrameRef.current !== null) return
+      animationFrameRef.current = requestAnimationFrame(flushMouseMove)
+    },
+    [flushMouseMove]
+  )
+
+  const clearPointerState = useCallback(() => {
+    latestClientYRef.current = null
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+    setMouseY(null)
+  }, [])
 
   // The rail scrolls independently of the conversation and never auto-follows
   // reading, so a tick's on-screen position is stable until the user scrolls
   // the rail itself. Mirror that offset into state so the card and wave track it.
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)
+  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
 
   // Fading out mid-hover would otherwise freeze the wave and card behind the
   // fade.
   useEffect(() => {
-    if (!visible) setMouseY(null)
-  }, [visible])
+    if (!visible) clearPointerState()
+  }, [clearPointerState, visible])
+
+  useEffect(
+    () => () => {
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current)
+    },
+    []
+  )
 
   // Few messages don't need anchoring. Only the rail is gated — the content's
   // gutter (MessageList) follows width alone, so when the turn count crosses
@@ -243,10 +293,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
 
   const isHovering = mouseY !== null
   const focusedTurn = focusedIndex !== null ? turns[focusedIndex] : null
-  const getPreviewText = (messageId?: string) =>
-    messageId ? getTextFromParts(partsMap?.[messageId] ?? []).slice(0, PREVIEW_MAX_CHARS) : ''
-  const focusedQuestion = getPreviewText(focusedTurn?.userMessageId)
-  const focusedAnswer = getPreviewText(focusedTurn?.assistantMessageId)
   const cardTop =
     focusedIndex !== null
       ? Math.min(
@@ -298,7 +344,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       inert={!visible}
       style={{ width: hitStripWidth }}
       onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}>
+      onMouseLeave={clearPointerState}>
       <div
         ref={railScrollRef}
         onScroll={handleScroll}
@@ -360,26 +406,97 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           })}
         </div>
       </div>
-      {focusedIndex !== null && (focusedQuestion || focusedAnswer) && (
-        <div
-          className="-translate-y-1/2 pointer-events-none absolute right-full z-30 w-max max-w-80 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)]"
-          style={{ top: cardTop }}>
-          {focusedQuestion && (
-            <div className="line-clamp-1 break-all font-medium text-foreground text-sm">{focusedQuestion}</div>
-          )}
-          {focusedAnswer && (
-            <div
-              className={classNames(
-                'line-clamp-2 break-all text-muted-foreground text-sm leading-5',
-                focusedQuestion && 'mt-1'
-              )}>
-              {focusedAnswer}
-            </div>
-          )}
-        </div>
+      {focusedTurn && (
+        <MessageAnchorPreviewCard
+          turn={focusedTurn}
+          top={cardTop}
+          historyPartsByMessageId={historyPartsByMessageId}
+          liveMessageIdSet={liveMessageIdSet}
+        />
       )}
     </div>
   )
+})
+
+interface AnchorPreviewProps {
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  liveMessageIdSet: ReadonlySet<string>
+}
+
+interface MessageAnchorPreviewCardProps extends AnchorPreviewProps {
+  turn: AnchorTurn
+  top: number
+}
+
+const MessageAnchorPreviewCard: FC<MessageAnchorPreviewCardProps> = ({ turn, top, ...preview }) => (
+  <div
+    className="-translate-y-1/2 pointer-events-none absolute right-full z-30 flex w-max max-w-80 flex-col gap-1 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] empty:hidden"
+    style={{ top }}>
+    <AnchorPreviewLine
+      {...preview}
+      messageId={turn.userMessageId}
+      className="line-clamp-1 break-all font-medium text-foreground text-sm"
+    />
+    <AnchorPreviewLine
+      {...preview}
+      messageId={turn.assistantMessageId}
+      className="line-clamp-2 break-all text-muted-foreground text-sm leading-5"
+    />
+  </div>
+)
+
+interface AnchorPreviewLineProps extends AnchorPreviewProps {
+  messageId?: string
+  className: string
+}
+
+const AnchorPreviewLine: FC<AnchorPreviewLineProps> = ({
+  messageId,
+  historyPartsByMessageId,
+  liveMessageIdSet,
+  className
+}) => {
+  if (!messageId) return null
+  if (liveMessageIdSet.has(messageId)) return <LiveMessagePreview messageId={messageId} className={className} />
+  return <MessagePreview parts={historyPartsByMessageId[messageId] ?? EMPTY_MESSAGE_PARTS} className={className} />
+}
+
+const LiveMessagePreview: FC<{ messageId: string; className: string }> = ({ messageId, className }) => {
+  const parts = useMessageParts(messageId)
+  return <MessagePreview parts={parts} className={className} />
+}
+
+const MessagePreview = memo(function MessagePreview({
+  parts,
+  className
+}: {
+  parts: CherryMessagePart[]
+  className: string
+}) {
+  const preview = getTextPreview(parts)
+  if (!preview) return null
+  return <div className={className}>{preview}</div>
+})
+
+function getTextPreview(parts: CherryMessagePart[]): string {
+  let preview = ''
+
+  for (const part of parts) {
+    if (part.type !== 'text') continue
+
+    const text = part.text
+    if (!/\S/.test(text)) continue
+
+    if (preview.length > 0) {
+      preview += '\n\n'
+      if (preview.length >= PREVIEW_MAX_CHARS) return preview.slice(0, PREVIEW_MAX_CHARS)
+    }
+
+    preview += text.slice(0, PREVIEW_MAX_CHARS - preview.length)
+    if (preview.length >= PREVIEW_MAX_CHARS) return preview
+  }
+
+  return preview
 }
 
 export default MessageAnchorLine
