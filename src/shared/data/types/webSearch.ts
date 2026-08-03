@@ -6,7 +6,7 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 
-export const DEFAULT_WEB_SEARCH_CUTOFF_LIMIT = 2000
+export const DEFAULT_WEB_SEARCH_CUTOFF_LIMIT = 10000
 
 export function normalizeWebSearchCutoffLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_WEB_SEARCH_CUTOFF_LIMIT

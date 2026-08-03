@@ -46,6 +46,11 @@ function applyCutoff(results: WebSearchResult[], config: WebSearchCompressionCon
     return results
   }
 
+  const totalContentLength = results.reduce((sum, result) => sum + result.content.length, 0)
+  if (totalContentLength <= config.cutoffLimit) {
+    return results
+  }
+
   const perResultLimit = Math.max(1, Math.floor(config.cutoffLimit / results.length))
 
   return results.map((result) => {
