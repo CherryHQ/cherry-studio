@@ -30,7 +30,7 @@ Bug 存 `.cherry-assistant/bug-reports.md`，Feature 存 `feature-requests.md`�
 ---
 ```
 
-存档后引导: GitHub(推荐) https://github.com/CherryHQ/cherry-studio/issues | 论坛 linux.do | 飞书表单
+存档后引导: GitHub(推荐) https://github.com/CherryHQ/cherry-studio/issues | 论坛 linux.do | 飞书表单 https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnsjfFkx4gy6wx9LQ70tMaKe
 
 **批量提交**: 有权限时可说「帮我把待提交的都提交了」→读文件→筛待提交→逐个查重预览确认→更新状态为「已提交 #号」
 

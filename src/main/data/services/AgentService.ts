@@ -29,7 +29,9 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -53,6 +55,12 @@ type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
+}
+
+export interface EnsureBuiltinAssistantInput {
+  configuration: AgentConfiguration
+  defaultModelId: UniqueModelId | null
+  name: string
 }
 
 function getAgentDescription(description: string, configuration: unknown): string {
@@ -312,6 +320,75 @@ export class AgentService {
       ? (modelService.getNamesByUniqueIdsTx(tx, [agent.model]).get(agent.model) ?? null)
       : null
     return { agent, modelName }
+  }
+
+  /**
+   * Return the active Cherry Assistant or restore one from trusted package defaults.
+   *
+   * The reserved role is injected here, inside the table-owning service, so no
+   * renderer or generic Agent create path can forge the built-in identity. The
+   * read-before-write transaction makes repeated or concurrent ensure commands
+   * converge on one active system Agent.
+   */
+  ensureBuiltinAssistant(input: EnsureBuiltinAssistantInput): AgentEntity {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const [existing] = tx
+        .select()
+        .from(agentsTable)
+        .where(
+          and(
+            isNull(agentsTable.deletedAt),
+            sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = 'assistant'`
+          )
+        )
+        .limit(1)
+        .all()
+
+      if (existing) {
+        const mcps = fetchMcpsForAgents(tx, [existing.id]).get(existing.id) ?? []
+        const knowledgeBaseIds = fetchKnowledgeBasesForAgents(tx, [existing.id]).get(existing.id) ?? []
+        const modelName = existing.model
+          ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
+          : null
+        return {
+          agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+          created: false
+        }
+      }
+
+      const defaultModel = input.defaultModelId ? modelService.findByIdTx(tx, input.defaultModelId) : null
+      const model = defaultModel && isGatewayRoutableModel(defaultModel) ? input.defaultModelId : null
+      const agentId = uuidv4()
+      const created = this.createAgentTx(tx, agentId, {
+        id: agentId,
+        type: 'claude-code',
+        name: input.name.trim() || 'Cherry Assistant',
+        description: '',
+        instructions: '',
+        model,
+        configuration: {
+          ...input.configuration,
+          builtin_role: 'assistant'
+        }
+      })
+
+      if (!created) {
+        throw DataApiErrorFactory.invalidOperation(
+          'restore Cherry Assistant',
+          'insert succeeded but select returned no row'
+        )
+      }
+
+      return {
+        agent: rowToAgent(created.agent, created.modelName, [], []),
+        created: true
+      }
+    })
+
+    if (result.created) {
+      this._onAgentCreated.fire({ agentId: result.agent.id, agent: result.agent })
+    }
+    return result.agent
   }
 
   private findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): AgentRow | undefined {
