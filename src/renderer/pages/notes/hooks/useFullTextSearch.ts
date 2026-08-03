@@ -22,8 +22,10 @@ export interface UseFullTextSearchReturn {
    */
   resultsKeyword: string
   /**
-   * `total` counts matched notes; `nameMatches` / `contentMatches` count keyword
-   * occurrences across them, so a note matching in both places contributes to both.
+   * All three count keyword occurrences, not matched notes: `total` is
+   * `nameMatches + contentMatches`, and a note matching in both places contributes to
+   * both lanes. Reporting one note per hit would disagree with the result list, which
+   * now shows every occurrence.
    */
   stats: {
     total: number
@@ -118,10 +120,12 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
 
         const limitedResults = searchResults.slice(0, maxResultsRef.current)
 
+        const nameMatches = limitedResults.reduce((sum, r) => sum + r.nameMatchCount, 0)
+        const contentMatches = limitedResults.reduce((sum, r) => sum + (r.matches?.length ?? 0), 0)
         const newStats = {
-          total: limitedResults.length,
-          nameMatches: limitedResults.reduce((sum, r) => sum + r.nameMatchCount, 0),
-          contentMatches: limitedResults.reduce((sum, r) => sum + (r.matches?.length ?? 0), 0)
+          total: nameMatches + contentMatches,
+          nameMatches,
+          contentMatches
         }
 
         setResults(limitedResults)
