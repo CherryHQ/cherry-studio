@@ -2,13 +2,17 @@ import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
-const { mockUseLocalModel } = vi.hoisted(() => ({ mockUseLocalModel: vi.fn() }))
+const { mockOpenSettingsTab, mockUseLocalModel } = vi.hoisted(() => ({
+  mockOpenSettingsTab: vi.fn(),
+  mockUseLocalModel: vi.fn()
+}))
 const mockUseQuery = vi.fn()
 const defaultOnPreviewFile = vi.fn()
 
@@ -35,6 +39,10 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/useLocalModel', () => ({
   useLocalModel: () => mockUseLocalModel()
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mockOpenSettingsTab
 }))
 
 // The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
@@ -320,6 +328,7 @@ vi.mock('react-i18next', () => ({
             'common.delete': '删除',
             'common.more': '更多',
             'common.no_results': '暂无结果',
+            'common.go_to_settings': '前往设置',
             'knowledge.data_source.actions.preview_source': '预览原文',
             'knowledge.data_source.actions.view_chunks': '查看 Chunks',
             'knowledge.data_source.actions.reindex': '重新索引',
@@ -344,6 +353,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.pending': '等待中',
             'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
             'knowledge.rag.download_local_embedding_failed': '本地嵌入模型下载失败',
+            'knowledge.rag.download_local_embedding': '下载本地模型',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
             'knowledge.rag.file_processing': '文件处理',
@@ -396,6 +406,77 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加数据源' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+  })
+
+  it.each([
+    { status: 'not_downloaded' as const, label: '下载本地模型' },
+    { status: 'error' as const, label: '本地嵌入模型下载失败' }
+  ])('links the $status state to local model settings', async ({ status, label }) => {
+    const user = userEvent.setup()
+    mockUseLocalModel.mockReturnValue({ status, percent: 0 })
+
+    render(
+      <DataSourcePanel
+        embeddingModelId={LOCAL_EMBEDDING_UNIQUE_MODEL_ID}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(label)
+    expect(screen.queryByText('0%')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '前往设置' }))
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/local-models')
+  })
+
+  it('shows unsupported local models without an invalid settings action', () => {
+    mockUseLocalModel.mockReturnValue({ status: 'unsupported', percent: 0 })
+
+    render(
+      <DataSourcePanel
+        embeddingModelId={LOCAL_EMBEDDING_UNIQUE_MODEL_ID}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('当前平台不支持本地模型。')
+    expect(screen.queryByRole('button', { name: '前往设置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+  })
+
+  it('keeps existing sources visible while the header provides recovery and hides Add', async () => {
+    const user = userEvent.setup()
+    mockUseLocalModel.mockReturnValue({ status: 'error', percent: 0 })
+
+    render(
+      <DataSourcePanel
+        embeddingModelId={LOCAL_EMBEDDING_UNIQUE_MODEL_ID}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('本地嵌入模型下载失败')
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '前往设置' }))
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/local-models')
   })
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {

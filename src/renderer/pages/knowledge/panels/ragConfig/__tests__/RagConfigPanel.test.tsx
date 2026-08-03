@@ -2,6 +2,7 @@ import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -187,11 +188,13 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   KnowledgeModelSelect: ({
     value,
     placeholder,
+    noneOptionLabel,
     onChange,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
+    noneOptionLabel?: string
     onChange: (modelId: string | null) => void
     'aria-label'?: string
   }) => (
@@ -202,6 +205,11 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
         value={value ?? ''}
         onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
       />
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }))
@@ -366,7 +374,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('文档处理')).toBeInTheDocument()
     expect(screen.getByText('Top K')).toBeInTheDocument()
     expect(screen.getByText('重排模型')).toBeInTheDocument()
-    expect(screen.getByText('不使用')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
@@ -407,6 +415,35 @@ describe('RagConfigPanel', () => {
           threshold: 0.7
         })
       )
+    })
+  })
+
+  it('disables a configured rerank model and saves null', async () => {
+    const user = userEvent.setup()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+        documentCount: 6,
+        threshold: 0.5
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel()
+    await user.click(screen.getByRole('button', { name: '不使用' }))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ rerankModelId: null }))
     })
   })
 

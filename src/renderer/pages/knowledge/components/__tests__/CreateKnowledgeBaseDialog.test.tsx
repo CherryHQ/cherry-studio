@@ -1,6 +1,7 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,12 +24,14 @@ vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
   KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
+    noneOptionLabel,
     onChange,
     onSettingsNavigate,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
+    noneOptionLabel?: string
     onChange: (modelId: string | null) => void
     onSettingsNavigate?: (navigate: () => void) => void
     'aria-label'?: string
@@ -45,6 +48,11 @@ vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
       <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
         local-model-option
       </button>
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
     </>
   )
 }))
@@ -406,7 +414,8 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base', groupId: 'group-2' }))
   })
 
-  it('creates a BM25-only base without probing dimensions when no embedding model is picked', async () => {
+  it('creates a BM25-only base without probing dimensions after clearing a picked embedding model', async () => {
+    const user = userEvent.setup()
     const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
 
     render(
@@ -421,7 +430,9 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    await user.click(screen.getByRole('button', { name: '未设置' }))
+    await user.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base' }))
     expect(mockIpcRequest).not.toHaveBeenCalled()

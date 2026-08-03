@@ -18,6 +18,7 @@ const RerankSection = ({ rerankModelId, onRerankModelChange }: RerankSectionProp
         aria-label={t('knowledge.rag.rerank_model')}
         value={rerankModelId}
         placeholder={t('knowledge.rag.rerank_disabled')}
+        noneOptionLabel={t('knowledge.rag.rerank_disabled')}
         filter={isRerankModel}
         onChange={onRerankModelChange}
       />

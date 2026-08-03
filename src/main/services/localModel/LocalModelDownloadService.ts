@@ -20,13 +20,15 @@ export interface LocalModelDownloadProgress {
  * progress broadcast, and cancellation. Subclasses own the model-specific
  * readiness probe, the actual download work (including its own terminal `ready`
  * broadcast), removal, and any post-failure cleanup. Stateless across restarts —
- * the source of truth is the files on disk, not memory.
+ * only the latest failure is retained in memory so the UI can recover during the
+ * current run; after restart, the source of truth is the files on disk.
  */
 export abstract class LocalModelDownloadService {
   protected downloading = false
   protected abortController: AbortController | null = null
   /** The single active download; concurrent callers await this same promise. */
   private inFlight: Promise<void> | null = null
+  private lastDownloadFailed = false
 
   /** Tags broadcasts + error logs; selects which renderer card this drives. */
   protected abstract readonly kind: LocalModelKind
@@ -64,6 +66,7 @@ export abstract class LocalModelDownloadService {
     // download that would fail once it reaches the inference worker.
     if (isDarwinX64) return 'unsupported'
     if (this.downloading) return 'downloading'
+    if (this.lastDownloadFailed) return 'error'
     return this.isReady() ? 'ready' : 'not_downloaded'
   }
 
@@ -81,6 +84,7 @@ export abstract class LocalModelDownloadService {
     // so neither resolves (→ reports ready / runs post-download work like the KB
     // entry's select()) until it genuinely completes and emits terminal `ready`.
     if (this.inFlight) return this.inFlight
+    this.lastDownloadFailed = false
     this.downloading = true
     this.abortController = new AbortController()
     const { signal } = this.abortController
@@ -93,10 +97,12 @@ export abstract class LocalModelDownloadService {
           // no error log and no `status: 'error'` broadcast (the cards render that
           // as "download failed"). Still rethrow so awaiting callers unwind.
           await this.safeCleanupAfterError()
+          this.broadcast({ status: 'not_downloaded', percent: 0 })
           throw error
         }
         logger.error(`local ${this.kind} model download failed`, error as Error)
         await this.safeCleanupAfterError()
+        this.lastDownloadFailed = true
         this.broadcast({ status: 'error', percent: 0 })
         throw error
       } finally {

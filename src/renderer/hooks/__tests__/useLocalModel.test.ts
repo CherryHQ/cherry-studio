@@ -40,6 +40,18 @@ describe('useLocalModel', () => {
     expect(result.current.status).toBe('ready')
   })
 
+  it('returns to not downloaded when another page cancels the download', async () => {
+    mockRequest.mockResolvedValue({ status: 'downloading' })
+    const { result } = renderHook(() => useLocalModel('embedding'))
+    await waitFor(() => expect(result.current.status).toBe('downloading'))
+
+    act(() => progressHandler.current?.({ model: 'embedding', status: 'downloading', percent: 45 }))
+    act(() => progressHandler.current?.({ model: 'embedding', status: 'not_downloaded', percent: 0 }))
+
+    expect(result.current.status).toBe('not_downloaded')
+    expect(result.current.percent).toBe(0)
+  })
+
   it('reports a successful embedding download', async () => {
     mockRequest.mockImplementation((route: string) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })

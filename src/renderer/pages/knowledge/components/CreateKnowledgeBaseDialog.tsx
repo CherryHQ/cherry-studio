@@ -209,6 +209,7 @@ const CreateKnowledgeBaseDialogRoot = ({
                 aria-label={t('knowledge.embedding_model')}
                 value={values.embeddingModelId}
                 placeholder={t('knowledge.not_set')}
+                noneOptionLabel={t('knowledge.not_set')}
                 onSettingsNavigate={handleSettingsNavigate}
                 onChange={handleEmbeddingModelChange}
               />

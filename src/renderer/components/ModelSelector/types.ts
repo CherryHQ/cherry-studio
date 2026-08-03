@@ -39,6 +39,7 @@ export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps 
   multiple: false
   selectionType?: 'model'
   value?: Model
+  noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
 
@@ -46,6 +47,7 @@ export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
   multiple: false
   selectionType: 'id'
   value?: UniqueModelId
+  noneOptionLabel?: string
   onSelect: (modelId: UniqueModelId | undefined) => void
 }
 

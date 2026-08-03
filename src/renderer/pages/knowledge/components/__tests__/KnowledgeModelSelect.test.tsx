@@ -92,12 +92,14 @@ describe('KnowledgeModelSelect', () => {
         aria-label="embedding-model"
         value={null}
         placeholder="not-set"
+        noneOptionLabel="no-model"
         filter={filter}
         onChange={vi.fn()}
       />
     )
 
     expect(mockModelSelectorProps.at(-1)?.filter).toBe(filter)
+    expect(mockModelSelectorProps.at(-1)?.noneOptionLabel).toBe('no-model')
     expect(screen.getAllByRole('button')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'embedding-model' })).toBeInTheDocument()
   })

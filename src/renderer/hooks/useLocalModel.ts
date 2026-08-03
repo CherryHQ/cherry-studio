@@ -37,6 +37,9 @@ export function useLocalModel(model: LocalModelKind) {
       setStatus('ready')
     } else if (progress.status === 'error') {
       setStatus('error')
+    } else if (progress.status === 'not_downloaded') {
+      setStatus('not_downloaded')
+      setPercent(0)
     } else {
       setStatus('downloading')
     }

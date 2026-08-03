@@ -16,6 +16,7 @@ export interface KnowledgeModelSelectProps {
   placeholder: string
   filter: (model: Model) => boolean
   invalid?: boolean
+  noneOptionLabel?: string
   'aria-label'?: string
   onSettingsNavigate?: (navigate: () => void) => void
   prioritizedProviderIds?: readonly string[]
@@ -32,6 +33,7 @@ export const KnowledgeModelSelect = ({
   placeholder,
   filter,
   invalid = false,
+  noneOptionLabel,
   'aria-label': ariaLabel,
   onSettingsNavigate,
   prioritizedProviderIds,
@@ -52,6 +54,7 @@ export const KnowledgeModelSelect = ({
       selectionType="id"
       value={selectorValue}
       filter={filter}
+      noneOptionLabel={noneOptionLabel}
       prioritizedProviderIds={prioritizedProviderIds}
       showTagFilter={false}
       onSettingsNavigate={onSettingsNavigate}

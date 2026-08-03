@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -101,6 +102,27 @@ describe('LocalModelsSection', () => {
         within(embeddingCard()).getByText('settings.dependencies.localModels.notice.downloadFailed')
       ).toBeInTheDocument()
     )
+  })
+
+  it('shows a shared failure as retryable when reopening settings', async () => {
+    const user = userEvent.setup()
+    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+      if (route === 'local_model.get_status') {
+        return Promise.resolve({ status: input?.model === 'embedding' ? 'error' : 'not_downloaded' })
+      }
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+
+    await waitFor(() =>
+      expect(
+        within(embeddingCard()).getByText('settings.dependencies.localModels.notice.downloadFailed')
+      ).toBeInTheDocument()
+    )
+    await user.click(within(embeddingCard()).getByText('common.retry'))
+
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.download', { model: 'embedding' }))
   })
 
   it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {

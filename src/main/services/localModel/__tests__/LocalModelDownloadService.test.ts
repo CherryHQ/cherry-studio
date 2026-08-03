@@ -73,8 +73,13 @@ describe('LocalModelDownloadService', () => {
       status: 'error',
       percent: 0
     })
-    // downloading flag cleared → next getStatus no longer reports 'downloading'.
-    expect(service.getStatus()).toBe('not_downloaded')
+    expect(service.getStatus()).toBe('error')
+    // Failure is runtime-only; a fresh service (app restart) derives status from disk again.
+    expect(new TestDownloadService().getStatus()).toBe('not_downloaded')
+
+    service.failWith = null
+    await service.download()
+    expect(service.getStatus()).toBe('ready')
   })
 
   it('best-effort cleanup: a throwing cleanupAfterError neither masks the failure nor skips the error broadcast', async () => {
@@ -154,6 +159,11 @@ describe('LocalModelDownloadService', () => {
       'local_model.download_progress',
       expect.objectContaining({ status: 'error' })
     )
+    expect(broadcastSpy()).toHaveBeenCalledWith('local_model.download_progress', {
+      model: 'embedding',
+      status: 'not_downloaded',
+      percent: 0
+    })
     expect(service.getStatus()).toBe('not_downloaded')
   })
 })

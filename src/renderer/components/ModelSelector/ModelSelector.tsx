@@ -11,7 +11,7 @@ import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
-import { Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   startTransition,
@@ -25,7 +25,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SelectorShellLayout } from '../SelectorShell'
+import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
@@ -278,6 +278,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   // variant happens at the `onSelect` / `value` touchpoints below (see
   // `emitSelection` / `normalizeSelectedIdsFromValue`).
   const multiple = props.multiple
+  const noneOptionLabel = props.multiple ? undefined : props.noneOptionLabel
   const selectionType = props.selectionType
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
@@ -545,6 +546,11 @@ export function ModelSelector(props: ModelSelectorProps) {
     closeBeforeSettingsNavigation('/settings/provider')
   }, [closeBeforeSettingsNavigation])
 
+  const handleSelectNone = useCallback(() => {
+    emitSelection([])
+    setOpen(false)
+  }, [emitSelection, setOpen])
+
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
       if (isPinActionDisabled) {
@@ -801,14 +807,27 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
-  const bottomAction = useMemo(
-    () => ({
-      icon: <Settings2 className="size-3.5" />,
-      label: t('models.action.configure_custom'),
-      onClick: handleNavigateToCustomModelSettings
-    }),
-    [handleNavigateToCustomModelSettings, t]
-  )
+  const bottomActions = useMemo<SelectorShellBottomAction[]>(() => {
+    const actions: SelectorShellBottomAction[] = [
+      {
+        icon: <Settings2 className="size-3.5" />,
+        label: t('models.action.configure_custom'),
+        onClick: handleNavigateToCustomModelSettings
+      }
+    ]
+
+    if (noneOptionLabel) {
+      actions.push({
+        type: 'selectable',
+        icon: <CircleSlash className="size-3.5" />,
+        label: noneOptionLabel,
+        selected: rawSelectedModelIds.length === 0,
+        onClick: handleSelectNone
+      })
+    }
+
+    return actions
+  }, [handleNavigateToCustomModelSettings, handleSelectNone, noneOptionLabel, rawSelectedModelIds.length, t])
 
   const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 
@@ -831,7 +850,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
         contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
-        bottomAction={bottomAction}
+        bottomAction={bottomActions}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

@@ -205,5 +205,9 @@ describe('LocalEmbeddingDownloadService', () => {
       'local_model.download_progress',
       expect.objectContaining({ status: 'error' })
     )
+    expect(broadcastSpy()).toHaveBeenCalledWith(
+      'local_model.download_progress',
+      expect.objectContaining({ status: 'not_downloaded', percent: 0 })
+    )
   })
 })

@@ -2,7 +2,7 @@ import { Badge, Button } from '@cherrystudio/ui'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
-import { Boxes, Download, ScanText, Trash2, X } from 'lucide-react'
+import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +50,12 @@ function useLocalModelCard(model: LocalModelKind) {
     }
   }
 
-  return { ...localModel, notice, download, remove }
+  return {
+    ...localModel,
+    notice: localModel.status === 'error' ? 'downloadFailed' : notice,
+    download,
+    remove
+  }
 }
 
 interface ModelCardProps {
@@ -79,6 +84,7 @@ const ModelCard: FC<ModelCardProps> = ({
   const { t } = useTranslation()
   const ready = status === 'ready'
   const downloading = status === 'downloading'
+  const retrying = status === 'error'
 
   return (
     <div
@@ -142,8 +148,8 @@ const ModelCard: FC<ModelCardProps> = ({
             </Button>
           ) : (
             <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onDownload}>
-              <Download className="size-3.5" />
-              {t('settings.dependencies.localModels.download')}
+              {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
+              {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
             </Button>
           )}
         </div>
