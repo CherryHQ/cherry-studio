@@ -6778,6 +6778,7 @@
         "allStatuses": "すべてのステータス",
         "allTypes": "すべての種類",
         "builtinOnly": "内蔵のみ",
+        "label": "フィルター",
         "status": "ステータスでフィルター",
         "type": "タイプでフィルター"
       },

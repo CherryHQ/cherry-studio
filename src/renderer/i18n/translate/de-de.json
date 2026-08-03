@@ -6778,6 +6778,7 @@
         "allStatuses": "Alle Status",
         "allTypes": "Alle Typen",
         "builtinOnly": "Nur integriert",
+        "label": "Filter",
         "status": "Nach Status filtern",
         "type": "Nach Typ filtern"
       },

@@ -6778,6 +6778,7 @@
         "allStatuses": "Tất cả trạng thái",
         "allTypes": "Tất cả các loại",
         "builtinOnly": "Chỉ tích hợp sẵn",
+        "label": "Lọc",
         "status": "Lọc theo trạng thái",
         "type": "Lọc theo loại"
       },

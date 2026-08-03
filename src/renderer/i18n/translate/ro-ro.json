@@ -6778,6 +6778,7 @@
         "allStatuses": "Toate statusurile",
         "allTypes": "Toate tipurile",
         "builtinOnly": "Doar încorporat",
+        "label": "Filtru",
         "status": "Filtrare după stare",
         "type": "Filtrare după tip"
       },

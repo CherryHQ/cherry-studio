@@ -6778,6 +6778,7 @@
         "allStatuses": "所有狀態",
         "allTypes": "所有類型",
         "builtinOnly": "內建 only",
+        "label": "篩選",
         "status": "按狀態篩選",
         "type": "按類型篩選"
       },
