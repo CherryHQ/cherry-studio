@@ -303,11 +303,11 @@ function AgentRightPaneActionsProvider({
         return
       }
 
-      void window.api.file
-        .getMetadata(createFilePathHandle(getArtifactPaneSelectionPath(selection)))
+      void ipcApi
+        .request('file.get_metadata', createFilePathHandle(getArtifactPaneSelectionPath(selection)))
         .then((metadata) => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata.kind === 'directory' ? null : selection)
+          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
         })
         .catch(() => {
           if (artifactOpenRequestRef.current !== requestId) return
@@ -389,7 +389,8 @@ function AgentRightPaneStateProvider({
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
-  const fileSession = useFileEditSession(editPath)
+  const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
+  const fileSession = useFileEditSession(editHandle)
   const discardFileDraft = fileSession.discard
   const systemWorkspacePath = workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM ? workspacePath : undefined
   const { root: systemWorkspaceRoot, version: systemWorkspaceTreeVersion } = useDirectoryTree(
@@ -705,7 +706,10 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
     openArtifactFile: actions.openArtifactFile,
-    messageNavigation
+    messageNavigation,
+    // Tool output is commonly workspace-relative (`dist/report.md`). Without the
+    // root, open/reveal cannot resolve it and the directory probe fails closed.
+    workspacePath: meta.workspacePath
   })
   const flowProviderValue = useMemo(
     () => ({
@@ -857,7 +861,7 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
             {toolCallId ? (
               <button
                 type="button"
-                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title })}>
                 {content}
               </button>

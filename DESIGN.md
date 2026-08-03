@@ -86,7 +86,7 @@ and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 - **Sidebar Foreground**: `var(--sidebar-foreground)` — text on sidebar
 - **Sidebar Accent / Sidebar Accent Foreground**: `var(--sidebar-accent)` / `var(--sidebar-accent-foreground)` — hover/active state in sidebar; do not substitute generic secondary roles even when current values look similar
 - **Sidebar Border**: `var(--sidebar-border)` — sidebar dividers
-- **Sidebar Ring**: `var(--sidebar-ring)` — focus ring inside sidebar
+- **Sidebar Ring**: `var(--sidebar-ring)` — color source for focus feedback contained inside sidebar controls
 
 ### Borders & Rings
 - **Border**: `var(--border)` — component borders, dividers
@@ -94,7 +94,7 @@ and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 - **Border Strong**: `var(--border-strong)` — higher-emphasis structural borders
 - **Border Selected**: `var(--border-selected)` — selected-state component borders
 - **Input**: `var(--input)` — input field borders
-- **Ring**: `var(--ring)` — focus ring
+- **Ring**: `var(--ring)` — color source for focus feedback contained inside component bounds
 
 ### Border Token Rules
 - Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-border-selected`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
@@ -136,9 +136,9 @@ No dedicated public glass or overlay product role is exported today. `--color-*`
 - Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
 - Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
 - QuickPanel is a design-approved exception: its composer-attached surface may derive a component-local translucent
-  background from `--popover` while retaining `--popover-foreground`. It exposes
-  `data-slot="quick-panel-content"` so Custom CSS themes that change the popover pairing can override the
-  QuickPanel background and foreground together. Keep this treatment local to QuickPanel; it is not a reusable
+  background from `--card` while retaining `--card-foreground`, keeping it independent from generic floating panels.
+  It exposes `data-slot="quick-panel-content"` so Custom CSS themes can override the QuickPanel background and
+  foreground together. Keep this treatment local to QuickPanel; it is not a reusable
   glass token or a precedent for other floating panels.
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
 
@@ -222,7 +222,7 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Radius / font / motion: `rounded-md`, `font-normal`, `transition-all`
 - Disabled: pointer events disabled, `opacity-40`
 - Loading: `data-loading=true`, `cursor-progress`, `opacity-40`, spinner before content
-- Focus: ring color from `var(--ring)` via the shared button primitive
+- Focus: reuse the variant's hover feedback (`background`, text, or underline); do not draw an outer ring or outline
 
 **Default**
 - Background: neutral strong action fill as defined in the shared Button primitive (`bg-neutral-900` light / `bg-neutral-100` dark)
@@ -515,9 +515,31 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 - Border: 1px solid `var(--input)`
 - Radius: `var(--radius-md)` (8px)
 - Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
-- Focus ring: use Tailwind ring utilities with `var(--ring)` (for example `focus-visible:ring-2 focus-visible:ring-ring/50`)
+- Focus: text-entry fields may change their own border to `border-primary` while editing; do not add an outer ring,
+  outline, or focus shadow
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--muted-foreground)`
+
+### Focus Feedback
+
+Keyboard focus must remain visible without adding a second frame outside the component. Pointer interaction should
+not add a theme-colored border merely because a control was clicked or a popup was opened.
+
+- Text-entry fields (inputs, textareas, editors, and wrappers whose primary purpose is text entry) may change the
+  existing border to `border-primary` while editing so it follows the selected theme.
+- Select triggers, popup controls, buttons, selectable cards, and containers with nested actions must not change
+  their border for pointer focus, `open`, `expanded`, or `pressed` state. Use `focus-visible:border-primary` or
+  `has-[:focus-visible]:border-primary` only when a border is the appropriate keyboard-focus treatment.
+- Persistent semantic states such as `selected`, `checked`, `active`, and `invalid` may use a border when the border
+  communicates that lasting state rather than a transient click.
+- Buttons, menu items, icon actions, tabs, and selectable rows: reuse the component's hover vocabulary through a
+  focus-visible background, text-color, opacity, or underline change.
+- Text links and link-style buttons: use `focus-visible:underline` plus the link's focused text color.
+- Controls that cannot express focus through an existing border, fill, or text treatment (for example a slider
+  thumb) may use an inset indicator such as `focus-visible:ring-inset` or an inset box-shadow.
+- Never use positive-width focus `ring` utilities without `ring-inset`, positive `outline-offset`, or focus
+  box-shadows that render beyond the component bounds. Do not remove focus feedback without replacing it with one
+  of the contained treatments above.
 
 **Search field with trailing action:**
 When a search field needs an inline trailing button (e.g. add provider in `ProviderList`), embed a 24×24 icon button inside the search wrap, after the input:
@@ -543,7 +565,7 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 - Border-right (when divider needed): `0.5px solid var(--border)`
 - Active item: `var(--sidebar-accent)` background, `var(--sidebar-accent-foreground)` text — **icon color stays `var(--sidebar-accent-foreground)` on active (no color change)**
 - Hover item: `var(--sidebar-accent)` background
-- Focus ring: `var(--sidebar-ring)`
+- Focus: use `var(--sidebar-accent)` background and `var(--sidebar-accent-foreground)` text; no outer ring
 
 **Type:**
 - Header/title rows: `var(--font-size-body-sm)` / `var(--font-weight-medium)`
@@ -628,7 +650,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 - Track carries `shadow-xs`; do not add extra page-local shadow.
 - The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
 - `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
-- Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
+- Focus: use an inset `var(--ring)` keyline inside the track; do not change its outer dimensions or add an outer ring.
 
 **Don't:**
 - Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
@@ -679,7 +701,7 @@ This mirrors the model service (Provider Settings) detail column (`providerDetai
 Do **not**:
 - Use `p-4` or `px-5 py-4` on a settings page's outermost content container — they were the old, divergent paddings and are banned for new pages.
 - Apply `max-w-3xl` directly on a child component to "fix" centering on one page — fix the page container so every page is consistent.
-- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, WebSearch, FileProcessing, Channels, Skills) whose right pane is further subdivided.
+- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, Channels, Skills) whose right pane is further subdivided.
 
 When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSettings compact`), the page must NOT add `max-w-3xl` — the drawer width is already constrained and the centered cap would visually mis-align. Branch on the embedding flag and fall back to a plain padded container.
 
@@ -802,9 +824,13 @@ Use icon-library defaults unless a component has a documented reason to override
 - Apply `rounded-full` specifically for pills, avatars, and circular buttons
 - Use `var(--shadow-md)` to `var(--shadow-lg)` for floating elements (popovers, dropdowns, large panels), and `var(--shadow-xl)` for Dialogs or PageSidePanel surfaces that need stronger separation from the dimmed page
 - Use shared overlay/floating primitives first; add real exported tokens before documenting new glass or scrim aliases
+- Keep keyboard focus visible inside component bounds by changing an existing border, background, text treatment,
+  underline, or an explicitly inset indicator
 
 ### Don't
 - Don't use shadows for static elevation — reserve shadows for hover feedback and floating elements
+- Don't add outer focus frames (`focus-visible:ring-*` without `ring-inset`, positive focus outline offsets, or
+  focus shadows outside component bounds); use the contained focus treatments defined above
 - Don't use `var(--radius-xs)` or `var(--radius-sm)` for buttons or cards — `var(--radius-md)`/`var(--radius-lg)` are the button radii in the shared primitive
 - Don't use font weights below `var(--font-weight-regular)` for functional UI text — thin/light/extralight weights are display-only
 - Don't apply `var(--destructive)` to non-dangerous actions or error feedback — it is reserved for dangerous user actions such as delete and reset

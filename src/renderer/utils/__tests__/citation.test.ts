@@ -51,14 +51,9 @@ describe('citation', () => {
       expect(result).toBeUndefined()
     })
 
-    it('should return undefined for empty citation references', () => {
-      const result = determineCitationSource([])
-      expect(result).toBeUndefined()
-    })
-
-    it('should return undefined for undefined citation references', () => {
-      const result = determineCitationSource(undefined)
-      expect(result).toBeUndefined()
+    it('should return undefined for empty or missing citation references', () => {
+      expect(determineCitationSource([])).toBeUndefined()
+      expect(determineCitationSource(undefined)).toBeUndefined()
     })
   })
 

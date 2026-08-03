@@ -436,4 +436,17 @@ describe('ModelSelector', () => {
 
     expect(screen.getByText('models.no_matches')).toBeInTheDocument()
   })
+
+  it('keeps model filters on one horizontally scrollable row', () => {
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        availableTags: ['free'],
+        tagSelection: { free: false } as UseModelSelectorDataResult['tagSelection']
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-filter-tags')).toHaveClass('flex-nowrap', 'overflow-x-auto')
+  })
 })
