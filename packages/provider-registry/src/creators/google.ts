@@ -51,28 +51,13 @@ export default defineCreator({
     'text-embedding-005',
     'text-multilingual-embedding'
   ],
+  // Grounding and URL context serve whole generations (2.x, 3.x, incl. the lite line), so key off
+  // the generation prefix like `serverToolFunctionMixing` below — a per-SKU list silently drops
+  // every new minor (3.1, 3.6 …). Image models are excluded at generation time, not here.
   serverTools: {
-    'web-search': [
-      'gemini-2',
-      'gemini-3-flash',
-      'gemini-3-pro',
-      'gemini-3-5-flash',
-      'gemini-3-5-pro',
-      'gemini-flash-latest',
-      'gemini-pro-latest',
-      'gemini-flash-lite-latest'
-    ],
+    'web-search': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest'],
     // URL context serves the same lines as search grounding (ai.google.dev url-context).
-    'url-context': [
-      'gemini-2',
-      'gemini-3-flash',
-      'gemini-3-pro',
-      'gemini-3-5-flash',
-      'gemini-3-5-pro',
-      'gemini-flash-latest',
-      'gemini-pro-latest',
-      'gemini-flash-lite-latest'
-    ]
+    'url-context': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
   },
   // Pre-3 Gemini rejects requests mixing its native tools with function
   // declarations; Gemini 3 combines them (ai.google.dev function-calling).
