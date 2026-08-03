@@ -3,7 +3,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { useStableMessagePartsLayers, useStablePartsByMessageId } from '../useStablePartsByMessageId'
+import { useStableMessagePartsLayers, useStablePartsByMessageId } from '../useStableMessagePartsLayers'
 
 function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
   return { id, role: 'assistant', parts } as unknown as CherryUIMessage

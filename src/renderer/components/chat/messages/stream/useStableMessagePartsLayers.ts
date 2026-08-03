@@ -1,5 +1,6 @@
 /**
- * Structural-sharing producer for the Home message part layers.
+ * Structural-sharing producer for the message part layers, shared by the
+ * chat surfaces (Home topics, Agent sessions).
  *
  * # Why a useRef, not cacheService / useCache / Zustand
  *
@@ -26,9 +27,9 @@
  * # Algorithm
  *
  * - The upstream `messages` array carries per-message refs that are already
- *   stable for non-streaming items thanks to `useTopicMessages`'s WeakMap
- *   projection cache (`useTopicMessages.ts:226`). The streaming item gets a
- *   new `CherryUIMessage` ref each chunk, and its `parts` array ref changes
+ *   stable for non-streaming items (e.g. `useTopicMessages`'s WeakMap
+ *   projection cache on Home). The streaming item gets a new
+ *   `CherryUIMessage` ref each chunk, and its `parts` array ref changes
  *   with it.
  * - `historyPartsByMessageId` contains persisted parts plus translations. It
  *   never observes the high-frequency execution overlay.
@@ -38,9 +39,10 @@
  *   identity when no relevant message changed.
  */
 
-import type { TranslationOverlayEntry } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useMemo, useRef } from 'react'
+
+import type { TranslationOverlayEntry } from '../blocks/MessagePartsContext'
 
 export interface StableMessagePartsLayers {
   historyPartsByMessageId: Record<string, CherryMessagePart[]>
