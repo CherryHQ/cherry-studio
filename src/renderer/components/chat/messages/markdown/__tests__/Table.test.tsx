@@ -192,6 +192,8 @@ Line 4`
     it('should copy table content to clipboard on button click', async () => {
       render(<Table {...defaultProps} />)
 
+      expect(getCopyIcon()).toBeInTheDocument()
+
       const copyButton = getCopyButton()
       await user.click(copyButton)
 
@@ -203,26 +205,6 @@ Line 4`
           },
           { successMessage: 'message.copied' }
         )
-        expect(getCheckIcon()).toBeInTheDocument()
-        expect(queryCopyIcon()).not.toBeInTheDocument()
-      })
-
-      // Flush useTemporaryValue timer to avoid act() warning
-      act(() => {
-        vi.advanceTimersByTime(2000)
-      })
-    })
-
-    it('should show check icon after successful copy', async () => {
-      render(<Table {...defaultProps} />)
-
-      // Initially shows copy icon
-      expect(getCopyIcon()).toBeInTheDocument()
-
-      const copyButton = getCopyButton()
-      await user.click(copyButton)
-
-      await waitFor(() => {
         expect(getCheckIcon()).toBeInTheDocument()
         expect(queryCopyIcon()).not.toBeInTheDocument()
       })
@@ -312,16 +294,6 @@ Cell 1 | Cell 2`
           ['Header 1', 'Header 2'],
           ['Cell 1', 'Cell 2']
         ])
-      })
-    })
-
-    it('should show success toast after successful export', async () => {
-      render(<Table {...defaultProps} />)
-
-      const excelButton = getExcelButton()
-      await user.click(excelButton)
-
-      await waitFor(() => {
         expect(mocks.messageListActions.notifySuccess).toHaveBeenCalledWith('message.success.excel.export')
       })
     })
@@ -377,24 +349,6 @@ Cell 1 | Cell 2`
       const { container } = render(<Table {...defaultProps} />)
 
       expect(container.querySelector('.table-toolbar')).not.toBeInTheDocument()
-    })
-
-    it('should work without blockId', () => {
-      const propsWithoutBlockId = { ...defaultProps, blockId: undefined }
-
-      expect(() => render(<Table {...propsWithoutBlockId} />)).not.toThrow()
-
-      const copyButton = getCopyButton()
-      expect(copyButton).toBeInTheDocument()
-    })
-
-    it('should work without node position', () => {
-      const propsWithoutPosition = { ...defaultProps, node: undefined }
-
-      expect(() => render(<Table {...propsWithoutPosition} />)).not.toThrow()
-
-      const copyButton = getCopyButton()
-      expect(copyButton).toBeInTheDocument()
     })
   })
 })

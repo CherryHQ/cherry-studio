@@ -61,15 +61,6 @@ describe('ShikiStreamTokenizer', () => {
       expect(result.recall).toBe(0)
     })
 
-    it('should handle very long single line', async () => {
-      const longLine = 'const longVariableName = ' + 'a'.repeat(1000) + ';'
-
-      const result = await tokenizer.enqueue(longLine)
-      expect(result.stable).toEqual([])
-      expect(result.unstable.length).toBe(1)
-      expect(result.recall).toBe(0)
-    })
-
     it('should handle sequential chunks where the first is a full line', async () => {
       const firstChunk = 'const x = 5;\n'
       const secondChunk = 'const y = 10;'

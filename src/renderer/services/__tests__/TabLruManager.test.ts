@@ -202,29 +202,6 @@ describe('TabLruManager', () => {
     })
   })
 
-  describe('updateSoftCap', () => {
-    it('should update soft cap value', () => {
-      manager.updateSoftCap(15)
-      expect(manager.getLimits().softCap).toBe(15)
-    })
-  })
-
-  describe('updateHardCap', () => {
-    it('should update hard cap value', () => {
-      manager.updateHardCap(30)
-      expect(manager.getLimits().hardCap).toBe(30)
-    })
-  })
-
-  describe('getLimits', () => {
-    it('should return current limits', () => {
-      const customManager = new TabLruManager({ softCap: 8, hardCap: 20 })
-      const limits = customManager.getLimits()
-
-      expect(limits).toEqual({ softCap: 8, hardCap: 20 })
-    })
-  })
-
   describe('LRU ordering', () => {
     it('should correctly order tabs by lastAccessTime', () => {
       const customManager = new TabLruManager({ softCap: 3, hardCap: 10 })

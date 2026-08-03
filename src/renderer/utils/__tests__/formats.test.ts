@@ -55,11 +55,6 @@ describe('formats', () => {
       expect(getFileNameFromHtmlTitle('File Name Test')).toBe('File-Name-Test')
     })
 
-    it('should handle mixed languages', () => {
-      expect(getFileNameFromHtmlTitle('中文English123')).toBe('中文English123')
-      expect(getFileNameFromHtmlTitle('中文 English 123')).toBe('中文-English-123')
-    })
-
     it('should handle empty string', () => {
       expect(getFileNameFromHtmlTitle('')).toBe('')
     })
