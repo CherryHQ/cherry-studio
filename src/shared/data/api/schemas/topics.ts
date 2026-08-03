@@ -88,10 +88,10 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
  *   PinService inserts new pins first and this variant does not accept `sortBy`.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
- *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
+ *   `lastActivityAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
  * The record filters below apply on either path. Omitting `sortBy` means
- * `createdAt`, never a legacy composite pinned-then-ordinary view.
+ * `lastActivityAt`, never a legacy composite pinned-then-ordinary view.
  */
 const ListTopicsCommonQuerySchema = z.strictObject({
   /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
@@ -114,7 +114,7 @@ export const ListTopicsQuerySchema = z.discriminatedUnion('pinned', [
   ListTopicsCommonQuerySchema.extend({
     /** Ordinary stream excluding pinned rows. */
     pinned: z.literal(false),
-    /** Sort profile for the ordinary stream; defaults to `createdAt`. */
+    /** Sort profile for the ordinary stream; defaults to `lastActivityAt`. */
     sortBy: TopicSortBySchema.optional()
   })
 ])
@@ -266,7 +266,7 @@ export type TopicSchemas = {
      *
      * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
      * pages the pin-owned band by `pin.orderKey ASC, id ASC`; `pinned=false`
-     * pages the ordinary band by `sortBy` (default `createdAt`) with a
+     * pages the ordinary band by `sortBy` (default `lastActivityAt`) with a
      * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
      */
     GET: {

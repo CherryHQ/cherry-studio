@@ -84,6 +84,12 @@ describe('ProviderHeader', () => {
     expect(screen.queryByText('openai')).not.toBeInTheDocument()
   })
 
+  it('keeps the header height stable when the api options action is absent', () => {
+    render(<ProviderHeader providerId="openai" />)
+
+    expect(screen.getByRole('heading', { name: 'OpenAI' }).closest('.min-h-7')).toBeInTheDocument()
+  })
+
   it('shows the custom provider name without the provider id subtitle', () => {
     useProviderMock.mockReturnValue({
       provider: {

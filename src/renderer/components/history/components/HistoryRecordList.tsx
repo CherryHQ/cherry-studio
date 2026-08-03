@@ -52,7 +52,7 @@ export function HistoryRecordList<T>({
     getRowActions,
     getSelectLabel,
     getSourceLabel,
-    getCreatedAt,
+    getUpdatedAt,
     isPinned,
     onOpen,
     onRename,
@@ -134,7 +134,7 @@ export function HistoryRecordList<T>({
           selectLabel={getSelectLabel(item)}
           showFixedActionShadow={showFixedActionShadow}
           sourceLabel={getSourceLabel(item)}
-          timeLabel={formatHistoryTime(getCreatedAt(item), t)}
+          timeLabel={formatHistoryTime(getUpdatedAt(item), t)}
           title={getName(item)}
           unpinLabel={unpinLabel}
           onAction={rowActions.onAction}
@@ -160,7 +160,7 @@ export function HistoryRecordList<T>({
       getRowActions,
       getSelectLabel,
       getSourceLabel,
-      getCreatedAt,
+      getUpdatedAt,
       isPinned,
       isSelected,
       onOpen,

@@ -678,8 +678,8 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     agentSessionsSource,
     onAddAgent,
     onActiveAgentDeleted,
+    onCreateSession,
     onOpenHistoryRecords,
-    onSelectEmptyAgent,
     onSelectSession,
     onSelectedAgentClick
   }: {
@@ -687,9 +687,9 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
-    onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
+    onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onCreateSession?: (agentId: string) => void | Promise<unknown>
     onOpenHistoryRecords?: () => void | Promise<void>
-    onSelectEmptyAgent?: (agentId: string) => void
     onSelectSession?: (sessionId: string, session: Record<string, unknown>) => void
     onSelectedAgentClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
@@ -707,17 +707,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
         <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
           Open history records
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            const activeId = activeAgentId ?? ''
-            const candidateIds = Array.from(
-              new Set(
-                agentPageMocks.resourceLayoutSessions.flatMap((session) => (session.agentId ? [session.agentId] : []))
-              )
-            ).filter((agentId) => agentId !== activeId)
-            void onActiveAgentDeleted?.(activeId, candidateIds)
-          }}>
+        <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
           Delete active agent
         </button>
         <button
@@ -732,12 +722,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
           }>
           Select agent B latest session
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            activeSessionMocks.session = null
-            onSelectEmptyAgent?.('agent-b')
-          }}>
+        <button type="button" onClick={() => void onCreateSession?.('agent-b')}>
           Select empty agent B
         </button>
         <button type="button" onClick={() => void onSelectedAgentClick?.()}>
@@ -939,7 +924,7 @@ describe('AgentPage', () => {
     )
   })
 
-  it('keeps the selected agent scope empty without recreating a session', async () => {
+  it('creates a session when selecting an agent without a conversation', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.agents = [
@@ -948,18 +933,30 @@ describe('AgentPage', () => {
     ]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-agent-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-agent-b-created',
+      agentId: 'agent-b',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    })
 
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Select empty agent B' }))
 
-    await waitFor(() => expect(screen.getByTestId('active-session')).toBeEmptyDOMElement())
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-agent-b-created')
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-b')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-b')
-    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
-    expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ instanceAppId: 'agents', instanceKey: null })
-    )
   })
 
   it('keeps the current agent scope after its last session is cleared', async () => {
@@ -1596,7 +1593,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
   })
 
-  it('clears the active session without creating a replacement after deleting the only active agent', async () => {
+  it('clears the active session when fallback creation fails after deleting the active agent', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-a' }
     agentPageMocks.agents = [
@@ -1605,19 +1602,20 @@ describe('AgentPage', () => {
     ]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-    // Only agent-a has a session, so deleting it leaves no eligible owner.
+    // Only agent-a has a session, so deleting it forces creation for a remaining agent.
     agentPageMocks.resourceLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a', updatedAt: '2026-01-02T00:00:00.000Z' }
     ]
     agentPageMocks.loadLatestSessionOverride = null
+    agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
 
     render(<AgentPage />)
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
 
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
-    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {
@@ -2285,14 +2283,22 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
   })
 
-  it('leaves the session selection empty when history deletes the last active session', async () => {
+  it('creates a default empty session when history clears the active session', async () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear history session' }))
 
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
-    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-a',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {

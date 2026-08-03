@@ -16,6 +16,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
 import { ExternalLink } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
@@ -73,19 +74,23 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
   onSubmit
 }) => {
   const { t } = useTranslation()
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
       <DialogContent
         size="lg"
         aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          cancelButtonRef.current?.focus({ preventScroll: true })
+        }}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
             {isApiGatewayProviderId(provider.id) ? (
               // Match the gateway list card: a broadcast-tower glyph (relay/hub metaphor).
-              <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+              <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground">
                 <GatewayIcon width={14} height={14} />
               </span>
             ) : (
@@ -94,7 +99,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
                 providerName={providerName}
                 logo={providerIcon}
                 size={22}
-                className="shrink-0 rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+                className="shrink-0 rounded-md border border-border-subtle **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
               />
             )}
             <span className="min-w-0 truncate">{providerName}</span>
@@ -102,7 +107,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={t('code.open_provider_settings')}
               title={t('code.open_provider_settings')}
               onClick={() => {
@@ -115,7 +120,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
         </DialogHeader>
 
         <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
-          <SettingGroup theme={theme} className="border-t-0 pt-0">
+          <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
             <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
               <SettingTitle className="mb-0 min-w-0">{t('code.model_selection')}</SettingTitle>
               {isClaudeTool && (
@@ -133,13 +138,13 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
             {modelSectionSlot}
           </SettingGroup>
           {toolFields && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
               <SettingTitle className="mb-2.5">{t('code.tool_parameters')}</SettingTitle>
               {toolFields}
             </SettingGroup>
           )}
           {hasAdvancedSection && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
               <AdvancedConfigToggle open={advancedOpen} onToggle={onAdvancedToggle}>
                 <div className="space-y-5">
                   {advancedFields}
@@ -151,7 +156,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
         </SettingContainer>
 
         <DialogFooter className="justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
+          <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
           <Button variant="default" size="sm" onClick={onSubmit} disabled={!canSave} loading={submitting}>

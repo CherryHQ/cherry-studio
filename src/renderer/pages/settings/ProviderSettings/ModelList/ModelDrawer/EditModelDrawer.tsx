@@ -17,7 +17,7 @@ import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
@@ -71,6 +71,7 @@ interface BuildPatchOverrides {
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
   outputPrice?: string
+  cacheReadPrice?: string
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -122,9 +123,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
+  const [cacheReadPrice, setCacheReadPrice] = useState('')
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
@@ -137,7 +140,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !model) {
       return
     }
@@ -160,9 +163,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
+    const cacheReadRate = model.pricing?.cacheRead?.perMillionTokens
+    setCacheReadPrice(cacheReadRate == null ? '' : String(cacheReadRate))
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    setInitializedModel(model)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
@@ -195,6 +201,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
+      const nextCacheReadPriceValue = overrides?.cacheReadPrice ?? cacheReadPrice
+      // Empty means no dedicated rate (fall back to input); literal zero means cache reads are free.
+      const nextCacheReadPrice = nextCacheReadPriceValue.trim() === '' ? undefined : Number(nextCacheReadPriceValue)
+      const hasCacheReadPrice =
+        nextCacheReadPrice !== undefined && Number.isFinite(nextCacheReadPrice) && nextCacheReadPrice >= 0
       const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
       const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
@@ -261,13 +272,21 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           output: {
             perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
             currency: finalCurrency
-          }
+          },
+          ...(hasCacheReadPrice
+            ? { cacheRead: { perMillionTokens: nextCacheReadPrice, currency: finalCurrency } }
+            : {}),
+          // Cache-write has no field in this drawer, but it must follow the selected currency:
+          // `computeLanguageCost` sums every tier and labels the total with the input currency,
+          // so a tier left behind in the old currency would be added across currencies.
+          ...(model.pricing?.cacheWrite ? { cacheWrite: { ...model.pricing.cacheWrite, currency: finalCurrency } } : {})
         }
       }
     },
     [
       currencySymbol,
       group,
+      cacheReadPrice,
       contextWindow,
       inputPrice,
       maxInputTokens,
@@ -312,7 +331,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
 
       const { modelId } = parseUniqueModelId(model.id)
-      const item = {
+      const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
         patch: buildPatch(overrides)
@@ -373,6 +392,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }, [commitClassification, savedClassification])
 
   if (!provider || !model) {
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
+  }
+
+  if (initializedModel !== model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
@@ -506,7 +529,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-foreground-secondary leading-5">
+                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
@@ -589,6 +612,27 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         setOutputPrice(event.target.value)
                       }}
                       onBlur={() => autoSave({ outputPrice })}
+                    />
+                    <span className={drawerClasses.valueSuffix}>
+                      {currentCurrency} / {t('models.price.million_tokens')}
+                    </span>
+                  </div>
+                </ProviderField>
+
+                <ProviderField title={t('models.price.cache_read')} titleClassName={drawerClasses.fieldTitle}>
+                  <div className={drawerClasses.responsiveValueRow}>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      aria-label={t('models.price.cache_read')}
+                      value={cacheReadPrice}
+                      placeholder="0.00"
+                      className={drawerClasses.input}
+                      onChange={(event) => {
+                        setCacheReadPrice(event.target.value)
+                      }}
+                      onBlur={() => autoSave({ cacheReadPrice })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}

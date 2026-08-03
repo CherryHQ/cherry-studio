@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
 import { ALL_SOURCE_ID, findAdjacentHistoryRecordAfterBulkDelete } from './historyRecordsHelpers'
+import type { HistorySourceStatus } from './historyRecordsTypes'
 
 /**
  * Filter state owned by the mode wrapper (not this hook) because it drives the
@@ -13,6 +14,8 @@ interface HistoryRecordsFilterState {
   setSearchText: (value: string) => void
   selectedSourceId: string
   setSelectedSourceId: (id: string) => void
+  selectedStatus: HistorySourceStatus
+  setSelectedStatus: (status: HistorySourceStatus) => void
 }
 
 interface UseHistoryRecordsControllerParams<T> {
@@ -33,6 +36,8 @@ export interface HistoryRecordsController<T> {
   setSearchText: (value: string) => void
   selectedSourceId: string
   setSelectedSourceId: (id: string) => void
+  selectedStatus: HistorySourceStatus
+  setSelectedStatus: (status: HistorySourceStatus) => void
   visibleItems: readonly T[]
   selectedIds: string[]
   selectedCount: number
@@ -61,12 +66,17 @@ export function useHistoryRecordsController<T>({
   filters,
   activeRecordId
 }: UseHistoryRecordsControllerParams<T>): HistoryRecordsController<T> {
-  const { getId, isPinned, sources, onBulkDelete, onActiveRecordChange, onBulkMove } = descriptor
-  const { searchText, setSearchText, selectedSourceId, setSelectedSourceId } = filters
+  const { getId, isPinned, sources, statusOf, onBulkDelete, onActiveRecordChange, onBulkMove } = descriptor
+  const { searchText, setSearchText, selectedSourceId, setSelectedSourceId, selectedStatus, setSelectedStatus } =
+    filters
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  const visibleItems = items
+  const visibleItems = useMemo(
+    () =>
+      statusOf && selectedStatus !== ALL_SOURCE_ID ? items.filter((item) => statusOf(item) === selectedStatus) : items,
+    [items, selectedStatus, statusOf]
+  )
 
   // Reset the source filter when the selected source disappears (e.g. its assistant was deleted).
   useEffect(() => {
@@ -79,7 +89,7 @@ export function useHistoryRecordsController<T>({
   // Filter changes swap the visible result set — clear the selection outright.
   useEffect(() => {
     setSelectedIds([])
-  }, [searchText, selectedSourceId])
+  }, [searchText, selectedSourceId, selectedStatus])
 
   // Prune the selection down to currently-visible, non-pinned records (deletions, pins, refetches).
   useEffect(() => {
@@ -162,6 +172,8 @@ export function useHistoryRecordsController<T>({
     setSearchText,
     selectedSourceId,
     setSelectedSourceId,
+    selectedStatus,
+    setSelectedStatus,
     visibleItems,
     selectedIds,
     selectedCount: selectedIds.length,
@@ -184,6 +196,14 @@ export function useHistoryRecordsController<T>({
 export function useHistoryRecordsFilters(): HistoryRecordsFilterState {
   const [searchText, setSearchText] = useState('')
   const [selectedSourceId, setSelectedSourceId] = useState<string>(ALL_SOURCE_ID)
+  const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
 
-  return { searchText, setSearchText, selectedSourceId, setSelectedSourceId }
+  return {
+    searchText,
+    setSearchText,
+    selectedSourceId,
+    setSelectedSourceId,
+    selectedStatus,
+    setSelectedStatus
+  }
 }

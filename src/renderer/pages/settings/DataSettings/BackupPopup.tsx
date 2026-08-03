@@ -8,15 +8,12 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const logger = loggerService.withContext('BackupPopup')
 
 type Props = PopupInjectedProps<any>
 
@@ -44,8 +41,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }, [])
 
   const onOk = async () => {
-    logger.debug(`skipBackupFile: ${skipBackupFile}`)
-
     await backup(skipBackupFile)
     resolve({})
   }

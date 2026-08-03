@@ -3,14 +3,22 @@ import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolResultRequest,
+  AiToolResultResponse,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import { ScheduledTaskEntitySchema, TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
+import {
+  AgentBaseSchema,
+  AgentEntitySchema,
+  AgentSkillIdSetSchema,
+  ScheduledTaskEntitySchema,
+  TimeoutMinutesAtomSchema
+} from '@shared/data/api/schemas/agents'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -25,6 +33,12 @@ import { defineRoute } from '../define'
  * link (open/attach/detach/abort requests + chunk/done/error events). Each route
  * delegates to a stateful service method in main.
  *
+ * Routes are namespaced `ai.<subdomain>[.<resource>].<verb>` — the subtree groups by
+ * domain, not by owning service: `text` / `embedding` / `image` (one-shot calls by
+ * output modality), `provider.model` (catalog + probe), `stream` (chat link and its
+ * events), `tool` (deferred results, approvals), `agent.session` / `agent.task`,
+ * and `topic` (auto-naming events).
+ *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
  * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
@@ -34,6 +48,16 @@ import { defineRoute } from '../define'
  * `output`, and these are built by trusted main, so a field mirror buys nothing
  * (see ipc-migration-guide.md).
  */
+
+export const CreateAgentCommandSchema = AgentBaseSchema.extend({
+  type: z.literal('claude-code'),
+  /**
+   * Create-only: ids of pre-existing global skills to enable for the new
+   * Agent. Join rows are written in the same DB transaction as the Agent.
+   */
+  skillIds: AgentSkillIdSetSchema.optional()
+})
+export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
 /**
  * Agent scheduled-task command DTOs. The task *command* surface lives here on
@@ -98,11 +122,17 @@ const aiImagePayloadSchema = z.strictObject({
   paramValues: imageParamsSchema,
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional()
+  mask: z.string().optional(),
+  // Required: the calling business feature decides the cleanup intent for the
+  // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
+  // It does not reach the job path's input / mask copies: those are transport
+  // scratch owned by the job, pinned to `delete_when_unreferenced`.
+  cleanupPolicy: CleanupPolicySchema
 })
 
 export const aiRequestSchemas = {
-  'ai.generate_text': defineRoute({
+  // ── One-shot model calls, grouped by output modality (AiService) ──
+  'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
       system: z.string().optional(),
@@ -111,31 +141,25 @@ export const aiRequestSchemas = {
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
-  'ai.check_model': defineRoute({
-    input: z.strictObject({
-      ...aiBaseRequestShape,
-      apiKeyOverride: z.string().optional(),
-      timeout: z.number().optional()
-    }),
-    output: z.object({ latency: z.number() })
-  }),
-  'ai.embed_many': defineRoute({
+  'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiBaseRequestShape, values: z.array(z.string()) }),
     output: z.object({ embeddings: z.array(z.array(z.number())), usage: z.custom<EmbeddingModelUsage>().optional() })
   }),
-  'ai.generate_image': defineRoute({
-    // requestId pairs the request with `ai.abort_image` (the abort registry lives in AiService).
+  'ai.image.generate': defineRoute({
+    // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
     // Pin the output to the named `FileEntry` so declaration-emit references the alias
     // instead of trying to name FileEntry's module-private phantom path brand (TS4023).
     output: z.object({ files: z.array(FileEntrySchema) }) as z.ZodType<{ files: FileEntry[] }>
   }),
-  'ai.abort_image': defineRoute({
+  'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
     input: z.strictObject({ requestId: z.string().min(1) }),
     output: z.void()
   }),
-  'ai.list_models': defineRoute({
+
+  // ── Provider model catalog & reachability probe (AiService) ──
+  'ai.provider.model.list': defineRoute({
     input: z.strictObject({
       providerId: z.string().optional(),
       assistantId: z.string().optional(),
@@ -143,56 +167,69 @@ export const aiRequestSchemas = {
     }),
     output: z.array(ModelSchema.partial())
   }),
+  'ai.provider.model.check': defineRoute({
+    input: z.strictObject({
+      ...aiBaseRequestShape,
+      apiKeyOverride: z.string().optional(),
+      timeout: z.number().optional()
+    }),
+    output: z.object({ latency: z.number() })
+  }),
 
   // ── Streaming chat (AiStreamManager) ──
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
-  'ai.stream_open': defineRoute({
+  'ai.stream.open': defineRoute({
     // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
     // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(UniqueModelIdSchema).optional(),
-        knowledgeBaseIds: z.array(z.string()).optional()
+        mentionedModelIds: z.array(UniqueModelIdSchema).optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          reasoningEffort: ReasoningEffortOptionSchema.optional()
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
-          parentAnchorId: z.string().min(1)
+          parentAnchorId: z.string().min(1),
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         })
       ])
     ),
     output: z.custom<AiStreamOpenResponse>()
   }),
-  'ai.stream_attach': defineRoute({
+  'ai.stream.attach': defineRoute({
     input: z.strictObject({ topicId: z.string().min(1) }),
     output: z.custom<AiStreamAttachResponse>()
   }),
-  'ai.stream_detach': defineRoute({
+  'ai.stream.detach': defineRoute({
     input: z.strictObject({ topicId: z.string().min(1) }),
     output: z.void()
   }),
-  'ai.stream_abort': defineRoute({
+  'ai.stream.abort': defineRoute({
     input: z.strictObject({ topicId: z.string().min(1) }),
     output: z.void()
   }),
 
-  // ── Agent sessions & tasks ──
-  'ai.prewarm_agent_session': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
+  // ── Tool calls: deferred results + approval decisions. Spans two owners
+  // (AiStreamManager holds the live output, AiService applies the decision) —
+  // the subtree groups by domain, not by service.
+  'ai.tool.get_result': defineRoute({
+    // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      messageId: z.string().min(1),
+      toolCallId: z.string().min(1)
+    }) satisfies z.ZodType<AiToolResultRequest>,
+    output: z.custom<AiToolResultResponse>()
   }),
-  'ai.close_agent_session_warm': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
-  }),
-  'ai.respond_tool_approval': defineRoute({
+  'ai.tool.respond_approval': defineRoute({
     // Mirrors AiToolApprovalRespondRequest (z.ZodType pins exact-shape drift here, not in a test).
     // strictObject for parity with the model-op routes — reject unknown keys rather than strip them.
     input: z.strictObject({
@@ -205,6 +242,36 @@ export const aiRequestSchemas = {
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.object({ ok: z.boolean() })
   }),
+
+  // ── Agent session warm-connection lifecycle ──
+  'ai.agent.create': defineRoute({
+    input: CreateAgentCommandSchema,
+    output: AgentEntitySchema
+  }),
+  'ai.agent.session.prewarm': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.agent.session.close_warm': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+
+  // ── Agent session runtime queries & commands ──
+  // Takes a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
+  // a session with no live connection keeps its last published value. The result arrives on the
+  // session's shared-cache key, not here.
+  'ai.agent.session.refresh_context_usage': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  // Stops one background task, not the turn. False when the session has no live connection or its
+  // runtime cannot stop tasks; the outcome itself arrives as a `task_notification`.
+  'ai.agent.session.stop_background_task': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
+    output: z.boolean()
+  }),
+
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
   // Mixed-effect mutations (schedule row + channel subscriptions + timer) belong on
   // IpcApi, not DataApi — the Job DataApi is GET-only (api-design-guidelines.md).
@@ -244,15 +311,15 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
-  'ai.stream_chunk': StreamChunkPayload
-  'ai.stream_done': StreamDonePayload
-  'ai.stream_error': StreamErrorPayload
+  'ai.stream.chunk': StreamChunkPayload
+  'ai.stream.done': StreamDonePayload
+  'ai.stream.error': StreamErrorPayload
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
   // window showing it should invalidate its cache.
-  'ai.topic_auto_renamed': { topicId: string }
-  'ai.agent_session_auto_renamed': { sessionId: string }
+  'ai.topic.auto_renamed': { topicId: string }
+  'ai.agent.session.auto_renamed': { sessionId: string }
   // Auto-rename failure (broadcastToType Main): a background naming job's summarization call
   // failed (e.g. the naming model returned an auth error). Delivered to the main window only
   // — the job has no origin window — which surfaces it as a toast so the failure isn't silent.
-  'ai.topic_naming_failed': { message: string }
+  'ai.topic.naming_failed': { message: string }
 }

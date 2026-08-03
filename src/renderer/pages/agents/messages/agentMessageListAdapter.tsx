@@ -1,30 +1,23 @@
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
-import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
@@ -37,6 +30,7 @@ import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,6 +93,8 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
+  onBindRuntime?: MessageListActions['bindRuntime']
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -115,19 +111,41 @@ interface AgentMessageListParams {
   imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
+  messageTail?: MessageListState['messageTail']
 }
 
-const isAbsoluteFilePath = (path: string): boolean => {
-  return path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path)
-}
-
-const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): string => {
+/**
+ * Resolve a tool-reported path to a branded absolute path, applying the session
+ * workspace as the root for relative input.
+ *
+ * Returns `null` when no absolute path exists — the only real case being a
+ * relative path with no workspace root to resolve it against. The user-facing
+ * open/reveal actions turn that into an error so the shared UI can report it.
+ *
+ * `workspacePath` arrives as a bare `string`: main normalizes and enforces
+ * absoluteness before persisting (`@main/utils/agentWorkspacePath`), but
+ * `AgentWorkspacePathSchema` is only `z.string().min(1)`, so the guarantee does
+ * not survive the process boundary as a type. Re-asserting it here is the cost
+ * of that gap, not redundant validation — tracked in
+ * https://github.com/CherryHQ/cherry-studio/issues/17431.
+ */
+const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): AbsoluteFilePath | null => {
   const normalizedPath = normalizeInlineFilePath(resolveInlineFilePath(rawPath))
-  if (!workspacePath || isAbsoluteFilePath(normalizedPath)) return normalizedPath
+  const isAlreadyAbsolute = AbsoluteFilePathSchema.safeParse(normalizedPath).success
 
-  const cleanWorkspacePath = workspacePath.replace(/[\\/]+$/g, '')
-  const cleanRelativePath = normalizedPath.replace(/^\.?[\\/]+/g, '')
-  return `${cleanWorkspacePath}/${cleanRelativePath}`
+  const candidate =
+    !workspacePath || isAlreadyAbsolute
+      ? normalizedPath
+      : `${workspacePath.replace(/[\\/]+$/g, '')}/${normalizedPath.replace(/^\.?[\\/]+/g, '')}`
+
+  return AbsoluteFilePathSchema.safeParse(candidate).data ?? null
+}
+
+/** Resolve for an action the user explicitly asked for — an unresolvable path is an error they must see. */
+const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): AbsoluteFilePath => {
+  const resolved = resolveWorkspaceFilePath(workspacePath, rawPath)
+  if (!resolved) throw new Error(`Cannot resolve "${rawPath}" to an absolute path without a workspace root`)
+  return resolved
 }
 
 export function useAgentMessageListProviderValue({
@@ -135,6 +153,8 @@ export function useAgentMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
+  onBindRuntime,
   assistantProfile,
   assistantId,
   isLoading,
@@ -147,11 +167,13 @@ export function useAgentMessageListProviderValue({
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
-  workspacePath
+  workspacePath,
+  messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -188,30 +210,25 @@ export function useAgentMessageListProviderValue({
     [displayPartsByMessageId, messages]
   )
   const messageItems = useMemo(() => {
-    const resolvedAssistantId = assistantId ?? topic.assistantId
     return visibleMessages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
-      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+      if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) {
         return cached.item
       }
 
       const item = toMessageListItem(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         topicId: topic.id
       })
       messageItemCacheRef.current.set(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         item,
         topicId: topic.id
       })
       return item
     })
-  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
+  }, [resolvedAgentId, visibleMessages, topic.id])
 
-  const getMessageActivityState = useMessageActivityState(topic.id, displayPartsByMessageId)
-  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName: topic.name })
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
       const parsed = parseMessagePartId(partId)
@@ -229,40 +246,38 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId]
   )
-  const errorActions = useMessageErrorActions({ persistDiagnosis })
-  const leafCapabilities = useMessageLeafCapabilities({
-    partsByMessageId: displayPartsByMessageId,
-    streamingLayers: displayStreamingLayers
-  })
-  const headerCapabilities = useMessageHeaderCapabilities()
-  const messageUiStateCache = useMessageUiStateCache()
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-  const selectionController = useMessageSelectionController({
+  const {
+    errorActions,
+    exportActions,
+    getMessageActivityState,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    selectionController,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
     topicId: topic.id,
+    topicName: topic.name,
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage,
-    saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    persistDiagnosis
   })
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {
-      return window.api.file.openPath(resolveWorkspaceFilePath(workspacePath, path))
+      return window.api.file.openPath(requireWorkspaceFilePath(workspacePath, path))
     },
     [workspacePath]
   )
 
   const showInFolder = useCallback(
     (path: string) => {
-      return window.api.file.showInFolder(resolveWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
-  )
-
-  const isDirectory = useCallback(
-    (path: string) => {
-      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+      return window.api.file.showInFolder(requireWorkspaceFilePath(workspacePath, path))
     },
     [workspacePath]
   )
@@ -271,7 +286,7 @@ export function useAgentMessageListProviderValue({
     const open = leafCapabilities.openInExternalApp
     if (!open) return undefined
 
-    return (app, path) => open(app, resolveWorkspaceFilePath(workspacePath, path))
+    return (app, path) => open(app, requireWorkspaceFilePath(workspacePath, path))
   }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
@@ -291,8 +306,9 @@ export function useAgentMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
-        return bindCaptureMessageImageRuntime({
+        const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Agent session image export was cancelled',
           consumePendingActions: consumePendingAgentSessionImageActions,
           rejectPendingActions: rejectPendingAgentSessionImageActions,
@@ -300,6 +316,12 @@ export function useAgentMessageListProviderValue({
           settleActionRequest: settleAgentSessionImageActionRequest,
           targetId: sessionId
         })
+        return () => {
+          unbindCaptureRuntime()
+          if (typeof unbindExternalRuntime === 'function') {
+            unbindExternalRuntime()
+          }
+        }
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
@@ -308,9 +330,12 @@ export function useAgentMessageListProviderValue({
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
+        if (typeof unbindExternalRuntime === 'function') {
+          unbindExternalRuntime()
+        }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, onBindRuntime, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -358,15 +383,13 @@ export function useAgentMessageListProviderValue({
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
+      messageTail: normalInteractionsEnabled ? messageTail : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
-      estimateSize: 400,
-      overscan: 6,
-      loadOlderDelayMs: 0,
-      loadingResetDelayMs: 600,
-      listKey: topic.id,
-      readonly: true,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAgentId,
+      localSendGeneration,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -379,14 +402,17 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       isLoading,
       leafCapabilities,
+      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
       renderConfig,
+      resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
       topic
@@ -410,7 +436,6 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
-      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -428,7 +453,6 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
-      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
@@ -451,7 +475,8 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      aiUsageMessageKind: 'agent-session'
     }),
     [assistantProfile, headerCapabilities.userProfile, topic.name]
   )

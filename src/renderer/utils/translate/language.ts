@@ -18,14 +18,6 @@ export const pickBidirectionalTarget = (
   return sourceLanguageCode === preferred.langCode ? alter : preferred
 }
 
-export const shouldPersistDirectTarget = (
-  target: TranslateLanguage,
-  preferred: TranslateLanguage,
-  alter: TranslateLanguage
-): boolean => {
-  return target.langCode !== preferred.langCode && target.langCode !== alter.langCode
-}
-
 /**
  * 获取双向翻译的目标语言
  *

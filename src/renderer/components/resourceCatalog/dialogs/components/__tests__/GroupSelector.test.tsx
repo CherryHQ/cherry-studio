@@ -16,7 +16,8 @@ vi.mock('react-i18next', () => ({
         'library.config.basic.group_placeholder': 'Select group',
         'library.group_sync_failed': 'Failed to sync groups',
         'common.loading': 'Loading...',
-        'common.clear': 'Clear'
+        'common.clear': 'Clear',
+        'common.group.create': 'New Group'
       })[key] ?? key
   })
 }))
@@ -25,6 +26,7 @@ type SelectContextValue = {
   open: boolean
   disabled: boolean
   onOpenChange?: (open: boolean) => void
+  onValueChange?: (value: string) => void
 }
 
 const SelectContext = createContext<SelectContextValue>({ open: false, disabled: false })
@@ -39,16 +41,19 @@ vi.mock('@cherrystudio/ui', () => ({
     children,
     open = false,
     disabled = false,
-    onOpenChange
+    onOpenChange,
+    onValueChange
   }: {
     children?: ReactNode
     open?: boolean
     disabled?: boolean
     onOpenChange?: (open: boolean) => void
+    onValueChange?: (value: string) => void
   }) => (
-    <SelectContext value={{ open, disabled, onOpenChange }}>
+    <SelectContext value={{ open, disabled, onOpenChange, onValueChange }}>
       <div data-testid="select-root" data-open={String(open)}>
         {children}
+        <button type="button" data-testid="select-unknown-value" onClick={() => onValueChange?.('')} />
       </div>
     </SelectContext>
   ),
@@ -60,7 +65,15 @@ vi.mock('@cherrystudio/ui', () => ({
     const { open } = use(SelectContext)
     return open ? createPortal(<div {...props}>{children}</div>, portalContainer ?? document.body) : null
   },
-  SelectItem: ({ children }: { children?: ReactNode }) => <div role="option">{children}</div>,
+  SelectItem: ({ children, value }: { children?: ReactNode; value: string }) => {
+    const { onValueChange } = use(SelectContext)
+    return (
+      <button type="button" role="option" onClick={() => onValueChange?.(value)}>
+        {children}
+      </button>
+    )
+  },
+  SelectSeparator: () => <hr />,
   SelectTrigger: ({ children, ...props }: { children?: ReactNode }) => {
     const { open, disabled, onOpenChange } = use(SelectContext)
     return (
@@ -120,6 +133,32 @@ describe('GroupSelector', () => {
     } finally {
       portalContainer.remove()
     }
+  })
+
+  it('offers group creation even when no groups exist', () => {
+    const onCreateGroup = vi.fn()
+    const onChange = vi.fn()
+
+    render(<GroupSelector value={null} onChange={onChange} groups={[]} onCreateGroup={onCreateGroup} />)
+
+    const trigger = screen.getByRole('button', { name: 'Group' })
+    expect(trigger).toHaveTextContent('Select group')
+
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: 'New Group' }))
+
+    expect(onCreateGroup).toHaveBeenCalledTimes(1)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('ignores values that are neither a group nor the create action', () => {
+    const onChange = vi.fn()
+
+    render(<GroupSelector value={groups[0].id} onChange={onChange} groups={groups} />)
+
+    fireEvent.click(screen.getByTestId('select-unknown-value'))
+
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('closes the open select when it loses all group options', () => {

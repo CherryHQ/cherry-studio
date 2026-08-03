@@ -1,13 +1,18 @@
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { createAgent } from '@main/ai/agents/createAgent'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import type { AiStreamOpenRequest, AiToolResultResponse } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -49,6 +54,22 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
+/** The persisted half of `ai.tool.get_result` — matches the same shape projection replaces. */
+function findPersistedToolOutput(topicId: string, messageId: string, toolCallId: string): AiToolResultResponse {
+  try {
+    const parts = isAgentSessionTopic(topicId)
+      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
+      : messageService.getById(messageId).data.parts
+    for (const part of parts ?? []) {
+      if (!isToolUIPart(part) || part.state !== 'output-available') continue
+      if (part.toolCallId === toolCallId) return { found: true, output: part.output }
+    }
+  } catch (e) {
+    logger.warn('ai.tool.get_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
+  }
+  return { found: false }
+}
+
 /**
  * Domain → transport translation for `ai.agent.task.*` commands. The internal
  * `JOB_SCHEDULE_TRIGGER_INVALID` (a user input error the form must branch on)
@@ -72,59 +93,78 @@ function agentTaskNotFound(taskId: string): IpcError {
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
-  'ai.generate_text': (request) =>
-    exposeAiError('ai.generate_text', () => application.get('AiService').generateText(request)),
-  'ai.check_model': (request) =>
-    exposeAiError('ai.check_model', () => application.get('AiService').checkModel(request)),
-  'ai.embed_many': (request) => exposeAiError('ai.embed_many', () => application.get('AiService').embedMany(request)),
-  'ai.generate_image': ({ requestId, payload }) =>
-    exposeAiError('ai.generate_image', () => application.get('AiService').runImageRequest(requestId, payload)),
-  'ai.abort_image': async ({ requestId }) => {
+  // ── One-shot model calls — AiService owns the provider clients. ──
+  'ai.text.generate': (request) =>
+    exposeAiError('ai.text.generate', () => application.get('AiService').generateText(request)),
+  'ai.embedding.embed_many': (request) =>
+    exposeAiError('ai.embedding.embed_many', () => application.get('AiService').embedMany(request)),
+  'ai.image.generate': ({ requestId, payload }) =>
+    exposeAiError('ai.image.generate', () => application.get('AiService').runImageRequest(requestId, payload)),
+  'ai.image.abort': async ({ requestId }) => {
     application.get('AiService').abortImage(requestId)
   },
-  'ai.list_models': (request) =>
-    exposeAiError('ai.list_models', () => application.get('AiService').listModels(request)),
+
+  // ── Provider model catalog & reachability probe. ──
+  'ai.provider.model.list': (request) =>
+    exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request)),
+  'ai.provider.model.check': (request) =>
+    exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
-  'ai.stream_open': async (request, { senderId }) => {
+  'ai.stream.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
-    if (!wc) throw new Error('ai.stream_open requires a managed window')
+    if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
     return application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
   },
-  'ai.stream_attach': async (request, { senderId }) => {
+  'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
-    if (!wc) throw new Error('ai.stream_attach requires a managed window')
+    if (!wc) throw new Error('ai.stream.attach requires a managed window')
     return application.get('AiStreamManager').attach(wc, request)
   },
-  'ai.stream_detach': async (request, { senderId }) => {
+  'ai.stream.detach': async (request, { senderId }) => {
     // Best-effort: a gone window has no listener to remove, so a missing WebContents is a no-op.
     const wc = senderWebContents(senderId)
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
-  'ai.stream_abort': async ({ topicId }) => {
+  'ai.stream.abort': async ({ topicId }) => {
     application.get('AiStreamManager').abort(topicId, 'user-requested')
   },
 
-  // ── Agent sessions & tasks — delegate to the owning services. ──
-  'ai.prewarm_agent_session': async ({ sessionId }) => {
-    // Trace mode needs each connection created fresh with trace env at turn start; priming a
-    // trace-less connection ahead of the turn would have the first traced turn reuse it. Mirror the
-    // old warm-query path and skip prewarm entirely while trace mode is on.
-    if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) return
-    // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
-    // catalog is read into the cache before the first message — the warm-query handle can't expose it.
-    await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
+  // ── Tool calls — deferred output lookup + approval decisions. ──
+  'ai.tool.get_result': async ({ topicId, messageId, toolCallId }) => {
+    // Active stream first: it is the only source holding the value before the message persists.
+    const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
+    if (live.found) return live
+    return findPersistedToolOutput(topicId, messageId, toolCallId)
   },
-  'ai.close_agent_session_warm': async ({ sessionId }) => {
+  // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
+  'ai.tool.respond_approval': (payload, { senderId }) =>
+    application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
+
+  // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.agent.create': createAgent,
+  // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
+  // catalog is read into the cache before the first message — the warm-query handle can't expose it.
+  // Trace mode is no exception: the primed connection resolves the session's container trace up front
+  // and spawns with TRACEPARENT, and the one thing a traced turn must not reuse — a trace-less warm
+  // query — is refused by the driver itself.
+  'ai.agent.session.prewarm': ({ sessionId }) =>
+    application.get('AgentSessionRuntimeService').primeConnection(sessionId),
+  'ai.agent.session.close_warm': async ({ sessionId }) => {
     application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
     // Prewarm now opens a real runtime connection, so releasing the warm-query park alone would leak
     // the primed subprocess until the idle TTL. Tear it down on view close unless a turn is running.
     application.get('AgentSessionRuntimeService').releaseIdleConnection(sessionId)
   },
-  // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
-  'ai.respond_tool_approval': (payload, { senderId }) =>
-    application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
+
+  // ── Agent session runtime queries & commands. ──
+  'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
+    application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
+  },
+  'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
+    application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.task.create': ({ agentId, ...form }) =>
     exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),

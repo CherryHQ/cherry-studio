@@ -1,8 +1,13 @@
+import { cacheService } from '@renderer/data/CacheService'
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
 const hookMocks = vi.hoisted(() => ({
   deleteSession: vi.fn(),
@@ -22,12 +27,27 @@ const hookMocks = vi.hoisted(() => ({
   usePins: vi.fn(),
   usePinMutations: vi.fn(),
   useSessions: vi.fn(),
-  useUpdateSession: vi.fn()
+  useUpdateSession: vi.fn(),
+  virtualListRenderRows: [] as VirtualListRenderRow[]
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
   return MockCherrystudioUI
+})
+
+vi.mock('@renderer/data/CacheService', async () => {
+  const { MockCacheService } = await import('@test-mocks/renderer/CacheService')
+  return MockCacheService
+})
+
+vi.mock('@renderer/data/hooks/useCache', async (importOriginal) => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  const actual = await importOriginal<typeof UseCacheModule>()
+  return {
+    ...MockUseCache,
+    useSharedCacheSelector: actual.useSharedCacheSelector
+  }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -42,6 +62,8 @@ vi.mock('@renderer/components/VirtualList', () => ({
     list: T[]
     role?: string
   }) => {
+    hookMocks.virtualListRenderRows.push(children as VirtualListRenderRow)
+
     return (
       <div data-testid="history-virtual-list" role={role}>
         {header}
@@ -207,7 +229,7 @@ vi.mock('react-i18next', () => {
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Work directory',
         'agent.session.group.no_workdir': 'No work directory',
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.unknown_agent': 'Unlinked Agent',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task name',
@@ -231,7 +253,6 @@ vi.mock('react-i18next', () => {
         'common.save': 'Save',
         'common.saved': 'Saved',
         'common.select_all': 'Select all',
-        'common.unknown': 'Unknown',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
@@ -244,6 +265,11 @@ vi.mock('react-i18next', () => {
         'history.records.searchSession': 'Search tasks...',
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
+        'history.records.filter.statusLabel': 'Status',
+        'history.records.filter.statusPlaceholder': 'Select status',
+        'history.records.status.completed': 'Completed',
+        'history.records.status.failed': 'Failed',
+        'history.records.status.running': 'Running',
         'history.records.table.actions': 'Actions',
         'history.records.table.session': 'Task',
         'history.records.table.time': 'Time',
@@ -361,7 +387,7 @@ function setupAgentHistory({
     ownerScope?: string,
     q?: string,
     pinned?: boolean,
-    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'createdAt'
+    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'lastActivityAt'
   ) => {
     const normalizedQuery = q?.trim().toLowerCase()
     return projectedSessions
@@ -371,7 +397,9 @@ function setupAgentHistory({
         if (ownerScope && session.agentId !== ownerScope) return false
         if (!normalizedQuery) return true
         const agentName = session.agentId ? agents.find((agent) => agent.id === session.agentId)?.name : undefined
-        return [session.name, agentName].some((value) => value?.toLowerCase().includes(normalizedQuery))
+        return [session.name, session.description, agentName].some((value) =>
+          value?.toLowerCase().includes(normalizedQuery)
+        )
       })
       .sort((left, right) => {
         if (sortBy !== 'orderKey') {
@@ -427,6 +455,7 @@ function setupAgentHistory({
 describe('HistoryRecordsView agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
+    MockCacheUtils.resetMocks()
     confirmActionShow.mockClear()
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
@@ -471,6 +500,7 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
+    hookMocks.virtualListRenderRows.length = 0
   })
 
   it('renders sessions from the existing agent session list data', () => {
@@ -489,7 +519,7 @@ describe('HistoryRecordsView agent mode', () => {
       pinned: false,
       q: '',
       searchScope: 'name-or-owner',
-      sortBy: 'createdAt'
+      sortBy: 'lastActivityAt'
     })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
@@ -541,10 +571,12 @@ describe('HistoryRecordsView agent mode', () => {
 
     const searchInput = screen.getByRole('searchbox', { name: 'Search tasks...' })
     const sourceFilter = screen.getByRole('button', { name: 'history.records.filter.selectAgent' })
+    const statusFilter = screen.getByRole('button', { name: 'Status' })
     const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Delete' })
 
     expect(searchInput.compareDocumentPosition(sourceFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(sourceFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(sourceFilter.compareDocumentPosition(statusFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(statusFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('filters sessions by selected agent source', () => {
@@ -556,7 +588,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('orders agent sources by agent order and selected agent rows by creation time', () => {
+  it('orders agent sources by agent order and selected agent rows by recent activity', () => {
     setupAgentHistory({
       agents: [
         createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
@@ -604,12 +636,56 @@ describe('HistoryRecordsView agent mode', () => {
       'agent-alpha',
       expect.objectContaining({
         pinned: false,
-        sortBy: 'createdAt'
+        sortBy: 'lastActivityAt'
       })
     )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('restores the agent status selector and filters by existing stream status', () => {
+    MockCacheUtils.setInitialState({
+      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'streaming', activeExecutions: [] }]]
+    })
+
+    setupAgentHistory()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Running$/ }))
+
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
+  it('filters completed and failed sessions by stream status', () => {
+    MockCacheUtils.setInitialState({
+      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'error', activeExecutions: [] }]]
+    })
+
+    setupAgentHistory()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Failed$/ }))
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Completed$/ }))
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('keeps the virtual row renderer stable across stream status updates', () => {
+    setupAgentHistory()
+    const initialRenderRow = hookMocks.virtualListRenderRows.at(-1)
+
+    act(() => {
+      cacheService.setShared('topic.stream.statuses.agent-session:session-beta', {
+        status: 'streaming',
+        activeExecutions: [],
+        awaitingApprovalAnchors: []
+      })
+    })
+
+    expect(hookMocks.virtualListRenderRows.at(-1)).toBe(initialRenderRow)
   })
 
   it('renders list errors with a retry action', () => {
@@ -643,20 +719,20 @@ describe('HistoryRecordsView agent mode', () => {
       ]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Unknown agent/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Unlinked Agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()
-    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getAllByText('Unlinked Agent')).not.toHaveLength(0)
   })
 
-  it('searches by session and live-agent name without matching the session description', () => {
+  it('searches by session name, description, and live-agent name', () => {
     setupAgentHistory()
 
     fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'runbook' } })
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'beta session' } })
 

@@ -11,7 +11,7 @@ import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
-import { Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   startTransition,
@@ -25,7 +25,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SelectorShellLayout } from '../SelectorShell'
+import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
@@ -43,7 +43,7 @@ const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
-const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
+const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
@@ -212,6 +212,18 @@ function ModelRow({
       </div>
     ) : null
 
+  const pinAction = showPinActions ? (
+    <ModelSelectorRowActionButton
+      disabled={isPinActionDisabled}
+      aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+      className="size-4 rounded-sm hover:bg-transparent"
+      pinned={item.isPinned}
+      selected={isSelected}
+      onClick={() => onPin(item.modelId)}>
+      <Pin className="size-3" />
+    </ModelSelectorRowActionButton>
+  ) : null
+
   return (
     <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
       <ModelSelectorRow
@@ -221,19 +233,7 @@ function ModelRow({
         checkbox={checkbox}
         leading={leading}
         trailing={trailing}
-        actions={
-          showPinActions ? (
-            <ModelSelectorRowActionButton
-              disabled={isPinActionDisabled}
-              aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-              className="size-4 rounded-sm hover:bg-transparent"
-              pinned={item.isPinned}
-              selected={isSelected}
-              onClick={() => onPin(item.modelId)}>
-              <Pin className="size-3" />
-            </ModelSelectorRowActionButton>
-          ) : undefined
-        }
+        actions={pinAction}
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
@@ -278,6 +278,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   // variant happens at the `onSelect` / `value` touchpoints below (see
   // `emitSelection` / `normalizeSelectedIdsFromValue`).
   const multiple = props.multiple
+  const noneOptionLabel = props.multiple ? undefined : props.noneOptionLabel
   const selectionType = props.selectionType
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
@@ -545,6 +546,11 @@ export function ModelSelector(props: ModelSelectorProps) {
     closeBeforeSettingsNavigation('/settings/provider')
   }, [closeBeforeSettingsNavigation])
 
+  const handleSelectNone = useCallback(() => {
+    emitSelection([])
+    setOpen(false)
+  }, [emitSelection, setOpen])
+
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
       if (isPinActionDisabled) {
@@ -767,7 +773,9 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return (
-      <>
+      <div
+        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-testid="model-selector-filter-tags">
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
@@ -776,10 +784,10 @@ export function ModelSelector(props: ModelSelectorProps) {
             showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="h-5 items-center transition-colors"
+            className="h-5 shrink-0 items-center transition-colors"
           />
         ))}
-      </>
+      </div>
     )
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
@@ -799,14 +807,27 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
-  const bottomAction = useMemo(
-    () => ({
-      icon: <Settings2 className="size-3.5" />,
-      label: t('models.action.configure_custom'),
-      onClick: handleNavigateToCustomModelSettings
-    }),
-    [handleNavigateToCustomModelSettings, t]
-  )
+  const bottomActions = useMemo<SelectorShellBottomAction[]>(() => {
+    const actions: SelectorShellBottomAction[] = [
+      {
+        icon: <Settings2 className="size-3.5" />,
+        label: t('models.action.configure_custom'),
+        onClick: handleNavigateToCustomModelSettings
+      }
+    ]
+
+    if (noneOptionLabel) {
+      actions.push({
+        type: 'selectable',
+        icon: <CircleSlash className="size-3.5" />,
+        label: noneOptionLabel,
+        selected: rawSelectedModelIds.length === 0,
+        onClick: handleSelectNone
+      })
+    }
+
+    return actions
+  }, [handleNavigateToCustomModelSettings, handleSelectNone, noneOptionLabel, rawSelectedModelIds.length, t])
 
   const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 
@@ -829,7 +850,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
         contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
-        bottomAction={bottomAction}
+        bottomAction={bottomActions}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

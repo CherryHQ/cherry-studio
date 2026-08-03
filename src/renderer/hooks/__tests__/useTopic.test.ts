@@ -5,7 +5,7 @@ import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
+import { getTopicMessages, useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -17,6 +17,54 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
   EventEmitter: { emit: vi.fn() }
 }))
+
+const apiMessage = (id: string, isContextBoundary = false) => ({
+  id,
+  topicId: 'topic-a',
+  parentId: 'root',
+  role: 'user' as const,
+  data: {
+    parts: isContextBoundary ? [{ type: 'data-clear' as const, data: {} }] : [{ type: 'text' as const, text: id }]
+  },
+  searchableText: '',
+  status: 'success' as const,
+  siblingsGroupId: 0,
+  modelId: null,
+  messageSnapshot: null,
+  stats: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
+describe('getTopicMessages', () => {
+  beforeEach(() => {
+    MockDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('filters clear markers and does not count them toward maxMessages', async () => {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('clear-1', true) }, { message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'newer',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'newer',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+})
 
 describe('useTopicMutations', () => {
   beforeEach(() => {

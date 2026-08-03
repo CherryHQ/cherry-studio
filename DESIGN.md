@@ -7,6 +7,9 @@
 > inventory and selection rules are in
 > [`packages/ui/docs/variable-catalog.md`](./packages/ui/docs/variable-catalog.md).
 
+> **Semantic DOM contract:** For Custom CSS, tests, inspectors, and automation that need structural selectors, see
+> [`docs/references/ui-semantic-contract.md`](./docs/references/ui-semantic-contract.md).
+
 > **Usage notation:** Tailwind examples use semantic utilities such as `bg-background` and `text-foreground`.
 > Authored CSS examples use the unprefixed public runtime contract directly, whether the role is official Shadcn
 > (`var(--background)`) or a Cherry Studio product extension (`var(--success)`). Shared `--cs-*` variables are
@@ -39,30 +42,33 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 
 > Internal token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,status-legacy,providers}.css`; public semantic mappings live in `packages/ui/src/styles/shadcn.css` and `packages/ui/src/styles/product.css`. This section names what each token is for; refer to those source files for resolved values.
 
-### Palette Philosophy — Neutrals via Alpha, Colors via Steps
+### Palette Philosophy — Solid Foregrounds, Alpha Surface Tints
 
-The color system follows one consistent rule:
+The color system separates contrast-bearing content from surface tinting:
 
-- **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
+- **Foreground tokens** (text and icons) use **solid `oklch` values**. Their resolved color and contrast must stay predictable across cards, popovers, translucent surfaces, vibrancy, and user wallpapers.
+- **Neutral surface tints** (borders, secondary fills, hover backgrounds, and ghost states) use **black/white + an alpha channel**. These roles intentionally harmonise with the surface beneath them and do not carry a text-contrast contract.
 - **Chromatic tokens** (`--primary`, `--destructive`, `--success`, `--warning`, `--info`, and primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
 
 When you reach for a value:
-1. If the role is "tint of the surface" (text, divider, soft fill, hover), use an approved public neutral role (`--foreground`, `--muted-foreground`, `--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
-2. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
+1. If the role is content, use the solid foreground hierarchy (`--foreground`, `--muted-foreground`, `--foreground-tertiary`, or `--foreground-disabled`).
+2. If the role is a surface tint (divider, soft fill, hover), use an approved public neutral role (`--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`, `--border-selected`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
+3. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
 
 ### Primary
-- **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, links, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
+- **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
 - **Primary Foreground**: `var(--primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: owned by the component variant (`hover:*` utility); do not consume a compatibility adapter variable from authored CSS
 
 ### Text Colors
 - **Foreground**: `var(--foreground)` — primary body text
-- **Muted Foreground**: `var(--muted-foreground)` — secondary text, helper labels, placeholders, and low-emphasis readable content
+- **Muted Foreground**: `var(--muted-foreground)` — secondary readable text, descriptions, labels, and placeholders
+- **Tertiary Foreground**: `var(--foreground-tertiary)` — timestamps, counts, empty-state copy, and icons that intentionally sit one level below readable secondary text
+- **Disabled Foreground**: `var(--foreground-disabled)` — disabled or unavailable foreground content; initially matches tertiary but may evolve independently
 - **Card / Popover / Accent / Secondary Foreground**: `var(--card-foreground)` / `var(--popover-foreground)` / `var(--accent-foreground)` / `var(--secondary-foreground)` — contrast text on each surface
 
-`--color-foreground-secondary` and `--color-foreground-muted` remain generated compatibility outputs. Do not
-consume them in authored CSS; use the official `--muted-foreground` role when its visual contract fits, or keep an
-exact migration treatment private to the owning component.
+All shared foreground roles resolve to solid colors. Do not recreate `foreground-secondary` or `foreground-muted`,
+and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 
 ### Surface & Background
 - **Background**: `var(--background)` — primary page background
@@ -80,17 +86,19 @@ exact migration treatment private to the owning component.
 - **Sidebar Foreground**: `var(--sidebar-foreground)` — text on sidebar
 - **Sidebar Accent / Sidebar Accent Foreground**: `var(--sidebar-accent)` / `var(--sidebar-accent-foreground)` — hover/active state in sidebar; do not substitute generic secondary roles even when current values look similar
 - **Sidebar Border**: `var(--sidebar-border)` — sidebar dividers
-- **Sidebar Ring**: `var(--sidebar-ring)` — focus ring inside sidebar
+- **Sidebar Ring**: `var(--sidebar-ring)` — color source for focus feedback contained inside sidebar controls
 
 ### Borders & Rings
 - **Border**: `var(--border)` — component borders, dividers
 - **Border Subtle**: `var(--border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
 - **Border Strong**: `var(--border-strong)` — higher-emphasis structural borders
+- **Border Selected**: `var(--border-selected)` — selected-state component borders
 - **Input**: `var(--input)` — input field borders
-- **Ring**: `var(--ring)` — focus ring
+- **Ring**: `var(--ring)` — color source for focus feedback contained inside component bounds
 
 ### Border Token Rules
-- Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
+- Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-border-selected`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
+- Use `border-border-selected` only for selected state. Keyboard focus always uses `border-ring` / `ring-ring`.
 - Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
 - For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--border-subtle)]`.
 - Existing opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) continue to resolve through Tailwind v4's native color-opacity modifier support; `theme.css` does not enumerate separate compatibility mappings for them.
@@ -110,21 +118,28 @@ base `--{intent}` token is an accent for icons, text, or markers rather than a s
 runtime families expose `--{intent}`, `--{intent}-subtle`, `--{intent}-subtle-foreground`, and
 `--{intent}-border`; Tailwind exposes matching semantic utility names.
 
-The older `*-base`, `*-text`, `*-bg`, hover, and active outputs are compatibility providers. Do not introduce them
-in new component APIs.
+The older `*-base`, `*-text`, `*-bg`, hover, and active names remain internal frozen providers or migration
+sources only; they are no longer Tailwind utilities. Do not introduce them in component APIs.
 
 ### Brand
 Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` is a foundation scale, not a component-facing semantic contract; new component styling should express action hierarchy through `var(--primary)` and status through the stable product roles.
 
 ### Links
-Application and rendered-content links use the official `var(--primary)` role so user theme selection remains
-consistent across Markdown and rich-text surfaces. A separate link color requires a concrete product requirement
-and consumer review before becoming a stable product variable.
+- Clickable text uses `text-link` / `var(--link)`. Link color is independent from `primary`; reserve `primary` for
+  primary actions, selected states, and component accents.
+- Links use the product default blue. Hover normally adds underline without changing color; do not add a global
+  `link-hover` token.
+- See the [Variable Catalog](./packages/ui/docs/variable-catalog.md) for token ownership and contract details.
 
 ### Floating Scrims
 No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:
 - Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
 - Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
+- QuickPanel is a design-approved exception: its composer-attached surface may derive a component-local translucent
+  background from `--card` while retaining `--card-foreground`, keeping it independent from generic floating panels.
+  It exposes `data-slot="quick-panel-content"` so Custom CSS themes can override the QuickPanel background and
+  foreground together. Keep this treatment local to QuickPanel; it is not a reusable
+  glass token or a precedent for other floating panels.
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
 
 ### Chart Colors
@@ -207,7 +222,7 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Radius / font / motion: `rounded-md`, `font-normal`, `transition-all`
 - Disabled: pointer events disabled, `opacity-40`
 - Loading: `data-loading=true`, `cursor-progress`, `opacity-40`, spinner before content
-- Focus: ring color from `var(--ring)` via the shared button primitive
+- Focus: reuse the variant's hover feedback (`background`, text, or underline); do not draw an outer ring or outline
 
 **Default**
 - Background: neutral strong action fill as defined in the shared Button primitive (`bg-neutral-900` light / `bg-neutral-100` dark)
@@ -335,7 +350,12 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 - Border: none (`border-0`)
 - Padding / gap: `p-6`, `gap-4`
 - Shadow: `shadow-xl`
-- Motion: fade + zoom transitions, `duration-200`
+- Motion: the overlay fades in over 220ms; content fades, rises 16px with an ease-out curve, and scales from 99%
+  over 260ms. Both close over 200ms with a 16px ease-in downward motion. Motion is disabled when
+  `prefers-reduced-motion` requests it.
+- Imperative Dialog hosts remain mounted for 200ms on close.
+- `ConfirmDialog` and the `popup.confirm/error/info/warning` acknowledgement family use `motion="fade-scale"`:
+  they keep the shared fade and 99% scale but omit vertical movement.
 
 **Layout**
 - Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
@@ -474,7 +494,7 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 **Tool Gallery / Code Tools**
 - Use a focused, centered gallery on `bg-background` with a constrained width (`max-w-5xl` style scale) and responsive card grid.
 - Prominent tool-entry cards may use `bg-card`, `border-border`, `p-4`, and `var(--radius-2xl)` to create a launchpad feel without adding shadows.
-- Selection should use border/ring feedback (`border-border-strong`, `ring-ring`) rather than a new chromatic accent.
+- Selection should use border/ring feedback (`border-border-selected`, `ring-ring`) rather than a new chromatic accent.
 - Hero or product icons may be circular (`rounded-full`) and use `shadow-lg` only when they behave as a visual anchor, not as repeated card elevation.
 
 **Mini App Launchpad / Settings Drawer**
@@ -495,9 +515,31 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 - Border: 1px solid `var(--input)`
 - Radius: `var(--radius-md)` (8px)
 - Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
-- Focus ring: use Tailwind ring utilities with `var(--ring)` (for example `focus-visible:ring-2 focus-visible:ring-ring/50`)
+- Focus: text-entry fields may change their own border to `border-primary` while editing; do not add an outer ring,
+  outline, or focus shadow
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--muted-foreground)`
+
+### Focus Feedback
+
+Keyboard focus must remain visible without adding a second frame outside the component. Pointer interaction should
+not add a theme-colored border merely because a control was clicked or a popup was opened.
+
+- Text-entry fields (inputs, textareas, editors, and wrappers whose primary purpose is text entry) may change the
+  existing border to `border-primary` while editing so it follows the selected theme.
+- Select triggers, popup controls, buttons, selectable cards, and containers with nested actions must not change
+  their border for pointer focus, `open`, `expanded`, or `pressed` state. Use `focus-visible:border-primary` or
+  `has-[:focus-visible]:border-primary` only when a border is the appropriate keyboard-focus treatment.
+- Persistent semantic states such as `selected`, `checked`, `active`, and `invalid` may use a border when the border
+  communicates that lasting state rather than a transient click.
+- Buttons, menu items, icon actions, tabs, and selectable rows: reuse the component's hover vocabulary through a
+  focus-visible background, text-color, opacity, or underline change.
+- Text links and link-style buttons: use `focus-visible:underline` plus the link's focused text color.
+- Controls that cannot express focus through an existing border, fill, or text treatment (for example a slider
+  thumb) may use an inset indicator such as `focus-visible:ring-inset` or an inset box-shadow.
+- Never use positive-width focus `ring` utilities without `ring-inset`, positive `outline-offset`, or focus
+  box-shadows that render beyond the component bounds. Do not remove focus feedback without replacing it with one
+  of the contained treatments above.
 
 **Search field with trailing action:**
 When a search field needs an inline trailing button (e.g. add provider in `ProviderList`), embed a 24×24 icon button inside the search wrap, after the input:
@@ -523,7 +565,7 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 - Border-right (when divider needed): `0.5px solid var(--border)`
 - Active item: `var(--sidebar-accent)` background, `var(--sidebar-accent-foreground)` text — **icon color stays `var(--sidebar-accent-foreground)` on active (no color change)**
 - Hover item: `var(--sidebar-accent)` background
-- Focus ring: `var(--sidebar-ring)`
+- Focus: use `var(--sidebar-accent)` background and `var(--sidebar-accent-foreground)` text; no outer ring
 
 **Type:**
 - Header/title rows: `var(--font-size-body-sm)` / `var(--font-weight-medium)`
@@ -608,7 +650,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 - Track carries `shadow-xs`; do not add extra page-local shadow.
 - The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
 - `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
-- Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
+- Focus: use an inset `var(--ring)` keyline inside the track; do not change its outer dimensions or add an outer ring.
 
 **Don't:**
 - Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
@@ -646,7 +688,7 @@ The right pane of every "simple right-content" settings page (i.e. pages whose r
 
 | Layer | Class | Purpose |
 |---|---|---|
-| Outer (full-width, scrolling) | `px-6 py-4` | Page edge padding — keeps `24px` between the content card and the column edge |
+| Outer (full-width, scrolling) | `p-6` | Page edge padding — keeps `24px` between the content card and every column edge |
 | Inner (constrained, centered) | `mx-auto w-full max-w-3xl` | Caps content at `768px` and centers it on wide screens |
 
 Use the canonical components in `src/renderer/pages/settings/index.tsx`:
@@ -659,7 +701,7 @@ This mirrors the model service (Provider Settings) detail column (`providerDetai
 Do **not**:
 - Use `p-4` or `px-5 py-4` on a settings page's outermost content container — they were the old, divergent paddings and are banned for new pages.
 - Apply `max-w-3xl` directly on a child component to "fix" centering on one page — fix the page container so every page is consistent.
-- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, WebSearch, FileProcessing, Channels, Skills) whose right pane is further subdivided.
+- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, Channels, Skills) whose right pane is further subdivided.
 
 When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSettings compact`), the page must NOT add `max-w-3xl` — the drawer width is already constrained and the centered cap would visually mis-align. Branch on the embedding flag and fall back to a plain padded container.
 
@@ -743,9 +785,13 @@ Use Tailwind blur/backdrop-blur utilities directly when a component intentionall
 
 ### Opacity
 
-> Use Tailwind opacity utilities or component-level state classes.
+> Do not use opacity to encode foreground semantics.
 
-Use Tailwind opacity utilities (`opacity-40`, `opacity-70`, etc.) or component-level state classes. There are currently no public `--opacity-*` design-token aliases in `@cherrystudio/ui`.
+Foreground variables are solid and must not be weakened with color-opacity modifiers such as
+`text-foreground-tertiary/50`. Choose the correct foreground role instead. Element-level opacity may still be
+used for animation and for existing component-owned disabled treatments that intentionally fade the entire
+control; migrate those controls only when text, icon, border, and background disabled states can be designed
+together. There are no public `--opacity-*` design-token aliases in `@cherrystudio/ui`.
 
 ### Border Width
 
@@ -770,7 +816,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Use `var(--accent)` fill for outline and ghost button hover states
 - Use `var(--success)`, `var(--warning)`, `var(--info)`, and `var(--error)` for status feedback, toasts, and badges; reserve `var(--destructive)` for dangerous actions
 - Use stable feedback pairs such as `bg-error-subtle text-error-subtle-foreground border-error-border` for richer status surfaces
-- Use `var(--border)`, `var(--border-subtle)`, and `var(--border-strong)` for neutral structure instead of opacity-modified border utilities
+- Use `var(--border)`, `var(--border-subtle)`, `var(--border-strong)`, and `var(--border-selected)` for neutral structure and selection instead of opacity-modified border utilities
 - Use the body / heading font aliases at `var(--font-weight-regular)`/`var(--font-weight-medium)` for body and labels, `var(--font-weight-bold)` for page-level emphasis
 - Separate spatial zones (sidebar, main, popover) through surface color layering: `var(--sidebar)` vs `var(--background)` vs `var(--popover)`
 - Use heading size and line-height tokens directly for new headings
@@ -778,9 +824,13 @@ Use icon-library defaults unless a component has a documented reason to override
 - Apply `rounded-full` specifically for pills, avatars, and circular buttons
 - Use `var(--shadow-md)` to `var(--shadow-lg)` for floating elements (popovers, dropdowns, large panels), and `var(--shadow-xl)` for Dialogs or PageSidePanel surfaces that need stronger separation from the dimmed page
 - Use shared overlay/floating primitives first; add real exported tokens before documenting new glass or scrim aliases
+- Keep keyboard focus visible inside component bounds by changing an existing border, background, text treatment,
+  underline, or an explicitly inset indicator
 
 ### Don't
 - Don't use shadows for static elevation — reserve shadows for hover feedback and floating elements
+- Don't add outer focus frames (`focus-visible:ring-*` without `ring-inset`, positive focus outline offsets, or
+  focus shadows outside component bounds); use the contained focus treatments defined above
 - Don't use `var(--radius-xs)` or `var(--radius-sm)` for buttons or cards — `var(--radius-md)`/`var(--radius-lg)` are the button radii in the shared primitive
 - Don't use font weights below `var(--font-weight-regular)` for functional UI text — thin/light/extralight weights are display-only
 - Don't apply `var(--destructive)` to non-dangerous actions or error feedback — it is reserved for dangerous user actions such as delete and reset
@@ -792,7 +842,6 @@ Use icon-library defaults unless a component has a documented reason to override
 - Don't use `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15` — choose a semantic border token instead
 - Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — reserve `var(--shadow-xl)` for Dialogs, PageSidePanel, and full-screen overlays, and `var(--shadow-2xl)` for peak display emphasis
 - Don't author `--color-*` variables; that namespace belongs to the generated Tailwind adapter. Do not invent other token-looking aliases such as `--cs-glass`, `--blur-md`, `--opacity-50`, or `--border-width-2` without adding a reviewed shared contract in the same change
-
 ## 9. Responsive Behavior
 
 ### Breakpoints
@@ -818,12 +867,14 @@ Use icon-library defaults unless a component has a documented reason to override
 |------|-------|-------|
 | Page background | `var(--background)` | Mode-aware page surface |
 | Primary text | `var(--foreground)` | Primary body text |
-| Secondary / muted text | `var(--muted-foreground)` | Helper, placeholder, low-emphasis readable content |
-| Primary accent | `var(--primary)` | Page-level primary actions, selected states, links, component accents |
+| Secondary / muted text | `var(--muted-foreground)` | Descriptions, labels, placeholders, readable secondary content |
+| Tertiary / disabled text | `var(--foreground-tertiary)` / `var(--foreground-disabled)` | Metadata and quiet icons / disabled content |
+| Primary accent | `var(--primary)` | Page-level primary actions, selected states, component accents |
+| Link | `var(--link)` | Clickable text |
 | Destructive action | `var(--destructive)` | Hover: shared variant state; Text: `var(--destructive-foreground)` |
 | Success / Warning / Info | `var(--success)` / `var(--warning)` / `var(--info)` | Single-token semantic accents |
 | Borders | `var(--border)` | Neutral hairline |
-| Quiet / strong borders | `var(--border-subtle)` / `var(--border-strong)` | Nested panels / higher-emphasis structure |
+| Quiet / strong / selected borders | `var(--border-subtle)` / `var(--border-strong)` / `var(--border-selected)` | Nested panels / higher-emphasis structure / selection |
 | Card surface | `var(--card)` (text: `--card-foreground`) | Layer above background |
 | Popover / floating | `var(--popover)` (text: `--popover-foreground`) | Layer above card |
 | Overlay / floating chrome | shared Dialog overlay, `bg-popover`, `border-border`, shadow utilities | Modal scrims, popovers, transient panels |

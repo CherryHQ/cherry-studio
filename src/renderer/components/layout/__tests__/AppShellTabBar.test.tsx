@@ -112,6 +112,14 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { AppShellTabBar, getTabCapabilities } from '../AppShellTabBar'
 
+const createTab = (id: string, overrides: Partial<Tab> = {}): Tab => ({
+  id,
+  type: 'route',
+  url: id === 'home' ? '/app/chat' : `/app/${id}`,
+  title: id === 'home' ? 'Chat' : id.toUpperCase(),
+  ...overrides
+})
+
 const mockCloseAnimation = () => {
   const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
     width: 120,
@@ -160,10 +168,7 @@ describe('AppShellTabBar', () => {
     wrapperProps?: ComponentProps<'div'>
   ) => {
     const closeTab = vi.fn()
-    const tabs: Tab[] = props?.tabs ?? [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-    ]
+    const tabs: Tab[] = props?.tabs ?? [createTab('home'), createTab('a')]
 
     render(
       <div {...wrapperProps}>
@@ -187,28 +192,9 @@ describe('AppShellTabBar', () => {
   it('opens launchpad from the plus button', async () => {
     const user = userEvent.setup()
     const openTab = vi.fn()
-    const tabs: Tab[] = [
-      {
-        id: 'home',
-        type: 'route',
-        url: '/app/chat',
-        title: 'Chat'
-      }
-    ]
+    const tabs = [createTab('home')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={openTab}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home', openTab })
 
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
@@ -218,25 +204,9 @@ describe('AppShellTabBar', () => {
   it('moves a normal tab to the first slot', async () => {
     const user = userEvent.setup()
     const reorderTabs = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-      { id: 'b', type: 'route', url: '/app/b', title: 'B' }
-    ]
+    const tabs = [createTab('home'), createTab('a'), createTab('b')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={reorderTabs}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home', reorderTabs })
 
     const moveButtons = screen.getAllByTestId('menu-tab.move-to-first')
     expect(moveButtons).toHaveLength(3)
@@ -248,26 +218,9 @@ describe('AppShellTabBar', () => {
   it('closes the other normal tabs from the context menu, leaving pinned tabs alone', async () => {
     const user = userEvent.setup()
     const closeTabs = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
-      { id: 'c', type: 'route', url: '/app/c', title: 'C' },
-      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
-    ]
+    const tabs = [createTab('a'), createTab('b'), createTab('c'), createTab('p', { isPinned: true })]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="a"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={closeTabs}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'a', closeTabs })
 
     // All four tabs offer the action; the pinned tab renders first in the strip.
     const closeOthersButtons = screen.getAllByTestId('menu-tab.close-others')
@@ -280,25 +233,9 @@ describe('AppShellTabBar', () => {
   it('clears the whole normal zone when batch-closing from a pinned tab', async () => {
     const user = userEvent.setup()
     const closeTabs = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
-      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
-    ]
+    const tabs = [createTab('a'), createTab('b'), createTab('p', { isPinned: true })]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="a"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={closeTabs}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'a', closeTabs })
 
     // The pinned tab renders first, so its buttons come before the normal tabs'.
     await user.click(screen.getAllByTestId('menu-tab.close-to-right')[0])
@@ -312,25 +249,9 @@ describe('AppShellTabBar', () => {
   it('closes the tabs to the right from the context menu', async () => {
     const user = userEvent.setup()
     const closeTabs = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
-      { id: 'c', type: 'route', url: '/app/c', title: 'C' }
-    ]
+    const tabs = [createTab('a'), createTab('b'), createTab('c')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="a"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={closeTabs}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'a', closeTabs })
 
     // The rightmost tab has nothing to its right, so only two tabs offer it.
     const closeToRightButtons = screen.getAllByTestId('menu-tab.close-to-right')
@@ -341,55 +262,25 @@ describe('AppShellTabBar', () => {
   })
 
   it('lets the home tab expose menu affordances like a normal tab', () => {
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-    ]
+    const tabs = [createTab('home'), createTab('a')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home' })
 
     expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(2)
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
   })
 
   it('keeps tab buttons no-drag while leaving tabbar whitespace draggable', () => {
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
-    ]
+    const tabs = [createTab('home'), createTab('a'), createTab('p', { isPinned: true })]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="a"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'a' })
 
     const tabStrip = screen.getByTestId('app-shell-tab-strip')
     const chatTab = screen.getByRole('button', { name: 'Chat' })
     const normalTab = screen.getByRole('button', { name: 'A' })
     const pinnedTab = screen.getByRole('button', { name: 'P' })
 
+    expect(tabStrip.closest('header')).toHaveAttribute('data-ui', 'app.tab-bar')
     expect(tabStrip).not.toHaveClass('nodrag')
     expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
     expect(chatTab).toHaveClass('nodrag')
@@ -443,21 +334,9 @@ describe('AppShellTabBar', () => {
   })
 
   it('removes the left inset on Windows and Linux without caller configuration', () => {
-    const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
+    const tabs = [createTab('home')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home' })
 
     const header = screen.getByTestId('app-shell-tab-strip').closest('header')
     const tabStrip = screen.getByTestId('app-shell-tab-strip')
@@ -506,10 +385,7 @@ describe('AppShellTabBar', () => {
     const fadeMask = 'linear-gradient(to right, black 80%, transparent 100%)'
 
     renderTabBar({
-      tabs: [
-        { id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat title' },
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-      ],
+      tabs: [createTab('chat', { url: '/app/chat?topicId=topic-1', title: 'Chat title' }), createTab('a')],
       activeTabId: 'chat'
     })
 
@@ -531,53 +407,28 @@ describe('AppShellTabBar', () => {
     expect(icon).toHaveClass('shrink-0')
   })
 
-  it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
+  it('does not request ResourceList reveal when switching chat or agent tabs', () => {
     const setActiveTab = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'files', type: 'route', url: '/app/files', title: 'Files' },
-      { id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' },
-      { id: 'agents', type: 'route', url: '/app/agents?sessionId=session-1', title: 'Agent' }
+    const tabs = [
+      createTab('files', { title: 'Files' }),
+      createTab('chat', { url: '/app/chat?topicId=topic-1', title: 'Chat' }),
+      createTab('agents', { url: '/app/agents?sessionId=session-1', title: 'Agent' })
     ]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="files"
-        setActiveTab={setActiveTab}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'files', setActiveTab })
 
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
     fireEvent.click(screen.getByRole('button', { name: 'Agent' }))
 
     expect(setActiveTab).toHaveBeenCalledWith('chat')
     expect(setActiveTab).toHaveBeenCalledWith('agents')
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'assistants', tabId: 'chat' })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents' })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
   it('keeps close and pin menu actions when only a single tab is open', () => {
-    const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
+    const tabs = [createTab('home')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home' })
 
     expect(screen.queryByTestId('menu-tab.move-to-first')).toBeNull()
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(1)
@@ -585,24 +436,9 @@ describe('AppShellTabBar', () => {
   })
 
   it('allows both the last normal tab and pinned tabs to close from the menu', () => {
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
-    ]
+    const tabs = [createTab('home'), createTab('p', { isPinned: true })]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home' })
 
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(2)
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
@@ -610,25 +446,9 @@ describe('AppShellTabBar', () => {
   })
 
   it('closes a pinned tab through its context menu item', () => {
-    const closeTab = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
-    ]
+    const tabs = [createTab('home'), createTab('p', { isPinned: true })]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={closeTab}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    const closeTab = renderTabBar({ tabs, activeTabId: 'home' })
 
     // Pinned zone renders before the normal zone, so index 0 is the pinned tab.
     const closeItems = screen.getAllByTestId('menu-tab.close')
@@ -640,25 +460,9 @@ describe('AppShellTabBar', () => {
 
   it('closes a tab from its close button without selecting it', () => {
     const setActiveTab = vi.fn()
-    const closeTab = vi.fn()
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-    ]
+    const tabs = [createTab('home'), createTab('a')]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={setActiveTab}
-        closeTab={closeTab}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    const closeTab = renderTabBar({ tabs, activeTabId: 'home', setActiveTab })
 
     const tab = screen.getByRole('button', { name: 'A' })
     const closeOverlay = within(tab).getByRole('button', { name: 'tab.close' })
@@ -748,23 +552,7 @@ describe('AppShellTabBar', () => {
   })
 
   it('freezes tab widths, collapses the closed tab, then re-flexes when the mouse leaves the strip', () => {
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      width: 120,
-      height: 30,
-      top: 0,
-      left: 0,
-      right: 120,
-      bottom: 30,
-      x: 0,
-      y: 0,
-      toJSON: () => ({})
-    } as DOMRect)
-    vi.useFakeTimers()
-    // Drive the two-phase freeze→collapse through the fake timers deterministically.
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    const restoreAnimation = mockCloseAnimation()
 
     try {
       const closeTab = renderTabBar()
@@ -801,9 +589,7 @@ describe('AppShellTabBar', () => {
       })
       expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
     } finally {
-      vi.useRealTimers()
-      vi.unstubAllGlobals()
-      rectSpy.mockRestore()
+      restoreAnimation()
     }
   })
 
@@ -828,10 +614,7 @@ describe('AppShellTabBar', () => {
     try {
       const staleCloseTab = vi.fn()
       const freshCloseTab = vi.fn()
-      const tabs: Tab[] = [
-        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-      ]
+      const tabs = [createTab('home'), createTab('a')]
       const baseProps = {
         tabs,
         activeTabId: 'home',
@@ -871,10 +654,7 @@ describe('AppShellTabBar', () => {
     try {
       const setActiveTab = vi.fn()
       const closeTab = vi.fn()
-      const tabs: Tab[] = [
-        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-      ]
+      const tabs = [createTab('home'), createTab('a')]
 
       const { unmount } = render(
         <AppShellTabBar
@@ -910,44 +690,13 @@ describe('AppShellTabBar', () => {
   })
 
   it('hands the active slot to the right neighbor as soon as a pointer close starts', () => {
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      width: 120,
-      height: 30,
-      top: 0,
-      left: 0,
-      right: 120,
-      bottom: 30,
-      x: 0,
-      y: 0,
-      toJSON: () => ({})
-    } as DOMRect)
-    vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    const restoreAnimation = mockCloseAnimation()
 
     try {
       const setActiveTab = vi.fn()
-      const closeTab = vi.fn()
-      const tabs: Tab[] = [
-        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-      ]
+      const tabs = [createTab('home'), createTab('a')]
 
-      render(
-        <AppShellTabBar
-          tabs={tabs}
-          activeTabId="home"
-          setActiveTab={setActiveTab}
-          closeTab={closeTab}
-          closeTabs={vi.fn()}
-          reorderTabs={vi.fn()}
-          pinTab={vi.fn()}
-          unpinTab={vi.fn()}
-          openTab={vi.fn()}
-        />
-      )
+      const closeTab = renderTabBar({ tabs, activeTabId: 'home', setActiveTab })
 
       const activeTab = screen.getByRole('button', { name: 'Chat' })
       fireEvent.click(within(activeTab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
@@ -966,9 +715,7 @@ describe('AppShellTabBar', () => {
       })
       expect(closeTab).toHaveBeenCalledWith('home')
     } finally {
-      vi.useRealTimers()
-      vi.unstubAllGlobals()
-      rectSpy.mockRestore()
+      restoreAnimation()
     }
   })
 
@@ -977,25 +724,9 @@ describe('AppShellTabBar', () => {
 
     try {
       const setActiveTab = vi.fn()
-      const closeTab = vi.fn()
-      const tabs: Tab[] = [
-        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-      ]
+      const tabs = [createTab('home'), createTab('a')]
 
-      render(
-        <AppShellTabBar
-          tabs={tabs}
-          activeTabId="home"
-          setActiveTab={setActiveTab}
-          closeTab={closeTab}
-          closeTabs={vi.fn()}
-          reorderTabs={vi.fn()}
-          pinTab={vi.fn()}
-          unpinTab={vi.fn()}
-          openTab={vi.fn()}
-        />
-      )
+      const closeTab = renderTabBar({ tabs, activeTabId: 'home', setActiveTab })
 
       const closeButton = within(screen.getByRole('button', { name: 'Chat' })).getByRole('button', {
         name: 'tab.close'
@@ -1021,24 +752,9 @@ describe('AppShellTabBar', () => {
 
     try {
       const setActiveTab = vi.fn()
-      const tabs: Tab[] = [
-        { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true },
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
-      ]
+      const tabs = [createTab('p', { isPinned: true }), createTab('a')]
 
-      render(
-        <AppShellTabBar
-          tabs={tabs}
-          activeTabId="a"
-          setActiveTab={setActiveTab}
-          closeTab={vi.fn()}
-          closeTabs={vi.fn()}
-          reorderTabs={vi.fn()}
-          pinTab={vi.fn()}
-          unpinTab={vi.fn()}
-          openTab={vi.fn()}
-        />
-      )
+      renderTabBar({ tabs, activeTabId: 'a', setActiveTab })
 
       const closeButton = within(screen.getByRole('button', { name: 'A' })).getByRole('button', {
         name: 'tab.close'
@@ -1060,26 +776,9 @@ describe('AppShellTabBar', () => {
 
     try {
       const setActiveTab = vi.fn()
-      const closeTab = vi.fn()
-      const tabs: Tab[] = [
-        { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-        { id: 'b', type: 'route', url: '/app/b', title: 'B' },
-        { id: 'c', type: 'route', url: '/app/c', title: 'C' }
-      ]
+      const tabs = [createTab('a'), createTab('b'), createTab('c')]
 
-      render(
-        <AppShellTabBar
-          tabs={tabs}
-          activeTabId="a"
-          setActiveTab={setActiveTab}
-          closeTab={closeTab}
-          closeTabs={vi.fn()}
-          reorderTabs={vi.fn()}
-          pinTab={vi.fn()}
-          unpinTab={vi.fn()}
-          openTab={vi.fn()}
-        />
-      )
+      const closeTab = renderTabBar({ tabs, activeTabId: 'a', setActiveTab })
 
       for (const title of ['A', 'B']) {
         const closeButton = within(screen.getByRole('button', { name: title })).getByRole('button', {
@@ -1165,11 +864,7 @@ describe('AppShellTabBar', () => {
 
     try {
       renderTabBar({
-        tabs: [
-          { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-          { id: 'b', type: 'route', url: '/app/b', title: 'B' },
-          { id: 'c', type: 'route', url: '/app/c', title: 'C' }
-        ]
+        tabs: [createTab('a'), createTab('b'), createTab('c')]
       })
       const closingTab = screen.getByRole('button', { name: 'A' })
       const remainingTab = screen.getByRole('button', { name: 'B' })
@@ -1217,25 +912,9 @@ describe('AppShellTabBar', () => {
   })
 
   it('allows closing normal tabs while more than one normal tab is open', () => {
-    const tabs: Tab[] = [
-      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
-      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
-      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
-    ]
+    const tabs = [createTab('home'), createTab('a'), createTab('p', { isPinned: true })]
 
-    render(
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId="home"
-        setActiveTab={vi.fn()}
-        closeTab={vi.fn()}
-        closeTabs={vi.fn()}
-        reorderTabs={vi.fn()}
-        pinTab={vi.fn()}
-        unpinTab={vi.fn()}
-        openTab={vi.fn()}
-      />
-    )
+    renderTabBar({ tabs, activeTabId: 'home' })
 
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(3)
   })
@@ -1269,7 +948,7 @@ describe('AppShellTabBar', () => {
     const handleAuxClick = vi.fn()
     const closeTab = renderTabBar(
       {
-        tabs: [{ id: 'a', type: 'route', url: '/app/a', title: 'A' }],
+        tabs: [createTab('a')],
         activeTabId: 'a'
       },
       {

@@ -1,8 +1,4 @@
 import type { Topic } from '@renderer/types/topic'
-import type {
-  ResourceListGroupReorderPayload,
-  ResourceListItemReorderPayload
-} from '@renderer/utils/chat/resourceListBase'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -18,6 +14,7 @@ import {
   TOPIC_ORDINARY_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../topicsHelpers'
+import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
 
 const TOPIC_GROUP_LABELS = {
   pinned: 'Pinned',
@@ -47,17 +44,12 @@ function createTopic(overrides: Partial<Topic> = {}): Topic & { lastActivityAt: 
 
 describe('Topics helpers', () => {
   it('translates assistant visual drops into persisted order anchors', () => {
-    const basePayload: ResourceListItemReorderPayload = {
-      type: 'item',
-      activeId: 'a',
-      overId: 'b',
-      position: 'before',
-      overType: 'item',
+    const basePayload = createResourceListItemReorderPayload({
       sourceGroupId: 'topic:assistant:assistant-1',
       targetGroupId: 'topic:assistant:assistant-1',
       sourceIndex: 1,
       targetIndex: 0
-    }
+    })
 
     expect(buildTopicDropAnchor(basePayload)).toEqual({ before: 'b' })
     expect(buildTopicDropAnchor({ ...basePayload, position: 'after' })).toEqual({ after: 'b' })
@@ -67,14 +59,12 @@ describe('Topics helpers', () => {
   })
 
   it('translates assistant group drops into persisted order anchors', () => {
-    const basePayload: ResourceListGroupReorderPayload = {
-      type: 'group',
+    const basePayload = createResourceListGroupReorderPayload({
       activeGroupId: 'topic:assistant:assistant-a',
       overGroupId: 'topic:assistant:assistant-b',
-      overType: 'group',
       sourceIndex: 1,
       targetIndex: 2
-    }
+    })
 
     expect(buildAssistantGroupDropAnchor(basePayload, 'assistant-b')).toEqual({ after: 'assistant-b' })
     expect(buildAssistantGroupDropAnchor({ ...basePayload, sourceIndex: 2, targetIndex: 1 }, 'assistant-b')).toEqual({
@@ -98,17 +88,10 @@ describe('Topics helpers', () => {
   })
 
   it('preserves same-group item drop positions from the insertion line', () => {
-    const basePayload: ResourceListItemReorderPayload = {
-      type: 'item',
-      activeId: 'a',
-      overId: 'b',
-      position: 'before',
-      overType: 'item',
+    const basePayload = createResourceListItemReorderPayload({
       sourceGroupId: 'topic:assistant:assistant-1',
-      targetGroupId: 'topic:assistant:assistant-1',
-      sourceIndex: 0,
-      targetIndex: 1
-    }
+      targetGroupId: 'topic:assistant:assistant-1'
+    })
 
     expect(normalizeTopicDropPayload(basePayload)).toBe(basePayload)
 
@@ -130,17 +113,13 @@ describe('Topics helpers', () => {
 
   it('projects ResourceList drag payload into the dropped topic order', () => {
     const topics = [createTopic({ id: 'a' }), createTopic({ id: 'b' }), createTopic({ id: 'c' })]
-    const payload: ResourceListItemReorderPayload = {
-      type: 'item',
-      activeId: 'a',
+    const payload = createResourceListItemReorderPayload({
       overId: 'c',
       position: 'after',
-      overType: 'item',
       sourceGroupId: 'all',
       targetGroupId: 'all',
-      sourceIndex: 0,
       targetIndex: 2
-    }
+    })
 
     expect(moveTopicAfterDrop(topics, payload).map((topic) => topic.id)).toEqual(['b', 'c', 'a'])
     expect(topics.map((topic) => topic.id)).toEqual(['a', 'b', 'c'])
@@ -157,17 +136,13 @@ describe('Topics helpers', () => {
       id: `topic:assistant:${topic.assistantId}`,
       label: topic.assistantId ?? 'default'
     })
-    const payload: ResourceListItemReorderPayload = {
-      type: 'item',
-      activeId: 'a',
+    const payload = createResourceListItemReorderPayload({
       overId: 'topic:assistant:assistant-2',
-      position: 'before',
       overType: 'group',
       sourceGroupId: 'topic:assistant:assistant-1',
       targetGroupId: 'topic:assistant:assistant-2',
-      sourceIndex: 0,
       targetIndex: 0
-    }
+    })
 
     expect(applyOptimisticTopicDisplayMove(topics, payload, 'assistant-2', groupBy).map((topic) => topic.id)).toEqual([
       'b',
@@ -223,7 +198,6 @@ describe('Topics helpers', () => {
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
         ['assistant-2', { id: 'assistant-2', name: 'Writing' }]
       ]),
-      defaultAssistant: { name: 'Default Assistant' },
       labels: TOPIC_GROUP_LABELS,
       mode: 'assistant'
     })
@@ -232,9 +206,9 @@ describe('Topics helpers', () => {
       id: 'topic:pinned',
       label: 'Pinned'
     })
-    expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
+    expect(groupTopic(createTopic({ id: 'unlinked', assistantId: undefined }))).toEqual({
       id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-      label: 'Default Assistant'
+      label: 'Unlinked Assistant'
     })
     expect(groupTopic(createTopic({ id: 'known', assistantId: 'assistant-2' }))).toEqual({
       id: 'topic:assistant:assistant-2',
@@ -265,7 +239,7 @@ describe('Topics helpers', () => {
         mode: 'assistant',
         sortBy: 'orderKey'
       }).map((topic) => topic.id)
-    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'default-1', 'unknown-1'])
+    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1', 'default-1'])
   })
 
   it('sorts assistant group topics by raw persisted orderKey ascending when available', () => {

@@ -1,7 +1,3 @@
-import type {
-  ResourceListGroupReorderPayload,
-  ResourceListItemReorderPayload
-} from '@renderer/utils/chat/resourceListBase'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { describe, expect, it } from 'vitest'
@@ -22,6 +18,7 @@ import {
   SESSION_SYSTEM_WORKSPACE_GROUP_ID,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
+import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
 
 const SESSION_GROUP_LABELS = {
   pinned: 'Pinned',
@@ -71,17 +68,12 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
 
 describe('SessionList helpers', () => {
   it('builds normal ascending order anchors for session drops', () => {
-    const payload: ResourceListItemReorderPayload = {
-      type: 'item',
-      activeId: 'a',
-      overId: 'b',
-      position: 'before',
-      overType: 'item',
+    const payload = createResourceListItemReorderPayload({
       sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
       targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
       sourceIndex: 1,
       targetIndex: 0
-    }
+    })
 
     expect(buildSessionDropAnchor(payload)).toEqual({ before: 'b' })
     expect(buildSessionDropAnchor({ ...payload, position: 'after' })).toEqual({ after: 'b' })
@@ -91,14 +83,10 @@ describe('SessionList helpers', () => {
   })
 
   it('builds workspace group order anchors from group drop direction', () => {
-    const payload: ResourceListGroupReorderPayload = {
-      type: 'group',
+    const payload = createResourceListGroupReorderPayload({
       activeGroupId: 'session:workspace:ws-a',
-      overGroupId: 'session:workspace:ws-b',
-      overType: 'group',
-      sourceIndex: 0,
-      targetIndex: 1
-    }
+      overGroupId: 'session:workspace:ws-b'
+    })
 
     expect(buildSessionWorkdirGroupDropAnchor(payload, 'ws-b')).toEqual({ after: 'ws-b' })
     expect(buildSessionWorkdirGroupDropAnchor({ ...payload, sourceIndex: 2, targetIndex: 1 }, 'ws-b')).toEqual({
@@ -107,17 +95,10 @@ describe('SessionList helpers', () => {
   })
 
   it('preserves same-group item drop positions from the insertion line', () => {
-    const payload: ResourceListItemReorderPayload = {
-      type: 'item',
-      activeId: 'a',
-      overId: 'b',
-      position: 'before',
-      overType: 'item',
+    const payload = createResourceListItemReorderPayload({
       sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-      sourceIndex: 0,
-      targetIndex: 1
-    }
+      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a'
+    })
 
     expect(normalizeSessionDropPayload(payload)).toBe(payload)
 
@@ -130,48 +111,18 @@ describe('SessionList helpers', () => {
   })
 
   it('allows drag only inside the same non-pinned display group', () => {
-    expect(
-      canDropSessionItemInDisplayGroup({
-        mode: 'agent',
-        sourceGroupId: 'session:agent:agent-a',
-        targetGroupId: 'session:agent:agent-a'
-      })
-    ).toBe(true)
-    expect(
-      canDropSessionItemInDisplayGroup({
-        mode: 'agent',
-        sourceGroupId: 'session:agent:agent-a',
-        targetGroupId: 'session:agent:agent-b'
-      })
-    ).toBe(false)
-    expect(
-      canDropSessionItemInDisplayGroup({
-        mode: 'workdir',
-        sourceGroupId: 'session:workspace:ws-a',
-        targetGroupId: 'session:workspace:ws-a'
-      })
-    ).toBe(true)
-    expect(
-      canDropSessionItemInDisplayGroup({
-        mode: 'workdir',
-        sourceGroupId: 'session:workspace:ws-a',
-        targetGroupId: 'session:workspace:ws-b'
-      })
-    ).toBe(false)
-    expect(
-      canDropSessionItemInDisplayGroup({
-        mode: 'workdir',
-        sourceGroupId: 'session:pinned',
-        targetGroupId: 'session:pinned'
-      })
-    ).toBe(false)
-    expect(
-      canDropSessionItemInDisplayGroup({
-        mode: 'time',
-        sourceGroupId: 'session:workspace:ws-a',
-        targetGroupId: 'session:workspace:ws-a'
-      })
-    ).toBe(false)
+    const cases = [
+      ['same agent group', 'agent', 'session:agent:agent-a', 'session:agent:agent-a', true],
+      ['different agent groups', 'agent', 'session:agent:agent-a', 'session:agent:agent-b', false],
+      ['same workdir group', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-a', true],
+      ['different workdir groups', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-b', false],
+      ['pinned group', 'workdir', 'session:pinned', 'session:pinned', false],
+      ['time mode', 'time', 'session:workspace:ws-a', 'session:workspace:ws-a', false]
+    ] as const
+
+    for (const [label, mode, sourceGroupId, targetGroupId, expected] of cases) {
+      expect(canDropSessionItemInDisplayGroup({ mode, sourceGroupId, targetGroupId }), label).toBe(expected)
+    }
   })
 
   it('groups sessions into pinned and ordinary creation-time groups', () => {

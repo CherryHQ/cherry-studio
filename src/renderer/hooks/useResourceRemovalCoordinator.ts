@@ -107,10 +107,7 @@ export function useResourceRemovalCoordinator<T>({
         : undefined
 
       optimisticallyRemove?.(item)
-      if (wasActive) {
-        if (immediateNeighbour) selectItem(immediateNeighbour)
-        else clearSelection()
-      }
+      if (wasActive && immediateNeighbour) selectItem(immediateNeighbour)
       const optimisticActiveId = getActiveId()
 
       let committed: boolean | void

@@ -3,7 +3,6 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { userModelTable } from '@data/db/schemas/userModel'
-import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
@@ -35,15 +34,6 @@ describe('CherryAssistantSeeder', () => {
 
   it('uses a constant version so preset changes cannot bypass deletion memory', () => {
     expect(new CherryAssistantSeeder().version).toBe('1')
-  })
-
-  it('registers the CherryAI default model before Cherry Assistant in the production registry', () => {
-    const modelSeederIndex = seeders.findIndex((seeder) => seeder instanceof CherryAiDefaultModelSeeder)
-    const assistantSeederIndex = seeders.findIndex((seeder) => seeder instanceof CherryAssistantSeeder)
-
-    expect(modelSeederIndex).toBeGreaterThanOrEqual(0)
-    expect(assistantSeederIndex).toBeGreaterThanOrEqual(0)
-    expect(modelSeederIndex).toBeLessThan(assistantSeederIndex)
   })
 
   function insertOrdinaryAgent(): string {
@@ -204,7 +194,7 @@ describe('CherryAssistantSeeder', () => {
     expect(agent.model).toBeNull()
   })
 
-  it('references the CherryAI default model when seeded after CherryAiDefaultModelSeeder', () => {
+  it('leaves the model unconfigured when the CherryAI default is the only available model', () => {
     new SeedRunner(dbh.db).runAll([new CherryAiDefaultModelSeeder(), new CherryAssistantSeeder()])
 
     const [model] = dbh.db
@@ -214,6 +204,6 @@ describe('CherryAssistantSeeder', () => {
       .all()
     const [agent] = builtinAgents(dbh.db)
     expect(model).toBeDefined()
-    expect(agent.model).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    expect(agent.model).toBeNull()
   })
 })

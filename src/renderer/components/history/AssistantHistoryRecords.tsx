@@ -77,7 +77,7 @@ const AssistantHistoryRecords = ({
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
   const bandContinuityKey = JSON.stringify({ ownerScope, q: debouncedSearch })
-  const historySortBy = 'createdAt' as const
+  const historySortBy = 'lastActivityAt' as const
   const pinnedTopicsSource = useTopics({
     q: debouncedSearch,
     searchScope: 'name-or-owner',
@@ -553,7 +553,7 @@ const AssistantHistoryRecords = ({
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getCreatedAt: (topic: HistoryTopicItem) => topic.createdAt,
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {

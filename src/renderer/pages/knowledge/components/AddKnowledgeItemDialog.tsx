@@ -82,6 +82,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     )
   }, [])
 
+  const handleNoteSelectionChange = useCallback((notes: NoteItem[]) => {
+    setSubmitErrorMessage('')
+    setSelectedNotes(notes)
+  }, [])
+
   const canSubmit = useMemo(() => {
     if (!selectedBaseId) {
       return false
@@ -303,7 +308,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     <>
       {directPick ? null : (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-          <DialogContent closeOnOverlayClick={false} size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
+          <DialogContent
+            closeOnOverlayClick={false}
+            size={activeSource === 'url' ? 'sm' : 'lg'}
+            className="flex max-h-[70vh] flex-col overflow-hidden">
             <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-1">
               <AddKnowledgeItemDialogSourceTabs
@@ -311,6 +319,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
                 selectedNotes={selectedNotes}
                 urlValue={urlValue}
                 onNoteToggle={handleNoteToggle}
+                onNoteSelectionChange={handleNoteSelectionChange}
                 onUrlValueChange={(value) => {
                   setSubmitErrorMessage('')
                   setUrlValue(value)

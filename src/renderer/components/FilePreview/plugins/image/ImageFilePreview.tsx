@@ -1,7 +1,6 @@
-import { EmptyState, ImagePreviewImage, useImagePreviewTransform } from '@cherrystudio/ui'
+import { EmptyState, ImagePreviewViewport, useImagePreviewTransform } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { getFilePreviewExtension } from '@renderer/utils/filePreview'
-import { toSafeFileUrl } from '@shared/utils/file'
+import { toFileUrl } from '@shared/utils/file'
 import ImageOff from 'lucide-react/dist/esm/icons/image-off'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useMemo, useState } from 'react'
@@ -20,7 +19,10 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
   const item = useMemo(
     () => ({
       id: `${filePath}:${refreshKey}`,
-      src: toSafeFileUrl(filePath, getFilePreviewExtension(filePath)),
+      // Raw file URL, not `toSafeFileUrl`: `.svg` is a DANGEROUS_EXT (its danger-wrap
+      // would point at the parent directory), but `<img src>` never executes SVG
+      // scripts, so serving registered image extensions directly is safe here.
+      src: toFileUrl(filePath),
       alt: fileName,
       title: fileName
     }),
@@ -48,7 +50,7 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
     <FilePreviewLayout.Frame>
       <ImageFilePreviewToolbar disabled={status !== 'ready'} transformControls={transformControls} />
       <FilePreviewLayout.Content>
-        <div className="relative flex h-full min-h-full min-w-full items-center justify-center">
+        <div className="relative flex h-full min-h-full min-w-full items-center justify-center p-4">
           {status === 'loading' && (
             <div
               role="status"
@@ -57,10 +59,11 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
               <span>{t('file_preview.loading')}</span>
             </div>
           )}
-          <ImagePreviewImage
-            className={status === 'loading' ? 'opacity-0' : undefined}
+          <ImagePreviewViewport
+            className="h-full min-h-full w-full"
+            imageClassName={status === 'loading' ? 'opacity-0' : undefined}
             item={item}
-            transform={transformControls.transform}
+            transformControls={transformControls}
             onLoad={() => setStatus('ready')}
             onError={() => {
               const error = new Error(`Failed to load image preview: ${filePath}`)

@@ -4,6 +4,7 @@ import type { CherryMessagePart, ReasoningUIPart } from '@shared/data/types/mess
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
+import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 
 export interface PartEntry {
@@ -37,7 +38,9 @@ const HIDDEN_PART_TYPES = new Set([
   'source-url',
   'source-document',
   'data-citation',
-  'data-agent-task-event'
+  'data-agent-task-event',
+  'data-knowledge-scope',
+  'data-clear'
 ])
 
 const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
@@ -45,7 +48,8 @@ const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
   'data-code',
   'data-compact',
   'data-translation',
-  'data-compaction-anchor'
+  'data-compaction-anchor',
+  'data-conversation-reset'
 ])
 
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
@@ -142,13 +146,13 @@ function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   return reasoningPart.state === 'streaming' || isReasoningMessagePart(part)
 }
 
-function isFoldableToolPart(part: CherryMessagePart): boolean {
+export function isProcessToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  return !isAskUserQuestionPart(part)
+  return !isAskUserQuestionPart(part) && !isChannelAuthQrPart(part)
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
-  return isVisibleReasoningPart(part) || isFoldableToolPart(part)
+  return isVisibleReasoningPart(part) || isProcessToolPart(part)
 }
 
 /**
@@ -228,7 +232,7 @@ export function findOpenTextTailIndex(entries: readonly PartEntry[]): number | n
 export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (!SUBSTANTIVE_ANSWER_PART_TYPES.has(partType)) return false
-  if (partType === 'data-compaction-anchor') return true
+  if (partType === 'data-compaction-anchor' || partType === 'data-conversation-reset') return true
   if (partType === 'text') return !!(part as { text?: string }).text?.trim() || hasVisibleComposerToken(part)
   return !!(part as { data?: { content?: string } }).data?.content?.trim()
 }
@@ -277,7 +281,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   if (lastAnswerPosition >= 0) {
     let lastRegularToolPosition = -1
     for (let position = lastAnswerPosition - 1; position >= 0; position--) {
-      if (isFoldableToolPart(contentEntries[position].part)) {
+      if (isProcessToolPart(contentEntries[position].part)) {
         lastRegularToolPosition = position
         break
       }
@@ -328,9 +332,10 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   }
 
   const isDirectResult = (entry: PartEntry, position: number) =>
-    position >= resultStart &&
-    position < resultEnd &&
-    (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part))
+    isChannelAuthQrPart(entry.part) ||
+    (position >= resultStart &&
+      position < resultEnd &&
+      (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),

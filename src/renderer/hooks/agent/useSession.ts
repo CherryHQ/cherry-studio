@@ -49,13 +49,13 @@ export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
   enabled?: boolean
-  /** Flat sort profile. Required for q/searchScope and the 'unlinked' owner scope. */
+  /** Ordinary-stream sort profile; defaults to recent activity and is ignored for pinned rows. */
   sortBy?: AgentSessionSortBy
   /** Literal substring search term (server-side, escaped LIKE). */
   q?: string
   /** 'name' (default) or 'name-or-owner' (session name OR live owning agent name). */
   searchScope?: AgentSessionSearchScope
-  /** true selects the newest-pin-first stream; false selects the ordinary stream. */
+  /** true selects pinned rows; false selects ordinary rows. */
   pinned: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope
@@ -201,8 +201,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
   const searchScope = options.searchScope
   const pinned = options.pinned
   const workspaceId = options.workspaceId
-  const isPinnedStream = pinned === true
-  const effectiveSortBy = isPinnedStream ? undefined : sortBy
+  const effectiveSortBy = pinned ? undefined : sortBy
 
   const query = useMemo(() => {
     const built: {
@@ -479,14 +478,14 @@ export const useUpdateSession = () => {
 }
 
 /**
- * Listens for `ai.agent_session_auto_renamed` and invalidates the
+ * Listens for `ai.agent.session.auto_renamed` and invalidates the
  * renamed session's SWR cache so the new name appears without manual refetch.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
   useIpcOn(
-    'ai.agent_session_auto_renamed',
+    'ai.agent.session.auto_renamed',
     ({ sessionId }) => void invalidate([...SESSION_LIST_REFRESH, `/agent-sessions/${sessionId}`])
   )
 }

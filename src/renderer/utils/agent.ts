@@ -45,33 +45,49 @@ export const permissionModeCards: PermissionModeCard[] = [
     mode: 'default',
     // t('agent.settings.tooling.permissionMode.default.title')
     titleKey: 'agent.settings.tooling.permissionMode.default.title',
-    titleFallback: 'Normal Mode',
+    titleFallback: 'Ask Before Acting',
     descriptionKey: 'agent.settings.tooling.permissionMode.default.description',
-    descriptionFallback: 'Can read files freely. Asks before editing or running commands.'
+    descriptionFallback: 'Asks before editing files or running commands.'
   },
   {
     mode: 'plan',
     // t('agent.settings.tooling.permissionMode.plan.title')
     titleKey: 'agent.settings.tooling.permissionMode.plan.title',
-    titleFallback: 'Plan Mode',
+    titleFallback: 'Plan Only',
     descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
-    descriptionFallback: 'Can only read files and make plans. Cannot edit files or run commands.'
+    descriptionFallback: 'Plans without editing files. Only read-only or vetted commands run.'
   },
   {
     mode: 'acceptEdits',
     // t('agent.settings.tooling.permissionMode.acceptEdits.title')
     titleKey: 'agent.settings.tooling.permissionMode.acceptEdits.title',
-    titleFallback: 'Auto-edit Mode',
+    titleFallback: 'Auto-accept Edits',
     descriptionKey: 'agent.settings.tooling.permissionMode.acceptEdits.description',
-    descriptionFallback: 'Can read and edit files freely. Asks before running commands.'
+    descriptionFallback: 'Edits files freely. Asks before commands.'
+  },
+  {
+    mode: 'auto',
+    // t('agent.settings.tooling.permissionMode.auto.title')
+    titleKey: 'agent.settings.tooling.permissionMode.auto.title',
+    titleFallback: 'Approve for Me',
+    descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
+    descriptionFallback: 'Runs without routine prompts. A safety check blocks risky actions.',
+    // The safety check is a model-side classifier, so the mode is only as good as the
+    // model behind it — hence the caveat rather than making this the creation default.
+    // t('agent.settings.tooling.permissionMode.auto.warning')
+    warningKey: 'agent.settings.tooling.permissionMode.auto.warning',
+    warningFallback: 'Needs a model that supports it; others may ignore it or keep asking.'
   },
   {
     mode: 'bypassPermissions',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.title')
     titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
-    titleFallback: 'Full Auto Mode',
+    titleFallback: 'Full Access',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
-    descriptionFallback: 'Can do everything without asking. Use with caution.',
-    caution: true
+    descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
+    // t('agent.settings.tooling.permissionMode.bypassPermissions.warning')
+    warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+    warningFallback: 'Use with caution — all tools will run without asking for approval.',
+    dangerous: true
   }
 ]

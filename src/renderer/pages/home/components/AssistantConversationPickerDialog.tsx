@@ -9,8 +9,9 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
-import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { isNonChatModel } from '@shared/utils/model'
 import { Bot, Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,7 +139,7 @@ export function AssistantConversationPickerDialog({
             size={15}
             className={cn(
               'shrink-0',
-              activeTab ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
+              activeTab ? 'text-primary!' : 'text-muted-foreground group-hover:text-foreground'
             )}
           />
         </button>
@@ -199,7 +200,7 @@ export function AssistantConversationPickerDialog({
         isSubmitting={isCreatingAssistant}
         onOpenChange={setCreateDialogOpen}
         onSubmit={handleSubmitCreate}
-        modelFilter={isSelectableAssistantModel}
+        modelFilter={(candidate) => !isNonChatModel(candidate)}
       />
     </>
   )

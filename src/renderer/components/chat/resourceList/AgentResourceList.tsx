@@ -23,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
-  buildResourceOwnerFallbackIds,
   type ConversationResourceMenuItem,
   renderAgentEntityIcon,
   ResourceList,
@@ -50,16 +49,12 @@ type AgentResourceListProps = {
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
-  onSelectEmptyAgent?: (agentId: string) => void
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => void | Promise<unknown>
   onShowMissingAgentSelection?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
-  /**
-   * Called after the active agent is deleted. Candidate ids preserve the
-   * owner rail's pre-removal display order.
-   */
-  onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
+  /** Called after the currently-active agent is deleted so the page can settle. */
+  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
 }
 
 export function AgentResourceList({
@@ -69,7 +64,6 @@ export function AgentResourceList({
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
-  onSelectEmptyAgent,
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
@@ -81,7 +75,6 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     stats: sessionStats,
@@ -146,10 +139,6 @@ export function AgentResourceList({
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
   )
-  const handleEmptyAgentSelection = useCallback(
-    (agent: ResourceEntityRailItem) => onSelectEmptyAgent?.(agent.id),
-    [onSelectEmptyAgent]
-  )
   const loadLatestSessionForAgent = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
@@ -172,7 +161,7 @@ export function AgentResourceList({
     isLoading: isAgentsLoading || isSessionStatsLoading,
     isError: !!(agentsError || sessionsError),
     onPickResource: handlePickSession,
-    onEmptyResource: handleEmptyAgentSelection,
+    onCreateResource: onCreateSession,
     loadResourceForEntity: loadLatestSessionForAgent,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
@@ -189,10 +178,16 @@ export function AgentResourceList({
 
       try {
         await toggleAgentPin(agentId)
-        await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from classic-layout rail', { agentId, err })
         toast.error(t('common.error'))
+        return
+      }
+
+      try {
+        await refetchAgents()
+      } catch (err) {
+        logger.warn('Failed to refresh agents after toggling pin from classic-layout rail', { agentId, err })
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -216,14 +211,10 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        const fallbackAgentIds = buildResourceOwnerFallbackIds(
-          items.map((item) => item.id),
-          agentId
-        )
         const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
         closeConversationTabs('agents', result.deletedSessionIds ?? [])
         if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId, fallbackAgentIds)
+          await onActiveAgentDeleted?.(agentId)
         }
 
         await refetchAgents()
@@ -236,17 +227,7 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [
-      activeAgentId,
-      closeConversationTabs,
-      deleteAgent,
-      deletingAgentId,
-      items,
-      onActiveAgentDeleted,
-      refetchAgents,
-      reload,
-      t
-    ]
+    [activeAgentId, closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
   )
 
   const getContextMenuActions = useCallback(
@@ -332,8 +313,6 @@ export function AgentResourceList({
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
             onManageAgents={manageAgentsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
-            onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
-            sortBy={sessionSortBy}
           />
         }
         onSelect={handleSelect}
@@ -347,7 +326,6 @@ export function AgentResourceList({
         onOpenChange={(open) => {
           if (!open) setEditDialogTarget(null)
         }}
-        onSaved={refetchAgents}
       />
     </>
   )

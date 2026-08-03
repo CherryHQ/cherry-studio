@@ -133,7 +133,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
   { pattern: 'deepseek-v3\\.2-speciale' },
   // google
-  { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
+  { pattern: '^gemma-?4', toggle: true },
   {
     pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
     effort: ['minimal', 'low', 'medium', 'high']
@@ -148,9 +148,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemini-pro-latest$', budget: { min: 128, max: 32768 }, template: true },
   { pattern: 'gemini-.*-flash.*$', budget: { min: 0, max: 24576 }, template: true },
   { pattern: 'gemini-.*-pro.*$', budget: { min: 128, max: 32768 }, template: true },
-  { pattern: 'gemma-?4[:-]?e[24]b', budget: { min: 1024, max: 8192 }, template: true },
-  { pattern: 'gemma-?4[:-]?26b', budget: { min: 1024, max: 30720 }, template: true },
-  { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
   { pattern: '^gemini.*thinking' },
   { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
   { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
@@ -177,7 +174,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
   // nvidia
-  { pattern: 'nemotron-(?:nano|super|3-(?:nano|super|ultra))' },
+  { pattern: '(?:llama-3-1-)?nemotron-(?:nano|super|ultra|3-(?:nano|super|ultra))' },
   // openai
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
   { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },

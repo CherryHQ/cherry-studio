@@ -1,5 +1,5 @@
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
+import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
@@ -39,7 +39,6 @@ export const AppShell = () => {
   }, [])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
-  useMainWindowNavigation()
 
   useEffect(() => {
     if (!isMac) return
@@ -122,7 +121,9 @@ export const AppShell = () => {
 
   const contentArea = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-      <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+      <main
+        data-ui="app.content"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
         {/* Route Tabs: Only render non-dormant tabs */}
         <ResourceViewSourceProvider>
           {tabs

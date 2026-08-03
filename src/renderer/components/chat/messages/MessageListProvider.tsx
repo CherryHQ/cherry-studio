@@ -21,9 +21,9 @@ import type {
  *   subscribers that only care about, say, `estimateSize`.
  * - `MessageListMessagesContext` — the messages array itself. Streaming chunks
  *   land here.
- * - `MessageListUiStaticContext` — preference-driven static config (readonly,
- *   menuConfig, translationLanguages, externalCodeEditors). Changes when the
- *   user flips a setting.
+ * - `MessageListUiStaticContext` — preference-driven static config (menuConfig,
+ *   translationLanguages, externalCodeEditors). Changes when the user flips a
+ *   setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
  *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
@@ -39,6 +39,7 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'messageTail'
   | 'activeTurnStatus'
   | 'isInitialLoading'
   | 'isMessagesStale'
@@ -49,15 +50,13 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'localSendGeneration'
   | 'streamingLayers'
 >
 
 type MessageListMessagesValue = MessageListItem[]
 
-type MessageListUiStaticValue = Pick<
-  MessageListState,
-  'readonly' | 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'
->
+type MessageListUiStaticValue = Pick<MessageListState, 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'>
 
 type MessageListUiSelectorsValue = Pick<
   MessageListState,
@@ -90,6 +89,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      messageTail: state.messageTail,
       activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
       isMessagesStale: state.isMessagesStale,
@@ -100,11 +100,13 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
       listKey: state.listKey,
+      localSendGeneration: state.localSendGeneration,
       streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
       state.beforeList,
+      state.messageTail,
       state.activeTurnStatus,
       state.isInitialLoading,
       state.isMessagesStale,
@@ -115,18 +117,18 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
       state.listKey,
+      state.localSendGeneration,
       state.streamingLayers
     ]
   )
 
   const uiStatic = useMemo<MessageListUiStaticValue>(
     () => ({
-      readonly: state.readonly,
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [state.readonly, state.menuConfig, state.translationLanguages, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(

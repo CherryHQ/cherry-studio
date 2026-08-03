@@ -14,6 +14,10 @@ import { eq } from 'drizzle-orm'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
 
+function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+  return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
+}
+
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
 // can assert on its shape.
@@ -183,9 +187,9 @@ describe('AgentSessionService', () => {
       return workspace
     }
 
-    it('sortBy=lastActivityAt returns ordinary activity order with the workspace relation intact', async () => {
+    it('defaults to ordinary activity order with the workspace relation intact', async () => {
       await seedFlat()
-      const result = agentSessionService.listByCursor({ pinned: false, sortBy: 'lastActivityAt' })
+      const result = agentSessionService.listByCursor({ pinned: false })
       expect(result.items.map((s) => s.id)).toEqual(['s4', 's3', 's1'])
       expect(result.items[0].workspace).toBeDefined()
       expect(result.items.find((session) => session.id === 's1')).toMatchObject({
@@ -251,10 +255,8 @@ describe('AgentSessionService', () => {
       expect(page2.nextCursor).toBeUndefined()
     })
 
-    it('pages a pinned-only stream by ascending pin order (newest pin first) without a session sort profile', async () => {
+    it('pages a pinned-only stream by persisted ascending pin order without a session sort profile', async () => {
       await seedFlat()
-      // Fresh pins insert first in the sequence: the newer s4 pin carries a
-      // smaller orderKey than the seeded s2 pin ('a0').
       await dbh.db.insert(pinTable).values({
         id: '88888888-8888-4888-8888-888888888888',
         entityType: 'session',
@@ -269,12 +271,12 @@ describe('AgentSessionService', () => {
         cursor: page1.nextCursor
       })
 
-      expect(page1.items.map((session) => session.id)).toEqual(['s4'])
-      expect(page2.items.map((session) => session.id)).toEqual(['s2'])
+      expect(page1.items.map((session) => session.id)).toEqual(['s2'])
+      expect(page2.items.map((session) => session.id)).toEqual(['s4'])
       expect(page2.nextCursor).toBeUndefined()
       expect(agentSessionService.listByCursor({ pinned: true }).items.map((session) => session.id)).toEqual([
-        's4',
-        's2'
+        's2',
+        's4'
       ])
     })
 
@@ -338,9 +340,9 @@ describe('AgentSessionService', () => {
       ).toEqual(['s4', 's3', 's1'])
     })
 
-    it('searchScope=name matches session name only; name-or-owner also matches the live agent name, never description', async () => {
+    it('searchScope=name matches session name only; name-or-owner also matches description and live agent name', async () => {
       await seedFlat()
-      // 'first' appears only in s1's description — descriptions are never searched under either scope.
+      // 'first' appears only in s1's description — the resource-list name scope must not match it.
       expect(agentSessionService.listByCursor({ pinned: false, sortBy: 'lastActivityAt', q: 'first' }).items).toEqual(
         []
       )
@@ -351,7 +353,7 @@ describe('AgentSessionService', () => {
           q: 'first',
           searchScope: 'name-or-owner'
         }).items
-      ).toEqual([])
+      ).toHaveLength(1)
       // 'Test Agent' matches via the owning agent's name — only linked sessions.
       expect(
         agentSessionService
@@ -401,7 +403,7 @@ describe('AgentSessionService', () => {
       expect(second.nextCursor).toBeUndefined()
     })
 
-    it('uses the created-at index for global and agent-scoped default lists without a temporary sort', () => {
+    it('uses the activity index for global and agent-scoped default lists without a temporary sort', () => {
       const globalPlan = dbh.sqlite
         .prepare(
           `EXPLAIN QUERY PLAN
@@ -411,7 +413,7 @@ describe('AgentSessionService', () => {
            LEFT JOIN pin ON pin.entity_type = 'session' AND pin.entity_id = agent_session.id
            LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
            WHERE agent_session.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'session')
-           ORDER BY agent_session.created_at DESC, agent_session.id ASC
+           ORDER BY agent_session.last_activity_at DESC, agent_session.id ASC
            LIMIT 51`
         )
         .all() as Array<{ detail: string }>
@@ -425,13 +427,16 @@ describe('AgentSessionService', () => {
            LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
            WHERE agent.id = 'agent-session-test'
              AND agent_session.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'session')
-           ORDER BY agent_session.created_at DESC, agent_session.id ASC
+           ORDER BY agent_session.last_activity_at DESC, agent_session.id ASC
            LIMIT 51`
         )
         .all() as Array<{ detail: string }>
 
+      expect(globalPlan.some(({ detail }) => detail.includes('agent_session_last_activity_at_id_idx'))).toBe(true)
+      expect(scopedPlan.some(({ detail }) => detail.includes('agent_session_agent_id_last_activity_at_id_idx'))).toBe(
+        true
+      )
       for (const plan of [globalPlan, scopedPlan]) {
-        expect(plan.some(({ detail }) => detail.includes('agent_session_created_at_id_idx'))).toBe(true)
         expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
       }
     })
@@ -566,7 +571,7 @@ describe('AgentSessionService', () => {
       const workspace = await createWorkspace('reusable')
       const otherWorkspace = await createWorkspace('reusable-other')
       const systemWorkspace = dbh.db.transaction((tx) =>
-        agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'reusable-system' })
+        agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'reusable-system', createdAt: 1 })
       )
       await dbh.db.insert(agentSessionTable).values([
         {
@@ -828,7 +833,10 @@ describe('AgentSessionService', () => {
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-owned-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-owned-session',
+        createdAt: Date.parse('2026-07-27T10:00:00Z')
+      })
     )
 
     expect(
@@ -885,7 +893,13 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
-    expect(session.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    expect(session.workspace.path).toBe(
+      buildSystemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        session.id,
+        Date.parse(session.createdAt)
+      )
+    )
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -999,7 +1013,13 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
-    expect(updated.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    expect(updated.workspace.path).toBe(
+      buildSystemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        session.id,
+        Date.parse(session.createdAt)
+      )
+    )
     const [systemWorkspaceRow] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
@@ -1012,6 +1032,69 @@ describe('AgentSessionService', () => {
       id: userWorkspace.id,
       type: 'user'
     })
+  })
+
+  it('keeps the system workspace path stable across a cross-day system to user to system switch', async () => {
+    const firstDay = Date.parse('2026-07-27T10:00:00Z')
+    const secondDay = Date.parse('2026-07-28T10:00:00Z')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(firstDay)
+
+    try {
+      const userWorkspace = await createWorkspace('cross-day-system-roundtrip')
+      const session = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Cross-day system roundtrip',
+        workspace: { type: 'system' }
+      })
+      const originalSystemPath = session.workspace.path
+
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
+      })
+      now.mockReturnValue(secondDay)
+      const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+      expect(restored.workspace.path).toBe(originalSystemPath)
+      expect(restored.workspace.path).toBe(
+        buildSystemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
+      )
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('keeps the system workspace path stable across a timezone change', async () => {
+    const createdAt = Date.parse('2026-07-27T00:30:00Z')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(createdAt)
+    const originalTimezone = process.env.TZ
+
+    try {
+      process.env.TZ = 'UTC'
+      const userWorkspace = await createWorkspace('cross-timezone-system-roundtrip')
+      const session = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Cross-timezone system roundtrip',
+        workspace: { type: 'system' }
+      })
+      const originalSystemPath = session.workspace.path
+
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
+      })
+      process.env.TZ = 'America/Los_Angeles'
+      const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+      expect(restored.workspace.path).toBe(originalSystemPath)
+      expect(restored.workspace.path).toBe(
+        path.join(application.getPath('feature.agents.system_workspaces'), '2026-07-27', session.id)
+      )
+    } finally {
+      now.mockRestore()
+      if (originalTimezone === undefined) delete process.env.TZ
+      else process.env.TZ = originalTimezone
+    }
   })
 
   it('is a no-op when re-setting an empty system session to a system workspace', async () => {

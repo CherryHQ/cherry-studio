@@ -15,12 +15,9 @@ import {
   sortRankedResourceItems
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, AgentSessionSortBy } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import type {
-  AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode,
-  TopicSessionSortBy
-} from '@shared/data/preference/preferenceTypes'
+import type { AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 export type AgentSessionDisplayMode = PreferenceAgentSessionDisplayMode
 
@@ -51,7 +48,7 @@ export type SessionDisplayGroupOptions = {
 export type SessionDisplaySortOptions = {
   agentRankById?: ReadonlyMap<string, number>
   mode: AgentSessionDisplayMode
-  sortBy: TopicSessionSortBy
+  sortBy: AgentSessionSortBy
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
 }
 

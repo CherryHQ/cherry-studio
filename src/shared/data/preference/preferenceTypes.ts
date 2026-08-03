@@ -86,13 +86,9 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
-export type TopicSessionSortBy = 'lastActivityAt' | 'createdAt' | 'orderKey'
-
 export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
-
-export type AgentSessionWorkdirSection = 'workdir' | 'no-workdir'
 
 export const SIDEBAR_FAVORITES = [
   'assistants',

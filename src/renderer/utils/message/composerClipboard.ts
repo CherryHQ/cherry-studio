@@ -1,5 +1,10 @@
 import { loggerService } from '@logger'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
+import {
+  type ComposerClipboardTokenKind,
+  isComposerClipboardPromptTokenKind,
+  isComposerClipboardTokenKind
+} from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
 import { type FileUrlString } from '@shared/types/file'
@@ -20,18 +25,7 @@ export const COMPOSER_CLIPBOARD_FRAGMENT_MIME = 'web application/x-cherry-compos
 
 const COMPOSER_CLIPBOARD_FRAGMENT_VERSION = 1
 const COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH = 250_000
-const COMPOSER_CLIPBOARD_TOKEN_KINDS = [
-  'skill',
-  'file',
-  'folder',
-  'knowledge',
-  'reference',
-  'quote',
-  'promptVariable'
-] as const
 const COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS = 30 * 60 * 1000
-
-type ComposerClipboardTokenKind = (typeof COMPOSER_CLIPBOARD_TOKEN_KINDS)[number]
 
 export interface ComposerClipboardSourceToken {
   id: string
@@ -115,15 +109,6 @@ interface ComposerClipboardDraft {
   text: string
   tokens: readonly ComposerClipboardDraftToken[]
 }
-
-const COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
-  'skill',
-  'file',
-  'folder',
-  'knowledge',
-  'reference',
-  'quote'
-])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -261,28 +246,14 @@ function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id
   }
 }
 
-function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboardTokenKind {
-  return typeof value === 'string' && COMPOSER_CLIPBOARD_TOKEN_KINDS.includes(value as ComposerClipboardTokenKind)
-}
-
 // Kinds whose promptText is restored verbatim from the fragment. Unlike file tokens
 // (handle-gated) or skill/knowledge (re-resolved from live markers), these trust the
 // clipboard's promptText directly. Since any app can forge our clipboard MIME, a short
 // visible label could hide an injected promptText that silently reaches the model on
 // send. We trust these only when the fragment carries a session-private nonce proving
 // this renderer wrote it; otherwise they degrade to their visible fallback text.
-const COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS = new Set<ComposerClipboardTokenKind>([
-  'folder',
-  'reference',
-  'quote',
-  'promptVariable'
-])
 const COMPOSER_CLIPBOARD_PROMPT_NONCE_TTL_MS = 30 * 60 * 1000
 const trustedPromptFragmentNonces = new Map<string, number>()
-
-function isPromptRestorationTokenKind(kind: unknown): kind is ComposerClipboardTokenKind {
-  return isComposerClipboardTokenKind(kind) && COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS.has(kind)
-}
 
 function pruneExpiredPromptFragmentNonces(now = Date.now()) {
   for (const [nonce, expiresAt] of trustedPromptFragmentNonces) {
@@ -385,7 +356,7 @@ function sanitizeComposerClipboardSegment(
 
   // Reject forged hidden prompts: only session-authored fragments may restore a
   // promptText-bearing folder/quote/promptVariable token; others show visible text.
-  if (!trustedPromptText && isPromptRestorationTokenKind(token.kind) && token.promptText) {
+  if (!trustedPromptText && isComposerClipboardPromptTokenKind(token.kind) && token.promptText) {
     return { type: 'text', text: fallbackText }
   }
 
@@ -404,7 +375,7 @@ export function createComposerClipboardFragment(segments: readonly ComposerClipb
 
   const requiresPromptNonce = safeSegments.some(
     (segment) =>
-      segment.type === 'token' && isPromptRestorationTokenKind(segment.token.kind) && segment.token.promptText
+      segment.type === 'token' && isComposerClipboardPromptTokenKind(segment.token.kind) && segment.token.promptText
   )
 
   return JSON.stringify({
@@ -570,7 +541,7 @@ function projectTextPartToClipboardSegments(
   }
 
   const tokens = composer.tokens
-    .filter((token) => COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
+    .filter((token) => isComposerClipboardTokenKind(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
     .map((token) => mergeFileTokenPayload(token, filePayloadsBySourceId))
 

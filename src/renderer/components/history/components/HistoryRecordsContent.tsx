@@ -32,15 +32,19 @@ export function HistoryRecordsContent<T>({
   onRetry
 }: HistoryRecordsContentProps<T>) {
   const { t } = useTranslation()
-  const hasActiveFilters = controller.searchText.trim().length > 0 || controller.selectedSourceId !== ALL_SOURCE_ID
+  const hasActiveFilters =
+    controller.searchText.trim().length > 0 ||
+    controller.selectedSourceId !== ALL_SOURCE_ID ||
+    controller.selectedStatus !== ALL_SOURCE_ID
   const clearFilters = () => {
     controller.setSearchText('')
     controller.setSelectedSourceId(ALL_SOURCE_ID)
+    controller.setSelectedStatus(ALL_SOURCE_ID)
   }
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-card-foreground"
       aria-label={t('history.records.shortTitle')}>
       <HistoryTopBar
         mode={descriptor.mode}
@@ -51,6 +55,11 @@ export function HistoryRecordsContent<T>({
         selectedSourceId={controller.selectedSourceId}
         onSourceSelect={controller.setSelectedSourceId}
         renderSourceFilter={descriptor.renderSourceFilter}
+        statusOptions={descriptor.statusOptions}
+        statusLabel={t('history.records.filter.statusLabel')}
+        statusPlaceholder={t('history.records.filter.statusPlaceholder')}
+        selectedStatus={controller.selectedStatus}
+        onStatusSelect={controller.setSelectedStatus}
         selectedCount={controller.selectedCount}
         bulkDeleteCount={controller.bulkDeleteCount}
         bulkMoveTargets={descriptor.bulkMoveTargets}

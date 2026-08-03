@@ -84,7 +84,7 @@ export function AgentToolCallCard({
       />
     ),
     classNames: {
-      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
   const canShowInlineDetails =
@@ -93,9 +93,11 @@ export function AgentToolCallCard({
   return (
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
+      defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
       isStreaming={isStreaming}
       item={toolContentItem}
       onOpenDetails={openToolFlow}
+      stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
     />
   )

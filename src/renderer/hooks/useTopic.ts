@@ -44,6 +44,7 @@ import type {
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -176,10 +177,14 @@ export async function getTopicMessages(
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        pageMessages.push(convertSharedMessage(item.message, assistantId))
+        if (!hasClearContextPart(item.message.data.parts)) {
+          pageMessages.push(convertSharedMessage(item.message, assistantId))
+        }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            pageMessages.push(convertSharedMessage(sibling, assistantId))
+            if (!hasClearContextPart(sibling.data.parts)) {
+              pageMessages.push(convertSharedMessage(sibling, assistantId))
+            }
           }
         }
       }
@@ -230,10 +235,10 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  * List topics across all assistants from SQLite via DataApi.
  *
  * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
- * `pinned=true` selects the newest-pin-first stream. `pinned=false`
- * selects the ordinary stream — `'createdAt'` (default) for creation order,
- * `'lastActivityAt'` for activity order, or `'orderKey'` for manual order — and
- * excludes pinned rows. The `assistantId` owner scope
+ * `pinned=true` selects the persisted pin-order stream. `pinned=false`
+ * selects the ordinary stream — `'lastActivityAt'` (default) for recent
+ * activity, `'createdAt'` for creation order, or `'orderKey'` for manual order —
+ * and excludes pinned rows. The `assistantId` owner scope
  * (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
  * `loadNext()`.
  *
@@ -250,8 +255,7 @@ export function useTopics(opts: {
 }) {
   const q = opts.q?.trim()
   const searchScope = opts.searchScope
-  const isPinnedStream = opts.pinned
-  const sortBy = isPinnedStream ? undefined : opts.sortBy
+  const sortBy = opts.pinned ? undefined : opts.sortBy
   const query = useMemo(() => {
     const built: {
       q?: string
@@ -514,13 +518,13 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `ai.topic_auto_renamed` and invalidates the renamed
+ * Listens for `ai.topic.auto_renamed` and invalidates the renamed
  * topic's SWR cache so the new name shows up without manual refetch.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate([...TOPIC_LIST_REFRESH, `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate([...TOPIC_LIST_REFRESH, `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

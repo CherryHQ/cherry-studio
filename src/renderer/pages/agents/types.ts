@@ -5,4 +5,6 @@ export type CreateAgentSessionDefaults = {
   workspace?: AgentSessionWorkspaceSource
   workspaceId?: string
   workspaceMode?: 'system'
+  /** Prevent stale placeholder data from reactivating the session being replaced. */
+  excludeReuseSessionId?: string
 }

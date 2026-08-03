@@ -5,9 +5,8 @@ import { loggerService } from '@logger'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
-import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import ConversationShell, { type ConversationCenterSurface } from '@renderer/components/chat/shell/ConversationShell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -24,6 +23,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import type { FC, ReactNode } from 'react'
@@ -55,7 +55,7 @@ function ChatTopBarControls(props: ChatTopBarControlsProps) {
 interface Props {
   activeTopic?: Topic
   centerFallback?: ReactNode
-  centerSurface?: ConversationCenterSurface | null
+  centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
@@ -100,22 +100,6 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  const composerContextKey = activeTopic ? `${activeTopic.id}:${activeTopic.assistantId ?? 'default-assistant'}` : null
-  const composerContextResolved = !assistantContext.isLoading && !assistantContext.isModelPending
-  const [resolvedComposerContextKey, setResolvedComposerContextKey] = useState<string | null>(() =>
-    composerContextResolved ? composerContextKey : null
-  )
-  const nextResolvedComposerContextKey = !composerContextKey
-    ? null
-    : composerContextResolved
-      ? composerContextKey
-      : resolvedComposerContextKey === composerContextKey
-        ? resolvedComposerContextKey
-        : null
-  if (nextResolvedComposerContextKey !== resolvedComposerContextKey) {
-    setResolvedComposerContextKey(nextResolvedComposerContextKey)
-  }
-  const isComposerContextLoading = Boolean(composerContextKey && nextResolvedComposerContextKey !== composerContextKey)
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
@@ -169,7 +153,7 @@ const Chat: FC<Props> = (props) => {
         title: t('chat.topics.edit.title'),
         message: '',
         defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-foreground-secondary">{t('chat.topics.edit.title_tip')}</div>
+        extraNode: <div className="mt-2 text-muted-foreground">{t('chat.topics.edit.title_tip')}</div>
       })
       if (name && topic.name !== name) {
         await patchTopic(topic.id, { name, isNameManuallyEdited: true })
@@ -315,7 +299,6 @@ const Chat: FC<Props> = (props) => {
         onStartBranchDraft={handleStartBranchDraft}
         assistantContext={assistantContext}
         providers={providers}
-        assistantContextLoading={isComposerContextLoading}
         onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (

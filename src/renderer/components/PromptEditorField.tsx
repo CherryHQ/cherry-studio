@@ -14,8 +14,8 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-const PROMPT_EDITOR_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const PROMPT_EDITOR_SECONDARY_COLOR = 'var(--muted-foreground)'
+const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'var(--foreground-tertiary)'
 
 const promptEditorThemeSpec = {
   '&': {
@@ -55,7 +55,7 @@ const promptEditorHighlighting = syntaxHighlighting(
     { tag: tags.emphasis, color: 'var(--foreground)', fontStyle: 'italic' },
     {
       tag: [tags.link, tags.url],
-      color: 'var(--primary)',
+      color: 'var(--link)',
       textDecoration: 'underline'
     },
     { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },
@@ -170,11 +170,9 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
+            'overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
-            hasError
-              ? 'border-destructive/50 focus-within:border-destructive/60'
-              : 'border-border focus-within:border-border-hover'
+            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring'
           )}>
           {effectiveShowPreview ? (
             <div
@@ -203,7 +201,7 @@ export function PromptEditorField({
           )}
         </div>
         <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
-        <div className="flex justify-between text-muted-foreground/80 text-xs">
+        <div className="flex justify-between text-muted-foreground text-xs">
           <span>{t('library.config.prompt.dblclick_hint')}</span>
           <span className="tabular-nums">
             {t('library.config.prompt.tokens_label')}

@@ -29,16 +29,22 @@ function makeScope(overrides: {
   endpointType?: string
   aiSdkProviderId?: string
   reasoning?: RequestScope['reasoning']
+  request?: Partial<RequestScope['request']>
 }): RequestScope {
   return {
-    request: { mcpToolIds: [] } as never,
+    request: (overrides.request ?? { mcpToolIds: [] }) as never,
     signal: undefined,
     registry: {} as never,
     assistant: overrides.assistant as Assistant | undefined,
     model: { id: 'openai::m1', name: 'M1', ...overrides.model } as Model,
     provider: { id: 'openai', settings: {}, ...overrides.provider } as Provider,
     capabilities: overrides.capabilities as never,
-    sdkConfig: { providerId: 'openai' as never, providerSettings: {} as never, modelId: 'm1' },
+    sdkConfig: {
+      providerId: 'openai' as never,
+      providerOptionsKey: 'openai',
+      providerSettings: {} as never,
+      modelId: 'm1'
+    },
     endpointType: overrides.endpointType as never,
     aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
     reasoningProfile: { format: 'none', wire: { disabled: true } },
@@ -76,19 +82,63 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('model-params activates whenever an assistant is present', () => {
-    expect(activeNames(makeScope({ provider: {}, model: {}, assistant: { id: 'a' } }))).toContain('model-params')
-    expect(activeNames(makeScope({ provider: {}, model: {} }))).not.toContain('model-params')
+  it('reasoning-extraction activates only for the openai-chat wire', () => {
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'openai' },
+          model: {},
+          aiSdkProviderId: 'openai-chat',
+          endpointType: 'openai-chat-completions'
+        })
+      )
+    ).toContain('reasoning-extraction')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'openai' },
+          model: {},
+          aiSdkProviderId: 'openai',
+          endpointType: 'openai-responses'
+        })
+      )
+    ).not.toContain('reasoning-extraction')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'anthropic' },
+          model: {},
+          aiSdkProviderId: 'anthropic',
+          endpointType: 'anthropic-messages'
+        })
+      )
+    ).not.toContain('reasoning-extraction')
   })
 
-  it('reasoning-extraction activates for OpenAI-family resolved adapters', () => {
-    // Match against `scope.aiSdkProviderId`, not `provider.id` — that's the
-    // resolved adapter the SDK call actually hits.
-    expect(activeNames(makeScope({ provider: { id: 'openai' }, model: {}, aiSdkProviderId: 'openai-chat' }))).toContain(
-      'reasoning-extraction'
-    )
+  it('reasoning-extraction activates on the openai-chat wire even for a bespoke-family gateway', () => {
+    // A gateway's compat route (aiSdkProviderId off the openai-family whitelist, e.g. `aihubmix`) still
+    // rides the chat-completions wire, which has no native reasoning field — so an inline `<think>` must
+    // be extracted. Gated on the wire, not the provider whitelist.
     expect(
-      activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))
+      activeNames(
+        makeScope({
+          provider: { id: 'aihubmix' },
+          model: {},
+          aiSdkProviderId: 'aihubmix',
+          endpointType: 'openai-chat-completions'
+        })
+      )
+    ).toContain('reasoning-extraction')
+    // Same gateway on a native-reasoning wire is NOT extracted (reasoning arrives structured).
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'aihubmix' },
+          model: {},
+          aiSdkProviderId: 'aihubmix',
+          endpointType: 'anthropic-messages'
+        })
+      )
     ).not.toContain('reasoning-extraction')
   })
 
@@ -192,27 +242,33 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ).toBe('hello /think')
   })
 
-  it('model-params is the first active feature for a plain assistant scope', () => {
-    const names = activeNames(
-      makeScope({
-        provider: {},
-        model: {},
-        assistant: { id: 'a' },
-        capabilities: {}
-      })
-    )
-    expect(names[0]).toBe('model-params')
+  it('qwen-thinking applies to assistant-less requests with an explicit reasoning selection (translate)', async () => {
+    const base: Parameters<typeof makeScope>[0] = {
+      provider: { id: 'nvidia' },
+      model: {
+        id: 'nvidia::qwen3-32b',
+        providerId: 'nvidia',
+        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
+      },
+      request: { reasoningEffort: 'none' },
+      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+    }
+
+    expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
+    // Without the explicit request selection, assistant-less scopes stay inactive.
+    expect(activeNames(makeScope({ ...base, request: undefined }))).not.toContain('qwen-thinking')
   })
 
   // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.
-  // Both gate predicates hold for an OpenAI-family adapter with streamOutput === false; a
+  // Both gate predicates hold for the OpenAI chat wire with streamOutput === false; a
   // reorder of INTERNAL_FEATURES would otherwise pass unnoticed.
-  it('orders reasoning-extraction before simulate-streaming (OpenAI-family, non-streaming)', () => {
+  it('orders reasoning-extraction before simulate-streaming (OpenAI chat wire, non-streaming)', () => {
     const names = activeNames(
       makeScope({
         provider: { id: 'openai' },
         model: {},
         aiSdkProviderId: 'openai-chat',
+        endpointType: 'openai-chat-completions',
         capabilities: { streamOutput: false }
       })
     )

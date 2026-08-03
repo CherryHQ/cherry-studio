@@ -27,6 +27,14 @@ afterEach(() => {
 })
 
 describe('Combobox', () => {
+  it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
+    render(<Combobox options={options} placeholder="Pick one" emptyText="No results" />)
+
+    const trigger = screen.getByRole('button')
+    expect(trigger).toHaveClass('focus-visible:border-ring')
+    expect(trigger).not.toHaveClass('aria-expanded:border-primary')
+  })
+
   it('maps the selected value to the trigger placeholder when opened', async () => {
     render(
       <Combobox
@@ -188,5 +196,19 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('button', { name: 'Clear Alpha' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
+  })
+
+  it('matches the popover width to a percentage-width trigger', async () => {
+    render(<Combobox multiple options={options} width="100%" placeholder="Pick values" />)
+
+    const trigger = screen.getByRole('combobox')
+    expect(trigger).toHaveStyle({ width: '100%' })
+    fireEvent.click(trigger)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="popover-content"]')).toHaveStyle({
+        width: 'var(--radix-popover-trigger-width)'
+      })
+    })
   })
 })

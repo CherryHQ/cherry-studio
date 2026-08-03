@@ -78,9 +78,9 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 
 /**
  * Search predicate for the flat list/stats paths. `name` matches the session
- * name only; `name-or-owner` ORs in the owning agent's name (queries using
- * `name-or-owner` must LEFT JOIN the agent table on live agents only). Session
- * descriptions are never searched.
+ * name only; `name-or-owner` preserves Agent History search by OR-ing the
+ * session description and owning live agent's name (queries using this scope
+ * must LEFT JOIN the agent table on live agents only).
  */
 function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSearchScope): SQL | undefined {
   const trimmed = q?.trim()
@@ -88,8 +88,9 @@ function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSe
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
   if (scope === 'name') return nameMatch
+  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
   const agentNameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-  return or(nameMatch, agentNameMatch)
+  return or(nameMatch, descriptionMatch, agentNameMatch)
 }
 
 /**
@@ -177,6 +178,7 @@ export class AgentSessionService {
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -192,7 +194,7 @@ export class AgentSessionService {
         break
       }
       case AGENT_WORKSPACE_TYPE.SYSTEM: {
-        workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id }).id
+        workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id, createdAt }).id
         break
       }
       default: {
@@ -209,7 +211,9 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
-      workspaceId
+      workspaceId,
+      createdAt,
+      updatedAt: createdAt
     })
   }
 
@@ -361,26 +365,22 @@ export class AgentSessionService {
    * response or cursor:
    *
    * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
-   *   session.id ASC`. New pins are inserted at the front of that order. The
-   *   pinned stream has no `sortBy` dimension.
-   * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
+   *   session.id ASC`. The pinned stream has no `sortBy` dimension.
+   * - `pinned === false` → ordinary keyset stream ordered by `sortBy`
    *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
    *
-   * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
+   * Omitting `sortBy` defaults to `lastActivityAt` — there is no legacy composite
    * pinned-then-ordinary view. Every paged caller selects one stream.
    */
   listByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
+    return this.listOrdinaryByCursor(query, query.sortBy ?? 'lastActivityAt')
   }
 
-  /**
-   * Pinned-only page in persisted manual order. New pins are inserted first by
-   * PinService; the pinned query variant does not accept `sortBy`.
-   */
+  /** Pinned-only page in persisted pin order. */
   private listPinnedByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
@@ -604,7 +604,10 @@ export class AgentSessionService {
 
     // Target is a system workspace; an existing system workspace is already correct.
     if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
-    const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
+    const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+      sessionId: id,
+      createdAt: current.session.createdAt
+    })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
   }
 
@@ -643,6 +646,8 @@ export class AgentSessionService {
       name: string
       description?: string
       workspaceId: string
+      createdAt: number
+      updatedAt: number
     }
   ): void {
     const row = insertWithOrderKey(tx, sessionsTable, values, {
@@ -802,12 +807,6 @@ export class AgentSessionService {
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
     applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
-  }
-
-  exists(id: string): boolean {
-    const db = application.get('DbService').getDb()
-    const [row] = db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1).all()
-    return !!row
   }
 }
 

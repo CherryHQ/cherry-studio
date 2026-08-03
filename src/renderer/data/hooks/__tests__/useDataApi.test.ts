@@ -3,12 +3,13 @@ import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import React from 'react'
 import type { Cache } from 'swr'
-import useSWR, { SWRConfig, unstable_serialize, useSWRConfig } from 'swr'
+import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { createSWRTestWrapper as makeWrapper } from './testUtils'
 
 // Tests exercise the real implementation; the global renderer setup otherwise
 // replaces this module with a mock for consuming components.
@@ -180,11 +181,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }))
     const keyFromConcrete = buildSWRKey('/providers/abc')
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-      ]
-    `)
   })
 
   it('produces identical keys when query is provided', () => {
@@ -192,14 +188,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }), query)
     const keyFromConcrete = buildSWRKey('/providers/abc', query)
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-        {
-          "limit": 10,
-        },
-      ]
-    `)
   })
 
   it('omits query slot when query is empty', () => {
@@ -222,25 +210,6 @@ describe('buildSWRKey cache-key equivalence', () => {
 // query folding, and no-revalidation semantics end-to-end without involving
 // DataApiService or network layers.
 // ============================================================================
-
-/**
- * Build a fresh SWRConfig-wrapped harness. Each test gets its own cache so
- * state never bleeds across tests.
- */
-function makeWrapper(initial?: Array<[unknown[], unknown]>) {
-  const cache = new Map<string, { data?: unknown }>()
-  for (const [key, value] of initial ?? []) {
-    cache.set(unstable_serialize(key), { data: value })
-  }
-  const provider = () => cache
-  const Wrapper = ({ children }: { children: React.ReactNode }) =>
-    React.createElement(
-      SWRConfig,
-      { value: { provider, dedupingInterval: 0, revalidateOnFocus: false, revalidateOnReconnect: false } },
-      children
-    )
-  return { Wrapper, cache }
-}
 
 const PATH = '/providers' as ConcreteApiPaths
 

@@ -13,7 +13,9 @@ const engineMock = vi.hoisted(() => ({
   onProgress: vi.fn(),
   run: vi.fn(),
   needsMigration: vi.fn(),
-  getLastError: vi.fn()
+  getLastError: vi.fn(),
+  skipMigration: vi.fn(),
+  close: vi.fn()
 }))
 const fsMock = vi.hoisted(() => ({
   access: vi.fn(),
@@ -22,6 +24,8 @@ const fsMock = vi.hoisted(() => ({
   writeFile: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
+const windowCloseMock = vi.hoisted(() => vi.fn())
+const windowRestartAppMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
 const windowRequestCloseMock = vi.hoisted(() => vi.fn())
 const windowSetStageMock = vi.hoisted(() => vi.fn())
@@ -39,8 +43,8 @@ vi.mock('fs/promises', () => ({ default: fsMock }))
 vi.mock('../MigrationWindowManager', () => ({
   migrationWindowManager: {
     send: windowSendMock,
-    close: vi.fn(),
-    restartApp: vi.fn(),
+    close: windowCloseMock,
+    restartApp: windowRestartAppMock,
     minimize: windowMinimizeMock,
     requestClose: windowRequestCloseMock,
     setStage: windowSetStageMock,
@@ -339,6 +343,42 @@ describe('MigrationIpcHandler', () => {
     })
   })
 
+  describe('v1 download page', () => {
+    it.each([
+      ['zh-CN', 'https://cherryai.com.cn/download/v1'],
+      ['en-US', 'https://cherryai.com/download/v1']
+    ])('opens the site matching the %s wizard language', async (language, url) => {
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, language)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith(url)
+    })
+
+    // Any Chinese variant reads the China site, matching the window's own `zh` language test.
+    it.each(['zh', 'zh-TW', 'ZH-HK'])('treats %s as Chinese', async (language) => {
+      await invoke(MigrationIpcChannels.OpenDownloadPage, language)
+
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com.cn/download/v1')
+    })
+
+    // A missing or malformed language must not strand the user on an error.
+    it.each([undefined, null, 42])('falls back to the global site for %s', async (language) => {
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, language)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com/download/v1')
+    })
+
+    it('rejects an untrusted sender', async () => {
+      diagnosticMocks.validateSender.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'zh-CN')).rejects.toThrow('Unauthorized')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the shell cannot open the page', async () => {
+      vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('no browser'))
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'en-US')).resolves.toBe(false)
+    })
+  })
+
   describe('export file writes', () => {
     it('overwrites export files by default for existing callers', async () => {
       await invoke(MigrationIpcChannels.WriteExportFile, '/export', 'localStorage', '[]')
@@ -477,7 +517,55 @@ describe('MigrationIpcHandler', () => {
     expect(lastProgress().summary).toMatchObject({ completedMigrators: 2, totalMigrators: 2 })
   })
 
+  describe('skip migration', () => {
+    it('skips, closes the engine, and restarts the app', async () => {
+      engineMock.skipMigration.mockResolvedValue(undefined)
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).resolves.toBe(true)
+
+      expect(engineMock.skipMigration).toHaveBeenCalledTimes(1)
+      expect(engineMock.close).toHaveBeenCalledTimes(1)
+      expect(windowRestartAppMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the engine open and does not restart when the skip fails', async () => {
+      engineMock.skipMigration.mockRejectedValue(new Error('cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow('cleanup failed')
+
+      expect(engineMock.close).not.toHaveBeenCalled()
+      expect(windowRestartAppMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a skip while a migration run is in flight', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockReturnValue(new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+
+      // The handler stores the in-flight promise synchronously, before its first await.
+      const startPromise = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow()
+      expect(engineMock.skipMigration).not.toHaveBeenCalled()
+
+      // Release the guard so it does not leak into later tests.
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await startPromise
+    })
+  })
+
   describe('migration failure', () => {
+    it('does not clean staged v1 agent files when a later migrator fails and the user skips migration', async () => {
+      engineMock.run.mockResolvedValue({
+        success: false,
+        error: 'KnowledgeVector migration failed',
+        totalDuration: 1200,
+        migratorResults: []
+      })
+
+      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await invoke(MigrationIpcChannels.SkipMigration)
+    })
+
     it('broadcasts the error stage with carried migrators/progress when the run reports failure', async () => {
       let engineTick: ((progress: MigrationProgress) => void) | undefined
       engineMock.onProgress.mockImplementation((cb: (progress: MigrationProgress) => void) => {

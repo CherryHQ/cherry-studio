@@ -97,9 +97,8 @@ export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 
 /**
  * Search scope: `name` is a literal substring over the session name
- * (resource-list behavior); `name-or-owner` additionally ORs the owning
- * (live) agent's name (Agent History behavior). Session descriptions are
- * never searched.
+ * (resource-list behavior); `name-or-owner` additionally ORs the session
+ * description and owning live agent's name (Agent History behavior).
  */
 export const AgentSessionSearchScopeSchema = z.enum(['name', 'name-or-owner'])
 export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
@@ -111,10 +110,10 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
  *   PinService inserts new pins first and this variant does not accept `sortBy`.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
- *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
+ *   `lastActivityAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
  * The record filters below apply on either path. Omitting `sortBy` means
- * `createdAt`, never a legacy composite view. Workspace grouping uses the
+ * `lastActivityAt`, never a legacy composite view. Workspace grouping uses the
  * stable workspace id; path remains presentation metadata.
  */
 const ListAgentSessionsCommonQuerySchema = z.strictObject({
@@ -140,7 +139,7 @@ export const ListAgentSessionsQuerySchema = z.discriminatedUnion('pinned', [
   ListAgentSessionsCommonQuerySchema.extend({
     /** Ordinary stream excluding pinned rows. */
     pinned: z.literal(false),
-    /** Sort profile for the ordinary stream; defaults to `createdAt`. */
+    /** Sort profile for the ordinary stream; defaults to `lastActivityAt`. */
     sortBy: AgentSessionSortBySchema.optional()
   })
 ])

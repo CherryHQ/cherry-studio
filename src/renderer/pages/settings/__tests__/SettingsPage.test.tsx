@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SettingsPage from '../SettingsPage'
 
-const navigateMock = vi.hoisted(() => vi.fn())
+const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
+  isMacTransparentWindowMock: vi.fn(),
+  navigateMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   MenuDivider: () => <hr data-testid="menu-divider" />,
@@ -25,7 +28,7 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
-  default: () => false
+  default: () => isMacTransparentWindowMock()
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -62,21 +65,22 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
   })
 
   it('places local models directly below the default model', () => {
-    render(<SettingsPage />)
+    const { container } = render(<SettingsPage />)
 
-    expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
+    expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
     const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
     const localModelsItem = screen.getByRole('button', { name: '本地模型' })
 
     expect(defaultModelItem.nextElementSibling).toBe(localModelsItem)
-    expect(localModelsItem.querySelector('.lucide-file-box')).toBeInTheDocument()
-
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
@@ -94,8 +98,6 @@ describe('SettingsPage', () => {
     const systemItem = screen.getByRole('button', { name: '系统' })
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
     expect(systemItem.nextElementSibling).toBe(dependenciesItem)
-    expect(dependenciesItem.querySelector('.lucide-terminal')).toBeInTheDocument()
-
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
@@ -108,8 +110,6 @@ describe('SettingsPage', () => {
 
     expect(mcpItem).not.toBeNull()
     expect(mcpItem?.nextElementSibling).toBe(skillsItem)
-    expect(skillsItem.querySelector('.lucide-tool-case')).toBeInTheDocument()
-
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
   })

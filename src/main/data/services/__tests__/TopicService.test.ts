@@ -194,13 +194,13 @@ describe('TopicService', () => {
   })
 
   describe('listByCursor (ordinary stream)', () => {
-    it('defaults an omitted sortBy to createdAt DESC, id ASC and excludes pinned rows', async () => {
+    it('defaults an omitted sortBy to lastActivityAt DESC, id ASC and excludes pinned rows', async () => {
       const service = new TopicService()
       // The ordinary stream never mixes a pinned row into its keyset chain.
       await dbh.db.insert(topicTable).values([
-        { id: 'old-pinned', name: 'OldPinned', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'mid', name: 'Mid', orderKey: 'a1', createdAt: 2, updatedAt: 1 },
-        { id: 'newest', name: 'Newest', orderKey: 'a2', createdAt: 3, updatedAt: 1 }
+        { id: 'old-pinned', name: 'OldPinned', orderKey: 'a0', lastActivityAt: 99, createdAt: 1, updatedAt: 1 },
+        { id: 'mid', name: 'Mid', orderKey: 'a1', lastActivityAt: 3, createdAt: 2, updatedAt: 1 },
+        { id: 'newest', name: 'Newest', orderKey: 'a2', lastActivityAt: 2, createdAt: 3, updatedAt: 1 }
       ])
       await dbh.db.insert(pinTable).values({
         id: 'pin-1',
@@ -212,14 +212,14 @@ describe('TopicService', () => {
       })
 
       const result = service.listByCursor({ pinned: false })
-      expect(result.items.map((t) => t.id)).toEqual(['newest', 'mid'])
-      // Identical to an explicit createdAt request — omission just means createdAt.
+      expect(result.items.map((t) => t.id)).toEqual(['mid', 'newest'])
+      // Identical to an explicit activity request — omission preserves the recent-activity list.
       expect(result.items.map((t) => t.id)).toEqual(
-        service.listByCursor({ pinned: false, sortBy: 'createdAt' }).items.map((t) => t.id)
+        service.listByCursor({ pinned: false, sortBy: 'lastActivityAt' }).items.map((t) => t.id)
       )
     })
 
-    it('uses created-at indexes for global and assistant-scoped default lists without a temporary sort', () => {
+    it('uses activity indexes for global and assistant-scoped default lists without a temporary sort', () => {
       const globalPlan = dbh.sqlite
         .prepare(
           `EXPLAIN QUERY PLAN
@@ -229,7 +229,7 @@ describe('TopicService', () => {
            LEFT JOIN assistant ON topic.assistant_id = assistant.id AND assistant.deleted_at IS NULL
            WHERE topic.deleted_at IS NULL
              AND topic.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'topic')
-           ORDER BY topic.created_at DESC, topic.id ASC
+           ORDER BY topic.last_activity_at DESC, topic.id ASC
            LIMIT 51`
         )
         .all() as Array<{ detail: string }>
@@ -243,13 +243,13 @@ describe('TopicService', () => {
            WHERE topic.deleted_at IS NULL
              AND assistant.id = 'asst-1'
              AND topic.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'topic')
-           ORDER BY topic.created_at DESC, topic.id ASC
+           ORDER BY topic.last_activity_at DESC, topic.id ASC
            LIMIT 51`
         )
         .all() as Array<{ detail: string }>
 
-      expect(globalPlan.some(({ detail }) => detail.includes('topic_created_at_id_idx'))).toBe(true)
-      expect(scopedPlan.some(({ detail }) => detail.includes('topic_assistant_id_created_at_id_idx'))).toBe(true)
+      expect(globalPlan.some(({ detail }) => detail.includes('topic_last_activity_at_id_idx'))).toBe(true)
+      expect(scopedPlan.some(({ detail }) => detail.includes('topic_assistant_id_last_activity_at_id_idx'))).toBe(true)
       for (const plan of [globalPlan, scopedPlan]) {
         expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
       }
@@ -401,10 +401,8 @@ describe('TopicService', () => {
       expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't1'])
     })
 
-    it('pages a pinned-only stream by ascending pin order (newest pin first) without a topic sort profile', async () => {
+    it('pages a pinned-only stream by persisted ascending pin order without a topic sort profile', async () => {
       await seedFlat()
-      // Fresh pins insert first in the sequence: the newer t4 pin carries a
-      // smaller orderKey than the seeded t2 pin ('a0').
       await dbh.db.insert(pinTable).values({
         id: '55555555-5555-4555-8555-555555555555',
         entityType: 'topic',
@@ -421,10 +419,10 @@ describe('TopicService', () => {
         cursor: page1.nextCursor
       })
 
-      expect(page1.items.map((topic) => topic.id)).toEqual(['t4'])
-      expect(page2.items.map((topic) => topic.id)).toEqual(['t2'])
+      expect(page1.items.map((topic) => topic.id)).toEqual(['t2'])
+      expect(page2.items.map((topic) => topic.id)).toEqual(['t4'])
       expect(page2.nextCursor).toBeUndefined()
-      expect(topicService.listByCursor({ pinned: true }).items.map((topic) => topic.id)).toEqual(['t4', 't2'])
+      expect(topicService.listByCursor({ pinned: true }).items.map((topic) => topic.id)).toEqual(['t2', 't4'])
     })
 
     it('breaks createdAt ties by id ASC across page boundaries (no skip/dup)', async () => {

@@ -16,8 +16,7 @@ import type {
   AbsoluteFilePath,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams,
-  PhysicalFileMetadata
+  GetPhysicalPathIpcParams
 } from '@shared/types/file'
 import type {
   LanClientEvent,
@@ -85,7 +84,7 @@ const api = {
   backup: {
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
     // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
-    backup: (fileName: string, destinationPath: string, skipBackupFile: boolean) =>
+    backup: (fileName: string, destinationPath: string, skipBackupFile?: boolean) =>
       ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
     backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
@@ -150,13 +149,7 @@ const api = {
     saveImage: (name: string, data: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    savePastedImage: (imageData: Uint8Array, extension?: string) =>
-      ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
-    isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
-    isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
-      ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     listDirectoryEntries: (dirPath: string, options?: DirectoryListOptions): Promise<DirectoryEntry[]> =>

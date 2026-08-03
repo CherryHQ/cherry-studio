@@ -630,43 +630,41 @@ vi.mock('../Tabs/components/Topics', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', () => {
-  const TopicRightPane = Object.assign(
-    ({
-      children,
-      defaultOpen,
-      onOpenChange,
-      present,
-      resourcePane,
-      userOpenIntentSeq
-    }: {
-      children: ReactNode
-      defaultOpen?: boolean
-      onOpenChange?: (open: boolean) => void
-      present?: boolean
-      resourcePane?: { node?: ReactNode; label?: string } | null
-      userOpenIntentSeq?: number
-    }) => (
-      <div
-        data-default-open={String(Boolean(defaultOpen))}
-        data-default-tab={resourcePane ? 'resources' : 'branch'}
-        data-present={String(present !== false)}
-        data-user-open-intent-seq={String(userOpenIntentSeq ?? 0)}
-        data-testid="topic-right-pane-provider">
-        {onOpenChange && (
-          <button type="button" onClick={() => onOpenChange(false)}>
-            Close topic right pane
-          </button>
-        )}
-        {resourcePane?.node}
-        {children}
-      </div>
-    ),
-    {
-      Viewport: () => <div data-testid="topic-right-pane-viewport" />,
-      Shortcuts: () => <button type="button">Topic right pane shortcuts</button>,
-      Toggle: () => <button type="button">Toggle topic right pane</button>
-    }
+  const TopicRightPaneScope = ({
+    children,
+    defaultOpen,
+    onOpenChange,
+    present,
+    resourcePane,
+    userOpenIntentSeq
+  }: {
+    children: ReactNode
+    defaultOpen?: boolean
+    onOpenChange?: (open: boolean) => void
+    present?: boolean
+    resourcePane?: { node?: ReactNode; label?: string } | null
+    userOpenIntentSeq?: number
+  }) => (
+    <div
+      data-default-open={String(Boolean(defaultOpen))}
+      data-default-tab={resourcePane ? 'resources' : 'branch'}
+      data-present={String(present !== false)}
+      data-user-open-intent-seq={String(userOpenIntentSeq ?? 0)}
+      data-testid="topic-right-pane-provider">
+      {onOpenChange && (
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close topic right pane
+        </button>
+      )}
+      {resourcePane?.node}
+      {children}
+    </div>
   )
+  const TopicRightPane = {
+    Scope: TopicRightPaneScope,
+    Viewport: () => <div data-testid="topic-right-pane-viewport" />,
+    Shortcuts: () => <button type="button">Topic right pane shortcuts</button>
+  }
 
   return {
     TopicRightPane
@@ -682,8 +680,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onOpenHistoryRecords,
     assistantTopicsSource,
     onCreateTopic,
-    onClearActiveTopic,
-    onSelectEmptyAssistant,
+    onCreateTopicAfterClear,
     onSelectTopic,
     onSelectedAssistantClick,
     resourceMenuItems
@@ -692,14 +689,9 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     historyRecordsActive?: boolean
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
-    onActiveAssistantDeleted?: (
-      assistantId: string,
-      candidateAssistantIds: readonly string[],
-      reason: 'deleted' | 'emptied'
-    ) => void | Promise<void>
+    onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onCreateTopic?: (assistantId: string | null) => void | Promise<void>
-    onClearActiveTopic?: (assistantId: string) => void
-    onSelectEmptyAssistant?: (assistantId: string | null) => void
+    onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
     onSelectTopic?: (topic: Topic) => void | boolean
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
@@ -718,15 +710,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
           Open history records
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            const activeId = activeAssistantId ?? ''
-            const candidateIds = Array.from(
-              new Set(homeMocks.resourceLayoutTopics.flatMap((topic) => (topic.assistantId ? [topic.assistantId] : [])))
-            ).filter((assistantId) => assistantId !== activeId)
-            void onActiveAssistantDeleted?.(activeId, candidateIds, 'deleted')
-          }}>
+        <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
           Delete active assistant
         </button>
         <button type="button" onClick={() => void onCreateTopic?.(null)}>
@@ -748,10 +732,10 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
           }>
           Select assistant 2 latest topic
         </button>
-        <button type="button" onClick={() => onSelectEmptyAssistant?.('assistant-2')}>
+        <button type="button" onClick={() => void onCreateTopic?.('assistant-2')}>
           Select empty assistant 2
         </button>
-        <button type="button" onClick={() => onClearActiveTopic?.(activeAssistantId ?? '')}>
+        <button type="button" onClick={() => void onCreateTopicAfterClear?.(activeAssistantId ?? '')}>
           Clear selected assistant topics
         </button>
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
@@ -933,35 +917,33 @@ describe('HomePage', () => {
     )
   })
 
-  it('keeps the selected assistant scope empty without recreating a topic', async () => {
+  it('creates a topic when selecting an assistant without a conversation', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Select empty assistant 2' }))
 
-    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('empty')
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-2')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
-    expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ instanceAppId: 'assistants', instanceKey: null })
-    )
   })
 
-  it('keeps the current assistant scope after its last topic is cleared', async () => {
+  it('creates a fresh topic after clearing the current assistant conversations', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-1' })
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear scoped topic selection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selected assistant topics' }))
 
-    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('empty')
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('passes the same assistant topic source to the classic rail and right panel', () => {
@@ -1546,7 +1528,7 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('clears the active topic when no eligible owner remains after assistant deletion', async () => {
+  it('excludes the deleted active assistant when creating a fallback topic after deletion', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
@@ -1554,31 +1536,33 @@ describe('HomePage', () => {
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
     homeMocks.loadLatestTopicOverride = null
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
 
-    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
   })
 
-  it('never creates a replacement after deleting the only active assistant topic', async () => {
+  it('clears the active topic when fallback creation fails after deleting the active assistant', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
     homeMocks.loadLatestTopicOverride = null
+    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
 
     render(<HomePage />)
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
 
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
     await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('creates and activates an empty topic after selecting an existing assistant from the classic-layout picker', async () => {
@@ -1938,14 +1922,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
-  it('leaves the topic selection empty when history deletes the last active topic', async () => {
+  it('creates a default empty topic when history clears the active topic', async () => {
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-default' })
+
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear history selection' }))
 
-    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-default' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-default')
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {

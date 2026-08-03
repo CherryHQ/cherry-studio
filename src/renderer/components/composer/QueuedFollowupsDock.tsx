@@ -1,13 +1,12 @@
 import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
-import {
-  CHAT_INPUT_TOKEN_KINDS,
-  type ChatInputTokenKind,
-  type ChatTokenView
-} from '@renderer/components/composer/chatTokenView'
+import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import { cn } from '@renderer/utils/style'
 import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { excludeComposerDraftTokens } from './composerDraft'
 import type { FollowupQueueItem } from './useFollowupQueue'
 
 interface QueuedFollowupsDockProps {
@@ -20,14 +19,12 @@ interface QueuedFollowupsDockProps {
   onReorder: (nextItems: FollowupQueueItem[]) => void
 }
 
-const DISPLAY_TOKEN_KINDS = new Set<string>(CHAT_INPUT_TOKEN_KINDS)
-
 /** Read-only chips for a queued draft's composer tokens (file / skill / knowledge / quote …). */
-function DraftTokenChips({ item }: { item: FollowupQueueItem }) {
-  const tokens = (item.draft?.tokens ?? []).filter((token) => DISPLAY_TOKEN_KINDS.has(token.kind))
+function DraftTokenChips({ item, hasText }: { item: FollowupQueueItem; hasText: boolean }) {
+  const tokens = (item.draft?.tokens ?? []).filter((token) => isComposerInputTokenKind(token.kind))
   if (tokens.length === 0) return null
   return (
-    <div className="mt-1 flex flex-wrap gap-1">
+    <div className={cn('flex flex-wrap gap-1', hasText && 'mt-1')}>
       {tokens.map((token) => (
         <ComposerToken
           key={token.id}
@@ -61,17 +58,21 @@ function QueuedFollowupRow({
   onRemove: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const previewText = item.draft
+    ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
+    : item.payload.text
+
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
       <span
         aria-hidden
         data-dragging={dragging ? 'true' : 'false'}
-        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
         <GripVertical className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-foreground text-sm">{item.draft?.text ?? item.payload.text}</span>
-        <DraftTokenChips item={item} />
+        {previewText ? <span className="line-clamp-2 text-foreground text-sm">{previewText}</span> : null}
+        <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
         <Tooltip placement="top" content={t('chat.input.followup_queue.steer')}>

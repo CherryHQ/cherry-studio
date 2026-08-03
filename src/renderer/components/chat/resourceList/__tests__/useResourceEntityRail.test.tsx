@@ -77,6 +77,7 @@ function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<T
         isLoading: false,
         isError: false,
         onPickResource: vi.fn(),
+        onCreateResource: vi.fn(),
         loadResourceForEntity: vi.fn(
           async (entityId) => RESOURCES.find((resource) => resource.entityId === entityId) ?? null
         ),
@@ -125,6 +126,7 @@ describe('useResourceEntityRail', () => {
       isLoading: true,
       isError: false,
       onPickResource: vi.fn(),
+      onCreateResource: vi.fn(),
       loadResourceForEntity: vi.fn(
         async (entityId) => RESOURCES.find((resource) => resource.entityId === entityId) ?? null
       ),
@@ -210,13 +212,13 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-b', 'assistant-a', 'assistant-c'])
   })
 
-  it('reports the selected empty owner when its resource lookup returns no row', async () => {
+  it('creates a blank resource when the selected owner lookup returns no row', async () => {
     const onPickResource = vi.fn()
-    const onEmptyResource = vi.fn()
+    const onCreateResource = vi.fn()
     const emptyOwner = { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }
     const { result } = renderRail({
       loadResourceForEntity: vi.fn().mockResolvedValue(null),
-      onEmptyResource,
+      onCreateResource,
       onPickResource
     })
 
@@ -225,7 +227,7 @@ describe('useResourceEntityRail', () => {
     })
 
     expect(onPickResource).not.toHaveBeenCalled()
-    expect(onEmptyResource).toHaveBeenCalledWith(emptyOwner)
+    expect(onCreateResource).toHaveBeenCalledWith(emptyOwner.id)
   })
 
   it('applies optimistic reorder and refetches entities on success', async () => {

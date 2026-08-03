@@ -8,8 +8,10 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
-import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
+import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
+import { isNonChatModel } from '@shared/utils/model'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,9 +22,9 @@ import {
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
-const AssistantEditDialog = lazy(() =>
+const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
-    default: module.AssistantEditDialog
+    default: module.ResourceEditDialogHost
   }))
 )
 
@@ -96,8 +98,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editingAssistant, setEditingAssistant] = useState<Assistant | null>(null)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -164,20 +165,16 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
   const handleEditItem = useCallback(
     (item: AssistantSelectorItem) => {
-      const assistant = data?.items.find((candidate) => candidate.id === item.id)
-      if (!assistant) return
-
-      setEditingAssistant(assistant)
-      setEditDialogOpen(true)
+      if (!data?.items.some((candidate) => candidate.id === item.id)) return
+      setEditDialogTarget({ kind: 'assistant', id: item.id })
     },
     [data?.items]
   )
 
   const handleEditDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
-      setEditDialogOpen(nextOpen)
       if (!nextOpen) {
-        setEditingAssistant(null)
+        setEditDialogTarget(null)
         onDialogCloseAutoFocus?.()
       }
     },
@@ -233,17 +230,6 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
-  const handleEditSaved = useCallback(async () => {
-    setEditDialogOpen(false)
-    setEditingAssistant(null)
-    try {
-      await refetch()
-    } catch (error) {
-      logger.warn('Failed to refresh assistants after selector edit', { error })
-      toast.error(t('selector.edit_dialog.refresh_failed'))
-    }
-  }, [refetch, t])
-
   const createDialog = (
     <ResourceCreateWizard
       kind="assistant"
@@ -251,22 +237,15 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       isSubmitting={isCreatingAssistant}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={isSelectableAssistantModel}
+      modelFilter={(candidate) => !isNonChatModel(candidate)}
     />
   )
 
-  const editDialog =
-    editDialogOpen || editingAssistant ? (
-      <Suspense fallback={null}>
-        <AssistantEditDialog
-          open={editDialogOpen}
-          resource={editingAssistant}
-          onOpenChange={handleEditDialogOpenChange}
-          onSaved={handleEditSaved}
-          modelFilter={isSelectableAssistantModel}
-        />
-      </Suspense>
-    ) : null
+  const editDialog = editDialogTarget ? (
+    <Suspense fallback={null}>
+      <ResourceEditDialogHost target={editDialogTarget} onOpenChange={handleEditDialogOpenChange} />
+    </Suspense>
+  ) : null
 
   const shared = {
     trigger,

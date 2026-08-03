@@ -2,8 +2,8 @@ import type {
   ConversationResourceMenuItem,
   ResourceListRevealRequest
 } from '@renderer/components/chat/resourceList/base'
+import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -15,7 +15,7 @@ interface AgentSidePanelProps {
   activeSessionId: string | null
   historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
-  onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
+  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -45,34 +45,25 @@ const AgentSidePanel = ({
   resourceMenuItems,
   setActiveSessionId
 }: AgentSidePanelProps) => {
-  const isWindowFrame = useWindowFrame().mode === 'window'
-
   return (
-    <div
-      className="flex flex-col overflow-hidden"
-      style={{
-        width: 'var(--assistants-width)',
-        height: isWindowFrame ? '100%' : 'calc(100vh - var(--navbar-height))'
-      }}>
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Sessions
-          activeSession={activeSession}
-          agentSessionsSource={agentSessionsSource}
-          activeSessionId={activeSessionId}
-          historyRecordsActive={historyRecordsActive}
-          setActiveSessionId={setActiveSessionId}
-          onActiveAgentDeleted={onActiveAgentDeleted}
-          onAddAgent={onAddAgent}
-          onOpenHistoryRecords={onOpenHistoryRecords}
-          onSetPanePosition={onSetPanePosition}
-          panePosition={panePosition}
-          revealRequest={revealRequest}
-          resourceMenuItems={resourceMenuItems}
-          onCreateSession={onCreateSession}
-          onShowMissingAgentSelection={onShowMissingAgentSelection}
-        />
-      </div>
-    </div>
+    <ConversationNavigationPane>
+      <Sessions
+        activeSession={activeSession}
+        agentSessionsSource={agentSessionsSource}
+        activeSessionId={activeSessionId}
+        historyRecordsActive={historyRecordsActive}
+        setActiveSessionId={setActiveSessionId}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+        onAddAgent={onAddAgent}
+        onOpenHistoryRecords={onOpenHistoryRecords}
+        onSetPanePosition={onSetPanePosition}
+        panePosition={panePosition}
+        revealRequest={revealRequest}
+        resourceMenuItems={resourceMenuItems}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={onShowMissingAgentSelection}
+      />
+    </ConversationNavigationPane>
   )
 }
 

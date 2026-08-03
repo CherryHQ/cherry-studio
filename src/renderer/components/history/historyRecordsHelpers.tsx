@@ -1,15 +1,34 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import type { HistorySourceOption } from './historyRecordsTypes'
+import type { HistorySourceOption, HistorySourceStatus, HistoryStatusOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
 export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
 export const UNLINKED_AGENT_SOURCE_ID = '__unknown_agent__'
+
+type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
+
+export function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
+  if (streamStatus?.isPending === true) return 'running'
+  if (streamStatus?.status === 'error') return 'failed'
+
+  return 'completed'
+}
+
+export function buildAgentStatusItems(t: TFunction): HistoryStatusOption[] {
+  return [
+    { id: ALL_SOURCE_ID, label: t('common.all') },
+    { id: 'running', label: t('history.records.status.running'), dotClassName: 'text-warning' },
+    { id: 'completed', label: t('history.records.status.completed'), dotClassName: 'text-success' },
+    { id: 'failed', label: t('history.records.status.failed'), dotClassName: 'text-destructive' }
+  ]
+}
 
 /**
  * Map a history source-filter selection to the server-side owner scope: the

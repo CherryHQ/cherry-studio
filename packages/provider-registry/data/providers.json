@@ -33,6 +33,26 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AMD GPU Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
+        }
+      },
+      "id": "radeon-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "docs": "https://developer.amd.com.cn/radeon/",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "official": "https://developer.amd.com.cn/radeon/"
+        }
+      },
+      "name": "AMD GPU Cloud"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Silicon - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -66,7 +86,15 @@
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com"
         },
+        "google-generate-content": {
+          "adapterFamily": "aihubmix",
+          "baseUrl": "https://aihubmix.com/gemini/v1beta"
+        },
         "openai-chat-completions": {
+          "adapterFamily": "aihubmix",
+          "baseUrl": "https://aihubmix.com/v1"
+        },
+        "openai-responses": {
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com/v1"
         }
@@ -235,6 +263,13 @@
               }
             }
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.deepseek.com",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "deepseek",
@@ -273,11 +308,15 @@
       "description": "DMXAPI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "anthropic",
+          "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
         },
+        "google-generate-content": {
+          "adapterFamily": "dmxapi",
+          "baseUrl": "https://www.dmxapi.cn/v1beta/"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
+          "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
         }
       },
@@ -464,6 +503,9 @@
       "name": "Qiniu"
     },
     {
+      "apiFeatures": {
+        "reportsActualCost": true
+      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
@@ -531,7 +573,8 @@
           "official": "https://openrouter.ai/"
         }
       },
-      "name": "OpenRouter"
+      "name": "OpenRouter",
+      "reportedCostCurrency": "USD"
     },
     {
       "authOptional": true,
@@ -645,6 +688,9 @@
           "baseUrl": "https://api.anthropic.com"
         }
       },
+      "fastMode": {
+        "transport": "claude-code"
+      },
       "id": "claude-code",
       "metadata": {
         "website": {
@@ -667,6 +713,9 @@
           "adapterFamily": "openai",
           "baseUrl": "https://chatgpt.com/backend-api/codex"
         }
+      },
+      "fastMode": {
+        "transport": "openai-priority"
       },
       "id": "openai-codex",
       "metadata": {
@@ -1849,5 +1898,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "9ef047b89c8ba9e8"
+  "version": "645f9b9b0f0ff508"
 }

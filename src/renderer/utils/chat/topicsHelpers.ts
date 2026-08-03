@@ -16,10 +16,8 @@ import {
   sortRankedResourceItems
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type {
-  TopicDisplayMode as PreferenceTopicDisplayMode,
-  TopicSessionSortBy
-} from '@shared/data/preference/preferenceTypes'
+import type { TopicSortBy } from '@shared/data/api/schemas/topics'
+import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 export type TopicDisplayMode = PreferenceTopicDisplayMode
 
@@ -39,7 +37,6 @@ export type TopicDisplayGroupLabels = {
 
 export type TopicDisplayGroupOptions = {
   assistantById?: ReadonlyMap<string, TopicDisplayAssistant>
-  defaultAssistant?: Pick<TopicDisplayAssistant, 'name'>
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
   pinnedAsSection?: boolean
@@ -48,7 +45,7 @@ export type TopicDisplayGroupOptions = {
 export type TopicDisplaySortOptions = {
   assistantRankById?: ReadonlyMap<string, number>
   mode: TopicDisplayMode
-  sortBy: TopicSessionSortBy
+  sortBy: TopicSortBy
 }
 
 export type TopicListItem = Topic & {
@@ -63,7 +60,6 @@ export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
-const TOPIC_DEFAULT_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER - 1
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
 export function moveTopicAfterDrop<T extends { id: string }>(
@@ -174,7 +170,6 @@ export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | 
 
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned'>>({
   assistantById,
-  defaultAssistant,
   labels,
   mode,
   pinnedAsSection = false
@@ -198,7 +193,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
     const assistantId = topic.assistantId
 
     if (!assistantId) {
-      return { id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID, label: defaultAssistant?.name || labels.assistant.unlinked }
+      return { id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID, label: labels.assistant.unlinked }
     }
 
     const assistant = assistantById?.get(assistantId)
@@ -221,10 +216,6 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
   const assistantRank = topic.assistantId ? assistantRankById?.get(topic.assistantId) : undefined
   if (assistantRank !== undefined) {
     return assistantRank + 1
-  }
-
-  if (!topic.assistantId) {
-    return TOPIC_DEFAULT_ASSISTANT_RANK
   }
 
   return TOPIC_UNLINKED_ASSISTANT_RANK

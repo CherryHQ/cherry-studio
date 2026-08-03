@@ -2,7 +2,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Plus, X } from 'lucide-react'
@@ -18,7 +17,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
+import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
@@ -107,12 +106,6 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 }
 
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
-
-function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
-  if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
-  if (url === '/app/agents' || url.startsWith('/app/agents?') || url.startsWith('/app/agents/')) return 'agents'
-  return null
-}
 
 type NormalTabButtonProps = {
   tab: Tab
@@ -492,7 +485,6 @@ export const AppShellTabBar = ({
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { rightPaddingClass } = useShellTabBarLayout()
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -659,12 +651,7 @@ export const AppShellTabBar = ({
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
-      if (!handleTabClick(tab.id)) return
-
-      const revealSource = getResourceListRevealSourceFromUrl(tab.url)
-      if (revealSource) {
-        emitResourceListReveal({ source: revealSource, tabId: tab.id })
-      }
+      handleTabClick(tab.id)
     },
     [handleTabClick]
   )
@@ -772,10 +759,10 @@ export const AppShellTabBar = ({
     <>
       <header
         ref={tabBarRef}
+        data-ui="app.tab-bar"
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
-          rightPaddingClass,
           'pl-0'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
@@ -788,7 +775,7 @@ export const AppShellTabBar = ({
             thawAfterCollapseRef.current = false
           }}
           onMouseLeave={handleStripMouseLeave}
-          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

@@ -12,7 +12,6 @@ import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSchemas,
-  CreateAgentSchema,
   DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
@@ -35,6 +34,22 @@ function parseListQuery(query: unknown): ListQuery {
 }
 
 export const agentHandlers: HandlersFor<AgentSchemas> = {
+  '/agent-tasks': {
+    GET: async ({ query }) => {
+      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
+      const { tasks, total } = taskService.listAllTasks({ limit, offset })
+      return { items: tasks, total, page }
+    }
+  },
+
+  '/agent-tasks/:taskId': {
+    GET: async ({ params }) => {
+      const task = taskService.getTaskById(params.taskId)
+      if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
+      return task
+    }
+  },
+
   '/agents': {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
@@ -43,12 +58,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const offset = (page - 1) * limit
       const { agents, total } = agentService.listAgents({ limit, offset, search })
       return { items: agents, total, page }
-    },
-
-    POST: async ({ body }) => {
-      const parsed = CreateAgentSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentService.createAgent(parsed.data)
     }
   },
 

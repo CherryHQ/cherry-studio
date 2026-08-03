@@ -20,8 +20,8 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   isLoading: boolean
   isError: boolean
   onPickResource: (resource: TResource) => void
-  /** Keep the selected owner scope visible when its latest lookup confirms no resource. */
-  onEmptyResource?: (entity: TEntity) => void
+  /** Create a replacement if the exact lookup races with an owner becoming empty. */
+  onCreateResource: (entityId: string) => void | Promise<unknown>
   /** Load the entity's most-recently-active resource before navigating. */
   loadResourceForEntity: (entityId: string) => Promise<TResource | null>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
@@ -40,7 +40,7 @@ type UseResourceEntityRailResult<TEntity> = {
 /**
  * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
  * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
- * latest resource (or leaves the selected owner empty), and reordering persists the real `orderKey`. Data fetching,
+ * latest resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
  * pins, deletion, and context menus stay in the per-variant component.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
@@ -50,7 +50,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   isLoading,
   isError,
   onPickResource,
-  onEmptyResource,
+  onCreateResource,
   loadResourceForEntity,
   reorder,
   refetchEntities,
@@ -61,7 +61,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   const { activateOwnerResource: handleSelect, cancelOwnerResourceActivation } = useOwnerResourceActivation({
     loadResourceForOwner,
     onActivateResource: onPickResource,
-    onEmptyOwner: onEmptyResource
+    onEmptyOwner: (entity) => void onCreateResource(entity.id)
   })
 
   useEffect(() => {

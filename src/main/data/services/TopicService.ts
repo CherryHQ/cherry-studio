@@ -494,8 +494,6 @@ export class TopicService {
    * Hard delete + tag/pin purge. Any future soft-delete path MUST also
    * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
    * makes `listByCursor`'s JOIN silently hide the topic from both sections.
-   *
-   * TODO: Clean up associated files (images, attachments) from disk.
    */
   delete(id: string): void {
     const dbService = application.get('DbService')
@@ -604,26 +602,22 @@ export class TopicService {
    * response or cursor:
    *
    * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
-   *   topic.id ASC`. New pins are inserted at the front of that order. The
-   *   pinned stream has no `sortBy` dimension.
-   * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
+   *   topic.id ASC`. The pinned stream has no `sortBy` dimension.
+   * - `pinned === false` → ordinary keyset stream ordered by `sortBy`
    *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
    *
-   * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
+   * Omitting `sortBy` defaults to `lastActivityAt` — there is no legacy composite
    * pinned-then-ordinary view. Every paged caller selects one stream.
    */
   listByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
+    return this.listOrdinaryByCursor(query, query.sortBy ?? 'lastActivityAt')
   }
 
-  /**
-   * Pinned-only page in persisted manual order. New pins are inserted first by
-   * PinService; the pinned query variant does not accept `sortBy`.
-   */
+  /** Pinned-only page in persisted pin order. */
   private listPinnedByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)

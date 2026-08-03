@@ -1,7 +1,13 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ReactElement, ReactNode } from 'react'
 
-import type { HistoryBulkMoveTarget, HistoryRecordsMode, HistorySourceOption } from './historyRecordsTypes'
+import type {
+  HistoryBulkMoveTarget,
+  HistoryRecordsMode,
+  HistorySourceOption,
+  HistorySourceStatus,
+  HistoryStatusOption
+} from './historyRecordsTypes'
 
 /** Callback the row passes to the menu preset so a menu item can open the rename dialog. */
 export type HistoryOpenRename = (id: string, name: string) => void
@@ -41,6 +47,8 @@ export interface HistoryRecordDescriptor<T> {
   // Search and source scope are query filters owned by the mode wrapper.
   getId: (item: T) => string
   isPinned: (id: string) => boolean
+  /** Agent mode only: derive the runtime status used by the status filter. */
+  statusOf?: (item: T) => HistorySourceStatus
   /** Runs the mode's bulk-delete mutation; resolves to the deleted ids, or undefined on failure/no-op. */
   onBulkDelete: (ids: string[]) => Promise<readonly string[] | undefined>
   /** Switch the active record after the current one was deleted (null clears it). */
@@ -48,7 +56,7 @@ export interface HistoryRecordDescriptor<T> {
 
   // --- rendering (consumed by HistoryRecordList / HistoryRecordRow) ---
   getName: (item: T) => string
-  getCreatedAt: (item: T) => string
+  getUpdatedAt: (item: T) => string
   getSourceLabel: (item: T) => string
   renderAvatar: (item: T) => ReactNode
   rowHeight: number
@@ -65,6 +73,7 @@ export interface HistoryRecordDescriptor<T> {
   sources: HistorySourceOption[]
   /** Renders the shared assistant/agent selector as the source filter (null = all). */
   renderSourceFilter: (selectedId: string | null, onSelect: (id: string | null) => void) => ReactNode
+  statusOptions?: HistoryStatusOption[]
   bulkMoveTargets?: readonly HistoryBulkMoveTarget[]
   /** Assistant mode only: move `ids` to `targetId`; resolves to the ids actually moved (for selection pruning). */
   onBulkMove?: (targetId: string, ids: string[]) => Promise<readonly string[] | undefined>
@@ -73,3 +82,5 @@ export interface HistoryRecordDescriptor<T> {
   onRename: (id: string, name: string) => void | Promise<void>
   strings: HistoryRecordsStrings
 }
+
+export type { HistorySourceStatus }

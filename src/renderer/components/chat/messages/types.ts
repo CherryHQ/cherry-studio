@@ -11,6 +11,7 @@ import type {
   MultiModelMessageStyle,
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
+import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -29,6 +30,7 @@ export interface MessageUiState {
   foldSelected?: boolean
   multiModelMessageStyle?: string
   useful?: boolean
+  disclosures?: Record<string, boolean>
 }
 
 export interface MessageListSelectionState {
@@ -39,6 +41,7 @@ export interface MessageListSelectionState {
 
 export interface MessageListRuntime {
   scrollToBottom: () => void
+  captureLocalSendScrollEligibility: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
@@ -201,7 +204,8 @@ export interface MessageListItem {
     provider: string
     group?: string
   }>
-  type?: 'clear'
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
 }
 
 export interface MessageRenderConfig {
@@ -254,6 +258,11 @@ export interface MessageStreamingLayers {
   liveMessageIds: readonly string[]
 }
 
+export interface MessageTailSlot {
+  messageId: string
+  content: ReactNode
+}
+
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
@@ -261,6 +270,8 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Optional adapter-owned content rendered after one message's body. */
+  messageTail?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
@@ -275,7 +286,8 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
-  readonly?: boolean
+  /** Monotonic counter incremented only after this renderer opens a local user turn. */
+  localSendGeneration?: number
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
@@ -293,6 +305,14 @@ export interface MessageListState {
     withEmoji?: boolean
   ) => string | undefined
 }
+
+/** Shared list mechanics; page adapters provide data and capabilities, not separate geometry or loading timing. */
+export const DEFAULT_MESSAGE_LIST_CONFIG = {
+  estimateSize: 400,
+  overscan: 6,
+  loadOlderDelayMs: 0,
+  loadingResetDelayMs: 600
+} as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
   loadOlder?: () => void
@@ -316,8 +336,6 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
-  /** Probe whether a path points at a directory (fs.stat-backed; resolves false on missing). */
-  isDirectory?: (path: string) => Promise<boolean>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   showInFolder?: (path: string) => void | Promise<void>
@@ -378,6 +396,8 @@ export interface MessageListMeta {
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
   imageExportFileName?: string
+  /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
+  aiUsageMessageKind?: AiUsageRecordMessageKind
 }
 
 export interface MessageListProviderValue {

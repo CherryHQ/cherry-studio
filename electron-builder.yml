@@ -79,6 +79,7 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -87,6 +88,9 @@ extraResources:
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -151,52 +155,58 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-beta.1 - V2 Beta Is Here
+    Cherry Studio 2.0.0-rc.4 - Providers, Files & Polish
 
-    ✨ New Experience
-    - [V2] This is the first public Beta of Cherry Studio V2, with a cleaner look and a simpler workspace
-    - [Tabs] Chats, mini apps, tools, and detached windows now feel more like working in a browser, with tabs you can pin or move out
-    - [Pages] Chat, Settings, Knowledge, Translation, Mini Apps, Launchpad, Code Tools, and Resource Library have all been rebuilt for V2
-    - [Library] Assistants, agents, and skills now live together in one Resource Library, with search, tags, import/export, and clearer detail views
-    - [Migration] V2 includes a guided upgrade flow for your existing settings, chats, agents, knowledge bases, files, models, providers, MCP servers, and preferences
+    ✨ New Features
+    - [Files] Files exclusively owned by deleted chats, topics, or paintings are now cleaned up automatically after a grace period instead of accumulating forever. Files you upload from the Files page are kept permanently; v1-migrated files are preserved unless they belonged to migrated chats or paintings.
+    - [Providers] Add AMD GPU Cloud as a built-in model provider and mini app, including Token Factory API key setup and source attribution.
+    - [Providers] Add official DeepSeek V4 Flash Responses API support while retaining Chat Completions fallback.
+    - [Providers] Provider request settings now allow changing the default chat endpoint.
+    - [Knowledge] Show live copy progress for folder imports and list folders before files in knowledge bases.
 
-    🚀 New Capabilities
-    - [Chat] Branching conversations are easier to follow, and the message area and input box are ready for the new V2 chat experience
-    - [Knowledge] Knowledge bases are more flexible: add URLs and notes, tune chunking, handle folders better, browse long source lists, and import documents through File Processing
-    - [Providers] Provider and model management is easier, with grouped lists, model search, model deletion, clearer validation, and better model details
-    - [Web Search] Web Search now separates keyword search from URL reading, with better defaults and improved access through the Jina China mirror
-    - [Code Tools] Code tools now open from a gallery-style page, with per-tool settings and support for Qoder CLI and Kimi Code
-    - [MCP] MCP servers are easier to discover, install, and manage from the refreshed marketplace
-    - [Translate] Image OCR in Translation now uses the same File Processing flow as the rest of the app
+    🐛 Bug Fixes
+    - [Chat] Fixed multi-model context selection so the indicator matches the branch used for subsequent messages, and selecting context no longer jumps the conversation to the latest message.
+    - [Paintings] Fixed the Paintings page opening the latest generated image instead of a fresh empty draft.
+    - [Agent] Claude Code Agent sessions no longer fail when SDK usage messages omit a model identifier.
+    - [Agent] Fixed the agent permission-mode switcher in the composer, where the "Approve for Me" and "Full Access" model-support warnings overflowed their rows and overlapped neighbouring options. The same warning no longer pushes the channel permission-mode selector onto two lines.
+    - [Agent] New agents now start in the "Ask Before Acting" permission mode instead of "Approve for Me". "Approve for Me" relies on model-side classification that not every model supports, so it is now an explicit choice and warns about model support when selected. Existing agents keep their current mode.
+    - [Agent] Fixed Agent v2 migration retries failing on stale Agent, workspace, or Claude Session cache targets.
+    - [Migration] Fixed model metadata (capabilities, context window, token limits) not being resolved from the provider registry after migrating from Cherry Studio v1 for models under user-defined custom providers.
+    - [Onboarding] Fixed onboarding blocking migrated users whose current privacy agreement was already saved.
+    - [Providers] Prevented API keys with non-ByteString characters from causing request encoding failures. Action required: replace any existing affected API key in provider settings.
+    - [Files] Agent file outputs now open in the appropriate Files pane view, with consistent previews and interactive HTML artifact support.
+    - [Mini Apps] Use a distinct grid icon for the mini-app launchpad action so it is easier to distinguish from the detached window always-on-top control.
 
-    ⚡ Performance
-    - [Startup] The app does less heavy work at launch, so startup should feel lighter
-    - [Data] Local data now uses the new V2 storage system, making chats, knowledge bases, settings, files, providers, and models more reliable
-    - [Agents] Agent and chat startup no longer has to wait on every MCP server refresh
-    - [Jobs] Image generation, file processing, OCR, indexing, and recovery now run through a smoother background job system
+    💄 Improvements
+    - [UI] Improved visual consistency and usability across settings, chat, Markdown, resource dialogs, and related navigation surfaces.
+    - [UI] Improved focus feedback so controls no longer draw an extra outer frame or change selector borders on pointer open.
+    - [Themes] Improved the consistency and readability of secondary text, links, focus outlines, selected borders, and feedback surfaces across light and dark themes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-beta.1 - V2 Beta 来了
+    Cherry Studio 2.0.0-rc.4 - 服务商、文件与界面打磨
 
-    ✨ 全新体验
-    - [V2] 这是 Cherry Studio V2 的第一个公开 Beta，界面更清爽，工作区也更顺手
-    - [标签页] 聊天、小程序、工具和独立窗口现在更像浏览器标签页，可以固定，也可以分离出去
-    - [页面] 聊天、设置、知识库、翻译、小程序、启动台、代码工具和资源库都已经按 V2 重新打造
-    - [资源库] 助手、智能体和技能现在集中在一个资源库里管理，支持搜索、标签、导入导出和更清晰的详情页
-    - [迁移] V2 提供引导式升级流程，迁移已有设置、聊天、智能体、知识库、文件、模型、提供商、MCP 服务和偏好设置
+    ✨ 新功能
+    - [文件] 已删除对话、话题或绘画面板专属的文件现会在宽限期后自动清理，而非永久堆积。从”文件”页上传的文件将永久保留；从 v1 迁移过来的文件除非属于已迁移的对话或绘画面板，否则也会保留。
+    - [服务商] 新增 AMD GPU Cloud 作为内置模型服务商与小程序，包含 Token Factory API 密钥设置与来源标注。
+    - [服务商] 新增 DeepSeek V4 Flash Responses API 官方支持，并保留 Chat Completions 作为回退。
+    - [服务商] 服务商请求设置现允许更改默认聊天端点。
+    - [知识库] 文件夹导入现显示实时复制进度，并在知识库中将文件夹排在文件之前。
 
-    🚀 新能力
-    - [聊天] 多分支对话更容易看懂，消息区和输入框也已经为新的 V2 聊天体验打好基础
-    - [知识库] 知识库更灵活了：可以添加 URL 和笔记，调整分块方式，更好地处理文件夹，浏览长数据源列表，并通过文件处理导入文档
-    - [提供商] 提供商和模型管理更顺手，支持分组列表、模型搜索、删除模型、更清晰的校验和更完整的模型信息
-    - [网络搜索] 网络搜索现在区分关键词搜索和 URL 读取，默认配置更清楚，并通过 Jina 国内镜像改善访问体验
-    - [代码工具] 代码工具改成画廊式入口，每个工具都有独立设置，并支持 Qoder CLI 和 Kimi Code
-    - [MCP] MCP 服务可以在改版后的市场里更方便地发现、安装和管理
-    - [翻译] 翻译里的图片 OCR 现在和应用里的文件处理流程保持一致
+    🐛 问题修复
+    - [聊天] 修复多模型上下文选择：指示器现与后续消息所用分支一致，选择上下文不再让对话跳转到最新消息。
+    - [绘画面板] 修复绘画面板打开时显示最近生成图片而非空白草稿的问题。
+    - [智能体] Claude Code 智能体会话在 SDK 用量消息缺少模型标识时不再失败。
+    - [智能体] 修复输入框中智能体权限模式切换器的”为我审批”与”完全访问”模型支持警告溢出行、与相邻选项重叠的问题；该警告也不再使频道权限模式选择器折成两行。
+    - [智能体] 新建智能体现以”操作前询问”权限模式启动，而非”为我审批”。”为我审批”依赖并非所有模型都支持的模型端分类，因此现为显式选择，并在选中时提示模型支持情况。已有智能体保持当前模式不变。
+    - [智能体] 修复智能体 v2 迁移在遇到陈旧的智能体、工作区或 Claude Session 缓存目标时重试失败的问题。
+    - [迁移] 修复从 Cherry Studio v1 迁移后，用户自定义服务商下模型的元数据（能力、上下文窗口、token 上限）无法从服务商注册表解析的问题。
+    - [引导] 修复引导流程卡住已保存过隐私协议的迁移用户的问题。
+    - [服务商] 阻止包含非 ByteString 字符的 API 密钥导致请求编码失败。需要操作：在服务商设置中替换任何已存在的受影响 API 密钥。
+    - [文件] 智能体文件输出现可在相应的”文件”窗格视图中打开，预览一致并支持交互式 HTML 工件。
+    - [小程序] 为小程序启动台操作使用独立的网格图标，使其更易与分离窗口的置顶控件区分。
 
-    ⚡ 性能优化
-    - [启动] 启动时少做重活，打开应用应该更轻快
-    - [数据] 本地数据换到新的 V2 存储系统，聊天、知识库、设置、文件、提供商和模型数据存储会更可靠
-    - [智能体] 智能体和聊天启动时不再需要等待所有 MCP 服务刷新
-    - [任务] 图片生成、文件处理、OCR、索引和恢复流程现在由后台任务系统处理，更顺畅也更稳
+    💄 改进
+    - [界面] 改进设置、聊天、Markdown、资源对话框及相关导航界面的视觉一致性与可用性。
+    - [界面] 改进焦点反馈，控件不再在指针打开时绘制多余外框或更改选择器边框。
+    - [主题] 改进亮色与暗色主题下辅助文本、链接、焦点轮廓、选中边框与反馈界面的一致性与可读性。
     <!--LANG:END-->

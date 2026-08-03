@@ -44,6 +44,8 @@ export interface HealthInfo {
   gatewayPort: number
 }
 
+type GatewayHealthProbeResult = { status: 'healthy' } | { status: 'unhealthy'; error: string }
+
 export interface OpenClawConfig {
   gateway?: {
     mode?: 'local' | 'remote'
@@ -62,6 +64,9 @@ export interface OpenClawConfig {
   models?: {
     mode?: string
     providers?: Record<string, OpenClawProviderConfig>
+  }
+  update?: {
+    checkOnStart?: boolean
   }
 }
 
@@ -249,7 +254,10 @@ export class OpenClawService extends BaseService {
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
     const proc = crossPlatformSpawn(openclawPath, args, {
-      env: shellEnv,
+      // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
+      // version BinaryManager installed and reports. This is OpenClaw's documented kill
+      // switch, scoped to the gateway process we spawn.
+      env: { ...shellEnv, OPENCLAW_NO_AUTO_UPDATE: '1' },
       detached: !isWin, // Only detach on non-Windows to avoid console flash
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -300,12 +308,12 @@ export class OpenClawService extends BaseService {
       }
 
       logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const { status, error: healthError } = await this.checkGatewayHealthWithError()
-      if (status === 'healthy') {
+      const healthResult = await this.checkGatewayHealthWithError()
+      if (healthResult.status === 'healthy') {
         logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
         return
       }
-      if (healthError) lastError = healthError
+      lastError = healthResult.error
     }
 
     // Combine all available diagnostics: health check errors, stderr, and stdout
@@ -384,8 +392,7 @@ export class OpenClawService extends BaseService {
    */
   private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
-      const { status } = await this.checkGatewayHealth()
-      const stillRunning = status === 'healthy'
+      const stillRunning = await this.checkPortOpen(this.gatewayPort)
       if (!stillRunning) {
         return false
       }
@@ -428,20 +435,11 @@ export class OpenClawService extends BaseService {
    * externally-started gateways should call this directly.
    */
   private async checkGatewayHealth(): Promise<HealthInfo> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
-        signal: AbortSignal.timeout(3000)
-      })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
-        if (data.ok && data.status === 'live') {
-          return { status: 'healthy', gatewayPort: this.gatewayPort }
-        }
-      }
-    } catch (error) {
-      logger.debug('Health probe failed:', error as Error)
+    const result = await this.probeGatewayHealth()
+    if (result.status === 'unhealthy') {
+      logger.debug('Health probe failed:', new Error(result.error))
     }
-    return { status: 'unhealthy', gatewayPort: this.gatewayPort }
+    return { status: result.status, gatewayPort: this.gatewayPort }
   }
 
   /**
@@ -798,6 +796,14 @@ export class OpenClawService extends BaseService {
       config.gateway.auth = { token }
       this.gatewayAuthToken = token
 
+      // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
+      // BinaryManager installed and version-tracks; the hint has no env kill switch
+      // (unlike OPENCLAW_NO_AUTO_UPDATE, which only blocks automatic applies).
+      // Only defaulted, never forced: a user who sets checkOnStart themselves keeps it.
+      if (config.update?.checkOnStart === undefined) {
+        config.update = { ...config.update, checkOnStart: false }
+      }
+
       // Update config
       config.models.providers[providerKey] = openclawProvider
 
@@ -825,19 +831,32 @@ export class OpenClawService extends BaseService {
    * Uses HTTP request for faster health checks.
    * Expected response: {"ok":true,"status":"live"}
    */
-  private async checkGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
+  private async checkGatewayHealthWithError(): Promise<GatewayHealthProbeResult> {
+    return this.probeGatewayHealth()
+  }
+
+  private async probeGatewayHealth(): Promise<GatewayHealthProbeResult> {
     try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/healthz`, {
         signal: AbortSignal.timeout(3000)
       })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
-        if (data.ok && data.status === 'live') {
-          return { status: 'healthy' }
-        }
-        return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
+      if (!response.ok) {
+        return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
       }
-      return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
+
+      const body = await response.text()
+      let data: { ok?: boolean; status?: string }
+      try {
+        data = JSON.parse(body) as { ok?: boolean; status?: string }
+      } catch {
+        const contentType = response.headers.get('content-type')?.split(';', 1)[0] || 'unknown content type'
+        return { status: 'unhealthy', error: `Invalid JSON from /healthz (${contentType})` }
+      }
+
+      if (data.ok && data.status === 'live') {
+        return { status: 'healthy' }
+      }
+      return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
     } catch (error) {
       return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
     }
