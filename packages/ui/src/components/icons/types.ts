@@ -38,6 +38,15 @@ export interface IconMeta {
   colorPrimary: string
   /** Whether the source SVG is monochrome or colorful. Monochrome icons use currentColor in color.tsx. */
   colorScheme?: 'mono' | 'color'
+  /** Build-time raster assets for first-paint avatar rendering. */
+  webp?: {
+    /** Light-theme asset URL. */
+    light: string
+    /** Dark-theme asset URL; falls back to light when absent. */
+    dark?: string
+    /** Intrinsic square pixel size shared by every generated asset. */
+    size: number
+  }
 }
 
 /** Icon component props */

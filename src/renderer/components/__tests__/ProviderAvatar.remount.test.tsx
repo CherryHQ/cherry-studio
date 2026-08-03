@@ -22,6 +22,7 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('@cherrystudio/ui/icons', () => {
   const BrandIcon = () => <span data-testid="brand-icon" />
   return {
+    getIconWebpUrl: () => undefined,
     resolveProviderIconRef: (id: string) =>
       id === 'openai' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
     useIcon: (ref: unknown) => (ref ? BrandIcon : undefined)

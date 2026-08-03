@@ -175,15 +175,42 @@ export function generateMeta(opts: {
   dirName: string
   colorPrimary: string
   colorScheme: 'mono' | 'color'
+  webp?: {
+    hasDark: boolean
+    size: number
+  }
 }): void {
-  const { outPath, dirName, colorPrimary, colorScheme } = opts
+  const { outPath, dirName, colorPrimary, colorScheme, webp } = opts
 
   const sf = project.createSourceFile('meta.ts', '', { overwrite: true })
 
+  if (webp) {
+    sf.addImportDeclaration({
+      defaultImport: 'lightWebp',
+      moduleSpecifier: './light.webp'
+    })
+
+    if (webp.hasDark) {
+      sf.addImportDeclaration({
+        defaultImport: 'darkWebp',
+        moduleSpecifier: './dark.webp'
+      })
+    }
+  }
+
   sf.addImportDeclaration({
+    leadingTrivia: webp ? '\n' : undefined,
     moduleSpecifier: '../../types',
     namedImports: [{ name: 'IconMeta', isTypeOnly: true }]
   })
+
+  const webpInitializer = webp
+    ? `  webp: {
+    light: lightWebp,
+${webp.hasDark ? '    dark: darkWebp,\n' : ''}    size: ${webp.size},
+  },
+`
+    : ''
 
   sf.addVariableStatement({
     isExported: true,
@@ -196,6 +223,7 @@ export function generateMeta(opts: {
   id: '${dirName}',
   colorPrimary: '${colorPrimary}',
   colorScheme: '${colorScheme}',
+${webpInitializer}
 }`
       }
     ]

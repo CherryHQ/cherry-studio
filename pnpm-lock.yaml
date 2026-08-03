@@ -1644,6 +1644,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.3(react@19.2.3)
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
       storybook:
         specifier: ^10.0.5
         version: 10.3.4(@testing-library/dom@10.4.1)(prettier@3.8.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

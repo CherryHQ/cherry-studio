@@ -21,16 +21,15 @@ export function UsageProviderAvatar({
   size?: number
   className?: string
 }) {
-  // Resolve the built-in brand icon synchronously from the ref; the component
-  // itself loads async and the primitive covers the loading window with initials.
+  // Resolve the built-in brand icon synchronously from the ref; the primitive
+  // renders its build-time WebP without loading the SVG component catalog.
   const iconRef = resolveProviderIconRef(provider.id)
-  const icon = useIcon(iconRef)
 
   return (
     <ProviderAvatarPrimitive
       providerId={provider.id}
       providerName={provider.name}
-      logo={icon}
+      logo={iconRef ? `icon:${iconRef.key}` : undefined}
       size={size}
       className={className}
     />

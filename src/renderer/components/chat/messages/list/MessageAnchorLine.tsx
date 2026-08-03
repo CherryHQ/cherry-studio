@@ -1,10 +1,9 @@
 import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
-import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils/naming'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
@@ -310,27 +309,11 @@ const MessageItemAvatar = ({ className, ...props }: React.ComponentPropsWithoutR
   />
 )
 
-/** Model avatar for one anchor item: sync ref resolution, async icon component. */
+/** Model avatar for one anchor item: sync ref and build-time WebP resolution. */
 const AnchorModelAvatar: FC<{ model: ReturnType<typeof getMessageListItemModel>; size: number }> = ({
   model,
   size
-}) => {
-  const { theme } = useTheme()
-  // Walk the full resolution chain (model icon → provider-by-model → provider).
-  const ModelIcon = useIcon(getModelLogoRef(model))
-  if (ModelIcon) {
-    return <ModelIcon.Avatar size={size} shape="circle" className="rounded-full" />
-  }
-  return (
-    <MessageItemAvatar
-      style={{
-        width: size,
-        height: size,
-        border: 'none',
-        filter: theme === 'dark' ? 'invert(0.05)' : undefined
-      }}></MessageItemAvatar>
-  )
-}
+}) => <ModelAvatar className="rounded-full" fallback={null} model={model} size={size} />
 
 const MessageLineContainer = ({
   ref,

@@ -1,9 +1,7 @@
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
-import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -19,7 +17,7 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
-import MessageAvatar, { MESSAGE_MODEL_AVATAR_ICON_CLASS, MessageAvatarFrame } from './MessageAvatar'
+import MessageAvatar, { MESSAGE_AVATAR_SIZE } from './MessageAvatar'
 import MessageTokens from './MessageTokens'
 
 interface Props {
@@ -54,8 +52,6 @@ const MessageHeader: FC<Props> = memo(
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
     const displayModelName = displayModel?.name || displayModel?.id
-    const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
-
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
     // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
     // so editing/deleting the live entity never changes a past message's name or avatar.
@@ -94,17 +90,12 @@ const MessageHeader: FC<Props> = memo(
         {isAssistantMessage ? (
           authorAvatar ? (
             <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
-          ) : ModelIcon ? (
-            <MessageAvatarFrame className="bg-background">
-              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
-            </MessageAvatarFrame>
           ) : (
-            <MessageAvatar
+            <ModelAvatar
+              className="rounded-full"
               fallback={avatarName}
-              fallbackAvatarStyle={{
-                border: 'none',
-                filter: theme === 'dark' ? 'invert(0.05)' : undefined
-              }}
+              model={displayModel}
+              size={MESSAGE_AVATAR_SIZE}
             />
           )
         ) : (

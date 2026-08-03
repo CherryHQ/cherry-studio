@@ -121,6 +121,7 @@
     "linguist-languages": "^9.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sharp": "0.34.5",
     "storybook": "^10.0.5",
     "svgo": "^3.3.2",
     "ts-morph": "^27.0.2",

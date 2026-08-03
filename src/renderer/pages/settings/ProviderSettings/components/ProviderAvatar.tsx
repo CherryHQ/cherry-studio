@@ -1,4 +1,4 @@
-import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef } from '@cherrystudio/ui/icons'
 import { getIconDisplayConfig, type IconDisplayContext } from '@renderer/components/icons/iconDisplayConfig'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
@@ -13,10 +13,9 @@ interface ProviderAvatarProps {
 }
 
 export function ProviderAvatar({ provider, size, className, style, displayContext }: ProviderAvatarProps) {
-  // Existence is decided synchronously from the ref (meta catalog); only the
-  // component itself loads async, so the branch below never flip-flops.
+  // Existence and the build-time WebP URL are both decided synchronously from
+  // the meta catalog, so preset providers never load the SVG component catalog.
   const systemIconRef = resolveProviderIconRef(provider.id)
-  const systemIcon = useIcon(systemIconRef)
   // Preset providers render the bundled icon; custom providers carry either a
   // preset brand key (`icon:<id>` on `logo`) or a main-resolved uploaded-logo
   // URL (`logoSrc`). The primitive dispatches on both.
@@ -38,7 +37,7 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
       <ProviderAvatarPrimitive
         providerId={provider.id}
         providerName={provider.name}
-        logo={systemIcon}
+        logo={`icon:${systemIconRef.key}`}
         size={size}
         className={className}
         style={style}

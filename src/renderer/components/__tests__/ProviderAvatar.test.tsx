@@ -5,14 +5,17 @@ import { cleanup, render, screen } from '@testing-library/react'
 import type { CSSProperties } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// Resolve only `openai` to a recognizable stand-in icon; everything else is unknown.
+// Resolve the known ids to a recognizable built-in icon or WebP; everything else is unknown.
 vi.mock('@cherrystudio/ui/icons', () => {
   const BrandIcon = ({ style, variant }: { style?: CSSProperties; variant?: string }) => (
     <span data-testid="brand-icon" data-variant={variant} style={style} />
   )
   return {
+    getIconWebpUrl: (ref: { key: string } | undefined) => (ref?.key === 'openai-webp' ? '/openai.webp' : undefined),
     resolveProviderIconRef: (id: string) =>
-      id === 'openai' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
+      id === 'openai' || id === 'openai-webp'
+        ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } }
+        : undefined,
     useIcon: (ref: unknown) => (ref ? BrandIcon : undefined)
   }
 })
@@ -71,6 +74,25 @@ describe('ProviderAvatarPrimitive', () => {
       height: '71.42857142857143%',
       borderRadius: '5px'
     })
+  })
+
+  it('centers oversized built-in WebPs within the avatar frame', () => {
+    render(
+      <ProviderAvatarPrimitive
+        providerId="custom"
+        providerName="Custom"
+        logo="icon:openai-webp"
+        iconStyle={{ width: '120%', height: '120%', flexShrink: 0 }}
+      />
+    )
+
+    const image = document.querySelector('img')
+
+    // This flex alignment is the visual contract: an oversized WebP must overflow
+    // equally above and below the fixed avatar frame instead of shifting downward.
+    expect(image?.parentElement).toHaveClass('items-center', 'justify-center')
+    expect(image).toHaveClass('max-w-none')
+    expect(image).not.toHaveClass('m-auto')
   })
 
   it('falls back to the name initial when an `icon:<id>` reference is unknown', () => {

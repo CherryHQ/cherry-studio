@@ -23,7 +23,9 @@ describe('icons public entry lazy boundary', () => {
     async () => {
       const icons = await import('../index')
       // Touch the sync surface to prove it works catalog-free.
-      expect(icons.resolveIconRef('claude-sonnet-5', 'openai')?.key).toBe('claude')
+      const iconRef = icons.resolveIconRef('some-unmatched-model', 'openai')
+      expect(iconRef?.key).toBe('openai')
+      expect(icons.getIconWebpUrl(iconRef, 'light')).toMatch(/\.webp/)
       expect(Object.keys(icons.PROVIDER_ICON_META_CATALOG).length).toBeGreaterThan(100)
       expect(providerCatalogEvaluated).not.toHaveBeenCalled()
       expect(modelCatalogEvaluated).not.toHaveBeenCalled()

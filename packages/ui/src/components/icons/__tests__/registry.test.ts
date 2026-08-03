@@ -1,6 +1,36 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveIconRef, resolveModelIconRef, resolveModelToProviderIconRef, resolveProviderIconRef } from '../registry'
+import {
+  getIconWebpUrl,
+  type IconRef,
+  resolveIconRef,
+  resolveModelIconRef,
+  resolveModelToProviderIconRef,
+  resolveProviderIconRef
+} from '../registry'
+
+describe('getIconWebpUrl', () => {
+  it('selects the requested variant and falls back to light', () => {
+    const withDark = {
+      kind: 'provider',
+      key: 'openai',
+      meta: {
+        id: 'openai',
+        colorPrimary: '#000000',
+        webp: { light: '/openai-light.webp', dark: '/openai-dark.webp', size: 256 }
+      }
+    } as IconRef
+    const lightOnly = {
+      ...withDark,
+      meta: { ...withDark.meta, webp: { light: '/openai-light.webp', size: 256 } }
+    } as IconRef
+
+    expect(getIconWebpUrl(withDark, 'light')).toBe('/openai-light.webp')
+    expect(getIconWebpUrl(withDark, 'dark')).toBe('/openai-dark.webp')
+    expect(getIconWebpUrl(lightOnly, 'dark')).toBe('/openai-light.webp')
+    expect(getIconWebpUrl(undefined, 'light')).toBeUndefined()
+  })
+})
 
 describe('resolveProviderIconRef', () => {
   const testCases = [
