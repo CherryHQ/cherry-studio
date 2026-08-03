@@ -52,4 +52,13 @@ describe('navigate protocol handler', () => {
     expect(openRouteInMainWindowMock).toHaveBeenCalledWith('/agents?x=1&y=2')
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
+
+  it('blocks internal MCP install parameters', () => {
+    handleNavigateProtocolUrl(
+      new URL('cherrystudio://navigate/settings/mcp/servers?protocolInstall=forged&protocolInstallRequestId=1')
+    )
+
+    expect(loggerMock.warn).toHaveBeenCalledWith('Blocked navigation with internal MCP install parameters')
+    expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
+  })
 })

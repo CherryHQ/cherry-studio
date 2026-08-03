@@ -44,6 +44,8 @@ export interface HealthInfo {
   gatewayPort: number
 }
 
+type GatewayHealthProbeResult = { status: 'healthy' } | { status: 'unhealthy'; error: string }
+
 export interface OpenClawConfig {
   gateway?: {
     mode?: 'local' | 'remote'
@@ -306,12 +308,12 @@ export class OpenClawService extends BaseService {
       }
 
       logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const { status, error: healthError } = await this.checkGatewayHealthWithError()
-      if (status === 'healthy') {
+      const healthResult = await this.checkGatewayHealthWithError()
+      if (healthResult.status === 'healthy') {
         logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
         return
       }
-      if (healthError) lastError = healthError
+      lastError = healthResult.error
     }
 
     // Combine all available diagnostics: health check errors, stderr, and stdout
@@ -433,20 +435,11 @@ export class OpenClawService extends BaseService {
    * externally-started gateways should call this directly.
    */
   private async checkGatewayHealth(): Promise<HealthInfo> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
-        signal: AbortSignal.timeout(3000)
-      })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
-        if (data.ok && data.status === 'live') {
-          return { status: 'healthy', gatewayPort: this.gatewayPort }
-        }
-      }
-    } catch (error) {
-      logger.debug('Health probe failed:', error as Error)
+    const result = await this.probeGatewayHealth()
+    if (result.status === 'unhealthy') {
+      logger.debug('Health probe failed:', new Error(result.error))
     }
-    return { status: 'unhealthy', gatewayPort: this.gatewayPort }
+    return { status: result.status, gatewayPort: this.gatewayPort }
   }
 
   /**
@@ -838,19 +831,32 @@ export class OpenClawService extends BaseService {
    * Uses HTTP request for faster health checks.
    * Expected response: {"ok":true,"status":"live"}
    */
-  private async checkGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
+  private async checkGatewayHealthWithError(): Promise<GatewayHealthProbeResult> {
+    return this.probeGatewayHealth()
+  }
+
+  private async probeGatewayHealth(): Promise<GatewayHealthProbeResult> {
     try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/healthz`, {
         signal: AbortSignal.timeout(3000)
       })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
-        if (data.ok && data.status === 'live') {
-          return { status: 'healthy' }
-        }
-        return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
+      if (!response.ok) {
+        return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
       }
-      return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
+
+      const body = await response.text()
+      let data: { ok?: boolean; status?: string }
+      try {
+        data = JSON.parse(body) as { ok?: boolean; status?: string }
+      } catch {
+        const contentType = response.headers.get('content-type')?.split(';', 1)[0] || 'unknown content type'
+        return { status: 'unhealthy', error: `Invalid JSON from /healthz (${contentType})` }
+      }
+
+      if (data.ok && data.status === 'live') {
+        return { status: 'healthy' }
+      }
+      return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
     } catch (error) {
       return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
     }

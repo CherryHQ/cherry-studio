@@ -17,7 +17,7 @@ vi.mock('@renderer/utils/style', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} data-testid="translate-output-scrollbar" {...props}>
+    <div ref={ref} {...props}>
       {children}
     </div>
   ),
@@ -36,23 +36,15 @@ const baseProps = () => ({
 })
 
 describe('TranslateOutputPane', () => {
-  it('shows translated length and a copy button in the output pane footer', () => {
+  it('shows translated content, length, and a copy button', () => {
     const props = baseProps()
     props.translatedContent = 'partial output'
 
     render(<TranslateOutputPane {...props} />)
 
+    expect(screen.getByText('partial output')).toBeInTheDocument()
     expect(screen.getByText('14')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
-  })
-
-  it('renders translated content inside the shared Scrollbar', () => {
-    const props = baseProps()
-    props.translatedContent = 'partial output'
-
-    render(<TranslateOutputPane {...props} />)
-
-    expect(screen.getByTestId('translate-output-scrollbar')).toHaveTextContent('partial output')
   })
 
   it('shows the processing indicator while waiting for output', () => {

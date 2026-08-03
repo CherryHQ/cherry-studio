@@ -17,7 +17,7 @@ import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
@@ -127,6 +127,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
@@ -139,7 +140,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !model) {
       return
     }
@@ -167,6 +168,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    setInitializedModel(model)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
@@ -392,6 +394,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }, [autoSave, savedClassification])
 
   if (!provider || !model) {
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
+  }
+
+  if (initializedModel !== model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
