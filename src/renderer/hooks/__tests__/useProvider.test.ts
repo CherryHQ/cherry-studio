@@ -52,7 +52,7 @@ describe('useProviders', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -62,24 +62,11 @@ describe('useProviders', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useProviders())
+    const { result, rerender } = renderHook(() => useProviders())
+    const firstProviders = result.current.providers
 
     expect(result.current.providers).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useProviders())
-    const firstProviders = result.current.providers
 
     rerender()
 
