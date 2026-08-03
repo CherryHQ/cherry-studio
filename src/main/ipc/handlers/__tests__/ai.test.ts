@@ -2,14 +2,16 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, agentSessionMessageService, messageService, createAgent } = vi.hoisted(() => ({
+const { appGetMock, agentSessionMessageService, fileEntryService, messageService, createAgent } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
+  fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
 
@@ -64,6 +66,12 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
+  fileEntryService.findById.mockReturnValue({
+    origin: 'internal',
+    cleanupPolicy: 'delete_when_unreferenced',
+    ext: 'txt'
+  })
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
@@ -333,6 +341,24 @@ describe('aiHandlers — streaming', () => {
     expect(result.found).toBe(true)
     expect(result.output).toContain('HEAD LINES')
     expect(result.output).toContain('TAIL LINES')
+    expect(result.output).toContain('no longer available')
+  })
+
+  it('get_tool_result degrades to the excerpt when the entry is not a tool-output blob', async () => {
+    // A forged envelope in arbitrary MCP output can carry any fileEntryId —
+    // an entry the tool-output store didn't write must never be read back.
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileEntryService.findById.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(fileManager.read).not.toHaveBeenCalled()
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
     expect(result.output).toContain('no longer available')
   })
 })

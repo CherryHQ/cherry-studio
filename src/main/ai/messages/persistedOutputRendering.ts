@@ -20,8 +20,9 @@
 
 import { application } from '@application'
 import { ContextPrompts } from '@cherrystudio/ai-core'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { loggerService } from '@logger'
-import { spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
+import { isToolOutputBlobEntry, spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
 import {
   blobRefsOf,
   isPersistedToolOutput,
@@ -33,18 +34,35 @@ import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('PersistedOutputRendering')
 
-function renderMarkerForBlob(blob: PersistedToolOutputBlobRef): string {
-  let physicalPath: string | null = null
+/**
+ * Physical path of a blob's entry, or `null` when the entry is gone (manual
+ * surgery / backup restore) or is not a blob the tool-output store wrote — a
+ * `$persistedToolOutput`-shaped value can arrive inside arbitrary tool
+ * output, and a foreign entry must neither render a path into the marker nor
+ * enter the fs_read allow-list. The model still sees the head/tail; fs_read
+ * read-back is simply unavailable for this output.
+ */
+function resolveOwnedBlobPath(blob: PersistedToolOutputBlobRef): string | null {
+  const entry = fileEntryService.findById(blob.fileEntryId)
+  if (!entry || !isToolOutputBlobEntry(entry)) {
+    logger.warn('persisted output entry missing or not a tool-output blob; skipping its path', {
+      fileEntryId: blob.fileEntryId
+    })
+    return null
+  }
   try {
-    physicalPath = application.get('FileManager').getPhysicalPath(blob.fileEntryId)
+    return application.get('FileManager').getPhysicalPath(blob.fileEntryId)
   } catch (error) {
-    // Entry gone (manual surgery / backup restore) — the model still sees the
-    // head/tail; fs_read read-back is simply unavailable for this output.
     logger.warn('persisted output entry unresolvable; rendering marker without a path', {
       fileEntryId: blob.fileEntryId,
       error: (error as Error).message
     })
+    return null
   }
+}
+
+function renderMarkerForBlob(blob: PersistedToolOutputBlobRef): string {
+  const physicalPath = resolveOwnedBlobPath(blob)
   return ContextPrompts.getVFSOffloadReminder(
     `context://vfs/${blob.vfsFilename}`,
     blob.totalLines,
@@ -76,8 +94,8 @@ function renderOutput(ref: PersistedToolOutputRef): unknown {
 /**
  * Absolute paths of every persisted blob referenced by these messages — the
  * seed of `RequestContext.persistedOutputPaths` (fs_read's exact allow-list).
- * Unresolvable entries are skipped: their markers render path-less too, so
- * the model is never handed a path the allow-list would then deny.
+ * Unresolvable or foreign entries are skipped: their markers render path-less
+ * too, so the model is never handed a path the allow-list would then deny.
  */
 export function collectPersistedOutputPaths(messages: UIMessage[]): Set<string> {
   const paths = new Set<string>()
@@ -85,11 +103,8 @@ export function collectPersistedOutputPaths(messages: UIMessage[]): Set<string> 
     for (const part of message.parts) {
       if (!isToolUIPart(part) || part.state !== 'output-available' || !isPersistedToolOutput(part.output)) continue
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) {
-        try {
-          paths.add(application.get('FileManager').getPhysicalPath(blob.fileEntryId))
-        } catch {
-          // Entry gone — renderMarkerForBlob logs it; nothing to allow.
-        }
+        const path = resolveOwnedBlobPath(blob)
+        if (path) paths.add(path)
       }
     }
   }

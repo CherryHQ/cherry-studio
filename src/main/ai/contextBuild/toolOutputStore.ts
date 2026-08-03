@@ -33,6 +33,17 @@ export function computeVfsFilename(text: string): string {
 }
 
 /**
+ * True iff `entry` carries the exact fixed attributes
+ * {@link persistToolOutputText} writes. A `$persistedToolOutput`-shaped value
+ * can arrive inside arbitrary tool output (e.g. MCP results), so the
+ * `fileEntryId` alone proves nothing — consumers must gate on this before
+ * serving an entry's bytes or allow-listing its physical path.
+ */
+export function isToolOutputBlobEntry(entry: FileEntry): entry is Extract<FileEntry, { origin: 'internal' }> {
+  return entry.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced' && entry.ext === 'txt'
+}
+
+/**
  * Find-or-create the FileManager entry holding `text`. Dedup key is the
  * stored `contentHash` (xxh3, indexed); candidates are narrowed to entries
  * this module could have written (internal auto-cleanup `.txt` of the same
@@ -44,13 +55,7 @@ export async function persistToolOutputText(text: string): Promise<PersistedBlob
   const fileManager = application.get('FileManager')
 
   const candidates = await fileManager.findInternalByContentHash(hashContent(data))
-  const match = candidates.find(
-    (c) =>
-      c.origin === 'internal' &&
-      c.cleanupPolicy === 'delete_when_unreferenced' &&
-      c.ext === 'txt' &&
-      c.size === data.byteLength
-  )
+  const match = candidates.find((c) => isToolOutputBlobEntry(c) && c.size === data.byteLength)
   if (match) return { entry: match, vfsFilename }
 
   const entry = await fileManager.createInternalEntry({

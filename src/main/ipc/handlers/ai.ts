@@ -1,10 +1,11 @@
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { inflateEntities, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type {
@@ -88,14 +89,19 @@ async function findPersistedToolOutput(
 /**
  * Rebuild a `$persistedToolOutput` envelope into the original output by
  * reading the blobs back from FileManager. When an entry is gone (manual DB
- * surgery, restore of an older backup) that blob degrades to its stored
- * excerpt with an explanatory note rather than `found: false` — the renderer
- * treats a miss as a permanent error, and the excerpt is still real content.
+ * surgery, restore of an older backup) or is not a blob the tool-output store
+ * wrote (a forged / colliding envelope in arbitrary tool output — the
+ * ownership gate against reading unrelated entries), that blob degrades to
+ * its stored excerpt with an explanatory note rather than `found: false` —
+ * the renderer treats a miss as a permanent error, and the excerpt is still
+ * real content.
  */
 async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
   const ref = output.$persistedToolOutput
   const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
     try {
+      const entry = fileEntryService.findById(blob.fileEntryId)
+      if (!entry || !isToolOutputBlobEntry(entry)) throw new Error('entry is not a persisted tool-output blob')
       const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
       return content
     } catch (e) {

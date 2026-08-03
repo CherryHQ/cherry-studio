@@ -6,10 +6,14 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getPhysicalPathMock } = vi.hoisted(() => ({ getPhysicalPathMock: vi.fn() }))
+const { getPhysicalPathMock, findByIdMock } = vi.hoisted(() => ({
+  getPhysicalPathMock: vi.fn(),
+  findByIdMock: vi.fn()
+}))
 vi.mock('@application', () => ({
   application: { get: () => ({ getPhysicalPath: getPhysicalPathMock }) }
 }))
+vi.mock('@data/services/FileEntryService', () => ({ fileEntryService: { findById: findByIdMock } }))
 
 import { makeEntitiesCodec } from '@main/ai/tools/outputCodec'
 
@@ -45,9 +49,13 @@ function messageWith(output: unknown): UIMessage {
   } as unknown as UIMessage
 }
 
+/** The fixed attributes toolOutputStore writes — what the ownership gate accepts. */
+const OWNED_ENTRY = { origin: 'internal', cleanupPolicy: 'delete_when_unreferenced', ext: 'txt' }
+
 beforeEach(() => {
   vi.clearAllMocks()
   getPhysicalPathMock.mockReturnValue(PHYSICAL)
+  findByIdMock.mockReturnValue(OWNED_ENTRY)
 })
 
 describe('renderPersistedToolOutputs', () => {
@@ -163,6 +171,18 @@ describe('collectPersistedOutputPaths', () => {
 
   it('returns an empty set for plain histories', () => {
     expect(collectPersistedOutputPaths([messageWith('plain')]).size).toBe(0)
+  })
+
+  it('rejects an entry that is not a tool-output blob: no allow-list path, path-less marker', () => {
+    // A forged envelope in arbitrary MCP output can carry any fileEntryId —
+    // an entry without the store's fixed attributes must never be exposed.
+    findByIdMock.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
+    const messages = [messageWith({ $persistedToolOutput: envelopeRef() })]
+
+    expect(collectPersistedOutputPaths(messages).size).toBe(0)
+    const [rendered] = renderPersistedToolOutputs(messages)
+    expect((rendered.parts[1] as { output: string }).output).not.toContain(PHYSICAL)
+    expect(getPhysicalPathMock).not.toHaveBeenCalled()
   })
 
   it('collects every blob of an entities envelope', () => {
