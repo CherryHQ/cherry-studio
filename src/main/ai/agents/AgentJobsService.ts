@@ -6,6 +6,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { triggersEqual, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
@@ -15,6 +16,11 @@ const logger = loggerService.withContext('AgentJobsService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const DEFAULT_TIMEOUT_MINUTES = 2
+
+function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
+  if (a.type !== b.type) return false
+  return a.type === AGENT_WORKSPACE_TYPE.USER ? a.workspaceId === (b as typeof a).workspaceId : true
+}
 
 /**
  * Sole command owner for agent scheduled tasks — the renderer (IpcApi
@@ -100,18 +106,25 @@ export class AgentJobsService extends BaseService {
       }
     }
 
+    const nextReuseEnabled = patch.reuseSession ?? existing.reuseSession
     const reuseChanged = patch.reuseSession !== undefined && patch.reuseSession !== existing.reuseSession
+    // A bound session keeps its OWN workspace, so re-pointing the task at a
+    // different workspace would otherwise be silently ignored while the form
+    // still displays the new one. Drop the pointer instead: the next fire
+    // creates a session in the workspace the user actually picked.
+    const workspaceChanged =
+      nextReuseEnabled && patch.workspace !== undefined && !workspacesEqual(patch.workspace, existing.workspace)
 
     const jobManager = application.get('JobManager')
     application.get('DbService').withWriteTx((tx) => {
-      if (reuseChanged) {
+      if (reuseChanged || workspaceChanged) {
         // Read-merge-write inside the tx: `updateTx` replaces `metadata`
         // wholesale, and a fire may be writing `reuse.sessionId` concurrently.
-        // Either direction clears the bound session — so toggling off→on is
-        // also how a user starts a clean conversation.
+        // Clearing the pointer is also how a user starts a clean conversation
+        // (toggle reuse off→on).
         const snapshot = jobScheduleService.getByIdTx(tx, taskId)
         schedulePatch.metadata = writeTaskSessionReuse(snapshot?.metadata, {
-          enabled: patch.reuseSession === true,
+          enabled: nextReuseEnabled,
           sessionId: null
         })
       }

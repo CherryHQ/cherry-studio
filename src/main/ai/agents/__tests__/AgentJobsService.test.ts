@@ -342,6 +342,92 @@ describe('AgentJobsService', () => {
     })
   })
 
+  // ---------------------------------------------------------------- session reuse
+
+  describe('session reuse', () => {
+    /** Simulate a fire having bound its sticky session, plus an unrelated metadata key. */
+    function bindSession(taskId: string, sessionId: string): void {
+      const current = jobScheduleService.getById(taskId)?.metadata ?? {}
+      jobScheduleService.update(taskId, {
+        metadata: { ...current, reuse: { enabled: true, sessionId }, unrelated: 'keep-me' }
+      })
+    }
+
+    function readReuse(taskId: string): unknown {
+      return jobScheduleService.getById(taskId)?.metadata?.reuse
+    }
+
+    it('defaults to reuse off with nothing bound', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(task.reuseSession).toBe(false)
+      expect(task.reuseSessionId).toBeNull()
+      expect(readReuse(task.id)).toEqual({ enabled: false, sessionId: null })
+    })
+
+    it('enables reuse without binding a session up front', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      const updated = service.updateTask(AGENT_ID, task.id, { reuseSession: true })
+
+      expect(updated?.reuseSession).toBe(true)
+      expect(updated?.reuseSessionId).toBeNull()
+    })
+
+    it('clears the bound session when reuse is turned off', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      bindSession(task.id, 'sess-1')
+      expect(service.updateTask(AGENT_ID, task.id, {})?.reuseSessionId).toBe('sess-1')
+
+      const updated = service.updateTask(AGENT_ID, task.id, { reuseSession: false })
+
+      expect(updated?.reuseSession).toBe(false)
+      expect(updated?.reuseSessionId).toBeNull()
+    })
+
+    // A bound session keeps its own workspace, so without this the user would
+    // repoint the task at workspace B and watch it keep working in A.
+    it('clears the bound session when the workspace changes, keeping reuse on', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      bindSession(task.id, 'sess-1')
+
+      const updated = service.updateTask(AGENT_ID, task.id, {
+        workspace: { type: 'user', workspaceId: 'ws-9' }
+      })
+
+      expect(updated?.reuseSession).toBe(true)
+      expect(updated?.reuseSessionId).toBeNull()
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({
+        workspace: { type: 'user', workspaceId: 'ws-9' }
+      })
+    })
+
+    // The edit dialog submits full-field saves, so a no-op workspace resubmit
+    // must not silently reset the conversation.
+    it('keeps the bound session when the workspace is resubmitted unchanged', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      bindSession(task.id, 'sess-1')
+
+      const updated = service.updateTask(AGENT_ID, task.id, { workspace: { type: 'system' } })
+
+      expect(updated?.reuseSessionId).toBe('sess-1')
+    })
+
+    // `updateTx` replaces the metadata column wholesale — the read-merge-write
+    // in updateTask is what keeps foreign keys alive.
+    it('preserves unrelated metadata keys when clearing the pointer', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      bindSession(task.id, 'sess-1')
+
+      service.updateTask(AGENT_ID, task.id, { reuseSession: false })
+
+      expect(jobScheduleService.getById(task.id)?.metadata).toEqual({
+        reuse: { enabled: false, sessionId: null },
+        unrelated: 'keep-me'
+      })
+    })
+  })
+
   // ---------------------------------------------------------------- pause / resume
 
   describe('pauseTask / resumeTask', () => {
