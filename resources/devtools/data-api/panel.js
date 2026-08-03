@@ -267,5 +267,18 @@ capturePayloadsEl.addEventListener('change', async () => {
   )
 })
 
+// capturePayloads lives in the inspected renderer and outlives panel rebuilds
+// (DevTools close/reopen), so read it back on init instead of assuming the
+// checkbox default. setOptions({}) returns the current options unchanged.
+async function syncCaptureState() {
+  const options = await evalInInspectedWindow(
+    'window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.setOptions({})'
+  )
+  if (options && typeof options.capturePayloads === 'boolean') {
+    capturePayloadsEl.checked = options.capturePayloads
+  }
+}
+
 setInterval(refresh, 500)
+void syncCaptureState()
 void refresh()
