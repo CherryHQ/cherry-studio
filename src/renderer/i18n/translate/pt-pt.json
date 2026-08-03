@@ -1350,6 +1350,9 @@
       "label": "Tem certeza de que deseja fazer backup dos dados?"
     },
     "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
+    "error": {
+      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente."
+    },
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Caminho atual",
+          "fetchError": "Falha ao carregar a lista de pastas do Nutstore",
           "return": "Voltar",
           "title": "Caminho de armazenamento do Nutstore"
         },

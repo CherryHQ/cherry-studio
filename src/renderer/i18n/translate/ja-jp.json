@@ -1350,6 +1350,9 @@
       "label": "データをバックアップしますか？"
     },
     "content": "バックアップ操作はすべてのアプリデータを含むため、時間がかかる場合があります。",
+    "error": {
+      "active_data_writers": "会話またはエージェントがまだ実行中です。終了するまで待ってから、もう一度お試しください。"
+    },
     "progress": {
       "completed": "バックアップ完了",
       "compressing": "圧縮中...",
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "現在のパス",
+          "fetchError": "Nutstoreのフォルダリストの読み込みに失敗しました",
           "return": "戻る",
           "title": "Nutstoreストレージパス"
         },

@@ -1350,6 +1350,9 @@
       "label": "Möchten Sie wirklich eine Datensicherung durchführen?"
     },
     "content": "Sichern Sie alle Daten, einschließlich Chat-Verlauf, Einstellungen, Wissensdatenbank und alle anderen Daten. Bitte beachten Sie, dass der Backup-Vorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
+    "error": {
+      "active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut."
+    },
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Aktueller Pfad",
+          "fetchError": "Fehler beim Laden der Nutstore-Ordnerliste",
           "return": "Zurück",
           "title": "Nutstore-Speicherpfad"
         },

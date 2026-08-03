@@ -1350,6 +1350,9 @@
       "label": "Êtes-vous sûr de vouloir effectuer une sauvegarde des données ?"
     },
     "content": "Sauvegarder toutes les données, y compris l'historique des conversations, les paramètres et la base de connaissances. Veuillez noter que le processus de sauvegarde peut prendre un certain temps, merci de votre patience.",
+    "error": {
+      "active_data_writers": "Une conversation ou un agent est toujours en cours d'exécution. Attendez qu'il se termine, puis réessayez."
+    },
     "progress": {
       "completed": "Sauvegarde terminée",
       "compressing": "Compression des fichiers...",
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Текущий путь",
+          "fetchError": "Impossible de charger la liste des dossiers Nutstore",
           "return": "Назад",
           "title": "Chemin de stockage Nutstore"
         },

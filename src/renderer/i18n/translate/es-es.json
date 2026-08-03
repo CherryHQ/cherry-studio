@@ -1350,6 +1350,9 @@
       "label": "¿Está seguro de que desea realizar una copia de seguridad de los datos?"
     },
     "content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
+    "error": {
+      "active_data_writers": "Una conversación o agente aún está en ejecución. Espere a que termine, luego inténtelo de nuevo."
+    },
     "progress": {
       "completed": "Copia de seguridad completada",
       "compressing": "Comprimiendo archivos...",
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Ruta actual",
+          "fetchError": "Error al cargar la lista de carpetas de Nutstore",
           "return": "Volver",
           "title": "Ruta de almacenamiento de Nutstore"
         },
