@@ -1922,14 +1922,7 @@
           "official": "https://vercel.com/ai-gateway"
         }
       },
-      "name": "Vercel AI Gateway",
-      "serverTools": [
-        {
-          "id": "web-search",
-          "modelScope": "model-dependent",
-          "vendors": ["anthropic", "gemini", "openai", "grok"]
-        }
-      ]
+      "name": "Vercel AI Gateway"
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2055,5 +2048,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "b91fc56a75616a0f"
+  "version": "bba2c6cc60c9ccbf"
 }

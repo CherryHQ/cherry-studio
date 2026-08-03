@@ -127,9 +127,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     hasFunctionToolSignals: toolSignals
       ? toolSignals.mcpToolIds.size > 0 ||
-        toolSignals.hasAnyKnowledgeBase ||
+        // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
+        // scope one. ORing the two made every user with any KB look like a function-tool conflict,
+        // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
+        (toolSignals.hasAnyKnowledgeBase && knowledgeBaseIds.length > 0) ||
         hasFileAttachments ||
-        knowledgeBaseIds.length > 0 ||
         Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
         assistant?.settings.enableGenerateImage === true
       : false,

@@ -62,7 +62,6 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   // $web_search echo tool injected by the moonshot extension factory.
   moonshot: { 'web-search': factories('moonshot') },
   poe: { 'web-search': { kind: 'provider-options' } },
-  gateway: { 'web-search': { kind: 'gateway-mapped' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
   'new-api': { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
   // Native vendor endpoints behind `aihubmix.<vendor>` model provider strings.

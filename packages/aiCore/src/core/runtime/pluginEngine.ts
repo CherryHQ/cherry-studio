@@ -95,9 +95,11 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     model: LanguageModel,
     settings: TSettings
   ): Promise<TSettings> {
-    const context = createContext(this.providerId, model, settings)
-    const manager = new PluginManager(this.basePlugins)
-    return (await manager.executeTransformParams(settings as any, context as any)) as TSettings
+    const context = createContext<T, TSettings>(this.providerId, model, settings)
+    // Same variance-safe narrowing as `executeStreamWithPlugins`: only the stored plugin array needs
+    // a cast, after which params and context type-check against the manager's own generics.
+    const manager = new PluginManager<TSettings>(this.basePlugins as AiPlugin<TSettings>[])
+    return manager.executeTransformParams(settings, context)
   }
 
   /**

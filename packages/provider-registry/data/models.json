@@ -2115,13 +2115,41 @@
       "name": "Qwen3.8 Max",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
+            "kind": "effort",
+            "values": ["low", "medium", "xhigh"]
+          },
+          {
+            "kind": "budget",
+            "max": 262144,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["low", "medium", "xhigh"],
+        "thinkingTokenLimits": {
+          "max": 262144,
+          "min": 0
+        }
       }
     },
     {
@@ -20897,5 +20925,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "bf3f280a5c2a9d00"
+  "version": "b52f25661b6a4ebc"
 }

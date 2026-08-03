@@ -4377,19 +4377,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
+          "perMillionTokens": 0.02
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "copilot"
@@ -4423,19 +4419,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.125
+          "perMillionTokens": 0.2
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 12
         }
       },
       "providerId": "copilot"
@@ -12025,15 +12017,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.04
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "gateway"
@@ -15076,6 +15068,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "alibaba/qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "alibaba/qwen3-coder",
       "modelId": "qwen3-coder",
       "pricing": {
@@ -17195,7 +17210,7 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash",
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash-0731",
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "input": {
@@ -25064,15 +25079,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05278
+          "perMillionTokens": 0.11414
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2842
+          "perMillionTokens": 0.6146
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.8932
+          "perMillionTokens": 1.9316
         }
       },
       "providerId": "openrouter",
@@ -29797,17 +29812,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.289
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
@@ -30035,6 +30046,44 @@
       }
     },
     {
+      "apiModelId": "qwen/qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "qwen/qwen3-8b",
       "modelId": "qwen3-8b",
       "pricing": {
@@ -30244,11 +30293,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.98
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 3.95
         }
       },
       "providerId": "openrouter",
@@ -37262,5 +37311,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e4503c16860c3912"
+  "version": "75cf39105c25df9f"
 }

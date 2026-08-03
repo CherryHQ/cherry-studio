@@ -540,6 +540,43 @@ describe('buildAgentParams web-tool routing', () => {
       expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
     }
   )
+
+  // Owning a knowledge base is global account state; the KB tools only load when this request also
+  // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal
+  // made every Gemini 2.5 request look like a native-tool conflict and lose the server route.
+  it('keeps the server route for Gemini 2.5 when a knowledge base exists but none is selected', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const geminiProvider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } },
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    })
+    const geminiModel = makeModel({
+      id: 'gemini::gemini-2.5-pro',
+      providerId: 'gemini',
+      apiModelId: 'gemini-2.5-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    preferenceGetMock.mockImplementation((key: string) =>
+      key === 'chat.web_search.client_tools_preferred' ? false : null
+    )
+    registry.register(clientSearchEntry)
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider: geminiProvider,
+      model: geminiModel,
+      assistant
+    })
+
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
+    expect(result.tools?.web_search).toBeUndefined()
+  })
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
