@@ -105,6 +105,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: () => {},
   useInstalledSkills: () => ({
     skills: [],
     loading: false
